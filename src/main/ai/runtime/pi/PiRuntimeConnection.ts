@@ -25,7 +25,7 @@ import {
 } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { appendRuntimeContextReminderText, wrapSteerReminder } from '@main/ai/steerReminder'
+import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { customFetch } from '@main/ai/utils/customFetch'
@@ -84,6 +84,7 @@ import {
 import { loadPiAiCompat, loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
+import { createPiRuntimeContextExtension } from './runtimeContextExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
@@ -300,7 +301,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         workspacePath,
         agentDataPath,
         agent,
-        citationsGuidance
+        citationsGuidance,
+        effectiveLanguage: initialSnapshot.effectiveLanguage
       })
       const approvalContext = {
         sessionId: this.input.sessionId,
@@ -340,7 +342,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         additionalSkillPaths,
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
-          createPiApprovalExtension(approvalContext)
+          createPiApprovalExtension(approvalContext),
+          createPiRuntimeContextExtension(() =>
+            resolveAgentTurnContextPrompt({
+              snapshot: this.runtimeContext,
+              webSearchEnabled: this.isCherryWebSearchEnabled()
+            })
+          )
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
@@ -481,34 +489,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
     this.promptRunActive = true
-    if (!this.runtimeContext && !this.isCherryWebSearchEnabled()) {
-      void session.prompt(content, options).then(
-        () => this.finishPromptRun(),
-        (error) => this.finishPromptRun(error)
-      )
-      return
-    }
-    void this.enqueuePromptWithRuntimeContext(session, content, options)
+    void session.prompt(content, options).then(
+      () => this.finishPromptRun(),
+      (error) => this.finishPromptRun(error)
+    )
   }
 
   private isCherryWebSearchEnabled(): boolean {
     return !this.disabledTools.has(buildPiMcpToolName('cherry-tools', WEB_SEARCH_TOOL_NAME))
-  }
-
-  private async enqueuePromptWithRuntimeContext(
-    session: AgentSession,
-    content: string,
-    options: { streamingBehavior: 'followUp' } | undefined
-  ): Promise<void> {
-    const runtimeContext = await resolveAgentTurnContextPrompt({
-      snapshot: this.runtimeContext,
-      webSearchEnabled: this.isCherryWebSearchEnabled()
-    })
-    const payload = runtimeContext ? appendRuntimeContextReminderText(content, runtimeContext) : content
-    await session.prompt(payload, options).then(
-      () => this.finishPromptRun(),
-      (error) => this.finishPromptRun(error)
-    )
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {

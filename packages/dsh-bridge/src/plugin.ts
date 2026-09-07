@@ -13,6 +13,7 @@ import type {} from '@deepseek-ai/dsh-plan-mode'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-subagent'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-token-meter'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
@@ -32,7 +33,16 @@ import {
 } from './protocol'
 
 export const name = 'cherry-bridge'
-export const inject = ['approval', 'agents', 'tools', 'tokenMeter', 'subagents', 'userQuestions', 'planMode']
+export const inject = [
+  'approval',
+  'agents',
+  'tools',
+  'tokenMeter',
+  'subagents',
+  'userQuestions',
+  'planMode',
+  'systemPrompt'
+]
 
 /** Canonical value a bridged execute resolves; `output.schema` states the same contract. */
 interface BridgeToolOutputValue {
@@ -44,6 +54,12 @@ interface RegisteredBridgeTool {
   descriptorKey: string
   sessions: Set<string>
   dispose: () => void
+}
+
+interface TurnSystemPromptState {
+  active?: string
+  activeTurn?: number
+  pending: Map<string, string | undefined>
 }
 
 // No Config schema: env is the channel (a YAML `config` would need a Schemastery schema).
@@ -60,6 +76,7 @@ export function apply(ctx: Context): void {
   const policies = new Map<string, BridgePolicy>()
   const registeredTools = new Map<string, RegisteredBridgeTool>()
   const sessionTools = new Map<string, Set<string>>()
+  const turnSystemPrompts = new Map<string, TurnSystemPromptState>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
   const pendingCommands = new Map<string, AbortController>()
 
@@ -71,6 +88,7 @@ export function apply(ctx: Context): void {
   ctx.effect(
     () => () => {
       for (const sessionId of [...sessionTools.keys()]) disposeTools(sessionId)
+      turnSystemPrompts.clear()
     },
     'cherry-bridge.tools'
   )
@@ -81,8 +99,18 @@ export function apply(ctx: Context): void {
       case 'session/open':
         return openSession(params as BridgeHostParams<'session/open'>)
       case 'session/prompt': {
-        const { sessionId, contentBlocks } = params as BridgeHostParams<'session/prompt'>
-        requireAgent(sessionId).followup(createUserMessage({ content: contentBlocks, source: { kind: 'user' } }))
+        const { sessionId, contentBlocks, systemPromptAppend } = params as BridgeHostParams<'session/prompt'>
+        const agent = requireAgent(sessionId)
+        const state = turnSystemPrompts.get(sessionId)
+        if (!state) throw new Error(`no turn system prompt state for session "${sessionId}"`)
+        const message = createUserMessage({ content: contentBlocks, source: { kind: 'user' } })
+        state.pending.set(message.id, systemPromptAppend)
+        try {
+          agent.followup(message)
+        } catch (error) {
+          state.pending.delete(message.id)
+          throw error
+        }
         return {}
       }
       case 'session/cancel': {
@@ -145,6 +173,7 @@ export function apply(ctx: Context): void {
   }
 
   async function openSession(params: BridgeHostParams<'session/open'>): Promise<Record<string, never>> {
+    if (turnSystemPrompts.has(params.sessionId)) throw new Error(`session "${params.sessionId}" is already open`)
     policies.set(params.sessionId, params.policy)
     const agentOptions = {
       provider: params.provider,
@@ -152,6 +181,7 @@ export function apply(ctx: Context): void {
       ...(params.maxTokens === undefined ? {} : { maxTokens: params.maxTokens })
     }
     try {
+      let agent: Agent
       replaceTools(params.sessionId, params.tools)
       if (params.resume) {
         try {
@@ -162,25 +192,48 @@ export function apply(ctx: Context): void {
               `persisted dsh session cwd ${JSON.stringify(resumed.agent.session.header.cwd)} does not match ${JSON.stringify(params.cwd)}`
             )
           }
+          agent = resumed.agent
         } catch (error) {
           if (!isMissingSessionError(error)) throw error
           // No persisted log for this id yet — degrade to a fresh create (pi parity).
-          await ctx.agents.create({
+          const created = await ctx.agents.create({
             sessionId: SessionId(params.sessionId),
             meta: { cwd: params.cwd },
             agentOptions
           })
+          agent = created.agent
         }
       } else {
-        await ctx.agents.create({
+        const created = await ctx.agents.create({
           sessionId: SessionId(params.sessionId),
           meta: { cwd: params.cwd },
           agentOptions
         })
+        agent = created.agent
       }
+      const turnSystemPrompt: TurnSystemPromptState = { pending: new Map() }
+      turnSystemPrompts.set(params.sessionId, turnSystemPrompt)
+      agent.ctx.on('agent/inbox/claimed', ({ message, turn }) => {
+        if (turnSystemPrompt.activeTurn !== turn) {
+          turnSystemPrompt.activeTurn = turn
+          turnSystemPrompt.active = undefined
+        }
+        if (!turnSystemPrompt.pending.has(message.id)) return
+        turnSystemPrompt.active = turnSystemPrompt.pending.get(message.id)
+        turnSystemPrompt.pending.delete(message.id)
+      })
+      agent.ctx.on('agent/inbox/discarded', ({ message }) => {
+        turnSystemPrompt.pending.delete(message.id)
+      })
+      agent.ctx.systemPrompt.section({
+        name: 'cherry:turn-context',
+        order: 90,
+        text: () => turnSystemPrompt.active ?? ''
+      })
       return {}
     } catch (error) {
       policies.delete(params.sessionId)
+      turnSystemPrompts.delete(params.sessionId)
       disposeTools(params.sessionId)
       throw error
     }

@@ -24,7 +24,7 @@ import {
 } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
-import { appendRuntimeContextReminderText, wrapSteerReminder } from '@main/ai/steerReminder'
+import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -299,6 +299,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       agentDataPath: this.agentDataPath,
       agent,
       citationsGuidance,
+      effectiveLanguage: snapshot.effectiveLanguage,
       // Compensates a custom base for the workspace context the native base owns (claude parity).
       customBaseContext: [
         '## Current Workspace',
@@ -451,14 +452,14 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       webSearchEnabled: !this.disabledTools.has(buildDshCherryToolName('cherry-tools', WEB_SEARCH_TOOL_NAME))
     })
     const wrapped = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
-    const content = runtimeContext ? appendRuntimeContextReminderText(wrapped, runtimeContext) : wrapped
     this.markTurnActive()
     // Before the request: the turn can start streaming before the socket result returns.
     this.adapter.beginTurn()
     try {
       await bridge.request('session/prompt', {
         sessionId: this.input.sessionId,
-        contentBlocks: [{ type: 'text', text: content }]
+        contentBlocks: [{ type: 'text', text: wrapped }],
+        ...(runtimeContext ? { systemPromptAppend: runtimeContext } : {})
       })
     } catch (error) {
       this.turnActive = false

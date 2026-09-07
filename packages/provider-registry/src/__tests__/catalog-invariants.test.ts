@@ -98,7 +98,8 @@ describe('catalog invariants (data/*.json)', () => {
   const baseIds = new Set(ids)
 
   it.each([
-    ['mai-image-2-5', 'microsoft', 'Microsoft: MAI-Image-2.5'],
+    // OpenRouter renamed the vendor prefix (Microsoft → MicrosoftAI) in the same batch as MiniMax → MiniMaxAI.
+    ['mai-image-2-5', 'microsoft', 'MicrosoftAI: MAI-Image-2.5'],
     ['recraft-v4-1-vector', 'recraft', 'Recraft: Recraft V4.1 Vector'],
     ['riverflow-v2-5-fast', 'sourceful', 'Sourceful: Riverflow V2.5 Fast'],
     ['seedream-4-5', 'bytedance', 'Seedream 4.5']

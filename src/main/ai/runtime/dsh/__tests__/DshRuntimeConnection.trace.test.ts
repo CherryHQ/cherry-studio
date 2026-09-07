@@ -268,7 +268,7 @@ describe('DshRuntimeConnection tracing', () => {
     await connection.close()
   })
 
-  it('appends resolved runtime context to the user prompt sent to DSH', async () => {
+  it('sends resolved runtime context separately from the durable DSH user prompt', async () => {
     runtimeMocks.resolveAgentTurnContextPrompt.mockResolvedValueOnce('Resolved runtime context')
     const connection = await new DshRuntimeConnection(connectInput).start()
     runtimeMocks.bridgeRequest.mockClear()
@@ -279,9 +279,8 @@ describe('DshRuntimeConnection tracing', () => {
 
     expect(runtimeMocks.bridgeRequest).toHaveBeenCalledWith('session/prompt', {
       sessionId: 'session-1',
-      contentBlocks: [
-        { type: 'text', text: 'Hello\n\n<system-reminder>\nResolved runtime context\n</system-reminder>' }
-      ]
+      contentBlocks: [{ type: 'text', text: 'Hello' }],
+      systemPromptAppend: 'Resolved runtime context'
     })
     await connection.close()
   })

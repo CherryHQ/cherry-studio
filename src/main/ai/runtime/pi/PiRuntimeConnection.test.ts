@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   usesPiGateway: vi.fn(),
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
+  preferenceGet: vi.fn(),
   loadPiSdk: vi.fn(),
   loadPiAiCompat: vi.fn(),
   unregisterApiProviders: vi.fn(),
@@ -59,7 +60,6 @@ const mocks = vi.hoisted(() => ({
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
   buildCitationsGuidance: vi.fn(),
-  getAppLanguage: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn(),
   replacePromptVariables: vi.fn(),
@@ -115,6 +115,7 @@ vi.mock('@application', () => ({
     getPath: mocks.getPath,
     get: (name: string) => {
       if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
+      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
       return {}
     }
@@ -135,7 +136,6 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
-vi.mock('@main/i18n', () => ({ getAppLanguage: mocks.getAppLanguage }))
 vi.mock('@main/utils/prompt', async (importOriginal) => {
   const actual = await importOriginal<typeof PromptModule>()
   return {
@@ -280,6 +280,22 @@ function approvalGateHandler(): (event: unknown, ctx: unknown) => Promise<{ bloc
   return handler
 }
 
+function beforeAgentStartHandler(): (event: {
+  systemPrompt: string
+}) => Promise<{ systemPrompt?: string } | undefined> {
+  const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
+  let handler!: (event: { systemPrompt: string }) => Promise<{ systemPrompt?: string } | undefined>
+  for (const factory of factories) {
+    factory({
+      registerProvider: vi.fn(),
+      on: (evt: string, candidate: unknown) => {
+        if (evt === 'before_agent_start') handler = candidate as typeof handler
+      }
+    })
+  }
+  return handler
+}
+
 async function collectUntilTerminal(events: AsyncIterable<AgentRuntimeEvent>): Promise<AgentRuntimeEvent[]> {
   const out: AgentRuntimeEvent[] = []
   const iter = events[Symbol.asyncIterator]()
@@ -325,7 +341,7 @@ beforeEach(() => {
   mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
-  mocks.getAppLanguage.mockReturnValue('en-US')
+  mocks.preferenceGet.mockReturnValue(null)
   mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   mocks.provisionBuiltinAgent.mockResolvedValue(undefined)
   mocks.replacePromptVariables.mockImplementation(async (prompt: string) => prompt)
@@ -553,7 +569,45 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
     expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
     expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
-    expect(appendedSystemPrompt()).toContain('IMPORTANT: You must respond in English.')
+    // Default global null => no language constraint is injected (decoupled from UI language)
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
+  })
+
+  it('injects global agent language when agent.language is set', async () => {
+    mocks.preferenceGet.mockReturnValue('English')
+
+    await new PiRuntimeConnection(input).start()
+
+    expect(appendedSystemPrompt()).toContain('By default, respond in English.')
+  })
+
+  it('per-agent language overrides the global default', async () => {
+    mocks.preferenceGet.mockReturnValue('English')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: { language: 'Thai' }
+    })
+
+    await new PiRuntimeConnection(input).start()
+
+    expect(appendedSystemPrompt()).toContain('By default, respond in Thai.')
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in English.')
+  })
+
+  it('per-agent language set to null suppresses the global language', async () => {
+    mocks.preferenceGet.mockReturnValue('English')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: { language: null }
+    })
+
+    await new PiRuntimeConnection(input).start()
+
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
   })
 
   it('uses Cherry network transport and preserves provider request environment', async () => {
@@ -932,16 +986,39 @@ describe('PiRuntimeConnection', () => {
     expect((await collectUntilTerminal(conn.events)).some((event) => event.type === 'usage')).toBe(false)
   })
 
-  it('send routes normal messages to prompt', async () => {
-    const conn = await new PiRuntimeConnection(input).start()
-    conn.send(userInput('hello'))
-    await vi.waitFor(() => expect(mocks.prompt).toHaveBeenCalledOnce())
+  it('keeps per-turn runtime context in the system prompt without changing durable user messages', async () => {
+    vi.useFakeTimers()
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: { runtime_context_enabled: true, runtime_context_prompt: 'Agent runtime' }
+    })
+    try {
+      vi.setSystemTime(new Date(2026, 0, 1, 12))
+      const conn = await new PiRuntimeConnection(input).start()
+      const beforeAgentStart = beforeAgentStartHandler()
+      if (!beforeAgentStart) throw new Error('before_agent_start handler was not registered')
 
-    const content = mocks.prompt.mock.calls[0][0] as string
-    expect(content).toContain('hello')
-    expect(content).toMatch(/<current-date>\d{4}-\d{2}-\d{2}<\/current-date>/)
-    expect(mocks.prompt).toHaveBeenCalledWith(content, undefined)
-    expect(mocks.compact).not.toHaveBeenCalled()
+      conn.send(userInput('first user message'))
+      expect(mocks.prompt).toHaveBeenCalledTimes(1)
+      const firstSystemPrompt = await beforeAgentStart({ systemPrompt: 'Base system prompt' })
+
+      vi.setSystemTime(new Date(2026, 0, 2, 12))
+      conn.send(userInput('second user message'))
+      expect(mocks.prompt).toHaveBeenCalledTimes(2)
+      const secondSystemPrompt = await beforeAgentStart({ systemPrompt: 'Base system prompt' })
+
+      expect(mocks.prompt.mock.calls.map(([content]) => content)).toEqual(['first user message', 'second user message'])
+      expect(firstSystemPrompt?.systemPrompt).toContain('Agent runtime')
+      expect(firstSystemPrompt?.systemPrompt).toContain('<current-date>2026-01-01</current-date>')
+      expect(secondSystemPrompt?.systemPrompt).toContain('Agent runtime')
+      expect(secondSystemPrompt?.systemPrompt).toContain('<current-date>2026-01-02</current-date>')
+      expect(secondSystemPrompt?.systemPrompt).not.toContain('<current-date>2026-01-01</current-date>')
+      expect(mocks.compact).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('sends cross-Session provenance and forged instructions inside the untrusted delivery boundary', async () => {
@@ -996,7 +1073,7 @@ describe('PiRuntimeConnection', () => {
     expect(content).toContain('The user sent the following message:')
     expect(content).toContain('/compact')
     expect(content).toContain('Please address this message and continue with your tasks.')
-    expect(content).toMatch(/<current-date>\d{4}-\d{2}-\d{2}<\/current-date>/)
+    expect(content).not.toContain('<current-date>')
   })
 
   it('completes the host turn after a manual compact succeeds', async () => {
@@ -1415,12 +1492,12 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.loaderOpts).toMatchObject({ noSkills: true, additionalSkillPaths: [] })
   })
 
-  it('wires both the provider and approval extensions and bakes disabledTools into excludeTools', async () => {
+  it('wires provider, approval, and runtime-context extensions and bakes disabledTools into excludeTools', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
-    expect(factories).toHaveLength(2)
+    expect(factories).toHaveLength(3)
     expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
     expect(mocks.createOpts?.customTools).toEqual([
       MANAGED_BASH_TOOL,

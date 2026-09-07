@@ -108,7 +108,7 @@ export interface BridgeHostRequestMap {
     result: Record<string, never>
   }
   'session/prompt': {
-    params: { sessionId: string; contentBlocks: BridgeTextBlock[] }
+    params: { sessionId: string; contentBlocks: BridgeTextBlock[]; systemPromptAppend?: string }
     result: Record<string, never>
   }
   'session/cancel': { params: { sessionId: string }; result: Record<string, never> }

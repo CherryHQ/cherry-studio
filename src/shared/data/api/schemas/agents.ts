@@ -7,6 +7,7 @@
  */
 
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
@@ -63,7 +64,8 @@ export const AgentConfigurationSchema = z
     heartbeat_interval: z.number().optional(),
     builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional(),
     runtime_context_enabled: z.boolean().optional(),
-    runtime_context_prompt: z.string().optional()
+    runtime_context_prompt: z.string().optional(),
+    language: AgentLanguageSchema.nullable().optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must
