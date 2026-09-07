@@ -42,7 +42,8 @@ const HIDDEN_PART_TYPES = new Set([
   'data-citation',
   'data-agent-task-event',
   'data-knowledge-scope',
-  'data-clear'
+  'data-clear',
+  'data-no-response-dismissed'
 ])
 
 const ASSOCIATED_RESULT_PART_TYPES = new Set(['data-error', 'file', 'data-video'])

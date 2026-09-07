@@ -19,8 +19,8 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
   if (isHiddenMarkerPart(part)) return false
   if (part.type === 'text' || part.type === 'reasoning') return !!part.text?.trim()
   if (part.type === 'file') {
-    const p = part as unknown as { url?: string; filename?: string; name?: string }
-    return !!p.url?.trim() || !!p.filename?.trim() || !!p.name?.trim()
+    const p = part as unknown as { url?: string }
+    return !!p.url?.trim()
   }
   if (part.type === 'data-code') {
     const data = (part as unknown as { data?: { content?: string } }).data
