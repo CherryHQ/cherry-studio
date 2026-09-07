@@ -462,8 +462,8 @@
     }
   ],
   "providers": {
-    "version": "5dfdc0799d6d2042",
-    "count": 61,
+    "version": "c2901f20e45001ef",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
@@ -544,6 +544,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "jalapeno-cloud",
+        "name": "Jalapeno Cloud"
       },
       {
         "id": "new-api",

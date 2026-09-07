@@ -685,7 +685,9 @@ describe('MessageList', () => {
           getMessageActivityState: (message) => ({
             isApprovalAnchor: message.id === assistant.id,
             isProcessing: message.id === assistant.id,
-            isStreamTarget: message.id === assistant.id
+            isStreamTarget: message.id === assistant.id,
+            isActiveTurnProcessing: message.id === assistant.id,
+            isStreamLive: false
           })
         })}>
         <MessageList />

@@ -24,6 +24,7 @@ import p_grok from './grok'
 import p_grok_cli from './grok-cli'
 import p_groq from './groq'
 import p_huggingface from './huggingface'
+import p_jalapeno_cloud from './jalapeno-cloud'
 import p_jina from './jina'
 import p_lanyun from './lanyun'
 import p_lmstudio from './lmstudio'
@@ -83,6 +84,7 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_jalapeno_cloud,
   p_new_api,
   p_lmstudio,
   p_anthropic,

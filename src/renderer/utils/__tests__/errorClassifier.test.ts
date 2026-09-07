@@ -19,6 +19,35 @@ function makeRetryError(overrides: Partial<SerializedError> = {}): SerializedErr
 }
 
 describe('classifyError', () => {
+  it.each([
+    ['auth', '/settings/provider?id=anthropic'],
+    ['model', '/settings/provider?id=anthropic'],
+    ['rate_limit', '/settings/provider?id=anthropic'],
+    ['network', '/settings/general'],
+    ['mcp', '/settings/mcp/servers'],
+    ['unknown', null]
+  ] as const)('uses an explicit Claude Code %s exit category', (category, navTarget) => {
+    expect(
+      classifyError(
+        {
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: category
+        },
+        'anthropic'
+      )
+    ).toMatchObject({ category, navTarget })
+  })
+
+  it('falls back to the message when the exit category is not one the app knows', () => {
+    const result = classifyError(
+      makeError({ message: 'HTTP 429 too many requests', claudeCodeExitCategory: 'sandbox_denied' }),
+      'anthropic'
+    )
+    expect(result.category).toBe('rate_limit')
+  })
+
   it('returns unknown for undefined error', () => {
     const result = classifyError(undefined)
     expect(result.category).toBe('unknown')

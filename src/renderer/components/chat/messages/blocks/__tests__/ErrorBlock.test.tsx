@@ -154,6 +154,77 @@ describe('ErrorBlock', () => {
     expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
   })
 
+  it('shows only the safe Claude Code exit status and diagnostic reference', () => {
+    const diagnoseMessageError = vi.fn()
+    const navigateErrorTarget = vi.fn()
+    mocks.actions = { diagnoseMessageError, navigateErrorTarget }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: 'auth',
+          diagnosticReference: 'diagnostic-ref',
+          processExitCode: 1
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+    expect(screen.getByText('error.claude_code_exit.code')).toBeInTheDocument()
+    expect(screen.queryByText(/stderr|api_key|sk-ant/i)).toBeNull()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText(GO_TO_SETTINGS_LABEL))
+    expect(navigateErrorTarget).toHaveBeenCalledWith('/settings/provider?id=openai')
+  })
+
+  it('does not treat an unknown exit category as a Claude Code diagnostic', async () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('diagnosed')
+    mocks.actions = { diagnoseMessageError }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Opaque process failure',
+          stack: null,
+          claudeCodeExitCategory: 'future-category'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.queryByText('error.claude_code_exit.start')).toBeNull()
+    await waitFor(() => expect(diagnoseMessageError).toHaveBeenCalledOnce())
+  })
+
+  it('does not promise a diagnostic reference the payload never carried', () => {
+    mocks.actions = { diagnoseMessageError: vi.fn() }
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ClaudeCodeProcessExitError',
+          message: 'Claude Code process exited with code 1',
+          stack: null,
+          claudeCodeExitCategory: 'auth',
+          processExitCode: 1
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.queryByText('error.claude_code_exit.code')).toBeNull()
+    expect(screen.getByText('error.diagnosis.auth')).toBeInTheDocument()
+  })
+
   it('ignores non-serializable provider data when classifying an error', () => {
     const circularData: Record<string, unknown> = {}
     circularData.self = circularData
