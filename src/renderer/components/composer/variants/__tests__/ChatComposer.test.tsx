@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   selectedKnowledgeBases: undefined as KnowledgeBase[] | undefined,
   knowledgeBases: [] as KnowledgeBase[],
   knowledgeBasesLoading: false,
+  knowledgeBasesError: undefined as Error | undefined,
   assistant: undefined as any,
   model: undefined as Model | undefined,
   assistantLoading: false,
@@ -513,7 +514,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: (...args: unknown[]) => {
     mocks.knowledgeBaseHookArgs.push(args)
-    return { bases: mocks.knowledgeBases, isLoading: mocks.knowledgeBasesLoading }
+    return { bases: mocks.knowledgeBases, isLoading: mocks.knowledgeBasesLoading, error: mocks.knowledgeBasesError }
   }
 }))
 
@@ -797,6 +798,7 @@ describe('ChatComposer', () => {
     mocks.files = undefined
     mocks.knowledgeBases = []
     mocks.knowledgeBasesLoading = false
+    mocks.knowledgeBasesError = undefined
     mocks.assistant = {
       id: 'assistant-1',
       name: 'Assistant 1',
@@ -3910,6 +3912,80 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.tokens).toContainEqual(
       expect.objectContaining({ id: 'knowledge:kb-1', kind: 'knowledge' })
     )
+  })
+
+  it('keeps knowledge-scoped message editing locked when catalog restoration fails', async () => {
+    const knowledgeBase = { id: 'kb-1', name: 'Knowledge One' } as KnowledgeBase
+    mocks.assistant = { ...mocks.assistant, knowledgeBaseIds: [knowledgeBase.id] }
+    mocks.knowledgeBasesError = new Error('catalog failed')
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [
+      {
+        type: 'text',
+        text: 'question with knowledge',
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'knowledge:kb-1',
+                  kind: 'knowledge',
+                  label: knowledgeBase.name,
+                  index: 0,
+                  textOffset: 0
+                }
+              ]
+            }
+          }
+        }
+      },
+      { type: 'data-knowledge-scope', data: { baseIds: [knowledgeBase.id] } }
+    ] as any[]
+
+    const view = render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.surfaceProps?.editable).toBe(false)
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.editingState?.onSave).toBeUndefined()
+    expect(mocks.replaceDraft).not.toHaveBeenCalledWith(expect.objectContaining({ text: 'question with knowledge' }))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'scope was dropped', tokens: [] })
+    })
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(forkAndResend).not.toHaveBeenCalled()
+
+    mocks.knowledgeBases = [knowledgeBase]
+    mocks.knowledgeBasesError = undefined
+    view.rerender(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase]))
+    expect(mocks.surfaceProps?.editable).toBe(true)
   })
 
   it('closes an open Quick Panel when message-edit restoration starts', async () => {

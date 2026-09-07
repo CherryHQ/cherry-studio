@@ -64,7 +64,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, readCherryMeta, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { Eraser } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -612,9 +612,11 @@ const ChatComposerInner = ({
     Boolean(editingMessageForCurrentTopic) ||
     rootPanelVisible ||
     knowledgeBasePanelVisible
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
-    enabled: knowledgeBasesDataEnabled
-  })
+  const {
+    bases: allKnowledgeBases,
+    isLoading: isKnowledgeBasesLoading,
+    error: knowledgeBasesError
+  } = useKnowledgeBases({ enabled: knowledgeBasesDataEnabled })
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
@@ -1220,6 +1222,16 @@ const ChatComposerInner = ({
       return
     }
     if (isKnowledgeBasesLoading) return
+    const hasKnowledgeBaseScope =
+      (getKnowledgeBaseIdsFromParts(editingMessageForCurrentTopic.parts)?.length ?? 0) > 0 ||
+      editingMessageForCurrentTopic.parts.some(
+        (part) =>
+          part.type === 'text' && readCherryMeta(part)?.composer?.tokens.some((token) => token.kind === 'knowledge')
+      )
+    if (knowledgeBasesError && hasKnowledgeBaseScope) {
+      restoringEditingSessionIdRef.current = null
+      return
+    }
     if (
       restoredEditingSessionId === editingMessageForCurrentTopic.editingSessionId ||
       restoringEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId
@@ -1255,6 +1267,7 @@ const ChatComposerInner = ({
     exitInputHistoryPreview,
     filesRef,
     isKnowledgeBasesLoading,
+    knowledgeBasesError,
     mentionedModelsRef,
     restoredEditingSessionId,
     selectedKnowledgeBasesRef
