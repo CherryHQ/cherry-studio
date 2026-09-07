@@ -9,6 +9,7 @@ import type {
   TextUIPart
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { resolveUniqueModelId } from '@shared/utils/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -911,6 +912,34 @@ describe('transformMessage', () => {
       emoji: '🌐',
       model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
     })
+  })
+
+  it('normalizes a pre-composed legacy model ID in the assistant snapshot', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'assistant'),
+      model: {
+        id: 'provider-a::model-a',
+        name: 'Model A',
+        provider: 'provider-a',
+        group: 'group-a'
+      }
+    }
+    const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
+
+    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1', undefined, {
+      id: 'asst-1',
+      name: 'Assistant',
+      emoji: ''
+    })
+
+    expect(result.modelId).toBe('provider-a::model-a')
+    expect(result.messageSnapshot?.model).toEqual({
+      id: 'model-a',
+      name: 'Model A',
+      provider: 'provider-a',
+      group: 'group-a'
+    })
+    expect(resolveUniqueModelId(null, result.messageSnapshot?.model)).toBe(result.modelId)
   })
 
   it('returns null snapshot when the assistant is missing (author owns the model)', async () => {

@@ -62,6 +62,7 @@ import type {
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { createClearContextPart, withCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema, type Base64String } from '@shared/types/file'
@@ -601,12 +602,16 @@ function buildMessageSnapshot(
   if (!assistant) return null
   if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
   if (!model.id.trim() || !model.provider.trim()) return null
+  const uniqueModelId = legacyModelToUniqueId(model)
+  const { providerId, modelId } = uniqueModelId
+    ? parseUniqueModelId(uniqueModelId)
+    : { providerId: model.provider, modelId: model.id }
   return {
     ...assistant,
     model: {
-      id: model.id,
+      id: modelId,
       name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
-      provider: model.provider,
+      provider: providerId,
       group: typeof model.group === 'string' ? model.group : undefined
     }
   }
