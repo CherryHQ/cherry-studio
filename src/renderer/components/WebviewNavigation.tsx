@@ -57,11 +57,10 @@ export function normalizeWebviewAddress(value: string): string | null {
   }
 }
 
-function compactAddress(value: string, title?: string): string {
+function compactAddress(value: string): string {
   try {
     const url = new URL(value)
-    const host = url.protocol === 'http:' || url.protocol === 'https:' ? url.host : value
-    return title && title !== value && title !== host ? `${host} / ${title}` : host
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.host : value
   } catch {
     return value
   }
@@ -377,6 +376,10 @@ export function WebviewNavigation({
   )
 
   const canOpenExternal = isExternalUrl(currentPageUrl)
+  const addressHost = compactAddress(addressValue)
+  const addressTitle =
+    addressValue === currentPageUrl && pageTitle !== addressValue && pageTitle !== addressHost ? pageTitle : undefined
+  const addressDisplay = addressTitle ? `${addressHost} / ${addressTitle}` : addressHost
 
   return (
     <div className="flex h-8.75 shrink-0 items-center gap-2 border-border-subtle border-b bg-background px-2">
@@ -422,7 +425,7 @@ export function WebviewNavigation({
       <Popover open={showHistory} onOpenChange={setHistoryOpen}>
         <PopoverAnchor asChild>
           <form
-            className="mx-1 min-w-0 flex-1"
+            className="relative mx-1 min-w-0 flex-1"
             onSubmit={(event) => {
               event.preventDefault()
               navigateToAddress(addressValue)
@@ -431,11 +434,7 @@ export function WebviewNavigation({
               ref={addressInputRef}
               type="text"
               inputMode="url"
-              value={
-                isAddressFocused
-                  ? addressValue
-                  : compactAddress(addressValue, addressValue === currentPageUrl ? pageTitle : undefined)
-              }
+              value={isAddressFocused ? addressValue : addressDisplay}
               onChange={(event) => {
                 setAddressValue(event.target.value)
                 setHistorySearch(event.target.value)
@@ -460,8 +459,24 @@ export function WebviewNavigation({
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
-              className="h-7 truncate rounded-md border-input bg-background px-2.5 text-muted-foreground text-xs shadow-none focus-visible:text-foreground"
+              className={cn(
+                'h-7 truncate rounded-md border-input bg-background px-2.5 text-xs shadow-none',
+                isAddressFocused ? 'text-foreground' : 'text-transparent'
+              )}
             />
+            {!isAddressFocused && (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 flex items-center gap-1.5 overflow-hidden px-2.5 text-xs md:text-sm">
+                <span className="truncate text-muted-foreground">{addressHost}</span>
+                {addressTitle && (
+                  <>
+                    <span className="shrink-0 text-foreground-tertiary">/</span>
+                    <span className="min-w-0 truncate text-foreground">{addressTitle}</span>
+                  </>
+                )}
+              </span>
+            )}
           </form>
         </PopoverAnchor>
         <PopoverContent
