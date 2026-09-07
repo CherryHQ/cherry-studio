@@ -477,18 +477,79 @@ export const DOCTOR_VIEW_DATA_CLASSES: Readonly<Record<DoctorReportView, readonl
   upload: ['public']
 }
 
-/** Pure projection of a report onto a view: drops basics and evidence outside the allowed classes. */
+type DoctorProjectedCheckResult = {
+  readonly id: DoctorCheckId
+  readonly status: DoctorCheckStatus
+  readonly durationMs: number
+  readonly evidence?: readonly DoctorEvidenceItem[]
+} & (
+  | { readonly status: 'pass'; readonly detail?: DoctorDetail }
+  | {
+      readonly status: 'warn' | 'fail'
+      readonly attribution: DoctorAttribution
+      readonly detail: DoctorDetail
+    }
+  | { readonly status: 'skip'; readonly skippedBy: DoctorCheckId }
+  | { readonly status: 'error' }
+)
+
+type DoctorProjectedReport = Omit<DoctorReport, 'results'> & {
+  readonly results: readonly DoctorProjectedCheckResult[]
+}
+
+type DoctorProjectionOptions = { readonly consentToSensitive?: boolean }
+
+function projectSharedResult(
+  result: DoctorCheckResult,
+  allowed: ReadonlySet<DoctorDataClass>
+): DoctorProjectedCheckResult {
+  const shared = {
+    id: result.id,
+    durationMs: result.durationMs,
+    ...(result.evidence ? { evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) } : undefined)
+  }
+
+  switch (result.status) {
+    case 'pass':
+      return { ...shared, status: 'pass', ...(result.detail ? { detail: result.detail } : undefined) }
+    case 'warn':
+    case 'fail':
+      return { ...shared, status: result.status, attribution: result.attribution, detail: result.detail }
+    case 'skip':
+      return { ...shared, status: 'skip', skippedBy: result.skippedBy }
+    case 'error':
+      return { ...shared, status: 'error' }
+  }
+}
+
+/** Pure projection of a report onto a view, including a result-field allowlist for shared views. */
+export function projectDoctorReport(
+  report: DoctorReport,
+  view: 'display' | 'export',
+  options?: DoctorProjectionOptions
+): DoctorReport
+export function projectDoctorReport(
+  report: DoctorReport,
+  view: 'copy' | 'upload',
+  options?: DoctorProjectionOptions
+): DoctorProjectedReport
 export function projectDoctorReport(
   report: DoctorReport,
   view: DoctorReportView,
-  options: { readonly consentToSensitive?: boolean } = {}
-): DoctorReport {
+  options?: DoctorProjectionOptions
+): DoctorReport | DoctorProjectedReport
+export function projectDoctorReport(
+  report: DoctorReport,
+  view: DoctorReportView,
+  options: DoctorProjectionOptions = {}
+): DoctorReport | DoctorProjectedReport {
   const allowed = new Set<DoctorDataClass>(DOCTOR_VIEW_DATA_CLASSES[view])
   if (options.consentToSensitive && view !== 'copy') allowed.add('consent_required')
   const basics = Object.fromEntries(
     Object.entries(report.basics).filter(([key]) => allowed.has(DOCTOR_BASICS_DATA_CLASS[key as keyof DoctorBasics]))
   ) as DoctorBasics
   const results = report.results.map((result) => {
+    if (view === 'copy' || view === 'upload') return projectSharedResult(result, allowed)
     if (!result.evidence) return result
     return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
   })

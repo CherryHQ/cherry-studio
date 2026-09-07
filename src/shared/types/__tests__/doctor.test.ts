@@ -83,16 +83,23 @@ describe('projectDoctorReport', () => {
         status: 'warn',
         attribution: 'user-fixable',
         detail: { variant: 'fallback_to_default' },
-        actions: [],
+        actions: [{ kind: 'open_path', path: '/Users/alice/private-action' }],
         durationMs: 1,
+        devMessage: 'developer trace at /Users/alice/private.log',
         evidence: [
           { key: 'errno', value: 'EACCES', dataClass: 'public' },
           { key: 'path', value: '/Users/alice/...', dataClass: 'local_only' },
           { key: 'stderr', value: 'raw output', dataClass: 'consent_required' }
         ]
+      },
+      {
+        id: 'runtime-managed-tools',
+        status: 'error',
+        durationMs: 2,
+        message: 'spawn failed at /Users/alice/private-runtime'
       }
     ],
-    summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
+    summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 1 }
   }
   const classes = (view: Parameters<typeof projectDoctorReport>[1], consent = false) =>
     projectDoctorReport(report, view, { consentToSensitive: consent }).results[0].evidence?.map((e) => e.dataClass)
@@ -112,6 +119,20 @@ describe('projectDoctorReport', () => {
   it('strips local paths from upload but honours consent for sensitive items', () => {
     expect(projectDoctorReport(report, 'upload', { consentToSensitive: true }).basics.userDataPath).toBeUndefined()
     expect(classes('upload', true)).toEqual(['public', 'consent_required'])
+  })
+
+  it.each(['copy', 'upload'] as const)('drops private result fields from the %s view', (view) => {
+    expect(projectDoctorReport(report, view).results).toEqual([
+      {
+        id: 'storage-userdata-location',
+        status: 'warn',
+        attribution: 'user-fixable',
+        detail: { variant: 'fallback_to_default' },
+        durationMs: 1,
+        evidence: [{ key: 'errno', value: 'EACCES', dataClass: 'public' }]
+      },
+      { id: 'runtime-managed-tools', status: 'error', durationMs: 2 }
+    ])
   })
 
   it('shows everything locally', () => {
