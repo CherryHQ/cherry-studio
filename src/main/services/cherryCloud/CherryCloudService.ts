@@ -14,14 +14,9 @@ import {
   createUniqueModelId,
   type EndpointType,
   type ModelCapability,
-  parseUniqueModelId,
-  type UniqueModelId
+  parseUniqueModelId
 } from '@shared/data/types/model'
-import type {
-  CherryCloudModelFeature,
-  CherryCloudModelSyncResult,
-  CherryCloudStatus
-} from '@shared/ipc/schemas/cherryCloud'
+import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
@@ -648,14 +643,6 @@ export class CherryCloudService extends BaseService {
       },
       quotaExhaustedModelIds
     }
-  }
-
-  public isModelAvailableForFeature(modelId: UniqueModelId, feature: CherryCloudModelFeature): boolean {
-    const cached = this.modelSyncCache
-    return (
-      cached?.generation === this.sessionGeneration &&
-      cached.result.availableModelIdsByFeature[feature].includes(modelId)
-    )
   }
 
   private reconcileEntitledModels(
