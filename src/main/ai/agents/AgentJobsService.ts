@@ -86,6 +86,14 @@ export class AgentJobsService extends BaseService {
     )
   }
 
+  protected async onReady(): Promise<void> {
+    // Lifecycle awaits onReady before system-wide onAllReady. JobManager does
+    // not schedule startup recovery until onAllReady, so persisted orphaned
+    // agent tasks are gone before recovery can take its enabled-schedule
+    // snapshot or arm their timers.
+    await this.reconcileOrphanedSchedules()
+  }
+
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
     this.assertAgentExists(agentId)
     this.assertPromptNotReserved(form.prompt)
@@ -136,7 +144,7 @@ export class AgentJobsService extends BaseService {
 
     const schedulePatch: UpdateJobScheduleDto = {}
     if (patch.name !== undefined) schedulePatch.name = patch.name
-    // Drop a value-identical trigger: the edit dialog submits full-field
+    // Drop a value-identical trigger from the patch: the edit dialog submits full-field
     // saves, and JobManager's field-presence re-arm would reset the phase.
     if (patch.trigger !== undefined && !triggersEqual(patch.trigger, existing.trigger)) {
       schedulePatch.trigger = patch.trigger
@@ -255,6 +263,35 @@ export class AgentJobsService extends BaseService {
       agentTaskService.notifyReadModelChange(schedules.map((s) => s.id))
     }
     return deleted
+  }
+
+  /**
+   * Remove persisted `agent.task` schedules whose owner no longer exists.
+   * Runs from `onReady`, before JobManager's deferred startup recovery can
+   * snapshot or arm persisted schedules. Malformed task templates are left to
+   * the existing validation/recovery paths rather than widened into this
+   * ownership repair.
+   *
+   * @returns How many orphaned schedule rows were removed.
+   */
+  async reconcileOrphanedSchedules(): Promise<number> {
+    const orphaned = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((schedule) => {
+      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+      return template !== null && !agentService.getAgent(template.agentId)
+    })
+
+    const deletedIds: string[] = []
+    for (const schedule of orphaned) {
+      if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+        deletedIds.push(schedule.id)
+      }
+    }
+
+    if (deletedIds.length > 0) {
+      logger.info('Reconciled orphaned agent task schedules', { deleted: deletedIds.length })
+      agentTaskService.notifyReadModelChange(deletedIds)
+    }
+    return deletedIds.length
   }
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */
