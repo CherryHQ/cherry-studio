@@ -1327,6 +1327,37 @@ describe('TasksSettings routing and creation', () => {
       )
     )
   })
+
+  it('does not keep a stale hour selected when the last hour is cleared', async () => {
+    navigationMocks.taskId = undefined
+    taskMutationMocks.createTask.mockResolvedValue({ ...taskDataMock.defaultTask, id: 'task-new' })
+
+    render(<TasksSettings />)
+
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'agent.channels.bindAgent' })).toHaveTextContent('Agent One')
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Review code' }
+    })
+    fireEvent.change(screen.getByLabelText('agent.tasks.prompt.label'), { target: { value: 'Review the repository' } })
+
+    const timeSelect = within(screen.getByRole('dialog')).getByRole('group', { name: 'agent.tasks.schedule.time' })
+    const nineButton = within(timeSelect).getByRole('button', { name: '09' })
+    expect(nineButton).toHaveAttribute('aria-pressed', 'true')
+
+    // Clearing the default 09 is the only selected hour — the control must render
+    // empty (not silently keep 09 selected) and the empty schedule must block saving.
+    fireEvent.click(nineButton)
+    await waitFor(() => expect(nineButton).toHaveAttribute('aria-pressed', 'false'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.save' }))
+    await waitFor(() => expect(screen.getByText('agent.tasks.schedule.invalid')).toBeInTheDocument())
+    expect(taskMutationMocks.createTask).not.toHaveBeenCalled()
+  })
 })
 
 describe('TasksSettings detail behavior', () => {

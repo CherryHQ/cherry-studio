@@ -514,7 +514,12 @@ const TaskTimeSelect: FC<{
   onChange: (value: string) => void
 }> = ({ value, disabled, onChange }) => {
   const { t } = useTranslation()
-  const { hours, minute } = parseTimes(value) ?? { hours: ['09'], minute: '00' }
+  // An empty preset means the user cleared every hour; render no selection so the
+  // UI agrees with the empty form value (which blocks saving until repopulated).
+  // A non-empty value that fails to parse is unexpected, so fall back to the
+  // default selection rather than rendering a blank, uneditable control.
+  const { hours, minute } =
+    parseTimes(value) ?? (value === '' ? { hours: [], minute: '00' } : { hours: ['09'], minute: '00' })
 
   return (
     <RowFlex role="group" aria-label={t('agent.tasks.schedule.time')} className="items-center gap-2">
