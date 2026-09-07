@@ -933,7 +933,7 @@ describe('SkillService', () => {
       }
     })
 
-    it('collects every link failure in one pass and republishes once with copies', async () => {
+    it('publishes complete copies of every skill whose directory cannot be linked', async () => {
       const skillService = new SkillService()
       const workdir = await createTempDir('skill-workspace-plugin-workdir-')
       await writeWorkspaceSkill(workdir, '.agents', 'skill-a')
@@ -941,18 +941,18 @@ describe('SkillService', () => {
       const symlinkSpy = vi
         .spyOn(fs.promises, 'symlink')
         .mockRejectedValue(Object.assign(new Error('junction cannot reach a mapped drive'), { code: 'EINVAL' }))
-      const cpSpy = vi.spyOn(fs.promises, 'cp')
 
       try {
         const pluginDir = await skillService.ensureWorkspaceSkillPlugin(workdir)
         expect((await fs.promises.readdir(path.join(pluginDir!, 'skills'))).sort()).toEqual(['skill-a', 'skill-b'])
-        // One pass collects both failures; the single retry copies each skill exactly once.
-        expect(symlinkSpy).toHaveBeenCalledTimes(2)
-        expect(cpSpy).toHaveBeenCalledTimes(2)
+        for (const name of ['skill-a', 'skill-b']) {
+          const copied = path.join(pluginDir!, 'skills', name)
+          expect((await fs.promises.lstat(copied)).isSymbolicLink()).toBe(false)
+          await expect(fs.promises.readFile(path.join(copied, 'SKILL.md'), 'utf-8')).resolves.toBe(`# ${name}`)
+        }
         await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(pluginDir)
       } finally {
         symlinkSpy.mockRestore()
-        cpSpy.mockRestore()
       }
     })
 

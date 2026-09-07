@@ -45,7 +45,6 @@ const WORKSPACE_SKILL_PUBLISH_RETRY_MS = 5 * 60_000
 const WORKSPACE_SKILL_FINGERPRINT_MAX_ENTRIES = 2048
 const WORKSPACE_SKILL_FINGERPRINT_MAX_BYTES = 16 * 1024 * 1024
 
-class WorkspaceSkillLinkFallback extends Error {}
 class WorkspaceSkillSourceDrift extends Error {
   constructor() {
     super('Workspace skill source changed while it was being copied')
@@ -425,7 +424,6 @@ export class SkillService {
         WORKSPACE_SKILLS_PLUGIN_MANIFEST,
         'utf-8'
       )
-      const linkFailures: string[] = []
       for (const link of links) {
         const linkPath = path.join(stagingDir, 'skills', link.name)
         if (link.copy) {
@@ -434,19 +432,15 @@ export class SkillService {
           try {
             await fs.promises.symlink(link.target, linkPath, isWin ? 'junction' : 'dir')
           } catch (error) {
-            // Junctions cannot reach some targets (e.g. mapped network drives). Collect every failure
-            // so a single retry republishes them all as fingerprint-keyed copies.
+            // Junctions cannot reach some targets (e.g. mapped network drives).
             logger.warn('Linking workspace skill failed; bridging it as a copy instead', {
               target: link.target,
               error
             })
-            linkFailures.push(link.target)
+            this.junctionUnsupportedTargets.add(link.target)
+            await fs.promises.cp(link.target, linkPath, { recursive: true })
           }
         }
-      }
-      if (linkFailures.length > 0) {
-        for (const target of linkFailures) this.junctionUnsupportedTargets.add(target)
-        throw new WorkspaceSkillLinkFallback()
       }
       // The source can change while the plugin is being materialized; fingerprint through each
       // staged copy/link so a snapshot that does not match its key is never published.
@@ -459,15 +453,8 @@ export class SkillService {
       return pluginDir
     } catch (error) {
       await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => undefined)
-      // Terminates: every fallback retry moves at least one new target into junctionUnsupportedTargets.
-      if (error instanceof WorkspaceSkillLinkFallback) return this.publishWorkspaceSkillPlugin(workdir, attempt + 1)
       if (error instanceof WorkspaceSkillSourceDrift && attempt < 2) {
         return this.publishWorkspaceSkillPlugin(workdir, attempt + 1)
-      }
-      // A concurrent build publishing the same key wins the rename; its directory is identical.
-      if ((await directoryExists(pluginDir)) && (await this.isWorkspaceSkillPluginComplete(pluginDir, links))) {
-        this.failedWorkspaceSkillPluginKeys.delete(pluginDir)
-        return pluginDir
       }
       this.failedWorkspaceSkillPluginKeys.set(pluginDir, Date.now() + WORKSPACE_SKILL_PUBLISH_RETRY_MS)
       logger.warn('Failed to materialize workspace skill plugin', { workdir, pluginDir, error })
