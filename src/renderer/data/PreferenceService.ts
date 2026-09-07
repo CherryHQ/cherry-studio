@@ -123,7 +123,7 @@ export class PreferenceService {
   }
 
   private scheduleReadRetry(key: UnifiedPreferenceKeyType) {
-    if (this.readRetryTimers.has(key)) return
+    if (!this.keyChangeListeners.has(key) || this.readRetryTimers.has(key)) return
 
     const exponent = this.readRetryAttempts.get(key) ?? 0
     const delay = Math.min(PREFERENCE_READ_RETRY_INITIAL_DELAY_MS * 2 ** exponent, PREFERENCE_READ_RETRY_MAX_DELAY_MS)
@@ -549,6 +549,7 @@ export class PreferenceService {
         keyListeners.delete(callback)
         if (keyListeners.size === 0) {
           this.keyChangeListeners.delete(key)
+          this.clearReadRetry(key)
         }
       }
     }

@@ -80,7 +80,7 @@ import {
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
-import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { isProtectedBuiltinAgentRole, PROTECTED_BUILTIN_AGENT_ROLES } from '@shared/ai/builtinAgent'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
@@ -423,16 +423,14 @@ const Sessions = ({
     togglePin
   } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
-  const hiddenBuiltinAgentIdsForQuery = useMemo(
-    () => hiddenBuiltinAgentIds.slice(0, AGENTS_MAX_LIMIT),
-    [hiddenBuiltinAgentIds]
-  )
   const {
     agents: hiddenBuiltinAgents,
     error: hiddenBuiltinAgentsError,
     isLoading: isHiddenBuiltinAgentsLoading,
     refetch: refetchHiddenBuiltinAgents
-  } = useAgents({ ids: hiddenBuiltinAgentIdsForQuery })
+  } = useAgents({
+    builtinRoles: hiddenBuiltinAgentIds.length > 0 ? PROTECTED_BUILTIN_AGENT_ROLES : []
+  })
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)

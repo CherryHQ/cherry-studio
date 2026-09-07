@@ -90,6 +90,7 @@ describe('agentHandlers', () => {
 
       // page=1, limit=100 (AGENTS_DEFAULT_LIMIT) → offset=0; search undefined.
       expect(listAgentsMock).toHaveBeenCalledWith({
+        builtinRoles: undefined,
         ids: undefined,
         limit: 100,
         offset: 0,
@@ -108,6 +109,7 @@ describe('agentHandlers', () => {
       } as never)
 
       expect(listAgentsMock).toHaveBeenCalledWith({
+        builtinRoles: undefined,
         ids: undefined,
         limit: 100,
         offset: 0,
@@ -121,7 +123,22 @@ describe('agentHandlers', () => {
       await agentHandlers['/agents'].GET({ query: { ids: ['agent-a', 'agent-c'] } } as never)
 
       expect(listAgentsMock).toHaveBeenCalledWith({
+        builtinRoles: undefined,
         ids: ['agent-a', 'agent-c'],
+        limit: 100,
+        offset: 0,
+        search: undefined
+      })
+    })
+
+    it('GET forwards built-in Agent roles to the service', async () => {
+      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
+
+      await agentHandlers['/agents'].GET({ query: { builtinRoles: ['assistant', 'support'] } } as never)
+
+      expect(listAgentsMock).toHaveBeenCalledWith({
+        builtinRoles: ['assistant', 'support'],
+        ids: undefined,
         limit: 100,
         offset: 0,
         search: undefined

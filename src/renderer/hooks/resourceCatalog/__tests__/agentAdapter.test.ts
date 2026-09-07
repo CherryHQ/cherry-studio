@@ -31,9 +31,9 @@ describe('agentAdapter.useList', () => {
 
   it('includes hidden protected built-ins omitted from the main catalog page', () => {
     hiddenBuiltinAgentIdsMock.value = ['cherry-support']
-    useQueryMock.mockImplementation((_path: string, options: { query: { ids?: string[] } }) => ({
+    useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
       data: {
-        items: options.query.ids
+        items: options.query.builtinRoles
           ? [
               {
                 id: 'cherry-support',
@@ -57,11 +57,11 @@ describe('agentAdapter.useList', () => {
   it('keeps the primary catalog available when the supplemental hidden-agent query fails', () => {
     hiddenBuiltinAgentIdsMock.value = ['cherry-support']
     const supplementalError = new Error('supplemental query failed')
-    useQueryMock.mockImplementation((_path: string, options: { query: { ids?: string[] } }) => ({
-      data: options.query.ids ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
+    useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
+      data: options.query.builtinRoles ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
       isLoading: false,
       isRefreshing: false,
-      error: options.query.ids ? supplementalError : undefined,
+      error: options.query.builtinRoles ? supplementalError : undefined,
       refetch: vi.fn()
     }))
 
@@ -73,9 +73,9 @@ describe('agentAdapter.useList', () => {
 
   it('keeps the primary catalog visible while supplemental hidden-agent metadata loads', () => {
     hiddenBuiltinAgentIdsMock.value = ['cherry-support']
-    useQueryMock.mockImplementation((_path: string, options: { query: { ids?: string[] } }) => ({
-      data: options.query.ids ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
-      isLoading: !!options.query.ids,
+    useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
+      data: options.query.builtinRoles ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
+      isLoading: !!options.query.builtinRoles,
       isRefreshing: false,
       error: undefined,
       refetch: vi.fn()
@@ -87,20 +87,36 @@ describe('agentAdapter.useList', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('bounds supplemental hidden-agent recovery to the Agent API limit', () => {
-    hiddenBuiltinAgentIdsMock.value = Array.from({ length: AGENTS_MAX_LIMIT + 1 }, (_, index) => `hidden-${index}`)
-    useQueryMock.mockReturnValue({
-      data: { items: [] },
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
+  it('recovers a hidden protected built-in after the Agent API limit of stale ids', () => {
+    hiddenBuiltinAgentIdsMock.value = [
+      ...Array.from({ length: AGENTS_MAX_LIMIT }, (_, index) => `stale-${index}`),
+      'builtin-assistant'
+    ]
+    useQueryMock.mockImplementation(
+      (_path: string, options: { query: { builtinRoles?: string[]; ids?: string[] } }) => ({
+        data: {
+          items: options.query.builtinRoles
+            ? [
+                {
+                  id: 'builtin-assistant',
+                  name: 'Cherry Assistant',
+                  configuration: { builtin_role: 'assistant' }
+                }
+              ]
+            : options.query.ids
+              ? []
+              : [{ id: 'agent-1', name: 'Agent', configuration: {} }]
+        },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn()
+      })
+    )
 
-    renderHook(() => agentAdapter.useList({ enabled: true }))
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
 
-    expect(useQueryMock.mock.calls[1][1].query.ids).toHaveLength(AGENTS_MAX_LIMIT)
-    expect(useQueryMock.mock.calls[1][1].query.limit).toBe(AGENTS_MAX_LIMIT)
+    expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1', 'builtin-assistant'])
   })
 })
 

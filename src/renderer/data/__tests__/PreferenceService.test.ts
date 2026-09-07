@@ -134,6 +134,19 @@ describe('renderer PreferenceService keyed subscription batching', () => {
     expect(get).toHaveBeenCalledOnce()
   })
 
+  it('cancels a pending keyed read retry when the final listener unsubscribes', async () => {
+    vi.useFakeTimers()
+    get.mockRejectedValue(new Error('ipc down'))
+    const service = await createService()
+    const unsubscribe = service.subscribeChange('agent.session.hidden_builtin_ids')(() => undefined)
+
+    await service.get('agent.session.hidden_builtin_ids')
+    unsubscribe()
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(get).toHaveBeenCalledOnce()
+  })
+
   it('preload of uncached keys subscribes once with all of them', async () => {
     const service = await createService()
 

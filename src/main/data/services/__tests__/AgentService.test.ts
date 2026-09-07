@@ -1449,6 +1449,30 @@ describe('AgentService', () => {
       expect(total).toBe(2)
     })
 
+    it('returns only trusted built-in Agents for requested roles', async () => {
+      await insertAgent({ id: 'agent_ordinary', name: 'Ordinary' })
+      await insertAgent({
+        id: 'agent_builtin_assistant',
+        name: 'Cherry Assistant',
+        configuration: { builtin_role: 'assistant' }
+      })
+      await insertAgent({
+        id: CHERRY_SUPPORT_AGENT_ID,
+        name: 'Cherry Support',
+        configuration: { builtin_role: 'support' }
+      })
+      await insertAgent({
+        id: 'agent_spoofed_support',
+        name: 'Spoofed Support',
+        configuration: { builtin_role: 'support' }
+      })
+
+      const { agents, total } = agentService.listAgents({ builtinRoles: ['assistant', 'support'] })
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_builtin_assistant', CHERRY_SUPPORT_AGENT_ID])
+      expect(total).toBe(2)
+    })
+
     it('sorts by name ascending when sortBy=name and sortOrder=asc', async () => {
       await insertAgent({ name: 'Zebra' })
       await insertAgent({ name: 'Alpha' })

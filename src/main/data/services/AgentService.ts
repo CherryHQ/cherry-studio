@@ -530,7 +530,10 @@ export class AgentService {
     return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions & { ids?: readonly string[] } = {}): { agents: AgentEntity[]; total: number } {
+  listAgents(options: ListOptions & { builtinRoles?: readonly BuiltinAgentRole[]; ids?: readonly string[] } = {}): {
+    agents: AgentEntity[]
+    total: number
+  } {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional server-side search. The localized builtin
@@ -541,6 +544,20 @@ export class AgentService {
     }
     if (options.ids) {
       conditions.push(inArray(agentsTable.id, options.ids))
+    }
+    if (options.builtinRoles) {
+      conditions.push(
+        or(
+          ...options.builtinRoles.map((role) =>
+            role === BUILTIN_AGENT_ROLE.SUPPORT
+              ? and(
+                  eq(agentsTable.id, CHERRY_SUPPORT_AGENT_ID),
+                  sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${role}`
+                )
+              : sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${role}`
+          )
+        )!
+      )
     }
     const whereClause = and(...conditions)
 

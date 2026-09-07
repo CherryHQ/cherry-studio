@@ -3,7 +3,7 @@ import { useBuiltinAgentListVisibility } from '@renderer/hooks/agent/useBuiltinA
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { isProtectedBuiltinAgentRole, PROTECTED_BUILTIN_AGENT_ROLES } from '@shared/ai/builtinAgent'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import { useCallback, useMemo, useState } from 'react'
@@ -20,10 +20,6 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
   const enabled = query?.enabled !== false
   const { hiddenBuiltinAgentIds = [] } = useBuiltinAgentListVisibility()
-  const hiddenBuiltinAgentIdsForQuery = useMemo(
-    () => hiddenBuiltinAgentIds.slice(0, AGENTS_MAX_LIMIT),
-    [hiddenBuiltinAgentIds]
-  )
   const primary = useQuery('/agents', {
     enabled,
     query: {
@@ -32,10 +28,10 @@ function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail
     }
   })
   const hiddenBuiltin = useQuery('/agents', {
-    enabled: enabled && hiddenBuiltinAgentIdsForQuery.length > 0,
+    enabled: enabled && hiddenBuiltinAgentIds.length > 0,
     query: {
-      ids: hiddenBuiltinAgentIdsForQuery,
-      limit: hiddenBuiltinAgentIdsForQuery.length,
+      builtinRoles: [...PROTECTED_BUILTIN_AGENT_ROLES],
+      limit: PROTECTED_BUILTIN_AGENT_ROLES.length,
       ...(query?.search ? { search: query.search } : {})
     }
   })
