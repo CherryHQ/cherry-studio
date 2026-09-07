@@ -122,6 +122,8 @@ export interface ClaudeCodeSessionOptions {
   contextWindow?: number
   /** Model-declared output cap; pinned as the per-request limit and reserved out of the budget. */
   maxOutputTokens?: number
+  /** Materialized effective language; when omitted the preference is read live. */
+  effectiveLanguage?: string | null
   /** Model-declared output reservation, subtracted from the window to get the usable input budget. */
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
@@ -232,7 +234,8 @@ export async function buildClaudeCodeSessionSettings(
     knowledgeBaseScope,
     disallowedTools,
     agentsMdContext,
-    options?.modelName
+    options?.modelName,
+    options?.effectiveLanguage
   )
 
   // 6. MCP servers (session + built-in)
@@ -594,7 +597,9 @@ export async function buildSystemPrompt(
   /** Root-scoped AGENTS.md instructions; nested scopes are injected lazily by a PreToolUse hook. */
   agentsMdContext?: string,
   /** Effective session-owned model name for prompt variable expansion. */
-  modelName?: string
+  modelName?: string,
+  /** Materialized effective language; when omitted the preference is read live. */
+  effectiveLanguage?: string | null
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const canReadAllKnowledgeBases = resolveAgentCapabilities(agent).allKnowledgeBases
   const unavailableTools = new Set(disallowedTools)
@@ -617,7 +622,8 @@ export async function buildSystemPrompt(
     modelName,
     citationsGuidance,
     workspaceInstructions: agentsMdContext,
-    customBaseContext
+    customBaseContext,
+    effectiveLanguage
   })
 
   // Claude owns only the SDK mapping. Cherry policy and ordering are runtime-neutral.

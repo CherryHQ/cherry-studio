@@ -29,13 +29,19 @@ export class ExportService {
     const tokens = md.parse(markdown, {})
     const elements: any[] = []
     let listLevel = 0
+    let quoteLevel = 0
+    const quoteBorder = { left: { style: BorderStyle.SINGLE, size: 3, color: 'CCCCCC' } }
     let currentTable: Table | null = null
     let currentRowCells: TableCell[] = []
     let isHeaderRow = false
     let tableColumnCount = 0
     let tableRows: TableRow[] = [] // Store rows temporarily
 
-    const processInlineTokens = (tokens: any[], isHeaderRow: boolean): (TextRun | ExternalHyperlink)[] => {
+    const processInlineTokens = (
+      tokens: any[],
+      isHeaderRow: boolean,
+      isQuote = false
+    ): (TextRun | ExternalHyperlink)[] => {
       const runs: (TextRun | ExternalHyperlink)[] = []
       let linkRuns: TextRun[] = []
       let linkUrl = ''
@@ -76,11 +82,17 @@ export class ExportService {
           case 'em_close':
             italicStack--
             break
+          case 'softbreak':
+            pushRun({ text: ' ' })
+            break
+          case 'hardbreak':
+            pushRun({ break: 1 })
+            break
           case 'text':
             pushRun({
               text: token.content,
               bold: isHeaderRow || boldStack > 0,
-              italics: italicStack > 0
+              italics: isQuote || italicStack > 0
             })
             break
           case 'code_inline':
@@ -89,7 +101,7 @@ export class ExportService {
               font: 'Consolas',
               size: 20,
               bold: isHeaderRow || boldStack > 0,
-              italics: italicStack > 0
+              italics: isQuote || italicStack > 0
             })
             break
         }
@@ -119,9 +131,11 @@ export class ExportService {
 
         case 'paragraph_open':
           const inlineTokens = tokens[i + 1].children || []
+          const quoteStyle = quoteLevel > 0 ? { indent: { left: quoteLevel * 720 }, border: quoteBorder } : {}
           elements.push(
             new Paragraph({
-              children: processInlineTokens(inlineTokens, false),
+              children: processInlineTokens(inlineTokens, false, quoteLevel > 0),
+              ...quoteStyle,
               spacing: {
                 before: 120,
                 after: 120
@@ -140,17 +154,20 @@ export class ExportService {
           break
 
         case 'list_item_open':
+          // Nested blocks must reach their own handlers so container levels stay balanced.
+          if (tokens[i + 1].type !== 'paragraph_open') {
+            break
+          }
           const itemInlineTokens = tokens[i + 2].children || []
           elements.push(
             new Paragraph({
               children: [
                 new TextRun({ text: '•', bold: true }),
                 new TextRun({ text: '\t' }),
-                ...processInlineTokens(itemInlineTokens, false)
+                ...processInlineTokens(itemInlineTokens, false, quoteLevel > 0)
               ],
-              indent: {
-                left: listLevel * 720
-              }
+              indent: { left: (listLevel + quoteLevel) * 720 },
+              ...(quoteLevel > 0 ? { border: quoteBorder } : {})
             })
           )
           i += 3
@@ -197,32 +214,11 @@ export class ExportService {
           break
 
         case 'blockquote_open':
-          const quoteText = tokens[i + 2].content
-          elements.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: quoteText,
-                  italics: true
-                })
-              ],
-              indent: {
-                left: 720
-              },
-              border: {
-                left: {
-                  style: BorderStyle.SINGLE,
-                  size: 3,
-                  color: 'CCCCCC'
-                }
-              },
-              spacing: {
-                before: 120,
-                after: 120
-              }
-            })
-          )
-          i += 3
+          quoteLevel++
+          break
+
+        case 'blockquote_close':
+          quoteLevel--
           break
 
         // 表格处理

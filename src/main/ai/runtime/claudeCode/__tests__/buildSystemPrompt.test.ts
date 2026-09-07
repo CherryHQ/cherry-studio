@@ -312,6 +312,7 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
 
 describe('buildSystemPrompt — cache-stable segment order', () => {
   it('keeps static Cherry policy before configurable and runtime-derived context', async () => {
+    mockApplicationGet.mockReturnValue({ get: vi.fn(() => 'English') })
     mockBuildPrompt.mockResolvedValueOnce({
       base: { kind: 'native' },
       context: 'PERSONA_AND_MEMORY_CONTEXT'
@@ -334,7 +335,7 @@ describe('buildSystemPrompt — cache-stable segment order', () => {
       'CONFIGURED_AGENT_INSTRUCTIONS',
       'WORKSPACE_INSTRUCTIONS',
       'PERSONA_AND_MEMORY_CONTEXT',
-      'IMPORTANT: You must respond in English.'
+      'By default, respond in English.'
     ]
     const offsets = orderedMarkers.map((marker) => text.indexOf(marker))
 
