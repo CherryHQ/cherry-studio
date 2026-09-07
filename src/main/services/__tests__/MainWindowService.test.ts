@@ -525,9 +525,9 @@ describe('MainWindowService', () => {
       svc.toggleMainWindow()
 
       expect(win.restore).toHaveBeenCalledTimes(1)
+      expect(win.focus).toHaveBeenCalledTimes(1)
       expect(win.setOpacity).toHaveBeenCalledWith(1)
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
-      expect(win.focus).not.toHaveBeenCalled()
       expect(win.minimize).not.toHaveBeenCalled()
       expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', true)
     })
@@ -587,9 +587,11 @@ describe('MainWindowService', () => {
 
       const opacityCallOrder = win.setOpacity.mock.invocationCallOrder[0]
       const restoreCallOrder = win.restore.mock.invocationCallOrder[0]
+      const focusCallOrder = win.focus.mock.invocationCallOrder[0]
       expect(win.setOpacity).toHaveBeenCalledWith(1)
       expect(win.setSkipTaskbar).toHaveBeenCalledWith(false)
       expect(opacityCallOrder).toBeLessThan(restoreCallOrder)
+      expect(restoreCallOrder).toBeLessThan(focusCallOrder)
     })
   })
 

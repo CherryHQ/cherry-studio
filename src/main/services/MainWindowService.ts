@@ -508,6 +508,7 @@ export class MainWindowService extends BaseService {
           mainWindow.setSkipTaskbar(false)
         }
         mainWindow.restore()
+        mainWindow.focus()
         this.pushMainWindowInitData(initData)
         return
       }
