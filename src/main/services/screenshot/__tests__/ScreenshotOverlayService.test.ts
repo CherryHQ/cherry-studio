@@ -54,7 +54,7 @@ const electron = vi.hoisted(() => ({
   primaryDisplay: undefined as unknown,
   app: { getName: vi.fn(() => 'Product'), focus: vi.fn(), hide: vi.fn() },
   browserWindows: [] as unknown[],
-  clipboard: { writeImage: vi.fn() },
+  clipboard: { write: vi.fn(async (_items: { data: Record<string, Blob> }[]) => {}) },
   dialog: { showSaveDialog: vi.fn(), showMessageBox: vi.fn() },
   // isEmpty() is what distinguishes a decoded image from the empty one
   // createFromBuffer hands back for undecodable input.
@@ -66,6 +66,9 @@ vi.mock('electron', () => ({
   app: electron.app,
   BrowserWindow: { getAllWindows: () => electron.browserWindows },
   clipboard: electron.clipboard,
+  ClipboardItem: class {
+    constructor(readonly data: Record<string, Blob>) {}
+  },
   dialog: electron.dialog,
   nativeImage: electron.nativeImage,
   protocol: { handle: vi.fn(), unhandle: vi.fn(), registerSchemesAsPrivileged: vi.fn() },
@@ -996,21 +999,22 @@ describe('ScreenshotOverlayService', () => {
       singleDisplaySetup()
       await service.startCapture()
 
-      service.commit({ pngBytes: PNG_BYTES })
+      await service.commit({ pngBytes: PNG_BYTES })
 
       expect(electron.nativeImage.createFromBuffer).toHaveBeenCalledWith(Buffer.from(PNG_BYTES))
-      expect(electron.clipboard.writeImage).toHaveBeenCalled()
+      // The captured bytes must reach the clipboard verbatim, tagged as a PNG.
+      const [[items]] = electron.clipboard.write.mock.calls
+      expect(Object.keys(items[0].data)).toEqual(['image/png'])
+      expect(new Uint8Array(await items[0].data['image/png'].arrayBuffer())).toEqual(PNG_BYTES)
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
 
     it('still dismisses the overlays when the clipboard write throws', async () => {
       singleDisplaySetup()
       await service.startCapture()
-      electron.clipboard.writeImage.mockImplementationOnce(() => {
-        throw new Error('clipboard busy')
-      })
+      electron.clipboard.write.mockRejectedValueOnce(new Error('clipboard busy'))
 
-      service.commit({ pngBytes: PNG_BYTES })
+      await service.commit({ pngBytes: PNG_BYTES })
 
       expect(service.isSessionOverlay('overlay-0-0')).toBe(false)
     })
@@ -1020,11 +1024,11 @@ describe('ScreenshotOverlayService', () => {
       await service.startCapture()
       electron.nativeImage.createFromBuffer.mockReturnValueOnce({ isEmpty: () => true })
 
-      service.commit({ pngBytes: new Uint8Array([1, 2]) })
+      await service.commit({ pngBytes: new Uint8Array([1, 2]) })
 
       // createFromBuffer returns an EMPTY image instead of throwing, so writing it
       // replaces the clipboard with nothing while the user is told it was copied.
-      expect(electron.clipboard.writeImage).not.toHaveBeenCalled()
+      expect(electron.clipboard.write).not.toHaveBeenCalled()
       expect(mockMainLoggerService.info).not.toHaveBeenCalledWith(expect.stringContaining('clipboard'))
       expect(mockMainLoggerService.error).toHaveBeenCalled()
     })

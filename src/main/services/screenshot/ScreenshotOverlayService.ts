@@ -21,7 +21,7 @@ import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
 import dayjs from 'dayjs'
-import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, type Display, nativeImage, screen } from 'electron'
 
 import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
@@ -576,13 +576,13 @@ export class ScreenshotOverlayService extends BaseService {
   }
 
   /** Copy the overlay's result to the clipboard and end the session. */
-  public commit(result: ScreenshotResultData): void {
+  public async commit(result: ScreenshotResultData): Promise<void> {
     try {
-      const image = nativeImage.createFromBuffer(Buffer.from(result.pngBytes))
+      const bytes = Buffer.from(result.pngBytes)
       // createFromBuffer never throws — undecodable input yields an EMPTY image, and
       // writing that wipes the clipboard while the log still claims success.
-      if (image.isEmpty()) throw new Error('the result bytes could not be decoded')
-      clipboard.writeImage(image)
+      if (nativeImage.createFromBuffer(bytes).isEmpty()) throw new Error('the result bytes could not be decoded')
+      await clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes]) })])
       logger.info('Screenshot copied to the clipboard')
     } catch (error) {
       logger.error('Failed to copy the screenshot to the clipboard', error as Error)

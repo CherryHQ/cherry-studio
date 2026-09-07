@@ -1464,10 +1464,10 @@ export class SelectionService extends BaseService implements Activatable {
     }
   }
 
-  public writeToClipboard(text: string): boolean {
+  public async writeToClipboard(text: string): Promise<boolean> {
     if (isLinux) {
       try {
-        clipboard.writeText(text)
+        await clipboard.writeText(text)
         return true
       } catch (error) {
         logger.error('Failed to write to clipboard on Linux:', error as Error)
