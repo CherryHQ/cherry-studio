@@ -157,6 +157,31 @@ describe('ApiGateway server lifecycle', () => {
     expect(mocks.port).toBe(userSelectedPort)
   })
 
+  it('retries a newer configured port after the initial listener becomes ready', async () => {
+    const firstReservation = createServer()
+    const firstPort = await listen(firstReservation)
+    await close(firstReservation)
+    const secondReservation = createServer()
+    const secondPort = await listen(secondReservation)
+    await close(secondReservation)
+    mocks.port = firstPort
+    mocks.onBuildApp = (port) => {
+      if (port === firstPort) mocks.port = secondPort
+    }
+    closeAllSpy = vi.spyOn(McpSessionStore.prototype, 'closeAll')
+    gateway = new ApiGateway()
+
+    const address = await gateway.start()
+
+    const [retiredStore, freshStore] = mocks.mcpSessionStores
+    expect(mocks.mcpSessionStores).toEqual([retiredStore, freshStore])
+    expect(closeAllSpy).toHaveBeenCalledOnce()
+    expect(closeAllSpy.mock.instances[0]).toBe(retiredStore)
+    expect(address.port).toBe(secondPort)
+    expect(portOf(gateway)).toBe(secondPort)
+    await expect(fetch(`http://127.0.0.1:${secondPort}/health`).then((response) => response.text())).resolves.toBe('ok')
+  })
+
   it('retries a newer configured port instead of leaving the listener on a stale fallback', async () => {
     const firstExternal = createServer((_request, response) => response.end('first external'))
     const secondExternal = createServer((_request, response) => response.end('second external'))

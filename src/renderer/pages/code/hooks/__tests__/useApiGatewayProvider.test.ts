@@ -1,6 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { renderHook } from '@testing-library/react'
+import type { Provider } from '@shared/data/types/provider'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useApiGatewayProvider } from '../useApiGatewayProvider'
@@ -57,9 +58,29 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
 
     const { result } = renderHook(() => useApiGatewayProvider())
 
-    const provider = await result.current!.ensureRunning()
-    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe('http://127.0.0.1:24444')
+    let provider: Provider | undefined
+    await act(async () => {
+      provider = await result.current!.ensureRunning()
+    })
+    expect(provider!.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe('http://127.0.0.1:24444')
     expect(preferenceService.get).not.toHaveBeenCalled()
+  })
+
+  it('updates the exposed provider to the bound runtime address after startup', async () => {
+    mocks.apiGatewayRunning = false
+    mocks.startApiGateway.mockResolvedValue({ host: '127.0.0.1', port: 24444 })
+    const { result } = renderHook(() => useApiGatewayProvider())
+
+    expect(result.current!.provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe(
+      'http://127.0.0.1:23333'
+    )
+    await act(async () => {
+      await result.current!.ensureRunning()
+    })
+
+    expect(result.current!.provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe(
+      'http://127.0.0.1:24444'
+    )
   })
 
   it('queries the bound address without restarting a running gateway', async () => {
@@ -69,8 +90,11 @@ describe('useApiGatewayProvider gateway lifecycle', () => {
 
     const { result } = renderHook(() => useApiGatewayProvider())
 
-    const provider = await result.current!.ensureRunning()
-    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe('http://127.0.0.1:24444')
+    let provider: Provider | undefined
+    await act(async () => {
+      provider = await result.current!.ensureRunning()
+    })
+    expect(provider!.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl).toBe('http://127.0.0.1:24444')
     expect(mocks.getApiGatewayRuntimeAddress).toHaveBeenCalledOnce()
     expect(mocks.startApiGateway).not.toHaveBeenCalled()
     expect(preferenceService.get).not.toHaveBeenCalled()

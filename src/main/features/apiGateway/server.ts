@@ -78,6 +78,16 @@ export class ApiGateway {
 
     try {
       const boundPort = await this.listen(host, port)
+      const currentHost = preferenceService.get('feature.api_gateway.host')
+      const currentPort = preferenceService.get('feature.api_gateway.port')
+      if (currentHost !== host || currentPort !== port) {
+        logger.info('API gateway config changed during startup; retrying with the latest address', {
+          host: currentHost,
+          port: currentPort
+        })
+        await this.resetForRetry()
+        return this.startInternal()
+      }
       return this.setRuntimeAddress(host, boundPort)
     } catch (error) {
       if (!this.isAddressInUseError(error) || port === 0) throw error
@@ -91,10 +101,7 @@ export class ApiGateway {
           host: currentHost,
           port: currentPort
         })
-        await this.mcpSessions.closeAll()
-        await this.closeHttpServer()
-        this.mcpSessions = new McpSessionStore()
-        this.cleanupFailedStart()
+        await this.resetForRetry()
         return this.startInternal()
       }
 
@@ -170,6 +177,13 @@ export class ApiGateway {
     this.serverInfo = null
     this.app = null
     this.runtimeAddress = null
+  }
+
+  private async resetForRetry(): Promise<void> {
+    await this.mcpSessions.closeAll()
+    await this.closeHttpServer()
+    this.mcpSessions = new McpSessionStore()
+    this.cleanupFailedStart()
   }
 
   async stop(): Promise<void> {

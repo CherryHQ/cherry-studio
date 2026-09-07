@@ -2,9 +2,10 @@ import { preferenceService } from '@data/PreferenceService'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
+import type { ApiGatewayRuntimeAddress } from '@shared/types/apiGateway'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_GATEWAY_HOST = '127.0.0.1'
@@ -40,14 +41,24 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const host = apiGatewayConfig.host || DEFAULT_GATEWAY_HOST
   const port = apiGatewayConfig.port || DEFAULT_GATEWAY_PORT
   const apiKey = apiGatewayConfig.apiKey
+  const [runtimeAddress, setRuntimeAddress] = useState<ApiGatewayRuntimeAddress | null>(null)
 
-  const provider = useMemo(() => createApiGatewayProvider(t('code.api_gateway.title'), host, port), [host, port, t])
+  useEffect(() => {
+    if (!apiGatewayRunning) setRuntimeAddress(null)
+  }, [apiGatewayRunning])
+
+  const provider = useMemo(
+    () =>
+      createApiGatewayProvider(t('code.api_gateway.title'), runtimeAddress?.host ?? host, runtimeAddress?.port ?? port),
+    [host, port, runtimeAddress, t]
+  )
 
   const ensureRunning = useCallback(async (): Promise<Provider> => {
     // Main owns the actual listener address. Renderer preferences are desired config and may lag a
     // fallback bind; querying an already-running gateway also preserves a temporary lease's intent.
     const address = apiGatewayRunning ? await getApiGatewayRuntimeAddress() : await startApiGateway()
     if (!address) throw new Error('API gateway failed to start')
+    setRuntimeAddress(address)
     return createApiGatewayProvider(t('code.api_gateway.title'), address.host, address.port)
   }, [apiGatewayRunning, getApiGatewayRuntimeAddress, startApiGateway, t])
 
