@@ -1,9 +1,8 @@
 import { application } from '@application'
 import type { LoggerService } from '@logger'
-import { isWin } from '@main/core/platform'
 import { getBinaryExecutionEnv, getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
-import { getPathFromEnvironment, getRawShellEnv } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, hasMiseInPath } from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import {
@@ -60,7 +59,7 @@ export async function resolveStdioLaunch({
   const rawShellEnv = await getRawShellEnv(signal)
   const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.startsWith('MISE_'))
   const rawPath = getPathFromEnvironment(rawShellEnv) ?? ''
-  const hasUserMiseInPath = rawPath.split(isWin ? ';' : ':').some((segment) => segment.toLowerCase().includes('mise'))
+  const hasUserMiseInPath = hasMiseInPath(rawPath)
   const hasUserMiseEnv = hasUserMiseVars || hasUserMiseInPath
   const cherryToolDirs = getBinarySearchDirs()
   const bundledGitDir = getBundledGitDir()
