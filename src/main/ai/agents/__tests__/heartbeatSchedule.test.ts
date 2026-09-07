@@ -362,6 +362,40 @@ describe('heartbeatSchedule', () => {
     expect(scheduler.has(`schedule:${id}`)).toBe(true)
   })
 
+  it("does not treat a name-conflict winner as benign when it is not this agent's heartbeat row", async () => {
+    // A non-heartbeat schedule that happens to share the reserved heartbeat
+    // name (manual DB edit, legacy row, future feature) must not be silently
+    // overwritten with the heartbeat template. The conflict is only benign when
+    // the winner carries this agent's id + the sentinel prompt.
+    seedAgent(AGENT_ID)
+    seedAgent(OTHER_AGENT_ID)
+    const foreignName = `heartbeat_${AGENT_ID}`
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: foreignName,
+      // Different agent + a real (non-sentinel) prompt: an ordinary task row,
+      // not the heartbeat this sync is trying to create.
+      trigger: { kind: 'interval', ms: 5 * 60_000 },
+      jobInputTemplate: {
+        agentId: OTHER_AGENT_ID,
+        prompt: 'run my report',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
+
+    await expect(syncHeartbeatSchedule(AGENT_ID, [])).rejects.toThrow()
+
+    // The non-heartbeat row must be untouched: same id, same template, still enabled.
+    const row = jobScheduleService.getById(id)
+    expect(row?.jobInputTemplate).toEqual(templateBefore)
+    expect(row?.enabled).toBe(true)
+    expect(row?.trigger).toEqual({ kind: 'interval', ms: 5 * 60_000 })
+  })
+
   it('scans the schedule table once across all agents in the repair pass', async () => {
     // Regression for the O(agents × schedules) startup pass: each agent used
     // to trigger its own listAll. The pass must snapshot once and reuse it.

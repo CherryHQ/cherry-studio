@@ -200,7 +200,11 @@ export async function syncHeartbeatSchedule(
       return 'created'
     } catch (error) {
       const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
-      if (!isScheduleNameConflict(error) || !winner) throw error
+      // Only treat the conflict as a benign race when the (type, name) winner
+      // really is this agent's heartbeat row. A non-heartbeat schedule that
+      // happens to share the name (manual DB edit, legacy row, future feature)
+      // must not be silently overwritten with the heartbeat template.
+      if (!isScheduleNameConflict(error) || !winner || !isHeartbeatRow(winner, agentId)) throw error
       logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
         agentId,
         scheduleId: winner.id
