@@ -146,8 +146,7 @@ export class DshStreamAdapter {
   private readonly suppressedToolCallIds = new Set<string>()
   /** The next `turn/start` after `beginTurn()` belongs to the host prompt; distinguishes host vs autonomous even when reordered. */
   private pendingHostTurn = false
-  /** Turn id of the currently active non-suppressed turn, if any. */
-  private activeTurnId?: number
+  private pendingHostTurnSince?: number
 
   constructor(private readonly sink: DshStreamSink) {}
 
@@ -162,6 +161,7 @@ export class DshStreamAdapter {
     this.autonomousTurnSuppressed = false
     this.hostTurnEndedAt = undefined
     this.pendingHostTurn = true
+    this.pendingHostTurnSince = Date.now()
   }
 
   /** Roll back a `beginTurn()` whose prompt never reached the runtime. */
@@ -170,6 +170,7 @@ export class DshStreamAdapter {
     this.autonomousTurn = false
     this.autonomousTurnSuppressed = false
     this.pendingHostTurn = false
+    this.pendingHostTurnSince = undefined
     if (this.savedHostTurnEndedAt !== undefined) {
       this.hostTurnEndedAt = this.savedHostTurnEndedAt
       this.savedHostTurnEndedAt = undefined
@@ -190,6 +191,10 @@ export class DshStreamAdapter {
     // the session's `tool/call` (which does carry turn) decide. The host's own
     // approval will still materialize when its `tool/call` arrives.
     if (this.suppressedTurn !== undefined) return
+    // While awaiting the host's `turn/start`, a bridge approval racing ahead
+    // cannot be classified — an autonomous approval arriving here would be
+    // emitted into the host response. Defer so the later `tool/call` decides.
+    if (this.pendingHostTurn) return
     if (this.ensureTurnOpen()) {
       this.suppressedToolCallIds.add(callId)
       return
@@ -224,30 +229,55 @@ export class DshStreamAdapter {
     switch (event.type) {
       case 'turn/start': {
         const turnId = (event.data as { turn: number }).turn
-        // Host-prompted turn: the next start after beginTurn belongs to the user.
-        if (this.pendingHostTurn) {
-          this.pendingHostTurn = false
-          this.activeTurnId = turnId
-          this.flushPendingProviderUsage()
-          this.turnUsage = emptyTurnUsage()
-          this.resetStepTiming()
-          return
-        }
-        // Autonomous turn: latch suppression if within grace after a host turn.
-        // Check both the live and saved grace stamps so a late-arriving
-        // autonomous start (after the next host turn has begun) is still caught.
+        // Latch suppression for autonomous turns within the grace window first.
+        // A late-arriving autonomous start can race ahead of the host's own
+        // `turn/start` (both queued after `beginTurn`); checking grace first
+        // prevents it from consuming `pendingHostTurn` and being admitted as
+        // the host turn.
         const graceAt = this.hostTurnEndedAt ?? this.savedHostTurnEndedAt
         const withinGrace = graceAt !== undefined && Date.now() - graceAt < POST_HOST_TURN_GRACE_MS
         if (withinGrace) {
+          // A host turn arriving after we already suppressed an autonomous one
+          // is the real user turn — admit it even though still within grace.
+          if (this.pendingHostTurn && this.suppressedTurn !== undefined) {
+            this.pendingHostTurn = false
+            this.pendingHostTurnSince = undefined
+            this.flushPendingProviderUsage()
+            this.turnUsage = emptyTurnUsage()
+            this.resetStepTiming()
+            return
+          }
+          // First withinGrace turn while awaiting host: distinguish fast
+          // autonomous racing (queued before beginTurn, arrives <50ms after it)
+          // from a genuine host turn that arrives later.
+          if (this.pendingHostTurn && this.suppressedTurn === undefined) {
+            const since = this.pendingHostTurnSince !== undefined ? Date.now() - this.pendingHostTurnSince : 0
+            if (since > 50) {
+              this.pendingHostTurn = false
+              this.pendingHostTurnSince = undefined
+              this.flushPendingProviderUsage()
+              this.turnUsage = emptyTurnUsage()
+              this.resetStepTiming()
+              return
+            }
+          }
           this.autonomousTurnSuppressed = true
           this.suppressedTurn = turnId
+          return
+        }
+        // Host-prompted turn: the next non-suppressed start after beginTurn belongs to the user.
+        if (this.pendingHostTurn) {
+          this.pendingHostTurn = false
+          this.pendingHostTurnSince = undefined
+          this.flushPendingProviderUsage()
+          this.turnUsage = emptyTurnUsage()
+          this.resetStepTiming()
           return
         }
         this.flushPendingProviderUsage()
         this.turnUsage = emptyTurnUsage()
         if (!this.turnActive) this.startedTools.clear()
         this.resetStepTiming()
-        this.activeTurnId = turnId
         return
       }
       case 'step/start':
@@ -300,8 +330,8 @@ export class DshStreamAdapter {
         // has nothing to settle — surfacing it would fabricate an empty host turn.
         if (!this.turnActive) return
         this.turnActive = false
-        this.activeTurnId = undefined
         this.pendingHostTurn = false
+        this.pendingHostTurnSince = undefined
         this.savedHostTurnEndedAt = undefined
         if (this.autonomousTurn) {
           this.autonomousTurn = false
