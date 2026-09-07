@@ -20,7 +20,7 @@ export const qwenEnableThinkingFeature: RequestFeature = {
     isQwenModel(scope.model) &&
     isSupportEnableThinkingProvider(scope.provider) &&
     scope.reasoning.kind !== 'omit' &&
-    !scope.reasoning.emissions.some((e) => e.target === 'enable_thinking'),
+    !scope.reasoning.emissions.some((e) => e.target === 'enable_thinking' || e.target === 'chat_template_kwargs.enable_thinking'),
   contributeModelAdapters: (scope) => [
     definePlugin({
       name: 'qwen-enable-thinking',

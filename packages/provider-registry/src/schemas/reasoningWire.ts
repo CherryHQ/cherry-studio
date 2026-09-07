@@ -53,9 +53,13 @@ export const ReasoningWireValueSchema = z.discriminatedUnion('source', [
 ])
 export type ReasoningWireValue = z.infer<typeof ReasoningWireValueSchema>
 
+export const ReasoningWireDeliverySchema = z.enum(['provider-option', 'request-body'])
+export type ReasoningWireDelivery = z.infer<typeof ReasoningWireDeliverySchema>
+
 export const ReasoningWireOperationSchema = z.object({
   target: ReasoningWireTargetSchema,
-  value: ReasoningWireValueSchema
+  value: ReasoningWireValueSchema,
+  delivery: ReasoningWireDeliverySchema.optional().default('provider-option')
 })
 export type ReasoningWireOperation = z.infer<typeof ReasoningWireOperationSchema>
 
@@ -67,7 +71,8 @@ const NonBudgetReasoningWireValueSchema = z.discriminatedUnion('source', [
 
 const NonBudgetReasoningWireOperationSchema = z.object({
   target: ReasoningWireTargetSchema,
-  value: NonBudgetReasoningWireValueSchema
+  value: NonBudgetReasoningWireValueSchema,
+  delivery: ReasoningWireDeliverySchema.optional().default('provider-option')
 })
 
 const ReasoningBudgetPolicySchema = z.object({

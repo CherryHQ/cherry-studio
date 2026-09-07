@@ -138,7 +138,8 @@ describe('opencode (Zen Go) endpoint matrix', () => {
     })
     expect(endpoint?.reasoningFormat?.wire?.effort?.operations).toContainEqual({
       target: 'reasoningSummary',
-      value: { source: 'assistant-summary' }
+      value: { source: 'assistant-summary' },
+      delivery: 'provider-option' as const
     })
   })
 

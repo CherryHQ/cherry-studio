@@ -248,6 +248,78 @@ describe('useProviderEndpointActions', () => {
     })
   })
 
+  it('persists a self-hosted reasoning format on the primary endpoint', async () => {
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://api.openai.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.openai.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.commitReasoningFormat({ type: 'self-hosted' })
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    })
+  })
+
+  it('clears the reasoning format override when reverting to the default', async () => {
+    const providerWithOverride = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          reasoningFormat: { type: 'self-hosted' }
+        }
+      }
+    }
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider: providerWithOverride,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://api.openai.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://api.openai.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.commitReasoningFormat(undefined)
+      await flushEndpointAction()
+    })
+
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.openai.com',
+          reasoningFormat: undefined
+        }
+      }
+    })
+  })
+
   it('shows specific Data API error messages instead of the generic save failure toast', async () => {
     patchProviderMock.mockRejectedValueOnce(
       DataApiErrorFactory.validation({ apiVersion: ['Unsupported version'] }, 'Unsupported API version')

@@ -1,5 +1,6 @@
 import { useProvider, useProviderMutations, useProviderPreset } from '@renderer/hooks/useProvider'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { isSystemProvider } from '@shared/utils/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useState } from 'react'
 
@@ -7,7 +8,13 @@ import { useProviderEndpointActions } from '../hooks/providerSetting/useProvider
 import { useProviderEndpoints } from '../hooks/providerSetting/useProviderEndpoints'
 import { useProviderHostPreview } from '../hooks/providerSetting/useProviderHostPreview'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
-import { AnthropicApiHostField, ApiHostField, ApiHostSection, AzureApiVersionField } from './ApiHostFields'
+import {
+  AnthropicApiHostField,
+  ApiHostField,
+  ApiHostSection,
+  AzureApiVersionField,
+  ReasoningFormatField
+} from './ApiHostFields'
 import ProviderCustomHeaderDrawer from './ProviderCustomHeaderDrawer'
 
 const ENDPOINT_CONFIG_PRESET_FIELDS = ['endpointConfigs'] as const
@@ -31,6 +38,11 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
   // Factory-default host for the primary endpoint (registry-sourced); '' for custom providers.
   const defaultApiHost = preset?.endpointConfigs?.[topology.primaryEndpoint]?.baseUrl ?? ''
   const isAnthropicPrimaryEndpoint = primaryEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  const isOpenAiCompatiblePrimaryEndpoint =
+    primaryEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS || primaryEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
+  // The reasoning format selector targets self-hosted OpenAI-compatible endpoints on custom (preset-less) providers.
+  const isReasoningFormatSelectable = !!provider && !isSystemProvider(provider) && isOpenAiCompatiblePrimaryEndpoint
+  const reasoningFormat = provider?.endpointConfigs?.[topology.primaryEndpoint]?.reasoningFormat
   const hostPreview = useProviderHostPreview({
     provider,
     apiHost,
@@ -120,6 +132,9 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
             onApiVersionChange={setApiVersion}
             onApiVersionCommit={endpointActions.commitApiVersion}
           />
+        )}
+        {isReasoningFormatSelectable && (
+          <ReasoningFormatField value={reasoningFormat} onCommit={endpointActions.commitReasoningFormat} />
         )}
       </ApiHostSection>
       <ProviderCustomHeaderDrawer

@@ -18,6 +18,8 @@ import {
   FastModeTransportSchema,
   objectValues,
   ProviderEditionSchema,
+  ProviderReasoningFormatSchema,
+  ProviderReasoningFormatSelectorSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
@@ -212,7 +214,9 @@ export const EndpointConfigSchema = z.object({
   /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
   adapterFamily: z.string().optional(),
   /** Dialect deviations of this host's implementation of the endpoint */
-  dialect: EndpointDialectSchema.optional()
+  dialect: EndpointDialectSchema.optional(),
+  /** How this endpoint expects reasoning parameters to be formatted (e.g. `self-hosted` for vLLM/SGLang relays). */
+  reasoningFormat: ProviderReasoningFormatSchema.optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
@@ -222,13 +226,15 @@ export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
  * user explicitly owns. Registry-owned fields (`modelsApiUrls`,
  * `adapterFamily`) resolve from the registry at read time; persisting them
  * through the renderer write contract would freeze a snapshot that goes stale
- * (#17096).
+ * (#17096). The reasoning format selector never carries the main-only wire.
  */
 export const EndpointConfigOverrideSchema = z.object({
   /** User-owned base URL override for this endpoint type's API */
   baseUrl: z.string().optional(),
   /** User-owned dialect overrides — the only way a custom provider states its deviations */
-  dialect: EndpointDialectSchema.optional()
+  dialect: EndpointDialectSchema.optional(),
+  /** User-owned reasoning format selector for this endpoint type's API. */
+  reasoningFormat: ProviderReasoningFormatSelectorSchema.optional()
 })
 
 export type EndpointConfigOverride = z.infer<typeof EndpointConfigOverrideSchema>
