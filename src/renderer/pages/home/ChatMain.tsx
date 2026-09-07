@@ -1,5 +1,6 @@
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageListActions, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
@@ -52,7 +53,7 @@ const ChatMain: FC<ChatMainProps> = ({
     onStartBranchDraft
   })
   return (
-    <MessageListProvider value={value}>
+    <MessageListProvider value={value} buildLaunchIndex={buildAgentLaunchIndex}>
       <MessageList enableSearch />
     </MessageListProvider>
   )
