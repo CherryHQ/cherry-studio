@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   resolveCrash: vi.fn(),
   reuseOrCreate: vi.fn(),
   deleteByIds: vi.fn(),
+  listExpiredTrashIds: vi.fn(),
+  purgeExpiredByIdsTx: vi.fn(),
   deleteByAgentId: vi.fn(),
   deleteAgent: vi.fn(),
   deleteWorkspace: vi.fn(),
@@ -26,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   hasLiveStream: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
+  abortAndDrain: vi.fn(),
   hasTerminalPersistenceInFlight: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
@@ -78,6 +81,8 @@ vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     reuseOrCreatePlaceholderForDelivery: mocks.reuseOrCreate,
     deleteByIdsForDelivery: mocks.deleteByIds,
+    listExpiredTrashIds: mocks.listExpiredTrashIds,
+    purgeExpiredByIdsTx: mocks.purgeExpiredByIdsTx,
     deleteByAgentIdForDelivery: mocks.deleteByAgentId,
     deleteWorkspaceCascadeForDelivery: mocks.deleteWorkspace
   }
@@ -112,6 +117,7 @@ const manager = {
   withDispatchLock: (_topicId: string, fn: () => Promise<void>) => fn(),
   hasLiveStream: mocks.hasLiveStream,
   pauseRuntimeTurn: mocks.pauseRuntimeTurn,
+  abortAndDrain: mocks.abortAndDrain,
   hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
   send: mocks.send
 }
@@ -193,6 +199,9 @@ describe('AgentSessionDeliveryService', () => {
     mocks.finalize.mockReturnValue(null)
     mocks.findByTurnRef.mockReturnValue(null)
     mocks.deleteByIds.mockReturnValue({ deletedIds: [], taskScheduleIds: [], deliveryResults: [] })
+    mocks.listExpiredTrashIds.mockReturnValue([])
+    mocks.purgeExpiredByIdsTx.mockReturnValue([])
+    mocks.abortAndDrain.mockResolvedValue(undefined)
     mocks.reuseOrCreate.mockReturnValue({
       session: { id: 'target' },
       created: false,
@@ -632,6 +641,61 @@ describe('AgentSessionDeliveryService', () => {
     await flush()
 
     expect(order).toEqual(['commit', 'close', 'kick-result'])
+  })
+
+  it('drains expired Session runtimes before hard-deleting their rows', async () => {
+    let releaseRuntime!: () => void
+    const runtimeDrained = new Promise<void>((resolve) => {
+      releaseRuntime = resolve
+    })
+    mocks.listExpiredTrashIds.mockReturnValue(['expired-session'])
+    mocks.abortAndDrain.mockReturnValue(runtimeDrained)
+    mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
+    const service = new AgentSessionDeliveryService()
+
+    const purge = service.purgeExpiredSessions(500, 10)
+    await vi.waitFor(() =>
+      expect(mocks.abortAndDrain).toHaveBeenCalledWith('agent-session:expired-session', 'agent-session-retention-purge')
+    )
+    expect(mocks.purgeExpiredByIdsTx).not.toHaveBeenCalled()
+
+    releaseRuntime()
+
+    await expect(purge).resolves.toEqual(['expired-session'])
+    expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledWith({}, ['expired-session'], 500)
+    expect(service.isWriteQuiesced).toBe(false)
+  })
+
+  it('waits for in-flight Session delivery admission before hard deletion', async () => {
+    let releaseValidation!: () => void
+    const validation = new Promise<Awaited<ReturnType<typeof mocks.validateDispatch>>>((resolve) => {
+      releaseValidation = () =>
+        resolve({
+          sessionId: 'expired-session',
+          agentId: 'agent-1',
+          agentUpdatedAt: now,
+          agentType: 'claude-code',
+          uniqueModelId: 'provider::model'
+        })
+    })
+    const delivery = { ...accepted, sessionId: 'expired-session' }
+    mocks.listAccepted.mockImplementation((sessionId?: string) => (sessionId === 'expired-session' ? [delivery] : []))
+    mocks.validateDispatch.mockReturnValue(validation)
+    mocks.listExpiredTrashIds.mockReturnValue(['expired-session'])
+    mocks.purgeExpiredByIdsTx.mockReturnValue(['expired-session'])
+    const service = new AgentSessionDeliveryService()
+    await service._doInit()
+    service.kick('expired-session')
+    await vi.waitFor(() => expect(mocks.validateDispatch).toHaveBeenCalled())
+
+    const purge = service.purgeExpiredSessions(500, 10)
+    await vi.waitFor(() => expect(mocks.abortAndDrain).toHaveBeenCalled())
+    expect(mocks.purgeExpiredByIdsTx).not.toHaveBeenCalled()
+
+    releaseValidation()
+
+    await expect(purge).resolves.toEqual(['expired-session'])
+    expect(mocks.purgeExpiredByIdsTx).toHaveBeenCalledOnce()
   })
 
   it('closes duplicate placeholder runtimes through the delivery owner', async () => {

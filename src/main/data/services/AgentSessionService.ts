@@ -1037,24 +1037,45 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
-    const rows = tx
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+  listExpiredTrashIds(cutoffMs: number, limit: number): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(and(isNotNull(sessionsTable.deletedAt), lt(sessionsTable.deletedAt, cutoffMs)))
       .limit(limit)
       .all()
+      .map((row) => row.id)
+  }
+
+  purgeExpiredByIdsTx(tx: DbOrTx, ids: readonly string[], cutoffMs: number): string[] {
+    const uniqueIds = [...new Set(ids)]
+    if (uniqueIds.length === 0) return []
+
+    const rows = tx
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(
+        and(
+          inArray(sessionsTable.id, uniqueIds),
+          isNotNull(sessionsTable.deletedAt),
+          lt(sessionsTable.deletedAt, cutoffMs)
+        )
+      )
+      .all()
     if (rows.length === 0) return []
 
-    const ids = rows.map((row) => row.session.id)
+    const purgedIds = rows.map((row) => row.session.id)
     const systemWorkspaceIds = rows
       .filter((row) => row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM)
       .map((row) => row.workspace.id)
-    tx.delete(sessionsTable).where(inArray(sessionsTable.id, ids)).run()
-    pinService.purgeForEntitiesTx(tx, 'session', ids)
+    tx.delete(sessionsTable).where(inArray(sessionsTable.id, purgedIds)).run()
+    pinService.purgeForEntitiesTx(tx, 'session', purgedIds)
     for (const workspaceId of systemWorkspaceIds) agentWorkspaceService.deleteByIdTx(tx, workspaceId)
-    return ids
+    return purgedIds
   }
 
   deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {

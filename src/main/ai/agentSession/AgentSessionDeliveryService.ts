@@ -154,6 +154,28 @@ export class AgentSessionDeliveryService extends BaseService {
     return work
   }
 
+  async purgeExpiredSessions(cutoffMs: number, limit: number): Promise<string[]> {
+    const hold = this.pause('trash-purge')
+    try {
+      const sessionIds = agentSessionService.listExpiredTrashIds(cutoffMs, limit)
+      if (sessionIds.length === 0) return []
+
+      const manager = application.get('AiStreamManager')
+      await Promise.all(
+        sessionIds.map((sessionId) =>
+          manager.abortAndDrain(buildAgentSessionTopicId(sessionId), 'agent-session-retention-purge')
+        )
+      )
+      await this.drainSessionQueues(sessionIds)
+
+      return application
+        .get('DbService')
+        .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, sessionIds, cutoffMs))
+    } finally {
+      hold.dispose()
+    }
+  }
+
   kick(sessionId?: string): void {
     if (this.isShuttingDown) return
     if (this.isWriteQuiesced) {
@@ -242,6 +264,17 @@ export class AgentSessionDeliveryService extends BaseService {
   private async waitForInFlight(): Promise<void> {
     while (this.inFlight.size > 0) {
       await Promise.allSettled([...this.inFlight.keys()])
+    }
+  }
+
+  private async drainSessionQueues(sessionIds: readonly string[]): Promise<void> {
+    for (;;) {
+      const queues = sessionIds.flatMap((sessionId) => {
+        const queue = this.kicks.get(sessionId)
+        return queue ? [queue] : []
+      })
+      if (queues.length === 0) return
+      await Promise.allSettled(queues)
     }
   }
 

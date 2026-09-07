@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
-import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -31,12 +30,12 @@ const DAY_MS = 86_400_000
  * RFC §6 purge order — containers before independent rows: topic (messages
  * cascade via purge path) → session (session messages FK-cascade) → agent →
  * assistant → painting → file entry. Messages are never moved to the Recycle Bin on their own,
- * so they have no domain here. Each domain's `purgeExpiredTx` is DB-only; disk
- * reclamation happens in the post-commit sweeps.
+ * so they have no domain here. Each domain owns its purge operation; disk reclamation
+ * happens in the post-commit sweeps.
  */
 const PURGE_DOMAINS: ReadonlyArray<{
   name: string
-  purgeExpiredTx: (tx: DbOrTx, cutoffMs: number, limit: number) => string[]
+  purgeExpired: (cutoffMs: number, limit: number) => string[] | Promise<string[]>
   /**
    * Post-commit read-model refresh. The `*Tx` variants stay silent so they compose
    * inside a caller's transaction, which leaves the notification owing here — without
@@ -46,24 +45,28 @@ const PURGE_DOMAINS: ReadonlyArray<{
 }> = [
   {
     name: 'topic',
-    purgeExpiredTx: (tx, cutoffMs, limit) => topicService.purgeExpiredTx(tx, cutoffMs, limit),
+    purgeExpired: (cutoffMs, limit) =>
+      application.get('DbService').withWriteTx((tx) => topicService.purgeExpiredTx(tx, cutoffMs, limit)),
     notifyPurged: (ids) => topicService.notifyPurged(ids)
   },
   {
     name: 'session',
-    purgeExpiredTx: (tx, cutoffMs, limit) => agentSessionService.purgeExpiredTx(tx, cutoffMs, limit),
+    purgeExpired: (cutoffMs, limit) =>
+      application.get('AgentSessionDeliveryService').purgeExpiredSessions(cutoffMs, limit),
     notifyPurged: (ids) => agentSessionService.notifyPurged(ids)
   },
   {
     name: 'agent',
-    purgeExpiredTx: (tx, cutoffMs, limit) => agentService.purgeExpiredTx(tx, cutoffMs, limit),
+    purgeExpired: (cutoffMs, limit) =>
+      application.get('DbService').withWriteTx((tx) => agentService.purgeExpiredTx(tx, cutoffMs, limit)),
     // Retention is the first and only moment a trashed agent's prompt bindings are
     // dropped — they deliberately survive Delete — so this is the only chance to say so.
     notifyPurged: (ids) => agentService.notifyPurged(ids)
   },
   {
     name: 'assistant',
-    purgeExpiredTx: (tx, cutoffMs, limit) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit),
+    purgeExpired: (cutoffMs, limit) =>
+      application.get('DbService').withWriteTx((tx) => assistantDataService.purgeExpiredTx(tx, cutoffMs, limit)),
     notifyPurged: (ids) => {
       assistantDataService.notifyReadModelChange(ids, 'membership')
       promptService.notifyTargetBindingsChanged()
@@ -71,12 +74,14 @@ const PURGE_DOMAINS: ReadonlyArray<{
   },
   {
     name: 'painting',
-    purgeExpiredTx: (tx, cutoffMs, limit) => paintingService.purgeExpiredTx(tx, cutoffMs, limit),
+    purgeExpired: (cutoffMs, limit) =>
+      application.get('DbService').withWriteTx((tx) => paintingService.purgeExpiredTx(tx, cutoffMs, limit)),
     notifyPurged: (ids) => paintingService.notifyReadModelChange(ids, 'membership')
   },
   {
     name: 'fileEntry',
-    purgeExpiredTx: (tx, cutoffMs, limit) => fileEntryService.purgeExpiredTx(tx, cutoffMs, limit),
+    purgeExpired: (cutoffMs, limit) =>
+      application.get('DbService').withWriteTx((tx) => fileEntryService.purgeExpiredTx(tx, cutoffMs, limit)),
     notifyPurged: (ids) =>
       notifyDataApiDataChange([
         { endpoint: '/files/entries', kind: 'membership', entityIds: ids },
@@ -106,7 +111,6 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
 
     // MAX_SAFE_INTEGER + strict `deletedAt < cutoff` captures rows moved to the Recycle Bin "now".
     const cutoffMs = emptyAll ? Number.MAX_SAFE_INTEGER : Date.now() - retentionDays * DAY_MS
-    const dbService = application.get('DbService')
     const totalSteps = PURGE_DOMAINS.length + 3 // + task schedule, file, and agent-dir sweeps
     const purged: Record<string, number> = {}
 
@@ -114,13 +118,13 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
       ctx.signal.throwIfAborted()
       const purgedIds: string[] = []
       let batch: string[]
-      // Batched synchronous transactions: each withWriteTx callback runs inline
-      // (better-sqlite3), keeping every write window short.
+      // DB-only domains keep each synchronous transaction short; Session additionally
+      // drains its runtime before entering the transaction.
       do {
-        // Between batches, never inside: the callback is synchronous, so one batch is
-        // the finest granularity a cancel can land on.
+        // One batch is the cancellation boundary; a Session runtime drain is allowed
+        // to finish before the next check.
         ctx.signal.throwIfAborted()
-        batch = dbService.withWriteTx((tx) => domain.purgeExpiredTx(tx, cutoffMs, PURGE_BATCH_SIZE))
+        batch = await domain.purgeExpired(cutoffMs, PURGE_BATCH_SIZE)
         purgedIds.push(...batch)
       } while (batch.length === PURGE_BATCH_SIZE)
       purged[domain.name] = purgedIds.length

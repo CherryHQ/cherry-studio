@@ -1424,6 +1424,17 @@ describe('AgentSessionService', () => {
     expect(row).toMatchObject({ id: session.id, deletedAt: null })
   })
 
+  it('rechecks expiration before purging a selected Session', async () => {
+    const session = await createSession('Restore during retention purge')
+    await dbh.db.update(agentSessionTable).set({ deletedAt: 100 }).where(eq(agentSessionTable.id, session.id))
+
+    expect(agentSessionService.listExpiredTrashIds(200, 10)).toEqual([session.id])
+    agentSessionService.restore(session.id)
+
+    expect(dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, [session.id], 200))).toEqual([])
+    expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id, deletedAt: undefined })
+  })
+
   it('detaches a bound task schedule when a session moves to the Recycle Bin', async () => {
     const session = await createSession('Scheduled')
     const task = createTaskSchedule()

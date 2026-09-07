@@ -12,6 +12,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import type { JobContext } from '@main/core/job/types'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { rootRow, setupTestDatabase } from '@test-helpers/db'
@@ -20,14 +21,19 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { agentJobsServiceMock, fileManagerMock, notifyDataApiDataChangeMock, sweepAgentOrphansMock } = vi.hoisted(
-  () => ({
-    agentJobsServiceMock: { reconcileAgentSchedules: vi.fn(async () => 0) },
-    fileManagerMock: { runSweep: vi.fn(async () => ({ outcome: 'completed' })) },
-    notifyDataApiDataChangeMock: vi.fn(),
-    sweepAgentOrphansMock: vi.fn(async () => ({ removed: [], failedDrivers: [] }))
-  })
-)
+const {
+  agentJobsServiceMock,
+  agentSessionDeliveryServiceMock,
+  fileManagerMock,
+  notifyDataApiDataChangeMock,
+  sweepAgentOrphansMock
+} = vi.hoisted(() => ({
+  agentJobsServiceMock: { reconcileAgentSchedules: vi.fn(async () => 0) },
+  agentSessionDeliveryServiceMock: { purgeExpiredSessions: vi.fn() },
+  fileManagerMock: { runSweep: vi.fn(async () => ({ outcome: 'completed' })) },
+  notifyDataApiDataChangeMock: vi.fn(),
+  sweepAgentOrphansMock: vi.fn(async () => ({ removed: [], failedDrivers: [] }))
+}))
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
@@ -45,6 +51,7 @@ vi.mock('@application', async () => {
   const container = application.getContainer()
   application.get.mockImplementation((name: string) => {
     if (name === 'AgentJobsService') return agentJobsServiceMock
+    if (name === 'AgentSessionDeliveryService') return agentSessionDeliveryServiceMock
     if (name === 'FileManager') return fileManagerMock
     return container.get(name)
   })
@@ -79,6 +86,11 @@ describe('trashPurgeJobHandler', () => {
   beforeEach(() => {
     agentJobsServiceMock.reconcileAgentSchedules.mockClear()
     agentJobsServiceMock.reconcileAgentSchedules.mockImplementation(async () => 0)
+    agentSessionDeliveryServiceMock.purgeExpiredSessions.mockClear()
+    agentSessionDeliveryServiceMock.purgeExpiredSessions.mockImplementation(async (cutoffMs: number, limit: number) => {
+      const ids = agentSessionService.listExpiredTrashIds(cutoffMs, limit)
+      return dbh.db.transaction((tx) => agentSessionService.purgeExpiredByIdsTx(tx, ids, cutoffMs))
+    })
     fileManagerMock.runSweep.mockClear()
     fileManagerMock.runSweep.mockImplementation(async () => ({ outcome: 'completed' }))
     sweepAgentOrphansMock.mockClear()
@@ -346,15 +358,13 @@ describe('trashPurgeJobHandler', () => {
 
   it('purges domains in RFC §6 order: topic → session → agent → assistant → painting → file entry', async () => {
     const { topicService } = await import('@data/services/TopicService')
-    const { agentSessionService } = await import('@data/services/AgentSessionService')
     const { agentService } = await import('@data/services/AgentService')
     const { assistantDataService } = await import('@data/services/AssistantService')
     const { paintingService } = await import('@data/services/PaintingService')
     const { fileEntryService } = await import('@data/services/FileEntryService')
 
-    const spies = [
+    const serviceSpies = [
       vi.spyOn(topicService, 'purgeExpiredTx'),
-      vi.spyOn(agentSessionService, 'purgeExpiredTx'),
       vi.spyOn(agentService, 'purgeExpiredTx'),
       vi.spyOn(assistantDataService, 'purgeExpiredTx'),
       vi.spyOn(paintingService, 'purgeExpiredTx'),
@@ -363,11 +373,15 @@ describe('trashPurgeJobHandler', () => {
     try {
       await trashPurgeJobHandler.execute(makeCtx({}))
 
-      const firstCallOrder = spies.map((spy) => spy.mock.invocationCallOrder[0])
+      const firstCallOrder = [
+        serviceSpies[0].mock.invocationCallOrder[0],
+        agentSessionDeliveryServiceMock.purgeExpiredSessions.mock.invocationCallOrder[0],
+        ...serviceSpies.slice(1).map((spy) => spy.mock.invocationCallOrder[0])
+      ]
       expect(firstCallOrder.every((order) => order !== undefined)).toBe(true)
       expect(firstCallOrder).toEqual([...firstCallOrder].sort((a, b) => a - b))
     } finally {
-      for (const spy of spies) spy.mockRestore()
+      for (const spy of serviceSpies) spy.mockRestore()
     }
   })
 
