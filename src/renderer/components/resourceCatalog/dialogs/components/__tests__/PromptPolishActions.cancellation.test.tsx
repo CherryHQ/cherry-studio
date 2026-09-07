@@ -87,7 +87,7 @@ describe('PromptPolishActions cancellation', () => {
   })
 
   it('ends a never-resolving request at the deadline even if the request promise ignores abort', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     mocks.fetchGenerate.mockReturnValueOnce(new Promise<string>(() => undefined))
     render(<Harness />)
 
