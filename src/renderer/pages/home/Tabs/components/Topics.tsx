@@ -30,6 +30,7 @@ import {
   useResourceListPinnedState,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
+import { ResourceListMoreAction } from '@renderer/components/chat/resourceList/ResourceListMoreAction'
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
@@ -1861,6 +1862,8 @@ const TopicRow = memo(function TopicRow({
     topic,
     topicsLength
   })
+  const moreMenuActions = useMemo(() => getMenuActions(), [getMenuActions])
+  const hasVisibleMoreMenuActions = moreMenuActions.some((action) => action.availability.visible)
 
   const row = (
     <ResourceList.Item
@@ -1906,7 +1909,13 @@ const TopicRow = memo(function TopicRow({
           status={conversationRowStatus}
         />
       )}
-      <ResourceList.ItemActions active={isConfirmingDeletion}>
+      <ResourceList.ItemActions
+        active={isConfirmingDeletion}
+        alwaysVisible={!rowState.renaming && hasVisibleMoreMenuActions}
+        onClick={(event) => event.stopPropagation()}>
+        {!rowState.renaming && hasVisibleMoreMenuActions && (
+          <ResourceListMoreAction actions={moreMenuActions} onAction={handleMenuAction} />
+        )}
         {showPinAction && (
           <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction

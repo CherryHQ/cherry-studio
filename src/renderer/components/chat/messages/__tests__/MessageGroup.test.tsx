@@ -718,15 +718,15 @@ describe('MessageGroup', () => {
     expect(footer).not.toHaveClass('opacity-0')
   })
 
-  it('reveals historical assistant footers on hover or keyboard focus', () => {
+  it('keeps historical assistant footer affordances available without hover', () => {
     const messages = [createMessage('msg-1', 0, 'vertical')]
 
     const { container } = render(<MessageGroup isLatestAssistantGroup={false} messages={messages} />)
 
     const footer = container.querySelector('#message-msg-1 .MessageFooter')
 
-    expect(footer).toHaveClass('opacity-0', 'group-hover/message:opacity-100', 'focus-within:opacity-100')
-    expect(footer).not.toHaveClass('opacity-100')
+    expect(footer).not.toHaveClass('opacity-0')
+    expect(footer).not.toHaveClass('group-hover/message:opacity-100', 'focus-within:opacity-100')
   })
 
   it('keeps vertical scrolling inside the message content area for horizontal layout', () => {
