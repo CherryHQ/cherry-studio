@@ -6,7 +6,11 @@
  * `disallowedTools`, so the live gate and the fresh-connection block stay consistent.
  */
 
-import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import {
+  CLI_INSTALL_TOOL_NAME,
+  CLI_LIST_TOOL_NAME,
+  CLI_SEARCH_TOOL_NAME
+} from '@main/ai/runtime/claudeCode/mcpV1/cherryCliTools'
 import {
   findBuiltinToolPolicy,
   listBuiltinToolPolicies,

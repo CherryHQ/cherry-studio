@@ -1,3 +1,4 @@
+import type { Tool } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
@@ -106,7 +107,7 @@ export const snapshotToolDefinition = {
       }
     }
   }
-}
+} satisfies Tool
 
 export async function handleSnapshot(controller: CdpBrowserController, args: unknown) {
   try {

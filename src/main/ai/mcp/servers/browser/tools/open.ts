@@ -1,3 +1,4 @@
+import type { Tool } from '@modelcontextprotocol/server'
 import * as z from 'zod'
 
 import type { CdpBrowserController } from '../controller'
@@ -79,7 +80,7 @@ export const openToolDefinition = {
     },
     required: ['url']
   }
-}
+} satisfies Tool
 
 export async function handleOpen(controller: CdpBrowserController, args: unknown) {
   try {

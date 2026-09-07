@@ -17,18 +17,6 @@ vi.mock('@application', async () => {
   } as Record<string, unknown>)
 })
 
-vi.mock('@application', async () => {
-  return {
-    application: {
-      get: (name: string) => {
-        if (name === 'McpCatalogService') return { listTools }
-        if (name === 'McpRuntimeService') return { callTool }
-        throw new Error(`unexpected service: ${name}`)
-      }
-    }
-  }
-})
-
 vi.mock('@main/data/services/McpServerService', () => ({
   mcpServerService: { list, getById }
 }))
@@ -120,7 +108,9 @@ describe('mcpTools execute wrapper', () => {
       name: 't',
       args: { q: 'x' },
       callId: 'call-3',
-      signal: abortSignal
+      scope: undefined,
+      signal: abortSignal,
+      interactionContext: undefined
     })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
     expect(out.metadata).toEqual({ description: '', name: 't', serverName: 's1', serverId: 's1', type: 'mcp' })

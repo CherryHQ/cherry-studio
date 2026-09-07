@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createMcpBridgeServer: vi.fn(),
+  createSdkMcpServerInstance: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
   warmToolsCache: vi.fn<(serverId: string) => Promise<void>>(async () => undefined),
   listMcpTools: vi.fn(),
@@ -150,7 +151,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
   }))
 }))
 
-vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
+vi.mock('@main/ai/runtime/claudeCode/mcpV1/assistant', () => ({ default: mocks.createAssistantServer }))
 
 vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
   AssistantFileToolsServer: mocks.createAssistantFileToolsServer
@@ -158,6 +159,10 @@ vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
 
 vi.mock('@main/ai/mcp/createMcpBridgeServer', () => ({
   createMcpBridgeServer: mocks.createMcpBridgeServer
+}))
+
+vi.mock('@main/ai/runtime/claudeCode/mcpV1/createSdkMcpServerInstance', () => ({
+  createSdkMcpServerInstance: mocks.createSdkMcpServerInstance
 }))
 
 vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
@@ -762,7 +767,11 @@ describe('buildClaudeCodeSessionSettings', () => {
       agent as never
     )
 
-    expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
+    expect(mocks.createSdkMcpServerInstance).toHaveBeenCalledWith(
+      'mcp-1',
+      materializedServer,
+      expect.objectContaining({ topicId: 'agent-session:session-1', model: 'anthropic::claude-sonnet' })
+    )
   })
 
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {

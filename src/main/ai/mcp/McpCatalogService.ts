@@ -3,14 +3,12 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import * as z from 'zod'
 
-import { redactCacheKey } from './mcpRedact'
 import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
@@ -19,7 +17,6 @@ const PREWARM_CONCURRENCY = 3
 const EMPTY_TOOLS_RETRY_MS = 5 * 60 * 1000
 const FAILED_TOOLS_RETRY_MS = 30 * 1000
 
-type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 type ListToolsOptions = { includeDisabled?: boolean }
 
 /** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
@@ -37,41 +34,7 @@ const MCP_TOOL_INPUT_SCHEMA = z
     return schema
   })
 
-const MCP_TOOL_OUTPUT_SCHEMA = z
-  .object({
-    type: z.literal('object'),
-    properties: z.object({}).loose().optional(),
-    required: z.array(z.string()).optional()
-  })
-  .loose()
-
-function withCache<T extends unknown[], R>(
-  fn: (...args: T) => Promise<R>,
-  getCacheKey: (...args: T) => string,
-  ttl: number,
-  logPrefix: string
-): CachedFunction<T, R> {
-  return async (...args: T): Promise<R> => {
-    const cacheKey = getCacheKey(...args)
-    const cacheService = application.get('CacheService')
-
-    if (cacheService.has(cacheKey)) {
-      logger.debug(`${logPrefix} loaded from cache`, { cacheKey: redactCacheKey(cacheKey) })
-      const cachedData = cacheService.get<R>(cacheKey)
-      if (cachedData) return cachedData
-    }
-
-    const start = Date.now()
-    const result = await fn(...args)
-    cacheService.set(cacheKey, result, ttl)
-    logger.debug(`${logPrefix} cached`, {
-      cacheKey: redactCacheKey(cacheKey),
-      ttlMs: ttl,
-      durationMs: Date.now() - start
-    })
-    return result
-  }
-}
+const MCP_TOOL_OUTPUT_SCHEMA = z.union([z.record(z.string(), z.unknown()), z.boolean()])
 
 @Injectable('McpCatalogService')
 @ServicePhase(Phase.WhenReady)
@@ -156,11 +119,6 @@ export class McpCatalogService extends BaseService {
     }
   }
 
-  public clearToolsCache(server: McpServer): void {
-    const serverKey = application.get('McpRuntimeService').getServerKey(server)
-    application.get('CacheService').delete(`mcp:list_tool:${serverKey}`)
-  }
-
   public clearSharedToolsCache(serverId: string): void {
     this.writeToolsCache(serverId, [])
   }
@@ -181,19 +139,8 @@ export class McpCatalogService extends BaseService {
 
   private async listToolsImpl(server: McpServer): Promise<McpTool[]> {
     try {
-      const { tools } = await application.get('McpRuntimeService').withClient(server.id, async (client) => {
-        // A server that publishes only prompts or resources answers `tools/list` with -32601, which
-        // used to surface as "start failed" and made it impossible to enable at all.
-        if (!client.getServerCapabilities()?.tools) {
-          logger.debug('Server does not declare tools capability, skipping list', {
-            serverId: server.id,
-            serverName: server.name
-          })
-          return { tools: [] as SDKTool[] }
-        }
-        return client.listTools()
-      })
-      return tools.map((tool: SDKTool) => {
+      const tools = await application.get('McpRuntimeService').listTools(server.id, 'refresh')
+      return tools.map((tool) => {
         const serverTool: McpTool = {
           ...tool,
           inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
@@ -228,19 +175,7 @@ export class McpCatalogService extends BaseService {
       return []
     }
 
-    const listFunc = (server: McpServer) => {
-      const cachedListTools = withCache<[McpServer], McpTool[]>(
-        this.listToolsImpl.bind(this),
-        (server) => {
-          const serverKey = application.get('McpRuntimeService').getServerKey(server)
-          return `mcp:list_tool:${serverKey}`
-        },
-        5 * 60 * 1000,
-        `[MCP] Tools from ${server.name}`
-      )
-
-      return cachedListTools(server)
-    }
+    const listFunc = (server: McpServer) => this.listToolsImpl(server)
 
     try {
       const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
@@ -340,7 +275,6 @@ export class McpCatalogService extends BaseService {
 
   public async refreshTools(serverId: string): Promise<void> {
     const server = this.getServerById(serverId)
-    this.clearToolsCache(server)
     await this.listToolsForServer(server, { includeDisabled: true })
   }
 

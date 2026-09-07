@@ -4,12 +4,14 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
-import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
-import AssistantServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
-import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import McpManagerServer from '@main/ai/mcp/servers/mcpManager'
-import SkillsServer from '@main/ai/mcp/servers/skills'
+import {
+  AgentMemoryMcpServer,
+  AssistantMcpServer,
+  CherryBuiltinMcpServer,
+  SkillsMcpServer
+} from '@main/ai/runtime/claudeCode'
 import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -41,6 +43,8 @@ export interface AgentMcpServer {
   instance: McpServer
 }
 
+type ConfiguredMcpServerFactory = (mcpId: string, serverSnapshot?: McpServerEntity) => McpServer
+
 /** Build the complete MCP server set exposed by an agent session, independent of runtime transport. */
 export function buildAgentMcpServers(
   session: AgentSessionEntity,
@@ -50,7 +54,8 @@ export function buildAgentMcpServers(
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
   selectedKnowledgeBaseIds: readonly string[] = [],
-  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot),
+  configuredServerFactory: ConfiguredMcpServerFactory = createMcpBridgeServer
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
   const channelLinked =
@@ -63,7 +68,7 @@ export function buildAgentMcpServers(
       if (mcpServerSnapshots && !serverSnapshot) {
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
-      servers[mcpId] = { name: mcpId, instance: createMcpBridgeServer(mcpId, serverSnapshot) }
+      servers[mcpId] = { name: mcpId, instance: configuredServerFactory(mcpId, serverSnapshot) }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
     }
@@ -72,7 +77,7 @@ export function buildAgentMcpServers(
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
     name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
-    instance: new CherryBuiltinToolsServer({
+    instance: new CherryBuiltinMcpServer({
       agentId: agent.id,
       agentDataPath,
       sessionId: session.id,
@@ -89,10 +94,10 @@ export function buildAgentMcpServers(
   }
   servers['agent-memory'] = {
     name: CHERRY_MCP_SERVER.AGENT_MEMORY,
-    instance: new AgentMemoryServer(agent.id, agentDataPath).mcpServer
+    instance: new AgentMemoryMcpServer(agent.id, agentDataPath).mcpServer
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
-    servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsServer(agent.id).mcpServer }
+    servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsMcpServer(agent.id).mcpServer }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
     servers['mcp-manager'] = {
@@ -104,7 +109,7 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      instance: new AssistantServer(agent.model ?? undefined, hostTools?.tools).mcpServer
+      instance: new AssistantMcpServer(agent.model ?? undefined, hostTools?.tools).mcpServer
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {

@@ -2,6 +2,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { WindowId } from '@shared/ipc/types'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
@@ -81,6 +82,10 @@ export interface AiBaseRequest {
   contextOwner?: ContextOwner
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
+  /** In-process caller identity used only for targeted embedded MCP authorization. */
+  interactionWindowId?: WindowId
+  /** In-process safety switch for MCP sampling; prevents tool recursion. */
+  disableTools?: boolean
 }
 
 /**

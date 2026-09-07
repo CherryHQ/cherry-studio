@@ -1,3 +1,4 @@
+// v1 compatibility island: these definitions back the Claude Agent SDK server only.
 /**
  * Knowledge-base tools (kb_search / kb_read / kb_list / kb_manage) hosted by the
  * in-process `cherry-tools` MCP server (see `cherryBuiltinTools.ts`).

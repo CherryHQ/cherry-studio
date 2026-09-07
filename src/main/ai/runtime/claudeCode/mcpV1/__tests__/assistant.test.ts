@@ -1,3 +1,4 @@
+// v1 compatibility island regression tests.
 /**
  * Regression for mcp-servers-3: read_source's sensitive-file blocklist must cover all
  * dotenv variants and private-key/cert material, not just `.env`/`.env.local`.

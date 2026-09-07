@@ -1,3 +1,4 @@
+// v1 compatibility island: this server is consumed only by the Claude Agent SDK.
 import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'

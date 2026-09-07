@@ -1,7 +1,9 @@
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
 
+import { requireToolInputSchema } from '../../schema'
 import { DEFAULT_READ_LIMIT, isBinaryFile, MAX_LINE_LENGTH, validatePath } from '../types'
 
 // Schema definition
@@ -24,11 +26,11 @@ export const readToolDefinition = {
 - Results are returned with line numbers starting at 1
 - Binary files are detected and rejected with an error
 - Empty files return a warning`,
-  inputSchema: z.toJSONSchema(ReadToolSchema)
+  inputSchema: requireToolInputSchema(z.toJSONSchema(ReadToolSchema))
 }
 
 // Handler implementation
-export async function handleReadTool(args: unknown, baseDir: string) {
+export async function handleReadTool(args: unknown, baseDir: string): Promise<CallToolResult> {
   const parsed = ReadToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for read: ${parsed.error}`)

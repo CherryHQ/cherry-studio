@@ -1,7 +1,9 @@
+import type { CallToolResult } from '@modelcontextprotocol/server'
 import fs from 'fs/promises'
 import path from 'path'
 import * as z from 'zod'
 
+import { requireToolInputSchema } from '../../schema'
 import { logger, validatePath } from '../types'
 
 // Schema definition
@@ -22,11 +24,11 @@ CAUTION: This operation cannot be undone!
 - For non-empty directories: set recursive=true
 - The path must resolve within the configured workspace root
 - Always verify the path before deleting to avoid data loss`,
-  inputSchema: z.toJSONSchema(DeleteToolSchema)
+  inputSchema: requireToolInputSchema(z.toJSONSchema(DeleteToolSchema))
 }
 
 // Handler implementation
-export async function handleDeleteTool(args: unknown, baseDir: string) {
+export async function handleDeleteTool(args: unknown, baseDir: string): Promise<CallToolResult> {
   const parsed = DeleteToolSchema.safeParse(args)
   if (!parsed.success) {
     throw new Error(`Invalid arguments for delete: ${parsed.error}`)
