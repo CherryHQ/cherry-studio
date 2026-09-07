@@ -13,6 +13,7 @@
  * them and ai-retry can't re-shape them mid-call); the capability gate ensures a
  * skipped fallback never receives a native request shape it can't handle.
  */
+import { application } from '@application'
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
@@ -20,6 +21,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isAbortError } from '@main/utils/error'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { Assistant } from '@shared/data/types/assistant'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -122,6 +124,15 @@ async function resolveFallback(
   uniqueModelId: UniqueModelId,
   args: BuildFallbackModelsArgs
 ): Promise<RetryFallback | null> {
+  const { providerId } = parseUniqueModelId(uniqueModelId)
+  if (isManagedCherryCloudModel(providerId)) {
+    const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
+    if (!availability.availableModelIdsByFeature.chat.includes(uniqueModelId)) {
+      logger.info('skipping Cherry Cloud fallback without chat permission', { uniqueModelId })
+      return null
+    }
+  }
+
   const configured = resolveConfiguredFallback(uniqueModelId)
   if (!configured) return null
   const { provider, model } = configured
