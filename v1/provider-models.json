@@ -109,7 +109,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "claude-opus-4-6-thinking",
+      "apiModelId": "claude-opus-4-6",
       "modelId": "claude-opus-4-6",
       "pricing": {
         "input": {
@@ -177,7 +177,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "claude-sonnet-4-6-thinking",
+      "apiModelId": "claude-sonnet-4-6",
       "modelId": "claude-sonnet-4-6",
       "pricing": {
         "input": {
@@ -223,7 +223,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "deepseek-v3.2",
+      "apiModelId": "deepseek-v3.2-thinking",
       "modelId": "deepseek-v3-2",
       "pricing": {
         "input": {
@@ -725,7 +725,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "gpt-5",
+      "apiModelId": "gpt-5-thinking",
       "modelId": "gpt-5",
       "pricing": {
         "input": {
@@ -824,7 +824,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "gpt-5.4-mini",
+      "apiModelId": "gpt-5.4-mini-2026-03-17",
       "modelId": "gpt-5-4-mini",
       "pricing": {
         "input": {
@@ -1047,6 +1047,7 @@
     {
       "apiModelId": "kimi-k2-0905-preview",
       "modelId": "kimi-k2-0905-preview",
+      "name": "kimi-k2-0905-preview",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -1062,6 +1063,7 @@
     {
       "apiModelId": "kimi-k2-thinking-turbo",
       "modelId": "kimi-k2-thinking-turbo",
+      "name": "kimi-k2-thinking-turbo",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -3106,22 +3108,6 @@
       "providerId": "aws-bedrock"
     },
     {
-      "apiModelId": "gemma-4-31b",
-      "modelId": "gemma-4-31b",
-      "name": "Gemma 4 31B IT",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.99
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.49
-        }
-      },
-      "providerId": "cerebras"
-    },
-    {
       "apiModelId": "gpt-oss-120b",
       "modelId": "gpt-oss-120b",
       "pricing": {
@@ -3132,6 +3118,22 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.75
+        }
+      },
+      "providerId": "cerebras"
+    },
+    {
+      "apiModelId": "qwen-3.8-27b",
+      "modelId": "qwen-3-8-27b",
+      "name": "Qwen3.8 27B",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.99
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.49
         }
       },
       "providerId": "cerebras"
@@ -3362,6 +3364,29 @@
       "providerId": "copilot"
     },
     {
+      "apiModelId": "claude-fable-5.1",
+      "modelId": "claude-fable-5-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
       "apiModelId": "claude-haiku-4.5",
       "modelId": "claude-haiku-4-5",
       "pricing": {
@@ -3380,52 +3405,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 5
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
-      "apiModelId": "claude-opus-4.5",
-      "modelId": "claude-opus-4-5",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 6.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 25
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
-      "apiModelId": "claude-opus-4.6",
-      "modelId": "claude-opus-4-6",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 6.25
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 25
         }
       },
       "providerId": "copilot"
@@ -3500,52 +3479,6 @@
       "providerId": "copilot"
     },
     {
-      "apiModelId": "claude-sonnet-4",
-      "modelId": "claude-sonnet-4",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 3.75
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 15
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
-      "apiModelId": "claude-sonnet-4.5",
-      "modelId": "claude-sonnet-4-5",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 3.75
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 15
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
       "apiModelId": "claude-sonnet-4.6",
       "modelId": "claude-sonnet-4-6",
       "pricing": {
@@ -3587,25 +3520,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 10
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
-      "apiModelId": "gemini-3.1-pro-preview",
-      "modelId": "gemini-3-1-pro-preview",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 12
         }
       },
       "providerId": "copilot"
@@ -3668,58 +3582,20 @@
       "providerId": "copilot"
     },
     {
-      "apiModelId": "gpt-4.1",
-      "modelId": "gpt-4-1",
+      "apiModelId": "gemini-3.8-flash",
+      "modelId": "gemini-3-8-flash",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.075
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 0.75
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 8
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
-      "apiModelId": "gpt-5.2",
-      "modelId": "gpt-5-2",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.175
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.75
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 14
-        }
-      },
-      "providerId": "copilot"
-    },
-    {
-      "apiModelId": "gpt-5.2-codex",
-      "modelId": "gpt-5-2-codex",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.175
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.75
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 14
+          "perMillionTokens": 3.75
         }
       },
       "providerId": "copilot"
@@ -3848,19 +3724,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.4
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 5
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 10
+          "perMillionTokens": 20
         }
       },
       "providerId": "copilot"
@@ -3903,6 +3779,29 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "gpt-6-astra",
+      "modelId": "gpt-6-astra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
         }
       },
       "providerId": "copilot"
@@ -10640,15 +10539,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.028
+          "perMillionTokens": 0.007
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.22
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.66
         }
       },
       "providerId": "fireworks",
@@ -10693,6 +10592,25 @@
           }
         }
       }
+    },
+    {
+      "apiModelId": "accounts/fireworks/models/deepseek-v4-flash-vision-exp",
+      "modelId": "deepseek-v4-flash-vision-exp",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.007
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.22
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.66
+        }
+      },
+      "providerId": "fireworks"
     },
     {
       "apiModelId": "accounts/fireworks/models/deepseek-v4-pro-0813",
@@ -10952,7 +10870,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.029
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
@@ -11599,6 +11517,25 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/models/qwen3p8-2p4t-a95b",
+      "modelId": "qwen3-8-2-4t-a95b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "fireworks"
+    },
+    {
       "apiModelId": "accounts/fireworks/models/qwen3p8-max",
       "modelId": "qwen3-8-max",
       "pricing": {
@@ -11647,6 +11584,29 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "anthropic/claude-fable-5.1",
+      "modelId": "claude-fable-5-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
         },
         "cacheWrite": {
           "currency": "USD",
@@ -12008,25 +11968,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "deepseek/deepseek-v3",
-      "modelId": "deepseek-v3",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.135
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.27
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.12
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "deepseek/deepseek-v3.1",
       "modelId": "deepseek-v3-1",
       "pricing": {
@@ -12065,39 +12006,35 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "deepseek/deepseek-v3.2",
+      "apiModelId": "deepseek/deepseek-v3.2-thinking",
       "modelId": "deepseek-v3-2",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.028
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.62
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.42
+          "perMillionTokens": 1.85
         }
       },
       "providerId": "gateway"
     },
     {
-      "apiModelId": "deepseek/deepseek-v4-flash",
+      "apiModelId": "deepseek/deepseek-v4-flash-0731",
       "modelId": "deepseek-v4-flash",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.028
+          "perMillionTokens": 0.014
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.076
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.153
         }
       },
       "providerId": "gateway"
@@ -12452,6 +12389,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "google/gemini-3.8-flash",
+      "modelId": "gemini-3-8-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "google/gemini-3-flash",
       "modelId": "gemini-3-flash",
       "pricing": {
@@ -12745,15 +12701,34 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.13
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.4
+          "perMillionTokens": 0.7
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.4
+          "perMillionTokens": 2.2
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "zai/glm-5.3-fast",
+      "modelId": "glm-5-3-fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.21
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6.6
         }
       },
       "providerId": "gateway"
@@ -12773,6 +12748,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.5
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "zai/glm-5.3-promo-50",
+      "modelId": "glm-5-3-promo-50",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.13
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.2
         }
       },
       "providerId": "gateway"
@@ -13380,6 +13374,29 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 120
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "openai/gpt-6-astra",
+      "modelId": "gpt-6-astra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
         }
       },
       "providerId": "gateway"
@@ -14037,16 +14054,20 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "moonshotai/kimi-k2",
+      "apiModelId": "moonshotai/kimi-k2-thinking",
       "modelId": "kimi-k2",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.141
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.57
+          "perMillionTokens": 0.47
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.3
+          "perMillionTokens": 2
         }
       },
       "providerId": "gateway"
@@ -14200,8 +14221,23 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "inclusionai/ling-3.0-flash-fin-free",
+      "apiModelId": "inclusionai/ling-3.0-flash-fin",
       "modelId": "ling-3-0-flash-fin",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "inclusionai/ling-3.0-flash-sante",
+      "modelId": "ling-3-0-flash-sante",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -14362,6 +14398,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "xiaomi/mimo-v2.5-pro-ultraspeed",
+      "modelId": "mimo-v2-5-pro-ultraspeed",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0108
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.305
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.61
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "minimax/minimax-m2",
       "modelId": "minimax-m2",
       "pricing": {
@@ -14477,24 +14532,16 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "minimax/minimax-m2.7",
+      "apiModelId": "minimax/minimax-m2.7-free",
       "modelId": "minimax-m2-7",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.06
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.375
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.2
+          "perMillionTokens": 0
         }
       },
       "providerId": "gateway"
@@ -14523,20 +14570,20 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "minimax/minimax-m3-free",
+      "apiModelId": "minimax/minimax-m3",
       "modelId": "minimax-m3",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.06
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "gateway"
@@ -14751,6 +14798,44 @@
     {
       "apiModelId": "meta/muse-spark-1.2-contributor",
       "modelId": "muse-spark-1-2-contributor",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.002
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "meta/muse-spark-1.3",
+      "modelId": "muse-spark-1-3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "meta/muse-spark-1.3-contributor",
+      "modelId": "muse-spark-1-3-contributor",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -15383,7 +15468,26 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "alibaba/qwen3.8-max",
+      "apiModelId": "alibaba/qwen3.8-flash-next",
+      "modelId": "qwen3-8-flash-next",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.12
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "alibaba/qwen3.8-max-0902",
       "modelId": "qwen3-8-max",
       "pricing": {
         "cacheRead": {
@@ -16057,31 +16161,46 @@
       "providerId": "groq"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-R1",
+      "apiModelId": "qwen/qwen3.8-27b",
+      "modelId": "qwen3-8-27b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.8
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        }
+      },
+      "providerId": "groq"
+    },
+    {
+      "apiModelId": "deepseek-ai/DeepSeek-R1-0528",
       "modelId": "deepseek-r1",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.7
+          "perMillionTokens": 3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 5
         }
       },
       "providerId": "huggingface"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-V3-0324",
+      "apiModelId": "deepseek-ai/DeepSeek-V3",
       "modelId": "deepseek-v3",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.27
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.12
+          "perMillionTokens": 1.3
         }
       },
       "providerId": "huggingface"
@@ -16117,7 +16236,7 @@
       "providerId": "huggingface"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash",
       "modelId": "deepseek-v4-flash",
       "pricing": {
         "input": {
@@ -16132,20 +16251,31 @@
       "providerId": "huggingface"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-V4-Pro",
-      "modelId": "deepseek-v4-pro",
+      "apiModelId": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
+      "modelId": "deepseek-v4-flash-vision-exp",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.003625
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0.44
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 1.32
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
+      "apiModelId": "deepseek-ai/DeepSeek-V4-Pro-0813",
+      "modelId": "deepseek-v4-pro",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.96
         }
       },
       "providerId": "huggingface"
@@ -18164,20 +18294,16 @@
       "providerId": "nvidia"
     },
     {
-      "apiModelId": "deepseek-ai/deepseek-v4-flash",
+      "apiModelId": "deepseek-ai/deepseek-v4-flash-0731",
       "modelId": "deepseek-v4-flash",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.0028
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0
         }
       },
       "providerId": "nvidia",
@@ -21016,6 +21142,71 @@
       }
     },
     {
+      "apiModelId": "muse-spark-1.3-contributor",
+      "endpointTypes": ["openai-responses"],
+      "modelId": "muse-spark-1-3-contributor",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.002
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "omen-alpha",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "omen-alpha",
+      "name": "Omen Alpha",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.66
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "high"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "ox-alpha-free",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "ox-alpha",
@@ -21669,12 +21860,50 @@
       }
     },
     {
+      "apiModelId": "anthropic/claude-fable-5.1",
+      "modelId": "claude-fable-5-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "~anthropic/claude-fable-latest",
       "modelId": "claude-fable-latest",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.25
         },
         "cacheWrite": {
           "currency": "USD",
@@ -21966,48 +22195,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.7-fast",
-      "modelId": "claude-opus-4-7-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 3
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 37.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 150
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              },
-              {
-                "default": false,
-                "kind": "toggle"
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.8",
       "modelId": "claude-opus-4-8",
       "pricing": {
@@ -22050,48 +22237,6 @@
       }
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.8-fast",
-      "modelId": "claude-opus-4-8-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 12.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 50
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              },
-              {
-                "default": false,
-                "kind": "toggle"
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "anthropic/claude-opus-5",
       "modelId": "claude-opus-5",
       "pricing": {
@@ -22110,48 +22255,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 25
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "default": "high",
-                "kind": "effort",
-                "values": ["max", "xhigh", "high", "medium", "low"]
-              },
-              {
-                "default": true,
-                "kind": "toggle"
-              }
-            ],
-            "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "anthropic/claude-opus-5-fast",
-      "modelId": "claude-opus-5-fast",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 12.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 50
         }
       },
       "providerId": "openrouter",
@@ -22517,11 +22620,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2574
+          "perMillionTokens": 0.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.0287
+          "perMillionTokens": 0.89
         }
       },
       "providerId": "openrouter"
@@ -22712,20 +22815,20 @@
       }
     },
     {
-      "apiModelId": "deepseek/deepseek-v4-flash",
+      "apiModelId": "deepseek/deepseek-v4-flash-0731",
       "modelId": "deepseek-v4-flash",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.017721
+          "perMillionTokens": 0.009996
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.088606
+          "perMillionTokens": 0.04998
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.177212
+          "perMillionTokens": 0.09996
         }
       },
       "providerId": "openrouter",
@@ -22780,15 +22883,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.014
+          "perMillionTokens": 0.007
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.44
+          "perMillionTokens": 0.22
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.32
+          "perMillionTokens": 0.66
         }
       },
       "providerId": "openrouter",
@@ -22818,15 +22921,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.044
+          "perMillionTokens": 0.019316
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.32
+          "perMillionTokens": 0.57948
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.96
+          "perMillionTokens": 1.73844
         }
       },
       "providerId": "openrouter",
@@ -24089,6 +24192,44 @@
       }
     },
     {
+      "apiModelId": "google/gemini-3.8-flash",
+      "modelId": "gemini-3-8-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.041667
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "google/gemini-3-flash-preview",
       "modelId": "gemini-3-flash-preview",
       "pricing": {
@@ -24452,20 +24593,16 @@
       }
     },
     {
-      "apiModelId": "google/gemma-4-31b-it",
+      "apiModelId": "google/gemma-4-31b-it:free",
       "modelId": "gemma-4-31b-it",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.34
+          "perMillionTokens": 0
         }
       },
       "providerId": "openrouter",
@@ -24582,15 +24719,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.08
+          "perMillionTokens": 0.11
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.43
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.75
+          "perMillionTokens": 2.2
         }
       },
       "providerId": "openrouter",
@@ -24767,16 +24904,20 @@
       }
     },
     {
-      "apiModelId": "z-ai/glm-5.2:free",
+      "apiModelId": "z-ai/glm-5.2",
       "modelId": "glm-5-2",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1932
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.966
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 3.036
         }
       },
       "providerId": "openrouter",
@@ -24806,7 +24947,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
@@ -24933,20 +25074,20 @@
       }
     },
     {
-      "apiModelId": "~z-ai/glm-latest",
-      "modelId": "glm-latest",
+      "apiModelId": "~z-ai/glm-flash-latest",
+      "modelId": "glm-flash-latest",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.247
+          "perMillionTokens": 0.015
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.1875
+          "perMillionTokens": 0.075
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.18
+          "perMillionTokens": 0.25
         }
       },
       "providerId": "openrouter",
@@ -24967,16 +25108,50 @@
       }
     },
     {
-      "apiModelId": "openai/gpt-3.5-turbo",
+      "apiModelId": "~z-ai/glm-latest",
+      "modelId": "glm-latest",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.234
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.17
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.96
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["max", "high", "low"]
+              }
+            ],
+            "defaultEffort": "max",
+            "supportedEfforts": ["max", "high", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-3.5-turbo-0613",
       "modelId": "gpt-3-5-turbo",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 2
         }
       },
       "providerId": "openrouter"
@@ -25114,26 +25289,22 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "openai/gpt-4o",
+      "apiModelId": "openai/gpt-4o-2024-05-13",
       "modelId": "gpt-4o",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 10
+          "perMillionTokens": 15
         }
       },
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "openai/gpt-4o-mini",
+      "apiModelId": "openai/gpt-4o-mini-2024-07-18",
       "modelId": "gpt-4o-mini",
       "pricing": {
         "cacheRead": {
@@ -26101,9 +26272,7 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image",
-      "name": "OpenAI: GPT-5 Image",
       "outputModalities": ["image", "text"],
-      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26184,9 +26353,7 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image-mini",
-      "name": "OpenAI: GPT-5 Image Mini",
       "outputModalities": ["image", "text"],
-      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26304,6 +26471,82 @@
             ],
             "defaultEffort": "high",
             "supportedEfforts": ["high"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-6-astra",
+      "modelId": "gpt-6-astra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "openai/gpt-6-astra-pro",
+      "modelId": "gpt-6-astra-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
           }
         }
       }
@@ -26724,9 +26967,9 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "ibm-granite/granite-4.1-8b",
-      "modelId": "granite-4-1-8b",
-      "name": "Granite 4.1 8B",
+      "apiModelId": "ibm-granite/granite-4.2-8b",
+      "modelId": "granite-4-2-8b",
+      "name": "Granite 4.2 8B",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26734,14 +26977,33 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.15
         }
       },
-      "providerId": "openrouter"
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["high", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["high", "low", "none"]
+          }
+        }
+      }
     },
     {
       "apiModelId": "x-ai/grok-4.20",
@@ -27310,15 +27572,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.033
+          "perMillionTokens": 0.020625
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.132
+          "perMillionTokens": 0.0825
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.528
+          "perMillionTokens": 0.33
         }
       },
       "providerId": "openrouter",
@@ -27406,6 +27668,10 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["high", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
@@ -27487,25 +27753,6 @@
       }
     },
     {
-      "apiModelId": "kwaipilot/kat-coder-air-v2.5",
-      "modelId": "kat-coder-air-v2-5",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.03
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.6
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
       "apiModelId": "kwaipilot/kat-coder-pro-v2",
       "modelId": "kat-coder-pro-v2",
       "pricing": {
@@ -27544,16 +27791,16 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "moonshotai/kimi-k2",
+      "apiModelId": "moonshotai/kimi-k2-0905",
       "modelId": "kimi-k2",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.57
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.3
+          "perMillionTokens": 2.5
         }
       },
       "providerId": "openrouter",
@@ -27924,20 +28171,16 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "poolside/laguna-s-2.1",
+      "apiModelId": "poolside/laguna-s-2.1:free",
       "modelId": "laguna-s-2-1",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.009
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0
         }
       },
       "providerId": "openrouter",
@@ -27956,16 +28199,20 @@
       }
     },
     {
-      "apiModelId": "poolside/laguna-xs-2.1:free",
+      "apiModelId": "poolside/laguna-xs-2.1",
       "modelId": "laguna-xs-2-1",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.06
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.12
         }
       },
       "providerId": "openrouter",
@@ -28038,8 +28285,40 @@
       }
     },
     {
-      "apiModelId": "inclusionai/ling-3.0-flash-fin:free",
+      "apiModelId": "inclusionai/ling-3.0-flash-fin",
       "modelId": "ling-3-0-flash-fin",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.012
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.18
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "inclusionai/ling-3.0-flash-sante:free",
+      "modelId": "ling-3-0-flash-sante",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -28059,7 +28338,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28132,17 +28412,13 @@
       "apiModelId": "meta-llama/llama-3.3-70b-instruct",
       "modelId": "llama-3-3-70b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.71
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.71
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.71
+          "perMillionTokens": 0.32
         }
       },
       "providerId": "openrouter"
@@ -28166,17 +28442,13 @@
       "apiModelId": "meta-llama/llama-4-scout",
       "modelId": "llama-4-scout",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.055
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.11
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.34
+          "perMillionTokens": 0.3
         }
       },
       "providerId": "openrouter"
@@ -28265,7 +28537,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 2.5
         },
         "output": {
           "currency": "USD",
@@ -28363,6 +28635,94 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "microsoft/mai-image-2.6",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 5,
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "auto"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "auto"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "mai-image-2-6",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "microsoft/mai-image-2.6-flash",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 5,
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "auto"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "auto"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "mai-image-2-6-flash",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "inception/mercury-2",
       "modelId": "mercury-2",
       "pricing": {
@@ -28377,6 +28737,44 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.75
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["high", "medium", "low", "none"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "inception/mercury-2.5-preview",
+      "modelId": "mercury-2-5-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.004
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
         }
       },
       "providerId": "openrouter",
@@ -28712,20 +29110,20 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "mistralai/mistral-large-2512",
+      "apiModelId": "mistralai/mistral-large",
       "modelId": "mistral-large",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.2
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 6
         }
       },
       "providerId": "openrouter"
@@ -28981,7 +29379,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.2
+          "perMillionTokens": 1.1
         }
       },
       "providerId": "openrouter",
@@ -29124,6 +29522,74 @@
       }
     },
     {
+      "apiModelId": "meta/muse-spark-1.3",
+      "modelId": "muse-spark-1-3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low", "minimal"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "minimal"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "meta/muse-spark-1.3-contributor",
+      "modelId": "muse-spark-1-3-contributor",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.002
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["max", "xhigh", "high", "medium", "low", "minimal"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "minimal"]
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "gryphe/mythomax-l2-13b",
       "modelId": "mythomax-l2-13b",
       "name": "MythoMax 13B",
@@ -29140,16 +29606,16 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "nvidia/nemotron-3.5-content-safety:free",
+      "apiModelId": "nvidia/nemotron-3.5-content-safety",
       "modelId": "nemotron-3-5-content-safety",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.2
         }
       },
       "providerId": "openrouter",
@@ -29168,20 +29634,16 @@
       }
     },
     {
-      "apiModelId": "nvidia/nemotron-3.5-lightning",
+      "apiModelId": "nvidia/nemotron-3.5-lightning:free",
       "modelId": "nemotron-3-5-lightning",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.04
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.08
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0
         }
       },
       "providerId": "openrouter",
@@ -29204,7 +29666,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.025
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
@@ -29258,16 +29720,16 @@
       }
     },
     {
-      "apiModelId": "nvidia/nemotron-3-super-120b-a12b:free",
+      "apiModelId": "nvidia/nemotron-3-super-120b-a12b",
       "modelId": "nemotron-3-super-120b-a12b",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.085
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "openrouter",
@@ -29292,20 +29754,16 @@
       }
     },
     {
-      "apiModelId": "nvidia/nemotron-3-ultra-550b-a55b",
+      "apiModelId": "nvidia/nemotron-3-ultra-550b-a55b:free",
       "modelId": "nemotron-3-ultra-550b-a55b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.2
+          "perMillionTokens": 0
         }
       },
       "providerId": "openrouter",
@@ -29971,17 +30429,9 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "qwen/qwen-plus",
+      "apiModelId": "qwen/qwen-plus-2025-07-28",
       "modelId": "qwen-plus",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.052
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.325
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.26
@@ -30009,13 +30459,17 @@
       "apiModelId": "qwen/qwen2.5-vl-72b-instruct",
       "modelId": "qwen2-5-vl-72b-instruct",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.8
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.75
+          "perMillionTokens": 1
         }
       },
       "providerId": "openrouter"
@@ -30070,16 +30524,16 @@
       }
     },
     {
-      "apiModelId": "qwen/qwen3-30b-a3b",
+      "apiModelId": "qwen/qwen3-30b-a3b-thinking-2507",
       "modelId": "qwen3-30b-a3b",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.12
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 2.4
         }
       },
       "providerId": "openrouter",
@@ -30193,11 +30647,11 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.15625
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.3125
         },
         "output": {
           "currency": "USD",
@@ -30222,13 +30676,17 @@
       "apiModelId": "qwen/qwen3.5-397b-a17b",
       "modelId": "qwen3-5-397b-a17b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.225
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.39
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.34
+          "perMillionTokens": 3.5
         }
       },
       "providerId": "openrouter",
@@ -30363,15 +30821,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.12
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.6
+          "perMillionTokens": 2
         }
       },
       "providerId": "openrouter",
@@ -30665,17 +31123,13 @@
           "currency": "USD",
           "perMillionTokens": 0.085
         },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.53125
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.425
+          "perMillionTokens": 0.42
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.55
+          "perMillionTokens": 3
         }
       },
       "providerId": "openrouter",
@@ -30736,7 +31190,7 @@
       }
     },
     {
-      "apiModelId": "qwen/qwen3.8-max",
+      "apiModelId": "qwen/qwen3.8-max-0902",
       "modelId": "qwen3-8-max",
       "pricing": {
         "cacheRead": {
@@ -30965,9 +31419,13 @@
       "apiModelId": "qwen/qwen3-next-80b-a3b-instruct",
       "modelId": "qwen3-next-80b-a3b-instruct",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
@@ -31902,7 +32360,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.45
+          "perMillionTokens": 0.35
         },
         "output": {
           "currency": "USD",
@@ -32788,7 +33246,7 @@
       }
     },
     {
-      "apiModelId": "perplexity/sonar-pro",
+      "apiModelId": "perplexity/sonar-pro-search",
       "modelId": "sonar-pro",
       "pricing": {
         "input": {
@@ -32980,7 +33438,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
@@ -37599,6 +38057,29 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "claude-fable-5-1@default",
+      "modelId": "claude-fable-5-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "claude-haiku-4-5@20251001",
       "modelId": "claude-haiku-4-5",
       "pricing": {
@@ -38186,6 +38667,25 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-3.8-flash",
+      "modelId": "gemini-3-8-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.075
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.75
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-3-flash-preview",
       "modelId": "gemini-3-flash-preview",
       "pricing": {
@@ -38749,5 +39249,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "f48da95f7a82ba57"
+  "version": "cc8f223fc1ee380e"
 }
