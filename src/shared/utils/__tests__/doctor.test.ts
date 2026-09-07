@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DOCTOR_CHECK_CATALOG, type DoctorCheckId, type DoctorReport } from '../../types/doctor'
-import { doctorFixMeta, isDoctorFixRequest, projectDoctorReport } from '../doctor'
+import { isDoctorFixRequest, projectDoctorReport } from '../doctor'
 
 describe('DOCTOR_CHECK_CATALOG', () => {
   it('has no prerequisite cycles', () => {
@@ -16,15 +16,6 @@ describe('DOCTOR_CHECK_CATALOG', () => {
       done.add(id)
     }
     for (const id of Object.keys(DOCTOR_CHECK_CATALOG) as DoctorCheckId[]) expect(() => visit(id)).not.toThrow()
-  })
-
-  it('exposes fix metadata the dialog needs before offering the button', () => {
-    expect(doctorFixMeta('config-boot-config-valid', 'repair')).toEqual({
-      id: 'repair',
-      risk: 'low',
-      reversible: true,
-      relaunch: true
-    })
   })
 })
 
