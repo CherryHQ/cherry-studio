@@ -436,15 +436,19 @@ describe('RightPanel', () => {
       </Harness>
     )
 
-    const closeTooltip = screen
-      .getAllByTestId('tooltip-trigger')
-      .find((node) => node.getAttribute('data-content') === 'common.close_sidebar')
-    expect(closeTooltip).not.toHaveAttribute('data-disabled')
+    const findCloseTooltip = () =>
+      screen
+        .getAllByTestId('tooltip-trigger')
+        .find((node) => node.getAttribute('data-content') === 'common.close_sidebar')
+    expect(findCloseTooltip()).not.toHaveAttribute('data-disabled')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.close_sidebar' }))
 
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
-    expect(closeTooltip).toHaveAttribute('data-disabled', 'true')
+    // Re-query after the close rather than reusing the pre-close node: the
+    // tooltip wrapper may remount on state change, which would make an
+    // assertion against the stale reference flaky even when behavior is right.
+    expect(findCloseTooltip()).toHaveAttribute('data-disabled', 'true')
   })
 
   it('keeps shell controls available when a content-composed panel fails to render', () => {
