@@ -11,7 +11,7 @@ import {
 } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -69,7 +69,6 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 @Injectable('AgentJobsService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['JobManager'])
-@ErrorHandling('fail-fast')
 export class AgentJobsService extends BaseService {
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
@@ -88,12 +87,19 @@ export class AgentJobsService extends BaseService {
   }
 
   protected async onReady(): Promise<void> {
-    // Lifecycle awaits onReady before system-wide onAllReady. JobManager does
-    // not schedule startup recovery until onAllReady, so persisted orphaned
-    // agent tasks are gone before recovery can take its enabled-schedule
-    // snapshot or arm their timers. This service is fail-fast because allowing
-    // startup to continue after reconciliation fails would re-arm the orphan.
-    await this.reconcileOrphanedSchedules()
+    // Lifecycle awaits onReady before system-wide onAllReady. A failed repair
+    // must not fall through to JobManager's deferred startup recovery, but it
+    // also does not need to abort the whole application. JobManager.pause()
+    // is the existing fail-closed primitive: while its hold remains live, no
+    // startup-recovery step, schedule fire, dispatch claim, or maintenance
+    // write can start. The hold is intentionally retained for this process;
+    // a relaunch retries the idempotent reconciliation from persisted state.
+    try {
+      await this.reconcileOrphanedSchedules()
+    } catch (error) {
+      application.get('JobManager').pause('agent-task startup reconciliation failed')
+      logger.error('Failed to reconcile orphaned agent task schedules; JobManager paused', error as Error)
+    }
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
