@@ -177,6 +177,28 @@ describe('RegionService', () => {
     expect(netFetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('reuses a pending lookup when switching from proxy A to B and back to A', async () => {
+    const proxyA = createDeferred<ReturnType<typeof fetchResponse>>()
+    const proxyB = createDeferred<ReturnType<typeof fetchResponse>>()
+    netFetchMock
+      .mockReturnValueOnce(proxyA.promise)
+      .mockReturnValueOnce(proxyB.promise)
+      .mockResolvedValueOnce(fetchResponse({ country_code: 'DE' }))
+
+    proxyState.appliedProxyKey = 'proxy-a'
+    const firstA = regionService.getCountry()
+    proxyState.appliedProxyKey = 'proxy-b'
+    const firstB = regionService.getCountry()
+    proxyState.appliedProxyKey = 'proxy-a'
+    const secondA = regionService.getCountry()
+
+    proxyA.resolve(fetchResponse({ country_code: 'US' }))
+    proxyB.resolve(fetchResponse({ country_code: 'JP' }))
+
+    await expect(Promise.all([firstA, firstB, secondA])).resolves.toEqual(['US', 'JP', 'US'])
+    expect(netFetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('does not let stale completion clear a newer in-flight detection', async () => {
     const proxyA = createDeferred<ReturnType<typeof fetchResponse>>()
     const proxyB = createDeferred<ReturnType<typeof fetchResponse>>()

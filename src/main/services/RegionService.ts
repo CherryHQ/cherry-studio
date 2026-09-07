@@ -29,7 +29,7 @@ type CachedEgressRegion = {
  * detections, including those arriving via the system.get_ip_country IPC.
  */
 class RegionService {
-  private inflight: { proxyKey: string | null; promise: Promise<string> } | null = null
+  private inflight = new Map<string | null, { promise: Promise<string> }>()
 
   /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
   async getCountry(): Promise<string> {
@@ -58,20 +58,20 @@ class RegionService {
     }
 
     // Dedup concurrent detections for the active proxy — callers share one in-flight request.
-    if (this.inflight?.proxyKey === proxyKey) {
-      return this.inflight.promise
+    const current = this.inflight.get(proxyKey)
+    if (current) {
+      return current.promise
     }
 
     const inflight = {
-      proxyKey,
       promise: this.detectAndCache(proxyKey)
     }
     inflight.promise = inflight.promise.finally(() => {
-      if (this.inflight === inflight) {
-        this.inflight = null
+      if (this.inflight.get(proxyKey) === inflight) {
+        this.inflight.delete(proxyKey)
       }
     })
-    this.inflight = inflight
+    this.inflight.set(proxyKey, inflight)
     return inflight.promise
   }
 
