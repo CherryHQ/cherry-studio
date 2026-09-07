@@ -76,14 +76,18 @@ describe('patched @ai-sdk/openai sampling parameters', () => {
     }
   )
 
-  it('sends Ultra reasoning for GPT-6 Astra', async () => {
+  it('rejects Codex-only Ultra reasoning for standard OpenAI GPT-6 Astra', async () => {
     const { body, warnings } = await capture('gpt-6-astra', {
       reasoningEffort: 'ultra',
       withoutLogprobs: true
     })
 
-    expect(body.reasoning).toEqual({ effort: 'ultra' })
-    expect(warnings).not.toContainEqual(expect.objectContaining({ feature: 'reasoningEffort' }))
+    expect(body.reasoning).toBeUndefined()
+    expect(warnings).toContainEqual({
+      type: 'unsupported',
+      feature: 'reasoningEffort',
+      details: 'gpt-6-astra only supports the following reasoning efforts: low, medium, high, xhigh, max'
+    })
   })
 
   it('removes top_logprobs for GPT-6 Astra', async () => {
