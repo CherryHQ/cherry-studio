@@ -39,11 +39,20 @@ describe('getPaintingFileUrl', () => {
     )
   })
 
-  it('keeps shared file-url safety behavior', () => {
+  it('returns the generated SVG file URL for image rendering', () => {
     expect(
       getPaintingFileUrl({
         path: '/tmp/generated.svg',
         ext: 'svg'
+      })
+    ).toBe('file:///tmp/generated.svg')
+  })
+
+  it('keeps shared file-url safety behavior for other dangerous extensions', () => {
+    expect(
+      getPaintingFileUrl({
+        path: '/tmp/generated.exe',
+        ext: 'exe'
       })
     ).toBe('file:///tmp')
   })

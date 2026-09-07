@@ -1,7 +1,7 @@
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
-import type { GeneratedImageValidation } from '@shared/ai/paintingGenerateError'
-import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
+import type { CleanupPolicy } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { OutputFor } from '@shared/ipc/types'
 
 import type { ImageTransportDescriptor } from '../imageGenerationModel'
 
@@ -42,10 +42,7 @@ export interface ImageGenerationJobPayload {
 }
 
 /** Job output returned through AiService to the IPC layer. */
-export interface ImageGenerationJobOutput {
-  files: FileEntry[]
-  validation?: GeneratedImageValidation
-}
+export type ImageGenerationJobOutput = OutputFor<'ai.image.generate'>
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
