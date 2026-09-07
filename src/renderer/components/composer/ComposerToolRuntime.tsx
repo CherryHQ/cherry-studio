@@ -29,7 +29,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
 import type { ComposerSerializedToken } from './tokens'
-import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
 
 interface ComposerToolRuntimeActions {
   addNewTopic: () => void
@@ -92,8 +92,11 @@ const ComposerToolRuntimeEntry = ({
     () =>
       disabled
         ? {
-            registerLaunchers: (entries: ComposerToolLauncher[]) =>
-              launcher.registerLaunchers(entries.map((entry) => ({ ...entry, disabled: true })))
+            registerLaunchers: (entries: ComposerToolLauncher[], footerActions?: ComposerToolFooterAction[]) =>
+              launcher.registerLaunchers(
+                entries.map((entry) => ({ ...entry, disabled: true })),
+                footerActions
+              )
           }
         : launcher,
     [disabled, launcher]

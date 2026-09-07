@@ -1747,6 +1747,30 @@ describe('ComposerSurface', () => {
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
   })
 
+  it('discards prompt-variable IME completion after the composer becomes read-only', async () => {
+    mocks.selection = {
+      from: 5,
+      node: {
+        type: { name: 'composerToken' },
+        attrs: {
+          id: 'prompt-variable:0:city',
+          kind: 'promptVariable',
+          label: 'city',
+          promptText: '${city}'
+        }
+      }
+    }
+    const view = render(<ComposerSurface {...baseProps} editable />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    expect(mocks.editorOptions.editorProps.handleDOMEvents.compositionstart()).toBe(false)
+
+    view.rerender(<ComposerSurface {...baseProps} editable={false} />)
+    expect(mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '上海' })).toBe(false)
+    expect(mocks.transaction.setNodeMarkup).not.toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
+  })
+
   it('blocks typed input after the composer reaches the maximum text length', async () => {
     render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} />)
 

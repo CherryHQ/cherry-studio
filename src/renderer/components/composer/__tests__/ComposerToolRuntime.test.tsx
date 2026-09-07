@@ -385,6 +385,42 @@ describe('ComposerToolRuntimeHost', () => {
     await waitFor(() => expect(launchers.current()[0].disabled).toBe(true))
   })
 
+  it('keeps tool footer actions registered while the runtime is disabled', async () => {
+    const Runtime = ({ context }: { context: ToolRenderContext<readonly [], readonly []> }) => {
+      useEffect(
+        () =>
+          context.launcher.registerLaunchers(
+            [runtimeLauncher],
+            [footerAction('manage-disabled-tool', 'quick-phrases', 10)]
+          ),
+        [context]
+      )
+      return null
+    }
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'fake-runtime-tool',
+        label: 'Fake runtime tool',
+        composer: { runtime: Runtime }
+      }
+    ])
+    const footerActions = { current: () => [] as string[] }
+    const FooterActionsReader = () => {
+      const { triggers } = useComposerToolDispatch()
+      footerActions.current = () => triggers.getFooterActions('quick-phrases').map((action) => action.id)
+      return null
+    }
+
+    render(
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} disabled />
+        <FooterActionsReader />
+      </ComposerToolRuntimeProvider>
+    )
+
+    await waitFor(() => expect(footerActions.current()).toEqual(['manage-disabled-tool']))
+  })
+
   it('normalizes initial composer files with file token source ids', async () => {
     const onSnapshot = vi.fn()
 

@@ -1641,7 +1641,11 @@ export default function ComposerSurfaceRuntime({
           const composingToken = promptVariableCompositionRef.current
           promptVariableCompositionRef.current = null
 
-          if (!editor || editor.isDestroyed || !composingToken) return false
+          if (!editableRef.current || !editor || editor.isDestroyed || !composingToken) {
+            promptVariableEditRef.current = null
+            promptVariableSkipTextInputRef.current = null
+            return false
+          }
           const selectedPromptVariable = getSelectedPromptVariableToken(editor)
           if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
 
