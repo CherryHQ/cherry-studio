@@ -255,9 +255,10 @@ describe('shared artifact acquisition', () => {
       vi.useFakeTimers()
 
       const removal = removeArtifact(FIXTURE_ARTIFACT)
+      const failure = expect(removal).rejects.toBe(transientError)
       await vi.runAllTimersAsync()
 
-      await expect(removal).rejects.toBe(transientError)
+      await failure
       expect(removeMock).toHaveBeenCalledTimes(3)
     })
 
