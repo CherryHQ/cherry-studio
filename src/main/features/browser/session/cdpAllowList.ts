@@ -54,6 +54,8 @@ const eventMethods = [
   'Page.javascriptDialogClosed',
   'Runtime.consoleAPICalled',
   'Runtime.exceptionThrown',
+  'Runtime.executionContextDestroyed',
+  'Runtime.executionContextsCleared',
   'Network.requestWillBeSent',
   'Network.responseReceived',
   'Network.loadingFinished',
