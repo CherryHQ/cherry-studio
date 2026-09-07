@@ -285,7 +285,15 @@ const TranslatePage: FC = () => {
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
   const exchangePendingRef = useRef(false)
+  const isMountedRef = useRef(true)
   const translateTextRef = useRef({ input: translateInput, output: translateOutput })
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   useLayoutEffect(() => {
     translateTextRef.current = { input: translateInput, output: translateOutput }
@@ -611,14 +619,14 @@ const TranslatePage: FC = () => {
         setTranslateLanguages({ sourceLanguage: targetLanguage, targetLanguage: sourceLanguage }),
         'translate languages'
       )
-      if (!persisted) return
+      if (!persisted || !isMountedRef.current) return
       const { input, output } = translateTextRef.current
       translateTextRef.current = { input: output, output: input }
       setTranslateInput(output)
       setTranslateOutput(input)
     } finally {
       exchangePendingRef.current = false
-      setIsExchangePending(false)
+      if (isMountedRef.current) setIsExchangePending(false)
     }
   }, [
     isDetecting,
@@ -634,6 +642,7 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory, files?: TranslationFiles) => {
+      if (exchangePendingRef.current) return
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
@@ -774,6 +783,7 @@ const TranslatePage: FC = () => {
 
   const processFile = useCallback(
     async (file: FileMetadata) => {
+      if (exchangePendingRef.current) return
       if (getFileExtension(file.path) === '.pdf') {
         const maxSize = 20 * MB
         if (file.size > maxSize) {
@@ -802,7 +812,7 @@ const TranslatePage: FC = () => {
   )
 
   const handleSelectFile = useCallback(async () => {
-    if (selecting || isTranslationRunning || isOcrRunning) return
+    if (exchangePendingRef.current || selecting || isTranslationRunning || isOcrRunning) return
     setIsProcessing(true)
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
@@ -834,7 +844,7 @@ const TranslatePage: FC = () => {
 
   const onDrop = useCallback(
     async (e: DragEvent<HTMLDivElement>) => {
-      if (isProcessing || isOcrRunning || isTranslationRunning) return
+      if (exchangePendingRef.current || isProcessing || isOcrRunning || isTranslationRunning) return
       setIsProcessing(true)
       try {
         const data = await getTextFromDropEvent(e).catch((error) => {
@@ -870,7 +880,7 @@ const TranslatePage: FC = () => {
 
   const onPaste = useCallback(
     async (event: ClipboardEvent<HTMLTextAreaElement>) => {
-      if (isProcessing || isOcrRunning || isTranslationRunning) return
+      if (exchangePendingRef.current || isProcessing || isOcrRunning || isTranslationRunning) return
       const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
       if (!hasFiles) return
       setIsProcessing(true)
@@ -1062,6 +1072,7 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
+              disabled={isExchangePending}
               className={historyOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
               onClick={() =>
                 setHistoryOpen((open) => {

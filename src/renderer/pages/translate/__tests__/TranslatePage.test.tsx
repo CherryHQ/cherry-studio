@@ -12,6 +12,7 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type TranslateLanguageBarComponent from '../components/TranslateLanguageBar'
 import type { TranslationFiles } from '../translationFiles'
 
 const fileMock = vi.hoisted(() => ({
@@ -70,6 +71,11 @@ const translateInputPaneMock = vi.hoisted(() => vi.fn())
 const exportContentToNotesMock = vi.hoisted(() => vi.fn())
 const pdfViewMock = vi.hoisted(() => vi.fn())
 const pdfHandleMock = vi.hoisted(() => ({ cancel: vi.fn(), start: vi.fn() }))
+const languageFixtures = vi.hoisted(() => [
+  { langCode: 'en-us', value: 'English', emoji: '🇬🇧' },
+  { langCode: 'zh-cn', value: 'Chinese', emoji: '🇨🇳' },
+  { langCode: 'ja-jp', value: 'Japanese', emoji: '🇯🇵' }
+])
 const historyFilesMock = vi.hoisted(() => ({
   files: {
     source: { entryId: 'entry-source', path: '/tmp/paper.pdf' as AbsoluteFilePath },
@@ -118,6 +124,15 @@ vi.mock('@renderer/components/ModelSelector', () => ({
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
   ...(await importOriginal<typeof TranslateHooks>()),
+  useLanguages: () => ({
+    languages: languageFixtures,
+    getLanguage: (code: string) => languageFixtures.find((language) => language.langCode === code),
+    getLabel: (language: string | (typeof languageFixtures)[number] | null, withEmoji = true) => {
+      if (typeof language === 'string') return language
+      if (!language) return 'Unknown'
+      return withEmoji ? `${language.emoji} ${language.value}` : language.value
+    }
+  }),
   detectLanguageOrUnknown: async (
     text: string,
     detectLanguage: (text: string) => Promise<string>,
@@ -288,6 +303,19 @@ vi.mock('../components/TranslateHistory', () => ({
         />
         <button
           type="button"
+          aria-label="reuse-text-history"
+          onClick={() =>
+            onHistoryItemClick({
+              kind: 'text',
+              sourceText: 'history input',
+              targetText: 'history output',
+              sourceLanguage: 'ja-jp',
+              targetLanguage: 'en-us'
+            })
+          }
+        />
+        <button
+          type="button"
           aria-label="reuse-pdf-history"
           onClick={() =>
             onHistoryItemClick(
@@ -360,44 +388,16 @@ vi.mock('../components/TranslateInputPane', () => ({
   }
 }))
 
-vi.mock('../components/TranslateLanguageBar', () => ({
-  default: (props: {
-    sourceLanguage: string
-    targetLanguage: string
-    isBidirectional: boolean
-    showSourceControls: boolean
-    couldExchange: boolean
-    languageControlsDisabled: boolean
-    onSourceChange: (language: string) => void
-    onTargetChange: (language: string) => void
-    onExchange: () => void
-  }) => {
-    languageBarMock(props)
-    return (
-      <div>
-        <span data-testid="translate-source-language">{props.sourceLanguage}</span>
-        <span data-testid="translate-target-language">{props.targetLanguage}</span>
-        {!props.isBidirectional && props.showSourceControls && (
-          <button
-            type="button"
-            aria-label="translate.source_language"
-            disabled={props.languageControlsDisabled}
-            onClick={() => props.onSourceChange('zh-cn')}
-          />
-        )}
-        {props.couldExchange && (
-          <button type="button" aria-label="translate.exchange.label" onClick={props.onExchange} />
-        )}
-        <button
-          type="button"
-          aria-label="translate.target_language"
-          disabled={props.languageControlsDisabled}
-          onClick={() => props.onTargetChange('en-us')}
-        />
-      </div>
-    )
+vi.mock('../components/TranslateLanguageBar', async (importOriginal) => {
+  const { default: TranslateLanguageBar } = await importOriginal<{ default: typeof TranslateLanguageBarComponent }>()
+
+  return {
+    default: (props: React.ComponentProps<typeof TranslateLanguageBar>) => {
+      languageBarMock(props)
+      return <TranslateLanguageBar {...props} />
+    }
   }
-}))
+})
 
 vi.mock('../components/TranslateOutputPane', () => ({
   default: ({
@@ -1071,13 +1071,14 @@ describe('TranslatePage', () => {
 
     render(<TranslatePage />)
     expect(screen.queryByRole('button', { name: 'translate.source_language' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'translate.target_language' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /translate\.target_language/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'English ⇆ Chinese' })).toBeDisabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
 
     await waitFor(() => expect(screen.getByTestId('pdf-translation-view')).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'translate.source_language' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'translate.target_language' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /translate\.source_language/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /translate\.target_language/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
   })
@@ -1117,6 +1118,7 @@ describe('TranslatePage', () => {
 
   it('blocks language actions while the first exchange is pending', async () => {
     const user = userEvent.setup()
+    let exchangeWasDisabled = false
     let resolvePersist!: () => void
     const persistLanguages = vi.fn(
       (values: { sourceLanguage?: string; targetLanguage?: string }) =>
@@ -1155,8 +1157,9 @@ describe('TranslatePage', () => {
         const targetChange = languageBarMock.mock.calls.at(-1)?.[0].onTargetChange as (language: string) => void
 
         await user.click(exchangeButton)
+        exchangeWasDisabled = exchangeButton.hasAttribute('disabled')
         await user.click(exchangeButton)
-        expect(screen.getByRole('button', { name: 'translate.target_language' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: /translate\.target_language/ })).toBeDisabled()
         expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
 
         act(() => sourceChange('ja-jp'))
@@ -1169,12 +1172,13 @@ describe('TranslatePage', () => {
         await act(async () => resolvePersist())
         rerender(<TranslatePage />)
 
-        expect(screen.getByTestId('translate-source-language')).toHaveTextContent('zh-cn')
-        expect(screen.getByTestId('translate-target-language')).toHaveTextContent('en-us')
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('en-us')
         expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('你好')
         expect(screen.getByTestId('translate-output-content')).toHaveTextContent('hello')
       }
     )
+    expect(exchangeWasDisabled).toBe(true)
   })
 
   it('exchanges the latest text when input changes while language persistence is pending', async () => {
@@ -1221,12 +1225,129 @@ describe('TranslatePage', () => {
         await act(async () => resolvePersist())
         rerender(<TranslatePage />)
 
-        expect(screen.getByTestId('translate-source-language')).toHaveTextContent('zh-cn')
-        expect(screen.getByTestId('translate-target-language')).toHaveTextContent('en-us')
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('en-us')
         expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('你好')
         expect(screen.getByTestId('translate-output-content')).toHaveTextContent('edited while saving')
       }
     )
+  })
+
+  it('ignores history reuse and file selection while language exchange is pending', async () => {
+    const user = userEvent.setup()
+    const pendingWrites: Array<() => void> = []
+    let pendingState: Record<string, unknown> = {}
+    const persistLanguages = vi.fn(
+      (values: { sourceLanguage?: string; targetLanguage?: string }) =>
+        new Promise<void>((resolve) => {
+          pendingWrites.push(() => {
+            MockUsePreferenceUtils.setMultiplePreferenceValues({
+              'feature.translate.page.source_language': values.sourceLanguage,
+              'feature.translate.page.target_language': values.targetLanguage
+            })
+            resolve()
+          })
+        })
+    )
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'current output')
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.txt', size: 10 }])
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [
+            alias,
+            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
+          ])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const { rerender } = render(<TranslatePage />)
+        await user.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        await user.click(screen.getByRole('button', { name: 'translate.exchange.label' }))
+        await user.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await user.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+        pendingState = {
+          input: MockUseCacheUtils.getCacheValue('translate.input'),
+          output: MockUseCacheUtils.getCacheValue('translate.output'),
+          sourceLanguage: MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language'),
+          targetLanguage: MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language'),
+          fileSelections: fileMock.onSelectFile.mock.calls.length
+        }
+
+        await act(async () => pendingWrites.forEach((complete) => complete()))
+        rerender(<TranslatePage />)
+      }
+    )
+
+    expect(pendingState).toEqual({
+      input: 'current input',
+      output: 'current output',
+      sourceLanguage: 'en-us',
+      targetLanguage: 'zh-cn',
+      fileSelections: 0
+    })
+  })
+
+  it('does not let a deferred exchange overwrite text after remount', async () => {
+    const user = userEvent.setup()
+    let resolvePersist!: () => void
+    let remountedText: Record<string, unknown> = {}
+    const persistLanguages = vi.fn(
+      (values: { sourceLanguage?: string; targetLanguage?: string }) =>
+        new Promise<void>((resolve) => {
+          resolvePersist = () => {
+            MockUsePreferenceUtils.setMultiplePreferenceValues({
+              'feature.translate.page.source_language': values.sourceLanguage,
+              'feature.translate.page.target_language': values.targetLanguage
+            })
+            resolve()
+          }
+        })
+    )
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'old input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'old output')
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [
+            alias,
+            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
+          ])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const firstPage = render(<TranslatePage />)
+        await user.click(screen.getByRole('button', { name: 'translate.exchange.label' }))
+        firstPage.unmount()
+
+        MockUseCacheUtils.setCacheValue('translate.input', 'remounted input')
+        MockUseCacheUtils.setCacheValue('translate.output', 'remounted output')
+        const secondPage = render(<TranslatePage />)
+
+        await act(async () => resolvePersist())
+        secondPage.rerender(<TranslatePage />)
+        remountedText = {
+          input: MockUseCacheUtils.getCacheValue('translate.input'),
+          output: MockUseCacheUtils.getCacheValue('translate.output')
+        }
+      }
+    )
+
+    expect(remountedText).toEqual({ input: 'remounted input', output: 'remounted output' })
   })
 
   it('keeps the language pair and text unchanged when the batch exchange fails', async () => {

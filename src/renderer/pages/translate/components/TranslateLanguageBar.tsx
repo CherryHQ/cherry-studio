@@ -183,6 +183,7 @@ const TranslateLanguageBar: FC<Props> = ({
           <Button
             variant="ghost"
             size="icon"
+            disabled={languageControlsDisabled}
             onClick={onExchange}
             aria-label={t('translate.exchange.label')}
             className="h-8 w-8 shrink-0 rounded-full text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
