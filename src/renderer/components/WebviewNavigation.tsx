@@ -8,7 +8,7 @@ import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, ExternalLink, History, RotateCw } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { WebviewAnnotationControls, type WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
@@ -28,6 +28,7 @@ interface Props {
   webviewRevision: number
   initialUrl: string
   currentUrl?: string | null
+  pageTitle?: string
   historyEnabled?: boolean
   isWebviewReady: boolean
   isHostActive: boolean
@@ -56,6 +57,16 @@ export function normalizeWebviewAddress(value: string): string | null {
   }
 }
 
+function compactAddress(value: string, title?: string): string {
+  try {
+    const url = new URL(value)
+    const host = url.protocol === 'http:' || url.protocol === 'https:' ? url.host : value
+    return title && title !== value && title !== host ? `${host} / ${title}` : host
+  } catch {
+    return value
+  }
+}
+
 function isExternalUrl(value: string): boolean {
   try {
     const protocol = new URL(value).protocol
@@ -70,6 +81,7 @@ export function WebviewNavigation({
   webviewRevision,
   initialUrl,
   currentUrl,
+  pageTitle,
   historyEnabled = false,
   isWebviewReady,
   isHostActive,
@@ -87,6 +99,7 @@ export function WebviewNavigation({
   const navigationUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const addressInputRef = useRef<HTMLInputElement | null>(null)
   const isAddressEditingRef = useRef(false)
+  const [isAddressFocused, setIsAddressFocused] = useState(false)
   const previousTargetIdRef = useRef(target.id)
   const historyListId = useId()
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -311,15 +324,20 @@ export function WebviewNavigation({
     [onNavigate, restoreCurrentPageUrl, t, target.id, webviewRef]
   )
 
-  const handleAddressFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
+  useLayoutEffect(() => {
+    if (isAddressFocused) addressInputRef.current?.select()
+  }, [isAddressFocused])
+
+  const handleAddressFocus = useCallback(() => {
     isAddressEditingRef.current = true
+    setIsAddressFocused(true)
     setHistoryOpen(true)
     setHistorySearch('')
     setActiveSuggestion(-1)
-    event.currentTarget.select()
   }, [])
 
   const handleAddressBlur = useCallback(() => {
+    setIsAddressFocused(false)
     setHistoryOpen(false)
     if (!isAddressEditingRef.current) return
     isAddressEditingRef.current = false
@@ -413,7 +431,11 @@ export function WebviewNavigation({
               ref={addressInputRef}
               type="text"
               inputMode="url"
-              value={addressValue}
+              value={
+                isAddressFocused
+                  ? addressValue
+                  : compactAddress(addressValue, addressValue === currentPageUrl ? pageTitle : undefined)
+              }
               onChange={(event) => {
                 setAddressValue(event.target.value)
                 setHistorySearch(event.target.value)
@@ -438,7 +460,7 @@ export function WebviewNavigation({
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
-              className="h-7 rounded-md border-input bg-background px-2.5 text-muted-foreground text-xs shadow-none focus-visible:text-foreground"
+              className="h-7 truncate rounded-md border-input bg-background px-2.5 text-muted-foreground text-xs shadow-none focus-visible:text-foreground"
             />
           </form>
         </PopoverAnchor>

@@ -30,10 +30,10 @@ beforeAll(async () => {
 beforeEach(() => vi.mocked(dataApiService.get).mockReset().mockResolvedValue(result()))
 afterEach(cleanup)
 
-function setup(historyEnabled = true) {
+function setup(historyEnabled = true, url = 'https://current.test/') {
   const loadURL = vi.fn().mockResolvedValue(undefined)
   const guest = {
-    getURL: () => 'https://current.test/',
+    getURL: () => url,
     canGoBack: () => false,
     canGoForward: () => false,
     addEventListener: vi.fn(),
@@ -44,7 +44,7 @@ function setup(historyEnabled = true) {
     <SWRConfig value={{ provider: () => new Map() }}>
       <I18nextProvider i18n={i18n}>
         <WebviewNavigation
-          initialUrl="https://current.test/"
+          initialUrl={url}
           webviewRef={{ current: guest }}
           webviewRevision={1}
           historyEnabled={historyEnabled}
@@ -88,7 +88,7 @@ describe('Browser address history', () => {
     await user.click(address)
     await user.click(await screen.findByRole('option', { name: /Monthly report/ }))
     expect(loadURL).toHaveBeenCalledWith(report.url)
-    expect(address).toHaveValue(report.url)
+    expect(address).toHaveValue('internal.test')
   })
 
   it('keeps free-form URL submission and ignores Enter while composing', async () => {
@@ -113,7 +113,7 @@ describe('Browser address history', () => {
     await user.type(address, 'report')
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
-    expect(address).toHaveValue('https://current.test/')
+    expect(address).toHaveValue('current.test')
     expect(loadURL).not.toHaveBeenCalled()
   })
 
@@ -155,5 +155,31 @@ describe('Browser address history', () => {
     await user.type(address, 'report')
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+})
+
+describe('Browser address display', () => {
+  it.each([
+    ['https://github.com/maizzle/framework?tab=readme#start', 'github.com'],
+    ['http://localhost:3000/reports?lang=zh#latest', 'localhost:3000'],
+    ['https://docs.example.com/project', 'docs.example.com'],
+    ['file:///tmp/preview.html', 'file:///tmp/preview.html']
+  ])('expands %s only when focused and restores it after cancelling an edit', async (url, compact) => {
+    const user = userEvent.setup()
+    const { address, loadURL } = setup(false, url)
+    expect(address).toHaveValue(compact)
+    await user.hover(address)
+    expect(address).toHaveValue(compact)
+    await user.click(address)
+    expect(address).toHaveValue(url)
+    const input = address as HTMLInputElement
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe(url.length)
+    await user.keyboard('unsaved draft')
+    await user.tab()
+    expect(address).toHaveValue(compact)
+    fireEvent.focus(address)
+    expect(address).toHaveValue(url)
+    expect(loadURL).not.toHaveBeenCalled()
   })
 })

@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import { Activity } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -32,6 +32,51 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('WebviewBrowser', () => {
+  it('shows the live title and domain at rest while preserving the full URL during editing', () => {
+    const url = 'https://github.com/maizzle/framework'
+    const view = render(
+      <WebviewBrowser
+        initialUrl={url}
+        securityProfile="agent-browser"
+        isHostActive
+        target={{ id: 'browser-title', label: 'Browser' }}
+      />
+    )
+    const guest = view.container.querySelector('webview')!
+    Object.assign(guest, {
+      getWebContentsId: () => 42,
+      getURL: () => url,
+      getTitle: () => 'Maizzle framework',
+      isLoading: () => false,
+      stopFindInPage: () => {},
+      canGoBack: () => false,
+      canGoForward: () => false
+    })
+    const emit = (name: string, fields = {}) =>
+      act(() => {
+        guest.dispatchEvent(Object.assign(new Event(name), fields))
+      })
+    const address = screen.getByRole('combobox', { name: 'webview.navigation.address' })
+    emit('dom-ready')
+    expect(address).toHaveValue('github.com / Maizzle framework')
+    act(() => address.focus())
+    expect(address).toHaveValue(url)
+    fireEvent.change(address, { target: { value: 'editing a different address' } })
+    emit('page-title-updated', { title: 'Pull requests · Maizzle' })
+    expect(address).toHaveValue('editing a different address')
+    fireEvent.keyDown(address, { key: 'Escape' })
+    expect(address).toHaveValue('github.com / Pull requests · Maizzle')
+    emit('did-start-navigation', { url: 'https://frame.test', isMainFrame: false, isInPlace: false })
+    expect(address).toHaveValue('github.com / Pull requests · Maizzle')
+    emit('did-start-navigation', { url: 'https://next.test', isMainFrame: true, isInPlace: false })
+    emit('did-navigate', { url: 'https://next.test' })
+    expect(address).toHaveValue('next.test')
+    emit('page-title-updated', { title: 'Next page' })
+    expect(address).toHaveValue('next.test / Next page')
+    emit('page-title-updated', { title: '' })
+    expect(address).toHaveValue('next.test')
+  })
+
   it('restores navigation when Activity resumes an already-loaded native guest', () => {
     const browser = (
       <WebviewBrowser
@@ -48,6 +93,7 @@ describe('WebviewBrowser', () => {
       isLoading: () => false,
       stopFindInPage: vi.fn(),
       getURL: () => 'https://example.com',
+      getTitle: () => 'Example',
       canGoBack: () => false,
       canGoForward: () => false
     })
@@ -76,6 +122,7 @@ describe('WebviewBrowser', () => {
       canGoBack: vi.fn(() => false),
       canGoForward: vi.fn(() => false),
       getURL: vi.fn(() => 'http://localhost:5173/'),
+      getTitle: () => '',
       getWebContentsId: vi.fn(() => 42),
       loadURL: vi.fn().mockResolvedValue(undefined),
       reload: vi.fn()

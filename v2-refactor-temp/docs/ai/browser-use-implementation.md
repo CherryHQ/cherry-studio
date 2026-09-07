@@ -1165,3 +1165,6 @@ their existing handling.
 Standalone browser tabs synchronize page titles and favicons from Electron WebView events into the
 tab model. Main-frame document navigation clears the previous site's icon; missing or failed favicon
 images fall back to a globe. Subframe navigation does not change the tab metadata.
+Address bars show `host / page title` (including non-default ports) while unfocused, falling back to
+the host when no title is available. Focusing reveals and selects the complete URL. Blur or Escape
+discards unsubmitted edits and restores the compact display. Page title events keep this display current.

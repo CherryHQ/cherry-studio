@@ -56,12 +56,16 @@ export function WebviewBrowser({
   const [isReady, setIsReady] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
+  const [pageTitle, setPageTitle] = useState('')
   const guestAuthorizationKey = getGuestAuthorizationKey(securityProfile, initialUrl)
 
   const handleWebviewChange = useCallback((webview: WebviewTag | null) => {
     webviewRef.current = webview
     setWebviewRevision((revision) => revision + 1)
-    if (!webview) setIsReady(false)
+    if (!webview) {
+      setIsReady(false)
+      setPageTitle('')
+    }
   }, [])
 
   const handleDidStartLoading = useCallback(() => {
@@ -72,7 +76,9 @@ export function WebviewBrowser({
   const handleDomReady = useCallback(
     (guest: WebviewTag) => {
       setIsReady(true)
-      if (onTitleChange) onTitleChange(guest.getTitle() || guest.getURL())
+      const title = guest.getTitle()
+      setPageTitle(title)
+      onTitleChange?.(title || guest.getURL())
     },
     [onTitleChange]
   )
@@ -80,6 +86,7 @@ export function WebviewBrowser({
   const handleDidStartNavigation = useCallback(
     (event: DidStartNavigationEvent) => {
       if (!event.isMainFrame || event.isInPlace) return
+      setPageTitle('')
       onTitleChange?.(event.url)
       onFaviconChange?.(undefined)
     },
@@ -88,6 +95,7 @@ export function WebviewBrowser({
 
   const handlePageTitleUpdated = useCallback(
     (event: PageTitleUpdatedEvent) => {
+      setPageTitle(event.title)
       onTitleChange?.(event.title || webviewRef.current?.getURL() || initialUrl)
     },
     [initialUrl, onTitleChange]
@@ -118,6 +126,7 @@ export function WebviewBrowser({
         webviewRef={webviewRef}
         webviewRevision={webviewRevision}
         initialUrl={initialUrl}
+        pageTitle={pageTitle}
         historyEnabled={securityProfile === WebviewSecurityProfile.AgentBrowser}
         onNavigate={onNavigate}
         isWebviewReady={isReady}
