@@ -94,8 +94,8 @@ describe('PromptPolishActions cancellation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
     const signal = mocks.fetchGenerate.mock.calls[0][0].signal as AbortSignal
 
-    act(() => {
-      vi.advanceTimersByTime(60_000)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
     })
 
     expect(signal.aborted).toBe(true)
