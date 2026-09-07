@@ -22,7 +22,6 @@
 
 | Date | Change | Document |
 | --- | --- | --- |
-| 2026-09-07 | China onboarding returns to CherryIN login | [2026-09-07-cn-onboarding-cherryin-login.md](./breaking-changes/2026-09-07-cn-onboarding-cherryin-login.md) |
 | 2026-09-05 | Yi provider retired | [2026-09-05-retire-yi-provider.md](./breaking-changes/2026-09-05-retire-yi-provider.md) |
 | 2026-08-21 | GitHub Models provider removed | [2026-08-21-remove-github-models.md](./breaking-changes/2026-08-21-remove-github-models.md) |
 | 2026-06-12 | Default assistant and CherryAI defaults are seeded | [2026-06-12-default-assistant-name.md](./breaking-changes/2026-06-12-default-assistant-name.md) |
