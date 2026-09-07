@@ -50,6 +50,7 @@ type TopicDeleteHandler = (topic: Topic) => void | Promise<void>
 
 export interface TopicActionContext {
   exportMenuOptions: TopicExportMenuOptions
+  isArchiveBlocked: boolean
   isActiveInCurrentTab: boolean
   isRenaming: boolean
   onAutoRename: TopicMenuHandler
@@ -513,7 +514,11 @@ topicActionRegistry.registerAction({
   danger: true,
   // Deleting the last topic is allowed: the handler selects a neighbour when one exists and
   // otherwise clears the active topic. Pinned topics must be unpinned before they can be deleted.
-  availability: ({ topic }) => ({ visible: !topic.pinned }),
+  availability: ({ isArchiveBlocked, t, topic }) => ({
+    visible: !topic.pinned,
+    enabled: !isArchiveBlocked,
+    reason: isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : undefined
+  }),
   confirm: ({ t }) => ({
     title: t('recycle_bin.move.confirm_title'),
     confirmText: t('recycle_bin.move.confirm_action'),

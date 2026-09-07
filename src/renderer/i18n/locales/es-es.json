@@ -3054,6 +3054,7 @@
   "quickAssistant.input.placeholder.title": "¿Qué deseas hacer con el texto de abajo?",
   "quickAssistant.tooltip.pin": "Fijar en la parte superior",
   "recycle_bin.already_moved": "Ya está en la papelera",
+  "recycle_bin.move.blocked_generation": "Detén la generación antes de mover esta conversación a la papelera.",
   "recycle_bin.move.confirm_action": "Mover a la papelera",
   "recycle_bin.move.confirm_title": "¿Mover a la papelera?",
   "recycle_bin.move.related_sessions": "Mover también las sesiones relacionadas a la papelera",

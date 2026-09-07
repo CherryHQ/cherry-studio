@@ -24,10 +24,18 @@ import {
   useTopics
 } from '../useTopic'
 
-const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+const { mockCloseConversationTabs, mockIpcRequest } = vi.hoisted(() => ({
+  mockCloseConversationTabs: vi.fn(),
+  mockIpcRequest: vi.fn()
+}))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => mockCloseConversationTabs
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mockIpcRequest },
+  useIpcOn: vi.fn()
 }))
 
 vi.mock('@renderer/services/EventService', () => ({
@@ -396,23 +404,31 @@ describe('useTopicMutations', () => {
     MockDataApiUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     vi.clearAllMocks()
+    mockIpcRequest.mockResolvedValue(undefined)
   })
 
   it('deletes a topic and closes the matching assistant conversation tab', async () => {
+    const { result } = renderHook(() => useTopicMutations())
+    await act(async () => result.current.deleteTopic('topic-a'))
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.archive', { topicIds: ['topic-a'] })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
+  it('keeps permanent Topic deletion on the DB-only DataApi path', async () => {
     const deleteTrigger = vi.fn().mockResolvedValue(undefined)
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
 
     const { result } = renderHook(() => useTopicMutations())
-    await act(async () => result.current.deleteTopic('topic-a'))
+    await act(async () => result.current.deleteTopic('topic-a', { permanent: true }))
 
-    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' } })
-    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' }, query: { permanent: true } })
+    expect(mockIpcRequest).not.toHaveBeenCalled()
   })
 
   it('refreshes the topic list and keeps the tab open when deletion finds stale data', async () => {
     const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
-    const deleteTrigger = vi.fn().mockRejectedValue(staleError)
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
+    mockIpcRequest.mockRejectedValue(staleError)
 
     const { result } = renderHook(() => useTopicMutations())
     const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
@@ -432,8 +448,7 @@ describe('useTopicMutations', () => {
 
   it('leaves failed-delete refresh to the batch owner when requested', async () => {
     const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
-    const deleteTrigger = vi.fn().mockRejectedValue(staleError)
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
+    mockIpcRequest.mockRejectedValue(staleError)
 
     const { result } = renderHook(() => useTopicMutations())
     const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
@@ -474,38 +489,28 @@ describe('useTopicMutations', () => {
     ])
   })
 
-  it('deletes selected topics through comma-separated query ids', async () => {
+  it('archives selected topics through one all-or-nothing lifecycle command', async () => {
     const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-    const deleteTrigger = vi.fn().mockResolvedValue(response)
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics', deleteTrigger)
+    mockIpcRequest.mockResolvedValue(response)
 
     const { result } = renderHook(() => useTopicMutations())
     const deleted = await act(async () => result.current.deleteTopics(['topic-a', 'topic-b']))
 
-    expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'topic-a,topic-b' } })
+    expect(mockIpcRequest).toHaveBeenCalledWith('trash.topic.archive', { topicIds: ['topic-a', 'topic-b'] })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', response.deletedIds)
     expect(deleted).toBe(response)
   })
 
   it('deletes assistant topics and closes the deleted assistant conversation tabs', async () => {
     const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-    const deleteTrigger = vi.fn().mockResolvedValue(response)
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/assistants/:assistantId/topics', deleteTrigger)
+    mockIpcRequest.mockResolvedValue(response)
 
     const { result } = renderHook(() => useTopicMutations())
     const deleted = await act(async () => result.current.deleteTopicsByAssistantId('assistant-a'))
 
-    expect(deleteTrigger).toHaveBeenCalledWith({ params: { assistantId: 'assistant-a' } })
+    expect(mockIpcRequest).toHaveBeenCalledWith('trash.assistant_topics.archive', { assistantId: 'assistant-a' })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', response.deletedIds)
     expect(deleted).toBe(response)
-  })
-
-  it('exposes selected-topic delete loading through isDeleting', () => {
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics', vi.fn(), { isLoading: true })
-
-    const { result } = renderHook(() => useTopicMutations())
-
-    expect(result.current.isDeleting).toBe(true)
   })
 
   it('batch updates topics and returns per-topic settled results', async () => {

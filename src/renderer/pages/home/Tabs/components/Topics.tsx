@@ -95,8 +95,8 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
-import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 import dayjs from 'dayjs'
 import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink } from 'lucide-react'
 import type { RefObject } from 'react'
@@ -658,7 +658,8 @@ export function Topics({
         await deleteTopicById(topic.id)
       } catch (err) {
         logger.error('Failed to delete topic', { topicId: topic.id, err })
-        if (isDataApiNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+        if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+        else if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
         else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
         return
       }
@@ -969,7 +970,9 @@ export function Topics({
         }
       } catch (err) {
         logger.error('Failed to delete assistant topics', { assistantId, err })
-        toast.error(t('chat.topics.manage.delete.error'))
+        if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+        else if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+        else toast.error(t('chat.topics.manage.delete.error'))
       } finally {
         deletingAssistantGroupIdRef.current = null
         setDeletingAssistantGroupId(null)
@@ -1000,7 +1003,7 @@ export function Topics({
           try {
             result = await deleteAssistant(assistantId, { deleteTopics })
           } catch (err) {
-            if (!isDataApiNotFoundError(err)) throw err
+            if (!isTrashTargetNotFoundError(err)) throw err
             await refreshAssistantResources()
             toast.info(t('recycle_bin.already_moved'))
             return
@@ -1044,6 +1047,10 @@ export function Topics({
           await refreshAssistantResources()
         } catch (err) {
           logger.error('Failed to delete assistant from topic group', { assistantId, err })
+          if (isTrashTopicBusyError(err)) {
+            toast.info(t('recycle_bin.move.blocked_generation'))
+            return
+          }
           throw err
         } finally {
           setDeletingAssistantId(null)
@@ -1860,6 +1867,7 @@ const TopicRow = memo(function TopicRow({
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time'
   const canDeleteTopic = !topic.pinned
+  const isArchiveBlocked = isTopicStreamPending || isTopicAwaitingApproval
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
@@ -1867,6 +1875,7 @@ const TopicRow = memo(function TopicRow({
   const submitRenameDialog = useCallback((name: string) => actions.commitRename(topic.id, name), [actions, topic.id])
   const { getMenuActions, handleMenuAction } = useTopicMenuActions({
     exportMenuOptions,
+    isArchiveBlocked,
     isActiveInCurrentTab: isActive,
     isRenaming: isRenaming(topic.id),
     notesPath,
@@ -1948,9 +1957,10 @@ const TopicRow = memo(function TopicRow({
           </Tooltip>
         )}
         {canDeleteTopic && (
-          <Tooltip title={t('common.delete')} delay={500}>
+          <Tooltip title={isArchiveBlocked ? t('recycle_bin.move.blocked_generation') : t('common.delete')} delay={500}>
             <ResourceList.ItemAction
               aria-label={t('common.delete')}
+              disabled={isArchiveBlocked}
               onClick={(event) => {
                 event.stopPropagation()
                 setDeleteDialogOpen(true)

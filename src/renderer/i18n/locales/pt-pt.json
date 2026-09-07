@@ -3054,6 +3054,7 @@
   "quickAssistant.input.placeholder.title": "O que pretende fazer com o texto abaixo",
   "quickAssistant.tooltip.pin": "Fixar na frente",
   "recycle_bin.already_moved": "Já está na Reciclagem",
+  "recycle_bin.move.blocked_generation": "Pare a geração antes de mover esta conversa para a Reciclagem.",
   "recycle_bin.move.confirm_action": "Mover para a Reciclagem",
   "recycle_bin.move.confirm_title": "Mover para a Reciclagem?",
   "recycle_bin.move.related_sessions": "Mover também as sessões relacionadas para a Reciclagem",

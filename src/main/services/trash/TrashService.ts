@@ -1,16 +1,30 @@
 import { application } from '@application'
+import { assistantDataService } from '@data/services/AssistantService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { DeleteAssistantResult } from '@shared/data/api/schemas/assistants'
 import { isTerminalStatus, type TerminalJobStatus } from '@shared/data/api/schemas/jobs'
+import type { DeleteTopicsResult } from '@shared/data/api/schemas/topics'
 
 import { trashPurgeJobHandler } from './trashPurgeJobHandler'
 
 const logger = loggerService.withContext('TrashService')
+const RETRY_ASSISTANT_ARCHIVE = Symbol('retry-assistant-archive')
+
+export class TopicArchiveBusyError extends Error {
+  readonly topicIds: string[]
+
+  constructor(topicIds: string[]) {
+    super(`Cannot archive topics with unsettled work: ${topicIds.join(', ')}`)
+    this.name = 'TopicArchiveBusyError'
+    this.topicIds = topicIds
+  }
+}
 
 /**
- * Owns the trash retention purge: registers the 'trash.purge' job handler,
- * keeps the daily schedule armed, and exposes the manual "empty trash"
- * entry point behind the `trash.purge_now` IpcApi route.
+ * Owns trash lifecycle commands and retention purge. Archive commands coordinate
+ * runtime state with DB writes; purge registers and schedules the `trash.purge` job.
  *
  * PreferenceService/DbService are BeforeReady and consumed via
  * `application.get()` at execute time — never declared in @DependsOn
@@ -18,7 +32,7 @@ const logger = loggerService.withContext('TrashService')
  */
 @Injectable('TrashService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['JobManager', 'FileManager'])
+@DependsOn(['JobManager', 'FileManager', 'AiStreamManager'])
 export class TrashService extends BaseService {
   protected onInit(): void {
     // Register in onInit (NOT onReady) so JobManager's startup recovery sweep
@@ -68,5 +82,59 @@ export class TrashService extends BaseService {
     }
     const output = snapshot.output as { reclaimed?: boolean } | undefined
     return { status: snapshot.status, reclaimed: output?.reclaimed === true }
+  }
+
+  async archiveTopics(topicIds: string[]): Promise<DeleteTopicsResult> {
+    const ids = [...new Set(topicIds)].sort()
+    return this.withTopicLocks(ids, async () => {
+      this.assertTopicsSettled(ids)
+      return topicService.deleteByIds(ids)
+    })
+  }
+
+  async archiveAssistantTopics(assistantId: string): Promise<DeleteTopicsResult> {
+    return this.withStableAssistantTopics(assistantId, () => topicService.deleteByAssistantId(assistantId))
+  }
+
+  async archiveAssistant(assistantId: string, deleteTopics: boolean): Promise<DeleteAssistantResult> {
+    if (!deleteTopics) return assistantDataService.delete(assistantId)
+
+    return this.withStableAssistantTopics(assistantId, () =>
+      assistantDataService.delete(assistantId, { deleteTopics: true })
+    )
+  }
+
+  private async withStableAssistantTopics<T>(assistantId: string, archive: () => T): Promise<T> {
+    for (;;) {
+      const topicIds = topicService.listActiveIdsByAssistant(assistantId)
+      const result = await this.withTopicLocks(topicIds, async () => {
+        const currentTopicIds = topicService.listActiveIdsByAssistant(assistantId)
+        if (!this.sameIds(topicIds, currentTopicIds)) return RETRY_ASSISTANT_ARCHIVE
+
+        this.assertTopicsSettled(topicIds)
+        return archive()
+      })
+      if (result !== RETRY_ASSISTANT_ARCHIVE) return result
+    }
+  }
+
+  private withTopicLocks<T>(topicIds: string[], operation: () => T | Promise<T>): Promise<T> {
+    const streamManager = application.get('AiStreamManager')
+    const acquire = (index: number): Promise<T> => {
+      const topicId = topicIds[index]
+      if (!topicId) return Promise.resolve(operation())
+      return streamManager.withDispatchLock(topicId, () => acquire(index + 1))
+    }
+    return acquire(0)
+  }
+
+  private assertTopicsSettled(topicIds: string[]): void {
+    const streamManager = application.get('AiStreamManager')
+    const busyTopicIds = topicIds.filter((topicId) => streamManager.hasUnsettledTopicWork(topicId))
+    if (busyTopicIds.length > 0) throw new TopicArchiveBusyError(busyTopicIds)
+  }
+
+  private sameIds(first: string[], second: string[]): boolean {
+    return first.length === second.length && first.every((id, index) => id === second[index])
   }
 }

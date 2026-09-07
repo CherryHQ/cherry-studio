@@ -3,9 +3,19 @@ import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
+const { appGetMock, assistantDataService, topicService } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  assistantDataService: { delete: vi.fn() },
+  topicService: {
+    deleteByAssistantId: vi.fn(),
+    deleteByIds: vi.fn(),
+    listActiveIdsByAssistant: vi.fn()
+  }
+}))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@data/services/AssistantService', () => ({ assistantDataService }))
+vi.mock('@data/services/TopicService', () => ({ topicService }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
   const actual = await importOriginal<typeof LifecycleModule>()
@@ -28,12 +38,20 @@ const jobManager = {
   registerJobSchedule: vi.fn(() => ({ id: 'schedule-1' })),
   enqueue: vi.fn()
 }
+const busyTopicIds = new Set<string>()
+const aiStreamManager = {
+  hasUnsettledTopicWork: vi.fn((topicId: string) => busyTopicIds.has(topicId)),
+  withDispatchLock: vi.fn(async (_topicId: string, operation: () => Promise<unknown>) => operation())
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
+  busyTopicIds.clear()
   jobManager.getJobSchedule.mockReturnValue(null)
+  topicService.listActiveIdsByAssistant.mockReturnValue([])
   appGetMock.mockImplementation((name: string) => {
     if (name === 'JobManager') return jobManager
+    if (name === 'AiStreamManager') return aiStreamManager
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -45,7 +63,7 @@ const drive = (svc: InstanceType<typeof TrashService>) => svc as unknown as { on
 describe('TrashService', () => {
   it('declares WhenReady phase with same-phase deps only (no BeforeReady services)', () => {
     expect(getPhase(TrashService)).toBe(Phase.WhenReady)
-    expect(getDependencies(TrashService)).toEqual(['JobManager', 'FileManager'])
+    expect(getDependencies(TrashService)).toEqual(['JobManager', 'FileManager', 'AiStreamManager'])
   })
 
   it('registers the trash.purge handler in onInit so startup recovery sees it', () => {
@@ -100,5 +118,63 @@ describe('TrashService', () => {
 
     // A failed run reports no reclamation — the caller must not promise the space back.
     await expect(new TrashService().purgeNow()).resolves.toEqual({ status: 'failed', reclaimed: false })
+  })
+
+  it('rejects an entire Topic archive batch when one Topic has unsettled work', async () => {
+    busyTopicIds.add('topic-b')
+
+    await expect(new TrashService().archiveTopics(['topic-b', 'topic-a'])).rejects.toEqual(
+      expect.objectContaining({
+        name: 'TopicArchiveBusyError',
+        topicIds: ['topic-b']
+      })
+    )
+
+    expect(topicService.deleteByIds).not.toHaveBeenCalled()
+  })
+
+  it('does not archive an Assistant when a cascading Topic is unsettled', async () => {
+    topicService.listActiveIdsByAssistant.mockReturnValue(['topic-a'])
+    busyTopicIds.add('topic-a')
+
+    await expect(new TrashService().archiveAssistant('assistant-a', true)).rejects.toMatchObject({
+      name: 'TopicArchiveBusyError',
+      topicIds: ['topic-a']
+    })
+
+    expect(assistantDataService.delete).not.toHaveBeenCalled()
+  })
+
+  it('rechecks Assistant Topic membership after locking before archiving', async () => {
+    topicService.listActiveIdsByAssistant
+      .mockReturnValueOnce(['topic-a'])
+      .mockReturnValueOnce(['topic-a', 'topic-b'])
+      .mockReturnValue(['topic-a', 'topic-b'])
+    topicService.deleteByAssistantId.mockReturnValue({
+      deletedIds: ['topic-a', 'topic-b'],
+      deletedCount: 2
+    })
+
+    await expect(new TrashService().archiveAssistantTopics('assistant-a')).resolves.toEqual({
+      deletedIds: ['topic-a', 'topic-b'],
+      deletedCount: 2
+    })
+
+    expect(topicService.deleteByAssistantId).toHaveBeenCalledExactlyOnceWith('assistant-a')
+    expect(aiStreamManager.withDispatchLock.mock.calls.map(([topicId]) => topicId)).toEqual([
+      'topic-a',
+      'topic-a',
+      'topic-b'
+    ])
+  })
+
+  it('archives an Assistant without touching Topic runtime when related Topics are preserved', async () => {
+    assistantDataService.delete.mockReturnValue({ deleted: true })
+
+    await expect(new TrashService().archiveAssistant('assistant-a', false)).resolves.toEqual({ deleted: true })
+
+    expect(assistantDataService.delete).toHaveBeenCalledExactlyOnceWith('assistant-a')
+    expect(topicService.listActiveIdsByAssistant).not.toHaveBeenCalled()
+    expect(aiStreamManager.hasUnsettledTopicWork).not.toHaveBeenCalled()
   })
 })

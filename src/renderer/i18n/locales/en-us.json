@@ -3054,6 +3054,7 @@
   "quickAssistant.input.placeholder.title": "What do you want to do with this text?",
   "quickAssistant.tooltip.pin": "Keep Window on Top",
   "recycle_bin.already_moved": "Already in Recycle Bin",
+  "recycle_bin.move.blocked_generation": "Stop generation before moving this conversation to the Recycle Bin.",
   "recycle_bin.move.confirm_action": "Move to Recycle Bin",
   "recycle_bin.move.confirm_title": "Move to Recycle Bin?",
   "recycle_bin.move.related_sessions": "Also move related sessions to the Recycle Bin",

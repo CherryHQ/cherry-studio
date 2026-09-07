@@ -139,24 +139,9 @@ export interface ReusableTopicPlaceholderResponse {
   created: boolean
 }
 
-const TopicIdsQueryValueSchema = z
-  .string()
-  .transform((value) =>
-    value
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-  )
-  .pipe(z.array(z.string().min(1)).min(1))
-
-export const DeleteTopicsQuerySchema = z.strictObject({
-  ids: TopicIdsQueryValueSchema
-})
-export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
-
 export const DeleteTopicQuerySchema = z.strictObject({
-  /** `true` permanently deletes a topic already in the Recycle Bin; omitted/false moves an active topic there. */
-  permanent: z.boolean().optional()
+  /** DataApi owns only the DB-only purge path; archiving is an IpcApi lifecycle command. */
+  permanent: z.literal(true)
 })
 export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
 
@@ -177,7 +162,6 @@ export type TopicSchemas = {
    * @example GET /topics?limit=50
    * @example GET /topics?cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
-   * @example DELETE /topics?ids=topic_1,topic_2
    */
   '/topics': {
     /**
@@ -197,18 +181,6 @@ export type TopicSchemas = {
     POST: {
       body: CreateTopicDto
       response: Topic
-    }
-    /**
-     * Move an explicit set of topics to the Recycle Bin. Bulk purging has no caller,
-     * so this route is soft-delete-only — purge one at a time via `DELETE /topics/:id`.
-     *
-     * Used by multi-select table flows where the selection can span assistants.
-     * This operation is all-or-nothing: if any supplied ID does not resolve to
-     * a non-deleted topic, the request fails and no selected topics are deleted.
-     */
-    DELETE: {
-      query: DeleteTopicsQuery
-      response: DeleteTopicsResult
     }
   }
 
@@ -246,7 +218,7 @@ export type TopicSchemas = {
    * Individual topic endpoint
    * @example GET /topics/abc123
    * @example PATCH /topics/abc123 { "name": "Updated Name" }
-   * @example DELETE /topics/abc123
+   * @example DELETE /topics/abc123?permanent=true
    */
   '/topics/:id': {
     /** Get a topic by ID */
@@ -260,10 +232,10 @@ export type TopicSchemas = {
       body: UpdateTopicDto
       response: Topic
     }
-    /** Omitted/false moves an active topic to the Recycle Bin; `true` permanently deletes one already there. */
+    /** Permanently delete a topic already in the Recycle Bin. */
     DELETE: {
       params: { id: string }
-      query?: DeleteTopicQuery
+      query: DeleteTopicQuery
       response: void
     }
   }
@@ -312,20 +284,6 @@ export type TopicSchemas = {
       params: { id: string }
       body: DuplicateTopicDto
       response: Topic
-    }
-  }
-
-  /**
-   * Delete all topics currently linked to an assistant.
-   *
-   * This is an explicit scoped collection delete. It does not change
-   * the default `DELETE /assistants/:id` behavior, which only deletes the
-   * assistant itself unless the caller opts into `deleteTopics=true`.
-   */
-  '/assistants/:assistantId/topics': {
-    DELETE: {
-      params: { assistantId: string }
-      response: DeleteTopicsResult
     }
   }
 } & OrderEndpoints<'/topics'>

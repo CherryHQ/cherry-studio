@@ -3,6 +3,8 @@ import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -318,6 +320,7 @@ vi.mock('react-i18next', () => ({
         'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
         'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
         'recycle_bin.already_moved': 'Already in Recycle Bin',
+        'recycle_bin.move.blocked_generation': 'Stop generation before moving this conversation to the Recycle Bin.',
         'recycle_bin.move_failed': 'Could not move to Recycle Bin',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteTopics.description': 'Delete {{count}} selected conversation(s)?',
@@ -614,6 +617,7 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-alpha', 'topic-beta'], deletedCount: 2 })
     const onClose = vi.fn()
     const onRecordSelect = vi.fn()
 
@@ -642,11 +646,8 @@ describe('HistoryRecordsView assistant mode', () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledTimes(2)
-    expect(hookMocks.deleteTopic).toHaveBeenNthCalledWith(1, 'topic-alpha', { refresh: false })
-    expect(hookMocks.deleteTopic).toHaveBeenNthCalledWith(2, 'topic-beta', { refresh: false })
-    expect(hookMocks.deleteTopics).not.toHaveBeenCalled()
-    expect(hookMocks.refetchTopics).toHaveBeenCalledOnce()
+    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
+    expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-alpha', 'topic-beta'])
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-gamma' }))
     expect(onClose).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
@@ -659,54 +660,7 @@ describe('HistoryRecordsView assistant mode', () => {
       restored: ['topic-alpha'],
       failed: [{ id: 'topic-beta', error: 'Restore failed' }]
     })
-    expect(hookMocks.refetchTopics).toHaveBeenCalledTimes(2)
-  })
-
-  it('keeps failed bulk topics selected and only offers Undo for successful IDs', async () => {
-    const refetch = vi.fn().mockResolvedValue(undefined)
-    hookMocks.useTopics.mockReturnValue({
-      topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })],
-      error: undefined,
-      isLoading: false,
-      refetch
-    })
-    hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopic.mockImplementation((id: string) =>
-      id === 'topic-alpha' ? Promise.resolve(undefined) : Promise.reject(new Error('Beta delete failed'))
-    )
-    const onRecordSelect = vi.fn()
-
-    render(
-      <HistoryRecordsView
-        mode="assistant"
-        open
-        activeRecordId="topic-alpha"
-        onClose={vi.fn()}
-        onRecordSelect={onRecordSelect}
-      />
-    )
-
-    const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
-    const betaRow = screen.getByText('Beta topic').closest('[role="row"]') as HTMLElement
-    fireEvent.click(within(alphaRow).getByRole('checkbox'))
-    fireEvent.click(within(betaRow).getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /Batch Delete/ }))
-
-    await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
-    })
-
-    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
-    expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta' }))
-    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
-      itemCount: 1,
-      onUndo: expect.any(Function)
-    })
-    expect(refetch).toHaveBeenCalledOnce()
-
-    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
-    expect(hookMocks.restoreTopic).toHaveBeenCalledExactlyOnceWith('topic-alpha')
+    expect(hookMocks.refetchTopics).toHaveBeenCalledOnce()
   })
 
   it('refreshes and reports once when every selected topic fails to move', async () => {
@@ -718,7 +672,7 @@ describe('HistoryRecordsView assistant mode', () => {
       refetch
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopic.mockRejectedValue(new Error('Delete failed'))
+    hookMocks.deleteTopics.mockRejectedValue(new Error('Delete failed'))
     const onRecordSelect = vi.fn()
 
     render(
@@ -758,7 +712,9 @@ describe('HistoryRecordsView assistant mode', () => {
       refetch
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopic.mockImplementation((id: string) => Promise.reject(DataApiErrorFactory.notFound('Topic', id)))
+    hookMocks.deleteTopics.mockRejectedValue(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Topics already archived')
+    )
     const onRecordSelect = vi.fn()
 
     render(
@@ -790,7 +746,7 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('keeps a stale bulk topic selected and only offers Undo for the successful id', async () => {
+  it('keeps the whole bulk selection when one topic is still generating', async () => {
     const refetch = vi.fn().mockResolvedValue(undefined)
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic', orderKey: 'b' })],
@@ -799,8 +755,8 @@ describe('HistoryRecordsView assistant mode', () => {
       refetch
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopic.mockImplementation((id: string) =>
-      id === 'topic-alpha' ? Promise.resolve(undefined) : Promise.reject(DataApiErrorFactory.notFound('Topic', id))
+    hookMocks.deleteTopics.mockRejectedValue(
+      new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, 'Topic is busy', { topicIds: ['topic-beta'] })
     )
     const onRecordSelect = vi.fn()
 
@@ -825,18 +781,14 @@ describe('HistoryRecordsView assistant mode', () => {
     })
 
     expect(refetch).toHaveBeenCalledOnce()
-    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'false')
+    expect(within(alphaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
     expect(within(betaRow).getByRole('checkbox')).toHaveAttribute('aria-checked', 'true')
-    expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-beta' }))
-    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
-      itemCount: 1,
-      onUndo: expect.any(Function)
-    })
-    expect(toast.info).not.toHaveBeenCalled()
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledExactlyOnceWith(
+      'Stop generation before moving this conversation to the Recycle Bin.'
+    )
     expect(toast.error).not.toHaveBeenCalled()
-
-    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
-    expect(hookMocks.restoreTopic).toHaveBeenCalledExactlyOnceWith('topic-alpha')
   })
 
   it('switches to the previous survivor when bulk deleting the last active topics', async () => {
@@ -850,6 +802,7 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
+    hookMocks.deleteTopics.mockResolvedValue({ deletedIds: ['topic-beta', 'topic-gamma'], deletedCount: 2 })
     const onRecordSelect = vi.fn()
 
     render(
@@ -872,8 +825,7 @@ describe('HistoryRecordsView assistant mode', () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenNthCalledWith(1, 'topic-beta', { refresh: false })
-    expect(hookMocks.deleteTopic).toHaveBeenNthCalledWith(2, 'topic-gamma', { refresh: false })
+    expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-beta', 'topic-gamma'])
     expect(onRecordSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-alpha' }))
   })
 
@@ -907,7 +859,7 @@ describe('HistoryRecordsView assistant mode', () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledExactlyOnceWith('topic-alpha', { refresh: false })
+    expect(hookMocks.deleteTopics).toHaveBeenCalledExactlyOnceWith(['topic-alpha'])
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -1550,7 +1502,7 @@ describe('HistoryRecordsView assistant mode', () => {
       fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Move to Recycle Bin' }))
     })
 
-    expect(hookMocks.deleteTopic).toHaveBeenCalledWith('topic-alpha', { refresh: false })
+    expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
     expect(onRecordSelect).toHaveBeenCalledWith(null)
   })
 
@@ -1630,7 +1582,9 @@ describe('HistoryRecordsView assistant mode', () => {
       isLoading: false
     })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
-    hookMocks.deleteTopic.mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-alpha'))
+    hookMocks.deleteTopic.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Topic already archived')
+    )
     const onRecordSelect = vi.fn()
 
     render(

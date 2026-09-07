@@ -4,6 +4,7 @@ import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,6 +45,7 @@ vi.mock('react-i18next', () => ({
           'agent.session.agent.delete.title': 'Delete all sessions',
           'agent.session.agent.delete.trigger': 'Delete all sessions',
           'recycle_bin.already_moved': 'Already in Recycle Bin',
+          'recycle_bin.move.blocked_generation': 'Stop generation before moving this conversation to the Recycle Bin.',
           'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
           'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
           'recycle_bin.move.related_sessions': 'Also move related sessions to the Recycle Bin',
@@ -383,7 +385,9 @@ describe('ResourceDeleteConfirmDialog', () => {
 
   it('refreshes a stale Assistant error without offering Undo', async () => {
     const user = userEvent.setup()
-    mocks.deleteAssistant.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
+    mocks.deleteAssistant.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Assistant already archived')
+    )
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
@@ -392,6 +396,28 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
     expect(mocks.invalidate).toHaveBeenCalledWith('/assistants')
     expect(mocks.invalidate).toHaveBeenCalledWith('/topics')
+  })
+
+  it('keeps the Assistant dialog open when a related Topic is still generating', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    mocks.deleteAssistant.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, 'Topic is busy', { topicIds: ['topic-1'] })
+    )
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={onClose} />)
+    await user.click(screen.getByLabelText('Also move related topics to the Recycle Bin'))
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() =>
+      expect(mocks.toastInfo).toHaveBeenCalledWith(
+        'Stop generation before moving this conversation to the Recycle Bin.'
+      )
+    )
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalled()
+    expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 
   it.each([

@@ -8,6 +8,7 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -844,6 +845,27 @@ describe('classic layout entity resource list actions', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
+  it('keeps Assistant Topics active when one is still generating', async () => {
+    assistantDataMocks.deleteTopicsByAssistantId.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TOPIC_BUSY, 'Topic is busy', { topicIds: ['topic-1'] })
+    )
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    )
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('recycle_bin.move.blocked_generation'))
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('does not clear assistant topics when the list empties while the confirm dialog is open', async () => {
     assistantDataMocks.topics = [
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
@@ -1527,7 +1549,9 @@ describe('classic layout entity resource list actions', () => {
 
   it('refreshes an already-moved Assistant without closing tabs, reconciling selection, or offering Undo', async () => {
     const onActiveAssistantDeleted = vi.fn()
-    assistantDataMocks.deleteAssistant.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
+    assistantDataMocks.deleteAssistant.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Assistant already archived')
+    )
 
     render(
       <TestAssistantResourceList

@@ -14,7 +14,6 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   CreateTopicSchema,
   DeleteTopicQuerySchema,
-  DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
   LatestTopicQuerySchema,
   ListTopicsQuerySchema,
@@ -36,11 +35,6 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
       return topicService.create(parsed)
-    },
-
-    DELETE: async ({ query }) => {
-      const parsed = DeleteTopicsQuerySchema.parse(query)
-      return topicService.deleteByIds(parsed.ids)
     }
   },
 
@@ -69,8 +63,8 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     },
 
     DELETE: async ({ params, query }) => {
-      const parsed = DeleteTopicQuerySchema.parse(query ?? {})
-      topicService.delete(params.id, { permanent: parsed.permanent })
+      DeleteTopicQuerySchema.parse(query)
+      topicService.delete(params.id, { permanent: true })
       return undefined
     }
   },
@@ -99,13 +93,6 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
       return topicService.duplicate(params.id, parsed)
     }
   },
-
-  '/assistants/:assistantId/topics': {
-    DELETE: async ({ params }) => {
-      return topicService.deleteByAssistantId(params.assistantId)
-    }
-  },
-
   '/topics/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)

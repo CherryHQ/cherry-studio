@@ -9,6 +9,8 @@ import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { trashErrorCodes } from '@shared/ipc/errors/trash'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -206,6 +208,12 @@ const pinMutationMocks = vi.hoisted(() => ({
 const assistantMutationMocks = vi.hoisted(() => ({
   deleteAssistant: vi.fn(),
   restoreAssistant: vi.fn()
+}))
+const ipcMocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: ipcMocks,
+  useIpcOn: vi.fn()
 }))
 
 const assistantQueryMocks = vi.hoisted(() => ({
@@ -447,6 +455,8 @@ vi.mock('react-i18next', () => ({
         if (key === 'recycle_bin.move.confirm_action') return 'Move to Recycle Bin'
         if (key === 'recycle_bin.move.confirm_title') return 'Move to Recycle Bin?'
         if (key === 'recycle_bin.already_moved') return 'Already in Recycle Bin'
+        if (key === 'recycle_bin.move.blocked_generation')
+          return 'Stop generation before moving this conversation to the Recycle Bin.'
         if (key === 'common.copy_failed') return 'Copy failed'
         if (key === 'common.confirm') return 'Confirm'
         if (key === 'common.loading') return 'Loading...'
@@ -862,6 +872,10 @@ describe('Topics', () => {
     assistantQueryMocks.refetchAssistants.mockResolvedValue(undefined)
     topicDataMocks.clearTopicMessagesTrigger.mockResolvedValue({ deletedIds: ['message-c'] })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
+    ipcMocks.request.mockImplementation((route: string, input: unknown) => {
+      if (route === 'trash.assistant.archive') return assistantMutationMocks.deleteAssistant(input)
+      return Promise.resolve(undefined)
+    })
     tabsContextMocks.openTab.mockClear()
     tabsContextMocks.setActiveTab.mockClear()
     tabsContextMocks.tabs = []
@@ -1944,7 +1958,9 @@ describe('Topics', () => {
   })
 
   it('reports a stale topic without changing selection or offering Undo', async () => {
-    topicDataMocks.deleteTopic.mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-a'))
+    topicDataMocks.deleteTopic.mockRejectedValueOnce(
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Topic already archived')
+    )
     const { clearActiveTopic, getByText, setActiveTopic } = renderTopicList()
 
     fireEvent.contextMenu(getByText('Alpha topic'))
@@ -2483,6 +2499,11 @@ describe('Topics', () => {
     let topicRow = getTopicRow('Gamma topic')
     let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(indicatorRoot).toHaveAccessibleName('Running')
+    const runningDeleteButton = within(topicRow).getByRole('button', { name: 'Delete' })
+    expect(runningDeleteButton).toBeDisabled()
+    fireEvent.click(runningDeleteButton)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
     expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
@@ -2496,6 +2517,7 @@ describe('Topics', () => {
     topicRow = getTopicRow('Gamma topic')
     indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     expect(indicatorRoot).toHaveAccessibleName('Done')
+    expect(within(topicRow).getByRole('button', { name: 'Delete' })).toBeEnabled()
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
     expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
@@ -3669,7 +3691,8 @@ describe('Topics', () => {
 
     await vi.waitFor(() =>
       expect(assistantMutationMocks.deleteAssistant).toHaveBeenCalledWith({
-        params: { id: 'assistant-1' }
+        assistantId: 'assistant-1',
+        deleteTopics: false
       })
     )
     expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
@@ -3719,8 +3742,8 @@ describe('Topics', () => {
 
     await vi.waitFor(() =>
       expect(assistantMutationMocks.deleteAssistant).toHaveBeenCalledWith({
-        params: { id: 'assistant-1' },
-        query: { deleteTopics: true }
+        assistantId: 'assistant-1',
+        deleteTopics: true
       })
     )
     await vi.waitFor(() =>
@@ -3759,7 +3782,7 @@ describe('Topics', () => {
 
   it('treats a stale Assistant group delete as already moved and refreshes once', async () => {
     assistantMutationMocks.deleteAssistant.mockRejectedValueOnce(
-      DataApiErrorFactory.notFound('Assistant', 'assistant-1')
+      new IpcError(trashErrorCodes.TRASH_TARGET_NOT_FOUND, 'Assistant already archived')
     )
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     renderTopicList()

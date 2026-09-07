@@ -34,6 +34,7 @@ function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): 
   return {
     assistantMoveTargets: [],
     exportMenuOptions,
+    isArchiveBlocked: false,
     isActiveInCurrentTab: false,
     isRenaming: false,
     onAutoRename: vi.fn(),
@@ -81,6 +82,20 @@ describe('topic context menu actions', () => {
     await executeTopicMenuAction(deleteAction!, context)
 
     expect(onDelete).toHaveBeenCalledWith(topic)
+  })
+
+  it('keeps Delete visible but disabled while the Topic has unsettled generation work', async () => {
+    const onDelete = vi.fn()
+    const context = createTopicActionFixture({ isArchiveBlocked: true, onDelete })
+    const deleteAction = resolveTopicMenuActions(context).find((action) => action.id === 'topic.delete')
+
+    expect(deleteAction?.availability).toEqual({
+      visible: true,
+      enabled: false,
+      reason: 'recycle_bin.move.blocked_generation'
+    })
+    await expect(executeTopicMenuAction(deleteAction!, context)).resolves.toBe(false)
+    expect(onDelete).not.toHaveBeenCalled()
   })
 
   it('keeps Save to Notes independent from export and copy preferences', () => {

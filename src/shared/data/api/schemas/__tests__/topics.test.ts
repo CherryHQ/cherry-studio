@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CreateTopicSchema,
-  DeleteTopicQuerySchema,
-  DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
   ListTopicsQuerySchema,
   SetActiveNodeSchema,
@@ -97,21 +95,5 @@ describe('ListTopicsQuerySchema', () => {
 
   it('rejects a non-boolean inTrash (plain z.boolean, no coercion)', () => {
     expect(() => ListTopicsQuerySchema.parse({ inTrash: 'true' })).toThrow()
-  })
-})
-
-describe('DeleteTopicsQuerySchema / DeleteTopicQuerySchema', () => {
-  it('accepts an optional boolean permanent flag on the single-topic route', () => {
-    expect(DeleteTopicQuerySchema.parse({})).toEqual({})
-    expect(DeleteTopicQuerySchema.parse({ permanent: true })).toEqual({ permanent: true })
-  })
-
-  it('rejects a non-boolean permanent (plain z.boolean, no coercion)', () => {
-    expect(() => DeleteTopicQuerySchema.parse({ permanent: 1 })).toThrow()
-  })
-
-  it('has no permanent flag on the collection route — only the single-topic route purges', () => {
-    expect(DeleteTopicsQuerySchema.parse({ ids: 'a,b' })).toEqual({ ids: ['a', 'b'] })
-    expect(() => DeleteTopicsQuerySchema.parse({ ids: 'a', permanent: true })).toThrow()
   })
 })

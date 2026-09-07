@@ -1,1 +1,1 @@
-export { TrashService } from './TrashService'
+export { TopicArchiveBusyError, TrashService } from './TrashService'

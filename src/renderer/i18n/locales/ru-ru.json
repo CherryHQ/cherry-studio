@@ -3054,6 +3054,7 @@
   "quickAssistant.input.placeholder.title": "Что вы хотите сделать с этим текстом?",
   "quickAssistant.tooltip.pin": "Верхнее окно",
   "recycle_bin.already_moved": "Уже в корзине",
+  "recycle_bin.move.blocked_generation": "Остановите генерацию, прежде чем перемещать этот разговор в корзину.",
   "recycle_bin.move.confirm_action": "Переместить в корзину",
   "recycle_bin.move.confirm_title": "Переместить в корзину?",
   "recycle_bin.move.related_sessions": "Также переместить связанные сеансы в корзину",

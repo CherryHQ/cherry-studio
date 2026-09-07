@@ -24,6 +24,7 @@ type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void |
 
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions
+  isArchiveBlocked: boolean
   isActiveInCurrentTab: boolean
   isRenaming: boolean
   notesPath: string
@@ -47,6 +48,7 @@ export interface TopicMenuActionOptions {
 
 export function createTopicActionContext({
   exportMenuOptions,
+  isArchiveBlocked,
   isActiveInCurrentTab,
   isRenaming,
   notesPath,
@@ -69,6 +71,7 @@ export function createTopicActionContext({
 }: TopicMenuActionOptions): TopicActionContext {
   return {
     exportMenuOptions,
+    isArchiveBlocked,
     isActiveInCurrentTab,
     isRenaming,
     onAutoRename,
@@ -201,6 +204,7 @@ export function useTopicMenuPreset<TItem>({
 export function useTopicMenuActions(options: TopicMenuActionOptions) {
   const {
     exportMenuOptions,
+    isArchiveBlocked,
     isActiveInCurrentTab,
     isRenaming,
     notesPath,
@@ -225,6 +229,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     () =>
       createTopicActionContext({
         exportMenuOptions,
+        isArchiveBlocked,
         isActiveInCurrentTab,
         isRenaming,
         notesPath,
@@ -247,6 +252,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       }),
     [
       exportMenuOptions,
+      isArchiveBlocked,
       isActiveInCurrentTab,
       isRenaming,
       notesPath,

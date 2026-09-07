@@ -3054,6 +3054,7 @@
   "quickAssistant.input.placeholder.title": "你想對下方文字做什麼",
   "quickAssistant.tooltip.pin": "視窗置頂",
   "recycle_bin.already_moved": "已在回收筒中",
+  "recycle_bin.move.blocked_generation": "請先停止生成，再將此對話移至回收筒。",
   "recycle_bin.move.confirm_action": "移至回收筒",
   "recycle_bin.move.confirm_title": "移至回收筒？",
   "recycle_bin.move.related_sessions": "同時將關聯工作階段移入資源回收筒",

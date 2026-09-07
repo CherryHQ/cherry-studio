@@ -150,17 +150,11 @@ export type ListAssistantsQuery = z.output<typeof ListAssistantsQuerySchema>
 
 export const DeleteAssistantQuerySchema = z.strictObject({
   /**
-   * On soft delete, move the assistant's active topics to the Recycle Bin in the
-   * same main-process transaction. Omitted/false preserves the topics unchanged.
-   * Ignored when `permanent` is true.
-   */
-  deleteTopics: z.boolean().optional(),
-  /**
    * `true` hard-deletes only an assistant already in the Recycle Bin. Junction
-   * rows cascade and `topic.assistantId` is set to null; `deleteTopics` is ignored,
-   * so topic active/trash state is preserved. Omitted/false performs soft delete.
+   * rows cascade and `topic.assistantId` is set to null, so topic active/trash
+   * state is preserved. Archiving is an IpcApi lifecycle command.
    */
-  permanent: z.boolean().optional()
+  permanent: z.literal(true)
 })
 export type DeleteAssistantQueryParams = z.input<typeof DeleteAssistantQuerySchema>
 
@@ -219,7 +213,7 @@ export type AssistantSchemas = {
    * Individual assistant endpoint
    * @example GET /assistants/abc123
    * @example PATCH /assistants/abc123 { "name": "Updated Name" }
-   * @example DELETE /assistants/abc123
+   * @example DELETE /assistants/abc123?permanent=true
    */
   '/assistants/:id': {
     /** Get an assistant by ID */
@@ -233,10 +227,10 @@ export type AssistantSchemas = {
       body: UpdateAssistantDto
       response: Assistant
     }
-    /** Delete an assistant */
+    /** Permanently delete an assistant already in the Recycle Bin. */
     DELETE: {
       params: { id: string }
-      query?: DeleteAssistantQueryParams
+      query: DeleteAssistantQueryParams
       response: DeleteAssistantResult
     }
   }

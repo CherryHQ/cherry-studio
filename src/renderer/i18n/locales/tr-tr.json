@@ -3054,6 +3054,7 @@
   "quickAssistant.input.placeholder.title": "Bu metinle ne yapmak isteniyor?",
   "quickAssistant.tooltip.pin": "Pencereyi En Üstte Tut",
   "recycle_bin.already_moved": "Zaten Geri Dönüşüm Kutusu'nda",
+  "recycle_bin.move.blocked_generation": "Bu konuşmayı Geri Dönüşüm Kutusu'na taşımadan önce oluşturmayı durdurun.",
   "recycle_bin.move.confirm_action": "Geri Dönüşüm Kutusu'na Taşı",
   "recycle_bin.move.confirm_title": "Geri Dönüşüm Kutusu'na taşınsın mı?",
   "recycle_bin.move.related_sessions": "İlgili oturumları da Geri Dönüşüm Kutusu'na taşı",

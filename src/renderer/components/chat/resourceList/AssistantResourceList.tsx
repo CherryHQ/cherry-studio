@@ -28,8 +28,8 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
+import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -407,7 +407,9 @@ export function AssistantResourceList({
         }
       } catch (err) {
         logger.error('Failed to clear assistant topics from classic-layout rail', { assistantId, err })
-        toast.error(t('chat.topics.manage.delete.error'))
+        if (isTrashTopicBusyError(err)) toast.info(t('recycle_bin.move.blocked_generation'))
+        else if (isTrashTargetNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+        else toast.error(t('chat.topics.manage.delete.error'))
       } finally {
         setClearingTopicsAssistantId(null)
       }
@@ -449,7 +451,7 @@ export function AssistantResourceList({
           try {
             result = await deleteAssistant(assistantId, { deleteTopics })
           } catch (err) {
-            if (!isDataApiNotFoundError(err)) throw err
+            if (!isTrashTargetNotFoundError(err)) throw err
             await Promise.allSettled([refreshAssistants(), refreshTopics()])
             toast.info(t('recycle_bin.already_moved'))
             return
@@ -504,6 +506,10 @@ export function AssistantResourceList({
           })
         } catch (err) {
           logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
+          if (isTrashTopicBusyError(err)) {
+            toast.info(t('recycle_bin.move.blocked_generation'))
+            return
+          }
           throw err
         } finally {
           setDeletingAssistantId(null)

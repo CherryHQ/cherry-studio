@@ -3054,6 +3054,7 @@
   "quickAssistant.input.placeholder.title": "你想对下方文字做什么",
   "quickAssistant.tooltip.pin": "窗口置顶",
   "recycle_bin.already_moved": "已在回收站中",
+  "recycle_bin.move.blocked_generation": "请先停止生成，再将此对话移至回收站。",
   "recycle_bin.move.confirm_action": "移至回收站",
   "recycle_bin.move.confirm_title": "移至回收站？",
   "recycle_bin.move.related_sessions": "同时将关联会话移入回收站",

@@ -19,8 +19,8 @@ import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { getErrorMessage } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
-import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { isAgentSessionNotFoundError } from '@shared/ipc/errors/ai'
+import { isTrashTargetNotFoundError, isTrashTopicBusyError } from '@shared/ipc/errors/trash'
 import type { FC } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -82,7 +82,7 @@ const AssistantDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'assis
         deletedTopicIds = result.deletedTopicIds ?? []
         if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
       } catch (error) {
-        if (!isDataApiNotFoundError(error)) throw error
+        if (!isTrashTargetNotFoundError(error)) throw error
         await refreshAffected()
         toast.info(t('recycle_bin.already_moved'))
         return
@@ -349,7 +349,8 @@ const ConversationOwnerDeleteDialogContent: FC<{
         completedRef.current = true
         onClose()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+        if (isTrashTopicBusyError(error)) toast.info(t('recycle_bin.move.blocked_generation'))
+        else toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
         throw error
       } finally {
         setPending(false)

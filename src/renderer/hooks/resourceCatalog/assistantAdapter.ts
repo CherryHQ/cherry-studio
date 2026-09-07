@@ -1,4 +1,5 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import {
   ASSISTANTS_MAX_LIMIT,
   type CreateAssistantDto,
@@ -101,17 +102,10 @@ export function useImportAssistantMutation() {
  */
 export function useAssistantMutationsById(id: string) {
   const path = `/assistants/${id}` as const
+  const invalidate = useInvalidateCache()
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
     refresh: ['/assistants', '/assistants/*']
-  })
-  const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ({ args }) => [
-      '/assistants',
-      '/assistants/*',
-      '/pins',
-      ...(args?.query?.deleteTopics === true ? (['/topics'] as const) : [])
-    ]
   })
 
   const updateAssistant = useCallback(
@@ -119,9 +113,15 @@ export function useAssistantMutationsById(id: string) {
     [updateTrigger]
   )
   const deleteAssistant = useCallback(
-    (options: { deleteTopics?: boolean } = {}): Promise<DeleteAssistantResult> =>
-      deleteTrigger(options.deleteTopics === true ? { query: { deleteTopics: true } } : undefined),
-    [deleteTrigger]
+    async (options: { deleteTopics?: boolean } = {}): Promise<DeleteAssistantResult> => {
+      const deleteTopics = options.deleteTopics === true
+      const result = await ipcApi.request('trash.assistant.archive', { assistantId: id, deleteTopics })
+      await invalidate(
+        deleteTopics ? ['/assistants', '/assistants/*', '/pins', '/topics'] : ['/assistants', '/assistants/*', '/pins']
+      )
+      return result
+    },
+    [id, invalidate]
   )
 
   return { updateAssistant, deleteAssistant }

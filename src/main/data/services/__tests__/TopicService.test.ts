@@ -976,6 +976,18 @@ describe('TopicService', () => {
       })
     }
 
+    it('lists only active Assistant Topics in stable lock order', async () => {
+      await seedAssistant('asst-1', 'a0')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-b', name: 'B', assistantId: 'asst-1', orderKey: 'a0' },
+        { id: 'topic-a', name: 'A', assistantId: 'asst-1', orderKey: 'a1' },
+        { id: 'topic-trashed', name: 'Trashed', assistantId: 'asst-1', orderKey: 'a2', deletedAt: 1 },
+        { id: 'topic-other', name: 'Other', orderKey: 'a3' }
+      ])
+
+      expect(topicService.listActiveIdsByAssistant('asst-1')).toEqual(['topic-a', 'topic-b'])
+    })
+
     it('moves only the assistant non-deleted topics to the Recycle Bin, keeps messages, and purges tags/pins', async () => {
       await seedAssistant('asst-1', 'a0')
       await dbh.db.insert(topicTable).values([
