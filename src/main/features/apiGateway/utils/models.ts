@@ -85,13 +85,11 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   }
 }
 
-function isCherryCloudModelAvailable(model: Model, allowInternalAgent: boolean): boolean {
-  if (!isManagedCherryCloudModel(model.providerId)) return true
-  return allowInternalAgent && application.get('CherryCloudService').isModelAvailableForFeature(model.id, 'agent')
-}
-
-/** Resolve a `providerId:apiModelId`; Agent-only models require an authenticated internal request. */
-export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly = false): ResolvedGatewayModelAddress {
+/** Resolve a `providerId:apiModelId`; Cherry Cloud models require an authenticated internal Work request. */
+export async function resolveGatewayModelAddress(
+  modelAddress: string,
+  allowInternalAgent = false
+): Promise<ResolvedGatewayModelAddress> {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
     throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
@@ -112,12 +110,22 @@ export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly 
   if (!provider.isEnabled || isExternalCliProvider(provider)) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
+
+  let availableCloudAgentModelIds: Set<UniqueModelId> | undefined
+  if (isManagedCherryCloudModel(providerId)) {
+    if (!allowInternalAgent) {
+      throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    }
+    const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
+    availableCloudAgentModelIds = new Set(availability.availableModelIdsByFeature.agent)
+  }
+
   const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
     if (!isGatewayRoutableModel(candidate)) return false
     const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
     return candidateApiModelId === apiModelId
   })
-  if (!model || !isCherryCloudModelAvailable(model, allowAgentOnly)) {
+  if (!model || (availableCloudAgentModelIds && !availableCloudAgentModelIds.has(model.id))) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
 
@@ -147,7 +155,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
       if (!isGatewayRoutableModel(model)) {
         continue
       }
-      if (!isCherryCloudModelAvailable(model, false)) {
+      if (isManagedCherryCloudModel(model.providerId)) {
         continue
       }
 
