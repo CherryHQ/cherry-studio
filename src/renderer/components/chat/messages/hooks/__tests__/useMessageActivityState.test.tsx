@@ -79,7 +79,7 @@ describe('KeyedMessageActivityStore', () => {
     store.subscribe(createMessage('message-1'), onFirstMessageChange)
     store.subscribe(createMessage('message-2'), onSecondMessageChange)
 
-    store.update(['message-1'], [])
+    store.update(['message-1'], [], undefined)
 
     expect(onFirstMessageChange).toHaveBeenCalledTimes(1)
     expect(onSecondMessageChange).not.toHaveBeenCalled()
@@ -91,7 +91,7 @@ describe('KeyedMessageActivityStore', () => {
       isStreamLive: false
     })
 
-    store.update([], ['message-1'])
+    store.update([], ['message-1'], undefined)
 
     expect(onFirstMessageChange).toHaveBeenCalledTimes(2)
     expect(onSecondMessageChange).not.toHaveBeenCalled()
@@ -103,8 +103,8 @@ describe('KeyedMessageActivityStore', () => {
       isStreamLive: false
     })
 
-    store.update(['message-1'], ['message-1'])
-    store.update([], ['message-1'])
+    store.update(['message-1'], ['message-1'], undefined)
+    store.update([], ['message-1'], undefined)
 
     expect(onFirstMessageChange).toHaveBeenCalledTimes(2)
     expect(onSecondMessageChange).not.toHaveBeenCalled()
@@ -123,7 +123,7 @@ describe('KeyedMessageActivityStore', () => {
     store.subscribe(message, vi.fn())
     statusReads = 0
 
-    store.update(['message-2'], [])
+    store.update(['message-2'], [], undefined)
 
     expect(statusReads).toBe(0)
   })
@@ -197,7 +197,7 @@ describe('KeyedMessageActivityStore', () => {
       messages.map((message) => <ActivityProbe key={message.id} message={message} />)
     )
 
-    act(() => store.update(['message-1'], []))
+    act(() => store.update(['message-1'], [], undefined))
     expect(renderCounts).toEqual(
       new Map([
         ['message-1', 2],
@@ -206,7 +206,7 @@ describe('KeyedMessageActivityStore', () => {
       ])
     )
 
-    act(() => store.update(['message-2'], []))
+    act(() => store.update(['message-2'], [], undefined))
     expect(renderCounts).toEqual(
       new Map([
         ['message-1', 3],
@@ -215,13 +215,13 @@ describe('KeyedMessageActivityStore', () => {
       ])
     )
 
-    act(() => store.update([], ['message-2']))
+    act(() => store.update([], ['message-2'], undefined))
     expect(renderCounts.get('message-1')).toBe(3)
     expect(renderCounts.get('message-2')).toBe(3)
     expect(renderCounts.get('message-3')).toBe(1)
     expect(screen.getByTestId('message-2')).toHaveTextContent('true:true')
 
-    act(() => store.update(['message-3'], []))
+    act(() => store.update(['message-3'], [], undefined))
     expect(renderCounts.get('message-3')).toBe(1)
   })
 
@@ -232,10 +232,10 @@ describe('KeyedMessageActivityStore', () => {
     renderWithProvider(createProviderValue(messages, store), <AnyProcessingProbe messages={messages} />)
     expect(screen.getByTestId('any-processing')).toHaveTextContent('false')
 
-    act(() => store.update([], ['message-2']))
+    act(() => store.update([], ['message-2'], undefined))
     expect(screen.getByTestId('any-processing')).toHaveTextContent('true')
 
-    act(() => store.update([], []))
+    act(() => store.update([], [], undefined))
     expect(screen.getByTestId('any-processing')).toHaveTextContent('false')
   })
 })

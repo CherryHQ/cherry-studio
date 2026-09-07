@@ -87,10 +87,12 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
     }
   }
 
+  // `topicStreamStatus` is required: an omitted argument would be
+  // indistinguishable from an explicit clear, silently dropping the status.
   update(
     activeMessageIds: Iterable<string>,
     approvalMessageIds: Iterable<string>,
-    topicStreamStatus?: TopicStreamStatus
+    topicStreamStatus: TopicStreamStatus | undefined
   ) {
     const nextActiveMessageIds = new Set(activeMessageIds)
     const nextApprovalMessageIds = new Set(approvalMessageIds)
