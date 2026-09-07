@@ -911,8 +911,12 @@ function mergeRuntimeSettings(
   const env = mergeAgentLoopbackProxyBypass(
     {
       ...settings.env,
-      ...(route.branch === 'gateway' && settings.env?.API_TIMEOUT_MS === undefined
-        ? { API_TIMEOUT_MS: String(DEFAULT_TIMEOUT) }
+      ...(route.branch === 'gateway'
+        ? {
+            API_TIMEOUT_MS: settings.env?.API_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT),
+            API_FORCE_IDLE_TIMEOUT: settings.env?.API_FORCE_IDLE_TIMEOUT ?? '0',
+            CLAUDE_STREAM_IDLE_TIMEOUT_MS: settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
+          }
         : {}),
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
