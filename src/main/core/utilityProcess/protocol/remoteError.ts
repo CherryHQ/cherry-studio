@@ -9,7 +9,7 @@ export function toRemoteError(error: unknown): RemoteErrorShape {
   try {
     if (error instanceof Error) {
       const code = (error as { code?: unknown }).code
-      const shape: RemoteErrorShape = { name: error.name || 'Error', message: error.message }
+      const shape: RemoteErrorShape = { name: String(error.name || 'Error'), message: String(error.message) }
       if (typeof error.stack === 'string') shape.stack = error.stack
       if (typeof code === 'string' || typeof code === 'number') shape.code = code
       return shape

@@ -120,10 +120,15 @@ describe('ProcessHost lifecycle', () => {
   it.each([
     ['synchronous', 'null prototype'],
     ['synchronous', 'throwing getter'],
+    ['synchronous', 'symbol message'],
     ['asynchronous', 'null prototype'],
-    ['asynchronous', 'throwing getter']
+    ['asynchronous', 'throwing getter'],
+    ['asynchronous', 'symbol message']
   ])('normalizes an %s initialization failure with a %s without waiting for the ready timeout', async (mode, kind) => {
     const cause = kind === 'null prototype' ? Object.create(null) : new Error('init failed')
+    if (kind === 'symbol message') {
+      Object.assign(cause, { stack: 'saved stack', message: Symbol('reason') })
+    }
     if (kind === 'throwing getter') {
       Object.defineProperty(cause, 'message', {
         get() {
