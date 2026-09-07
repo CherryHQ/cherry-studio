@@ -7,7 +7,7 @@ index 48ea06eecf6397b44f4176acea05664541cc4e1f..f6f18ef76f1971e36bd9cdc11123dc86
      supportsPriorityProcessing,
      supportsConfigurationUpdate: isGpt6OrLaterModel,
 -    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max"] : void 0,
-+    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId === "gpt-6-astra" ? ["ultra"] : []] : void 0,
++    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId.startsWith("gpt-6-astra") ? ["ultra"] : []] : void 0,
      isReasoningModel,
      systemMessageMode,
      supportsNonReasoningParameters
@@ -177,7 +177,7 @@ index 26483821603be3057bd67afc71143f97e8c33ac9..2cbea13c005abf6573beb2c0c8636704
      supportsPriorityProcessing,
      supportsConfigurationUpdate: isGpt6OrLaterModel,
 -    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max"] : void 0,
-+    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId === "gpt-6-astra" ? ["ultra"] : []] : void 0,
++    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId.startsWith("gpt-6-astra") ? ["ultra"] : []] : void 0,
      isReasoningModel,
      systemMessageMode,
      supportsNonReasoningParameters
@@ -347,7 +347,7 @@ index e5b1f96b49d488c7ef553b9dda77e3fbc3945681..be156e6df03cb0ba50118ff8c2b7b1df
      supportsPriorityProcessing,
      supportsConfigurationUpdate: isGpt6OrLaterModel,
 -    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max"] : void 0,
-+    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId === "gpt-6-astra" ? ["ultra"] : []] : void 0,
++    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId.startsWith("gpt-6-astra") ? ["ultra"] : []] : void 0,
      isReasoningModel,
      systemMessageMode,
      supportsNonReasoningParameters
@@ -517,7 +517,7 @@ index 714e23772d3d042b4bd88e69c0dc37d6e11187c5..b391b8de8bb1160e7eada80c84edd92c
      supportsPriorityProcessing,
      supportsConfigurationUpdate: isGpt6OrLaterModel,
 -    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max"] : void 0,
-+    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId === "gpt-6-astra" ? ["ultra"] : []] : void 0,
++    supportedReasoningEfforts: isGpt6OrLaterModel ? ["low", "medium", "high", "xhigh", "max", ...modelId.startsWith("gpt-6-astra") ? ["ultra"] : []] : void 0,
      isReasoningModel,
      systemMessageMode,
      supportsNonReasoningParameters
@@ -744,7 +744,7 @@ index c4b8d3a71df8690d4851fa0a79fae1ae2eba9144..9802a5d9cd0b2c3fc31b79bf7383c2e3
      supportsConfigurationUpdate: isGpt6OrLaterModel,
      supportedReasoningEfforts: isGpt6OrLaterModel
 -      ? ['low', 'medium', 'high', 'xhigh', 'max']
-+      ? ['low', 'medium', 'high', 'xhigh', 'max', ...(modelId === 'gpt-6-astra' ? ['ultra'] : [])]
++      ? ['low', 'medium', 'high', 'xhigh', 'max', ...(modelId.startsWith('gpt-6-astra') ? ['ultra'] : [])]
        : undefined,
      isReasoningModel,
      systemMessageMode,

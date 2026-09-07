@@ -63,8 +63,11 @@ describe('isOpenAIReasoningModelId', () => {
     expect(isOpenAIReasoningModelId('gpt-5.2')).toBe(true)
   })
 
-  it('identifies GPT-6 Astra', () => {
+  it('identifies GPT-6 models, including dated snapshots and future SKUs', () => {
     expect(isOpenAIReasoningModelId('gpt-6-astra')).toBe(true)
+    expect(isOpenAIReasoningModelId('gpt-6-astra-2026-09-01')).toBe(true)
+    expect(isOpenAIReasoningModelId('gpt-6-astra-pro')).toBe(true)
+    expect(isOpenAIReasoningModelId('gpt-6.1')).toBe(true)
   })
 
   it('excludes gpt-5-chat', () => {

@@ -27,7 +27,7 @@ export default defineCreator({
   fetchModels: openaiCompatible('openai', 'OPENAI_API_KEY'),
   modelsDevProviders: ['openai'],
   reasoningFamilies: [
-    { pattern: '^gpt-6-astra$', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
+    { pattern: '^gpt-6-astra', effort: ['low', 'medium', 'high', 'xhigh', 'max'] },
     { pattern: '^(?:o\\d|gpt).*deep[-_]?research', effort: ['medium'] },
     { pattern: '^gpt-5[.-]1-codex-max', effort: ['medium', 'high', 'xhigh'] },
     { pattern: '^gpt-5[.-]1-codex', effort: ['medium', 'high'] },
