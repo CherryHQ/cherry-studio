@@ -225,10 +225,11 @@ describe('shared artifact acquisition', () => {
   })
 
   describe('removeArtifact', () => {
-    let removeMock: ReturnType<typeof vi.spyOn>
+    const createRemoveMock = () => vi.spyOn(fs.promises, 'rm')
+    let removeMock: ReturnType<typeof createRemoveMock>
 
     beforeEach(() => {
-      removeMock = vi.spyOn(fs.promises, 'rm')
+      removeMock = createRemoveMock()
       Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
     })
 
