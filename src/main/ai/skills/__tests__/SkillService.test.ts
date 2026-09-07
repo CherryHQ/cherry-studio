@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -581,6 +582,88 @@ describe('SkillService', () => {
 
       expect(await fs.promises.readdir(path.join(pluginDir!, 'skills'))).toEqual(['agent-only'])
       await expect(skillService.listLocalFolderNames(workdir, pluginDir!)).resolves.toEqual(['agent-only'])
+    })
+
+    it('digests through a nested directory symlink so edits behind it republish the bridge', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      const skill = await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+      const shared = await createTempDir('skill-workspace-shared-')
+      await fs.promises.writeFile(path.join(shared, 'notes.md'), 'v1')
+      await fs.promises.symlink(shared, path.join(skill, 'shared'), 'junction')
+
+      const first = await skillService.ensureWorkspaceSkillPlugin(workdir)
+      await fs.promises.writeFile(path.join(shared, 'notes.md'), 'v2')
+      const second = await skillService.ensureWorkspaceSkillPlugin(workdir)
+
+      expect(first).toBeDefined()
+      expect(second).not.toBe(first)
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'keeps detecting edits when a skill contains a dangling symlink',
+      async () => {
+        const skillService = new SkillService()
+        const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+        const skill = await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+        await fs.promises.symlink(path.join(workdir, 'missing'), path.join(skill, 'dangling'))
+
+        const first = await skillService.ensureWorkspaceSkillPlugin(workdir)
+        await fs.promises.writeFile(path.join(skill, 'SKILL.md'), '# edited')
+        const second = await skillService.ensureWorkspaceSkillPlugin(workdir)
+
+        expect(first).toBeDefined()
+        expect(second).not.toBe(first)
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')('publishes a skill containing a FIFO without reading it', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      const skill = await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+      execFileSync('mkfifo', [path.join(skill, 'pipe')])
+
+      const pluginDir = await skillService.ensureWorkspaceSkillPlugin(workdir)
+
+      expect(await fs.promises.readdir(path.join(pluginDir!, 'skills'))).toEqual(['agent-only'])
+    })
+
+    it('does not let a .claude/skills directory without a SKILL.md shadow the .agents skill of that name', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      await fs.promises.mkdir(path.join(workdir, '.claude', 'skills', 'shared-skill'), { recursive: true })
+      const agentSkill = await writeWorkspaceSkill(workdir, '.agents', 'shared-skill')
+
+      const pluginDir = await skillService.ensureWorkspaceSkillPlugin(workdir)
+
+      expect(await fs.promises.readdir(path.join(pluginDir!, 'skills'))).toEqual(['shared-skill'])
+      await expect(skillService.listLocalSkillPaths(workdir)).resolves.toEqual([agentSkill])
+    })
+
+    it('signals a republish when a bridged copy loses its SKILL.md', async () => {
+      const skillService = new SkillService()
+      const workdir = await createTempDir('skill-workspace-plugin-workdir-')
+      await writeWorkspaceSkill(workdir, '.agents', 'agent-only')
+      const copySpy = vi
+        .spyOn(
+          skillService as unknown as { shouldCopyWorkspaceSkill(target: string): boolean },
+          'shouldCopyWorkspaceSkill'
+        )
+        .mockReturnValue(true)
+
+      try {
+        const first = await skillService.ensureWorkspaceSkillPlugin(workdir)
+        await fs.promises.rm(path.join(first!, 'skills', 'agent-only', 'SKILL.md'))
+
+        await expect(skillService.resolveWorkspaceSkillPluginPath(workdir)).resolves.toBe(`${first}#unpublished`)
+        const second = await skillService.ensureWorkspaceSkillPlugin(workdir)
+        expect(second).toBe(first)
+        await expect(
+          fs.promises.readFile(path.join(second!, 'skills', 'agent-only', 'SKILL.md'), 'utf-8')
+        ).resolves.toBe('# agent-only')
+      } finally {
+        copySpy.mockRestore()
+      }
     })
 
     it('publishes nothing when the workspace has no .agents skill to bridge', async () => {

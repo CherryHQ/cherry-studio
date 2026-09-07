@@ -334,17 +334,17 @@ export class SkillService {
   /**
    * List the directory names for the Claude SDK skills whitelist. `.claude/skills` entries are
    * discovered by the SDK itself, so a lenient SKILL.md probe suffices. `.agents/skills` entries
-   * reach the SDK only through the bridge plugin, so only names the bridge actually publishes are
-   * listed — whitelisting a skipped name could un-hide a same-named disabled managed skill.
+   * reach the SDK only through the bridge plugin attached to this build, so its published entries are
+   * listed as they are — whitelisting a skipped name could un-hide a same-named disabled managed skill.
    */
   async listLocalFolderNames(workdir: string, workspaceSkillPlugin: string | null): Promise<string[]> {
     const names: string[] = []
     for (const skill of await this.listLocalSkillDirectories(workdir)) {
       if (skill.root === 'claude' && (await findSkillMdPath(skill.path))) names.push(skill.name)
     }
-    const { pluginDir, links } = await this.resolveWorkspaceSkillPlugin(workdir)
-    if (pluginDir === workspaceSkillPlugin && !this.isWorkspaceSkillPluginBackedOff(pluginDir)) {
-      names.push(...links.map((link) => link.name))
+    if (workspaceSkillPlugin) {
+      // Published directories are never mutated, so their entries are exactly what the CLI loads.
+      names.push(...(await fs.promises.readdir(path.join(workspaceSkillPlugin, 'skills')).catch(() => [])))
     }
     return names
   }
@@ -532,7 +532,8 @@ export class SkillService {
     try {
       await fs.promises.access(path.join(pluginDir, '.claude-plugin', 'plugin.json'))
       for (const link of links) {
-        await fs.promises.lstat(path.join(pluginDir, 'skills', link.name))
+        const descriptor = await fs.promises.stat(path.join(pluginDir, 'skills', link.name, 'SKILL.md'))
+        if (!descriptor.isFile()) return false
       }
       return true
     } catch {
@@ -555,20 +556,28 @@ export class SkillService {
         if (remaining.entries-- <= 0) throw new WorkspaceSkillFingerprintOverflow()
         const entryPath = path.join(current, entry.name)
         const relative = `${prefix}/${entry.name}`
-        if (entry.isDirectory()) {
+        // A Dirent describes a symlink itself; the CLI reads through links, so digest what they point at.
+        const stat = entry.isDirectory()
+          ? undefined
+          : await fs.promises.stat(entryPath).catch((error: NodeJS.ErrnoException) => {
+              if (error.code === 'ENOENT' || error.code === 'ELOOP') return undefined
+              throw error
+            })
+        if (entry.isDirectory() || stat?.isDirectory()) {
           hash.update(`d\0${relative}\n`)
           await walk(entryPath, relative)
-        } else {
-          // Check the declared size before reading so one huge file cannot balloon memory first.
-          const stat = await fs.promises.stat(entryPath)
-          if (stat.size > remaining.bytes) throw new WorkspaceSkillFingerprintOverflow()
-          const content = await fs.promises.readFile(entryPath)
-          remaining.bytes -= content.byteLength
-          if (remaining.bytes < 0) throw new WorkspaceSkillFingerprintOverflow()
-          hash.update(`f\0${relative}\0`)
-          hash.update(content)
-          hash.update('\n')
+          continue
         }
+        // Dangling links are invisible to the CLI too; a FIFO or socket would block the read forever.
+        if (!stat?.isFile()) continue
+        // Check the declared size before reading so one huge file cannot balloon memory first.
+        if (stat.size > remaining.bytes) throw new WorkspaceSkillFingerprintOverflow()
+        const content = await fs.promises.readFile(entryPath)
+        remaining.bytes -= content.byteLength
+        if (remaining.bytes < 0) throw new WorkspaceSkillFingerprintOverflow()
+        hash.update(`f\0${relative}\0`)
+        hash.update(content)
+        hash.update('\n')
       }
     }
     try {
@@ -609,8 +618,15 @@ export class SkillService {
         const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
         for (const entry of entries) {
           if (seenNames.has(entry.name) || !(await this.isLocalSkillDirectoryEntry(skillsDir, entry))) continue
-          seenNames.add(entry.name)
-          results.push({ name: entry.name, path: path.join(skillsDir, entry.name), root })
+          const skillPath = path.join(skillsDir, entry.name)
+          // Only a skill the SDK would load shadows its twin in the next root; an empty or malformed
+          // directory is reported downstream but must not hide a valid `.agents` skill.
+          const loadable = await fs.promises.stat(path.join(skillPath, 'SKILL.md')).then(
+            (descriptor) => descriptor.isFile(),
+            () => false
+          )
+          if (loadable) seenNames.add(entry.name)
+          results.push({ name: entry.name, path: skillPath, root })
         }
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
