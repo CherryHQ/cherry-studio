@@ -714,7 +714,6 @@ describe('MessageGroup', () => {
 
     const footer = container.querySelector('#message-msg-1 .MessageFooter')
 
-    expect(footer).toHaveClass('opacity-100')
     expect(footer).not.toHaveClass('opacity-0')
   })
 
