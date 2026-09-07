@@ -160,9 +160,8 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
         replaceDraft: mocks.replaceDraft,
-        // Bind the draft getter to this surface instance. During a topic switch, the old
-        // surface may be unmounted after the new surface has rendered; using the shared
-        // `surfaceProps` there would make the old instance read the new topic's draft.
+        // Bind the draft getter to this surface instance; during topic switches the old surface can unmount after the new renders.
+        // Avoid reading shared `surfaceProps`, which would point at the new topic.
         getDraft: () => mocks.getDraft(props)
       })
     }, [props])
