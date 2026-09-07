@@ -73,7 +73,7 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   validateCliConfigDraftForWrite: vi.fn()
 }))
 
-vi.mock('../../CliIcon', () => ({
+vi.mock('@renderer/components/icons/CliIcon', () => ({
   CliIcon: () => <span data-testid="cli-icon" />
 }))
 

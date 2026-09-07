@@ -93,21 +93,14 @@ export function PromptSettings() {
         label: assistant.name,
         group: t('common.assistant_other'),
         target: { type: 'assistant' as const, id: assistant.id },
-        icon: <EmojiIcon emoji={assistant.emoji || '💬'} size={24} fontSize={14} className="mr-0" />
+        icon: <EmojiIcon emoji={assistant.emoji || '💬'} size={24} />
       })),
       ...agentData.map((agent) => ({
         value: `agent:${agent.id}`,
         label: agent.name,
         group: t('common.agent_other'),
         target: { type: 'agent' as const, id: agent.id },
-        icon: (
-          <EmojiIcon
-            emoji={getAgentAvatarFromConfiguration(agent.configuration)}
-            size={24}
-            fontSize={14}
-            className="mr-0"
-          />
-        )
+        icon: <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent.configuration)} size={24} />
       }))
     ],
     [agentData, assistantData, t]

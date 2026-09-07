@@ -1,12 +1,14 @@
-import { Scrollbar } from '@cherrystudio/ui'
+import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/components/command'
+import { CliIcon } from '@renderer/components/icons/CliIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { CodeCli } from '@shared/types/codeCli'
-import { Loader2 } from 'lucide-react'
+import { Loader2, MoreHorizontal } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { CLI_TOOLS } from '../constants/cliTools'
 import type { CodeToolMeta, VersionStatus } from '../types'
-import { CliIcon } from './CliIcon'
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
@@ -20,6 +22,8 @@ export interface CodeCliSidebarProps {
   upgradingTools: Set<string>
   /** Per-tool enabled-model label shown under the tool name. */
   providerSummaries: Record<string, string>
+  isSidebarPinned: (tool: CodeCli) => boolean
+  onToggleSidebar: (tool: CliToolOption) => void
 }
 
 const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ status, isBusy }) => {
@@ -52,7 +56,9 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
   statuses,
   installingTools,
   upgradingTools,
-  providerSummaries
+  providerSummaries,
+  isSidebarPinned,
+  onToggleSidebar
 }) => {
   const { t } = useTranslation()
 
@@ -67,28 +73,70 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
               const meta = toMeta(tool)
               const isSelected = selectedCliTool === tool.value
               const summary = providerSummaries[tool.value]
-              return (
-                <button
+              const sidebarPinned = isSidebarPinned(tool.value)
+              const canManageSidebar = statuses[tool.value]?.installed === true || sidebarPinned
+              const contextMenuItems: readonly CommandContextMenuExtraItem[] = canManageSidebar
+                ? [
+                    {
+                      type: 'item',
+                      id: `code-cli.toggle-sidebar.${tool.value}`,
+                      label: t(sidebarPinned ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
+                      icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
+                      onSelect: () => onToggleSidebar(tool)
+                    }
+                  ]
+                : []
+              const row = (
+                <div
                   key={tool.value}
-                  type="button"
-                  onClick={() => onSelectTool(tool.value)}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
+                  className={`group/row flex w-full items-center rounded-lg pr-1 transition-colors ${
                     isSelected ? 'bg-accent/55' : 'hover:bg-accent/30'
                   }`}>
-                  <CliIcon id={tool.value} size={28} className="size-7 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <div className="min-w-0 flex-1 truncate text-[13px] text-foreground">{meta.label}</div>
-                      <SidebarStatusTag
-                        status={statuses[tool.value]}
-                        isBusy={installingTools.has(tool.value) || upgradingTools.has(tool.value)}
-                      />
+                  <button
+                    type="button"
+                    onClick={() => onSelectTool(tool.value)}
+                    className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                    <CliIcon id={tool.value} size={28} className="size-7 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="min-w-0 flex-1 truncate text-[13px] text-foreground">{meta.label}</div>
+                        <SidebarStatusTag
+                          status={statuses[tool.value]}
+                          isBusy={installingTools.has(tool.value) || upgradingTools.has(tool.value)}
+                        />
+                      </div>
+                      {summary && (
+                        <div className="mt-0.5 truncate font-mono text-[10px] text-foreground-tertiary">{summary}</div>
+                      )}
                     </div>
-                    {summary && (
-                      <div className="mt-0.5 truncate font-mono text-[10px] text-foreground-tertiary">{summary}</div>
-                    )}
-                  </div>
-                </button>
+                  </button>
+                  {canManageSidebar && (
+                    <Tooltip title={t('common.more')} delay={500}>
+                      <CommandPopupMenu
+                        location="webcontents.context"
+                        extraItems={contextMenuItems}
+                        align="end"
+                        side="bottom">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={t('common.more')}
+                          className="size-7 opacity-0 shadow-none group-focus-within/row:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
+                          onClick={(event) => event.stopPropagation()}>
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </CommandPopupMenu>
+                    </Tooltip>
+                  )}
+                </div>
+              )
+              return canManageSidebar ? (
+                <CommandContextMenu key={tool.value} location="webcontents.context" extraItems={contextMenuItems}>
+                  {row}
+                </CommandContextMenu>
+              ) : (
+                row
               )
             })}
           </div>

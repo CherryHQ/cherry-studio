@@ -1,41 +1,56 @@
-// Original path: src/renderer/components/EmojiIcon.tsx
 import type { CSSProperties, FC } from 'react'
+
+import { cn } from '../../lib/utils'
 
 interface EmojiIconProps {
   emoji: string
   className?: string
   /** Fixed-mode side length in px. Ignored when `fluid` is true. */
   size?: number
-  /** Foreground emoji font size in px. */
+  /** @deprecated Emoji artwork now scales with `size`. */
   fontSize?: number
-  /** Fill the parent (h-full w-full) instead of using a fixed px size. Drops the default right margin. */
+  /** Fill the parent (h-full w-full) instead of using a fixed px size. */
   fluid?: boolean
 }
 
-const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className = '', size = 26, fontSize = 15, fluid = false }) => {
+const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className, size = 26, fontSize, fluid = false }) => {
   const wrapperStyle: CSSProperties = fluid
-    ? { fontSize: `${fontSize}px` }
+    ? { containerType: 'inline-size' }
     : {
         width: `${size}px`,
         height: `${size}px`,
         borderRadius: `${size / 2}px`,
-        fontSize: `${fontSize}px`
+        containerType: 'inline-size'
       }
+  const foregroundFontSize = fontSize === undefined ? '70cqi' : `${fontSize}px`
+  const backgroundFontSize = fontSize === undefined ? '120cqi' : `${fontSize * 2}px`
 
   return (
     <div
-      className={`flex items-center justify-center flex-shrink-0 relative overflow-hidden rounded-full ${fluid ? 'h-full w-full' : 'mr-1'} ${className}`}
+      data-slot="emoji-icon"
+      className={cn(
+        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-full',
+        fluid && 'h-full w-full',
+        className
+      )}
       style={wrapperStyle}>
-      <div
+      <span
+        data-slot="emoji-icon-background"
         aria-hidden="true"
         className="absolute inset-0 flex items-center justify-center blur-sm opacity-40"
         style={{
-          fontSize: '200%',
+          fontSize: backgroundFontSize,
+          lineHeight: 1,
           transform: 'scale(1.5)'
         }}>
         {emoji || '⭐️'}
-      </div>
-      {emoji}
+      </span>
+      <span
+        data-slot="emoji-icon-foreground"
+        className="relative flex items-center justify-center"
+        style={{ fontSize: foregroundFontSize, lineHeight: 1 }}>
+        {emoji}
+      </span>
     </div>
   )
 }

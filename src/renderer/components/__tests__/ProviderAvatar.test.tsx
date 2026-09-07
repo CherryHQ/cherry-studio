@@ -11,6 +11,10 @@ vi.mock('@cherrystudio/ui/icons', () => {
     <span data-testid="brand-icon" data-variant={variant} style={style} />
   )
   return {
+    getProviderIconAssetMetrics: ({ kind, iconId }: { kind: string; iconId: string }) => ({
+      canvasScale: kind === 'model' ? 24 / 16 : iconId === 'anthropic' ? 1 : 120 / 65,
+      kind: iconId === 'anthropic' ? 'tile' : 'mark'
+    }),
     resolveProviderIconRef: (id: string) =>
       id === 'openai' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
     useIcon: (ref: unknown) => (ref ? BrandIcon : undefined)
@@ -24,6 +28,13 @@ afterEach(() => {
 })
 
 describe('ProviderAvatarPrimitive', () => {
+  it('uses the built-in provider icon when no custom logo is stored', () => {
+    render(<ProviderAvatarPrimitive providerId="openai" providerName="OpenAI" />)
+
+    expect(screen.getByTestId('brand-icon')).toBeInTheDocument()
+    expect(screen.queryByText('O')).not.toBeInTheDocument()
+  })
+
   it('renders image logo avatars with object-cover cropping', () => {
     const logo = 'file:///tmp/wide-provider-logo.png'
 
@@ -71,6 +82,59 @@ describe('ProviderAvatarPrimitive', () => {
       height: '71.42857142857143%',
       borderRadius: '5px'
     })
+  })
+
+  it('separates compact artwork size from the declared avatar box', () => {
+    render(
+      <ProviderAvatarPrimitive
+        providerId="openai"
+        providerName="OpenAI"
+        size={18}
+        artworkSize={14}
+        displayContext="sidebar"
+      />
+    )
+
+    const normalizedArtworkSize = `${(120 / 65) * (14 / 18) * 100}%`
+    expect(screen.getByTestId('brand-icon')).toHaveStyle({
+      width: normalizedArtworkSize,
+      height: normalizedArtworkSize
+    })
+    expect(screen.getByTestId('avatar')).toHaveStyle({ width: '18px', height: '18px' })
+    expect(screen.getByTestId('avatar-fallback')).toHaveClass('bg-transparent')
+    expect(screen.getByTestId('avatar-fallback')).not.toHaveClass('bg-background')
+  })
+
+  it('keeps the provider-list surface behind built-in icons', () => {
+    render(
+      <ProviderAvatarPrimitive providerId="openai" providerName="OpenAI" size={32} displayContext="provider-list" />
+    )
+
+    expect(screen.getByTestId('avatar-fallback')).toHaveClass('bg-background')
+  })
+
+  it('contains compact image logos on an outlined image surface', () => {
+    const logo = 'file:///tmp/provider-logo.png'
+
+    render(
+      <ProviderAvatarPrimitive
+        providerId="custom"
+        providerName="Custom"
+        logo={logo}
+        size={18}
+        artworkSize={14}
+        displayContext="sidebar"
+      />
+    )
+
+    expect(document.querySelector('img')).toHaveClass(
+      'object-contain',
+      'rounded-[3px]',
+      'outline-black/10',
+      'dark:outline-white/10'
+    )
+    expect(document.querySelector('img')).toHaveStyle({ width: '14px', height: '14px' })
+    expect(screen.getByTestId('avatar')).toHaveStyle({ width: '18px', height: '18px' })
   })
 
   it('falls back to the name initial when an `icon:<id>` reference is unknown', () => {

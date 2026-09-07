@@ -1,7 +1,9 @@
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
 import {
   CLI_OWN_LOGIN_PROVIDER_ID,
@@ -36,6 +38,8 @@ const logger = loggerService.withContext('CodeCliPage')
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
+const codeCliSidebarTarget = (tool: CodeCli) =>
+  createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.CODE_CLI, tool)
 
 // A broken managed install reports installed:false (inactive entries, no shim), and hiding it
 // would strip the only surface offering the Retry/Remove that repair or undo it.
@@ -173,10 +177,24 @@ export function useCodeCliPageViewProps(
   })
 
   const { statuses, resolved: statusesResolved } = useCliVersionStatuses(CLI_TOOL_IDS)
+  const { isPinned: isSidebarShortcutPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
+  const isCliSidebarPinned = useCallback(
+    (tool: CodeCli) => isSidebarShortcutPinned(codeCliSidebarTarget(tool)),
+    [isSidebarShortcutPinned]
+  )
+  const toggleCliSidebarShortcut = useCallback(
+    (tool: CliToolOption) => toggleSidebarShortcut(codeCliSidebarTarget(tool.value), toMeta(tool).label),
+    [toMeta, toggleSidebarShortcut]
+  )
   const visibleTools = useMemo(
     () =>
-      CLI_TOOLS.filter((tool) => tool.value !== CodeCli.GEMINI_CLI || isGeminiVisible(statuses[CodeCli.GEMINI_CLI])),
-    [statuses]
+      CLI_TOOLS.filter(
+        (tool) =>
+          tool.value !== CodeCli.GEMINI_CLI ||
+          isGeminiVisible(statuses[CodeCli.GEMINI_CLI]) ||
+          isCliSidebarPinned(tool.value)
+      ),
+    [isCliSidebarPinned, statuses]
   )
   const activeTool = useMemo<CliToolOption | undefined>(
     () => visibleTools.find((tool) => tool.value === selectedCliTool),
@@ -186,10 +204,10 @@ export function useCodeCliPageViewProps(
     // Gate on `resolved`, not on the status being absent: a failed read leaves the map
     // empty forever, which would hide Gemini while never redirecting off it.
     if (selectedCliTool !== CodeCli.GEMINI_CLI || !statusesResolved) return
-    if (isGeminiVisible(statuses[CodeCli.GEMINI_CLI])) return
+    if (isGeminiVisible(statuses[CodeCli.GEMINI_CLI]) || isCliSidebarPinned(CodeCli.GEMINI_CLI)) return
     const fallback = visibleTools[0]
     if (fallback) selectTool(fallback.value)
-  }, [selectedCliTool, selectTool, statuses, statusesResolved, visibleTools])
+  }, [isCliSidebarPinned, selectedCliTool, selectTool, statuses, statusesResolved, visibleTools])
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
   const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
@@ -319,7 +337,9 @@ export function useCodeCliPageViewProps(
       statuses,
       installingTools: mergedInstallingTools,
       upgradingTools,
-      providerSummaries
+      providerSummaries,
+      isSidebarPinned: isCliSidebarPinned,
+      onToggleSidebar: toggleCliSidebarShortcut
     },
     contentProps: activeMeta
       ? {

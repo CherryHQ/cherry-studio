@@ -21,10 +21,6 @@ const meta: Meta<typeof EmojiIcon> = {
     size: {
       control: { type: 'range', min: 16, max: 80, step: 2 },
       description: '图标容器的大小（像素）'
-    },
-    fontSize: {
-      control: { type: 'range', min: 8, max: 40, step: 1 },
-      description: 'emoji 的字体大小（像素）'
     }
   }
 }
@@ -69,16 +65,14 @@ export const Rocket: Story = {
 export const SmallSize: Story = {
   args: {
     emoji: '🎯',
-    size: 20,
-    fontSize: 12
+    size: 18
   }
 }
 
 export const LargeSize: Story = {
   args: {
     emoji: '🌟',
-    size: 60,
-    fontSize: 30
+    size: 60
   }
 }
 
@@ -86,7 +80,6 @@ export const CustomStyle: Story = {
   args: {
     emoji: '💎',
     size: 40,
-    fontSize: 20,
     className: 'border-2 border-blue-300 dark:border-blue-600 shadow-lg'
   }
 }
@@ -129,7 +122,7 @@ export const EmojiCollection: Story = {
             '🎊',
             '🏆'
           ].map((emoji, index) => (
-            <EmojiIcon key={index} emoji={emoji} size={32} fontSize={16} />
+            <EmojiIcon key={index} emoji={emoji} size={32} />
           ))}
         </div>
       </div>
@@ -143,20 +136,20 @@ export const SizeComparison: Story = {
       <h3 className="text-lg font-medium mb-4">不同尺寸对比</h3>
       <div className="flex items-center gap-6">
         <div className="text-center">
-          <EmojiIcon emoji="🎨" size={20} fontSize={12} />
-          <p className="text-xs mt-2">小 (20px)</p>
+          <EmojiIcon emoji="🎨" size={14} />
+          <p className="text-xs mt-2">固定标签 (14px)</p>
         </div>
         <div className="text-center">
-          <EmojiIcon emoji="🎨" size={30} fontSize={16} />
-          <p className="text-xs mt-2">中 (30px)</p>
+          <EmojiIcon emoji="🎨" size={18} />
+          <p className="text-xs mt-2">导航 (18px)</p>
         </div>
         <div className="text-center">
-          <EmojiIcon emoji="🎨" size={40} fontSize={20} />
-          <p className="text-xs mt-2">大 (40px)</p>
+          <EmojiIcon emoji="🎨" size={30} />
+          <p className="text-xs mt-2">普通头像 (30px)</p>
         </div>
         <div className="text-center">
-          <EmojiIcon emoji="🎨" size={60} fontSize={30} />
-          <p className="text-xs mt-2">特大 (60px)</p>
+          <EmojiIcon emoji="🎨" size={60} />
+          <p className="text-xs mt-2">大头像 (60px)</p>
         </div>
       </div>
     </div>
@@ -172,7 +165,7 @@ export const InUserInterface: Story = {
       <div className="space-y-3">
         <h4 className="font-medium">用户头像</h4>
         <div className="flex items-center gap-3">
-          <EmojiIcon emoji="👤" size={40} fontSize={20} />
+          <EmojiIcon emoji="👤" size={40} />
           <div>
             <p className="font-medium">用户名</p>
             <p className="text-sm text-gray-500">user@example.com</p>
@@ -185,15 +178,15 @@ export const InUserInterface: Story = {
         <h4 className="font-medium">状态指示器</h4>
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <EmojiIcon emoji="✅" size={24} fontSize={14} />
+            <EmojiIcon emoji="✅" size={24} />
             <span>任务已完成</span>
           </div>
           <div className="flex items-center gap-2">
-            <EmojiIcon emoji="⏳" size={24} fontSize={14} />
+            <EmojiIcon emoji="⏳" size={24} />
             <span>进行中</span>
           </div>
           <div className="flex items-center gap-2">
-            <EmojiIcon emoji="❌" size={24} fontSize={14} />
+            <EmojiIcon emoji="❌" size={24} />
             <span>任务失败</span>
           </div>
         </div>
@@ -204,15 +197,15 @@ export const InUserInterface: Story = {
         <h4 className="font-medium">导航菜单</h4>
         <div className="space-y-1">
           <div className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
-            <EmojiIcon emoji="🏠" size={24} fontSize={14} />
+            <EmojiIcon emoji="🏠" size={24} />
             <span>首页</span>
           </div>
           <div className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
-            <EmojiIcon emoji="📊" size={24} fontSize={14} />
+            <EmojiIcon emoji="📊" size={24} />
             <span>数据统计</span>
           </div>
           <div className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer">
-            <EmojiIcon emoji="⚙️" size={24} fontSize={14} />
+            <EmojiIcon emoji="⚙️" size={24} />
             <span>设置</span>
           </div>
         </div>
@@ -231,15 +224,15 @@ export const CategoryIcons: Story = {
           <h4 className="font-medium mb-3">工作相关</h4>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <EmojiIcon emoji="💼" size={24} fontSize={14} />
+              <EmojiIcon emoji="💼" size={24} />
               <span>商务</span>
             </div>
             <div className="flex items-center gap-2">
-              <EmojiIcon emoji="📈" size={24} fontSize={14} />
+              <EmojiIcon emoji="📈" size={24} />
               <span>分析</span>
             </div>
             <div className="flex items-center gap-2">
-              <EmojiIcon emoji="💻" size={24} fontSize={14} />
+              <EmojiIcon emoji="💻" size={24} />
               <span>开发</span>
             </div>
           </div>
@@ -249,15 +242,15 @@ export const CategoryIcons: Story = {
           <h4 className="font-medium mb-3">生活相关</h4>
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <EmojiIcon emoji="🍕" size={24} fontSize={14} />
+              <EmojiIcon emoji="🍕" size={24} />
               <span>美食</span>
             </div>
             <div className="flex items-center gap-2">
-              <EmojiIcon emoji="✈️" size={24} fontSize={14} />
+              <EmojiIcon emoji="✈️" size={24} />
               <span>旅行</span>
             </div>
             <div className="flex items-center gap-2">
-              <EmojiIcon emoji="🎵" size={24} fontSize={14} />
+              <EmojiIcon emoji="🎵" size={24} />
               <span>音乐</span>
             </div>
           </div>
@@ -277,7 +270,7 @@ export const AnimatedExample: Story = {
             key={index}
             className="cursor-pointer transition-transform duration-200 hover:scale-110"
             onClick={() => alert(`点击了 ${emoji}`)}>
-            <EmojiIcon emoji={emoji} size={36} fontSize={18} />
+            <EmojiIcon emoji={emoji} size={36} />
           </div>
         ))}
       </div>
@@ -293,15 +286,15 @@ export const BlurEffect: Story = {
       <p className="text-sm text-gray-600 mb-4">EmojiIcon 组件具有独特的模糊背景效果，让 emoji 看起来更有层次感</p>
       <div className="flex gap-6">
         <div className="text-center">
-          <EmojiIcon emoji="🌙" size={50} fontSize={25} />
+          <EmojiIcon emoji="🌙" size={50} />
           <p className="text-xs mt-2">夜晚模式</p>
         </div>
         <div className="text-center">
-          <EmojiIcon emoji="☀️" size={50} fontSize={25} />
+          <EmojiIcon emoji="☀️" size={50} />
           <p className="text-xs mt-2">白天模式</p>
         </div>
         <div className="text-center">
-          <EmojiIcon emoji="🌈" size={50} fontSize={25} />
+          <EmojiIcon emoji="🌈" size={50} />
           <p className="text-xs mt-2">彩虹效果</p>
         </div>
       </div>

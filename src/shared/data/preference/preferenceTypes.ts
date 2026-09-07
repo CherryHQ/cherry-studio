@@ -120,25 +120,31 @@ export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
  * Leaf items are stored as tagged objects, not bare ids. Keep the `type` values,
  * id semantics, and one ordered heterogeneous top-level array stable: a future
  * `group` variant can then be added as another top-level item without migrating
- * existing flat `SidebarFavoriteItem[]` values.
+ * existing flat shortcut values.
  */
-export type SidebarFavoriteItem =
-  | {
-      type: 'app'
-      id: SidebarFavorite
-    }
-  | {
-      type: 'mini_app'
-      id: string
-    }
-  | {
-      type: 'agent'
-      id: string
-    }
-  | {
-      type: 'assistant'
-      id: string
-    }
+export interface ResourceLocator {
+  providerId: string
+  resourceId: string
+}
+
+export type SidebarShortcutTarget = {
+  kind: 'resource'
+  locator: ResourceLocator
+  activationId?: string
+}
+
+export interface SidebarShortcutItem {
+  type: 'shortcut'
+  id: string
+  target: SidebarShortcutTarget
+  fallbackLabel?: string
+}
+
+export function createSidebarShortcutId(target: SidebarShortcutTarget): string {
+  const parts = ['sidebar-shortcut', target.locator.providerId, target.locator.resourceId]
+  if (target.activationId !== undefined) parts.push(target.activationId)
+  return parts.map(encodeURIComponent).join(':')
+}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 

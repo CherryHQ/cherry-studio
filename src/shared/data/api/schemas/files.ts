@@ -89,6 +89,7 @@ export const REF_COUNTS_MAX_ENTRY_IDS = 500
 
 export const ListFilesQuerySchema = z
   .strictObject({
+    ids: z.array(FileEntryIdSchema).min(1).max(LIST_FILES_MAX_LIMIT).optional(),
     origin: FileEntryOriginSchema.optional(),
     inTrash: z.boolean().optional(),
     fileType: FileTypeSchema.optional(),

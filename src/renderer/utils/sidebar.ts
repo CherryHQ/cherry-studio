@@ -1,4 +1,9 @@
-import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import {
+  createSidebarShortcutId,
+  type SidebarFavorite,
+  type SidebarShortcutItem,
+  type SidebarShortcutTarget
+} from '@shared/data/preference/preferenceTypes'
 import { CONVERSATION_ROUTES, conversationRouteUrl } from '@shared/utils/conversationRoute'
 
 /**
@@ -145,285 +150,225 @@ export function isSidebarAppId(value: string): value is SidebarAppId {
   return sidebarFavoriteSet.has(value as SidebarAppId)
 }
 
-function createSidebarAppFavorite(id: SidebarAppId): SidebarFavoriteItem {
-  return { type: 'app', id }
+export const SIDEBAR_SHORTCUT_PROVIDER_IDS = {
+  APP: 'core.app',
+  MINI_APP: 'core.mini-app',
+  AGENT: 'core.agent',
+  ASSISTANT: 'core.assistant',
+  KNOWLEDGE_BASE: 'core.knowledge-base',
+  TOPIC: 'core.topic',
+  AGENT_SESSION: 'core.agent-session',
+  FILE_ENTRY: 'core.file-entry',
+  CODE_CLI: 'core.code-cli'
+} as const
+
+const RETIRED_SIDEBAR_SHORTCUT_PROVIDER_IDS = new Set(['core.skill', 'core.mcp-server', 'core.provider'])
+
+export function createSidebarShortcutTarget(
+  providerId: string,
+  resourceId: string,
+  activationId?: string
+): SidebarShortcutTarget {
+  return {
+    kind: 'resource',
+    locator: { providerId, resourceId },
+    ...(activationId === undefined ? {} : { activationId })
+  }
 }
 
-/**
- * Stable identity for a favorite — its react key and reorder-matching key.
- *
- * Keep the type namespace. Future item types (including `group`) must not collide
- * with app or mini-app ids.
- */
-export function getSidebarFavoriteKey(favorite: SidebarFavoriteItem): string {
-  return `${favorite.type}:${favorite.id}`
+const LEGACY_PROVIDER_BY_TYPE = {
+  app: SIDEBAR_SHORTCUT_PROVIDER_IDS.APP,
+  mini_app: SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP,
+  agent: SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT,
+  assistant: SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
+} as const
+
+type StoredSidebarItem = Record<string, unknown>
+
+function isRecord(value: unknown): value is StoredSidebarItem {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isForwardCompatibleSidebarFavoriteItem(favorite: SidebarFavoriteItem): boolean {
-  const item = favorite as { type?: unknown; id?: unknown }
+export function isSidebarShortcutTarget(value: unknown): value is SidebarShortcutTarget {
+  if (!isRecord(value) || value.kind !== 'resource' || !isRecord(value.locator)) return false
+  const { providerId, resourceId } = value.locator
   return (
-    typeof item.type === 'string' &&
-    item.type !== 'app' &&
-    item.type !== 'mini_app' &&
-    item.type !== 'agent' &&
-    item.type !== 'assistant' &&
-    typeof item.id === 'string' &&
-    item.id.length > 0
+    typeof providerId === 'string' &&
+    providerId.length > 0 &&
+    typeof resourceId === 'string' &&
+    resourceId.length > 0 &&
+    (value.activationId === undefined || (typeof value.activationId === 'string' && value.activationId.length > 0))
   )
 }
 
-function getForwardCompatibleSidebarFavoriteItems(
-  favorites: readonly SidebarFavoriteItem[] | undefined
-): SidebarFavoriteItem[] {
-  const seen = new Set<string>()
-  const items: SidebarFavoriteItem[] = []
-
-  for (const favorite of favorites ?? []) {
-    if (!isForwardCompatibleSidebarFavoriteItem(favorite)) continue
-
-    const item = favorite as SidebarFavoriteItem & { type: string; id: string }
-    const key = `${item.type}:${item.id}`
-    if (seen.has(key)) continue
-
-    seen.add(key)
-    items.push(favorite)
-  }
-
-  return items
+export function isSidebarShortcutItem(value: unknown): value is SidebarShortcutItem {
+  return isRecord(value) && value.type === 'shortcut' && isSidebarShortcutTarget(value.target)
 }
 
-function preserveForwardCompatibleSidebarFavoriteItems(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  nextItems: SidebarFavoriteItem[]
-): SidebarFavoriteItem[] {
-  const futureItems = getForwardCompatibleSidebarFavoriteItems(favorites)
-  return futureItems.length ? [...nextItems, ...futureItems] : nextItems
-}
-
-function normalizeSidebarFavoriteItem(favorite: SidebarFavoriteItem): SidebarFavoriteItem | undefined {
-  // Preserve the original item (spread) rather than rebuilding it from its id, so
-  // any future per-item fields survive the normalize round-trip instead of being
-  // silently dropped. Only the id is validated per type.
-  switch (favorite.type) {
-    case 'app':
-      return isSidebarAppId(favorite.id) ? { ...favorite } : undefined
-    case 'mini_app':
-      return favorite.id ? { ...favorite } : undefined
-    case 'agent':
-    case 'assistant':
-      return favorite.id ? { ...favorite } : undefined
-    default: {
-      // Untrusted storage boundary: an unknown type (corrupt or written by a newer
-      // build) is dropped, not thrown, so a downgrade never crashes. The `never`
-      // binding still makes adding a SidebarFavoriteItem variant a compile error
-      // here until a case is added above.
-      const _exhaustive: never = favorite
-      void _exhaustive
-      return undefined
+function normalizeKnownSidebarShortcut(value: StoredSidebarItem): SidebarShortcutItem | undefined {
+  if (value.type === 'shortcut') {
+    if (!isSidebarShortcutTarget(value.target)) return undefined
+    if (RETIRED_SIDEBAR_SHORTCUT_PROVIDER_IDS.has(value.target.locator.providerId)) return undefined
+    return {
+      type: 'shortcut',
+      id: createSidebarShortcutId(value.target),
+      target: value.target,
+      ...(typeof value.fallbackLabel === 'string' && value.fallbackLabel.length > 0
+        ? { fallbackLabel: value.fallbackLabel }
+        : {})
     }
   }
+
+  if (typeof value.type !== 'string' || !(value.type in LEGACY_PROVIDER_BY_TYPE)) return undefined
+  if (typeof value.id !== 'string' || value.id.length === 0) return undefined
+  if (value.type === 'app' && !isSidebarAppId(value.id)) return undefined
+
+  const providerId = LEGACY_PROVIDER_BY_TYPE[value.type as keyof typeof LEGACY_PROVIDER_BY_TYPE]
+  const target = createSidebarShortcutTarget(providerId, value.id)
+  return {
+    type: 'shortcut',
+    id: createSidebarShortcutId(target),
+    target,
+    ...(typeof value.fallbackLabel === 'string' && value.fallbackLabel.length > 0
+      ? { fallbackLabel: value.fallbackLabel }
+      : {})
+  }
 }
 
-/** Normalize and dedupe the stored favorites into valid, ordered tagged items. */
-export function getSidebarFavoriteItems(favorites: readonly SidebarFavoriteItem[] | undefined): SidebarFavoriteItem[] {
+function isForwardCompatibleSidebarItem(value: StoredSidebarItem): boolean {
+  return (
+    typeof value.type === 'string' &&
+    value.type !== 'shortcut' &&
+    !(value.type in LEGACY_PROVIDER_BY_TYPE) &&
+    typeof value.id === 'string' &&
+    value.id.length > 0
+  )
+}
+
+/** Normalize storage, migrate legacy leaves, and preserve future items. */
+export function normalizeSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarShortcutItem[] {
+  const items: SidebarShortcutItem[] = []
   const seen = new Set<string>()
-  const items: SidebarFavoriteItem[] = []
 
-  for (const favorite of favorites ?? []) {
-    const item = normalizeSidebarFavoriteItem(favorite)
-    if (!item) continue
+  for (const value of values ?? []) {
+    if (!isRecord(value)) continue
+    const shortcut = normalizeKnownSidebarShortcut(value)
+    if (shortcut) {
+      if (seen.has(shortcut.id)) continue
+      seen.add(shortcut.id)
+      items.push(shortcut)
+      continue
+    }
+    if (!isForwardCompatibleSidebarItem(value)) continue
 
-    const key = getSidebarFavoriteKey(item)
-    if (seen.has(key)) continue
-
-    seen.add(key)
-    items.push(item)
+    const futureKey = `${String(value.type)}:${String(value.id)}`
+    if (seen.has(futureKey)) continue
+    seen.add(futureKey)
+    items.push(value as unknown as SidebarShortcutItem)
   }
 
   return items
 }
 
-/** Mini app sidebar favorites: an ordered, deduped list of mini app ids. */
-export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavoriteItem[] | undefined): string[] {
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  return getSidebarFavoriteItems(favorites).flatMap((favorite) => (favorite.type === 'mini_app' ? [favorite.id] : []))
+export function getVisibleSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarShortcutItem[] {
+  return normalizeSidebarShortcutItems(values).filter(isSidebarShortcutItem)
 }
 
-/**
- * The full ordered, deduped sidebar list — apps and mini apps interleaved in
- * their stored order. This is the single source of truth the sidebar renders
- * from; every mutation below operates on this list in place, preserving the
- * mixed order instead of segregating apps before mini apps.
- */
-export function getOrderedVisibleSidebarFavoriteItems(
-  favorites: readonly SidebarFavoriteItem[] | undefined
-): SidebarFavoriteItem[] {
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  return getSidebarFavoriteItems(favorites)
-}
-
-/** Built-in app ids projected out of the mixed list, in order. */
-export function getOrderedVisibleSidebarFavorites(
-  favorites: readonly SidebarFavoriteItem[] | undefined
-): SidebarAppId[] {
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  return getOrderedVisibleSidebarFavoriteItems(favorites).flatMap((favorite) =>
-    favorite.type === 'app' && isSidebarAppId(favorite.id) ? [favorite.id] : []
+function isBuiltInAppShortcutTarget(target: SidebarShortcutTarget): target is SidebarShortcutTarget & {
+  locator: { providerId: 'core.app'; resourceId: SidebarAppId }
+} {
+  return (
+    target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.APP &&
+    (target.activationId === undefined || target.activationId === 'reveal') &&
+    isSidebarAppId(target.locator.resourceId)
   )
 }
 
-/**
- * The url to land on at launch: the first visible sidebar app, resolved through
- * its menu path. Mini apps are excluded — they need async data to resolve and a
- * stale id would land on an unusable tab. Returns `''` when no app is visible
- * (or only mini apps are), so the caller can fall back to its default tab.
- */
+export function getVisibleSidebarAppIds(values: readonly unknown[] | undefined): SidebarAppId[] {
+  return getVisibleSidebarShortcutItems(values).flatMap((item) => {
+    const { target } = item
+    return isBuiltInAppShortcutTarget(target) ? [target.locator.resourceId] : []
+  })
+}
+
 export function getSidebarDefaultLandingUrl(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
+  values: readonly unknown[] | undefined,
   defaultPaintingProvider: string
 ): string {
-  const firstApp = getOrderedVisibleSidebarFavorites(favorites)[0]
+  const firstApp = getVisibleSidebarAppIds(values)[0]
   return firstApp ? getSidebarMenuPath(firstApp, defaultPaintingProvider) : ''
 }
 
-// --- Favorites mutations -----------------------------------------------------
-//
-// The favorites preference stores apps and mini apps interleaved in one ordered
-// array. Every mutation operates on the full mixed list (`getOrderedVisible-
-// SidebarFavoriteItems`) in place: adds append to the end of the whole list,
-// removes filter out, and reorders permute their target items while leaving the
-// other type's items exactly where they sit. This keeps the sidebar's mixed
-// order intact across any mutation, whichever surface (sidebar or launchpad)
-// triggered it.
+export function addSidebarShortcut(
+  values: readonly unknown[] | undefined,
+  target: SidebarShortcutTarget,
+  fallbackLabel?: string
+): SidebarShortcutItem[] {
+  const items = normalizeSidebarShortcutItems(values)
+  const id = createSidebarShortcutId(target)
+  if (items.some((item) => isSidebarShortcutItem(item) && item.id === id)) return items
+  return [
+    ...items,
+    {
+      type: 'shortcut',
+      id,
+      target,
+      ...(fallbackLabel ? { fallbackLabel } : {})
+    }
+  ]
+}
 
-/**
- * Reorder the whole sidebar list to `orderedItems` (a permutation of the visible
- * favorites). Invalid known items are dropped, future item types are preserved at
- * the end, and any stored favorite missing from the list (e.g. a stale mini app
- * id) is kept at the end so a partial order never silently loses favorites.
- */
-export function reorderSidebarFavorites(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  orderedItems: readonly SidebarFavoriteItem[]
-): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-  const byKey = new Map(items.map((item) => [getSidebarFavoriteKey(item), item]))
+export function canRemoveSidebarShortcut(
+  values: readonly unknown[] | undefined,
+  target: SidebarShortcutTarget
+): boolean {
+  if (!isBuiltInAppShortcutTarget(target)) return true
+
+  const visibleAppIds = getVisibleSidebarAppIds(values)
+  return !visibleAppIds.includes(target.locator.resourceId) || visibleAppIds.length > 1
+}
+
+export function removeSidebarShortcut(
+  values: readonly unknown[] | undefined,
+  target: SidebarShortcutTarget
+): SidebarShortcutItem[] {
+  const id = createSidebarShortcutId(target)
+  const items = normalizeSidebarShortcutItems(values)
+  if (!canRemoveSidebarShortcut(items, target)) return items
+  return items.filter((item) => !isSidebarShortcutItem(item) || item.id !== id)
+}
+
+export function reorderSidebarShortcuts(
+  values: readonly unknown[] | undefined,
+  orderedItems: readonly SidebarShortcutItem[]
+): SidebarShortcutItem[] {
+  const items = normalizeSidebarShortcutItems(values)
+  const shortcuts = items.filter(isSidebarShortcutItem)
+  const byId = new Map(shortcuts.map((item) => [item.id, item]))
   const seen = new Set<string>()
-  const reordered: SidebarFavoriteItem[] = []
+  const reordered: SidebarShortcutItem[] = []
 
   for (const requested of orderedItems) {
-    const key = getSidebarFavoriteKey(requested)
-    const item = byKey.get(key)
-    if (item && !seen.has(key)) {
-      seen.add(key)
+    const item = byId.get(requested.id)
+    if (item && !seen.has(item.id)) {
+      seen.add(item.id)
       reordered.push(item)
     }
   }
-  for (const item of items) {
-    if (!seen.has(getSidebarFavoriteKey(item))) reordered.push(item)
+  for (const item of shortcuts) {
+    if (!seen.has(item.id)) reordered.push(item)
   }
 
-  return preserveForwardCompatibleSidebarFavoriteItems(favorites, reordered)
+  let index = 0
+  return items.map((item) => (isSidebarShortcutItem(item) ? reordered[index++] : item))
 }
 
-/**
- * Pin or unpin a built-in app, preserving everything else in place. Pinning
- * appends to the end of the list; unpinning removes the app from the list.
- * At least one built-in app is always retained so the sidebar never becomes
- * empty with no recovery entry.
- */
-export function setSidebarAppPinned(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  id: SidebarAppId,
-  pinned: boolean
-): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  const isTarget = (item: SidebarFavoriteItem) => item.type === 'app' && item.id === id
-
-  if (!pinned) {
-    const visibleAppIds = getOrderedVisibleSidebarFavorites(favorites)
-    if (visibleAppIds.length === 1 && visibleAppIds[0] === id) {
-      return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
-    }
-    return preserveForwardCompatibleSidebarFavoriteItems(
-      favorites,
-      items.filter((item) => !isTarget(item))
-    )
-  }
-
-  if (items.some(isTarget)) return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
-  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarAppFavorite(id)])
-}
-
-type SidebarLeafFavoriteType = 'mini_app' | 'agent' | 'assistant'
-
-// LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-const isSidebarLeafFavorite = (item: SidebarFavoriteItem, type: SidebarLeafFavoriteType, id: string) =>
-  item.type === type && item.id === id
-
-/** Toggle a leaf favorite in place: present → filtered out, absent → appended to the end. */
-function toggleSidebarLeafFavorite(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  type: SidebarLeafFavoriteType,
-  id: string
-): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-
-  if (items.some((item) => isSidebarLeafFavorite(item, type, id))) {
-    return removeSidebarLeafFavorite(favorites, type, id)
-  }
-  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, { type, id }])
-}
-
-/** Remove a leaf favorite, preserving everything else in place. */
-function removeSidebarLeafFavorite(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  type: SidebarLeafFavoriteType,
-  id: string
-): SidebarFavoriteItem[] {
-  return preserveForwardCompatibleSidebarFavoriteItems(
-    favorites,
-    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !isSidebarLeafFavorite(item, type, id))
-  )
-}
-
-/** Toggle a mini app favorite, preserving everything else. Adding appends to the end. */
-export function toggleSidebarMiniApp(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  id: string
-): SidebarFavoriteItem[] {
-  return toggleSidebarLeafFavorite(favorites, 'mini_app', id)
-}
-
-/** Remove a mini app favorite, preserving everything else in place. */
-export function removeSidebarMiniApp(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  id: string
-): SidebarFavoriteItem[] {
-  return removeSidebarLeafFavorite(favorites, 'mini_app', id)
-}
-
-/**
- * Toggle a pinned user entity (agent / assistant) favorite, preserving
- * everything else in place. Adding appends to the end of the whole list,
- * removing filters the target out — mirrors {@link toggleSidebarMiniApp}.
- */
-export function toggleSidebarEntityFavorite(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  type: 'agent' | 'assistant',
-  id: string
-): SidebarFavoriteItem[] {
-  return toggleSidebarLeafFavorite(favorites, type, id)
-}
-
-/** Remove a pinned user entity (agent / assistant) favorite, preserving everything else in place. */
-export function removeSidebarEntityFavorite(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  type: 'agent' | 'assistant',
-  id: string
-): SidebarFavoriteItem[] {
-  return removeSidebarLeafFavorite(favorites, type, id)
+export function isSidebarShortcutPinned(
+  values: readonly unknown[] | undefined,
+  target: SidebarShortcutTarget
+): boolean {
+  const id = createSidebarShortcutId(target)
+  return getVisibleSidebarShortcutItems(values).some((item) => item.id === id)
 }
 
 // --- Launchpad app order --------------------------------------------------

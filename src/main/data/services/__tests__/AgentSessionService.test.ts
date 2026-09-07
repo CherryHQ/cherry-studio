@@ -1411,6 +1411,25 @@ describe('AgentSessionService', () => {
     expect(page2.nextCursor).toBeUndefined()
   })
 
+  it('filters exact ids across pinned and unpinned sections', async () => {
+    const pinned = await createSession('Pinned')
+    const unpinned = await createSession('Unpinned')
+    await createSession('Other')
+    await dbh.db.insert(pinTable).values({
+      id: 'pin-exact-session',
+      entityType: 'session',
+      entityId: pinned.id,
+      orderKey: 'a0',
+      createdAt: 1,
+      updatedAt: 1
+    })
+
+    const result = agentSessionService.listByCursor({ ids: [pinned.id, unpinned.id], limit: 2 })
+
+    expect(result.items.map((session) => session.id)).toEqual([pinned.id, unpinned.id])
+    expect(result.nextCursor).toBeUndefined()
+  })
+
   it('returns pinned sessions first ordered by pin.orderKey, then unpinned by orderKey', async () => {
     // Pinned sessions float to the top ordered by pin.orderKey (user drag),
     // independent of their own orderKey; unpinned follow session.orderKey ASC.

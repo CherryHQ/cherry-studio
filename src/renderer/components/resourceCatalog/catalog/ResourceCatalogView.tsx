@@ -23,6 +23,8 @@ export type ResourceCatalogViewProps = {
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
+  selectedSkillId?: string
+  onSelectedSkillIdChange?: (skillId: string | undefined) => void
   toolbarFooter?: ReactNode
   allowColumnToggle?: boolean
   filterResource?: (resource: ResourceItem) => boolean
@@ -36,12 +38,15 @@ export function ResourceCatalogView({
   variant = 'library',
   title,
   description,
+  selectedSkillId,
+  onSelectedSkillIdChange,
   toolbarFooter,
   allowColumnToggle,
   filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
+  const { selectedSkill, setSelectedSkill } = dialogs
   const hasActiveDialog = Boolean(
     dialogs.selectedSkill ||
       dialogs.assistantImportOpen ||
@@ -54,6 +59,21 @@ export function ResourceCatalogView({
       dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
+
+  useEffect(() => {
+    if (resourceType !== 'skill' || !selectedSkillId) return
+    const selected = gridProps.resources.find(
+      (resource) => resource.type === 'skill' && resource.id === selectedSkillId
+    )
+    if (selected?.type === 'skill' && selectedSkill?.id !== selected.raw.id) {
+      setSelectedSkill(selected.raw)
+    }
+  }, [gridProps.resources, resourceType, selectedSkill, selectedSkillId, setSelectedSkill])
+
+  useEffect(() => {
+    if (resourceType !== 'skill' || !selectedSkill || selectedSkill.id === selectedSkillId) return
+    onSelectedSkillIdChange?.(selectedSkill.id)
+  }, [onSelectedSkillIdChange, resourceType, selectedSkill, selectedSkillId])
 
   useEffect(() => {
     if (hasActiveDialog) setDialogsActivated(true)
@@ -112,6 +132,7 @@ export function ResourceCatalogView({
             onOpenAssistantChat={onOpenAssistantChat}
             onRefetch={refetch}
             resourceType={resourceType}
+            onSelectedSkillIdChange={onSelectedSkillIdChange}
           />
         </Suspense>
       ) : null}

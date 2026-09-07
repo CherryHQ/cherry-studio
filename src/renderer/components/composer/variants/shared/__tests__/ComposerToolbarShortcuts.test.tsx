@@ -180,6 +180,28 @@ describe('ComposerToolbarShortcuts', () => {
     expect(screen.queryByRole('button', { name: 'kb-label' })).not.toBeInTheDocument()
   })
 
+  it('keeps nested brand artwork under its own sizing contract', () => {
+    mocks.launchers = [
+      {
+        ...webSearchLauncher,
+        icon: (
+          <span data-slot="nested-brand-icon">
+            <svg aria-hidden />
+          </span>
+        )
+      }
+    ]
+
+    renderShortcuts({ pinnedIds: ['web-search'] })
+
+    const button = screen.getByRole('button', { name: 'web-search-label' })
+    // data-slot is the maintained layout boundary: only direct glyphs are normalized by the toolbar.
+    const iconSlot = button.querySelector('[data-slot="composer-toolbar-icon"]')
+    expect(iconSlot).toBeInTheDocument()
+    expect(iconSlot).toHaveClass('[&>svg]:!size-[18px]')
+    expect(button).not.toHaveClass('[&_svg]:!size-[18px]')
+  })
+
   it('renders a known pinned manifest immediately while runtime state is unresolved', () => {
     mocks.launchers = []
     mocks.manifests = [

@@ -1,3 +1,4 @@
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -263,5 +264,22 @@ describe('ResourceCatalogView', () => {
     await vi.waitFor(() =>
       expect(systemSkillDialogMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'manage' }))
     )
+  })
+
+  it('resolves a skill deep link through the catalog read model', async () => {
+    const controller = createController()
+    const skill = {
+      id: 'skill-1',
+      type: 'skill',
+      raw: { id: 'skill-1', name: 'Skill One' }
+    } as unknown as ResourceItem
+    resourceCatalogControllerMock.mockReturnValue({
+      ...controller,
+      gridProps: { ...controller.gridProps, activeResourceType: 'skill', resources: [skill] }
+    })
+
+    render(<ResourceCatalogView resourceType="skill" selectedSkillId="skill-1" />)
+
+    await vi.waitFor(() => expect(controller.dialogs.setSelectedSkill).toHaveBeenCalledWith(skill.raw))
   })
 })

@@ -66,8 +66,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
-  useSidebarFavorites: () => ({ miniAppFavoriteIds: [], toggleMiniApp: mocks.toggleMiniApp })
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({ shortcuts: [], toggle: mocks.toggleMiniApp })
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({

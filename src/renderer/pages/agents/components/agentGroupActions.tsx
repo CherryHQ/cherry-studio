@@ -6,6 +6,7 @@ import {
   buildResourceEntityMenuActionDescriptor,
   RESOURCE_ICON_TYPE_OPTIONS
 } from '@renderer/components/chat/resourceList/base'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import { Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
@@ -87,7 +88,7 @@ agentGroupActionRegistry.registerAction(
     commandId: 'agent-group.toggle-sidebar',
     label: ({ sidebarPinned, t }) =>
       sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
-    icon: ({ sidebarPinned }) => (sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />),
+    icon: ({ sidebarPinned }) => <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
     order: 22
   })
 )

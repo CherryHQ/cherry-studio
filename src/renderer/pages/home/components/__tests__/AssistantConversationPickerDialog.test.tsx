@@ -19,8 +19,6 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }) }
 }))
 
-vi.mock('@renderer/components/EmojiIcon', () => ({ default: () => null }))
-
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   ConversationPickerDialog: (props: any) => {
     mocks.pickerProps = props

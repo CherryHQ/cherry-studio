@@ -350,10 +350,6 @@ vi.mock('../SelectedModelsTrigger', () => ({
   )
 }))
 
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
-}))
-
 vi.mock('@renderer/components/ModelSelector', () => ({
   getProviderDisplayName: (provider: Provider) => provider.name,
   ModelSelector: (props: any) => {

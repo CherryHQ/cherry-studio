@@ -1,13 +1,30 @@
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import KnowledgeBaseRow from '../navigator/KnowledgeBaseRow'
 
 vi.mock('@renderer/components/command', () => ({
-  CommandContextMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
+  CommandContextMenu: ({
+    children,
+    extraItems = []
+  }: {
+    children: ReactNode
+    extraItems?: Array<{ id?: string; label?: string; onSelect?: () => void; type: string }>
+  }) => (
+    <>
+      {children}
+      {extraItems.map((item) =>
+        item.type === 'item' ? (
+          <button key={item.id} type="button" onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ) : null
+      )}
+    </>
+  ),
   CommandPopupMenu: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -64,7 +81,8 @@ vi.mock('react-i18next', () => ({
           'common.more': '更多',
           'knowledge.context.delete': '删除知识库',
           'knowledge.context.move_to': '移动到',
-          'knowledge.context.rename': '重命名'
+          'knowledge.context.rename': '重命名',
+          'launchpad.pin_to_sidebar': '添加到侧边栏'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -113,6 +131,8 @@ describe('KnowledgeBaseRow', () => {
         onRenameBase={vi.fn()}
         onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        sidebarPinned={false}
       />
     )
 
@@ -132,10 +152,35 @@ describe('KnowledgeBaseRow', () => {
         onRenameBase={vi.fn()}
         onCreateGroup={vi.fn()}
         onDeleteBase={vi.fn()}
+        onToggleSidebar={vi.fn()}
+        sidebarPinned={false}
       />
     )
 
     // Always mounted (revealed on hover via CSS); it opens the same menu as right-click.
     expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
+  })
+
+  it('requests the knowledge base be added to the sidebar', () => {
+    const base = createKnowledgeBase()
+    const onToggleSidebar = vi.fn()
+    render(
+      <KnowledgeBaseRow
+        base={base}
+        groups={[createGroup()]}
+        selected={false}
+        onSelectBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onToggleSidebar={onToggleSidebar}
+        sidebarPinned={false}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '添加到侧边栏' }))
+
+    expect(onToggleSidebar).toHaveBeenCalledWith(base)
   })
 })

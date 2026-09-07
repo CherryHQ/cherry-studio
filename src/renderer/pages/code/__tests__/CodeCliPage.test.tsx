@@ -9,6 +9,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CodeCliPage from '../CodeCliPage'
 
+type MockCommandMenuItem = { type: string; id?: string; onSelect?: () => void }
+
 const {
   clearCliConfigMock,
   readCliConfigFilesMock,
@@ -38,7 +40,9 @@ const {
   mockProviderConfigs,
   providersLoadingState,
   unsupportedProviderIds,
-  gatewayState
+  gatewayState,
+  sidebarPinnedTools,
+  toggleSidebarShortcutMock
 } = vi.hoisted(() => ({
   clearCliConfigMock: vi.fn(),
   readCliConfigFilesMock: vi.fn(),
@@ -68,6 +72,8 @@ const {
   mockProviderConfigs: {} as Record<string, CliProviderConfig>,
   providersLoadingState: { value: false },
   unsupportedProviderIds: new Set<string>(),
+  sidebarPinnedTools: new Set<string>(),
+  toggleSidebarShortcutMock: vi.fn(),
   gatewayState: {
     bundle: null as {
       provider: Provider
@@ -169,7 +175,32 @@ vi.mock('@cherrystudio/ui', () => ({
     value: string
     placeholder?: string
     onChange: (event: { target: { value: string } }) => void
-  }) => <input type="search" value={value} placeholder={placeholder} onChange={onChange} />
+  }) => <input type="search" value={value} placeholder={placeholder} onChange={onChange} />,
+  Tooltip: ({ children }: { children: ReactNode }) => children
+}))
+
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({ children }: { children: ReactNode }) => children,
+  CommandPopupMenu: ({
+    children,
+    extraItems = []
+  }: {
+    children: ReactNode
+    extraItems?: readonly MockCommandMenuItem[]
+  }) => (
+    <div>
+      {children}
+      {extraItems.map((item) =>
+        item.type === 'item' && item.id && item.onSelect ? (
+          <button key={item.id} type="button" data-testid={`popup-${item.id}`} onClick={item.onSelect} />
+        ) : null
+      )}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/icons/CliIcon', () => ({
+  CliIcon: ({ id }: { id: string }) => <span data-testid={`cli-icon-${id}`} />
 }))
 
 vi.mock('@data/DataApiService', () => ({
@@ -196,6 +227,13 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({ providers: mockProviders, isLoading: providersLoadingState.value })
+}))
+
+vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
+  useSidebarShortcuts: () => ({
+    isPinned: (target: { locator: { resourceId: string } }) => sidebarPinnedTools.has(target.locator.resourceId),
+    toggle: toggleSidebarShortcutMock
+  })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -525,6 +563,7 @@ describe('CodeCliPage', () => {
     mockProviders.splice(0, mockProviders.length, provider)
     providersLoadingState.value = false
     unsupportedProviderIds.clear()
+    sidebarPinnedTools.clear()
     gatewayState.bundle = null
     gatewayState.defaultModelId = undefined
     gatewayState.modelsById.clear()
@@ -560,6 +599,20 @@ describe('CodeCliPage', () => {
     expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
   })
 
+  it('pins an installed CLI with its localized fallback label', () => {
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByTestId(`popup-code-cli.toggle-sidebar.${CodeCli.CLAUDE_CODE}`))
+
+    expect(toggleSidebarShortcutMock).toHaveBeenCalledWith(
+      {
+        kind: 'resource',
+        locator: { providerId: 'core.code-cli', resourceId: CodeCli.CLAUDE_CODE }
+      },
+      'Claude Code'
+    )
+  })
+
   // A broken managed install is installed:false with no shim, so the `installed` filter hid the
   // tool entirely — taking the Retry/Remove that repair or undo it out of reach for good.
   it('keeps a broken Gemini installation reachable so it can be repaired or removed', () => {
@@ -574,6 +627,17 @@ describe('CodeCliPage', () => {
 
     expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps an uninstalled pinned Gemini CLI reachable from its sidebar deep link', () => {
+    sidebarPinnedTools.add(CodeCli.GEMINI_CLI)
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(baseVersionStatuses())
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
     expect(selectToolMock).not.toHaveBeenCalled()
   })
 

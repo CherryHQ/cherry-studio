@@ -221,6 +221,28 @@ describe('TopicService', () => {
   })
 
   describe('listByCursor', () => {
+    it('filters exact ids across pinned and unpinned sections', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'pinned', name: 'Pinned', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'unpinned', name: 'Unpinned', orderKey: 'a1', createdAt: 1, updatedAt: 1 },
+        { id: 'other', name: 'Other', orderKey: 'a2', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(pinTable).values({
+        id: 'pin-exact',
+        entityType: 'topic',
+        entityId: 'pinned',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = service.listByCursor({ ids: ['pinned', 'unpinned'], limit: 2 })
+
+      expect(result.items.map((topic) => topic.id)).toEqual(['pinned', 'unpinned'])
+      expect(result.nextCursor).toBeUndefined()
+    })
+
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()
       // FK: topic.assistantId → assistant.id — seed both assistants first.
