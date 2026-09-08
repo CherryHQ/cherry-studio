@@ -964,7 +964,7 @@ describe('messageMenuBarActions', () => {
     const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
     captureScrollableAsBlobMock.mockImplementation(async (ref, callback) => {
       expect(ref.current).toBe(currentElement)
-      await callback(imageBlob)
+      callback(imageBlob)
     })
 
     const context = createActionContext({
