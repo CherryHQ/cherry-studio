@@ -746,6 +746,117 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('azure')
       expect(settings.baseURL).toMatch(/\/openai$/)
     })
+
+    it('preserves v1 Responses URLs and the configured API version for custom gateways', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+      const provider = makeProvider({
+        id: 'azure-openai',
+        authType: 'iam-azure',
+        settings: { apiVersion: '2025-04-01-preview' },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://proxy.example.com',
+            adapterFamily: 'azure-responses'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'azure::gpt-5',
+        apiModelId: 'gpt-5',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as {
+        baseURL: string
+        fetch: typeof fetch
+        apiVersion?: string
+        useDeploymentBasedUrls?: boolean
+      }
+      await settings.fetch(`${settings.baseURL}/responses`, { method: 'POST' })
+
+      expect(config.providerId).toBe('azure-responses')
+      expect(settings.baseURL).toBe('https://proxy.example.com/openai/v1')
+      expect(settings.apiVersion).toBe('2025-04-01-preview')
+      expect(settings.useDeploymentBasedUrls).toBeUndefined()
+      expect(net.fetch).toHaveBeenCalledWith(
+        'https://proxy.example.com/openai/v1/responses?api-version=2025-04-01-preview',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('uses the default Azure API version for non-deployment custom gateway chat URLs', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}'))
+      const provider = makeProvider({
+        id: 'azure-openai',
+        authType: 'iam-azure',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://proxy.example.com',
+            adapterFamily: 'azure'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'azure::gpt-4o',
+        apiModelId: 'gpt-4o',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as {
+        baseURL: string
+        fetch: typeof fetch
+        apiVersion?: string
+        useDeploymentBasedUrls?: boolean
+      }
+      await settings.fetch(`${settings.baseURL}/chat/completions`, { method: 'POST' })
+
+      expect(config.providerId).toBe('azure')
+      expect(settings.baseURL).toBe('https://proxy.example.com/openai/v1')
+      expect(settings.apiVersion).toBeUndefined()
+      expect(settings.useDeploymentBasedUrls).toBeUndefined()
+      expect(net.fetch).toHaveBeenCalledWith(
+        'https://proxy.example.com/openai/v1/chat/completions?api-version=v1',
+        expect.objectContaining({ method: 'POST' })
+      )
+    })
+
+    it('keeps custom gateway chat URLs deployment-based when an API version is configured', async () => {
+      const provider = makeProvider({
+        id: 'azure-openai',
+        authType: 'iam-azure',
+        settings: { apiVersion: '2024-10-21' },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://proxy.example.com',
+            adapterFamily: 'azure'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'azure::gpt-4o',
+        apiModelId: 'gpt-4o',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as {
+        baseURL: string
+        fetch: typeof fetch
+        apiVersion?: string
+        useDeploymentBasedUrls?: boolean
+      }
+
+      expect(config.providerId).toBe('azure')
+      expect(settings.baseURL).toBe('https://proxy.example.com/openai')
+      expect(settings.apiVersion).toBe('2024-10-21')
+      expect(settings.useDeploymentBasedUrls).toBe(true)
+      expect(settings.fetch).toBe(customFetch)
+    })
   })
 
   describe('CherryIn routing (default chat endpoint upgrades to cherryin-chat variant)', () => {
@@ -993,6 +1104,26 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('generic / openai-compatible fallback', () => {
+    it('adds X-App-URL to TokenDance chat request headers', async () => {
+      const provider = makeProvider({
+        id: 'tokendance',
+        presetProviderId: 'tokendance',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://tokendance.space/gateway/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'tokendance', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.headers).toMatchObject({ 'X-App-URL': 'app://cherryai.com.cn' })
+    })
+
     it('adds X-Source only to Radeon Cloud chat request headers', async () => {
       const radeonProvider = makeProvider({
         id: 'radeon-cloud',

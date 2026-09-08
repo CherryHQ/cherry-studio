@@ -190,7 +190,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       'x-cherry-agent-session-id': 'session-1',
       'x-cherry-internal-usage-token': 'internal-token'
     })
-    mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
     mocks.isTraceModeEnabled.mockReturnValue(false)
@@ -1027,6 +1026,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_BASE_URL: 'http://127.0.0.1:24444',
       ANTHROPIC_API_KEY: 'gateway-key',
       ANTHROPIC_AUTH_TOKEN: 'gateway-key',
+      API_TIMEOUT_MS: '1800000',
+      API_FORCE_IDLE_TIMEOUT: '0',
+      CLAUDE_STREAM_IDLE_TIMEOUT_MS: '1800000',
       ANTHROPIC_MODEL: 'openai:gpt-main-api',
       ANTHROPIC_DEFAULT_OPUS_MODEL: 'openai:gpt-main-api',
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
@@ -1035,7 +1037,35 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
       'x-cherry-agent-session-id: session-1\nx-cherry-internal-usage-token: internal-token'
     )
+    expect(request?.options.env?.API_TIMEOUT_MS).toBe('1800000')
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  it('preserves explicit timeout controls for local API gateway routes', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'openai::gpt-main' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'openai',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://openai.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'gpt-main', apiModelId: 'gpt-main-api' })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.buildSessionSettings.mockResolvedValue({
+      env: {
+        API_TIMEOUT_MS: '3600000',
+        API_FORCE_IDLE_TIMEOUT: '1',
+        CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000',
+        CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS: '600000'
+      }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.options.env).toMatchObject({
+      API_TIMEOUT_MS: '3600000',
+      API_FORCE_IDLE_TIMEOUT: '1',
+      CLAUDE_STREAM_IDLE_TIMEOUT_MS: '900000',
+      CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS: '600000'
+    })
   })
 
   // The gateway is never started implicitly (#18521); the caller turns this into the prompt that
@@ -1476,10 +1506,49 @@ describe('deriveConnectionConfig', () => {
     expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
   })
 
-  it('changes the rebuild signature when the app language changes', async () => {
+  it('changes the rebuild signature when the effective agent language changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { language: 'English' }
+    })
     const english = await deriveSignature()
 
-    mocks.getAppLanguage.mockReturnValue('zh-CN')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: { language: '中文' }
+    })
+    const chinese = await deriveSignature()
+
+    expect(chinese.rebuildSignature).not.toBe(english.rebuildSignature)
+    expect(
+      Object.keys(english.rebuildFactFingerprints).filter(
+        (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['language'])
+  })
+
+  it('changes the rebuild signature when the global agent.language preference changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'agent.language' ? 'English' : key === 'app.user.name' ? 'TestUser' : undefined
+    )
+    const english = await deriveSignature()
+
+    mocks.preferenceGet.mockImplementation((key: string) =>
+      key === 'agent.language' ? '中文' : key === 'app.user.name' ? 'TestUser' : undefined
+    )
     const chinese = await deriveSignature()
 
     expect(chinese.rebuildSignature).not.toBe(english.rebuildSignature)

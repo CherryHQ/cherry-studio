@@ -56,6 +56,7 @@ import {
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
+  TokenDanceModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
@@ -453,12 +454,18 @@ type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'
 
 const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  'anthropic:messages': ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
   embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'gemini:generate-content': ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:chat-completions': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:embeddings': ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+  'openai:image-generations': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'openai:responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
@@ -517,6 +524,38 @@ const newApiFetcher: ModelFetcher = {
         ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
       })
     })
+  }
+}
+
+const tokenDanceFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.tokendance),
+  fetch: async (provider, signal) => {
+    const modelsUrl =
+      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls?.default ??
+      `${formatApiHost(getBaseUrl(provider))}/models`
+    const response = await getFromApi({
+      url: modelsUrl,
+      headers: defaultHeaders(provider),
+      responseSchema: TokenDanceModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    return dedup(response.data, (m) => m.id)
+      .map((m) => {
+        const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
+        if (!endpointTypes) return undefined
+
+        const impliedCapability = endpointImpliedCapability(endpointTypes[0])
+
+        return toModel(m.id, provider, {
+          name: m.name || m.id,
+          description: m.description,
+          contextWindow: m.context_length,
+          endpointTypes,
+          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+        })
+      })
+      .filter((model): model is Partial<Model> => Boolean(model))
   }
 }
 
@@ -802,6 +841,7 @@ const fetchers: ModelFetcher[] = [
   ovmsFetcher,
   togetherFetcher,
   newApiFetcher,
+  tokenDanceFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,

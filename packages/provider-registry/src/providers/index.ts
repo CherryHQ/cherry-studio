@@ -24,6 +24,7 @@ import p_grok from './grok'
 import p_grok_cli from './grok-cli'
 import p_groq from './groq'
 import p_huggingface from './huggingface'
+import p_jalapeno_cloud from './jalapeno-cloud'
 import p_jina from './jina'
 import p_lanyun from './lanyun'
 import p_lmstudio from './lmstudio'
@@ -53,6 +54,7 @@ import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
 import p_together from './together'
+import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
@@ -83,6 +85,8 @@ export const PROVIDERS: Provider[] = [
   p_openrouter,
   p_ollama,
   p_radeon_cloud,
+  p_tokendance,
+  p_jalapeno_cloud,
   p_new_api,
   p_lmstudio,
   p_anthropic,

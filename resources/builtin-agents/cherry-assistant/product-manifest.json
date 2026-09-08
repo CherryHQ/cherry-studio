@@ -229,6 +229,19 @@
       }
     },
     {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
       "id": "chat.context.toggle_new",
       "titleKey": "settings.shortcuts.toggle_new_context",
       "categoryKey": "settings.shortcuts.chat",
@@ -449,8 +462,8 @@
     }
   ],
   "providers": {
-    "version": "c81369dcccb6c728",
-    "count": 61,
+    "version": "5b74ff4e1bc9c9e9",
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
@@ -531,6 +544,14 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "tokendance",
+        "name": "TokenDance"
+      },
+      {
+        "id": "jalapeno-cloud",
+        "name": "Jalapeno Cloud"
       },
       {
         "id": "new-api",

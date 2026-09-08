@@ -332,7 +332,6 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
       isBlankUserTurn({ role: message.role, status: message.status, parts: message.data.parts }) && !hasChildren
         ? true
         : undefined,
-    hasContent: (message.data.parts?.length ?? 0) > 0,
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,

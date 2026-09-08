@@ -41,9 +41,15 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
 
-  const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
-  const chosenAssistantId = chosenAssistant?.id
-  const waitingForConfiguredAssistant = Boolean(action.assistantId) && !chosenAssistantId
+  const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const { assistant: chosenAssistant, isLoading: isChosenLoading } = useAssistant(action.assistantId ?? '')
+  const shouldUseFallback = action.isBuiltIn && !action.assistantId && !!quickAssistantId
+  const { assistant: fallbackAssistant, isLoading: isFallbackLoading } = useAssistant(
+    shouldUseFallback ? quickAssistantId : ''
+  )
+  const chosenAssistantId = chosenAssistant?.id ?? fallbackAssistant?.id
+  const waitingForConfiguredAssistant =
+    (Boolean(action.assistantId) && isChosenLoading) || (shouldUseFallback && isFallbackLoading)
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
   const { topicId: temporaryTopicId, ready } = useTemporaryTopic({
