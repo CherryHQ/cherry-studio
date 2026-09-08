@@ -57,7 +57,7 @@ The common materializer owns Cherry policy content, semantic authority, and the 
 6. linked-channel security policy;
 7. citation markers for the lookup tools the runtime actually exposes;
 8. final-deliverable declaration through `mcp__cherry-tools__report_artifacts`;
-9. the configured app response language.
+9. the effective agent reply language (global `agent.language` default + per-agent `configuration.language` override, when set — otherwise no language constraint; `getEffectiveAgentLanguage` with `AgentLanguageSchema` single-line validation).
 
 Built-in Agent resolution and provisioning are part of this common path: an empty DB instruction field resolves the current localized bundled definition, the Assistant has a minimal fail-safe role if that bundle is unavailable, and persona/memory files are initialized under the Agent data directory before `PromptBuilder` reads them. A non-empty DB instruction remains user-owned. Prompt variables such as `{{username}}` and `{{model_name}}` are resolved identically for every runtime.
 
@@ -488,6 +488,10 @@ The driver converts Claude SDK messages into runtime events:
   `assistant` messages are a whole-snapshot usage candidate when the terminal
   delta omits usage. Gateway-owned connections do not emit this record input;
 - `system/init` -> `resume-token`;
+- a top-level `message_start` -> a live `context-usage` projected from the
+  request's input usage (the occupancy at that provider call), so the usage
+  indicator advances mid-turn; the host's post-turn `getContextUsage()` pull
+  stays the authoritative reading;
 - a successful `result` -> flush pending per-request usage, then `resume-token`, a
   cumulative usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
 - a failed `result` -> preserve its final usage and resume token, then emit `error` and

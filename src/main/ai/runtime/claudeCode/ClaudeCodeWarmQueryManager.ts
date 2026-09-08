@@ -10,7 +10,12 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import {
+  createClaudeCodeProcessDiagnostics,
+  createSpawnClaudeCodeProcess,
+  spawnClaudeCodeProcess
+} from './ClaudeCodeProcessManager'
+import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -20,6 +25,7 @@ type WarmQueryEntry = {
   promise: Promise<WarmQuery | undefined>
   closePromise?: Promise<void>
   usageCapture?: AgentSessionUsageCapture
+  processDiagnostics: ClaudeCodeProcessDiagnostics
   idleTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -53,6 +59,7 @@ export interface WarmQueryRequest {
 export interface ConsumedWarmQuery {
   warmQuery: WarmQuery
   usageCapture?: AgentSessionUsageCapture
+  processDiagnostics: ClaudeCodeProcessDiagnostics
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -229,17 +236,19 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       void this.closeEntry(existing)
     }
 
-    const promise = startup({ options: warmOptions, initializeTimeoutMs: request.initializeTimeoutMs }).catch(
-      (error) => {
-        if (this.entries.get(request.key)?.promise === promise) {
-          this.entries.delete(request.key)
-        }
-        logger.warn('Claude warm query startup failed', { key: request.key, error })
-        return undefined
+    const processDiagnostics = createClaudeCodeProcessDiagnostics()
+    const promise = startup({
+      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+      initializeTimeoutMs: request.initializeTimeoutMs
+    }).catch((error) => {
+      if (this.entries.get(request.key)?.promise === promise) {
+        this.entries.delete(request.key)
       }
-    )
+      logger.warn('Claude warm query startup failed', { key: request.key, error })
+      return undefined
+    })
 
-    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture }
+    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture, processDiagnostics }
     this.entries.set(request.key, entry)
     this.refreshIdleTimer(request.key, entry)
   }
@@ -266,7 +275,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const warmQuery = await entry.promise
     if (!warmQuery) return undefined
-    return { warmQuery, usageCapture: entry.usageCapture }
+    return { warmQuery, usageCapture: entry.usageCapture, processDiagnostics: entry.processDiagnostics }
   }
 
   close(key: string): Promise<void> {
