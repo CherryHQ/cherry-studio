@@ -2,7 +2,7 @@
 title: Cherry Cloud login requires a configured client build
 category: changed
 severity: breaking
-introduced_in_pr: TBD
+introduced_in_pr: "#20230"
 date: 2026-09-08
 ---
 
