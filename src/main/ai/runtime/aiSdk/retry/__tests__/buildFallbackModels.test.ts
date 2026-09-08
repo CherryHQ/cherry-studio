@@ -235,6 +235,22 @@ describe('buildFallbackModels', () => {
     expect(buildAgentParams).not.toHaveBeenCalled()
   })
 
+  it('keeps later fallback resolvers usable when Cherry Cloud availability refresh fails', async () => {
+    const cloudModelId = `${CHERRY_CLOUD_PROVIDER_ID}::chat-model` as const
+    syncEntitledModelsIfStale.mockRejectedValueOnce(new Error('cloud unavailable'))
+    getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic' }))
+    stubBuildAgentParams('claude')
+
+    const [resolveCloud, resolveOrdinary] = buildFallbackModels({
+      ...baseArgs,
+      primaryUniqueModelId: 'openai::gpt-4',
+      retryPolicy: policy([cloudModelId, 'anthropic::claude'])
+    })
+
+    await expect(resolveCloud()).resolves.toBeNull()
+    await expect(resolveOrdinary()).resolves.not.toBeNull()
+  })
+
   it('keeps a persisted Cherry Cloud fallback with current chat permission', async () => {
     const uniqueModelId = `${CHERRY_CLOUD_PROVIDER_ID}::chat-model` as const
     getByProviderId.mockReturnValue(makeProvider({ id: CHERRY_CLOUD_PROVIDER_ID }))
