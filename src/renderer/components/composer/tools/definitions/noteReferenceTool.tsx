@@ -11,7 +11,7 @@ import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import { NotebookPen, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { NOTES_TREE_OPTIONS,noteToComposerAttachment } from './noteReference'
+import { NOTES_TREE_OPTIONS, noteToComposerAttachment } from './noteReference'
 
 export const NOTE_REFERENCE_LAUNCHER_ID = 'note-reference'
 

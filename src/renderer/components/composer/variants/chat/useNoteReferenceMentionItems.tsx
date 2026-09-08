@@ -1,6 +1,7 @@
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { projectNotesTree, resolveNotesPath } from '@renderer/services/NotesService'
+import { ipcApi } from '@renderer/ipc'
+import { projectNotesTree } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { Editor } from '@tiptap/core'
@@ -9,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerSuggestionItem } from '../../quickPanel'
-import { NOTES_TREE_OPTIONS,noteToComposerAttachment } from '../../tools/definitions/noteReference'
+import { NOTES_TREE_OPTIONS, noteToComposerAttachment } from '../../tools/definitions/noteReference'
 import { fileToComposerToken } from '../shared/composerTokens'
 
 const NOTE_MENTION_RESULT_LIMIT = 50
@@ -31,19 +32,24 @@ export function useNoteReferenceMentionItems({
 }: NoteReferenceMentionOptions): NoteReferenceMentionItems {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
-  const [resolvedNotesPath, setResolvedNotesPath] = useState<string>()
+  const [dataRequested, setDataRequested] = useState(false)
+  const [defaultNotesPath, setDefaultNotesPath] = useState<string>()
   const [pathError, setPathError] = useState<Error | null>(null)
   const stateRef = useRef({ files, notesPath, setFiles, t })
   stateRef.current = { files, notesPath, setFiles, t }
 
   useEffect(() => {
-    let cancelled = false
-    setResolvedNotesPath(undefined)
-    setPathError(null)
+    if (!dataRequested) return
 
-    void resolveNotesPath(notesPath)
-      .then(({ path }) => {
-        if (!cancelled) setResolvedNotesPath(path)
+    setPathError(null)
+    if (notesPath) return
+
+    let cancelled = false
+
+    void ipcApi
+      .request('app.get_info')
+      .then((appInfo) => {
+        if (!cancelled) setDefaultNotesPath(appInfo.notesPath)
       })
       .catch((error) => {
         if (!cancelled) setPathError(error instanceof Error ? error : new Error(String(error)))
@@ -52,18 +58,24 @@ export function useNoteReferenceMentionItems({
     return () => {
       cancelled = true
     }
-  }, [notesPath])
+  }, [dataRequested, notesPath])
 
-  const { root, isLoading, error, version } = useDirectoryTree(resolvedNotesPath, NOTES_TREE_OPTIONS)
+  const activeNotesPath = notesPath || defaultNotesPath
+  const { root, isLoading, error, version } = useDirectoryTree(
+    dataRequested ? activeNotesPath : undefined,
+    NOTES_TREE_OPTIONS
+  )
   const noteFiles = useMemo(() => {
     void version
-    if (!root || !resolvedNotesPath) return []
-    return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
-  }, [resolvedNotesPath, root, version])
+    if (!root || !activeNotesPath) return []
+    return flattenTreeToFiles(projectNotesTree(root, activeNotesPath))
+  }, [activeNotesPath, root, version])
 
   const getItems = useCallback(
     async ({ query }: { query: string; editor: Editor }): Promise<ComposerSuggestionItem[]> => {
       const { files, t } = stateRef.current
+      if (!dataRequested) setDataRequested(true)
+
       if (pathError || error) {
         return [
           {
@@ -76,7 +88,7 @@ export function useNoteReferenceMentionItems({
         ]
       }
 
-      if (isLoading || !resolvedNotesPath) {
+      if (!dataRequested || isLoading || !activeNotesPath) {
         return [
           {
             id: 'note-reference:mention-loading',
@@ -91,7 +103,9 @@ export function useNoteReferenceMentionItems({
       const normalizedQuery = query.trim().toLowerCase()
 
       return noteFiles
-        .filter((note) => (normalizedQuery ? `${note.name} ${note.treePath}`.toLowerCase().includes(normalizedQuery) : true))
+        .filter((note) =>
+          normalizedQuery ? `${note.name} ${note.treePath}`.toLowerCase().includes(normalizedQuery) : true
+        )
         .slice(0, NOTE_MENTION_RESULT_LIMIT)
         .map((note): ComposerSuggestionItem => {
           const normalizedPath = normalizePath(note.externalPath)
@@ -119,7 +133,7 @@ export function useNoteReferenceMentionItems({
           }
         })
     },
-    [error, isLoading, noteFiles, pathError, resolvedNotesPath]
+    [activeNotesPath, dataRequested, error, isLoading, noteFiles, pathError]
   )
 
   return { getItems }

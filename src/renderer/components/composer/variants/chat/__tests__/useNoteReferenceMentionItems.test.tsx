@@ -12,8 +12,8 @@ const mocks = vi.hoisted(() => ({
   directoryTreeLoading: false,
   directoryTreeRoot: null as object | null,
   directoryTreeVersion: 0,
+  ipcApiRequest: vi.fn(),
   projectNotesTree: vi.fn(),
-  resolveNotesPath: vi.fn(),
   notesPath: '/configured-notes'
 }))
 
@@ -21,7 +21,7 @@ vi.mock('@renderer/hooks/useDirectoryTree', () => ({
   useDirectoryTree: (path: string | undefined, options: unknown) => {
     mocks.directoryTreeCalls.push({ path, options })
     return {
-      root: mocks.directoryTreeRoot,
+      root: path ? mocks.directoryTreeRoot : null,
       isLoading: mocks.directoryTreeLoading,
       error: mocks.directoryTreeError,
       version: mocks.directoryTreeVersion
@@ -33,9 +33,14 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({ notesPath: mocks.notesPath })
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (...args: unknown[]) => mocks.ipcApiRequest(...args)
+  }
+}))
+
 vi.mock('@renderer/services/NotesService', () => ({
-  projectNotesTree: (...args: unknown[]) => mocks.projectNotesTree(...args),
-  resolveNotesPath: (...args: unknown[]) => mocks.resolveNotesPath(...args)
+  projectNotesTree: (...args: unknown[]) => mocks.projectNotesTree(...args)
 }))
 
 const createEditor = () => {
@@ -56,17 +61,17 @@ describe('useNoteReferenceMentionItems', () => {
     mocks.directoryTreeRoot = {}
     mocks.directoryTreeVersion = 0
     mocks.notesPath = '/configured-notes'
-    mocks.resolveNotesPath.mockResolvedValue({ path: '/notes', isFallback: true })
+    mocks.ipcApiRequest.mockResolvedValue({ notesPath: '/default-notes' })
     mocks.projectNotesTree.mockReturnValue([])
   })
 
-  it('searches deep Markdown notes from the canonical directory tree', async () => {
-    const deepPath = `/notes/${Array.from({ length: 11 }, (_, index) => `level-${index + 1}`).join('/')}/Launch plan.md`
+  it('activates the canonical tree only after a Notes @ mention is requested', async () => {
+    const deepPath = `/configured-notes/${Array.from({ length: 11 }, (_, index) => `level-${index + 1}`).join('/')}/Launch plan.md`
     const deepNote: NotesTreeNode = {
       id: deepPath,
       name: 'Launch plan',
       type: 'file',
-      treePath: `/${deepPath.slice('/notes/'.length, -'.md'.length)}`,
+      treePath: `/${deepPath.slice('/configured-notes/'.length, -'.md'.length)}`,
       externalPath: deepPath,
       createdAt: '',
       updatedAt: ''
@@ -75,10 +80,17 @@ describe('useNoteReferenceMentionItems', () => {
     const setFiles = vi.fn()
     const { result } = renderHook(() => useNoteReferenceMentionItems({ files: [], setFiles }))
 
-    await waitFor(() => expect(mocks.directoryTreeCalls.some(({ path }) => path === '/notes')).toBe(true))
+    expect(mocks.directoryTreeCalls.some(({ path }) => path === '/configured-notes')).toBe(false)
+
+    await act(async () => {
+      const items = await result.current.getItems({ query: 'launch', editor: createEditor().editor })
+      expect(items[0]).toMatchObject({ id: 'note-reference:mention-loading', disabled: true })
+    })
+
+    await waitFor(() => expect(mocks.directoryTreeCalls.some(({ path }) => path === '/configured-notes')).toBe(true))
     const items = await result.current.getItems({ query: 'launch', editor: createEditor().editor })
 
-    expect(mocks.resolveNotesPath).toHaveBeenCalledWith('/configured-notes')
+    expect(mocks.ipcApiRequest).not.toHaveBeenCalled()
     expect(items).toHaveLength(1)
     expect(items[0]).toMatchObject({
       label: 'Launch plan',
@@ -88,11 +100,11 @@ describe('useNoteReferenceMentionItems', () => {
 
   it('inserts a selected note through the existing file token and attachment flow', async () => {
     const note: NotesTreeNode = {
-      id: '/notes/Daily.md',
+      id: '/configured-notes/Daily.md',
       name: 'Daily',
       type: 'file',
       treePath: '/Daily',
-      externalPath: '/notes/Daily.md',
+      externalPath: '/configured-notes/Daily.md',
       createdAt: '',
       updatedAt: ''
     }
@@ -104,7 +116,10 @@ describe('useNoteReferenceMentionItems', () => {
     const { editor, insertComposerToken, run } = createEditor()
     const { result } = renderHook(() => useNoteReferenceMentionItems({ files, setFiles }))
 
-    await waitFor(() => expect(mocks.directoryTreeCalls.some(({ path }) => path === '/notes')).toBe(true))
+    await act(async () => {
+      await result.current.getItems({ query: 'daily', editor })
+    })
+    await waitFor(() => expect(mocks.directoryTreeCalls.some(({ path }) => path === '/configured-notes')).toBe(true))
     const [item] = await result.current.getItems({ query: 'daily', editor })
 
     act(() => item.command({ editor, range: { from: 1, to: 7 }, item, query: 'daily' }))
@@ -113,18 +128,30 @@ describe('useNoteReferenceMentionItems', () => {
       expect.objectContaining({
         kind: 'file',
         label: 'Daily.md',
-        payload: expect.objectContaining({ path: '/notes/Daily.md', type: 'text' })
+        payload: expect.objectContaining({ path: '/configured-notes/Daily.md', type: 'text' })
       })
     )
     expect(run).toHaveBeenCalled()
     expect(files).toEqual([
       expect.objectContaining({
-        path: '/notes/Daily.md',
+        path: '/configured-notes/Daily.md',
         name: 'Daily.md',
         origin_name: 'Daily.md',
         ext: '.md',
         type: 'text'
       })
     ])
+  })
+
+  it('loads the default Notes directory through IpcApi only after a mention is requested', async () => {
+    mocks.notesPath = ''
+    const { result } = renderHook(() => useNoteReferenceMentionItems({ files: [], setFiles: vi.fn() }))
+
+    await act(async () => {
+      await result.current.getItems({ query: '', editor: createEditor().editor })
+    })
+
+    await waitFor(() => expect(mocks.ipcApiRequest).toHaveBeenCalledWith('app.get_info'))
+    await waitFor(() => expect(mocks.directoryTreeCalls.some(({ path }) => path === '/default-notes')).toBe(true))
   })
 })
