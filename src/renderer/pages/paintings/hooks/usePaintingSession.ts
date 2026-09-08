@@ -41,6 +41,7 @@ export function usePaintingSession(initialPainting: () => PaintingData) {
     const version = revision.current
     return {
       getPainting: () => current.current,
+      isSameSession: () => identity.current === owner,
       isCurrent: () => identity.current === owner && revision.current === version,
       // Typing does not supersede a model request; another request or navigation does.
       isLatestAction: () => identity.current === owner && action.current === request

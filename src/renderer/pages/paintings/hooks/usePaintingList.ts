@@ -1,8 +1,10 @@
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
+import { omit } from 'es-toolkit'
 import { useCallback, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
+import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import { createDefaultPainting, type PaintingDraftDefaults } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { usePaintingSession } from './usePaintingSession'
@@ -43,6 +45,7 @@ export function usePaintingList({
   const historyItemsRef = useRef<PaintingData[]>([])
   const paintingRef = useRef(painting)
   const deletingIds = useRef(new Set<string>())
+  const pendingNavigation = useRef<{ targetId?: string; canceled: boolean; isCurrent: () => boolean } | null>(null)
   historyItemsRef.current = historyItems
   paintingRef.current = painting
 
@@ -55,7 +58,7 @@ export function usePaintingList({
       }
 
       try {
-        await updatePainting(current.id, { prompt: current.prompt })
+        await updatePainting(current.id, omit(paintingDataToUpdateDto(current), ['files']))
         return true
       } catch (error) {
         presentPaintingGenerateError(error)
@@ -66,16 +69,26 @@ export function usePaintingList({
   )
 
   const saveAndReplace = useCallback(
-    async (intent: ReturnType<UsePaintingListInput['beginTransition']>, next: () => PaintingData) => {
-      // Generation can bind this editor to a newly created record while a save
-      // waits. Persist the prompt on that record too before leaving the session.
-      let savedId: string
-      do {
-        const current = intent.getPainting()
-        if (!(await saveCurrent(current)) || !intent.isCurrent()) return
-        savedId = current.id
-      } while (intent.getPainting().id !== savedId)
-      setCurrentPainting(next())
+    async (
+      intent: ReturnType<UsePaintingListInput['beginTransition']>,
+      next: () => PaintingData,
+      targetId?: string
+    ) => {
+      const navigation = { targetId, canceled: false, isCurrent: intent.isCurrent }
+      pendingNavigation.current = navigation
+      try {
+        // Generation can migrate this session while a save waits. Save its
+        // editable fields on the new record before honoring the navigation.
+        let savedId: string
+        do {
+          const current = intent.getPainting()
+          if (!(await saveCurrent(current)) || !intent.isCurrent() || navigation.canceled) return
+          savedId = current.id
+        } while (intent.getPainting().id !== savedId)
+        setCurrentPainting(next())
+      } finally {
+        if (pendingNavigation.current === navigation) pendingNavigation.current = null
+      }
     },
     [saveCurrent, setCurrentPainting]
   )
@@ -83,8 +96,8 @@ export function usePaintingList({
   const select = useCallback(
     async (target: PaintingData) => {
       const intent = beginTransition()
-      if (target.id === intent.getPainting().id) return
-      await saveAndReplace(intent, () => target)
+      if (target.id === intent.getPainting().id || deletingIds.current.has(target.id)) return
+      await saveAndReplace(intent, () => target, target.id)
     },
     [beginTransition, saveAndReplace]
   )
@@ -95,8 +108,10 @@ export function usePaintingList({
   }, [beginTransition, draftDefaults, saveAndReplace])
 
   const selectNextAfterDelete = useCallback(
-    (deletedId: string) => {
-      const currentItems = historyItemsRef.current
+    (deletedId: string, migratedId?: string) => {
+      const currentItems = historyItemsRef.current.filter(
+        (item) => item.id !== migratedId && !deletingIds.current.has(item.id)
+      )
       const deletedIndex = currentItems.findIndex((item) => item.id === deletedId)
       const nextPainting =
         deletedIndex >= 0
@@ -116,7 +131,8 @@ export function usePaintingList({
     async (target: PaintingData) => {
       if (deletingIds.current.has(target.id)) return
       deletingIds.current.add(target.id)
-      if (target.id === paintingRef.current.id) beginTransition()
+      if (pendingNavigation.current?.targetId === target.id) pendingNavigation.current.canceled = true
+      const deletion = target.id === paintingRef.current.id ? beginTransition() : undefined
       cancelGeneration(target.id)
       try {
         await deletePainting(target.id)
@@ -132,7 +148,12 @@ export function usePaintingList({
       }
       // Detach from the deleted record before awaiting the history refresh:
       // navigation must never try to save a record already confirmed deleted.
-      if (target.id === paintingRef.current.id) selectNextAfterDelete(target.id)
+      const navigation = pendingNavigation.current
+      const hasNewerNavigation = navigation && !navigation.canceled && navigation.isCurrent()
+      if (deletion?.isSameSession() && !hasNewerNavigation) {
+        const currentId = deletion.getPainting().id
+        selectNextAfterDelete(target.id, currentId !== target.id ? currentId : undefined)
+      }
       await refresh()
     },
     [beginTransition, cancelGeneration, deletePainting, refresh, selectNextAfterDelete]

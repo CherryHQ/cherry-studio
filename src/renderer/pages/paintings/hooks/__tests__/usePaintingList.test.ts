@@ -27,7 +27,7 @@ function makePainting(overrides: Partial<PaintingData> = {}): PaintingData {
     ...overrides
   }
 }
-function renderList(painting = makePainting()) {
+function renderList(painting = makePainting(), historyItems = [painting]) {
   const cancelGeneration = vi.fn()
   return {
     cancelGeneration,
@@ -38,7 +38,7 @@ function renderList(painting = makePainting()) {
         setCurrentPainting: session.replace,
         beginTransition: session.beginTransition,
         draftDefaults: { providerId: 'openai', modelId: 'dall-e-3' },
-        historyItems: [painting],
+        historyItems,
         cancelGeneration
       })
       return { ...list, session }
@@ -63,7 +63,7 @@ describe('painting editor navigation', () => {
     deletePainting.mockResolvedValue(undefined)
     refresh.mockResolvedValue(undefined)
   })
-  it('saves only the prompt before New, leaving generated references owned by generation', async () => {
+  it('saves editable fields before New, leaving generated references owned by generation', async () => {
     const { result } = renderList(makePainting({ files: [{ id: 'old-output' } as PaintingData['files'][number]] }))
     const finish = delaySave()
     let pending!: Promise<void>
@@ -71,7 +71,11 @@ describe('painting editor navigation', () => {
       pending = result.current.add()
     })
     expect(result.current.session.painting.id).toBe('current')
-    expect(updatePainting).toHaveBeenCalledWith('current', { prompt: 'Revised prompt' })
+    expect(updatePainting).toHaveBeenCalledWith('current', {
+      prompt: 'Revised prompt',
+      providerId: 'silicon',
+      modelId: undefined
+    })
     await act(async () => {
       finish()
       await pending
@@ -84,6 +88,18 @@ describe('painting editor navigation', () => {
     })
     expect(result.current.session.painting.persistedAt).toBeUndefined()
     expect(createPainting).not.toHaveBeenCalled()
+  })
+  it('persists edited provider and model without writing generated files', async () => {
+    const { result } = renderList()
+    act(() => result.current.session.edit({ providerId: 'openai', model: 'gpt-image-1' }))
+    await act(async () => {
+      await result.current.saveCurrent()
+    })
+    expect(updatePainting).toHaveBeenCalledWith('current', {
+      prompt: 'Revised prompt',
+      providerId: 'openai',
+      modelId: 'gpt-image-1'
+    })
   })
   it('does not persist an ungenerated draft', async () => {
     const { result } = renderList(makePainting({ persistedAt: undefined }))
@@ -126,6 +142,8 @@ describe('painting editor navigation', () => {
       await result.current.add()
     })
     expect(updatePainting).toHaveBeenLastCalledWith('current', {
+      providerId: 'silicon',
+      modelId: undefined,
       prompt: kind === 'prompt' ? 'Newer edit' : 'Revised prompt'
     })
     expect(result.current.session.painting.prompt).toBe('')
@@ -155,7 +173,11 @@ describe('painting editor navigation', () => {
     })
     const draft = result.current.session.painting
     expect(draft.prompt).toBe('')
-    expect(updatePainting).toHaveBeenLastCalledWith('generated', { prompt: 'Revised prompt' })
+    expect(updatePainting).toHaveBeenLastCalledWith('generated', {
+      prompt: 'Revised prompt',
+      providerId: 'silicon',
+      modelId: undefined
+    })
     act(() => {
       applyGeneration(makePainting({ id: 'generated', files: [{ id: 'output' } as PaintingData['files'][number]] }))
     })
@@ -217,6 +239,181 @@ describe('painting editor navigation', () => {
     expect(cancelGeneration).toHaveBeenCalledWith('current')
     expect(deletePainting).toHaveBeenCalledWith('current')
     expect(updatePainting).not.toHaveBeenCalled()
+    expect(result.current.session.painting.persistedAt).toBeUndefined()
+  })
+
+  it('leaves the deleted session even if generation binds it to a new record', async () => {
+    const original = makePainting()
+    const { result } = renderList(original, [original, makePainting({ id: 'generated' })])
+    const target = result.current.session.painting
+    const applyGeneration = result.current.session.bindGeneration()
+    let finish!: () => void
+    deletePainting.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.remove(target)
+    })
+    act(() => {
+      applyGeneration(makePainting({ id: 'generated' }))
+    })
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.session.painting.persistedAt).toBeUndefined()
+    const draft = result.current.session.painting
+    act(() => {
+      applyGeneration(makePainting({ id: 'generated' }))
+    })
+    expect(result.current.session.painting).toBe(draft)
+  })
+
+  it('does not open a selection whose target was deleted while saving', async () => {
+    const { result } = renderList()
+    const target = makePainting({ id: 'selected' })
+    const finish = delaySave()
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.select(target)
+    })
+    await act(async () => {
+      await result.current.remove(target)
+    })
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.session.painting.id).toBe('current')
+  })
+
+  it('retains the session on delete failure and allows retry', async () => {
+    const { result } = renderList()
+    const original = result.current.session.painting
+    deletePainting.mockRejectedValueOnce(new Error('SQLITE_BUSY'))
+    await act(async () => {
+      await result.current.remove(original)
+    })
+    expect(result.current.session.painting).toBe(original)
+    await act(async () => {
+      await result.current.saveCurrent()
+    })
+    expect(updatePainting).toHaveBeenCalledWith('current', expect.objectContaining({ prompt: original.prompt }))
+    await act(async () => {
+      await result.current.remove(original)
+    })
+    expect(result.current.session.painting.persistedAt).toBeUndefined()
+  })
+
+  it('rejects selection of a record while its deletion is pending', async () => {
+    const { result } = renderList()
+    const target = makePainting({ id: 'selected' })
+    let finish!: () => void
+    deletePainting.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.remove(target)
+    })
+    await act(async () => {
+      await result.current.select(target)
+    })
+    expect(result.current.session.painting.id).toBe('current')
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.session.painting.id).toBe('current')
+  })
+
+  it('deleting an unrelated record does not cancel pending selection', async () => {
+    const { result } = renderList()
+    const finish = delaySave()
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.select(makePainting({ id: 'selected' }))
+    })
+    await act(async () => {
+      await result.current.remove(makePainting({ id: 'unrelated' }))
+    })
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.session.painting.id).toBe('selected')
+  })
+
+  it.each(['select', 'new'] as const)(
+    'preserves newer pending %s after generation migrates a deleting session',
+    async (navigation) => {
+      const { result } = renderList()
+      const target = result.current.session.painting
+      const applyGeneration = result.current.session.bindGeneration()
+      let finishDelete!: () => void
+      deletePainting.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishDelete = resolve
+          })
+      )
+      let deleting!: Promise<void>
+      act(() => {
+        deleting = result.current.remove(target)
+      })
+      act(() => {
+        applyGeneration(makePainting({ id: 'generated' }))
+      })
+      const finishSave = delaySave()
+      let navigating!: Promise<void>
+      act(() => {
+        navigating =
+          navigation === 'select' ? result.current.select(makePainting({ id: 'selected' })) : result.current.add()
+      })
+      await act(async () => {
+        finishDelete()
+        await deleting
+      })
+      expect(result.current.session.painting.id).toBe('generated')
+      await act(async () => {
+        finishSave()
+        await navigating
+      })
+      if (navigation === 'select') expect(result.current.session.painting.id).toBe('selected')
+      else expect(result.current.session.painting.persistedAt).toBeUndefined()
+    }
+  )
+
+  it('does not use another pending deletion as the fallback selection', async () => {
+    const original = makePainting()
+    const other = makePainting({ id: 'other' })
+    const { result } = renderList(original, [original, other])
+    let finish!: () => void
+    deletePainting.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.remove(other)
+    })
+    await act(async () => {
+      await result.current.remove(original)
+    })
+    expect(result.current.session.painting.persistedAt).toBeUndefined()
+    await act(async () => {
+      finish()
+      await pending
+    })
     expect(result.current.session.painting.persistedAt).toBeUndefined()
   })
 
