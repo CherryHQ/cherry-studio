@@ -106,7 +106,7 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
-  it('backfills text generation only when a persisted capability list has no operation', () => {
+  it('backfills a default operation only when a custom model has no stored operation or endpoint', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_model_endpoint_preference'))
     const now = Date.now()
     sqlite
@@ -168,9 +168,8 @@ describe('applyMigrations over a populated database', () => {
       now,
       now
     )
-    // A preset-backed row's capability list is a delta over the registry, which already states the
-    // model's operation — guessing text generation here turns an image model into a chat model. The
-    // read path closes that gap with the baseline in hand (ModelService.ensureOperationCapability).
+    // Preset operations belong to the registry baseline; a stored feature override must not
+    // freeze a guessed operation into the row.
     insert.run(
       'operation-migration::preset-image',
       'preset-image',
@@ -205,6 +204,60 @@ describe('applyMigrations over a populated database', () => {
       ['audio-chat', ['audio-recognition', 'text-generation']],
       ['preset-image', ['image-recognition']]
     ])
+  })
+
+  it('preserves the operations of legacy custom endpoints without changing explicit capabilities or preset deltas', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_model_endpoint_preference'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('endpoint-migration', 'Endpoint Migration', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    const cases = [
+      ['embedding', ['openai-embeddings'], ['embedding']],
+      ['rerank', ['jina-rerank'], ['rerank']],
+      ['image', ['openai-image-generation'], ['image-generation']],
+      ['image-edit', ['openai-image-edit'], ['image-generation']],
+      ['transcript', ['openai-audio-transcription'], ['audio-transcript']],
+      ['translation', ['openai-audio-translation'], ['audio-transcript']],
+      ['speech', ['openai-text-to-speech'], ['audio-generation']],
+      ['video', ['openai-video-generation'], ['video-generation']],
+      ['chat', ['openai-chat-completions', 'openai-responses'], ['text-generation']],
+      ['google', ['google-generate-content'], ['text-generation']],
+      ['anthropic', ['anthropic-messages'], ['text-generation']],
+      ['ollama', ['ollama-chat', 'ollama-generate'], ['text-generation']],
+      ['completion', ['openai-text-completions'], ['text-generation']],
+      ['empty-endpoints', [], ['text-generation']],
+      ['image-both', ['openai-image-edit', 'openai-image-generation'], ['image-generation']],
+      ['mixed', ['openai-embeddings', 'openai-chat-completions'], ['embedding', 'text-generation']]
+    ] as const
+    const insert = sqlite.prepare(
+      `INSERT INTO user_model
+         (id, provider_id, model_id, preset_model_id, name, capabilities, endpoint_types,
+          supports_streaming, is_enabled, is_hidden, order_key, created_at, updated_at)
+       VALUES (?, 'endpoint-migration', ?, ?, ?, ?, ?, 1, 1, 0, ?, ?, ?)`
+    )
+    for (const [modelId, endpoints] of cases) {
+      insert.run(modelId, modelId, null, modelId, '["function-call"]', JSON.stringify(endpoints), modelId, now, now)
+    }
+    insert.run('explicit', 'explicit', null, 'Explicit', '["embedding"]', '["ollama-chat"]', 'explicit', now, now)
+    insert.run('preset', 'preset', 'preset', null, '["image-recognition"]', '["openai-image-edit"]', 'preset', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const read = sqlite.prepare('SELECT capabilities, endpoint_types FROM user_model WHERE id = ?')
+    for (const [modelId, endpoints, operations] of cases) {
+      const row = read.get(modelId) as { capabilities: string; endpoint_types: string }
+      expect(JSON.parse(row.capabilities).toSorted(), modelId).toEqual(['function-call', ...operations].toSorted())
+      expect(JSON.parse(row.endpoint_types), modelId).toEqual(endpoints)
+    }
+    expect(read.get('explicit')).toEqual({ capabilities: '["embedding"]', endpoint_types: '["ollama-chat"]' })
+    expect(read.get('preset')).toEqual({
+      capabilities: '["image-recognition"]',
+      endpoint_types: '["openai-image-edit"]'
+    })
   })
 
   it('turns a legacy implicit empty input-modality list back into an unset column', () => {

@@ -16,4 +16,4 @@ A single model can now be used for multiple supported operations without losing 
 
 ## What the user should do
 
-Nothing for existing models—the migration preserves embedding, rerank, media, and multi-operation models and classifies other existing models as text generation. When adding a custom model, select at least one operation and a compatible endpoint.
+Nothing for existing models—the migration preserves stored operations and recovers missing operations from the custom model's declared endpoints. Without endpoint information, audio-only-to-text models become transcription models; other models default to text generation. Preset-backed models continue to inherit their operations from the registry. When adding a custom model, select at least one operation and a compatible endpoint.

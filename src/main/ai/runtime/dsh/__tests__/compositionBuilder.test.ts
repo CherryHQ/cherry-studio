@@ -401,7 +401,7 @@ describe('buildDshCompositionYaml', () => {
       providerId: 'openai-codex',
       apiModelId: 'gpt-6-astra',
       name: 'GPT-6 Astra',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
       contextWindow: 272_000,
       reasoning: { selectableEfforts: ['low', 'ultra'] }

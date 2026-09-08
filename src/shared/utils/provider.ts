@@ -286,7 +286,7 @@ export function getModelPreferredEndpoint(
   if (compatibleEndpoints?.length) return compatibleEndpoints[0]
 
   if (operationCapability === MODEL_CAPABILITY.TEXT_GENERATION) {
-    return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType ?? provider.defaultChatEndpoint
+    return resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
   }
 
   // A model's endpointTypes describe only its explicit protocol constraints, not an exhaustive
