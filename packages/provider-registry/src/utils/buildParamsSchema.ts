@@ -15,19 +15,7 @@ import * as z from 'zod'
 import type { CanonicalParamKey } from '../schemas/enums'
 import { IMAGE_PARAM_CATALOG, normalizeImageParamNumber } from '../schemas/imageParamCatalog'
 import type { ImageGenerationMode, ImageGenerationSupport, SupportSpec } from '../schemas/model'
-
-function resolveModeSupports(
-  support: ImageGenerationSupport | undefined,
-  mode: ImageGenerationMode
-): Partial<Record<CanonicalParamKey, SupportSpec>> | undefined {
-  const modes = support?.modes
-  if (!modes) return undefined
-  // Prefer the requested mode; fall back to the first declared mode (mirrors
-  // the form's `imageGenerationToFields` resolution).
-  const firstMode = Object.keys(modes)[0]
-  const def = modes[mode] ?? (firstMode ? modes[firstMode] : undefined)
-  return def?.supports
-}
+import { resolveLegacyImageCapability } from './imageCapabilities'
 
 /** Layer the per-model constraint onto the catalog's base value schema. */
 function applyConstraints(base: z.ZodTypeAny, spec: SupportSpec): z.ZodTypeAny {
@@ -50,6 +38,9 @@ export function buildParamsSchema(
   support: ImageGenerationSupport | undefined,
   mode: ImageGenerationMode = 'generate'
 ): z.ZodType<Record<string, unknown>> {
+  const resolution = resolveLegacyImageCapability(support, mode)
+  if (resolution.kind === 'unsupported') return z.never()
+
   // Base: EVERY catalog key coerced with `.catch(undefined)`. A canonical value left
   // over from a previously-selected model — INCLUDING one this model doesn't declare
   // in `supports`, e.g. after a registered → no-support → registered switch where
@@ -62,8 +53,8 @@ export function buildParamsSchema(
     shape[key] = (entry.schema as z.ZodTypeAny).catch(undefined)
   }
 
-  const supports = resolveModeSupports(support, mode)
-  if (!supports) return z.object(shape).loose()
+  if (resolution.kind === 'unconfigured') return z.object(shape).loose()
+  const { supports } = resolution.capability
 
   // Overlay this model's per-param constraints (options / range) on the base.
   for (const [key, spec] of Object.entries(supports) as [CanonicalParamKey, SupportSpec][]) {
