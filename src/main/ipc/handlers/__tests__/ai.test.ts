@@ -193,7 +193,10 @@ describe('aiHandlers', () => {
 
     const result = await aiHandlers['ai.text.generate'](request, ctx)
 
-    expect(aiService.generateText).toHaveBeenCalledWith(request)
+    expect(aiService.generateText).toHaveBeenCalledWith({
+      ...request,
+      conversation: { id: expect.stringMatching(/^one-shot:/) }
+    })
     expect(result).toBe(out)
   })
 
@@ -206,7 +209,11 @@ describe('aiHandlers', () => {
       ctx
     )
 
-    expect(aiService.runTextRequest).toHaveBeenCalledWith('r1', { uniqueModelId: 'openai::gpt-4o', prompt: 'hi' })
+    expect(aiService.runTextRequest).toHaveBeenCalledWith('r1', {
+      uniqueModelId: 'openai::gpt-4o',
+      prompt: 'hi',
+      conversation: { id: expect.stringMatching(/^one-shot:/) }
+    })
     expect(aiService.generateText).not.toHaveBeenCalled()
     expect(result).toBe(out)
   })

@@ -7688,6 +7688,42 @@
       }
     },
     {
+      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
+      "contextWindow": 1000000,
+      "family": "deepseek-flash",
+      "id": "deepseek-v4-1-flash-expires-on",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 393216,
+      "metadata": {},
+      "name": "DeepSeek V4.1 Flash Expires-On-0910",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "high", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",
@@ -12406,7 +12442,7 @@
       "family": "minimax",
       "id": "minimax-m2-7",
       "inputModalities": ["text"],
-      "maxOutputTokens": 196608,
+      "maxOutputTokens": 131072,
       "metadata": {},
       "name": "MiniMax-M2.7",
       "openWeights": true,
@@ -16854,16 +16890,33 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
       "contextWindow": 1050000,
-      "family": "gpt-astra",
+      "family": "gpt",
       "id": "gpt-6-astra",
       "inputModalities": ["text", "image"],
+      "maxInputTokens": 922000,
       "maxOutputTokens": 128000,
       "metadata": {},
       "name": "GPT-6 Astra",
       "outputModalities": ["text"],
       "ownedBy": "openai",
+      "parameterSupport": {
+        "frequencyPenalty": false,
+        "maxTokens": true,
+        "presencePenalty": false,
+        "stopSequences": false,
+        "systemMessage": true,
+        "temperature": {
+          "supported": false
+        },
+        "topK": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -16877,6 +16930,27 @@
           "currency": "USD",
           "perMillionTokens": 10
         },
+        "inputTokenTiers": [
+          {
+            "cacheRead": {
+              "currency": "USD",
+              "perMillionTokens": 2
+            },
+            "cacheWrite": {
+              "currency": "USD",
+              "perMillionTokens": 25
+            },
+            "input": {
+              "currency": "USD",
+              "perMillionTokens": 20
+            },
+            "minInputTokens": 272001,
+            "output": {
+              "currency": "USD",
+              "perMillionTokens": 75
+            }
+          }
+        ],
         "output": {
           "currency": "USD",
           "perMillionTokens": 50
@@ -16886,10 +16960,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
       }
     },
     {
@@ -16915,10 +16989,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh", "max"]
+            "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
       }
     },
     {
@@ -21871,11 +21945,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.07125000000000001
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.2375
         }
       }
     },
@@ -21917,11 +21991,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.17
+          "perMillionTokens": 1.12
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.9600000000000004
+          "perMillionTokens": 3.52
         }
       }
     },
@@ -21958,5 +22032,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "d7096183a2f31eb6"
+  "version": "de26437ccfc78a10"
 }

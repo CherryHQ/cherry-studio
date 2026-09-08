@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
@@ -27,9 +29,9 @@ const logger = loggerService.withContext('ipc/ai')
 
 /**
  * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
- * the streaming-chat ops delegate to `AiStreamManager`. Business logic and provider
- * resolution stay in those services; request-scoped cancellation state lives in its
- * lifecycle owner rather than this transport module.
+ * the streaming-chat ops delegate to `AiStreamManager`. Business logic, provider
+ * resolution, the abort registry and the stream registry all stay in those
+ * services — these handlers only translate the IPC call.
  *
  * Every generating call is wrapped by {@link exposeAiError}: a provider/SDK failure
  * is re-thrown as an `AI_REQUEST_FAILED` IpcError carrying the full SerializedError
@@ -154,12 +156,15 @@ function agentTaskNotFound(taskId: string): IpcError {
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
-  'ai.text.generate': ({ requestId, ...request }) =>
-    exposeAiError('ai.text.generate', () =>
+  // A renderer one-shot call has no topic; it is its own conversation.
+  'ai.text.generate': ({ requestId, ...request }) => {
+    const generate = { ...request, conversation: { id: `one-shot:${randomUUID()}` } }
+    return exposeAiError('ai.text.generate', () =>
       requestId
-        ? application.get('AiService').runTextRequest(requestId, request)
-        : application.get('AiService').generateText(request)
-    ),
+        ? application.get('AiService').runTextRequest(requestId, generate)
+        : application.get('AiService').generateText(generate)
+    )
+  },
   'ai.text.abort': async ({ requestId }) => {
     application.get('AiService').abortRequest(requestId)
   },
