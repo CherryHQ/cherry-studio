@@ -1,5 +1,6 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
+import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
@@ -67,6 +68,7 @@ export function useAgentMutations() {
  */
 export function useAgentMutationsById(id: string) {
   const path = `/agents/${id}` as const
+  const invalidate = useInvalidateCache()
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
     // skillUpdates writes the agent_skill join table, which backs `GET /skills?agentId=…`
@@ -74,15 +76,13 @@ export function useAgentMutationsById(id: string) {
     refresh: ({ args }) =>
       args?.body?.skillUpdates !== undefined ? ['/agents', '/agents/*', '/skills'] : ['/agents', '/agents/*']
   })
-  const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/agents', '/agents/*', '/pins']
-  })
-
   const updateAgent = useCallback(
     (dto: UpdateAgentDto): Promise<AgentDetail> => updateTrigger({ body: dto }),
     [updateTrigger]
   )
-  const deleteAgent = useCallback((): Promise<void> => deleteTrigger().then(() => undefined), [deleteTrigger])
+  const deleteAgent = useCallback(async (): Promise<void> => {
+    await deleteAgentAndRefresh(id, invalidate)
+  }, [id, invalidate])
 
   return { updateAgent, deleteAgent }
 }

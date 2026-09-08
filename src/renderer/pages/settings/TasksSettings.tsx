@@ -785,8 +785,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         header: t('agent.tasks.logs.duration'),
         meta: { width: 80 },
         cell: ({ getValue, row }) => {
-          const value = getValue() as number
-          if (row.original.status === 'running') return '-'
+          const value = getValue() as number | null
+          if (value == null || row.original.status === 'running') return '-'
           if (value < 1000) return `${value}ms`
           if (value < 60_000) return `${(value / 1000).toFixed(1)}s`
           return `${(value / 60_000).toFixed(1)}m`

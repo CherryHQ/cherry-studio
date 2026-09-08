@@ -7,6 +7,14 @@
  * this, so anything it pulled in would close a cycle back through the MCP layer.
  */
 
-export const ASSISTANT_TOOL_NAMES = ['navigate', 'diagnose', 'product_info', 'apply_setting', 'create_agent'] as const
+export const DEFAULT_ASSISTANT_TOOL_NAMES = [
+  'navigate',
+  'diagnose',
+  'product_info',
+  'apply_setting',
+  'create_agent'
+] as const
+
+const ASSISTANT_TOOL_NAMES = [...DEFAULT_ASSISTANT_TOOL_NAMES, 'prepare_diagnostic_report'] as const
 
 export type AssistantToolName = (typeof ASSISTANT_TOOL_NAMES)[number]

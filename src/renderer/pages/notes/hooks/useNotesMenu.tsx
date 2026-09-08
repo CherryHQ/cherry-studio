@@ -2,11 +2,7 @@ import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { ipcApi } from '@renderer/ipc'
-import { exportNote } from '@renderer/services/ExportService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
@@ -41,7 +37,6 @@ export const useNotesMenu = ({
   activeNode
 }: UseNotesMenuProps) => {
   const { t } = useTranslation()
-  const { bases } = useKnowledgeBases()
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -56,11 +51,7 @@ export const useNotesMenu = ({
   const handleExportKnowledge = useCallback(
     async (note: NotesTreeNode) => {
       try {
-        if (bases.length === 0) {
-          toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
-          return
-        }
-
+        const { default: SaveToKnowledgePopup } = await import('@renderer/components/SaveToKnowledgePopup')
         const result = await SaveToKnowledgePopup.showForNote(note)
 
         if (result?.success) {
@@ -71,17 +62,21 @@ export const useNotesMenu = ({
         logger.error(`Failed to export note to knowledge base: ${error}`)
       }
     },
-    [bases.length, t]
+    [t]
   )
 
   const handleImageAction = useCallback(
     async (node: NotesTreeNode, platform: 'copyImage' | 'exportImage') => {
       try {
+        const exportServicePromise = import('@renderer/services/ExportService')
+        let selectionReady = Promise.resolve()
+
         if (activeNode?.id !== node.id) {
           onSelectNode(node)
-          await new Promise((resolve) => setTimeout(resolve, 500))
+          selectionReady = new Promise((resolve) => setTimeout(resolve, 500))
         }
 
+        const [{ exportNote }] = await Promise.all([exportServicePromise, selectionReady])
         await exportNote({ node, platform })
       } catch (error) {
         logger.error(`Failed to ${platform === 'copyImage' ? 'copy' : 'export'} as image:`, error as Error)
@@ -104,7 +99,10 @@ export const useNotesMenu = ({
   )
 
   const handleObsidianExport = useCallback(async (node: NotesTreeNode) => {
-    const content = await window.api.file.readExternal(node.externalPath)
+    const [content, { default: ObsidianExportPopup }] = await Promise.all([
+      window.api.file.readExternal(node.externalPath),
+      import('@renderer/components/ObsidianExportPopup')
+    ])
     await ObsidianExportPopup.show({ title: node.name, processingMethod: '1', rawContent: content })
   }, [])
 
@@ -170,7 +168,9 @@ export const useNotesMenu = ({
           id: 'notes.rename',
           label: t('notes.rename'),
           icon: <Edit3 size={14} />,
-          onSelect: () => handleStartEdit(node)
+          onSelect: () => {
+            window.requestAnimationFrame(() => handleStartEdit(node))
+          }
         },
         {
           type: 'item',
@@ -209,7 +209,11 @@ export const useNotesMenu = ({
             type: 'item',
             id,
             label,
-            onSelect: () => void runExport(() => exportNote({ node, platform }))
+            onSelect: () =>
+              void runExport(async () => {
+                const { exportNote } = await import('@renderer/services/ExportService')
+                return exportNote({ node, platform })
+              })
           })
         if (exportMenuOptions.image) {
           exportChildren.push(

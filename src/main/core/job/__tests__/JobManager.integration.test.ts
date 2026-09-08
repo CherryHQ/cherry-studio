@@ -227,6 +227,77 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
 
+    it('cancelRequested: settles the leftover without disturbing a newer finished run in the projection', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      // Disabled so recovery's overdue catch-up cannot dispatch a fresh run
+      // mid-test; only the two inserted rows drive the projection.
+      const schedule = jobScheduleService.create({
+        type: 'task.retry',
+        name: 'mixed-run',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' },
+        enabled: false
+      })
+
+      const now = Date.now()
+      const cancelRequestedAt = now - 5_000
+      const newerFinishedAt = now - 2_000
+      const inserted = await dbh
+        .insert(jobTable)
+        .values([
+          {
+            type: 'task.retry',
+            status: 'running',
+            queue: 'task.retry',
+            scheduleId: schedule.id,
+            scheduledAt: now - 9_000,
+            startedAt: now - 8_000,
+            attempt: 0,
+            maxAttempts: 1,
+            input: { message: 'leftover' },
+            cancelRequested: true,
+            cancelRequestedAt,
+            metadata: {}
+          },
+          {
+            type: 'task.retry',
+            status: 'completed',
+            queue: 'task.retry',
+            scheduleId: schedule.id,
+            scheduledAt: now - 3_500,
+            startedAt: now - 3_000,
+            finishedAt: newerFinishedAt,
+            attempt: 0,
+            maxAttempts: 1,
+            input: { message: 'newer' },
+            cancelRequested: false,
+            metadata: {}
+          }
+        ])
+        .returning()
+      const leftoverId = inserted.find((r) => r.status === 'running')!.id
+
+      const before = jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])
+      expect(before.get(schedule.id)).toEqual({ kind: 'terminal', status: 'completed', finishedAt: newerFinishedAt })
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.retry', makeSlowHandler('retry') as JobHandler]]
+      })
+
+      const settled = jobService.getById(leftoverId)
+      expect(settled?.status).toBe('cancelled')
+      expect(settled?.error?.code).toBe('JOB_CANCELLED')
+      // finishedAt is the real settle time; the projection stays put because it
+      // orders cancelled runs by the immutable cancelRequestedAt instead.
+      expect(settled && Date.parse(settled.finishedAt!)).toBeGreaterThanOrEqual(now)
+      expect(settled && Date.parse(settled.cancelRequestedAt!)).toBe(cancelRequestedAt)
+      expect(jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])).toEqual(before)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
     it('retry: resets running → pending, leaves delayed jobs alone', async () => {
       const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
 

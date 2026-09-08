@@ -96,7 +96,8 @@ function buildProviderRoute(input: DshCompositionInput): Record<string, unknown>
         maxTokens: input.modelConfig.maxTokens,
         input: [...input.modelConfig.input],
         reasoningEfforts:
-          input.modelConfig.reasoningEfforts === false ? false : { ...input.modelConfig.reasoningEfforts }
+          input.modelConfig.reasoningEfforts === false ? false : { ...input.modelConfig.reasoningEfforts },
+        ...(input.modelConfig.compat ? { compat: { ...input.modelConfig.compat } } : {})
       }
     ]
   }

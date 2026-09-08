@@ -31,7 +31,12 @@ const PERMISSION_MODE_ICONS: Record<PermissionMode, typeof Hand> = {
 
 export function PermissionModeIcon({ mode, size = 18 }: { mode: PermissionMode; size?: number }): ReactNode {
   const Icon = PERMISSION_MODE_ICONS[mode] ?? Hand
-  return <Icon size={size} className={mode === 'bypassPermissions' ? 'text-destructive' : 'text-muted-foreground'} />
+  return (
+    <Icon
+      size={size}
+      className={mode === 'bypassPermissions' ? 'lucide-custom text-destructive' : 'text-muted-foreground'}
+    />
+  )
 }
 
 function getPermissionModeWarning(card: PermissionModeCard, t: TFunction) {

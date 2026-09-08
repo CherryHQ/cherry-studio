@@ -23,6 +23,9 @@ const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')
+  const [webdavAllowSelfSignedTls, setWebdavAllowSelfSignedTls] = usePreference(
+    'data.backup.webdav.allow_self_signed_tls'
+  )
   const [webdavDisableStream, setWebdavDisableStream] = usePreference('data.backup.webdav.disable_stream')
   const [webdavHost, setWebdavHost] = usePreference('data.backup.webdav.host')
   const [webdavMaxBackups, setWebdavMaxBackups] = usePreference('data.backup.webdav.max_backups')
@@ -97,7 +100,7 @@ const WebDavSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-host" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.host.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.host.placeholder')}
@@ -109,7 +112,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-user" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.user')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.user')}
@@ -120,7 +123,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-password" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.password')}</SettingRowTitle>
         <Input
           type="password"
@@ -132,7 +135,7 @@ const WebDavSettings: FC = () => {
         />
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-webdav-path" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.path.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.webdav.path.placeholder')}
@@ -213,6 +216,18 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>
       </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.webdav.allowSelfSignedTls.title')}</SettingRowTitle>
+        <Switch
+          aria-label={t('settings.data.webdav.allowSelfSignedTls.title')}
+          checked={webdavAllowSelfSignedTls}
+          onCheckedChange={(value) => void setWebdavAllowSelfSignedTls(value)}
+        />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.webdav.allowSelfSignedTls.help')}</SettingHelpText>
+      </SettingRow>
       {webdavSync && webdavSyncInterval > 0 && (
         <>
           <SettingDivider />
@@ -235,12 +250,14 @@ const WebDavSettings: FC = () => {
         <WebdavBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
+          tlsCertificateHint
           webdavConfig={{
             webdavHost,
             webdavUser,
             webdavPass,
             webdavPath,
-            webdavDisableStream
+            webdavDisableStream,
+            allowSelfSignedTls: webdavAllowSelfSignedTls
           }}
         />
       </>

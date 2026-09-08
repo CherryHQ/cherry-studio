@@ -4,6 +4,7 @@ import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { redactSecretText } from '@shared/utils/redaction'
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
+import { type Document, isMap, isScalar, parse as parseYaml, parseDocument } from 'yaml'
 
 /** One CLI config file as read through `code_cli.read_config`: content === null ⇔ the file does not exist. */
 export type CliConfigReadFile = Pick<OutputFor<'code_cli.read_config'>['files'][number], 'path' | 'content'>
@@ -67,6 +68,43 @@ export function parseTomlOrThrow(content: string): Record<string, any> {
   } catch (err) {
     // smol-toml embeds a source codeblock (the offending line +/- 1) straight into its own message,
     // so this must be redacted right here — every call site (direct or through parseOrThrow) inherits it.
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(redactSecretText(rawMessage))
+  }
+}
+
+export function parseYamlOrThrow(content: string): Record<string, any> {
+  if (!content) return {}
+  try {
+    const parsed = parseYaml(content)
+    if (parsed == null) return {}
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('invalid YAML root: expected an object')
+    }
+    return parsed as Record<string, any>
+  } catch (err) {
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(redactSecretText(rawMessage))
+  }
+}
+
+/** Parse a user-owned YAML mapping without discarding its comments or presentation. */
+export function parseYamlDocumentOrThrow(content: string): Document {
+  try {
+    const document = parseDocument(content)
+    if (document.errors.length > 0) throw document.errors[0]
+    const root = document.contents
+    if (root === null || (isScalar(root) && root.value === null)) {
+      const mapping = document.createNode({})
+      if (root && isScalar(root)) {
+        mapping.comment = root.comment
+        mapping.commentBefore = root.commentBefore
+      }
+      document.contents = mapping as unknown as typeof document.contents
+    }
+    if (!isMap(document.contents)) throw new Error('invalid YAML root: expected an object')
+    return document
+  } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err)
     throw new Error(redactSecretText(rawMessage))
   }

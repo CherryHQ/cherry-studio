@@ -85,6 +85,25 @@ function buildHttpOptions(server: McpServer, authProvider: McpOAuthClientProvide
   }
 }
 
+function getStdioTransportErrorDetails(error: Error): Record<string, number | string> {
+  const spawnError = error as NodeJS.ErrnoException
+  return Object.fromEntries(
+    Object.entries({
+      code: spawnError.code,
+      errno: spawnError.errno,
+      syscall: spawnError.syscall,
+      path: spawnError.path
+    }).filter((entry): entry is [string, number | string] => entry[1] !== undefined)
+  )
+}
+
+function formatStdioTransportError(error: Error, details: Record<string, number | string>): string {
+  const diagnostic = Object.entries(details)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(', ')
+  return diagnostic ? `${error.message} (${diagnostic})` : error.message
+}
+
 async function createInMemory({ sdk, server, args, logger }: CreateTransportInput): Promise<McpTransport> {
   logger.debug(`Using in-memory transport`)
   const [clientTransport, serverTransport] = sdk.InMemoryTransport.createLinkedPair()
@@ -187,6 +206,17 @@ async function createStdio(
   }
 
   const transport = new sdk.StdioClientTransport(transportOptions)
+  transport.onerror = (error) => {
+    const details = getStdioTransportErrorDetails(error)
+    logger.error(`Stdio transport error`, error, details)
+    onServerLog({
+      timestamp: Date.now(),
+      level: 'error',
+      message: formatStdioTransportError(error, details),
+      data: details,
+      source: 'stdio'
+    })
+  }
   const stderrDecoder = new TextDecoder('utf-8', { fatal: false })
   const emitStderr = (message: string) => {
     if (!message.trim()) return

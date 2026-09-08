@@ -1,4 +1,4 @@
-import { type LocalModelKind } from '@shared/data/presets/localModel'
+import { type LocalModelCapability } from '@shared/data/presets/localModel'
 import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
 import { GB, MB } from '@shared/utils/constants'
 import * as z from 'zod'
@@ -300,7 +300,7 @@ export const PRESETS_FILE_PROCESSORS: readonly FileProcessorPreset[] = FILE_PROC
  * two apart: main refuses the job with a message that says which one it is, and
  * the renderer keeps the processor selectable and offers the download.
  */
-export const FILE_PROCESSOR_LOCAL_MODEL: Partial<Record<FileProcessorId, LocalModelKind>> = {
+export const FILE_PROCESSOR_LOCAL_MODEL: Partial<Record<FileProcessorId, LocalModelCapability>> = {
   'local-paddleocr': 'ocr',
   'local-document': 'ocr'
 }

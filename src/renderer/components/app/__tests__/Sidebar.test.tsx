@@ -239,6 +239,7 @@ vi.mock('../../Sidebar', async () => {
       entries,
       title,
       logo,
+      onHeaderClick,
       user,
       actions,
       width,
@@ -250,6 +251,7 @@ vi.mock('../../Sidebar', async () => {
       entries?: MockSidebarEntry[]
       title?: string
       logo?: ReactNode
+      onHeaderClick?: () => void
       user?: unknown
       actions?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
       width?: number
@@ -277,8 +279,10 @@ vi.mock('../../Sidebar', async () => {
         </div>
       ) : (
         <>
-          <div data-testid="sidebar-title">{title}</div>
-          <div data-testid="sidebar-logo">{logo}</div>
+          <button type="button" aria-label={title} onClick={onHeaderClick}>
+            <div data-testid="sidebar-logo">{logo}</div>
+            <div data-testid="sidebar-title">{title}</div>
+          </button>
           <div data-testid="sidebar-footer-user">{user ? 'user' : 'none'}</div>
           <div data-testid="sidebar-footer-actions">{typeof actions === 'function' ? actions('icon') : actions}</div>
           <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
@@ -469,7 +473,8 @@ describe('app Sidebar', () => {
     expect(mocks.useMiniApps).toHaveBeenLastCalledWith({ enabled: true })
   })
 
-  it('uses the user avatar as the header logo and moves footer actions out of the tab bar', () => {
+  it('uses the avatar and name as one header action while keeping footer actions separate', async () => {
+    const user = userEvent.setup()
     const { container } = render(<Sidebar />)
 
     expect(container.querySelector('#app-sidebar')).toHaveAttribute('data-ui', 'app.sidebar')
@@ -478,7 +483,7 @@ describe('app Sidebar', () => {
     expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('none')
     expect(screen.getByTestId('sidebar-shell-actions-icon')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'JD' }))
+    await user.click(screen.getByTestId('sidebar-title'))
 
     expect(mocks.showUserPopup).toHaveBeenCalledTimes(1)
   })
@@ -536,7 +541,21 @@ describe('app Sidebar', () => {
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('files')])
   })
 
-  it('keeps required sidebar favorites protected in the context menu', () => {
+  it('allows removing the chat assistant from the sidebar when other apps remain', () => {
+    mocks.sidebarFavorites = [
+      { type: 'app', id: 'assistants' },
+      { type: 'app', id: 'knowledge' }
+    ]
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants')).not.toBeDisabled()
+
+    fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants'))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([{ type: 'app', id: 'knowledge' }])
+  })
+
+  it('disables removing the last sidebar app', () => {
     render(<Sidebar />)
 
     expect(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants')).toBeDisabled()
@@ -737,6 +756,26 @@ describe('app Sidebar', () => {
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
+  it('keeps the active mini app tab alive when opening another mini app', () => {
+    configureMiniApps(['calculator', 'weather'], [calculatorMiniApp, weatherMiniApp])
+    mocks.activeTab = {
+      id: 'calculator-tab',
+      type: 'route',
+      url: '/app/mini-app/calculator',
+      title: 'Calculator'
+    }
+    mocks.tabs = [mocks.activeTab]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-mini-app-weather'))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/weather', {
+      title: 'Weather',
+      icon: 'weather-logo'
+    })
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+  })
+
   it('does nothing when the active tab is already on the target mini app route', () => {
     configureMiniApps(['calculator'])
     mocks.activeTab = {
@@ -856,26 +895,6 @@ describe('app Sidebar', () => {
     // conversation — an owned tab is already "there", whatever session it shows.
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
-  })
-
-  it('navigates a message-only viewer of the same app back to the app entry', () => {
-    mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'viewer',
-      type: 'route',
-      url: '/app/agents?sessionId=session-1&view=message',
-      title: 'Session 1'
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('viewer', {
-      url: '/app/agents',
-      title: 'Work',
-      icon: undefined,
-      metadata: undefined
-    })
   })
 
   it('clears route-specific metadata when reusing the active tab', () => {
@@ -1033,7 +1052,7 @@ describe('app Sidebar', () => {
     })
   })
 
-  it('reuses an existing mini app tab on middle-click instead of creating a duplicate', () => {
+  it('creates a new mini app tab on middle-click even when a tab already exists', () => {
     mocks.sidebarFavorites = []
     mocks.sidebarMiniAppFavorites = [miniAppFavorite('mini-1')]
     mocks.allApps = [{ appId: 'mini-1', name: 'Mini One', logo: 'logo-1.png', url: 'https://example.com/1' }]
@@ -1047,8 +1066,12 @@ describe('app Sidebar', () => {
     const button = screen.getByTestId('sidebar-mini-app-mini-1')
     fireEvent(button, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
 
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('mini-existing')
-    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/mini-1', {
+      forceNew: true,
+      title: 'Mini One',
+      icon: 'logo-1.png'
+    })
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 

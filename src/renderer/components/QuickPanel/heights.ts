@@ -24,8 +24,6 @@ export interface QuickPanelHeightOptions {
   collapsed: boolean
   readOnly: boolean
   pageSize: number
-  /** Rows anchored below the virtual list; they consume page slots but do not scroll. */
-  fixedItemCount?: number
   itemCount: number
   /** Available height cap above the input; only used for fill/home placement. */
   availableHeight: number | null
@@ -33,6 +31,8 @@ export interface QuickPanelHeightOptions {
   fill?: boolean
   /** Runtime-measured footer plus body chrome height for home/fill; docked/readOnly use defaults. */
   chromeHeight?: number
+  /** Runtime-measured empty-state height when the searchable list has no matches. */
+  emptyStateHeight?: number
 }
 
 export interface QuickPanelHeights {
@@ -53,33 +53,30 @@ export function getQuickPanelHeights({
   collapsed,
   readOnly,
   pageSize,
-  fixedItemCount = 0,
   itemCount,
   availableHeight,
   fill = false,
-  chromeHeight: measuredChromeHeight
+  chromeHeight: measuredChromeHeight,
+  emptyStateHeight = 0
 }: QuickPanelHeightOptions): QuickPanelHeights {
   const defaultChromeHeight = readOnly ? READONLY_CHROME_HEIGHT : DEFAULT_CHROME_HEIGHT
-  const chromeHeight = fill && !readOnly && measuredChromeHeight != null ? measuredChromeHeight : defaultChromeHeight
-  const fixedItemsHeight = fixedItemCount * QUICK_PANEL_ITEM_HEIGHT
-  const effectiveChromeHeight = chromeHeight + fixedItemsHeight
-  const scrollablePageSize = Math.max(0, pageSize - fixedItemCount)
+  const chromeHeight = (fill || readOnly) && measuredChromeHeight != null ? measuredChromeHeight : defaultChromeHeight
 
   if (!isVisible) return { panelMaxHeight: 0, listHeight: 0 }
-  if (collapsed) return { panelMaxHeight: defaultChromeHeight + fixedItemsHeight, listHeight: 0 }
+  if (collapsed) return { panelMaxHeight: chromeHeight + emptyStateHeight, listHeight: 0 }
 
-  const listContentHeight = Math.min(scrollablePageSize, itemCount) * QUICK_PANEL_ITEM_HEIGHT
-  const contentHeight = effectiveChromeHeight + listContentHeight
+  const listContentHeight = Math.min(pageSize, itemCount) * QUICK_PANEL_ITEM_HEIGHT
+  const contentHeight = chromeHeight + listContentHeight
 
   if (fill && availableHeight != null) {
-    const minimumPanelHeight = effectiveChromeHeight + (itemCount > 0 ? QUICK_PANEL_ITEM_HEIGHT : 0)
+    const minimumPanelHeight = chromeHeight + (itemCount > 0 ? QUICK_PANEL_ITEM_HEIGHT : 0)
     const panelMaxHeight = Math.max(minimumPanelHeight, Math.min(contentHeight, availableHeight))
-    const listHeight = Math.min(listContentHeight, Math.max(0, panelMaxHeight - effectiveChromeHeight))
+    const listHeight = Math.min(listContentHeight, Math.max(0, panelMaxHeight - chromeHeight))
     return { panelMaxHeight, listHeight }
   }
 
   return {
-    panelMaxHeight: scrollablePageSize * QUICK_PANEL_ITEM_HEIGHT + effectiveChromeHeight,
+    panelMaxHeight: pageSize * QUICK_PANEL_ITEM_HEIGHT + chromeHeight,
     listHeight: listContentHeight
   }
 }
