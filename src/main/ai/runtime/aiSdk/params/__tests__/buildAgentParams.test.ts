@@ -88,13 +88,14 @@ describe('buildAgentParams provider resolution', () => {
       request: { chatId: 'topic-123' },
       signal: undefined,
       provider,
-      model
+      model,
+      modelUsageFeature: 'translate'
     })
 
     expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(
       provider,
       model,
-      expect.objectContaining({ sessionId: 'topic-123' })
+      expect.objectContaining({ modelUsageFeature: 'translate', sessionId: 'topic-123' })
     )
   })
 

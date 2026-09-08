@@ -176,6 +176,7 @@ describe('translateService.open', () => {
             uniqueModelId: string
             prompt: string
             reasoningEffort?: string
+            modelUsageFeature?: string
             callOverrides?: Record<string, unknown>
             listener: { id: string } | Array<{ id: string }>
           }
@@ -185,6 +186,7 @@ describe('translateService.open', () => {
     expect(arg.streamId).toBe(streamId)
     expect(arg.uniqueModelId).toBe('openai::gpt-4o')
     expect(arg.prompt).toBe('Translate to English: hello')
+    expect(arg.modelUsageFeature).toBe('translate')
     // Ships the stored effort — 'none' by default; unsupported values degrade downstream.
     expect(arg.reasoningEffort).toBe('none')
     // The whole feature hangs off this one argument: drop it and every other

@@ -94,10 +94,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         endpointTypes: [endpointType]
       })
 
-      const resolved = await resolveProviderAiSdkConfig(provider, model)
+      const resolved = await resolveProviderAiSdkConfig(provider, model, { modelUsageFeature: 'translate' })
 
       expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
-      expect(buildCherryCloudProviderConfigMock.mock.calls[0][0]).toBe(endpointType)
+      expect(buildCherryCloudProviderConfigMock).toHaveBeenCalledWith(endpointType, '', model.id, 'translate')
       expect(resolveApiKeyMock).not.toHaveBeenCalled()
     }
   )

@@ -9,6 +9,7 @@ export type {
   CallOverrides,
   ContextOwner,
   InProcessUsageContext,
-  ListModelsRequest
+  ListModelsRequest,
+  ModelUsageFeature
 } from './requests'
 export type { SamplingSettings } from './sampling'

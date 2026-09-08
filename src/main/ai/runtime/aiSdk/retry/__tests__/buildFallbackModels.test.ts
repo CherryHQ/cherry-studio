@@ -1,23 +1,13 @@
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type { RetryPolicy } from '../retryPolicy'
 
-const { getByProviderId, getByKey, syncEntitledModelsIfStale } = vi.hoisted(() => ({
+const { getByProviderId, getByKey } = vi.hoisted(() => ({
   getByProviderId: vi.fn(),
-  getByKey: vi.fn(),
-  syncEntitledModelsIfStale: vi.fn()
-}))
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => {
-      if (name === 'CherryCloudService') return { syncEntitledModelsIfStale }
-      throw new Error(`Unexpected application.get(${name})`)
-    }
-  }
+  getByKey: vi.fn()
 }))
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: (...a: unknown[]) => getByProviderId(...a) }
@@ -37,6 +27,7 @@ vi.mock('../../params/buildAgentParams', () => ({
 }))
 
 const { buildFallbackModels } = await import('../buildFallbackModels')
+const { ModelUnavailableError } = await import('@main/ai/provider/ModelUnavailableError')
 
 const usagePlugin = { name: 'usage' }
 const createUsagePlugin = vi.fn().mockReturnValue(usagePlugin)
@@ -73,6 +64,7 @@ function stubBuildAgentParams(modelId: string) {
 
 const baseArgs = {
   request: { messages: [] } as never,
+  modelUsageFeature: 'chat' as const,
   assistant: undefined,
   signal: undefined,
   primaryHasTools: false,
@@ -86,12 +78,6 @@ describe('buildFallbackModels', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getByProviderId.mockReturnValue(makeProvider({ id: 'anthropic' }))
-    syncEntitledModelsIfStale.mockResolvedValue({
-      entitledModelIds: [],
-      freeModelIds: [],
-      availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
-      quotaExhaustedModelIds: []
-    })
     resolveLanguageModel.mockImplementation(async (_pid, _settings, modelId) => ({ modelId, _resolved: true }))
   })
 
@@ -141,6 +127,7 @@ describe('buildFallbackModels', () => {
     })
     expect(resolveLanguageModel).toHaveBeenCalledWith('anthropic', {}, 'claude-x', [...plugins, usagePlugin])
     const buildOptions = buildAgentParams.mock.calls[0][0]
+    expect(buildOptions.modelUsageFeature).toBe('chat')
     expect(buildOptions.getRepairUsagePlugins()).toEqual([usagePlugin])
     // The fallback's own params are lifted as the per-fallback option override.
     expect(fallback?.options).toEqual({ temperature: 0.2, maxOutputTokens: 128 })
@@ -214,85 +201,21 @@ describe('buildFallbackModels', () => {
     expect(await resolve()).toBeNull()
   })
 
-  it('skips a persisted Cherry Cloud fallback that no longer has chat permission', async () => {
-    const uniqueModelId = `${CHERRY_CLOUD_PROVIDER_ID}::agent-only` as const
-    getByProviderId.mockReturnValue(makeProvider({ id: CHERRY_CLOUD_PROVIDER_ID }))
-    getByKey.mockReturnValue(makeModel({ id: uniqueModelId, providerId: CHERRY_CLOUD_PROVIDER_ID }))
-    syncEntitledModelsIfStale.mockResolvedValue({
-      entitledModelIds: [uniqueModelId],
-      freeModelIds: [uniqueModelId],
-      availableModelIdsByFeature: { agent: [uniqueModelId], chat: [], translate: [] },
-      quotaExhaustedModelIds: []
-    })
-
-    const [resolve] = buildFallbackModels({
-      ...baseArgs,
-      primaryUniqueModelId: 'openai::gpt-4',
-      retryPolicy: policy([uniqueModelId])
-    })
-
-    await expect(resolve()).resolves.toBeNull()
-    expect(buildAgentParams).not.toHaveBeenCalled()
-  })
-
-  it('keeps later fallback resolvers usable when Cherry Cloud availability refresh fails', async () => {
-    const cloudModelId = `${CHERRY_CLOUD_PROVIDER_ID}::chat-model` as const
-    syncEntitledModelsIfStale.mockRejectedValueOnce(new Error('cloud unavailable'))
-    getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic' }))
-    stubBuildAgentParams('claude')
-
-    const [resolveCloud, resolveOrdinary] = buildFallbackModels({
-      ...baseArgs,
-      primaryUniqueModelId: 'openai::gpt-4',
-      retryPolicy: policy([cloudModelId, 'anthropic::claude'])
-    })
-
-    await expect(resolveCloud()).resolves.toBeNull()
-    await expect(resolveOrdinary()).resolves.not.toBeNull()
-  })
-
-  it('skips a quota-exhausted Cherry Cloud fallback and keeps later fallbacks usable', async () => {
-    const cloudModelId = `${CHERRY_CLOUD_PROVIDER_ID}::chat-model` as const
-    syncEntitledModelsIfStale.mockResolvedValue({
-      entitledModelIds: [cloudModelId],
-      freeModelIds: [cloudModelId],
-      availableModelIdsByFeature: { agent: [], chat: [cloudModelId], translate: [] },
-      quotaExhaustedModelIds: [cloudModelId]
-    })
+  it('skips a provider-declared unavailable fallback and keeps later resolvers usable', async () => {
     getByKey.mockImplementation((providerId: string, modelId: string) =>
       makeModel({ id: `${providerId}::${modelId}`, providerId })
     )
     stubBuildAgentParams('claude')
+    buildAgentParams.mockRejectedValueOnce(new ModelUnavailableError('model unavailable'))
 
-    const [resolveCloud, resolveOrdinary] = buildFallbackModels({
+    const [resolveUnavailable, resolveOrdinary] = buildFallbackModels({
       ...baseArgs,
       primaryUniqueModelId: 'openai::gpt-4',
-      retryPolicy: policy([cloudModelId, 'anthropic::claude'])
+      retryPolicy: policy(['managed::unavailable', 'anthropic::claude'])
     })
 
-    await expect(resolveCloud()).resolves.toBeNull()
+    await expect(resolveUnavailable()).resolves.toBeNull()
     await expect(resolveOrdinary()).resolves.not.toBeNull()
-  })
-
-  it('keeps a persisted Cherry Cloud fallback with current chat permission', async () => {
-    const uniqueModelId = `${CHERRY_CLOUD_PROVIDER_ID}::chat-model` as const
-    getByProviderId.mockReturnValue(makeProvider({ id: CHERRY_CLOUD_PROVIDER_ID }))
-    getByKey.mockReturnValue(makeModel({ id: uniqueModelId, providerId: CHERRY_CLOUD_PROVIDER_ID }))
-    syncEntitledModelsIfStale.mockResolvedValue({
-      entitledModelIds: [uniqueModelId],
-      freeModelIds: [],
-      availableModelIdsByFeature: { agent: [], chat: [uniqueModelId], translate: [] },
-      quotaExhaustedModelIds: []
-    })
-    stubBuildAgentParams('chat-model')
-
-    const [resolve] = buildFallbackModels({
-      ...baseArgs,
-      primaryUniqueModelId: 'openai::gpt-4',
-      retryPolicy: policy([uniqueModelId])
-    })
-
-    await expect(resolve()).resolves.not.toBeNull()
   })
 
   it.each([

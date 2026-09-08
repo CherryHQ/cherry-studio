@@ -44,7 +44,8 @@ import type {
   ApprovalRequestedEvent,
   CallOverrides,
   ContextOwner,
-  InProcessUsageContext
+  InProcessUsageContext,
+  ModelUsageFeature
 } from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
 import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
@@ -75,6 +76,7 @@ const logger = loggerService.withContext('AiStreamManager')
 type ManagedAiStreamRequest = AiStreamRequest & {
   usageContext?: InProcessUsageContext
   tokenUsageSource?: TokenUsageSource
+  modelUsageFeature?: ModelUsageFeature
 }
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
@@ -888,6 +890,8 @@ export class AiStreamManager extends BaseService {
     usageContext?: InProcessUsageContext
     /** Trusted in-process classification for remote token analytics. */
     tokenUsageSource?: TokenUsageSource
+    /** Trusted in-process feature used by managed providers for model admission. */
+    modelUsageFeature?: ModelUsageFeature
     source?: SourceSnapshot | null
     /** `0` disables same-model retry AND cross-model fallback. */
     maxRetries?: 0
@@ -908,6 +912,7 @@ export class AiStreamManager extends BaseService {
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
+      ...(input.modelUsageFeature ? { modelUsageFeature: input.modelUsageFeature } : {}),
       source: input.source,
       ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
         ? {

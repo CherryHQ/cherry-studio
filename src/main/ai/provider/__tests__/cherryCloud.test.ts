@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   authenticatedFetch: vi.fn(),
-  getApiOrigin: vi.fn()
+  getApiOrigin: vi.fn(),
+  syncEntitledModelsIfStale: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -17,12 +18,21 @@ vi.mock('@application', () => ({
 }))
 
 const { buildCherryCloudProviderConfig } = await import('../cherryCloud')
+const { ModelUnavailableError } = await import('../ModelUnavailableError')
+
+const MODEL_ID = `${CHERRY_CLOUD_PROVIDER_ID}::cloud-model` as const
 
 describe('Cherry Cloud provider transport', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.getApiOrigin.mockReturnValue('https://cloud.cherryai.com.cn')
     mocks.authenticatedFetch.mockResolvedValue(new Response('{}', { status: 200 }))
+    mocks.syncEntitledModelsIfStale.mockResolvedValue({
+      entitledModelIds: [MODEL_ID],
+      freeModelIds: [MODEL_ID],
+      availableModelIdsByFeature: { agent: [MODEL_ID], chat: [MODEL_ID], translate: [MODEL_ID] },
+      quotaExhaustedModelIds: []
+    })
   })
 
   it.each([
@@ -37,7 +47,7 @@ describe('Cherry Cloud provider transport', () => {
       path: '/v1/chat/completions'
     }
   ])('routes $endpointType through $path and strips caller credentials', async ({ endpointType, providerId, path }) => {
-    const config = buildCherryCloudProviderConfig(endpointType, 'messages')
+    const config = await buildCherryCloudProviderConfig(endpointType, 'messages', MODEL_ID, 'chat')
     const settings = config.providerSettings as {
       apiKey?: string
       baseURL?: string
@@ -99,7 +109,7 @@ describe('Cherry Cloud provider transport', () => {
     [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, '/v1/chat/completions'],
     [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, '/v1/messages']
   ])('rejects requests outside the configured %s route', async (endpointType, mismatchedPath) => {
-    const config = buildCherryCloudProviderConfig(endpointType)
+    const config = await buildCherryCloudProviderConfig(endpointType, undefined, MODEL_ID, 'chat')
     const fetch = (config.providerSettings as { fetch?: typeof globalThis.fetch }).fetch!
 
     await expect(fetch(`https://example.com${mismatchedPath}`, { method: 'POST', body: '{}' })).rejects.toThrow(
@@ -109,5 +119,43 @@ describe('Cherry Cloud provider transport', () => {
       fetch(`https://cloud.cherryai.com.cn${mismatchedPath}`, { method: 'POST', body: '{}' })
     ).rejects.toThrow('configured Cherry Cloud API origin')
     expect(mocks.authenticatedFetch).not.toHaveBeenCalled()
+  })
+
+  it('checks the requested feature before creating the provider transport', async () => {
+    mocks.syncEntitledModelsIfStale.mockResolvedValueOnce({
+      entitledModelIds: [MODEL_ID],
+      freeModelIds: [],
+      availableModelIdsByFeature: { agent: [MODEL_ID], chat: [], translate: [MODEL_ID] },
+      quotaExhaustedModelIds: []
+    })
+
+    await expect(
+      buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID, 'chat')
+    ).rejects.toBeInstanceOf(ModelUnavailableError)
+    await expect(
+      buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID, 'translate')
+    ).resolves.toBeDefined()
+  })
+
+  it('rejects quota-exhausted models before creating the provider transport', async () => {
+    mocks.syncEntitledModelsIfStale.mockResolvedValueOnce({
+      entitledModelIds: [MODEL_ID],
+      freeModelIds: [MODEL_ID],
+      availableModelIdsByFeature: { agent: [], chat: [MODEL_ID], translate: [] },
+      quotaExhaustedModelIds: [MODEL_ID]
+    })
+
+    await expect(
+      buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID, 'chat')
+    ).rejects.toBeInstanceOf(ModelUnavailableError)
+  })
+
+  it('fails closed when model availability cannot be refreshed', async () => {
+    const cause = new Error('cloud unavailable')
+    mocks.syncEntitledModelsIfStale.mockRejectedValueOnce(cause)
+
+    await expect(
+      buildCherryCloudProviderConfig(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, undefined, MODEL_ID, 'chat')
+    ).rejects.toMatchObject({ name: 'ModelUnavailableError', cause })
   })
 })
