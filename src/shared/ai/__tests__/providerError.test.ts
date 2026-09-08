@@ -14,6 +14,28 @@ const PROVIDER_TEXT_FIELDS = [
 ] as const
 
 describe('getSafeProviderErrorMessage', () => {
+  it.each(PROVIDER_TEXT_FIELDS)(
+    'rejects closed unquoted and numeric-leading containers in %s',
+    (_field, payloadFor) => {
+      for (const text of [
+        'Provider failed: [private prompt, internal trace]',
+        'Provider failed: [123, private prompt]',
+        'Provider failed: [123, "private prompt"]',
+        'Provider failed: [123,\nprivate prompt]',
+        'Provider failed: {123: private prompt}',
+        'Provider failed: {-1.5: private prompt}'
+      ]) {
+        for (const encoded of [text, JSON.stringify(text)]) {
+          expect(getSafeProviderErrorMessage({ message: encoded })).toBe('')
+          expect(
+            getSafeProviderErrorMessage({ message: 'Bad Request', responseBody: JSON.stringify(payloadFor(encoded)) })
+          ).toBe('Bad Request')
+          expect(getSafeProviderErrorMessage({ message: 'Bad Request', data: payloadFor(encoded) })).toBe('Bad Request')
+        }
+      }
+    }
+  )
+
   it.each(PROVIDER_TEXT_FIELDS)('rejects multiline truncated arrays in %s', (_field, payloadFor) => {
     for (const newline of ['\n', '\r\n', '\r']) {
       const text = `Provider failed: [private prompt,${newline}internal trace`
@@ -169,14 +191,16 @@ describe('getSafeProviderErrorMessage', () => {
     ).toBe('Service temporarily unavailable')
   })
 
-  it.each(['Template variable {name} is required', 'Input [0] must be a string', 'Input indexes [0,1] must be unique'])(
-    'keeps ordinary provider text containing braces or brackets: %s',
-    (providerMessage) => {
-      expect(
-        getSafeProviderErrorMessage({ responseBody: JSON.stringify({ error: { message: providerMessage } }) })
-      ).toBe(providerMessage)
-    }
-  )
+  it.each([
+    'Template variable {name} is required',
+    'Input [0] must be a string',
+    'Input indexes [0,1] must be unique',
+    'Input indexes [ 0, 1 ] must be unique'
+  ])('keeps ordinary provider text containing braces or brackets: %s', (providerMessage) => {
+    expect(getSafeProviderErrorMessage({ responseBody: JSON.stringify({ error: { message: providerMessage } }) })).toBe(
+      providerMessage
+    )
+  })
 
   it.each(PROVIDER_TEXT_FIELDS)('keeps JSON primitive payload text in %s', (_field, payloadFor) => {
     for (const value of ['"quoted provider message"', '400', 'true']) {

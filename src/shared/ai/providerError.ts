@@ -11,7 +11,7 @@ const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
 const MAX_NESTED_PROVIDER_ERROR_DEPTH = 5
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
 const HTML_DOCUMENT_PATTERN = /(?:<!doctype\s+html\b|<html(?:\s|>))/i
-const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[a-z_$][\w$-]*\s*:)|\[\s*(?:["'{[]|\]|[^\]]+$)/i
+const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[^\s{}[\],:]+\s*:)|\[(?!\s*\d+(?:\s*,\s*\d+)*\s*\])[^\]]*(?:\]|$)/i
 
 interface ProviderErrorSource {
   message?: unknown
