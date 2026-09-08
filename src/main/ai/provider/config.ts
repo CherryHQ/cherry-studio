@@ -83,6 +83,8 @@ interface ProviderToAiSdkConfigOptions {
 export interface ResolvedProviderAiSdkConfig {
   config: ProviderConfig
   credentialReceipt: ServingCredentialReceipt
+  /** Endpoint suffix (e.g. `chat/completions`) that routeToEndpoint split off baseURL. */
+  endpoint?: string
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -395,7 +397,8 @@ export async function resolveProviderAiSdkConfig(
 
   return {
     config,
-    credentialReceipt: resolved.credentialReceipt
+    credentialReceipt: resolved.credentialReceipt,
+    endpoint: ctx.endpoint
   }
 }
 

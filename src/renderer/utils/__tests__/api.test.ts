@@ -84,10 +84,17 @@ describe('api', () => {
   })
 
   describe('routeToEndpoint', () => {
-    it('returns host without endpoint when not using hash suffix', () => {
+    it('returns host without endpoint when not using hash suffix (and no known endpoint suffix)', () => {
       expect(routeToEndpoint(' https://api.example.com/v1 ')).toEqual({
         baseURL: 'https://api.example.com/v1',
         endpoint: ''
+      })
+    })
+
+    it('extracts known endpoint even without hash suffix', () => {
+      expect(routeToEndpoint('https://api.example.com/v1/chat/completions')).toEqual({
+        baseURL: 'https://api.example.com/v1',
+        endpoint: 'chat/completions'
       })
     })
 

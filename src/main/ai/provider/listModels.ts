@@ -36,7 +36,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
+import { defaultHeaders, getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -746,7 +746,10 @@ const openAIFetcher: ModelFetcher = {
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const rawBaseUrl = getBaseUrl(provider)
+    const { baseURL: host } = routeToEndpoint(rawBaseUrl)
+    const baseUrl = formatApiHost(host)
+
     const response = await getFromApi({
       url: `${baseUrl}/models`,
       headers: defaultHeaders(provider),

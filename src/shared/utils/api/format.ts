@@ -62,12 +62,23 @@ export function joinApiKeyString(apiKeys: readonly string[]): string {
 export function hasApiVersion(host?: string): boolean {
   if (!host) return false
 
+  const SUPPORTED_ENDPOINTS = [
+    'chat/completions',
+    'responses',
+    'messages',
+    'generateContent',
+    'streamGenerateContent',
+    'images/generations',
+    'images/edits',
+    'predict'
+  ]
+
   try {
     const url = new URL(host)
-    return VERSION_REGEX.test(url.pathname)
+    return VERSION_REGEX.test(url.pathname) || SUPPORTED_ENDPOINTS.some((endpoint) => url.pathname.endsWith(endpoint))
   } catch {
     // If the input cannot be parsed as a full URL, treat it as a path and test directly.
-    return VERSION_REGEX.test(host)
+    return VERSION_REGEX.test(host) || SUPPORTED_ENDPOINTS.some((endpoint) => host.endsWith(endpoint))
   }
 }
 
