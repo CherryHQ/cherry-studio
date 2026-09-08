@@ -8,7 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
@@ -19,7 +18,7 @@ import { useDataChange } from '@data/hooks/useDataChange'
 import { useTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
-import { Copy, Globe, LoaderCircle, MoreHorizontal, Search, Trash2 } from 'lucide-react'
+import { Copy, Globe, LoaderCircle, MoreHorizontal, Search, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -76,6 +75,15 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
       setBusy(false)
     }
   }
+
+  const openVisit = (visit: BrowserVisit) =>
+    void run(async () => {
+      openTab(`/app/browser?${new URLSearchParams({ url: visit.url })}`, {
+        title: visit.title || visit.url,
+        forceNew: true
+      })
+      onOpenPage()
+    })
 
   return (
     <DialogContent
@@ -153,29 +161,14 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
                       <li
                         key={visit.id}
                         className="group flex min-w-0 items-center gap-2 rounded-lg pe-1 focus-within:bg-accent/50 hover:bg-accent/50">
-                        <Tooltip
-                          asChild
-                          content={
-                            <div className="max-w-sm space-y-1">
-                              <p>{title}</p>
-                              <p className="break-all text-xs">{visit.url}</p>
-                            </div>
-                          }>
+                        <Tooltip asChild content={<p className="max-w-sm break-all text-xs">{visit.url}</p>}>
                           <Button
                             variant="ghost"
                             className="h-10 min-w-0 flex-1 justify-start gap-3 px-2 text-start font-normal"
                             aria-label={title}
                             aria-description={t('common.open_in_new_tab')}
                             disabled={busy || isRefreshing}
-                            onClick={() =>
-                              void run(async () => {
-                                openTab(`/app/browser?${new URLSearchParams({ url: visit.url })}`, {
-                                  title,
-                                  forceNew: true
-                                })
-                                onOpenPage()
-                              })
-                            }>
+                            onClick={() => openVisit(visit)}>
                             <Globe aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                             <span
                               id={`browser-history-title-${visit.id}`}
@@ -208,9 +201,10 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="max-w-[min(20rem,calc(100vw-2rem))]">
-                            <DropdownMenuLabel className="break-all font-normal text-muted-foreground text-xs">
-                              {visit.url}
-                            </DropdownMenuLabel>
+                            <DropdownMenuItem onSelect={() => openVisit(visit)}>
+                              <SquareArrowOutUpRight aria-hidden="true" />
+                              {t('common.open_in_new_tab')}
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onSelect={() =>
                                 void run(async () => {

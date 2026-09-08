@@ -399,29 +399,37 @@ describe('Browser settings workflows', () => {
     expect(remove).toHaveBeenCalledWith({ params: { id: 'today' } })
   })
 
-  it('opens history in a new browser tab without an Agent pane, preserving the complete URL', async () => {
-    const user = userEvent.setup()
-    const url = 'http://internal.test/dashboard?q=a%26b&lang=zh#section'
-    MockUseDataApiUtils.mockQueryData('/browser-visits', {
-      items: [{ id: 'visit-1', title: 'Dashboard', url, visitedAt: Date.now(), source: 'local' }],
-      hasMore: false
-    })
-    renderSettings()
-    await user.click(screen.getByRole('button', { name: 'Manage History' }))
-    const open = await screen.findByRole('button', { name: 'Dashboard' })
-    await waitFor(() => expect(open).toBeEnabled())
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'More' }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Copy' }))
-    expect(await navigator.clipboard.readText()).toBe(url)
-    await user.click(open)
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(openTab).toHaveBeenCalledWith(
-      '/app/browser?url=http%3A%2F%2Finternal.test%2Fdashboard%3Fq%3Da%2526b%26lang%3Dzh%23section',
-      { title: 'Dashboard', forceNew: true }
-    )
-    expect(ipcApi.request).not.toHaveBeenCalled()
-  })
+  it.each(['title', 'menu'])(
+    'opens history from the %s in a new browser tab, preserving the complete URL',
+    async (entry) => {
+      const user = userEvent.setup()
+      const url = 'http://internal.test/dashboard?q=a%26b&lang=zh#section'
+      MockUseDataApiUtils.mockQueryData('/browser-visits', {
+        items: [{ id: 'visit-1', title: 'Dashboard', url, visitedAt: Date.now(), source: 'local' }],
+        hasMore: false
+      })
+      renderSettings()
+      await user.click(screen.getByRole('button', { name: 'Manage History' }))
+      const open = await screen.findByRole('button', { name: 'Dashboard' })
+      await waitFor(() => expect(open).toBeEnabled())
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'More' }))
+      await user.click(await screen.findByRole('menuitem', { name: 'Copy' }))
+      expect(await navigator.clipboard.readText()).toBe(url)
+      if (entry === 'menu') {
+        await user.click(screen.getByRole('button', { name: 'More' }))
+        await user.click(await screen.findByRole('menuitem', { name: 'Open in new tab' }))
+      } else {
+        await user.click(open)
+      }
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(openTab).toHaveBeenCalledWith(
+        '/app/browser?url=http%3A%2F%2Finternal.test%2Fdashboard%3Fq%3Da%2526b%26lang%3Dzh%23section',
+        { title: 'Dashboard', forceNew: true }
+      )
+      expect(ipcApi.request).not.toHaveBeenCalled()
+    }
+  )
 })
 
 describe('Browser preferences', () => {
