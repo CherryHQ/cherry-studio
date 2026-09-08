@@ -311,6 +311,28 @@ describe('buildPiProviderInjection', () => {
     expect(injection.requestEnvironment).toEqual({ AZURE_OPENAI_API_VERSION: '2025-04-01-preview' })
   })
 
+  it('adds stable TokenDance app attribution', () => {
+    const provider = makeProvider({
+      id: 'tokendance',
+      presetProviderId: 'tokendance',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://tokendance.space/gateway'
+        }
+      },
+      settings: { extraHeaders: { 'x-app-url': 'https://wrong.example', 'x-trace': 'on' } }
+    })
+
+    const injection = buildPiProviderInjection(provider, makeModel({ apiModelId: 'gpt-5' }), REAL_KEY)
+
+    expect(injection.providerConfig.headers).toEqual({
+      'x-trace': 'on',
+      'X-App-URL': 'app://cherryai.com.cn'
+    })
+  })
+
   it('hands pi header values it resolves back to the literals the user typed', async () => {
     const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
     const provider = makeProvider({
@@ -762,5 +784,69 @@ describe('modelInjection service resolution', () => {
         [{ id: 'k1', key: 'sk-old', isEnabled: true }]
       )
     ).toThrow('Pi provider credentials changed during materialization: p')
+  })
+})
+
+// pi defaults its thinking level to `medium` and clamps it against the model's ladder. Cherry used to
+// send no ladder, so pi assumed medium was available and emitted it verbatim — rejected by endpoints
+// serving Kimi K3, whose vocabulary is low/high/max (#20029).
+describe('pi thinking level ladder', () => {
+  const relay = () =>
+    makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://relay.example.com' }
+      }
+    })
+
+  const piModelFrom = (model: Model) =>
+    buildPiProviderInjection(relay(), model, REAL_KEY).providerConfig.models?.[0] as never
+
+  it("clamps pi's medium default onto a tier Kimi K3 actually offers", async () => {
+    const { clampThinkingLevel, getSupportedThinkingLevels } = await import('@earendil-works/pi-ai/compat')
+    const piModel = piModelFrom(
+      makeModel({
+        id: 'new-api::moonshotai/kimi-k3',
+        apiModelId: 'moonshotai/kimi-k3',
+        capabilities: ['reasoning'],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }],
+          selectableEfforts: ['low', 'high', 'max', 'none']
+        }
+      } as Partial<Model>)
+    )
+
+    expect(getSupportedThinkingLevels(piModel)).toEqual(['off', 'low', 'high', 'max'])
+    expect(clampThinkingLevel(piModel, 'medium')).toBe('high')
+  })
+
+  it('withholds the off level from an always-on model', async () => {
+    const { getSupportedThinkingLevels } = await import('@earendil-works/pi-ai/compat')
+    const piModel = piModelFrom(
+      makeModel({
+        apiModelId: 'kimi-k3-fast',
+        capabilities: ['reasoning'],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }],
+          selectableEfforts: ['low', 'high', 'max']
+        }
+      } as Partial<Model>)
+    )
+
+    expect(getSupportedThinkingLevels(piModel)).not.toContain('off')
+  })
+
+  // A toggle model expresses on/off through the wire, not a ladder; an all-null map would read as
+  // "no level supported" and silently disable its thinking.
+  it('sends no ladder for a model that declares no concrete tier', () => {
+    const piModel = piModelFrom(
+      makeModel({
+        capabilities: ['reasoning'],
+        reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
+      } as Partial<Model>)
+    )
+
+    expect(piModel).not.toHaveProperty('thinkingLevelMap')
   })
 })

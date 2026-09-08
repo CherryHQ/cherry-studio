@@ -1,7 +1,7 @@
 {
   "providers": [
     {
-      "availableInEditions": ["global"],
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "CherryIN - AI model provider",
       "endpointConfigs": {
@@ -576,12 +576,14 @@
             "type": "openai-chat",
             "wire": {
               "auto": {
+                "effortMap": {
+                  "auto": "medium"
+                },
                 "operations": [
                   {
                     "target": "reasoning.effort",
                     "value": {
-                      "source": "literal",
-                      "value": "medium"
+                      "source": "effort"
                     }
                   }
                 ]
@@ -702,6 +704,98 @@
         }
       },
       "name": "AMD GPU Cloud"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "TokenDance - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "google-generate-content": {
+          "adapterFamily": "google",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway",
+          "modelsApiUrls": {
+            "default": "https://tokendance.space/gateway/v1/models"
+          }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://tokendance.space/gateway"
+        }
+      },
+      "id": "tokendance",
+      "metadata": {
+        "website": {
+          "apiKey": "https://tokendance.space/keys",
+          "docs": "https://tokendance.space/docs/cherry-studio",
+          "models": "https://tokendance.space/models",
+          "official": "https://tokendance.space"
+        }
+      },
+      "name": "TokenDance"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Jalapeno Cloud - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.jalapeno-cloud.ai/v1",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "chat_template_kwargs.thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "jalapeno-cloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.jalapeno-cloud.ai/keys/",
+          "docs": "https://www.jalapeno-cloud.ai/docs",
+          "models": "https://www.jalapeno-cloud.ai/models",
+          "official": "https://www.jalapeno-cloud.ai"
+        }
+      },
+      "name": "Jalapeno Cloud"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -2483,5 +2577,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "767516d2e8178b83"
+  "version": "5b74ff4e1bc9c9e9"
 }
