@@ -29,6 +29,7 @@ export {
   wireName
 } from './schemas/imageParamCatalog'
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
+export { buildImageRequestParamsSchema } from './utils/buildImageRequestParamsSchema'
 export { buildParamsSchema } from './utils/buildParamsSchema'
 export type { EffectiveImageCapability, ImageCapabilityResolution } from './utils/imageCapabilities'
 export { resolveImageGenerationSupport, resolveLegacyImageCapability } from './utils/imageCapabilities'

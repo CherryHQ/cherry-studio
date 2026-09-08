@@ -1,8 +1,10 @@
+import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import providerModelCatalog from '../../../../packages/provider-registry/data/provider-models.json'
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import { resolveProviderOptionsKey } from '../provider/endpoint'
 import type * as ListModelsModule from '../provider/listModels'
@@ -566,6 +568,28 @@ describe('AiService', () => {
     })
 
     expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 3 }))
+  })
+
+  it('rejects undeclared parameters before selecting credentials or executing a provider', async () => {
+    const service = createService()
+    const row = providerModelCatalog.overrides.find(
+      (entry) => entry.providerId === 'tokenhub' && entry.apiModelId === 'hy-image-v3'
+    )
+    mockGetImageGenerationSupport.mockReturnValueOnce(ImageGenerationSupportSchema.parse(row?.imageGeneration))
+    const execute = vi
+      .spyOn(service as never, 'buildAgentParamsFor')
+      .mockRejectedValue(new Error('unexpected provider execution'))
+
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'a cat',
+        paramValues: { numImages: 100 }
+      })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'OPERATION_FAILED' })
+    expect(execute).not.toHaveBeenCalled()
+    expect(mockGenerateImage).not.toHaveBeenCalled()
   })
 
   it.each(['remix', 'edit'] as const)(
@@ -2228,9 +2252,10 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       name: 'Image Assistant',
       emoji: '🎨'
     })
-    mockGetImageGenerationSupport.mockReturnValue({
-      modes: { generate: { vendorTransport: { endpoint: '/v3/async/qwen-image' } } }
-    })
+    const row = providerModelCatalog.overrides.find(
+      (entry) => entry.providerId === 'ppio' && entry.modelId === 'qwen-image'
+    )
+    mockGetImageGenerationSupport.mockReturnValue(ImageGenerationSupportSchema.parse(row?.imageGeneration))
     return vi
       .spyOn(service as never, 'buildAgentParamsFor')
       .mockRejectedValue(new Error('job path must not select a serving key before execution'))
@@ -2264,12 +2289,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     expect(mockGenerateImage).toHaveBeenCalledOnce()
   })
 
-  it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {
-    // Regression guard: negativePrompt / numInferenceSteps / guidanceScale are NOT
-    // AI SDK native options — they must reach the transport in `providerParams`
-    // (the canonical camelCase vendorBag), not get dropped into `structured`.
-    // The boundary tests hand-build providerParams, so only this split→transport
-    // assertion catches a mis-classified native binding.
+  it('preserves the registered watermark switch as false through the canonical Job boundary', async () => {
     const service = createService()
     stubResolution(service)
     const enqueue = vi.fn().mockReturnValue({
@@ -2290,13 +2310,8 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a cat',
       paramValues: {
-        numImages: 1,
         size: '1024x1024',
-        seed: 9,
-        negativePrompt: 'blurry',
-        numInferenceSteps: 30,
-        guidanceScale: 4.5,
-        promptExtend: true
+        addWatermark: false
       },
       requestOptions: { signal: new AbortController().signal }
     })
@@ -2306,32 +2321,34 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       expect.objectContaining({
         n: 1,
         size: '1024x1024',
-        seed: 9,
-        // native n/size/seed travel as payload fields; the knobs ride the bag
-        providerParams: { negativePrompt: 'blurry', numInferenceSteps: 30, guidanceScale: 4.5, promptExtend: true }
+        providerParams: { addWatermark: false }
       })
     )
   })
 
   it('derives modelDescriptor { id, endpoint, isSync, mode } from the registry vendorTransport (non-default mode)', async () => {
-    // Async PPIO/DashScope jobs resume against the endpoint / response-family carried
-    // in the payload; guard that a non-default mode routes through ITS OWN
-    // vendorTransport and the derived descriptor reaches the enqueued job. Without
-    // this, a restart-resume (or an edit-mode job) would hit the wrong endpoint.
     const service = createService()
     stubResolution(service)
-    mockGetImageGenerationSupport.mockReturnValueOnce({
-      modes: {
-        edit: { vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image-edit/predictions', isSync: false } }
-      }
+    mockModelGetByKey.mockReturnValue({
+      id: 'ppio::qwen-image-edit',
+      providerId: 'ppio',
+      apiModelId: 'qwen-image-edit'
     })
+    const row = providerModelCatalog.overrides.find(
+      (entry) => entry.providerId === 'ppio' && entry.modelId === 'qwen-image-edit'
+    )
+    const support = ImageGenerationSupportSchema.parse(row?.imageGeneration)
+    const transport = support.modes.edit?.vendorTransport
+    if (!transport) throw new Error('PPIO edit fixture missing')
+    mockGetImageGenerationSupport.mockReturnValueOnce(support)
+    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'input-image' })
     const enqueue = vi.fn().mockReturnValue({
       id: 'job-1',
       snapshot: {},
       finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
     })
     mockApplicationGet.mockImplementation((name: string) => {
-      if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
+      if (name === 'FileManager') return { createInternalEntry, permanentDelete: vi.fn() }
       if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
       if (name === 'DbService')
         return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
@@ -2339,24 +2356,25 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     })
 
     await service.generateImage({
-      uniqueModelId: 'ppio::qwen-image',
+      uniqueModelId: 'ppio::qwen-image-edit',
       cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a cat',
       mode: 'edit',
+      inputImages: ['data:image/png;base64,AQI='],
       paramValues: {},
       requestOptions: { signal: new AbortController().signal }
     })
 
     // The descriptor is derived from the registry (main-hosted), keyed by the
     // resolved mode — NOT laundered through paramValues.
-    expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('ppio', 'qwen-image')
+    expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('ppio', 'qwen-image-edit')
     expect(enqueue).toHaveBeenCalledWith(
       'image-generation.generate',
       expect.objectContaining({
         modelDescriptor: {
-          id: 'qwen-image',
-          endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
-          isSync: false,
+          id: 'qwen-image-edit',
+          endpoint: transport.endpoint,
+          isSync: transport.isSync,
           mode: 'edit'
         }
       })

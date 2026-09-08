@@ -88,6 +88,7 @@ import type {
 import { asSdkImageSize } from './utils/aiSdkNativeBindings'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
+import { prepareImageRequest } from './utils/prepareImageRequest'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
 
 const logger = loggerService.withContext('AiService')
@@ -874,13 +875,11 @@ export class AiService extends BaseService {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const source = sourceSnapshotForAssistant(assistant)
 
-    // `request.paramValues` is already a strict, coerced `ParamValues` — the
-    // `ai.image.generate` IPC validated it via the catalog `imageParamsSchema` at
-    // the boundary (no main-side re-parse / cast). Split it into the structured
-    // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
-    // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
-    // WireProfile engine forwards.
-    const params = request.paramValues
+    const transportProviderId = provider.presetProviderId ?? provider.id
+    const transportModelId = model.apiModelId ?? model.id
+    const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, transportModelId)
+    const preparedRequest = { ...request, ...prepareImageRequest(request, imageSupport ?? undefined) }
+    const params = preparedRequest.paramValues
     const { structured, vendorBag } = splitParamValues(params)
 
     // Custom-provider transports (ppio / dashscope / modelscope /
@@ -892,19 +891,20 @@ export class AiService extends BaseService {
     // payload → `input.*`). No wire-naming, no casing probes. Keyed by preset,
     // not `provider.id`: a user-added instance carries a UUID id and would fall
     // through to the direct image model, which never passes `modelDescriptor`.
-    const transportProviderId = provider.presetProviderId ?? provider.id
-    const transportModelId = model.apiModelId ?? model.id
     const transportMode = request.mode ?? 'generate'
-    const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, transportModelId)
     const modelDescriptor = imageTransportDescriptorFor(transportModelId, transportMode, imageSupport)
     if (request.uniqueModelId && hasImageTransport(transportProviderId, transportModelId, modelDescriptor)) {
-      return await this.generateImageViaJob(request, structured, vendorBag, signal, source, modelDescriptor)
+      return await this.generateImageViaJob(preparedRequest, structured, vendorBag, signal, source, modelDescriptor)
     }
 
-    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
-    const promptParam = request.inputImages
-      ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
-      : request.prompt
+    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(preparedRequest, signal)
+    const promptParam = preparedRequest.inputImages
+      ? {
+          text: preparedRequest.prompt,
+          images: preparedRequest.inputImages,
+          ...(preparedRequest.mask && { mask: preparedRequest.mask })
+        }
+      : preparedRequest.prompt
 
     // Vendor body (`providerOptions[providerOptionsKey]`): the WireProfile engine maps the
     // canonical bag to each provider's wire — a registered profile for the

@@ -1,4 +1,5 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { imageInputSchema } from '@shared/ai/imageInput'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -139,13 +140,13 @@ const aiImagePayloadSchema = z.strictObject({
   /**
    * The canonical param bag, validated + coerced at the IPC boundary by the
    * catalog value schema — the router's `safeParse` yields a typed `ParamValues`
-   * (non-catalog keys stripped). Per-model option/range constraints already ran
-   * in the renderer's `buildParamsSchema`; this is the value-type gate.
+   * (non-catalog keys rejected). Main preparation also enforces the effective
+   * provider-model constraints; a renderer draft is not a validated request.
    */
-  paramValues: imageParamsSchema,
-  /** Attached images / mask are encoded file bytes (data URLs), not form params. */
-  inputImages: z.array(z.string()).optional(),
-  mask: z.string().optional(),
+  paramValues: imageParamsSchema.strict(),
+  /** Attached images / mask are HTTP(S) URLs or complete image data URLs. */
+  inputImages: z.array(imageInputSchema).optional(),
+  mask: imageInputSchema.optional(),
   // Required: the calling business feature decides the cleanup intent for the
   // generated OUTPUT entries (file-entry-cleanup.md §4.1) — main never defaults it.
   // It does not reach the job path's input / mask copies: those are transport
