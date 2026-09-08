@@ -33,7 +33,6 @@ vi.mock('electron', () => {
   const createWebContents = () => ({
     debugger: debuggerObj,
     setUserAgent: vi.fn(),
-    setAudioMuted: vi.fn(),
     getURL: vi.fn(() => 'https://example.com/'),
     getTitle: vi.fn(() => 'Example Title'),
     loadURL: vi.fn(async function (this: { audioMuted: boolean; audioMutedAtLoad?: boolean }) {
