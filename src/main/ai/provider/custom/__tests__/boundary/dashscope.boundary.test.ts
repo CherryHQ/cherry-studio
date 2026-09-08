@@ -2,10 +2,11 @@ import type { ImageGenerationMode } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import { registryImageDescriptor } from '../../../__tests__/imageCatalogFixtures'
 import { createDashScopeProvider } from '../../dashscope/dashscopeProvider'
 import type { DashScopeProviderParams } from '../../dashscope/dashscopeTransport'
 import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
-import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
+import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../../imageGenerationModel'
 import { captureImageRequest } from './captureRequest'
 
 /**
@@ -27,18 +28,13 @@ const base = {
   mask: undefined
 } satisfies Partial<ImageGenerationSubmitInput<DashScopeProviderParams>>
 
-const descriptor = (id: string, mode: ImageGenerationMode) => ({
-  id,
-  endpoint: '/api/v1/services/aigc/image',
-  isSync: false,
-  mode
-})
+const descriptor = (id: string, mode: ImageGenerationMode) => registryImageDescriptor('dashscope', id, mode)
 
 const messagePart = z.union([z.strictObject({ text: z.string() }), z.strictObject({ image: z.string() })])
 
 interface Case {
   name: string
-  input: ImageGenerationSubmitInput<DashScopeProviderParams>
+  input: ImageGenerationSubmitInput<DashScopeProviderParams> & { modelDescriptor: ImageTransportDescriptor }
   schema: z.ZodTypeAny
 }
 
@@ -53,7 +49,7 @@ const CASES: Case[] = [
       seed: 42,
       modelDescriptor: descriptor('qwen-image', 'generate'),
       providerParams: {}
-    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string() }),
@@ -69,7 +65,7 @@ const CASES: Case[] = [
       files: file([1, 2, 3]),
       modelDescriptor: descriptor('qwen-image-edit', 'edit'),
       providerParams: {}
-    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({
@@ -87,7 +83,7 @@ const CASES: Case[] = [
       size: '1328x1328',
       modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
       providerParams: { addWatermark: false, negativePrompt: 'blurry', promptExtend: true }
-    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({
@@ -117,7 +113,7 @@ const CASES: Case[] = [
         refStrength: 0.5,
         refMode: 'repaint'
       }
-    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string(), ref_image: z.string() }),
@@ -143,7 +139,7 @@ const CASES: Case[] = [
       ],
       modelDescriptor: descriptor('wan2.5-i2i-preview', 'edit'),
       providerParams: {}
-    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string(), images: z.array(z.string()) }),
@@ -157,9 +153,9 @@ const CASES: Case[] = [
       modelId: 'qwen-mt-image',
       prompt: undefined,
       files: file([4, 5, 6]),
-      modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+      modelDescriptor: descriptor('qwen-mt-image', 'edit'),
       providerParams: { sourceLang: 'auto', targetLang: 'en' }
-    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ image_url: z.string(), source_lang: z.string(), target_lang: z.string() })
@@ -179,7 +175,7 @@ const CASES: Case[] = [
         upscaleFactor: 2,
         addWatermark: true
       }
-    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
+    },
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ function: z.string(), prompt: z.string(), base_image_url: z.string() }),
@@ -189,14 +185,44 @@ const CASES: Case[] = [
 ]
 
 describe('DashScope request boundary', () => {
-  const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
+  it('keeps the resolved model and protocol when submit carries a different descriptor', async () => {
+    const requests: Request[] = []
+    const transport = createDashScopeTransport({
+      apiKey: 'key',
+      modelDescriptor: descriptor('qwen-image', 'generate'),
+      fetch: async (url, init) => {
+        requests.push(new Request(url, init))
+        return Response.json({ output: { task_id: 'accepted' } })
+      }
+    })
+    // https://help.aliyun.com/zh/model-studio/qwen-image-api — retrieved 2026-09-09.
+    await transport.submit({
+      ...base,
+      modelId: 'not-the-bound-model',
+      modelDescriptor: descriptor('qwen-mt-image', 'edit'),
+      prompt: 'a fox',
+      seed: 0,
+      providerParams: { promptExtend: false, addWatermark: false }
+    })
+    expect(requests[0].url).toBe(`${host}/api/v1/services/aigc/text2image/image-synthesis`)
+    expect(await requests[0].json()).toEqual({
+      model: 'qwen-image',
+      input: { prompt: 'a fox' },
+      parameters: { seed: 0, prompt_extend: false, watermark: false }
+    })
+  })
 
   for (const c of CASES) {
-    it(`${c.name}: satisfies the wire contract and matches snapshot`, async () => {
+    it(`${c.name}: encodes the declared protocol`, async () => {
+      const transport = createDashScopeTransport({
+        apiKey: 'ds-key',
+        imageBaseURL: host,
+        modelDescriptor: c.input.modelDescriptor
+      })
       const req = await captureImageRequest(transport, c.input)
-      expect(req.url).toBe(`${host}/api/v1/services/aigc/image`)
+      expect(req.url).toBe(`${host}${c.input.modelDescriptor.endpoint}`)
       c.schema.parse(req.body)
-      expect(req.body).toMatchSnapshot()
+      expect(req.body).toMatchObject({ model: c.input.modelDescriptor.id })
     })
   }
 
@@ -208,6 +234,7 @@ describe('DashScope request boundary', () => {
     )
     const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
     const injectedTransport = createDashScopeTransport({
+      modelDescriptor: descriptor('qwen-image', 'generate'),
       apiKey: 'ds-key',
       imageBaseURL: host,
       headers: {
@@ -294,7 +321,11 @@ describe('DashScope poll resume (restart-safe response family)', () => {
     new Response(JSON.stringify({ output: { task_status: 'SUCCEEDED', ...output } }), { status: 200 })
 
   it('uses the persisted modelDescriptor to pick the response family after restart', async () => {
-    const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
+    const transport = createDashScopeTransport({
+      apiKey: 'ds-key',
+      imageBaseURL: host,
+      modelDescriptor: descriptor('qwen-mt-image', 'edit')
+    })
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(succeeded({ image_url: 'https://img.example/x.png' }))
@@ -302,7 +333,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
       if (transport.task.kind !== 'supported') throw new Error('expected task transport')
       const state = await transport.task.query('task-resumed', {
         signal: new AbortController().signal,
-        modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+        modelDescriptor: descriptor('qwen-mt-image', 'edit'),
         headers: undefined,
         providerParams: {}
       })
@@ -313,7 +344,11 @@ describe('DashScope poll resume (restart-safe response family)', () => {
   })
 
   it('fails loudly when the persisted descriptor is unavailable', async () => {
-    const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
+    const transport = createDashScopeTransport({
+      apiKey: 'ds-key',
+      imageBaseURL: host,
+      modelDescriptor: descriptor('qwen-mt-image', 'edit')
+    })
     if (transport.task.kind !== 'supported') throw new Error('expected task transport')
     await expect(
       transport.task.query('task-resumed', {
@@ -328,13 +363,18 @@ describe('DashScope poll resume (restart-safe response family)', () => {
   it('rejects a missing or unknown task status instead of assuming pending', async () => {
     for (const output of [{}, { task_status: 'UNKNOWN' }]) {
       const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output }), { status: 200 }))
-      const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host, fetch })
+      const transport = createDashScopeTransport({
+        apiKey: 'ds-key',
+        imageBaseURL: host,
+        fetch,
+        modelDescriptor: descriptor('qwen-mt-image', 'edit')
+      })
       if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
       await expect(
         transport.task.query('task-resumed', {
           signal: new AbortController().signal,
-          modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+          modelDescriptor: descriptor('qwen-mt-image', 'edit'),
           headers: undefined,
           providerParams: {}
         })
@@ -345,6 +385,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
   it('POSTs the documented remote cancel endpoint with resolved headers', async () => {
     const fetch = vi.fn().mockResolvedValue(new Response('', { status: 200 }))
     const transport = createDashScopeTransport({
+      modelDescriptor: descriptor('qwen-image', 'generate'),
       apiKey: 'ds-key',
       imageBaseURL: host,
       headers: { 'x-provider': 'one' },
@@ -358,7 +399,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
     // Retrieved 2026-07-27. Only PENDING tasks can be cancelled.
     await transport.task.cancel.cancelRemote('task-1', {
       signal: undefined,
-      modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+      modelDescriptor: descriptor('qwen-mt-image', 'edit'),
       headers: { 'x-request': 'two' },
       providerParams: {}
     })

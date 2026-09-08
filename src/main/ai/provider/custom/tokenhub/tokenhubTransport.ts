@@ -8,7 +8,7 @@ import {
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
-import type { ImageGenerationSubmitInput } from '../imageTransport'
+import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../imageTransport'
 import {
   ADAPTIVE_IMAGE_POLL_POLICY,
   completedImageTransportSubmission,
@@ -21,19 +21,7 @@ import {
 } from '../imageTransport'
 import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
-
-/**
- * Tencent TokenHub image transport.
- *
- * Current registry routes use three `/v1/wand/*` families:
- *   - Hunyuan: synchronous `/v1/wand/hunyuan-image/v3-generation`
- *   - Seedream: synchronous `/v1/wand/si-image/generation`
- *   - Vidu: asynchronous `/v1/wand/vidu-image/generation`, queried at
- *     `GET /v1/wand/vidu-image/tasks/{task_id}`
- *
- * The descriptor owns endpoint selection; this transport owns only each
- * endpoint's body and response protocol.
- */
+import { resolveTokenhubImageProtocol } from './tokenhubImageBinding'
 
 export const DEFAULT_TOKENHUB_BASE_URL = 'https://tokenhub.tencentmaas.com'
 
@@ -81,19 +69,11 @@ export type TokenhubProviderParams = Pick<
 >
 
 export interface TokenhubTransportSettings {
+  modelDescriptor: ImageTransportDescriptor
   apiKey: string
   baseURL?: string
   headers?: Record<string, string | undefined>
   fetch?: FetchFunction
-}
-
-type BodyFamily = 'hunyuan' | 'seedream' | 'vidu'
-
-function bodyFamilyFor(endpoint: string): BodyFamily {
-  if (endpoint.includes('/hunyuan-image/')) return 'hunyuan'
-  if (endpoint.includes('/si-image/')) return 'seedream'
-  if (endpoint.includes('/vidu-image/')) return 'vidu'
-  throw new Error(`Unsupported TokenHub image endpoint: ${endpoint}`)
 }
 
 function imagesOf(input: ImageGenerationSubmitInput<VendorBag>): string[] | undefined {
@@ -161,6 +141,9 @@ class TokenhubTransport implements TaskImageGenerationTransport<VendorBag> {
   private readonly headers: Record<string, string | undefined> | undefined
   private readonly fetch: FetchFunction | undefined
 
+  private readonly modelDescriptor: ImageTransportDescriptor
+  private readonly protocol: NonNullable<ReturnType<typeof resolveTokenhubImageProtocol>>
+
   readonly task: TaskImageGenerationTransport<VendorBag>['task'] = {
     kind: 'supported' as const,
     pollPolicy: ADAPTIVE_IMAGE_POLL_POLICY,
@@ -173,6 +156,10 @@ class TokenhubTransport implements TaskImageGenerationTransport<VendorBag> {
     this.baseURL = settings.baseURL || DEFAULT_TOKENHUB_BASE_URL
     this.headers = settings.headers
     this.fetch = settings.fetch
+    this.modelDescriptor = { ...settings.modelDescriptor }
+    const protocol = resolveTokenhubImageProtocol(settings.modelDescriptor.endpoint)
+    if (!protocol) throw new Error(`Unsupported TokenHub image endpoint: ${settings.modelDescriptor.endpoint}`)
+    this.protocol = protocol
   }
 
   supportsInput(): ImageTransportInputSupport {
@@ -180,12 +167,9 @@ class TokenhubTransport implements TaskImageGenerationTransport<VendorBag> {
   }
 
   async submit(input: ImageGenerationSubmitInput<VendorBag>) {
-    const descriptor = input.modelDescriptor
-    if (!descriptor) {
-      throw new Error(`Missing modelDescriptor for TokenHub image model: ${input.modelId}`)
-    }
-
-    const family = bodyFamilyFor(descriptor.endpoint)
+    const descriptor = this.modelDescriptor
+    const family = this.protocol
+    input = { ...input, modelId: descriptor.id }
     const bag = input.providerParams
     const url = `${this.baseURL}${descriptor.endpoint}`
     const headers = combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers)
@@ -227,6 +211,10 @@ class TokenhubTransport implements TaskImageGenerationTransport<VendorBag> {
     taskId: string,
     context: ImageTransportTaskContext<VendorBag, AbortSignal>
   ): Promise<ImageTransportTaskState> {
+    const descriptor = context.modelDescriptor
+    if (!descriptor || resolveTokenhubImageProtocol(descriptor.endpoint) !== 'vidu') {
+      throw new Error('TokenHub task query requires a persisted Vidu modelDescriptor')
+    }
     const url = `${this.baseURL}${VIDU_TASKS_PATH}/${encodeURIComponent(taskId)}`
     const result = await withImageTransportRequestTimeout(
       { url, timeoutMs: 10_000, signal: context.signal },

@@ -9,7 +9,7 @@ import {
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
-import type { ImageGenerationSubmitInput } from '../imageTransport'
+import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../imageTransport'
 import {
   ADAPTIVE_IMAGE_POLL_POLICY,
   completedImageTransportSubmission,
@@ -22,24 +22,7 @@ import {
 } from '../imageTransport'
 import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
-
-/**
- * Aliyun DashScope (Bailian) async image-generation transport.
- *
- * Models served via DashScope's native `/api/v1/services/aigc/*` HTTP API:
- *   - text2image/image-synthesis (qwen-image / wanx t2i family — Family C)
- *   - multimodal-generation/generation (z-image / qwen-image-edit — Family A, sync)
- *   - image-generation/generation (wan v2 chat-shape async — Family B)
- *   - image2image/image-synthesis (wan2.5 i2i, qwen-mt-image, wanx imageedit — Family D)
- *
- * `modes[mode].vendorTransport.{endpoint,isSync}` carries the per-model routing
- * hint; the transport branches body shape by `descriptor.id` (per-model dispatch
- * mirrors `ppio.ts`). Async submits set `X-DashScope-Async: enable` and return
- * `{ taskId }`; the shared poll loop GETs `/api/v1/tasks/{taskId}` and extracts
- * image URLs from a family-specific response shape recorded at submit time.
- *
- * DashScope exposes `POST /api/v1/tasks/{taskId}/cancel` for PENDING tasks.
- */
+import { resolveDashScopeImageProtocol } from './dashscopeImageBinding'
 
 export const DEFAULT_DASHSCOPE_IMAGE_BASE_URL = 'https://dashscope.aliyuncs.com'
 
@@ -53,31 +36,10 @@ interface DashScopeTaskOutput {
   image_url?: string
 }
 
-/**
- * Per-model descriptor injected by `paintingPipeline.ts` from the registry's
- * `modes[mode].vendorTransport`. `id` is the wire model id; `endpoint` is the
- * full path under `imageBaseURL`. `isSync` toggles the `X-DashScope-Async`
- * header and the sync-vs-task-polling control flow.
- */
-export interface DashScopeModelDescriptor {
-  id: string
-  endpoint: string
-  isSync?: boolean
-  mode?: string
-}
+/** The resolved registry descriptor, bound once before submission. */
+export type DashScopeModelDescriptor = ImageTransportDescriptor
 
-/**
- * The vendor bag as this transport reads it — canonical camelCase, straight from
- * `splitParamValues` (native `seed` comes from `input.seed`, routing from
- * `input.modelDescriptor`).
- *
- * Derived from {@link ParamValues} so every key is CHECKED to be a catalog key. The
- * IPC boundary strips anything `IMAGE_PARAM_CATALOG` doesn't know, so a hand-declared
- * name that isn't one is a field that can never arrive, not a rename.
- *
- * Groups: wan2.6 interleave toggle + wan v2 resolution; wanx-v1 reference-image
- * controls; qwen-mt-image translation directions; wanx2.1-imageedit function controls.
- */
+/** Canonical vendor parameters; native fields come from the submit input. */
 export type DashScopeProviderParams = Pick<
   VendorBag,
   | 'negativePrompt'
@@ -102,6 +64,7 @@ export type DashScopeProviderParams = Pick<
 >
 
 export interface DashScopeTransportSettings {
+  modelDescriptor: DashScopeModelDescriptor
   apiKey: string
   imageBaseURL?: string
   headers?: Record<string, string | undefined>
@@ -385,56 +348,24 @@ function buildWanxImageEditBody(
   }
 }
 
-/** Models whose body has a reference-image slot — mirrors the `buildRequestBody`
- *  switch; the text-to-image family (`qwen-image`, `wanx*-t2i-*`) has none, so an
- *  attached image is dropped there. `transportInputSupport.test.ts` pins both. */
-const DASHSCOPE_FILE_MODELS = new Set([
-  'z-image-turbo',
-  'qwen-image-edit',
-  'qwen-image-edit-plus',
-  'wan2.6-image',
-  'wan2.7-image',
-  'wan2.7-image-pro',
-  'wanx-v1',
-  'wan2.5-i2i-preview',
-  'qwen-mt-image',
-  'wanx2.1-imageedit'
-])
-
-/** The only model with a `mask_image_url` slot — anywhere in the image path. */
-const DASHSCOPE_MASK_MODELS = new Set(['wanx2.1-imageedit'])
-
 function buildRequestBody(
   input: ImageGenerationSubmitInput<DashScopeProviderParams>,
-  descriptor: DashScopeModelDescriptor
+  protocol: NonNullable<ReturnType<typeof resolveDashScopeImageProtocol>>
 ): Record<string, unknown> {
   const bag = input.providerParams
-  switch (descriptor.id) {
-    case 'z-image-turbo':
-    case 'qwen-image-3.0':
-    case 'qwen-image-3.0-pro':
-    case 'qwen-image-edit':
-    case 'qwen-image-edit-plus':
-    case 'wan2.6-image':
-    case 'wan2.7-image':
-    case 'wan2.7-image-pro':
+  switch (protocol) {
+    case 'chat':
       return buildChatLikeBody(input, bag)
-    case 'qwen-image':
-    case 'qwen-image-plus':
-    case 'wanx2.1-t2i-turbo':
-    case 'wanx2.1-t2i-plus':
-    case 'wanx2.0-t2i-turbo':
+    case 'text':
       return buildText2ImageBody(input, bag)
-    case 'wanx-v1':
+    case 'reference':
       return buildWanxV1Body(input, bag)
-    case 'wan2.5-i2i-preview':
+    case 'images':
       return buildWan25I2IBody(input, bag)
-    case 'qwen-mt-image':
+    case 'translation':
       return buildQwenMtImageBody(input, bag)
-    case 'wanx2.1-imageedit':
+    case 'edit':
       return buildWanxImageEditBody(input, bag)
-    default:
-      throw new Error(`Unsupported DashScope image model: ${descriptor.id}`)
   }
 }
 
@@ -443,6 +374,9 @@ class DashScopeTransport implements TaskImageGenerationTransport<DashScopeProvid
   private readonly baseURL: string
   private readonly headers: Record<string, string | undefined> | undefined
   private readonly fetch: FetchFunction | undefined
+
+  private readonly modelDescriptor: DashScopeModelDescriptor
+  private readonly protocol: NonNullable<ReturnType<typeof resolveDashScopeImageProtocol>>
 
   readonly task: TaskImageGenerationTransport<DashScopeProviderParams>['task'] = {
     kind: 'supported' as const,
@@ -460,20 +394,19 @@ class DashScopeTransport implements TaskImageGenerationTransport<DashScopeProvid
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
     this.headers = settings.headers
     this.fetch = settings.fetch
+    this.modelDescriptor = { ...settings.modelDescriptor }
+    const protocol = resolveDashScopeImageProtocol(settings.modelDescriptor.id)
+    if (!protocol) throw new Error(`Unsupported DashScope image model: ${settings.modelDescriptor.id}`)
+    this.protocol = protocol
   }
 
-  supportsInput(input: ImageGenerationSubmitInput<DashScopeProviderParams>): ImageTransportInputSupport {
-    const modelId = input.modelDescriptor?.id ?? input.modelId
-    return { files: DASHSCOPE_FILE_MODELS.has(modelId), mask: DASHSCOPE_MASK_MODELS.has(modelId) }
+  supportsInput(): ImageTransportInputSupport {
+    return { files: this.protocol !== 'text', mask: this.protocol === 'edit' }
   }
 
   async submit(input: ImageGenerationSubmitInput<DashScopeProviderParams>) {
-    const descriptor = input.modelDescriptor
-    if (!descriptor) {
-      throw new Error(`Missing modelDescriptor for DashScope model: ${input.modelId}`)
-    }
-
-    const body = buildRequestBody(input, descriptor)
+    const descriptor = this.modelDescriptor
+    const body = buildRequestBody({ ...input, modelId: descriptor.id }, this.protocol)
     const url = `${this.baseURL}${descriptor.endpoint}`
     const response = await withImageTransportRequestTimeout(
       { url, timeoutMs: 120_000, signal: input.signal },

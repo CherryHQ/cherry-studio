@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const ChatCtor = vi.fn()
 const EmbCtor = vi.fn()
-const TransportCtor = vi.fn()
 
 vi.mock('@ai-sdk/openai-compatible', () => ({
   OpenAICompatibleChatLanguageModel: class {
@@ -21,21 +20,13 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../ppio/ppioTransport', () => ({
-  createPpioTransport: (settings: { apiKey: string; baseURL?: string }) => {
-    TransportCtor(settings)
-    return { submit: vi.fn(), poll: vi.fn() }
-  },
-  DEFAULT_PPIO_BASE_URL: 'https://api.ppio.com'
-}))
-
+import { registryImageDescriptor } from '../../__tests__/imageCatalogFixtures'
 import { buildPpioTransport, createPpioProvider } from '../ppio/ppioProvider'
 
 describe('createPpioProvider', () => {
   afterEach(() => {
     ChatCtor.mockReset()
     EmbCtor.mockReset()
-    TransportCtor.mockReset()
   })
 
   it('languageModel uses provider key "ppio.chat" with Bearer auth at chat baseURL', () => {
@@ -66,19 +57,41 @@ describe('createPpioProvider', () => {
     await expect(img.doGenerate({ prompt: 'a cat', n: 1 } as never)).rejects.toThrow('transport-only')
   })
 
-  // The factory no longer builds a transport — `resolveImageTransport` owns that, and
-  // `buildPpioTransport` is the shared constructor both it and a restart-resume use.
-  it('image transport is built from imageBaseURL, NOT chat baseURL', () => {
-    buildPpioTransport({
-      apiKey: 'sk-test',
-      baseURL: 'https://api.ppinfra.com/v3/openai',
-      imageBaseURL: 'https://api.ppio.com'
-    })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk-test', baseURL: 'https://api.ppio.com' })
-  })
-
-  it('image transport falls back to DEFAULT_PPIO_BASE_URL when imageBaseURL is omitted', () => {
-    buildPpioTransport({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk-test', baseURL: 'https://api.ppio.com' })
-  })
+  it.each([undefined, 'https://proxy.example/ppio'])(
+    'uses the image endpoint and provider fetch (%s)',
+    async (imageBaseURL) => {
+      const requests: Request[] = []
+      const descriptor = registryImageDescriptor('ppio', 'qwen-image-txt2img')
+      const transport = buildPpioTransport(
+        {
+          apiKey: 'sk-test',
+          baseURL: 'https://api.ppinfra.com/v3/openai',
+          imageBaseURL,
+          headers: { 'x-provider': 'cherry' },
+          fetch: async (url, init) => {
+            requests.push(new Request(url, init))
+            return Response.json({ task_id: 'accepted' })
+          }
+        },
+        descriptor
+      )
+      const result = await transport.submit({
+        modelId: descriptor.id,
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerParams: {},
+        headers: { 'x-call': 'once' }
+      })
+      // https://ppio.com/docs/models/reference-qwen-image-txt2img — retrieved 2026-09-09.
+      expect(requests[0].url).toBe(`${imageBaseURL ?? 'https://api.ppio.com'}/v3/async/qwen-image-txt2img`)
+      expect(requests[0].headers.get('authorization')).toBe('Bearer sk-test')
+      expect(requests[0].headers.get('x-provider')).toBe('cherry')
+      expect(requests[0].headers.get('x-call')).toBe('once')
+      expect(result).toEqual({ kind: 'submitted', taskId: 'accepted' })
+    }
+  )
 })

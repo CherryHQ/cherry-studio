@@ -1,6 +1,7 @@
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
+import { registryImageDescriptor } from '../../../__tests__/imageCatalogFixtures'
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { buildTokenhubTransport } from '../../tokenhub/tokenhubProvider'
 import { captureImageRequest, submitWithResponse } from './captureRequest'
@@ -12,9 +13,9 @@ import { captureImageRequest, submitWithResponse } from './captureRequest'
  */
 
 const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
-const HUNYUAN = { id: 'hy-image-v3', endpoint: '/v1/wand/hunyuan-image/v3-generation', isSync: true }
-const SEEDREAM = { id: 'seedream-image-v5.0-lite', endpoint: '/v1/wand/si-image/generation', isSync: true }
-const VIDU = { id: 'vidu-image-q2', endpoint: '/v1/wand/vidu-image/generation' }
+const HUNYUAN = registryImageDescriptor('tokenhub', 'hy-image-v3')
+const SEEDREAM = registryImageDescriptor('tokenhub', 'seedream-image-v5.0-lite')
+const VIDU = registryImageDescriptor('tokenhub', 'vidu-image-q2')
 
 function submitInput(
   overrides: Partial<ImageGenerationSubmitInput<VendorBag>> = {}
@@ -35,7 +36,7 @@ function submitInput(
 
 describe('tokenhub transport — outbound submit body', () => {
   it('posts Hunyuan fields to the registry endpoint on the host origin', async () => {
-    const transport = buildTokenhubTransport(settings)
+    const transport = buildTokenhubTransport(settings, HUNYUAN)
     const captured = await captureImageRequest(
       transport,
       submitInput({
@@ -59,7 +60,7 @@ describe('tokenhub transport — outbound submit body', () => {
   })
 
   it('posts Seedream image and sequential-generation fields', async () => {
-    const transport = buildTokenhubTransport(settings)
+    const transport = buildTokenhubTransport(settings, SEEDREAM)
     const captured = await captureImageRequest(
       transport,
       submitInput({
@@ -89,7 +90,7 @@ describe('tokenhub transport — outbound submit body', () => {
   })
 
   it('posts Vidu fields and requires a non-empty task id', async () => {
-    const transport = buildTokenhubTransport(settings)
+    const transport = buildTokenhubTransport(settings, VIDU)
     const input = submitInput({
       modelId: 'vidu-image-q2',
       modelDescriptor: VIDU,
@@ -117,7 +118,7 @@ describe('tokenhub transport — outbound submit body', () => {
 
 describe('tokenhub transport — task query', () => {
   it('queries the encoded Vidu task id and normalizes success', async () => {
-    const transport = buildTokenhubTransport(settings)
+    const transport = buildTokenhubTransport(settings, VIDU)
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(
@@ -143,7 +144,7 @@ describe('tokenhub transport — task query', () => {
   })
 
   it('rejects missing and unknown states instead of treating them as pending', async () => {
-    const transport = buildTokenhubTransport(settings)
+    const transport = buildTokenhubTransport(settings, VIDU)
     if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
     for (const response of [{}, { state: 'waiting' }]) {

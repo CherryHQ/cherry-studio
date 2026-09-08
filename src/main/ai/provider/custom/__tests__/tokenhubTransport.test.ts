@@ -1,12 +1,13 @@
 import { APICallError } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
+import { registryImageDescriptor } from '../../__tests__/imageCatalogFixtures'
 import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
 import { createTokenhubTransport } from '../tokenhub/tokenhubTransport'
 
-const HUNYUAN = { id: 'hy-image-v3', endpoint: '/v1/wand/hunyuan-image/v3-generation', isSync: true }
-const SEEDREAM = { id: 'seedream-image-v5.0-lite', endpoint: '/v1/wand/si-image/generation', isSync: true }
-const VIDU = { id: 'vidu-image-q2', endpoint: '/v1/wand/vidu-image/generation' }
+const HUNYUAN = registryImageDescriptor('tokenhub', 'hy-image-v3')
+const SEEDREAM = registryImageDescriptor('tokenhub', 'seedream-image-v5.0-lite')
+const VIDU = registryImageDescriptor('tokenhub', 'vidu-image-q2')
 
 const baseInput = {
   n: 1,
@@ -28,12 +29,60 @@ function lastRequest(fetchMock: MockInstance<typeof fetch>): { url: string; init
 }
 
 describe('TokenhubTransport', () => {
+  it('keeps the bound Hunyuan protocol for generate with references and zero/false parameters', async () => {
+    const requests: Request[] = []
+    const transport = createTokenhubTransport({
+      apiKey: 'token',
+      modelDescriptor: HUNYUAN,
+      fetch: async (url, init) => {
+        requests.push(new Request(url, init))
+        return Response.json({ data: [{ url: 'https://images.example/result.png' }] })
+      }
+    })
+    // https://cloud.tencent.com/document/product/1823/135745 — retrieved 2026-09-09.
+    await transport.submit({
+      ...baseInput,
+      modelId: 'not-the-bound-model',
+      modelDescriptor: VIDU,
+      prompt: 'combine references',
+      files: [{ type: 'url', url: 'https://images.example/reference.png' }],
+      seed: 0,
+      providerParams: { promptEnhancement: false }
+    })
+    expect(requests[0].url).toBe('https://tokenhub.tencentmaas.com/v1/wand/hunyuan-image/v3-generation')
+    expect(await requests[0].json()).toEqual({
+      model: 'hy-image-v3',
+      prompt: 'combine references',
+      images: ['https://images.example/reference.png'],
+      seed: 0,
+      revise: false
+    })
+  })
+
+  it('refuses to recover a Vidu task without its persisted Vidu descriptor', async () => {
+    const transport = createTokenhubTransport({ apiKey: 'token', modelDescriptor: VIDU })
+    for (const modelDescriptor of [undefined, HUNYUAN]) {
+      await expect(
+        transport.task.query('saved-task', {
+          signal: new AbortController().signal,
+          headers: undefined,
+          providerParams: {},
+          modelDescriptor
+        })
+      ).rejects.toThrow('persisted Vidu modelDescriptor')
+    }
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
   it('posts the hunyuan body (size / seed / revise / images) to the descriptor endpoint and returns data[].url', async () => {
-    const transport = createTokenhubTransport({ apiKey: 'token', baseURL: 'https://tokenhub.tencentmaas.com' })
+    const transport = createTokenhubTransport({
+      modelDescriptor: HUNYUAN,
+      apiKey: 'token',
+      baseURL: 'https://tokenhub.tencentmaas.com'
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(jsonResponse({ data: [{ url: 'https://img/hy.png', revised_prompt: 'x' }] }))
@@ -64,7 +113,7 @@ describe('TokenhubTransport', () => {
   })
 
   it('maps seedream imageResolution to size and only sends max_images under sequential auto', async () => {
-    const transport = createTokenhubTransport({ apiKey: 'token' })
+    const transport = createTokenhubTransport({ modelDescriptor: SEEDREAM, apiKey: 'token' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async () => jsonResponse({ data: [{ url: 'https://img/s.png' }] }))
@@ -106,7 +155,7 @@ describe('TokenhubTransport', () => {
   })
 
   it('submits vidu with the native aspectRatio + resolution and returns the task id', async () => {
-    const transport = createTokenhubTransport({ apiKey: 'token' })
+    const transport = createTokenhubTransport({ modelDescriptor: VIDU, apiKey: 'token' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(jsonResponse({ task_id: 'task-1', state: 'created' }))
@@ -136,6 +185,7 @@ describe('TokenhubTransport', () => {
     const globalFetch = vi.spyOn(globalThis, 'fetch')
     const providerFetch = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ data: [{ url: 'https://img/x' }] }))
     const transport = createTokenhubTransport({
+      modelDescriptor: HUNYUAN,
       apiKey: 'token',
       fetch: providerFetch,
       headers: { 'X-App': 'cherry' }
@@ -157,7 +207,7 @@ describe('TokenhubTransport', () => {
   })
 
   it('rejects a vidu submit that returns no task_id instead of completing empty', async () => {
-    const transport = createTokenhubTransport({ apiKey: 'token' })
+    const transport = createTokenhubTransport({ modelDescriptor: VIDU, apiKey: 'token' })
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ state: 'created' }))
 
     await expect(
@@ -166,7 +216,7 @@ describe('TokenhubTransport', () => {
   })
 
   it('surfaces structured 4xx responses as APICallError with the vendor message', async () => {
-    const transport = createTokenhubTransport({ apiKey: 'token' })
+    const transport = createTokenhubTransport({ modelDescriptor: HUNYUAN, apiKey: 'token' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(jsonResponse({ error: { message: 'content blocked' } }, 422))
@@ -188,7 +238,7 @@ describe('TokenhubTransport', () => {
 
   describe('task query', () => {
     it('GETs the Vidu task and normalizes success', async () => {
-      const transport = createTokenhubTransport({ apiKey: 'token' })
+      const transport = createTokenhubTransport({ modelDescriptor: VIDU, apiKey: 'token' })
       const fetchMock = vi
         .spyOn(globalThis, 'fetch')
         .mockResolvedValue(jsonResponse({ state: 'success', creations: [{ url: 'https://img/v.png' }] }))
@@ -207,7 +257,7 @@ describe('TokenhubTransport', () => {
     })
 
     it('normalizes pending and failed states without owning the polling loop', async () => {
-      const transport = createTokenhubTransport({ apiKey: 'token' })
+      const transport = createTokenhubTransport({ modelDescriptor: VIDU, apiKey: 'token' })
       const fetchMock = vi
         .spyOn(globalThis, 'fetch')
         .mockResolvedValueOnce(jsonResponse({ state: 'processing' }))

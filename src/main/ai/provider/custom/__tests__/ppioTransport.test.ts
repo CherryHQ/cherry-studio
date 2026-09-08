@@ -2,8 +2,7 @@ import { APICallError } from '@ai-sdk/provider'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
-import type { PpioBag } from '../ppio/ppioTransport'
+import { registryImageDescriptor } from '../../__tests__/imageCatalogFixtures'
 import { createPpioTransport } from '../ppio/ppioTransport'
 
 /**
@@ -11,6 +10,109 @@ import { createPpioTransport } from '../ppio/ppioTransport'
  * coverage for the relocated transient-retry cap and param builders.
  */
 describe('PpioTransport', () => {
+  it.each([
+    ['jimeng-txt2img-v3.1', 'generate'],
+    ['hunyuan-image-3', 'generate'],
+    ['qwen-image-txt2img', 'generate'],
+    ['qwen-image-edit', 'edit'],
+    ['glm-image', 'generate'],
+    ['z-image-turbo', 'generate'],
+    ['z-image-turbo-lora', 'generate'],
+    ['seedream-4-0', 'generate'],
+    ['seedream-4-5', 'generate']
+  ] as const)('does not turn omitted %s parameters into user choices', async (modelId, mode) => {
+    const requests: Request[] = []
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', modelId, mode),
+      fetch: async (url, init) => {
+        requests.push(new Request(url, init))
+        return Response.json({ task_id: 'accepted', images: ['https://images.example/result.png'] })
+      }
+    })
+    await transport.submit({
+      modelId,
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      seed: undefined,
+      files: mode === 'edit' ? [{ type: 'url', url: 'https://images.example/reference.png' }] : undefined,
+      mask: undefined,
+      providerParams: {}
+    })
+    const body = await requests[0].json()
+    for (const key of [
+      'seed',
+      'size',
+      'width',
+      'height',
+      'watermark',
+      'watermark_enabled',
+      'output_format',
+      'logo_info',
+      'use_pre_llm'
+    ]) {
+      expect(body).not.toHaveProperty(key)
+    }
+  })
+
+  it('preserves an explicit disabled Jimeng watermark and seed zero', async () => {
+    const requests: Request[] = []
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', 'jimeng-txt2img-v3.1'),
+      fetch: async (url, init) => {
+        requests.push(new Request(url, init))
+        return Response.json({ task_id: 'accepted' })
+      }
+    })
+    // https://ppio.com/docs/models/reference-jimeng-txt2img-v3.1 — retrieved 2026-09-09.
+    await transport.submit({
+      modelId: 'jimeng-txt2img-v3.1',
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      seed: 0,
+      files: undefined,
+      mask: undefined,
+      providerParams: { addWatermark: false }
+    })
+    expect(await requests[0].json()).toEqual({ prompt: 'a fox', seed: 0, logo_info: { add_logo: false } })
+  })
+
+  // Contract: https://ppio.com/docs/models/reference-seedream-4.0 (retrieved 2026-09-09).
+  it('binds the registry endpoint and preserves all generate references independently of the catalog ID', async () => {
+    const descriptor = registryImageDescriptor('ppio', 'seedream-4-0')
+    const requests: Request[] = []
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: descriptor,
+      fetch: async (input, init) => {
+        requests.push(new Request(input, init))
+        return Response.json({ images: ['https://images.example/result.png'] })
+      }
+    })
+    await transport.submit({
+      modelId: descriptor.id,
+      prompt: 'combine both references',
+      n: 1,
+      size: undefined,
+      seed: undefined,
+      files: [
+        { type: 'url', url: 'https://images.example/first.png' },
+        { type: 'url', url: 'https://images.example/second.png' }
+      ],
+      mask: undefined,
+      providerParams: { addWatermark: false },
+      modelDescriptor: registryImageDescriptor('ppio', 'qwen-image-txt2img')
+    })
+    expect(requests[0].url).toBe('https://api.ppio.com/v3/seedream-4.0')
+    expect(await requests[0].json()).toMatchObject({
+      images: ['https://images.example/first.png', 'https://images.example/second.png'],
+      watermark: false
+    })
+  })
+
   beforeEach(() => {
     vi.useFakeTimers()
   })
@@ -29,7 +131,11 @@ describe('PpioTransport', () => {
         { status: 200 }
       )
     )
-    const transport = createPpioTransport({ apiKey: 'token', fetch })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      fetch,
+      modelDescriptor: registryImageDescriptor('ppio', 'qwen-image-txt2img')
+    })
     if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
     // Contract source: https://ppio.com/docs/models/reference-get-async-task-result
@@ -50,7 +156,11 @@ describe('PpioTransport', () => {
         status: 200
       })
     )
-    const transport = createPpioTransport({ apiKey: 'token', fetch })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      fetch,
+      modelDescriptor: registryImageDescriptor('ppio', 'qwen-image-txt2img')
+    })
     if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
     await expect(
@@ -66,7 +176,11 @@ describe('PpioTransport', () => {
   it('rejects a missing or unknown task status instead of assuming pending', async () => {
     for (const task of [{}, { status: 'TASK_STATUS_NEW' }]) {
       const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ task }), { status: 200 }))
-      const transport = createPpioTransport({ apiKey: 'token', fetch })
+      const transport = createPpioTransport({
+        apiKey: 'token',
+        fetch,
+        modelDescriptor: registryImageDescriptor('ppio', 'qwen-image-txt2img')
+      })
       if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
       await expect(
@@ -85,7 +199,11 @@ describe('PpioTransport', () => {
     { status: 400, retryable: false }
   ])('classifies HTTP $status through APICallError retryability', async ({ status, retryable }) => {
     const fetch = vi.fn().mockResolvedValue(new Response('vendor error', { status }))
-    const transport = createPpioTransport({ apiKey: 'token', fetch })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      fetch,
+      modelDescriptor: registryImageDescriptor('ppio', 'qwen-image-txt2img')
+    })
     if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
     const error = await transport.task
@@ -102,7 +220,10 @@ describe('PpioTransport', () => {
   })
 
   it('builds jimeng params without overriding an omitted prompt-enhancement setting', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', 'jimeng-txt2img-v3.1', 'generate')
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ task_id: 't-1' }), { status: 200 }))
@@ -126,7 +247,6 @@ describe('PpioTransport', () => {
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(body).toMatchObject({
       prompt: 'a fox',
-      seed: -1,
       width: 1328,
       height: 1328,
       logo_info: { add_logo: true }
@@ -135,20 +255,23 @@ describe('PpioTransport', () => {
   })
 
   it('uses the sync path (imageUrls) for isSync models', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', 'seedream-4-5', 'generate')
+    })
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ images: ['https://img/a.png'] }), { status: 200 })
     )
 
     const result = await transport.submit({
-      modelId: 'seedream-4.5-draw',
+      modelId: 'seedream-4.5',
       prompt: 'a fox',
       n: 1,
       size: undefined,
       seed: undefined,
       files: undefined,
       mask: undefined,
-      modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true },
+      modelDescriptor: { id: 'seedream-4.5', endpoint: '/v3/seedream-4.5', isSync: true },
       providerParams: {}
     })
 
@@ -156,7 +279,10 @@ describe('PpioTransport', () => {
   })
 
   it('uses the default request timeout for isSync models', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', 'seedream-4-5', 'generate')
+    })
     vi.spyOn(globalThis, 'fetch').mockImplementation(
       (_input, init) =>
         new Promise<Response>((_resolve, reject) => {
@@ -171,14 +297,14 @@ describe('PpioTransport', () => {
 
     const promise = transport
       .submit({
-        modelId: 'seedream-4.5-draw',
+        modelId: 'seedream-4.5',
         prompt: 'a fox',
         n: 1,
         size: undefined,
         seed: undefined,
         files: undefined,
         mask: undefined,
-        modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true },
+        modelDescriptor: { id: 'seedream-4.5', endpoint: '/v3/seedream-4.5', isSync: true },
         providerParams: {}
       })
       .catch((error) => error)
@@ -191,7 +317,10 @@ describe('PpioTransport', () => {
   })
 
   it('supports official Seedream 5.0 Lite sync endpoint and object image results', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', 'seedream-5-0-lite', 'generate')
+    })
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ images: [{ url: 'https://img/a.png' }, { image_url: 'https://img/b.png' }] }), {
         status: 200
@@ -229,7 +358,10 @@ describe('PpioTransport', () => {
   })
 
   it('uses Seedream 4.0 plural images field for edit requests', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', 'seedream-4-0', 'edit')
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ images: ['https://img/a.png'] }), { status: 200 }))
@@ -242,7 +374,7 @@ describe('PpioTransport', () => {
       seed: undefined,
       // Attached edit image flows through the canonical `input.files` path
       // (inputImages → options.files), not a providerOptions bag key.
-      files: [{ mediaType: 'image/png', data: 'abc' }] as ImageGenerationSubmitInput<PpioBag>['files'],
+      files: [{ type: 'file', mediaType: 'image/png', data: 'abc' }],
       mask: undefined,
       modelDescriptor: {
         id: 'seedream-4.0',
@@ -259,7 +391,10 @@ describe('PpioTransport', () => {
   })
 
   it('builds GLM Image async params with watermark_enabled', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
+    const transport = createPpioTransport({
+      apiKey: 'token',
+      modelDescriptor: registryImageDescriptor('ppio', 'glm-image', 'generate')
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ task_id: 't-glm' }), { status: 200 }))

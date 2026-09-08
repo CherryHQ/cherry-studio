@@ -5,7 +5,11 @@ import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 
-import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
+import {
+  type ImageGenerationTransport,
+  type ImageTransportDescriptor,
+  transportOnlyImageModel
+} from '../imageGenerationModel'
 import { createDashScopeTransport, DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './dashscopeTransport'
 
 export const DASHSCOPE_PROVIDER_NAME = 'dashscope' as const
@@ -50,8 +54,12 @@ const getDashScopeRerankBaseURL = (baseURL: string) => {
  * registry (`resolveImageTransport`) so both paths use the same re-resolved
  * provider settings.
  */
-export function buildDashScopeTransport(settings: DashScopeProviderSettings): ImageGenerationTransport<VendorBag> {
+export function buildDashScopeTransport(
+  settings: DashScopeProviderSettings,
+  modelDescriptor: ImageTransportDescriptor
+): ImageGenerationTransport<VendorBag> {
   return createDashScopeTransport({
+    modelDescriptor,
     apiKey: settings.apiKey ?? '',
     imageBaseURL: settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL,
     headers: settings.headers,

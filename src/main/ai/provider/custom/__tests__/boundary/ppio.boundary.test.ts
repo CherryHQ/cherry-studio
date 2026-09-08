@@ -1,18 +1,15 @@
+import type { ImageGenerationMode } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
-import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
+import { registryImageDescriptor } from '../../../__tests__/imageCatalogFixtures'
+import type { ImageGenerationSubmitInput, ImageTransportDescriptor } from '../../imageGenerationModel'
 import type { PpioBag } from '../../ppio/ppioTransport'
 import { createPpioTransport } from '../../ppio/ppioTransport'
 import { captureImageRequest } from './captureRequest'
 
-/**
- * PPIO request boundary — one body builder per model id, POSTed to the
- * descriptor's endpoint. Each fixture pins one builder's wire shape (dimension
- * split, `size` `x`→`*`, plural `images`, distinct watermark keys, loras, …).
- * `modelDescriptor` (id + endpoint + mode) is threaded through providerParams
- * by the painting pipeline at runtime; here it is supplied per fixture.
- */
+// Contract sources: https://ppio.com/docs/models/reference-seedream-4.0 and the per-model API pages below.
+// Retrieved 2026-09-09; descriptors come from the served registry, not reconstructed model aliases.
 const base = {
   n: 1,
   size: undefined,
@@ -27,8 +24,8 @@ const host = 'https://api.ppio.com'
 interface Case {
   name: string
   endpoint: string
-  mode: string
-  input: ImageGenerationSubmitInput<PpioBag>
+  mode: ImageGenerationMode
+  input: ImageGenerationSubmitInput<PpioBag> & { modelDescriptor: ImageTransportDescriptor }
   schema: z.ZodTypeAny
 }
 
@@ -36,11 +33,11 @@ function fixture(opts: {
   name: string
   id: string
   endpoint: string
-  mode?: string
+  mode?: ImageGenerationMode
   size?: string
   seed?: number
   files?: ImageGenerationSubmitInput<PpioBag>['files']
-  params?: Record<string, unknown>
+  params?: PpioBag
   schema: z.ZodTypeAny
 }): Case {
   const mode = opts.mode ?? 'generate'
@@ -56,9 +53,9 @@ function fixture(opts: {
       size: opts.size,
       seed: opts.seed,
       files: opts.files,
-      modelDescriptor: { id: opts.id, endpoint: opts.endpoint, isSync: false, mode },
+      modelDescriptor: registryImageDescriptor('ppio', opts.id, mode),
       providerParams: { ...opts.params }
-    } as ImageGenerationSubmitInput<PpioBag>
+    }
   }
 }
 
@@ -66,8 +63,8 @@ function fixture(opts: {
 // `data:image/png;base64,AQID` — the canonical attached-image path the
 // painting pipeline feeds edit models via `inputImages` → `options.files`.
 const editFiles = [
-  { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }
-] as ImageGenerationSubmitInput<PpioBag>['files']
+  { type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }
+] satisfies ImageGenerationSubmitInput<PpioBag>['files']
 
 const CASES: Case[] = [
   fixture({
@@ -83,7 +80,7 @@ const CASES: Case[] = [
     params: { promptEnhancement: false, addWatermark: true },
     schema: z.strictObject({
       prompt: z.string(),
-      use_pre_llm: z.boolean(),
+      use_pre_llm: z.literal(false),
       seed: z.number().int(),
       width: z.number().int().positive(),
       height: z.number().int().positive(),
@@ -112,7 +109,7 @@ const CASES: Case[] = [
     // verbatim). Pins the `qwen-image-edit-2509` switch arm + `input.files`
     // image plumbing — the gap this fixture set previously masked.
     name: 'qwen-image-edit-2509 — image from files + output_format + seed',
-    id: 'qwen-image-edit-2509',
+    id: 'qwen-image-edit',
     endpoint: '/v3/async/qwen-image-edit-2509',
     mode: 'edit',
     seed: 5,
@@ -120,23 +117,7 @@ const CASES: Case[] = [
     params: { outputFormat: 'png', addWatermark: false },
     schema: z.strictObject({
       prompt: z.string(),
-      image: z.string(),
-      seed: z.number().int(),
-      output_format: z.string(),
-      watermark: z.boolean()
-    })
-  }),
-  fixture({
-    name: 'qwen-image-edit — image from files + output_format + seed',
-    id: 'qwen-image-edit',
-    endpoint: '/v3/async/qwen-image-edit',
-    mode: 'edit',
-    seed: 5,
-    files: editFiles,
-    params: { outputFormat: 'png', addWatermark: false },
-    schema: z.strictObject({
-      prompt: z.string(),
-      image: z.string(),
+      image: z.literal('data:image/png;base64,AQID'),
       seed: z.number().int(),
       output_format: z.string(),
       watermark: z.boolean()
@@ -170,7 +151,7 @@ const CASES: Case[] = [
   }),
   fixture({
     name: 'seedream-4.0 draw — sequential_image_generation',
-    id: 'seedream-4.0',
+    id: 'seedream-4-0',
     endpoint: '/v3/seedream-4.0',
     size: '2048x2048',
     params: { addWatermark: true },
@@ -183,7 +164,7 @@ const CASES: Case[] = [
   }),
   fixture({
     name: 'seedream-4.0 edit — plural images[]',
-    id: 'seedream-4.0',
+    id: 'seedream-4-0',
     endpoint: '/v3/seedream-4.0',
     mode: 'edit',
     size: '2048x2048',
@@ -191,7 +172,7 @@ const CASES: Case[] = [
     params: { addWatermark: true },
     schema: z.strictObject({
       prompt: z.string(),
-      images: z.array(z.string()),
+      images: z.tuple([z.literal('data:image/png;base64,AQID')]),
       size: z.string(),
       watermark: z.boolean(),
       sequential_image_generation: z.literal('disabled')
@@ -200,14 +181,18 @@ const CASES: Case[] = [
 ]
 
 describe('PPIO request boundary', () => {
-  const transport = createPpioTransport({ apiKey: 'ppio-key', baseURL: host })
-
   for (const c of CASES) {
-    it(`${c.name}: satisfies the wire contract and matches snapshot`, async () => {
+    it(`${c.name}: encodes canonical parameters for the declared endpoint`, async () => {
+      const transport = createPpioTransport({
+        apiKey: 'ppio-key',
+        baseURL: host,
+        modelDescriptor: c.input.modelDescriptor
+      })
       const req = await captureImageRequest(transport, c.input)
       expect(req.url).toBe(`${host}${c.endpoint}`)
       c.schema.parse(req.body)
-      expect(req.body).toMatchSnapshot()
+      expect(req.body).toMatchObject({ prompt: 'a fox' })
+      if (c.input.seed !== undefined) expect(req.body).toMatchObject({ seed: c.input.seed })
     })
   }
 
@@ -215,6 +200,7 @@ describe('PPIO request boundary', () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ task_id: 'task-1' }), { status: 200 }))
     const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
     const injectedTransport = createPpioTransport({
+      modelDescriptor: CASES[0].input.modelDescriptor,
       apiKey: 'ppio-key',
       baseURL: host,
       headers: { Authorization: 'Bearer provider', 'x-provider': 'one' },

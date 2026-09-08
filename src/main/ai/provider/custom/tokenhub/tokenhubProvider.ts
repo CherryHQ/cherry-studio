@@ -5,7 +5,11 @@ import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { withoutTrailingApiVersion } from '@shared/utils/api'
 
-import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
+import {
+  type ImageGenerationTransport,
+  type ImageTransportDescriptor,
+  transportOnlyImageModel
+} from '../imageGenerationModel'
 import { createTokenhubTransport } from './tokenhubTransport'
 
 export const TOKENHUB_PROVIDER_NAME = 'tokenhub' as const
@@ -30,11 +34,15 @@ export interface TokenhubProvider extends ProviderV3 {
  * provider factory and the image-generation job's transport registry so the
  * job path uses re-resolved settings.
  */
-export function buildTokenhubTransport(settings: TokenhubProviderSettings): ImageGenerationTransport<VendorBag> {
+export function buildTokenhubTransport(
+  settings: TokenhubProviderSettings,
+  modelDescriptor: ImageTransportDescriptor
+): ImageGenerationTransport<VendorBag> {
   if (!settings.baseURL) {
     throw new Error('TokenHub provider requires a non-empty `baseURL` to build the image transport.')
   }
   return createTokenhubTransport({
+    modelDescriptor,
     apiKey: settings.apiKey ?? '',
     // The `/v1/wand/*` image endpoints are host-root paths; the chat baseURL carries `/v1`.
     baseURL: withoutTrailingApiVersion(settings.baseURL),

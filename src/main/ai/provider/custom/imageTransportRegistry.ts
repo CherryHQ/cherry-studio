@@ -1,7 +1,10 @@
 import type { ProviderConfig } from '../../types'
 import type { VendorBag } from '../../utils/imageOptions'
+import { resolveDashScopeImageProtocol } from './dashscope/dashscopeImageBinding'
 import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
 import type { ImageGenerationTransport, ImageTransportDescriptor } from './imageGenerationModel'
+import { resolvePpioImageProtocol } from './ppio/ppioImageBinding'
+import { resolveTokenhubImageProtocol } from './tokenhub/tokenhubImageBinding'
 
 export type NativeImageTarget =
   | { providerId: 'ppio'; modelDescriptor: ImageTransportDescriptor }
@@ -27,6 +30,15 @@ export function resolveNativeImageTarget(
     case 'tokenhub':
       if (!modelDescriptor) {
         return { kind: 'unavailable', message: `No image protocol configured for '${providerId}/${modelId}'` }
+      }
+      if (providerId === 'ppio' && !resolvePpioImageProtocol(modelDescriptor.endpoint)) {
+        return { kind: 'unavailable', message: `Unsupported PPIO image endpoint: ${modelDescriptor.endpoint}` }
+      }
+      if (providerId === 'dashscope' && !resolveDashScopeImageProtocol(modelDescriptor.id)) {
+        return { kind: 'unavailable', message: `Unsupported DashScope image model: ${modelDescriptor.id}` }
+      }
+      if (providerId === 'tokenhub' && !resolveTokenhubImageProtocol(modelDescriptor.endpoint)) {
+        return { kind: 'unavailable', message: `Unsupported TokenHub image endpoint: ${modelDescriptor.endpoint}` }
       }
       return { kind: 'custom', target: { providerId, modelDescriptor } }
     case 'modelscope':
@@ -70,11 +82,11 @@ export async function createNativeImageTransport(
   switch (target.providerId) {
     case 'ppio': {
       const { buildPpioTransport } = await import('./ppio/ppioProvider')
-      return buildPpioTransport(target.settings)
+      return buildPpioTransport(target.settings, target.modelDescriptor)
     }
     case 'dashscope': {
       const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
-      return buildDashScopeTransport(target.settings)
+      return buildDashScopeTransport(target.settings, target.modelDescriptor)
     }
     case 'modelscope': {
       const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
@@ -86,7 +98,7 @@ export async function createNativeImageTransport(
     }
     case 'tokenhub': {
       const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
-      return buildTokenhubTransport(target.settings)
+      return buildTokenhubTransport(target.settings, target.modelDescriptor)
     }
   }
 }

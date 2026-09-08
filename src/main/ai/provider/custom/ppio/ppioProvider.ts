@@ -5,7 +5,7 @@ import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
-import { createPpioTransport, DEFAULT_PPIO_BASE_URL } from './ppioTransport'
+import { createPpioTransport, DEFAULT_PPIO_BASE_URL, type PpioModelDescriptor } from './ppioTransport'
 
 export const PPIO_PROVIDER_NAME = 'ppio' as const
 
@@ -34,8 +34,12 @@ export interface PpioProvider extends ProviderV3 {
  * transport registry (`resolveImageTransport`), so both paths use the same
  * re-resolved provider settings.
  */
-export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerationTransport<VendorBag> {
+export function buildPpioTransport(
+  settings: PpioProviderSettings,
+  modelDescriptor: PpioModelDescriptor
+): ImageGenerationTransport<VendorBag> {
   return createPpioTransport({
+    modelDescriptor,
     apiKey: settings.apiKey ?? '',
     baseURL: settings.imageBaseURL || DEFAULT_PPIO_BASE_URL,
     headers: settings.headers,

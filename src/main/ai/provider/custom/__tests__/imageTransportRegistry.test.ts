@@ -6,18 +6,23 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import { registryImageDescriptor } from '../../__tests__/imageCatalogFixtures'
 import { hasImageTransport, isImageTransportConfig, resolveImageTransport } from '../imageTransportRegistry'
 
 describe('resolveImageTransport', () => {
   it('requires a registry descriptor for ppio / dashscope / tokenhub', async () => {
-    const descriptor = { id: 'any-model', endpoint: '/vendor/task', mode: 'generate' as const }
-    for (const providerId of ['ppio', 'dashscope', 'tokenhub'] as const) {
+    for (const [providerId, modelId] of [
+      ['ppio', 'qwen-image-txt2img'],
+      ['dashscope', 'qwen-image'],
+      ['tokenhub', 'hy-image-v3']
+    ] as const) {
+      const descriptor = registryImageDescriptor(providerId, modelId)
       expect(hasImageTransport(providerId, 'any-model')).toBe(false)
-      expect(hasImageTransport(providerId, 'any-model', descriptor)).toBe(true)
+      expect(hasImageTransport(providerId, modelId, descriptor)).toBe(true)
       const config = { providerId, providerSettings: { baseURL: 'https://example.invalid', apiKey: 'sk-test' } }
-      expect(isImageTransportConfig(config, 'any-model', descriptor)).toBe(true)
-      if (!isImageTransportConfig(config, 'any-model', descriptor)) throw new Error('expected transport config')
-      const transport = await resolveImageTransport(config, 'any-model', descriptor)
+      expect(isImageTransportConfig(config, modelId, descriptor)).toBe(true)
+      if (!isImageTransportConfig(config, modelId, descriptor)) throw new Error('expected transport config')
+      const transport = await resolveImageTransport(config, modelId, descriptor)
       expect(transport).not.toBeNull()
       expect(typeof transport?.submit).toBe('function')
       expect(transport?.task.kind).toBe('supported')
@@ -61,14 +66,14 @@ describe('resolveImageTransport', () => {
 
   it('resolves tokenhub models by the provider id', async () => {
     const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
-    const descriptor = { id: 'hy-image-v3.0', endpoint: '/v1/images/generations', mode: 'generate' as const }
+    const descriptor = registryImageDescriptor('tokenhub', 'hy-image-v3')
     const transport = await resolveImageTransport(
       { providerId: 'tokenhub', providerSettings: settings },
-      'hy-image-v3.0',
+      'hy-image-v3',
       descriptor
     )
     expect(transport).not.toBeNull()
     expect(transport?.task.kind).toBe('supported')
-    expect(hasImageTransport('openai-compatible', 'hy-image-v3.0')).toBe(false)
+    expect(hasImageTransport('openai-compatible', 'hy-image-v3')).toBe(false)
   })
 })
