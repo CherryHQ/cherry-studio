@@ -132,10 +132,7 @@ export function capAttachReplayChunks(
       }
       case 'tool-input-delta': {
         const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
-        if (!tid) {
-          out.push(payload)
-          break
-        }
+        if (!tid) break
         const key = scopedPartKey(payload, 'tool-input', tid)
         if (!openParts.has(key)) {
           const known = toolInfoByKey.get(key)

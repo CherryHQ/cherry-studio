@@ -165,11 +165,16 @@ export function buildCompactReplay(
   const compact: StreamChunkPayload[] = []
   let pending: StreamChunkPayload | undefined
   const openParts = new Set<string>()
+  const openToolInputs = new Set<string>()
 
   const scopedKey = (payload: StreamChunkPayload, id: string): string =>
     JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
   const openPartKey = (payload: StreamChunkPayload, kind: 'text' | 'reasoning', id: string): string =>
     scopedKey(payload, `${kind}:${id}`)
+  const toolCallIdOf = (chunk: { id?: string; toolCallId?: string }): string | undefined =>
+    (chunk as { toolCallId?: string }).toolCallId ?? (chunk as { id?: string }).id
+  const toolInputKey = (payload: StreamChunkPayload, tid: string): string =>
+    scopedKey(payload, `tool-input:${tid}`)
 
   const flushPending = () => {
     if (!pending) return
@@ -217,10 +222,45 @@ export function buildCompactReplay(
         break
       }
 
-      case 'tool-input-delta':
+      case 'tool-input-start': {
         flushPending()
+        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
+        if (tid) openToolInputs.add(toolInputKey(payload, tid))
+        compact.push(payload)
+        break
+      }
+
+      case 'tool-input-available': {
+        flushPending()
+        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
+        if (tid) openToolInputs.add(toolInputKey(payload, tid))
+        compact.push(payload)
+        break
+      }
+
+      case 'tool-input-delta': {
+        flushPending()
+        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
+        if (!tid) break
+        const key = toolInputKey(payload, tid)
+        if (!openToolInputs.has(key)) break
         pending = payload
         break
+      }
+
+      case 'tool-input-end': {
+        flushPending()
+        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
+        if (!tid) {
+          compact.push(payload)
+          break
+        }
+        const key = toolInputKey(payload, tid)
+        if (!openToolInputs.has(key)) break
+        compact.push(payload)
+        openToolInputs.delete(key)
+        break
+      }
 
       default:
         flushPending()
