@@ -123,6 +123,7 @@ Where to go for detail. The three process docs own per-process directory layout 
 | IPC (IpcApi) | [IPC Reference](../ipc/README.md) |
 | Service lifecycle (IoC, phased bootstrap) | [Lifecycle Reference](../lifecycle/README.md) |
 | Window manager (multi-window, pooling) | [Window Manager Reference](../window-manager/README.md) |
+| Utility processes (crash isolation, lifecycle, entry builds) | [Utility Process Architecture](./utility-process.md) |
 | Scheduler & jobs | [Job & Scheduler Reference](../job-and-scheduler/README.md) |
 | AI subsystem | [AI Reference](../ai/README.md) |
 | Path registry | [paths/README](../../../src/main/core/paths/README.md) |

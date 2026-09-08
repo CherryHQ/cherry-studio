@@ -207,7 +207,7 @@ export class MigrationEngine {
     }
 
     logger.info('Fresh install detected (no legacy data found), skipping migration')
-    await this.markCompleted()
+    await this.markCompleted(false)
     return false
   }
 
@@ -346,7 +346,7 @@ export class MigrationEngine {
       this.verifyForeignKeys()
 
       // Mark migration completed
-      await this.markCompleted()
+      await this.markCompleted(true)
 
       logger.info('Migration completed successfully', {
         totalDuration: Date.now() - startTime,
@@ -573,6 +573,7 @@ export class MigrationEngine {
       this.clearMigrationData(tx)
       this.upsertMigrationStatus(tx, {
         status: 'completed',
+        migratedFromV1: false,
         completedAt: Date.now(),
         version: '2.0.0',
         error: null
@@ -583,9 +584,10 @@ export class MigrationEngine {
   /**
    * Mark migration as completed in app_state
    */
-  private async markCompleted(): Promise<void> {
+  private async markCompleted(migratedFromV1: boolean): Promise<void> {
     this.upsertMigrationStatus(this.getDb(), {
       status: 'completed',
+      migratedFromV1,
       completedAt: Date.now(),
       version: '2.0.0',
       error: null
@@ -598,6 +600,7 @@ export class MigrationEngine {
   private async markFailed(error: string): Promise<void> {
     this.upsertMigrationStatus(this.getDb(), {
       status: 'failed',
+      migratedFromV1: false,
       failedAt: Date.now(),
       version: '2.0.0',
       error: error
