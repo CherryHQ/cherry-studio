@@ -1541,11 +1541,16 @@ const exportNoteAsMarkdown = async (noteName: string, content: string): Promise<
   }
 }
 
-const getScrollableElement = (): HTMLElement | null => {
+const getScrollableElement = (noteId: string): HTMLElement | null => {
   const notesPage = document.querySelector('#notes-page')
   if (!notesPage) return null
 
-  const allDivs = notesPage.querySelectorAll('div')
+  const noteEditor = Array.from(notesPage.querySelectorAll<HTMLElement>('[data-note-id]')).find(
+    (element) => element.dataset.noteId === noteId
+  )
+  if (!noteEditor) return null
+
+  const allDivs = noteEditor.querySelectorAll('div')
   for (const div of Array.from(allDivs)) {
     const style = window.getComputedStyle(div)
     if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
@@ -1557,9 +1562,9 @@ const getScrollableElement = (): HTMLElement | null => {
   return null
 }
 
-const getScrollableRef = (): ScrollableCaptureRef => ({
+const getScrollableRef = (noteId: string): ScrollableCaptureRef => ({
   get current() {
-    const element = getScrollableElement()
+    const element = getScrollableElement(noteId)
     if (!element) {
       toast.warning(i18n.t('notes.no_content_to_copy'))
     }
@@ -1567,8 +1572,8 @@ const getScrollableRef = (): ScrollableCaptureRef => ({
   }
 })
 
-const exportNoteAsImageToClipboard = async (): Promise<void> => {
-  const scrollableRef = getScrollableRef()
+const exportNoteAsImageToClipboard = async (noteId: string): Promise<void> => {
+  const scrollableRef = getScrollableRef(noteId)
   await exportService.captureScrollableAsBlob(scrollableRef, async (blob) => {
     if (blob) {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
@@ -1577,8 +1582,8 @@ const exportNoteAsImageToClipboard = async (): Promise<void> => {
   })
 }
 
-const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
-  const scrollableRef = getScrollableRef()
+const exportNoteAsImageFile = async (noteName: string, noteId: string): Promise<void> => {
+  const scrollableRef = getScrollableRef(noteId)
   const dataUrl = await exportService.captureScrollableAsDataUrl(scrollableRef)
   if (dataUrl) {
     const fileName = removeSpecialCharactersForFileName(noteName)
@@ -1587,7 +1592,7 @@ const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
 }
 
 interface NoteExportOptions {
-  node: { name: string; externalPath: string }
+  node: { id: string; name: string; externalPath: string }
   platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'joplin' | 'siyuan' | 'copyImage' | 'exportImage'
 }
 
@@ -1597,9 +1602,9 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
 
     switch (platform) {
       case 'copyImage':
-        return await exportNoteAsImageToClipboard()
+        return await exportNoteAsImageToClipboard(node.id)
       case 'exportImage':
-        return await exportNoteAsImageFile(node.name)
+        return await exportNoteAsImageFile(node.name, node.id)
       case 'markdown':
         return await exportNoteAsMarkdown(node.name, content)
       case 'docx':

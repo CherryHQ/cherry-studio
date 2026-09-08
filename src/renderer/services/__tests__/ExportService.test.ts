@@ -1345,6 +1345,16 @@ describe('ExportService image capture serialization', () => {
     el.getBoundingClientRect = () => rect(10, 20, width, height)
   }
 
+  const createNoteSurface = (noteId: string) => {
+    const editor = document.createElement('div')
+    editor.dataset.noteId = noteId
+    const scrollable = document.createElement('div')
+    scrollable.style.overflowY = 'auto'
+    scrollable.appendChild(Object.assign(document.createElement('div'), { className: 'ProseMirror' }))
+    editor.appendChild(scrollable)
+    return { editor, scrollable }
+  }
+
   const deferred = <T>() => {
     let resolve!: (value: T | PromiseLike<T>) => void
     let reject!: (reason?: unknown) => void
@@ -1618,17 +1628,15 @@ describe('ExportService image capture serialization', () => {
     }
   })
 
-  it('resolves a queued note surface after it is replaced', async () => {
+  it('resolves a queued note surface after a same-note rerender', async () => {
     const blocker = document.createElement('div')
     stubGeometry(blocker, 800, 600)
     document.body.appendChild(blocker)
 
     const notesPage = document.createElement('div')
     notesPage.id = 'notes-page'
-    const originalSurface = document.createElement('div')
-    originalSurface.style.overflowY = 'auto'
-    originalSurface.appendChild(Object.assign(document.createElement('div'), { className: 'ProseMirror' }))
-    notesPage.appendChild(originalSurface)
+    const originalNote = createNoteSurface('note-a')
+    notesPage.appendChild(originalNote.editor)
     document.body.appendChild(notesPage)
 
     document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
@@ -1670,26 +1678,91 @@ describe('ExportService image capture serialization', () => {
       await firstNativeEntered.promise
 
       const noteCapture = exportNote({
-        node: { name: 'Note', externalPath: '/notes/note.md' },
+        node: { id: 'note-a', name: 'Note', externalPath: '/notes/note.md' },
         platform: 'exportImage'
       })
       await flushMicrotasks()
 
       expect(nativeCalls).toBe(1)
 
-      const replacementSurface = document.createElement('div')
-      replacementSurface.style.overflowY = 'auto'
-      replacementSurface.appendChild(Object.assign(document.createElement('div'), { className: 'ProseMirror' }))
-      originalSurface.remove()
-      notesPage.appendChild(replacementSurface)
+      const replacementNote = createNoteSurface('note-a')
+      originalNote.editor.replaceWith(replacementNote.editor)
 
       firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
       await firstCapture
       await noteCapture
 
-      expect(capturedNoteSurface).toBe(replacementSurface)
-      expect(capturedNoteSurface).not.toBe(originalSurface)
+      expect(capturedNoteSurface).toBe(replacementNote.scrollable)
+      expect(capturedNoteSurface).not.toBe(originalNote.scrollable)
       expect(saveImage).toHaveBeenCalledWith('Note', 'data:image/png;base64,note')
+    } finally {
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      blocker.remove()
+      notesPage.remove()
+      requestAnimationFrameSpy.mockRestore()
+    }
+  })
+
+  it('does not capture a different note when the requested note changes while queued', async () => {
+    const blocker = document.createElement('div')
+    stubGeometry(blocker, 800, 600)
+    document.body.appendChild(blocker)
+
+    const notesPage = document.createElement('div')
+    notesPage.id = 'notes-page'
+    const requestedNote = createNoteSurface('note-a')
+    notesPage.appendChild(requestedNote.editor)
+    document.body.appendChild(notesPage)
+
+    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+    const readExternal = vi.fn().mockResolvedValue('')
+    const saveImage = vi.fn().mockResolvedValue(true)
+    Object.defineProperty(window, 'api', {
+      value: {
+        ...window.api,
+        file: { ...window.api.file, readExternal, saveImage }
+      },
+      configurable: true
+    })
+
+    const firstNativeEntered = deferred<void>()
+    const firstNative = deferred<{ dataUrl: string }>()
+    let nativeCalls = 0
+    imageCaptureMocks.request.mockImplementation(async () => {
+      nativeCalls += 1
+      if (nativeCalls === 1) {
+        firstNativeEntered.resolve()
+        return firstNative.promise
+      }
+      return { dataUrl: 'data:image/png;base64,unexpected' }
+    })
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 0
+    })
+
+    try {
+      const firstCapture = exportService.captureScrollableAsDataUrl({ current: blocker })
+      await firstNativeEntered.promise
+
+      const noteCapture = exportNote({
+        node: { id: 'note-a', name: 'Note A', externalPath: '/notes/a.md' },
+        platform: 'exportImage'
+      })
+      await flushMicrotasks()
+
+      const activeNote = createNoteSurface('note-b')
+      requestedNote.editor.replaceWith(activeNote.editor)
+
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      await firstCapture
+      await noteCapture
+
+      expect(nativeCalls).toBe(1)
+      expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+      expect(saveImage).not.toHaveBeenCalled()
     } finally {
       firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
       blocker.remove()
