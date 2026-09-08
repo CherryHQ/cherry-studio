@@ -525,10 +525,10 @@ export function useWebviewAnnotationSession({
   }, [])
 
   const copy = useCallback(async () => {
-    if (copyInFlightRef.current || provisionalNavigationRef.current || state.count === 0) return
+    if (copyInFlightRef.current || provisionalNavigationRef.current || state.count === 0) return false
     const binding = bindingRef.current
     const sessionId = sessionRef.current
-    if (!binding || !binding.webviewId || !sessionId) return
+    if (!binding || !binding.webviewId || !sessionId) return false
     const operation: CopyOperation = {
       ...binding,
       sessionId,
@@ -549,6 +549,7 @@ export function useWebviewAnnotationSession({
       })
       if (!markdown || !isOperationCurrent(operation)) throw new Error('Annotation export is stale')
       await navigator.clipboard.writeText(markdown)
+      return true
     } finally {
       if (operationRef.current === operation) operationRef.current = null
       copyInFlightRef.current = false

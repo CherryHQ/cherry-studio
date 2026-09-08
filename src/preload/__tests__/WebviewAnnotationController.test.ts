@@ -169,6 +169,16 @@ const trustedKeyboardEvent = (key: string, target: EventTarget = document, path?
     target
   }) as unknown as KeyboardEvent
 
+it('rejects selectors inside closed shadow roots that cannot be resolved later', () => {
+  const host = document.createElement('div')
+  const root = host.attachShadow({ mode: 'closed' })
+  const button = document.createElement('button')
+  root.appendChild(button)
+  document.body.appendChild(host)
+  expect(buildWebviewElementSelector(button)).toBeNull()
+  host.remove()
+})
+
 describe('WebviewAnnotationController selectors', () => {
   it('prefers a unique id and resolves it', () => {
     const element = document.createElement('button')
@@ -1416,6 +1426,22 @@ describe('WebviewAnnotationController interactions', () => {
       '#overlap-b',
       '#card'
     ])
+  })
+
+  it('saves a region after its original anchor is removed', () => {
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    mockRect(target, 0, 0, 400, 400)
+    const internals = privateController(controller)
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', target, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 200, 200))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', target, 200, 200))
+    target.remove()
+    saveEditor(controller, emissions, 'Keep the captured region')
+    expect(readSnapshot(controller, emissions)[0]).toMatchObject({
+      comment: 'Keep the captured region',
+      region: { rect: { x: 10, y: 10, width: 190, height: 190 } }
+    })
   })
 
   it('stores region geometry in page coordinates and projects pins back to the viewport', () => {

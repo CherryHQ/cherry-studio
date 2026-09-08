@@ -553,7 +553,7 @@ describe('useWebviewAnnotationSession', () => {
     )
     expect(sentCommands(webview)).not.toContainEqual({ type: 'clear', sessionId: sessionOne })
 
-    let copyResult: Promise<void>
+    let copyResult: Promise<boolean>
     act(() => {
       copyResult = result.current.copy()
     })
@@ -610,7 +610,7 @@ describe('useWebviewAnnotationSession', () => {
     expect(result.current).toMatchObject({ ready: false, count: 0 })
 
     act(() => stateChanged(webview))
-    let copyResult: Promise<void>
+    let copyResult: Promise<boolean>
     act(() => {
       copyResult = result.current.copy()
     })
@@ -636,7 +636,7 @@ describe('useWebviewAnnotationSession', () => {
       const webviewRef = createWebviewRef(webview)
       const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
       act(() => stateChanged(webview))
-      let copyResult: Promise<void>
+      let copyResult: Promise<boolean>
       act(() => {
         copyResult = result.current.copy()
       })
@@ -662,7 +662,7 @@ describe('useWebviewAnnotationSession', () => {
       act(() => stateChanged(webview))
       vi.mocked(webview.send).mockRejectedValueOnce(new Error('guest unavailable'))
 
-      let copyResult: Promise<void>
+      let copyResult: Promise<boolean>
       act(() => {
         copyResult = result.current.copy()
       })
@@ -695,7 +695,7 @@ describe('useWebviewAnnotationSession', () => {
       const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
       act(() => stateChanged(webview))
 
-      let copyResult: Promise<void>
+      let copyResult: Promise<boolean>
       act(() => {
         copyResult = result.current.copy()
       })
@@ -743,7 +743,7 @@ describe('useWebviewAnnotationSession', () => {
     const webviewRef = createWebviewRef(webview)
     const { result, unmount } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
     act(() => stateChanged(webview))
-    let copyResult: Promise<void>
+    let copyResult: Promise<boolean>
     act(() => {
       copyResult = result.current.copy()
     })
@@ -769,7 +769,7 @@ describe('useWebviewAnnotationSession', () => {
     const webviewRef = createWebviewRef(webview)
     const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
     act(() => stateChanged(webview))
-    let copyResult: Promise<void>
+    let copyResult: Promise<boolean>
     act(() => {
       copyResult = result.current.copy()
     })
@@ -796,8 +796,8 @@ describe('useWebviewAnnotationSession', () => {
     const webviewRef = createWebviewRef(webview)
     const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
     act(() => stateChanged(webview))
-    let firstCopy: Promise<void>
-    let secondCopy: Promise<void>
+    let firstCopy: Promise<boolean>
+    let secondCopy: Promise<boolean>
     act(() => {
       firstCopy = result.current.copy()
       secondCopy = result.current.copy()
@@ -805,11 +805,11 @@ describe('useWebviewAnnotationSession', () => {
 
     expect(sentCommands(webview).filter((command) => command.type === 'request_snapshot')).toHaveLength(1)
     expect(result.current.copying).toBe(true)
-    await expect(secondCopy!).resolves.toBeUndefined()
+    await expect(secondCopy!).resolves.toBe(false)
 
     await act(async () => {
       snapshotReady(webview)
-      await expect(firstCopy!).resolves.toBeUndefined()
+      await expect(firstCopy!).resolves.toBe(true)
     })
     expect(request).toHaveBeenCalledOnce()
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('# Resolved annotations')
