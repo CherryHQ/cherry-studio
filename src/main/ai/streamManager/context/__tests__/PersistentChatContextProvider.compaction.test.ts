@@ -710,9 +710,12 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     mockGetPathToNode.mockReturnValue(path)
     compressionOn()
 
-    await makeHistory('u1', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
+    const { messages } = await makeHistory('u1', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
 
     expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
+    expect(messages[0].id).toMatch(/^compaction:/)
+    expect(messages.at(-1)?.id).toBe('u18')
   })
 
   // The compressor fallback must apply the safety margin exactly once, not twice.
@@ -751,9 +754,11 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     // Explicit compressor with no contextWindow → triggers fallback path.
     compressionOn({ languageModel: {}, contextWindow: null })
 
-    await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
+    const { messages } = await makeHistory('u3', [DEFAULT_MODEL_ID], { contextWindow: 100_000 })
 
     expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
+    expect(messages[0].id).toMatch(/^compaction:/)
     const opts = mockSummarizeModelMessages.mock.calls[0][2]
     // resolveCompressionOutputTokens(90_000): share=floor(90_000*0.25)=22_500, ceiling=16_384 → maxOutput=16_384
     // maxInputTokens = max(2000, floor((90_000 - 16_384) * 0.85)) = floor(73_616 * 0.85) = 62_573

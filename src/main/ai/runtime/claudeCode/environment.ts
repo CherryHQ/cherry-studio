@@ -118,7 +118,17 @@ export function resolveAutoCompactWindow(
   } else {
     const margined = Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
     const marginedRoom = margined - requestedOutput
-    effectiveContextWindow = marginedRoom < MIN_AUTO_COMPACT_WINDOW ? contextWindow : margined
+    const rawRoom = contextWindow - requestedOutput
+    // Only skip the conservative margin when BOTH rooms would be below
+    // the SDK floor. For a 200K declared window the margined room is 88K
+    // (<100K) but the raw room is 168K (>100K): the margin must stay to keep
+    // the budget inside a 128K-real provider (100K vs 164K overflow). For a
+    // tiny 100K window both rooms are below the floor and the SDK requires
+    // 100K either way, so we pick the raw window to minimize overflow
+    // magnitude (32K vs 72K). Large windows where the 256K/128K overstatement
+    // is plausible keep the margin.
+    const shouldSkipMargin = marginedRoom < MIN_AUTO_COMPACT_WINDOW && rawRoom < MIN_AUTO_COMPACT_WINDOW
+    effectiveContextWindow = shouldSkipMargin ? contextWindow : margined
   }
   const inputRoom = effectiveContextWindow - requestedOutput
   const budget = Math.floor(inputRoom * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
