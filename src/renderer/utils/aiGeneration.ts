@@ -135,13 +135,18 @@ export async function fetchGenerate({
       ? await Promise.race([
           generation,
           new Promise<never>((_, reject) => {
-            abortListener = () => {
+            let abortHandled = false
+            const onAbort = () => {
+              if (abortHandled) return
+              abortHandled = true
               if (requestId) {
                 void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
               }
               reject(signal.reason ?? new DOMException('The operation was aborted', 'AbortError'))
             }
-            signal.addEventListener('abort', abortListener, { once: true })
+            abortListener = onAbort
+            signal.addEventListener('abort', onAbort, { once: true })
+            if (signal.aborted) onAbort()
           })
         ])
       : await generation

@@ -95,6 +95,31 @@ describe('fetchGenerate cancellation', () => {
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.text.abort', { requestId })
   })
 
+  it('settles locally when the signal aborts before listener registration', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('cancelled before registration', 'AbortError')
+    generateTextMock.mockImplementationOnce(() => {
+      controller.abort(reason)
+      return new Promise<{ text: string }>((resolve) => {
+        queueMicrotask(() => resolve({ text: 'late response' }))
+      })
+    })
+
+    await expect(
+      fetchGenerate({
+        prompt: 'system prompt',
+        content: 'user content',
+        model: TEST_MODEL,
+        signal: controller.signal,
+        throwOnError: true
+      })
+    ).rejects.toBe(reason)
+
+    const requestId = generateTextMock.mock.calls[0][0].requestId
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.text.abort', { requestId })
+    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'ai.text.abort')).toHaveLength(1)
+  })
+
   it('keeps legacy callers on the existing request shape when no signal is supplied', async () => {
     await fetchGenerate({ prompt: 'system prompt', content: 'user content' })
 
