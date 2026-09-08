@@ -43,4 +43,8 @@ describe('alignRangeValue', () => {
   it('aligns a valid step smaller than the toFixed precision limit', () => {
     expect(alignRangeValue(1.4e-101, 0, 1e-100, 1e-101)).toBe(1e-101)
   })
+
+  it('keeps a large quarter-step value on the nearer lower grid point', () => {
+    expect(alignRangeValue(300_000_000_000_000.25, 0, 400_000_000_000_000, 1)).toBe(300_000_000_000_000)
+  })
 })

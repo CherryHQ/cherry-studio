@@ -125,6 +125,26 @@ describe('computeModelFieldReset', () => {
     })
   })
 
+  it('clears old model fields when the registered target model has no configurable fields', async () => {
+    mockSupportPerModel({
+      'old-model': generateSupport({
+        size: { type: 'enum', options: ['1024x1024'] },
+        promptExtend: { type: 'switch' }
+      }),
+      'fixed-model': generateSupport({})
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'provider',
+      oldModelId: 'old-model',
+      newModelId: 'fixed-model',
+      mode: 'generate',
+      currentValues: { size: '1024x1024', promptExtend: true }
+    })
+
+    expect(patch).toStrictEqual({ size: undefined, promptExtend: undefined })
+  })
+
   it('keeps a shared field with a valid current value (no default override)', async () => {
     mockSupportPerModel({
       'gpt-image-1': generateSupport({

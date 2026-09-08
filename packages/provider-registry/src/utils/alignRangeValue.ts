@@ -22,12 +22,13 @@ export function alignRangeValue(value: number, min: number, max: number, step: n
   const clamped = Math.min(max, Math.max(min, value))
   if (!(step > 0) || min === max) return clamped
   const precision = Math.max(decimalPlaces(min), decimalPlaces(step))
-  const rawStepsFromMin = (clamped - min) / step
-  const nearestHalfStep = Math.round(rawStepsFromMin * 2) / 2
-  const halfStepTolerance = Number.EPSILON * Math.max(1, Math.abs(rawStepsFromMin)) * 4
-  const stepsFromMin = Math.round(
-    Math.abs(rawStepsFromMin - nearestHalfStep) <= halfStepTolerance ? nearestHalfStep : rawStepsFromMin
-  )
+  const scale = 10 ** precision
+  const scaledMin = min * scale
+  const scaledStep = step * scale
+  const scaledValue = clamped * scale
+  const canScale =
+    Number.isFinite(scale) && Number.isFinite(scaledMin) && Number.isFinite(scaledStep) && Number.isFinite(scaledValue)
+  const stepsFromMin = Math.round(canScale ? (scaledValue - scaledMin) / scaledStep : (clamped - min) / step)
   let aligned = roundToDecimalPlaces(min + stepsFromMin * step, precision)
   if (aligned > max) {
     aligned = roundToDecimalPlaces(min + (stepsFromMin - 1) * step, precision)

@@ -64,10 +64,10 @@ export async function computeModelFieldReset(input: {
     oldModelId ? fetchSupport(oldModelId) : Promise.resolve(undefined),
     fetchSupport(newModelId)
   ])
+  if (!newSupport) return {}
 
   const oldItems = oldSupport ? imageGenerationToFields(oldSupport, { mode }) : []
-  const newItems = newSupport ? imageGenerationToFields(newSupport, { mode }) : []
-  if (newItems.length === 0) return {}
+  const newItems = imageGenerationToFields(newSupport, { mode })
   const currentValues = typeof input.currentValues === 'function' ? input.currentValues() : (input.currentValues ?? {})
 
   const collectKeys = (items: BaseConfigItem[]): Set<string> => {

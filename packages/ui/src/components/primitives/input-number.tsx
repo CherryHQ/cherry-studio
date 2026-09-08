@@ -193,6 +193,8 @@ function stepFrom(base: number, step: number, min?: number, max?: number): numbe
   const next = step > 0 ? Math.floor(offsets + epsilon) + 1 : Math.ceil(offsets - epsilon) - 1
   const decimals = Math.max(decimalsOf(size), decimalsOf(anchor))
   const stepped = Number((anchor + next * size).toFixed(decimals))
+  // An in-range base stays put when there is no next grid point in range.
+  if (inRange(base, min, max) && !inRange(stepped, min, max)) return base
   const clamped = min !== undefined && stepped < min ? min : max !== undefined && stepped > max ? max : stepped
   // An arrow must never move the value against its own direction. A base already
   // outside the range would otherwise be dragged backwards by the clamp: pressing
