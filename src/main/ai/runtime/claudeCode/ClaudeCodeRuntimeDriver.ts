@@ -64,8 +64,8 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
-import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import { createTraceGuardedSpawnProcess } from './ClaudeCodeWarmQueryManager'
+import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
