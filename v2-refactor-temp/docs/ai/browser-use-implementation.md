@@ -1181,3 +1181,42 @@ preview/artifact popups remain blocked. Service shutdown replaces the routing wi
 Main-renderer readiness is revoked only for main-document navigation, renderer crashes and window
 destruction. Child-frame/WebView loading and same-document navigation keep the existing IPC receivers
 ready, so browser tabs and protocol requests do not remain queued behind an unrelated page load.
+
+## 14. MiniApp and Browser infrastructure boundary
+
+As verified on 2026-09-08, MiniApp and Browser share selected capabilities, but do not yet share
+one renderer guest host. The `WebviewHost` name describes its intended reusable scope; MiniApp
+still creates its own `<webview>` through `WebviewContainer`.
+
+| Layer | MiniApp | Browser | Current relationship |
+|---|---|---|---|
+| Guest host | [WebviewContainer](../../../src/renderer/components/MiniApp/WebviewContainer.tsx) | [WebviewHost](../../../src/renderer/components/WebviewHost.tsx), composed by `WebviewBrowser` | Separate element creation, event wiring and preference application |
+| Navigation toolbar | `MinimalToolbar` | `WebviewNavigation` | Separate implementations with overlapping navigation/address state |
+| Page lifetime | `MiniAppTabsPool` owns keep-alive and split-pane placement | Browser tab or Agent pane owns the guest | Separate product ownership |
+| Page search and annotations | `WebviewSearch`, `WebviewAnnotationControls` | Same components | Shared |
+| Annotation accessibility capture | [annotationExport](../../../src/main/services/webview/annotationExport.ts) borrows a guest lease | `BrowserSessionService` / `GuestSession` | Shared debugger ownership and capture engine |
+| Runtime and security | `MiniAppRuntimeService`, app preparation and MiniApp host policies | Browser session/control and profile policies | Separate authorities; sharing capture does not grant Agent control over MiniApps |
+
+Storage remains isolated:
+
+| Surface | Electron partition |
+|---|---|
+| Ordinary Browser tabs and Agent browser panes | `persist:agent-browser` |
+| Website MiniApps (`kind: site`) | `persist:webview` |
+| Local MiniApps (`kind: app`) | `persist:miniapp:${appid}` |
+
+Browser imports write website data to the ordinary Browser partition. Browser history tracking and
+the import banner also target ordinary Browser pages. They do not automatically apply to MiniApps,
+and importing a login into Browser does not log the user into a MiniApp.
+
+The proposed follow-up is a separate infrastructure-consolidation PR. Share guest mounting, event
+cleanup, keyboard forwarding, common preference application and reusable navigation state while
+preserving MiniApp preparation, keep-alive, split panes and runtime permissions. Improve the shared
+host contract first; `WebviewHost` currently maps fixed profiles and cannot directly express a local
+MiniApp's per-app partition. Do not route local apps through a website profile to make them fit.
+
+Acceptance must cover both consumers: switching tabs and split layouts preserves the intended guest,
+listeners do not duplicate, navigation/focus fixes work in both surfaces, local apps wait for runtime
+preparation, and profile/permission isolation remains intact. Whether website MiniApps should share
+Browser login data is a separate product decision, not a consequence of sharing host code; do not
+change partitions or migrate cookies/storage as part of the infrastructure refactor.
