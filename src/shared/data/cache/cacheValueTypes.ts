@@ -255,6 +255,7 @@ export type FollowupQueueItem = {
 export type FollowupQueueState = {
   items: FollowupQueueItem[]
   paused: boolean
+  failedItemId?: string | null
 }
 
 /** Per-conversation follow-up queues, keyed by the composer's conversation scope key. */
