@@ -8,7 +8,6 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -504,6 +503,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
+      const { captureScrollableAsDataUrl } = await import('@renderer/services/ExportService')
+
       if (action === 'copy') {
         const imageData = await captureScrollableAsDataUrl(captureRef)
         const blob = imageData ? await fetch(imageData).then((response) => response.blob()) : null

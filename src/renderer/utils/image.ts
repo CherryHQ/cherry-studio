@@ -22,16 +22,6 @@ export const IMAGE_CAPTURE_ATTRIBUTE = 'data-image-capturing'
 const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
-let imageCaptureQueue = Promise.resolve()
-
-function enqueueImageCapture<T>(capture: () => Promise<T>): Promise<T> {
-  const queuedCapture = imageCaptureQueue.then(capture)
-  imageCaptureQueue = queuedCapture.then(
-    () => undefined,
-    () => undefined
-  )
-  return queuedCapture
-}
 
 const loadHtmlToImage = () => {
   htmlToImagePromise ??= import('html-to-image').catch((error) => {
@@ -284,8 +274,7 @@ async function captureScrollableElement(el: HTMLElement | null) {
   return Promise.resolve(undefined)
 }
 
-export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>) =>
-  enqueueImageCapture(() => captureScrollableElement(elRef.current))
+export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>) => captureScrollableElement(elRef.current)
 
 function markElementForCapture(el: HTMLElement): () => void {
   const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
@@ -450,21 +439,22 @@ async function captureNativeDataUrl(el: HTMLElement): Promise<string | undefined
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> PNG data URL，失败返回 undefined
  */
-export const captureScrollableImage = async (elRef: React.RefObject<HTMLElement | null>): Promise<string | undefined> =>
-  enqueueImageCapture(async () => {
-    const el = elRef.current
-    if (!el) return undefined
+export const captureScrollableImage = async (
+  elRef: React.RefObject<HTMLElement | null>
+): Promise<string | undefined> => {
+  const el = elRef.current
+  if (!el) return undefined
 
-    try {
-      const native = await captureNativeDataUrl(el)
-      if (native) return native
-    } catch (error) {
-      logger.warn('Native compositor capture unavailable, falling back to html-to-image', error as Error)
-    }
+  try {
+    const native = await captureNativeDataUrl(el)
+    if (native) return native
+  } catch (error) {
+    logger.warn('Native compositor capture unavailable, falling back to html-to-image', error as Error)
+  }
 
-    const canvas = await captureScrollableElement(el)
-    return canvas?.toDataURL('image/png')
-  })
+  const canvas = await captureScrollableElement(el)
+  return canvas?.toDataURL('image/png')
+}
 
 /**
  * 将可滚动元素的图像数据转换为 Data URL 格式。

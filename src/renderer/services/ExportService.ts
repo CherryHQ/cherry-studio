@@ -25,7 +25,10 @@ import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
+import {
+  captureScrollableAsBlob as captureScrollableAsBlobUtil,
+  captureScrollableAsDataUrl as captureScrollableAsDataUrlUtil
+} from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { stripCitationMarkers } from '@renderer/utils/message/citations'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
@@ -95,6 +98,28 @@ const getExportState = () => exportState
 const setExportingState = (isExporting: boolean) => {
   exportState = isExporting
 }
+
+// Image captures temporarily mutate renderer DOM and share the native capture
+// lifecycle, so their coordination belongs with the export runtime owner.
+let imageCaptureQueue = Promise.resolve()
+
+function enqueueImageCapture<T>(capture: () => Promise<T>): Promise<T> {
+  const queuedCapture = imageCaptureQueue.then(capture)
+  imageCaptureQueue = queuedCapture.then(
+    () => undefined,
+    () => undefined
+  )
+  return queuedCapture
+}
+
+type ScrollableCaptureRef = Parameters<typeof captureScrollableAsDataUrlUtil>[0]
+type ScrollableBlobCallback = Parameters<typeof captureScrollableAsBlobUtil>[1]
+
+export const captureScrollableAsDataUrl = (elRef: ScrollableCaptureRef) =>
+  enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef))
+
+export const captureScrollableAsBlob = (elRef: ScrollableCaptureRef, func: ScrollableBlobCallback) =>
+  enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func))
 
 /**
  * 安全地处理思维链内容，保留安全的 HTML 标签如 <br>，移除危险内容

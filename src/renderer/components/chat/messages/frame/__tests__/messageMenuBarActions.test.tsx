@@ -109,6 +109,8 @@ vi.mock('@renderer/components/command', async () => {
 })
 
 vi.mock('@renderer/services/ExportService', () => ({
+  captureScrollableAsBlob: vi.fn(),
+  captureScrollableAsDataUrl: vi.fn(),
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))

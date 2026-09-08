@@ -30,7 +30,6 @@ import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
@@ -230,6 +229,7 @@ registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }
 })
 
 registerCommand('message.copyImage', async ({ actions, messageContainerRef }) => {
+  const { captureScrollableAsBlob } = await import('@renderer/services/ExportService')
   await captureScrollableAsBlob(messageContainerRef, async (blob) => {
     if (blob) {
       await actions.copyImage?.(blob)
@@ -238,8 +238,8 @@ registerCommand('message.copyImage', async ({ actions, messageContainerRef }) =>
 })
 
 registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
+  const { captureScrollableAsDataUrl, getMessageTitle } = await import('@renderer/services/ExportService')
   const imageData = await captureScrollableAsDataUrl(messageContainerRef)
-  const { getMessageTitle } = await import('@renderer/services/ExportService')
   const title = await getMessageTitle(messageForExport)
   if (!title || !imageData || !actions.saveImage) {
     actions.notifyError?.(t('message.error.unknown'))

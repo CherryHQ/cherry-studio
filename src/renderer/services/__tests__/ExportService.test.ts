@@ -8,7 +8,9 @@ import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { IMAGE_CAPTURE_ATTRIBUTE } from '@renderer/utils/image'
 import type * as MessageFind from '@renderer/utils/message/find'
+import * as htmlToImage from 'html-to-image'
 
 // --- Mocks Setup ---
 
@@ -21,6 +23,14 @@ const notionMocks = vi.hoisted(() => ({
   createPage: vi.fn(),
   markdownToBlocks: vi.fn((markdown: string) => [{ markdown }, { markdown: `${markdown}\n` }]),
   appendBlocks: vi.fn()
+}))
+
+const imageCaptureMocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: imageCaptureMocks }))
+
+vi.mock('html-to-image', () => ({
+  toCanvas: vi.fn()
 }))
 
 vi.mock('@notionhq/client', () => {
@@ -154,6 +164,7 @@ import { markdownToPlainText } from '@renderer/utils/markdown'
 import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 
 import {
+  captureScrollableAsDataUrl,
   exportMarkdownToObsidian,
   exportMessagesToNotion,
   exportMessageToNotion,
@@ -1317,5 +1328,288 @@ describe('Notion export alert callout wiring', () => {
     const toggle = blocks.find((block) => block.type === 'toggle')
     expect(toggle).toBeDefined()
     expect(toggle.toggle.children[0].type).toBe('callout')
+  })
+})
+
+describe('ExportService image capture serialization', () => {
+  const rect = (left: number, top: number, width: number, height: number) =>
+    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect
+
+  const stubGeometry = (el: HTMLElement, width: number, height: number) => {
+    Object.defineProperty(el, 'scrollWidth', { value: width, configurable: true })
+    Object.defineProperty(el, 'scrollHeight', { value: height, configurable: true })
+    el.getBoundingClientRect = () => rect(10, 20, width, height)
+  }
+
+  const deferred = <T>() => {
+    let resolve!: (value: T | PromiseLike<T>) => void
+    let reject!: (reason?: unknown) => void
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise
+      reject = rejectPromise
+    })
+    return { promise, resolve, reject }
+  }
+
+  const flushMicrotasks = async () => {
+    for (let index = 0; index < 6; index += 1) {
+      await Promise.resolve()
+    }
+  }
+
+  const captureState = (root: HTMLElement, artifact: HTMLElement) => ({
+    overflow: root.style.overflow,
+    height: root.style.height,
+    maxHeight: root.style.maxHeight,
+    captureMarker: root.getAttribute(IMAGE_CAPTURE_ATTRIBUTE),
+    artifactDisplay: artifact.style.display
+  })
+
+  const originalDocumentElementRect = document.documentElement.getBoundingClientRect.bind(document.documentElement)
+
+  beforeEach(() => {
+    vi.mocked(htmlToImage.toCanvas).mockReset()
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
+      Promise.resolve({
+        toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
+        toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
+      } as unknown as HTMLCanvasElement)
+    )
+  })
+
+  afterEach(() => {
+    document.documentElement.getBoundingClientRect = originalDocumentElementRect
+  })
+
+  it('serializes capture lifecycles across roots and restores each root before the next starts', async () => {
+    const rootA = document.createElement('div')
+    const artifactA = document.createElement('div')
+    artifactA.setAttribute('data-html-artifact', '')
+    rootA.appendChild(artifactA)
+    rootA.style.overflow = 'auto'
+    rootA.style.height = '120px'
+    rootA.style.maxHeight = '240px'
+    rootA.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-a')
+    artifactA.style.display = 'inline-block'
+    stubGeometry(rootA, 800, 600)
+
+    const rootB = document.createElement('div')
+    const artifactB = document.createElement('div')
+    artifactB.setAttribute('data-html-artifact', '')
+    rootB.appendChild(artifactB)
+    rootB.style.overflow = 'scroll'
+    rootB.style.height = '180px'
+    rootB.style.maxHeight = '360px'
+    rootB.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+    artifactB.style.display = 'grid'
+    stubGeometry(rootB, 800, 600)
+
+    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+    const initialA = captureState(rootA, artifactA)
+    const initialB = captureState(rootB, artifactB)
+    const firstNativeEntered = deferred<void>()
+    const firstNative = deferred<{ dataUrl: string }>()
+    let nativeCalls = 0
+    let stateWhenSecondStarted: ReturnType<typeof captureState> | undefined
+    imageCaptureMocks.request.mockImplementation(async () => {
+      nativeCalls += 1
+      if (nativeCalls === 1) {
+        firstNativeEntered.resolve()
+        return firstNative.promise
+      }
+
+      stateWhenSecondStarted = captureState(rootA, artifactA)
+      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
+    })
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 0
+    })
+
+    try {
+      const firstCapture = captureScrollableAsDataUrl({ current: rootA })
+      await firstNativeEntered.promise
+
+      const secondCapture = captureScrollableAsDataUrl({ current: rootB })
+      await flushMicrotasks()
+
+      expect(nativeCalls).toBe(1)
+
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      await firstCapture
+      await secondCapture
+
+      expect(stateWhenSecondStarted).toEqual(initialA)
+      expect(captureState(rootA, artifactA)).toEqual(initialA)
+      expect(captureState(rootB, artifactB)).toEqual(initialB)
+    } finally {
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      requestAnimationFrameSpy.mockRestore()
+    }
+  })
+
+  it('serializes same-root captures and restores the original state after both complete', async () => {
+    const root = document.createElement('div')
+    const artifact = document.createElement('div')
+    artifact.setAttribute('data-html-artifact', '')
+    root.appendChild(artifact)
+    root.style.overflow = 'auto'
+    root.style.height = '120px'
+    root.style.maxHeight = '240px'
+    root.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-capture')
+    artifact.style.display = 'inline-block'
+    stubGeometry(root, 800, 600)
+
+    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+    const initial = captureState(root, artifact)
+    const firstNativeEntered = deferred<void>()
+    const firstNative = deferred<{ dataUrl: string }>()
+    let nativeCalls = 0
+    imageCaptureMocks.request.mockImplementation(async () => {
+      nativeCalls += 1
+      if (nativeCalls === 1) {
+        firstNativeEntered.resolve()
+        return firstNative.promise
+      }
+
+      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
+    })
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 0
+    })
+
+    try {
+      const firstCapture = captureScrollableAsDataUrl({ current: root })
+      await firstNativeEntered.promise
+
+      const secondCapture = captureScrollableAsDataUrl({ current: root })
+      await flushMicrotasks()
+
+      expect(nativeCalls).toBe(1)
+
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      await firstCapture
+      await secondCapture
+
+      expect(captureState(root, artifact)).toEqual(initial)
+    } finally {
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      requestAnimationFrameSpy.mockRestore()
+    }
+  })
+
+  it('runs the next queued capture after native failure and html-to-image fallback complete', async () => {
+    const rootA = document.createElement('div')
+    const artifactA = document.createElement('div')
+    artifactA.setAttribute('data-html-artifact', '')
+    rootA.appendChild(artifactA)
+    rootA.style.overflow = 'auto'
+    rootA.style.height = '120px'
+    rootA.style.maxHeight = '240px'
+    rootA.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-a')
+    artifactA.style.display = 'inline-block'
+    stubGeometry(rootA, 800, 600)
+
+    const rootB = document.createElement('div')
+    stubGeometry(rootB, 800, 600)
+    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+    const initialA = captureState(rootA, artifactA)
+    const fallbackStarted = deferred<void>()
+    const releaseFallback = deferred<void>()
+    let nativeCalls = 0
+    let htmlToImageCalls = 0
+    let stateWhenSecondStarted: ReturnType<typeof captureState> | undefined
+    imageCaptureMocks.request.mockImplementation(async () => {
+      nativeCalls += 1
+      if (nativeCalls === 1) throw new Error('CDP attach failed')
+
+      stateWhenSecondStarted = captureState(rootA, artifactA)
+      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
+    })
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async () => {
+      htmlToImageCalls += 1
+      if (htmlToImageCalls === 1) {
+        fallbackStarted.resolve()
+        await releaseFallback.promise
+      }
+      return { toDataURL: vi.fn(() => 'data:image/png;base64,ZmFsbGJhY2s=') } as unknown as HTMLCanvasElement
+    })
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 0
+    })
+
+    try {
+      const firstCapture = captureScrollableAsDataUrl({ current: rootA })
+      await fallbackStarted.promise
+
+      const secondCapture = captureScrollableAsDataUrl({ current: rootB })
+      await flushMicrotasks()
+
+      expect(nativeCalls).toBe(1)
+      expect(htmlToImageCalls).toBe(1)
+
+      releaseFallback.resolve()
+      await expect(firstCapture).resolves.toBe('data:image/png;base64,ZmFsbGJhY2s=')
+      await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
+
+      expect(stateWhenSecondStarted).toEqual(initialA)
+      expect(captureState(rootA, artifactA)).toEqual(initialA)
+      expect(nativeCalls).toBe(2)
+      expect(htmlToImageCalls).toBe(2)
+    } finally {
+      releaseFallback.resolve()
+      requestAnimationFrameSpy.mockRestore()
+    }
+  })
+
+  it('continues with a later capture when an earlier queued capture rejects', async () => {
+    const rootA = document.createElement('div')
+    stubGeometry(rootA, 800, 600)
+    const rootB = document.createElement('div')
+    stubGeometry(rootB, 800, 600)
+    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+    const firstNativeEntered = deferred<void>()
+    const firstNative = deferred<{ dataUrl: string }>()
+    let nativeCalls = 0
+    imageCaptureMocks.request.mockImplementation(async () => {
+      nativeCalls += 1
+      if (nativeCalls === 1) {
+        firstNativeEntered.resolve()
+        return firstNative.promise
+      }
+      return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
+    })
+    vi.mocked(htmlToImage.toCanvas).mockRejectedValue(new Error('fallback failed'))
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 0
+    })
+
+    try {
+      const firstCapture = captureScrollableAsDataUrl({ current: rootA })
+      await firstNativeEntered.promise
+      const secondCapture = captureScrollableAsDataUrl({ current: rootB })
+      await flushMicrotasks()
+
+      expect(nativeCalls).toBe(1)
+
+      firstNative.reject(new Error('native failed'))
+      await expect(firstCapture).rejects.toThrow('fallback failed')
+      await expect(secondCapture).resolves.toBe('data:image/png;base64,c2Vjb25k')
+      expect(nativeCalls).toBe(2)
+    } finally {
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      requestAnimationFrameSpy.mockRestore()
+    }
   })
 })
