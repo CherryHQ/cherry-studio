@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { listenForPopupMessage } from '@renderer/services/popupMessage'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('oauth')
@@ -19,16 +20,15 @@ export const oauthWithSiliconFlow = async (setKey) => {
     'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
   )
 
-  const messageHandler = (event) => {
-    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
+  listenForPopupMessage({
+    popup,
+    isExpected: (data): data is Array<{ secretKey?: string }> =>
+      Array.isArray(data) && data.length > 0 && typeof data[0]?.['secretKey'] === 'string',
+    onMessage: (data) => {
+      setKey(data[0]['secretKey'])
       popup?.close()
-      window.removeEventListener('message', messageHandler)
     }
-  }
-
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+  })
 }
 
 export const oauthWithAihubmix = async (setKey) => {
@@ -40,12 +40,12 @@ export const oauthWithAihubmix = async (setKey) => {
     'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
   )
 
-  const messageHandler = async (event) => {
-    const data = event.data
-
-    if (data && data.key === 'cherry_studio_oauth_callback') {
+  listenForPopupMessage({
+    popup,
+    isExpected: (data): data is { key: string; data: { iv: string; encryptedData: string } } =>
+      typeof data === 'object' && data !== null && (data as { key?: unknown }).key === 'cherry_studio_oauth_callback',
+    onMessage: async (data) => {
       const { iv, encryptedData } = data.data
-
       try {
         const secret = import.meta.env.RENDERER_VITE_AIHUBMIX_SECRET || ''
         const decryptedData: any = await window.api.aes.decrypt(encryptedData, iv, secret)
@@ -53,7 +53,6 @@ export const oauthWithAihubmix = async (setKey) => {
         if (api_keys && api_keys.length > 0) {
           setKey(api_keys[0].value)
           popup?.close()
-          window.removeEventListener('message', messageHandler)
         }
       } catch (error) {
         logger.error('[oauthWithAihubmix] error', error as Error)
@@ -61,10 +60,7 @@ export const oauthWithAihubmix = async (setKey) => {
         toast.error(i18n.t('settings.provider.oauth.error'))
       }
     }
-  }
-
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+  })
 }
 
 export const oauthWithPPIO = async (setKey) => {
@@ -151,16 +147,17 @@ export const oauthWith302AI = async (setKey) => {
     'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
   )
 
-  const messageHandler = (event) => {
-    if (event.data && event.data.data.apikey !== undefined) {
-      setKey(event.data.data.apikey)
+  listenForPopupMessage({
+    popup,
+    isExpected: (data): data is { data: { apikey?: string } } =>
+      typeof data === 'object' &&
+      data !== null &&
+      typeof (data as { data?: { apikey?: unknown } }).data?.apikey === 'string',
+    onMessage: (data) => {
+      setKey(data.data.apikey)
       popup?.close()
-      window.removeEventListener('message', messageHandler)
     }
-  }
-
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+  })
 }
 
 export const oauthWithAiOnly = async (setKey) => {
@@ -172,16 +169,15 @@ export const oauthWithAiOnly = async (setKey) => {
     'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
   )
 
-  const messageHandler = (event) => {
-    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
-      setKey(event.data[0]['secretKey'])
+  listenForPopupMessage({
+    popup,
+    isExpected: (data): data is Array<{ secretKey?: string }> =>
+      Array.isArray(data) && data.length > 0 && typeof data[0]?.['secretKey'] === 'string',
+    onMessage: (data) => {
+      setKey(data[0]['secretKey'])
       popup?.close()
-      window.removeEventListener('message', messageHandler)
     }
-  }
-
-  window.removeEventListener('message', messageHandler)
-  window.addEventListener('message', messageHandler)
+  })
 }
 
 export interface NewApiOAuthConfig {
