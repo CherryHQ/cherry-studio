@@ -213,6 +213,7 @@ interface AgentRightPaneRuntime {
 }
 
 interface ExplicitBrowserBaseline {
+  openedAt: number
   sessionId?: string
   frontier: AgentPreviewUrlFrontier | null
   waitingForHistory: boolean
@@ -506,13 +507,18 @@ function AgentRightPaneStateProvider({
       explicitBrowserBaselineRef.current = null
       return
     }
-    explicitBrowserBaselineRef.current = { ...baseline, frontier: previewUrlFrontier, waitingForHistory: false }
+    const frontier =
+      previewUrlFrontier?.createdAt && Date.parse(previewUrlFrontier.createdAt) > baseline.openedAt
+        ? { createdAt: new Date(baseline.openedAt).toISOString(), messageId: '', partsLength: 0 }
+        : previewUrlFrontier
+    explicitBrowserBaselineRef.current = { ...baseline, frontier, waitingForHistory: false }
   }, [browserUrl, isMessageHistoryLoading, previewUrlFrontier, sessionId])
   const acceptDetectedBrowserUrl = useCallback(
     (url: string | null, source: AgentPreviewUrlSource | null) => {
       if (!url || !source) return
       const baseline = explicitBrowserBaselineRef.current
-      if (baseline?.waitingForHistory) return
+      if (baseline?.waitingForHistory && (!source.createdAt || Date.parse(source.createdAt) <= baseline.openedAt))
+        return
       if (
         baseline &&
         baseline.sessionId === sessionId &&
@@ -534,6 +540,7 @@ function AgentRightPaneStateProvider({
     (url: string) => {
       const frontier = previewUrlFrontierRef.current
       explicitBrowserBaselineRef.current = {
+        openedAt: Date.now(),
         sessionId,
         frontier,
         waitingForHistory: isMessageHistoryLoading && !frontier,

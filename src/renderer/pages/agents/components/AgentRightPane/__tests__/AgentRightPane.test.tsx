@@ -987,6 +987,31 @@ describe('AgentRightPane', () => {
     }
   )
 
+  it.each([true, false])('keeps a live preview arriving during initial hydration (loading=%s)', (loading) => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'artifact.html' })
+    const renderPane = (
+      messages: CherryUIMessage[],
+      parts: Record<string, CherryMessagePart[]>,
+      isMessageHistoryLoading: boolean
+    ) => (
+      <TestAgentRightPane
+        sessionId="live-during-hydration"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={parts}
+        isMessageHistoryLoading={isMessageHistoryLoading}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane([], {}, true))
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    const part = createPreviewToolPart('live-hydration', 'Bash', 'Ready at http://localhost:6791/')
+    const message = createPreviewMessage('live-hydration-message', [part], new Date(Date.now() + 1000).toISOString())
+    rerender(renderPane([message], { [message.id]: [part] }, loading))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6791/')
+  })
+
   it('accepts the first preview emitted after an empty initial history finishes loading', () => {
     const sessionId = 'session-empty-initial-history'
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
