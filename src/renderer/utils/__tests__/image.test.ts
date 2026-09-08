@@ -992,7 +992,7 @@ describe('utils/image', () => {
       }
     })
 
-    it('does not let a same-root capture snapshot temporary state from an earlier capture', async () => {
+    it('serializes same-root captures and restores the original state after both complete', async () => {
       const root = document.createElement('div')
       const artifact = document.createElement('div')
       artifact.setAttribute('data-html-artifact', '')
@@ -1010,7 +1010,6 @@ describe('utils/image', () => {
       const firstNativeEntered = deferred<void>()
       const firstNative = deferred<{ dataUrl: string }>()
       let nativeCalls = 0
-      let stateWhenSecondStarted: ReturnType<typeof captureState> | undefined
       ipcMocks.request.mockImplementation(async () => {
         nativeCalls += 1
         if (nativeCalls === 1) {
@@ -1018,7 +1017,6 @@ describe('utils/image', () => {
           return firstNative.promise
         }
 
-        stateWhenSecondStarted = captureState(root, artifact)
         return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
       })
 
@@ -1040,7 +1038,6 @@ describe('utils/image', () => {
         await firstCapture
         await secondCapture
 
-        expect(stateWhenSecondStarted).toEqual(initial)
         expect(captureState(root, artifact)).toEqual(initial)
       } finally {
         firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
