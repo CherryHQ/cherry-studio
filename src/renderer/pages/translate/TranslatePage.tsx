@@ -286,7 +286,7 @@ const TranslatePage: FC = () => {
   const prePdfOutputRef = useRef<string | null>(null)
   const exchangePendingRef = useRef(false)
   const isMountedRef = useRef(true)
-  const translateTextRef = useRef({ input: translateInput, output: translateOutput })
+  const translateContentRef = useRef({ input: translateInput, output: translateOutput, pdfFile })
 
   useEffect(() => {
     isMountedRef.current = true
@@ -296,8 +296,8 @@ const TranslatePage: FC = () => {
   }, [])
 
   useLayoutEffect(() => {
-    translateTextRef.current = { input: translateInput, output: translateOutput }
-  }, [translateInput, translateOutput])
+    translateContentRef.current = { input: translateInput, output: translateOutput, pdfFile }
+  }, [pdfFile, translateInput, translateOutput])
 
   const selectedModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
@@ -620,8 +620,8 @@ const TranslatePage: FC = () => {
         'translate languages'
       )
       if (!persisted || !isMountedRef.current) return
-      const { input, output } = translateTextRef.current
-      translateTextRef.current = { input: output, output: input }
+      const { input, output } = translateContentRef.current
+      translateContentRef.current = { input: output, output: input, pdfFile: null }
       setTranslateInput(output)
       setTranslateOutput(input)
     } finally {
@@ -643,6 +643,7 @@ const TranslatePage: FC = () => {
   const onHistoryItemClick = useCallback(
     async (history: TranslateHistory, files?: TranslationFiles) => {
       if (exchangePendingRef.current) return
+      const contentBeforePersist = translateContentRef.current
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
@@ -668,13 +669,19 @@ const TranslatePage: FC = () => {
         }),
         'translate history languages'
       )
-      if (!persisted || !isMountedRef.current) return
+      if (!persisted || !isMountedRef.current || contentBeforePersist !== translateContentRef.current) return
 
       if (filePaths) {
+        translateContentRef.current = {
+          input: contentBeforePersist.input,
+          output: contentBeforePersist.output,
+          pdfFile: { name: history.sourceText, path: filePaths.source }
+        }
         resetPdfMode()
         setRestoredPdf({ output: { outputPath: filePaths.target, fileName: history.targetText }, key: history.id })
         setPdfFile({ name: history.sourceText, path: filePaths.source })
       } else {
+        translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
         resetPdfMode()
         setTranslateInput(history.sourceText)
         setTranslateOutput(history.targetText)
