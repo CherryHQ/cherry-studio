@@ -11,7 +11,7 @@ import {
   getBuiltinRegistryEnv,
   hasInMemoryImplementation
 } from '@main/ai/mcp/servers/factory'
-import { getBinaryExecutionEnv, getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { getBinaryExecutionEnv, getBinarySearchDirs, getBinaryShimsDir, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
@@ -168,13 +168,17 @@ async function createStdio(
   // getBinarySearchDirs() (getBinaryShimsDir) resolve against Cherry's data dir
   // instead of the default user location, matching DSH/Pi branching.
   const rawShellEnv = await getRawShellEnv()
-  const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.startsWith('MISE_'))
+  const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
   const rawPath = getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>) ?? ''
   const hasUserMiseInPath = hasMiseInPath(rawPath)
   const hasUserMiseEnv = hasUserMiseVars || hasUserMiseInPath
   const cherryToolDirs = getBinarySearchDirs()
+  const managedShimsDir = getBinaryShimsDir()
+  const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)
   const bundledGitDir = getBundledGitDir()
-  const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
+  const tailDirs = hasUserMiseEnv
+    ? bundledGitDir ? [...standaloneDirs, bundledGitDir] : standaloneDirs
+    : bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
   const baseShellEnv = mergePathSuffixes(rawShellEnv, tailDirs)
   const loginShellEnv = hasUserMiseEnv ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
 

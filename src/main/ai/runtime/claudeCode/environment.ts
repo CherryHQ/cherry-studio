@@ -146,20 +146,34 @@ export async function getClaudeCodeLoginShellEnvironment(
   // redirected to Cherry's data dir (#19738). A user mise installation
   // may be visible only as a shims directory in PATH without MISE_* vars.
   const rawShellEnv = await getRawShellEnv()
-  const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => key.startsWith('MISE_'))
-  const hasUserMise = rawMiseEntries.length > 0 || hasMiseInPath(getPathFromEnvironment(rawShellEnv))
+  const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+  const hasUserMise = rawMiseEntries.length > 0 || hasMiseInPath(getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>))
   if (hasUserMise) {
     // User has mise activated — replace the contract wholesale: drop
     // Cherry-only MISE keys, then restore the user's values.
-    const { getBinaryExecutionEnv } = await import('@main/utils/binaryEnv')
+    const { getBinaryExecutionEnv, getBinaryShimsDir } = await import('@main/utils/binaryEnv')
     const cherryMiseEnv = getBinaryExecutionEnv()
+    const rawMiseKeysUpper = new Set(rawMiseEntries.map(([k]) => k.toUpperCase()))
     for (const key of Object.keys(cherryMiseEnv)) {
-      if (!rawMiseEntries.some(([k]) => k === key)) {
-        delete stripped[key]
+      if (!rawMiseKeysUpper.has(key.toUpperCase())) {
+        const existingKey = Object.keys(stripped).find((k) => k.toUpperCase() === key.toUpperCase())
+        if (existingKey) delete stripped[existingKey]
       }
     }
     for (const [key, value] of rawMiseEntries) {
       stripped[key] = value
+    }
+    const shimsDir = getBinaryShimsDir()
+    const pathKey = Object.keys(stripped).find((k) => k.toLowerCase() === 'path')
+    if (pathKey && stripped[pathKey]) {
+      const delimiter = isWin ? ';' : ':'
+      const normalize = (value: string) => (isWin ? path.normalize(value).toLowerCase() : path.normalize(value))
+      const shimsCanonical = normalize(shimsDir)
+      stripped[pathKey] = stripped[pathKey]
+        .split(delimiter)
+        .filter((segment) => normalize(segment.trim()) !== shimsCanonical)
+        .join(delimiter)
+      if (!isWin) stripped.PATH = stripped[pathKey]
     }
   }
   return stripped

@@ -122,7 +122,7 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
   const managedShimsDir = getBinaryShimsDir()
   const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
   const callerOwnsMiseEnvironment =
-    Object.keys(definedEnv).some((key) => key.startsWith('MISE_')) ||
+    Object.keys(definedEnv).some((key) => key.toUpperCase().startsWith('MISE_')) ||
     hasMiseInPath(getPathFromEnvironment(definedEnv as Record<string, string | undefined>))
 
   if (callerOwnsMiseEnvironment) {
@@ -374,7 +374,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // isolated value redirects it to the wrong data dir (#19738).
       const rawShellEnvForBash = await getRawShellEnv()
       const rawMiseEnvForBash = Object.fromEntries(
-        Object.entries(rawShellEnvForBash).filter(([key]) => key.startsWith('MISE_'))
+        Object.entries(rawShellEnvForBash).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
       )
       const hasUserMiseForBash =
         Object.keys(rawMiseEnvForBash).length > 0 ||
@@ -386,8 +386,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         spawnHook: (context) => {
           const merged = mergePiBashExecutionEnv(context.env)
           if (hasUserMiseForBash) {
+            const rawMiseKeysUpper = new Set(Object.keys(rawMiseEnvForBash).map((k) => k.toUpperCase()))
             for (const key of Object.keys(cherryMiseEnvForBash)) {
-              if (!(key in rawMiseEnvForBash)) delete merged[key]
+              if (!rawMiseKeysUpper.has(key.toUpperCase())) {
+                const existingKey = Object.keys(merged).find((k) => k.toUpperCase() === key.toUpperCase())
+                if (existingKey) delete merged[existingKey]
+              }
             }
             Object.assign(merged, rawMiseEnvForBash)
           }

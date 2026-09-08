@@ -236,7 +236,11 @@ describe('McpRuntimeService stdio environment', () => {
 
     const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
     expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
-    expect(transportEnv?.PATH).toEqual(expect.stringContaining('C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows'))
+    const winPath = (transportEnv?.PATH ?? '').replace(/\\/g, '/')
+    expect(winPath.indexOf('C:/Users/me/.cherrystudio/bin;C:/Windows')).toBe(0)
+    expect(winPath.toLowerCase().indexOf('c:/users/me/.cherrystudio/bin')).toBeLessThan(
+      winPath.toLowerCase().indexOf('/mock/feature.binary.data')
+    )
     platformSpy.mockRestore()
   })
 
@@ -258,7 +262,9 @@ describe('McpRuntimeService stdio environment', () => {
     await service.withClient(server.id, async () => undefined)
 
     const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
-    expect(transportEnv?.PATH).toEqual(expect.stringContaining('/shell/bin'))
+    const posixPath = (transportEnv?.PATH ?? '').replace(/\\/g, '/')
+    expect(posixPath.split(/[:;]/)[0]).toBe('/shell/bin')
+    expect(posixPath.indexOf('/shell/bin')).toBeLessThan(posixPath.indexOf('/mock/feature.binary.data'))
     expect(transportEnv?.Path).toBe('server-metadata')
     platformSpy.mockRestore()
   })
