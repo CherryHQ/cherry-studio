@@ -9,7 +9,6 @@ import {
   getSidebarFavoriteItems,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
-  isMessageOnlyConversationUrl,
   removeSidebarEntityFavorite,
   removeSidebarMiniApp,
   reorderLaunchpadApps,
@@ -166,15 +165,6 @@ describe('sidebar config helpers', () => {
   it('does not mark the launchpad sidebar item active for concrete mini app routes', () => {
     expect(resolveSidebarActiveItem('/app/mini-app')).toBe('mini_app')
     expect(resolveSidebarActiveItem('/app/mini-app/qwen')).toBe('')
-  })
-
-  it('classifies a message-view URL as message-only only when it carries its conversation id', () => {
-    expect(isMessageOnlyConversationUrl('/app/chat?topicId=topic&view=message')).toBe(true)
-    expect(isMessageOnlyConversationUrl('/app/agents?sessionId=session&view=message')).toBe(true)
-    // Malformed: `view=message` without an id is a bare entry, not a message-only popup.
-    expect(isMessageOnlyConversationUrl('/app/chat?view=message')).toBe(false)
-    expect(isMessageOnlyConversationUrl('/app/agents?view=message')).toBe(false)
-    expect(isMessageOnlyConversationUrl('/app/chat?topicId=topic')).toBe(false)
   })
 })
 

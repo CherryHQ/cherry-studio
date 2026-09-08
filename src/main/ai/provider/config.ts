@@ -736,9 +736,18 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
   }
 }
 
-function formatAzureBaseURL(baseURL: string, forAnthropic: boolean): string {
+function formatAzureBaseURL(baseURL: string, forAnthropic: boolean, includeApiVersion = false): string {
   const normalized = baseURL.replace(/\/v1$/, '').replace(/\/openai$/, '')
-  return forAnthropic ? normalized : normalized + '/openai'
+  return forAnthropic ? normalized : `${normalized}/openai${includeApiVersion ? '/v1' : ''}`
+}
+
+function isOfficialAzureOpenAIBaseURL(baseURL: string): boolean {
+  const hostname = new URL(baseURL).hostname
+  return (
+    hostname.endsWith('.openai.azure.com') ||
+    hostname.endsWith('.services.ai.azure.com') ||
+    hostname.endsWith('.cognitiveservices.azure.com')
+  )
 }
 
 function buildAzureConfig(
@@ -762,20 +771,31 @@ function buildAzureConfig(
 
   const apiVersion = ctx.actualProvider.settings?.apiVersion?.trim()
   const isResponsesVariant = ctx.aiSdkProviderId === 'azure-responses'
+  const useDeploymentBasedUrls = Boolean(apiVersion && !isResponsesVariant)
+  const useCustomGatewayV1 = !isOfficialAzureOpenAIBaseURL(ctx.baseConfig.baseURL) && !useDeploymentBasedUrls
 
   const providerSettings: AppProviderSettingsMap['azure'] & {
     apiVersion?: string
     useDeploymentBasedUrls?: boolean
   } = {
     ...ctx.baseConfig,
-    baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false),
+    baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false, useCustomGatewayV1),
     headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
   }
 
   if (apiVersion) {
     providerSettings.apiVersion = apiVersion
-    if (!isResponsesVariant) {
+    if (useDeploymentBasedUrls) {
       providerSettings.useDeploymentBasedUrls = true
+    }
+  }
+
+  if (useCustomGatewayV1) {
+    // The Azure SDK treats non-Azure hosts as complete URLs, so preserve Cherry's v1/version contract here.
+    providerSettings.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      url.searchParams.set('api-version', apiVersion || 'v1')
+      return customFetch(url, init)
     }
   }
 
