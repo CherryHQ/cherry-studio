@@ -160,9 +160,11 @@ export function useDoctorController({
         const result = await ipcApi.request('diagnostics.doctor.fix', request)
         switch (result.status) {
           case 'fixed':
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
             toast.success(t('settings.doctor.messages.fix_completed'))
             break
           case 'requires_relaunch':
+            dispatch({ type: 'mark-check-fixed', checkId: request.checkId })
             dispatch({ type: 'mark-relaunch-required' })
             toast.success(t('settings.doctor.messages.relaunch_required'))
             break

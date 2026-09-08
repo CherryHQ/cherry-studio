@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
+import type { DoctorState } from '@shared/types/doctor'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -147,12 +148,26 @@ describe('DoctorService.run', () => {
     expect(state()).toEqual({ status: 'completed', report: outcome.report })
 
     const published = vi.mocked(application.get('CacheService').setShared).mock.calls.map(([, value]) => value)
-    expect(published.map((value) => (value as { status: string }).status)).toEqual([
-      'running',
-      'running',
-      'running',
-      'completed'
+    const runningUpdates = published.filter(
+      (value): value is Extract<DoctorState, { status: 'running' }> =>
+        typeof value === 'object' && value !== null && 'status' in value && value.status === 'running'
+    )
+    expect(
+      runningUpdates.map(({ activeCheckIds, results }) => ({
+        activeCheckIds,
+        resultIds: results.map((result) => result.id)
+      }))
+    ).toEqual([
+      { activeCheckIds: [], resultIds: [] },
+      { activeCheckIds: ['config-boot-config-valid'], resultIds: [] },
+      { activeCheckIds: ['config-boot-config-valid', 'storage-userdata-location'], resultIds: [] },
+      { activeCheckIds: ['storage-userdata-location'], resultIds: ['config-boot-config-valid'] },
+      {
+        activeCheckIds: [],
+        resultIds: ['config-boot-config-valid', 'storage-userdata-location']
+      }
     ])
+    expect(published.at(-1)).toEqual({ status: 'completed', report: outcome.report })
   })
 
   it('counts a repeated check once', async () => {

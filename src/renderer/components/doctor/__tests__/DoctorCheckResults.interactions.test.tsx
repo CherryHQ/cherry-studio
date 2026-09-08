@@ -65,6 +65,7 @@ function createController(overrides: ControllerOverrides = {}) {
     session: {
       activePanel: 'checks',
       descriptionDraft: '',
+      fixedCheckIds: [],
       interaction: { kind: 'idle' },
       relaunchRequired: false
     },
@@ -73,6 +74,7 @@ function createController(overrides: ControllerOverrides = {}) {
     setPanelInteraction: vi.fn<DoctorController['setPanelInteraction']>(),
     toggleDevTools: vi.fn<DoctorController['toggleDevTools']>(),
     viewModel: {
+      activeCheckIds: [],
       canCancel: false,
       groups: [],
       isStale: false,
@@ -252,11 +254,24 @@ describe('DoctorCheckAccordionItems interactions', () => {
 
     await user.click(group)
 
-    expect(
-      screen.getByRole('button', {
-        name: /settings\.doctor\.checks\.runtime-claude-login\.title.*settings\.doctor\.status\.warn/
-      })
-    ).toHaveAttribute('aria-expanded', 'true')
+    const check = screen.getByRole('button', {
+      name: /settings\.doctor\.checks\.runtime-claude-login\.title.*settings\.doctor\.status\.warn/
+    })
+    expect(check).toHaveAttribute('aria-expanded', 'true')
+    expect(within(check).getByText('settings.doctor.checks.runtime-claude-login.title')).toHaveClass('text-sm')
+    expect(screen.getByRole('button', { name: 'settings.doctor.actions.open_claude_code' })).toHaveAttribute(
+      'data-variant',
+      'outline'
+    )
+  })
+
+  it('uses the sectioned surface for Doctor summary panels', () => {
+    render(<DoctorChecksPanel controller={createCompletedPanelController()} />)
+
+    expect(screen.getByRole('region', { name: 'error.diagnostics.result' })).toHaveAttribute(
+      'data-variant',
+      'sectioned'
+    )
   })
 
   it('exposes local evidence through an accessible accordion trigger', async () => {
@@ -410,7 +425,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
     })
     if (checkTrigger.getAttribute('aria-expanded') === 'false') await user.click(checkTrigger)
     const localDetails = screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' })
-    await user.click(localDetails)
+    expect(localDetails).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('••••••')).toBeInTheDocument()
     const showDetails = screen.getByRole('button', { name: 'settings.doctor.actions.show_details' })
     await user.click(showDetails)
@@ -440,7 +455,7 @@ describe('DoctorCheckAccordionItems interactions', () => {
     })
     if (checkTrigger.getAttribute('aria-expanded') === 'false') await user.click(checkTrigger)
     const localDetails = screen.getByRole('button', { name: 'settings.doctor.evidence.local_details' })
-    await user.click(localDetails)
+    expect(localDetails).toHaveAttribute('aria-expanded', 'true')
     await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.show_details' }))
 
     const confirmation = await screen.findByRole('dialog', { name: 'settings.doctor.confirm_evidence.title' })

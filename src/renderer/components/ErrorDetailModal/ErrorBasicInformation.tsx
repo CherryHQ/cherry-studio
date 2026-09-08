@@ -47,6 +47,7 @@ export function ErrorBasicInformation({
   return (
     <DiagnosticsPanel
       title={t('error.diagnostics.basic_information')}
+      variant="sectioned"
       actions={
         <div className="flex items-center gap-1">
           <Tooltip content={t('common.copy')}>
@@ -72,10 +73,9 @@ export function ErrorBasicInformation({
             </Button>
           </Tooltip>
         </div>
-      }
-      bodyClassName="px-4 pb-4">
+      }>
       {fields.length > 0 ? (
-        <dl className="overflow-hidden rounded-lg border border-border bg-background text-xs">
+        <dl className="text-xs">
           {fields.map(({ id, value }) => (
             <div
               key={id}

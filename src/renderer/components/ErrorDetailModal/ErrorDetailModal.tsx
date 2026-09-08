@@ -2,6 +2,7 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { DoctorPopup } from '@renderer/components/doctor'
+import { useDoctorController } from '@renderer/hooks/doctor'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -43,6 +44,7 @@ import { useTranslation } from 'react-i18next'
 import Scrollbar from '../Scrollbar'
 import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from './diagnosticReportDescription'
 import { ErrorBasicInformation } from './ErrorBasicInformation'
+import { ErrorDiagnosisPanel } from './ErrorDiagnosisPanel'
 import { ErrorDiagnosticsPanel } from './ErrorDiagnosticsPanel'
 
 interface ErrorDetailContentProps {
@@ -60,6 +62,8 @@ interface ErrorDetailContentInternalProps extends ErrorDetailContentProps {
   readonly doctorCloseBlocked?: boolean
   readonly onDoctorCloseBlockedChange?: (blocked: boolean) => void
 }
+
+const ignoreDoctorNavigation = () => undefined
 
 const truncateLargeData = (
   data: string,
@@ -520,6 +524,34 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
+  const diagnosisIdentity = blockId ?? error?.message ?? 'error-diagnosis'
+  const [aiDiagnosisProgress, setAiDiagnosisProgress] = useState({
+    identity: diagnosisIdentity,
+    pending: Boolean(error && !cachedDiagnosis)
+  })
+  const doctorController = useDoctorController({
+    initialPanel: 'checks',
+    onNavigate: onDoctorNavigate ?? ignoreDoctorNavigation,
+    onReportProblem: onOpenDiagnosticReport
+  })
+
+  useEffect(() => {
+    onDoctorCloseBlockedChange?.(doctorController.isCloseBlocked)
+  }, [doctorController.isCloseBlocked, onDoctorCloseBlockedChange])
+
+  const isAiDiagnosisPending =
+    aiDiagnosisProgress.identity === diagnosisIdentity
+      ? aiDiagnosisProgress.pending
+      : Boolean(error && !cachedDiagnosis)
+  const isDoctorPending =
+    doctorController.viewModel.status === 'idle' ||
+    doctorController.viewModel.status === 'running' ||
+    doctorController.session.interaction.kind === 'run'
+  const isDiagnosisPending = isAiDiagnosisPending || isDoctorPending
+  const handleAiDiagnosisPendingChange = useCallback(
+    (pending: boolean) => setAiDiagnosisProgress({ identity: diagnosisIdentity, pending }),
+    [diagnosisIdentity]
+  )
 
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -593,16 +625,19 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
             onCopy={copyErrorDetails}
             onViewDetails={showDetails}
           />
-          <ErrorDiagnosticsPanel
-            blockId={blockId}
-            cachedDiagnosis={cachedDiagnosis}
-            diagnosisContext={diagnosisContext}
-            error={error}
-            onCloseBlockedChange={onDoctorCloseBlockedChange}
-            onDiagnosisComplete={onDiagnosisComplete}
-            onNavigate={onDoctorNavigate}
-            onReportProblem={onOpenDiagnosticReport}
-          />
+          {error || cachedDiagnosis ? (
+            <ErrorDiagnosisPanel
+              key={diagnosisIdentity}
+              blockId={blockId}
+              cachedDiagnosis={cachedDiagnosis}
+              diagnosisContext={diagnosisContext}
+              doctorController={doctorController}
+              error={error}
+              onDiagnosisComplete={onDiagnosisComplete}
+              onPendingChange={handleAiDiagnosisPendingChange}
+            />
+          ) : null}
+          <ErrorDiagnosticsPanel controller={doctorController} isPending={isDiagnosisPending} />
         </div>
       </ErrorDetailContainer>
 

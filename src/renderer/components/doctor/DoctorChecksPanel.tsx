@@ -10,8 +10,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Scrollbar,
-  Skeleton
+  Scrollbar
 } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import type { DoctorController } from '@renderer/hooks/doctor'
@@ -23,7 +22,7 @@ import { ChevronDown, Copy, Download } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { DoctorCheckNotices } from './DoctorCheckNotices'
-import { DoctorCheckResults } from './DoctorCheckResults'
+import { DoctorCheckAccordionItems } from './DoctorCheckResults'
 
 const logger = loggerService.withContext('DoctorChecksPanel')
 
@@ -31,6 +30,10 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
   const { t } = useTranslation()
   const { session, viewModel } = controller
   const dataPath = viewModel.report?.basics.userDataPath
+  const actionRequiredRows = viewModel.rows.filter((row) => {
+    const result = row.result
+    return result && (result.status === 'warn' || result.status === 'fail') && result.attribution === 'user-fixable'
+  })
 
   const copyResults = async () => {
     if (!viewModel.report) return
@@ -73,9 +76,25 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
         <div className="space-y-4 pb-2">
           <DoctorSummary controller={controller} />
 
-          <DoctorCheckNotices controller={controller} />
-
-          {viewModel.rows.length > 0 ? <DoctorCheckResults controller={controller} /> : null}
+          {viewModel.status === 'completed' && actionRequiredRows.length > 0 ? (
+            <DiagnosticsPanel title={t('error.diagnostics.action_required')} variant="sectioned">
+              <Accordion
+                type="single"
+                collapsible
+                defaultValue={`doctor-${actionRequiredRows[0].id}`}
+                className="[&>[data-slot=accordion-item]:first-child]:border-t-0">
+                <DoctorCheckAccordionItems
+                  compact
+                  defaultLocalDetailsExpanded
+                  controller={controller}
+                  rows={actionRequiredRows}
+                />
+              </Accordion>
+            </DiagnosticsPanel>
+          ) : null}
+          {viewModel.status !== 'completed' && viewModel.status !== 'running' ? (
+            <DoctorCheckNotices controller={controller} />
+          ) : null}
 
           <Accordion type="single" collapsible className="rounded-xl border border-border px-4">
             <AccordionItem value="advanced-tools" className="border-0 first:border-t-0">
@@ -110,7 +129,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
         </div>
       </Scrollbar>
 
-      <DialogFooter className="border-border border-t px-6 py-4">
+      <DialogFooter className="px-6 py-4">
         {viewModel.canCancel ? (
           <Button
             variant="outline"
@@ -131,7 +150,7 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
               <ChevronDown className="size-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" side="top">
             {viewModel.report ? (
               <DropdownMenuItem onSelect={() => void copyResults()}>
                 <Copy className="size-4" />
@@ -158,38 +177,22 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
 
 function DoctorSummary({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
-  const { appUpdateState, viewModel } = controller
+  const { appUpdateState, session, viewModel } = controller
   if (viewModel.status === 'running') {
     const completed = viewModel.rows.filter((row) => row.status !== 'pending').length
-    return (
-      <DiagnosticsPanel
-        role="status"
-        aria-live="polite"
-        title={t(
-          viewModel.tier === 'live' ? 'settings.doctor.summary.running_full' : 'settings.doctor.summary.running_basic'
-        )}
-        description={t('settings.doctor.summary.progress', { completed, total: viewModel.rows.length })}
-        bodyClassName="px-4 pb-4">
-        <div className="grid grid-cols-3 gap-2">
-          <Skeleton className="h-2" />
-          <Skeleton className="h-2" />
-          <Skeleton className="h-2" />
-        </div>
-      </DiagnosticsPanel>
-    )
+    const activeCheckId = viewModel.activeCheckIds[0]
+    const progress = activeCheckId
+      ? t('error.diagnostics.checking_progress', {
+          check: t(doctorCheckTitleKey(activeCheckId)),
+          completed,
+          total: viewModel.rows.length
+        })
+      : t('settings.doctor.summary.progress', { completed, total: viewModel.rows.length })
+    return <DiagnosticsPanel role="status" aria-live="polite" title={progress} />
   }
 
   if (viewModel.report) {
-    const { basics } = viewModel.report
-    const dataPath = basics.userDataPath
-    const summaryItems = [
-      ['userFixable', 'settings.doctor.summary.user_fixable'],
-      ['appBug', 'settings.doctor.summary.app_bug'],
-      ['transient', 'settings.doctor.summary.transient'],
-      ['error', 'settings.doctor.summary.error'],
-      ['skip', 'settings.doctor.summary.skip']
-    ] as const
-    const title =
+    const summary =
       viewModel.problemCount > 0
         ? t('settings.doctor.summary.problems', { count: viewModel.problemCount })
         : viewModel.summary.error > 0 || viewModel.summary.skip > 0
@@ -201,8 +204,8 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
             )
     return (
       <DiagnosticsPanel
-        title={title}
-        description={t('settings.doctor.summary.version', { version: viewModel.report.basics.version })}
+        variant="sectioned"
+        title={t('error.diagnostics.result')}
         actions={
           appUpdateState.downloading ? (
             <Badge variant="outline">
@@ -212,46 +215,17 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
             </Badge>
           ) : undefined
         }
-        bodyClassName="space-y-4 px-4 pb-4">
-        {summaryItems.some(([key]) => viewModel.summary[key] > 0) ? (
-          <div className="flex flex-wrap gap-2">
-            {summaryItems.map(([key, label]) =>
-              viewModel.summary[key] > 0 ? (
-                <Badge key={key} variant="outline" className="font-normal">
-                  {t(label, { count: viewModel.summary[key] })}
-                </Badge>
-              ) : null
-            )}
-          </div>
-        ) : null}
-
-        <dl className="grid gap-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
-          <dt className="text-muted-foreground">{t('settings.doctor.basics.app')}</dt>
-          <dd>
-            {basics.version} · {basics.channel}
-          </dd>
-          <dt className="text-muted-foreground">{t('settings.doctor.basics.system')}</dt>
-          <dd>
-            {basics.platform} {basics.osRelease} · {basics.arch}
-          </dd>
-          {dataPath ? (
-            <>
-              <dt className="text-muted-foreground">{t('settings.doctor.basics.data_path')}</dt>
-              <dd className="flex min-w-0 items-center gap-2">
-                <span className="selectable min-w-0 flex-1 truncate" title={dataPath}>
-                  {dataPath}
-                </span>
-                <Button
-                  variant="link"
-                  className="h-auto shrink-0 px-0 py-0 text-xs"
-                  disabled={controller.isInteracting}
-                  onClick={() => void controller.openPath(dataPath)}>
-                  {t('settings.doctor.actions.open_path')}
-                </Button>
-              </dd>
-            </>
-          ) : null}
-        </dl>
+        bodyClassName="space-y-3 px-4 py-3">
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5">
+          <span className="text-success">
+            {t('settings.doctor.summary.fixed', { count: session.fixedCheckIds.length })}
+          </span>
+          <span className="text-warning">
+            {t('settings.doctor.summary.needs_attention', { count: viewModel.problemCount })}
+          </span>
+          <span className="text-muted-foreground">{summary}</span>
+        </p>
+        <DoctorCheckNotices controller={controller} />
       </DiagnosticsPanel>
     )
   }
