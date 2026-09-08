@@ -17,6 +17,9 @@ const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAA
  */
 export const IMAGE_CAPTURE_ATTRIBUTE = 'data-image-capturing'
 
+/** Marks interactive HTML artifact subtrees; both export paths omit them (shared policy selector). */
+const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
+
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
 const loadHtmlToImage = () => {
@@ -213,7 +216,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
           // Interactive HTML artifacts are intentionally omitted from image exports.
-          if (node.hasAttribute('data-html-artifact')) {
+          if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) {
             return false
           }
           if (node.style.display === 'none') {
@@ -321,7 +324,7 @@ async function withExpandedForCapture<T>(el: HTMLElement, fn: () => Promise<T>):
  */
 function hideHtmlArtifactsForCapture(el: HTMLElement): () => void {
   const restored: Array<[HTMLElement, string]> = []
-  el.querySelectorAll<HTMLElement>('[data-html-artifact]').forEach((node) => {
+  el.querySelectorAll<HTMLElement>(`[${HTML_ARTIFACT_ATTRIBUTE}]`).forEach((node) => {
     restored.push([node, node.style.display])
     node.style.display = 'none'
   })

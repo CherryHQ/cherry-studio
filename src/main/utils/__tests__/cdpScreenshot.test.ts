@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 
+const { fromWebContentsMock, getDisplayMatchingMock } = vi.hoisted(() => ({
+  // No default implementation: unresolved windows fall back to DPR 1.
+  fromWebContentsMock: vi.fn(),
+  getDisplayMatchingMock: vi.fn(() => ({ scaleFactor: 1 }))
+}))
+
+vi.mock('electron', () => ({
+  BrowserWindow: { fromWebContents: fromWebContentsMock },
+  screen: { getDisplayMatching: getDisplayMatchingMock }
+}))
+
 import { captureScreenshotViaCdp } from '../cdpScreenshot'
 
 interface DebuggerStub {
@@ -109,6 +120,17 @@ describe('captureScreenshotViaCdp', () => {
     const { wc, dbg } = makeWebContents()
 
     await expect(captureScreenshotViaCdp(wc, { ...CLIP, width: 9_000 }, 2)).rejects.toThrow('composited-surface limit')
+    expect(dbg.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('rejects a clip that only crosses the limit after the display DPR is applied (HiDPI)', async () => {
+    const { wc, dbg } = makeWebContents()
+    const win = { isDestroyed: () => false, getBounds: () => ({ x: 0, y: 0, width: 1920, height: 1080 }) }
+    fromWebContentsMock.mockReturnValueOnce(win)
+    getDisplayMatchingMock.mockReturnValueOnce({ scaleFactor: 2 })
+
+    // 9000 CSS px × scale 1 × DPR 2 = 18000 physical px > 16384.
+    await expect(captureScreenshotViaCdp(wc, { ...CLIP, width: 9_000 }, 1)).rejects.toThrow('composited-surface limit')
     expect(dbg.sendCommand).not.toHaveBeenCalled()
   })
 })

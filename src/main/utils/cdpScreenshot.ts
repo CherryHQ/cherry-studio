@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { WebContents } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 
 const logger = loggerService.withContext('Utils:cdpScreenshot')
 
@@ -15,6 +16,17 @@ export interface CdpScreenshotClip {
  * surface cannot exceed this. Renderer applies a tighter per-window bound.
  */
 const MAX_SCREENSHOT_PHYSICAL_DIMENSION = 16384
+
+/**
+ * Device-pixel ratio of the display hosting `wc`. CDP clip coordinates are CSS
+ * px and clip.scale multiplies ON TOP of this factor, so the physical output
+ * is clip × scale × DPR. Falls back to 1 when the window cannot be resolved.
+ */
+function displayScaleFactor(wc: WebContents): number {
+  const win = BrowserWindow.fromWebContents(wc)
+  if (!win || win.isDestroyed()) return 1
+  return screen.getDisplayMatching(win.getBounds()).scaleFactor || 1
+}
 
 /**
  * Rasterize a page-space region of `wc` through Chromium's own compositor via CDP
@@ -38,12 +50,13 @@ export async function captureScreenshotViaCdp(
   if (wc.isDestroyed()) {
     throw new Error('webContents is destroyed')
   }
-  // Output = clip × scale (× the window's device-pixel ratio, applied by the
-  // compositor). Guard the clip×scale product so an arbitrary request cannot
-  // arm an oversized capture; scale ≥ 1 is already enforced by the schema.
+  // Output = clip × scale × the host display's device-pixel ratio (applied by
+  // the compositor). Guard the full physical product so an arbitrary request
+  // cannot arm an oversized capture; scale ≥ 1 is already enforced by the schema.
+  const dpr = displayScaleFactor(wc)
   if (
-    clip.width * scale > MAX_SCREENSHOT_PHYSICAL_DIMENSION ||
-    clip.height * scale > MAX_SCREENSHOT_PHYSICAL_DIMENSION
+    clip.width * scale * dpr > MAX_SCREENSHOT_PHYSICAL_DIMENSION ||
+    clip.height * scale * dpr > MAX_SCREENSHOT_PHYSICAL_DIMENSION
   ) {
     throw new Error(`Screenshot clip exceeds the composited-surface limit (${MAX_SCREENSHOT_PHYSICAL_DIMENSION}px)`)
   }
