@@ -19,7 +19,7 @@ import { download } from '@renderer/utils/download'
 import { formatFileSize } from '@renderer/utils/file'
 import { Check, ChevronsLeft, Copy } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { buildSpanView, type SpanDetailRow, type SpanTab } from './spanPresenters'
@@ -45,7 +45,6 @@ interface SpanDetailProps {
 
 const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   const [activeTab, setActiveTab] = useState<string>('inputs')
-  const [showFullLargeContent, setShowFullLargeContent] = useState(false)
   const [copiedContent, setCopiedContent] = useTemporaryValue<{
     nodeId: string
     tab: string
@@ -60,14 +59,22 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   const safeTab = tabs.some((tab) => tab.value === activeTab) ? activeTab : (tabs[0]?.value ?? 'inputs')
   // Derive synchronously so the code block never lingers on the previous tab's content.
   const formatted = useMemo(() => formatTabData(node, tabs, safeTab), [node, tabs, safeTab])
-  const { content: fullContent, contentLanguage, isLarge, fullLength } = formatted
-  // A new span/tab always starts on the preview so a huge payload never renders full by accident.
-  useEffect(() => {
-    setShowFullLargeContent(false)
-  }, [node.id, safeTab])
+  const { content: fullContent, contentLanguage, isLarge } = formatted
+  // Keyed expansion: a new span/tab derives collapsed synchronously on the first
+  // render, so an expanded payload never flashes its full text via a post-render
+  // `useEffect` reset (which runs after the full payload already rendered once).
+  const contentKey = `${node.id}-${safeTab}`
+  const [expandedContentKey, setExpandedContentKey] = useState<string | null>(null)
+  const showFullLargeContent = expandedContentKey === contentKey
   // Preview slice is cheap; the full string stays in `formatted` for expand/download.
   // Copy always uses the full content so collapsed previews never silently copy partial text.
   const content = isLarge && !showFullLargeContent ? fullContent.slice(0, SPAN_DETAIL_PREVIEW_CHARS) : fullContent
+  // `formatted.fullLength` is a char count; `formatFileSize` expects bytes, so
+  // measure UTF-8 bytes (memoized, large-only) instead of passing chars as bytes.
+  const fullSizeLabel = useMemo(() => {
+    if (!isLarge) return ''
+    return formatFileSize(new TextEncoder().encode(fullContent).length)
+  }, [isLarge, fullContent])
   // Large payloads render as plain virtualized text (no Shiki worker) in both preview and full modes.
   const highlight = !isLarge
   const copied =
@@ -146,16 +153,14 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
         <div className="mb-2 flex min-w-0 shrink-0 items-center gap-2 rounded-md border border-border-subtle bg-background-subtle px-2 py-1.5 text-muted-foreground">
           <span className="min-w-0 flex-1 truncate">
             {/* Generic wording: this banner serves every tab (inputs/outputs/headers/raw). */}
-            {showFullLargeContent
-              ? formatFileSize(fullLength)
-              : `${t('error.truncatedBadge')} · ${formatFileSize(fullLength)}`}
+            {showFullLargeContent ? fullSizeLabel : `${t('error.truncatedBadge')} · ${fullSizeLabel}`}
           </span>
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="h-6 shrink-0 px-2 text-xs"
-            onClick={() => setShowFullLargeContent((v) => !v)}>
+            onClick={() => setExpandedContentKey((prev) => (prev === contentKey ? null : contentKey))}>
             {showFullLargeContent ? t('common.collapse') : t('common.expand')}
           </Button>
           <Button
@@ -198,7 +203,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
           className="min-h-0 flex-1 overflow-hidden rounded-md border border-border-subtle bg-popover">
           {/* key remounts the viewer per tab/mode so no fragment of the previous content lingers. */}
           <CodeViewer
-            key={`${node.id}-${safeTab}-${showFullLargeContent ? 'full' : 'preview'}`}
+            key={`${contentKey}-${showFullLargeContent ? 'full' : 'preview'}`}
             value={content}
             language={highlight ? contentLanguage : 'text'}
             expanded={false}

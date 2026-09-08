@@ -12,7 +12,8 @@ import type { TraceNode } from '../traceNode'
 
 const mocks = vi.hoisted(() => ({
   writeText: vi.fn(),
-  download: vi.fn()
+  download: vi.fn(),
+  seenCodeViewerValues: [] as string[]
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -85,15 +86,18 @@ vi.mock('@renderer/components/CodeViewer', () => ({
     value: string
     language?: string
     options?: { highlight?: boolean; lineNumbers?: boolean }
-  }) => (
-    <pre
-      className={className}
-      data-testid="code-viewer"
-      data-language={language}
-      data-highlight={options?.highlight === false ? 'false' : 'true'}>
-      {value}
-    </pre>
-  )
+  }) => {
+    mocks.seenCodeViewerValues.push(value)
+    return (
+      <pre
+        className={className}
+        data-testid="code-viewer"
+        data-language={language}
+        data-highlight={options?.highlight === false ? 'false' : 'true'}>
+        {value}
+      </pre>
+    )
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -289,6 +293,7 @@ describe('SpanDetail large content (issue #19564)', () => {
     mocks.writeText.mockReset()
     mocks.writeText.mockResolvedValue(undefined)
     mocks.download.mockReset()
+    mocks.seenCodeViewerValues.length = 0
   })
 
   afterEach(() => {
@@ -342,5 +347,64 @@ describe('SpanDetail large content (issue #19564)', () => {
     )
     expect(screen.getByTestId('code-viewer').getAttribute('data-highlight')).toBe('true')
     expect(screen.queryByRole('button', { name: 'common.expand' })).not.toBeInTheDocument()
+  })
+
+  it('collapses back to preview synchronously when switching tabs after expanding', async () => {
+    const user = setupUser()
+    const bigInputs = `a${'x'.repeat(150_000)}`
+    const bigOutputs = `b${'y'.repeat(150_000)}`
+    render(<SpanDetail node={node({ attributes: { inputs: bigInputs, outputs: bigOutputs } })} onShowList={vi.fn()} />)
+
+    // Expand the inputs payload to full.
+    await user.click(screen.getByRole('button', { name: 'common.expand' }))
+    expect(screen.getByTestId('code-viewer').textContent?.length).toBe(bigInputs.length)
+    expect(screen.getByTestId('code-viewer').textContent?.startsWith('a')).toBe(true)
+
+    // Switching tabs must render the new payload as preview on the first render
+    // (no one-frame flash of the full payload from a post-render effect reset).
+    // The CodeViewer mock records every render, so an effect-based reset would
+    // leave at least one full-length entry for the new tab.
+    mocks.seenCodeViewerValues.length = 0
+    await user.click(screen.getByRole('tab', { name: 'trace.outputs' }))
+    const viewer = screen.getByTestId('code-viewer')
+    expect(viewer.textContent?.length).toBe(SPAN_DETAIL_PREVIEW_CHARS)
+    expect(viewer.textContent?.startsWith('b')).toBe(true)
+    expect(screen.getByRole('button', { name: 'common.expand' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.collapse' })).not.toBeInTheDocument()
+    expect(mocks.seenCodeViewerValues.length).toBeGreaterThan(0)
+    expect(mocks.seenCodeViewerValues.every((v) => v.length === SPAN_DETAIL_PREVIEW_CHARS)).toBe(true)
+    expect(mocks.seenCodeViewerValues.some((v) => v.length === bigOutputs.length)).toBe(false)
+  })
+
+  it('collapses back to preview when switching spans after expanding', async () => {
+    const user = setupUser()
+    const big = 'y'.repeat(150_000)
+    const { rerender } = render(
+      <SpanDetail node={node({ id: 'span-1', attributes: { inputs: big } })} onShowList={vi.fn()} />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'common.expand' }))
+    expect(screen.getByTestId('code-viewer').textContent?.length).toBe(150_000)
+
+    mocks.seenCodeViewerValues.length = 0
+    rerender(<SpanDetail node={node({ id: 'span-2', attributes: { inputs: big } })} onShowList={vi.fn()} />)
+    expect(screen.getByTestId('code-viewer').textContent?.length).toBe(SPAN_DETAIL_PREVIEW_CHARS)
+    expect(screen.getByRole('button', { name: 'common.expand' })).toBeInTheDocument()
+    expect(mocks.seenCodeViewerValues.length).toBeGreaterThan(0)
+    expect(mocks.seenCodeViewerValues.every((v) => v.length === SPAN_DETAIL_PREVIEW_CHARS)).toBe(true)
+  })
+
+  it('reports UTF-8 byte size, not char count, in the large-content badge', () => {
+    // 'é' is 1 char but 2 UTF-8 bytes: 150k chars = 300k bytes.
+    const big = 'é'.repeat(150_000)
+    const byteLength = new TextEncoder().encode(big).length
+    expect(byteLength).toBe(300_000)
+    expect(big.length).toBe(150_000)
+    render(<SpanDetail node={node({ attributes: { inputs: big, outputs: 'small' } })} onShowList={vi.fn()} />)
+
+    // 300k bytes formats as 293 KB, while the raw char count would format as 146 KB.
+    const banner = screen.getByText(/KB/, { selector: 'span' })
+    expect(banner.textContent).toContain('293 KB')
+    expect(banner.textContent).not.toContain('146 KB')
   })
 })
