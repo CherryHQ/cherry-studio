@@ -1026,7 +1026,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
     const path = [
       fakeMsg('u1', 'user', 'tiny question'),
-      fakeMsgWithContextTokens('a1', 'assistant', 'ok', 7900),
+      fakeMsgWithContextTokens('a1', 'assistant', 'ok', 6100),
       fakeMsg('u2', 'user', MED),
       fakeMsg('a2', 'assistant', MED),
       fakeMsg('u3', 'user', TRAIL)

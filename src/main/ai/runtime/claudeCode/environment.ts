@@ -107,9 +107,19 @@ export function resolveAutoCompactWindow(
     TRUSTED_ANTHROPIC_IDS.has(provider.id) &&
     provider.presetProviderId === provider.id &&
     !hasCustomAnthropicBaseUrl
-  const effectiveContextWindow = isTrustedAnthropic
-    ? contextWindow
-    : Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
+  // For tiny windows the 0.6 margin would make the MIN floor even more
+  // provider-unsafe (e.g. 100K * 0.6 = 60K - 32K = 28K room vs 68K raw room,
+  // both capped to 100K). Skip the margin when the margined room falls below
+  // MIN so the overflow magnitude is minimized; large windows where the
+  // 256K/128K overstatement is plausible keep the conservative margin.
+  let effectiveContextWindow: number
+  if (isTrustedAnthropic) {
+    effectiveContextWindow = contextWindow
+  } else {
+    const margined = Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
+    const marginedRoom = margined - requestedOutput
+    effectiveContextWindow = marginedRoom < MIN_AUTO_COMPACT_WINDOW ? contextWindow : margined
+  }
   const inputRoom = effectiveContextWindow - requestedOutput
   const budget = Math.floor(inputRoom * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
   const clamped = Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
