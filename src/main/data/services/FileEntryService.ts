@@ -710,17 +710,35 @@ class FileEntryServiceImpl implements FileEntryService {
       lt(fileEntryTable.createdAt, Date.now() - opts.graceMs),
       ...persistentRefAbsenceConditions()
     ]
-    const rows = this.getDb()
-      .select({ entry: fileEntryTable })
-      .from(fileEntryTable)
-      .where(and(...conditions))
-      .orderBy(asc(fileEntryTable.createdAt))
-      .limit(opts.limit)
-      .all()
-    return rows
-      .map((r) => rowToFileEntrySafe(r.entry))
-      .filter((entry): entry is FileEntry => entry !== null && !isFileEntryTransientlyRetained(entry.id))
-      .slice(0, opts.limit)
+    if (opts.limit <= 0) return []
+
+    // Transient holds live outside SQLite, so applying the batch limit before
+    // checking them can let held rows starve later reclaimable entries. Walk
+    // ordered batches until we have enough eligible entries (or exhaust the
+    // query), keeping the database limit as a bounded page rather than a final
+    // result limit.
+    const candidates: FileEntry[] = []
+    let offset = 0
+    while (candidates.length < opts.limit) {
+      const rows = this.getDb()
+        .select({ entry: fileEntryTable })
+        .from(fileEntryTable)
+        .where(and(...conditions))
+        .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
+        .limit(opts.limit)
+        .offset(offset)
+        .all()
+      if (rows.length === 0) break
+
+      for (const row of rows) {
+        const entry = rowToFileEntrySafe(row.entry)
+        if (entry && !isFileEntryTransientlyRetained(entry.id)) candidates.push(entry)
+        if (candidates.length >= opts.limit) break
+      }
+      if (rows.length < opts.limit) break
+      offset += rows.length
+    }
+    return candidates
   }
 
   isTransientlyRetained(id: FileEntryId): boolean {
