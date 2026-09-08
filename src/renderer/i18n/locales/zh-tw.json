@@ -636,6 +636,7 @@
   "chat.input.reference_panel.session.no_results.description": "沒有符合您搜尋條件的工作階段",
   "chat.input.reference_panel.session.no_results.label": "找不到工作階段",
   "chat.input.reference_panel.session.title": "工作階段",
+  "chat.input.reference_panel.title": "引用",
   "chat.input.reference_panel.topic.no_results.description": "沒有符合您搜尋的主題",
   "chat.input.reference_panel.topic.no_results.label": "找不到主題",
   "chat.input.reference_panel.topic.title": "主題",

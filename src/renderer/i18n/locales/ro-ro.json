@@ -636,6 +636,7 @@
   "chat.input.reference_panel.session.no_results.description": "Nicio sesiune nu corespunde căutării tale",
   "chat.input.reference_panel.session.no_results.label": "Nu s-au găsit sesiuni",
   "chat.input.reference_panel.session.title": "Sesiuni",
+  "chat.input.reference_panel.title": "Referințe",
   "chat.input.reference_panel.topic.no_results.description": "Niciun subiect nu corespunde căutării tale",
   "chat.input.reference_panel.topic.no_results.label": "Niciun subiect găsit",
   "chat.input.reference_panel.topic.title": "Subiecte",
