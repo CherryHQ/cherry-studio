@@ -20,7 +20,7 @@ import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
-import { Check, Cloud, ImageUp, LogIn, LogOut, Pencil, RefreshCw, RotateCcw, Smile, X } from 'lucide-react'
+import { Camera, Check, Cloud, ImageUp, LogIn, LogOut, Pencil, RefreshCw, RotateCcw, Smile, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -141,8 +141,8 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
                   <AvatarImage src={avatar} className="object-cover" />
                 </Avatar>
               )}
-              <span className="absolute right-0 bottom-0 flex size-5 items-center justify-center rounded-full border border-background bg-foreground text-background shadow-xs transition-transform group-hover:scale-105">
-                <Pencil className="size-2.5" aria-hidden />
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                <Camera className="size-4" aria-hidden />
               </span>
             </Button>
           </PopoverTrigger>
