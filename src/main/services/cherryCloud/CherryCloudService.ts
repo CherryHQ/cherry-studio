@@ -3,6 +3,7 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import { SignatureClient } from '@main/ai/provider/cherryai'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
@@ -995,14 +996,25 @@ export class CherryCloudService extends BaseService {
   }
 
   private async postJson<T>(path: string, body: unknown, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
+    const clientSecret = import.meta.env.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET
+    if (!clientSecret) {
+      logger.warn('Cherry Cloud client secret is not configured')
+      throw new CherryCloudLoginUnavailableError()
+    }
+    const bodyString = JSON.stringify(body)
+    const signature = new SignatureClient('cherry-studio', clientSecret).generateSignature({
+      method: 'POST',
+      path,
+      body: bodyString
+    })
     let response: Response
     try {
       const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
       response = await net.fetch(`${resolveApiOrigin()}${path}`, {
         method: 'POST',
         redirect: 'error',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json', ...signature },
+        body: bodyString,
         signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
       })
     } catch (error) {
