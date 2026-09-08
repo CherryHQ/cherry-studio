@@ -161,7 +161,7 @@ describe('MinimalToolbar address bar', () => {
     await user.clear(address)
     await user.type(address, 'localhost:3000{Enter}')
 
-    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('http://localhost:3000'))
+    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('http://localhost:3000/'))
   })
 
   it('tracks only main-frame navigation without overwriting an active edit', async () => {
@@ -232,7 +232,7 @@ describe('MinimalToolbar address bar', () => {
     const address = screen.getByRole('textbox', { name: 'URL' })
     await user.clear(address)
     await user.type(address, 'missing.example{Enter}')
-    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('https://missing.example'))
+    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('https://missing.example/'))
 
     webviewRef.current = second.webview
     rerender(

@@ -7,9 +7,9 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { normalizeWebviewAddress } from '@renderer/utils/normalizeWebviewAddress'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
-import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
@@ -18,22 +18,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('MinimalToolbar')
-
-const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
-const HOST_PORT_PATTERN = /^(?:\[[^\]]+\]|[^:/?#\s]+):\d+(?:[/?#]|$)/
-const LOCAL_ADDRESS_PATTERN = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)(?::\d+)?(?:[/?#]|$)/i
-
-function normalizeAddress(value: string): string | null {
-  const trimmedValue = value.trim()
-  if (!trimmedValue) return null
-
-  const url =
-    URL_SCHEME_PATTERN.test(trimmedValue) && !HOST_PORT_PATTERN.test(trimmedValue)
-      ? trimmedValue
-      : `${LOCAL_ADDRESS_PATTERN.test(trimmedValue) ? 'http' : 'https'}://${trimmedValue}`
-
-  return MiniAppUrlSchema.safeParse(url).success ? url : null
-}
 
 function isExternalUrl(value: string): boolean {
   try {
@@ -133,7 +117,7 @@ const MinimalToolbar: FC<Props> = ({
   const handleAddressSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
-      const normalizedAddress = normalizeAddress(addressValue)
+      const normalizedAddress = normalizeWebviewAddress(addressValue)
       if (!normalizedAddress) {
         toast.error(t('settings.miniApps.custom.url_invalid'))
         restoreCurrentPageUrl()

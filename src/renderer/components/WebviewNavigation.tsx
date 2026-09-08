@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { normalizeWebviewAddress } from '@renderer/utils/normalizeWebviewAddress'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import type { WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, ExternalLink, History, RotateCw } from 'lucide-react'
@@ -15,9 +16,6 @@ import { useTranslation } from 'react-i18next'
 import { WebviewAnnotationControls, type WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 
 const logger = loggerService.withContext('WebviewNavigation')
-const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
-const LOCAL_ADDRESS_PATTERN = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)(?::\d+)?(?:[/?#]|$)/i
-const ALLOWED_PROTOCOLS = new Set(['file:', 'http:', 'https:'])
 
 interface Props {
   webviewRef: RefObject<WebviewTag | null>
@@ -33,24 +31,6 @@ interface Props {
   onNavigate?: (url: string) => void
   onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
   toolbarActions?: ReactNode
-}
-
-export function normalizeWebviewAddress(value: string): string | null {
-  const trimmedValue = value.trim()
-  if (!trimmedValue) return null
-
-  const candidate = LOCAL_ADDRESS_PATTERN.test(trimmedValue)
-    ? `http://${trimmedValue}`
-    : URL_SCHEME_PATTERN.test(trimmedValue)
-      ? trimmedValue
-      : `https://${trimmedValue}`
-
-  try {
-    const url = new URL(candidate)
-    return ALLOWED_PROTOCOLS.has(url.protocol) ? url.toString() : null
-  } catch {
-    return null
-  }
 }
 
 function compactAddress(value: string): string {

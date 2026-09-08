@@ -175,7 +175,6 @@ export function WebviewBrowser({
           id={target.id}
           src={initialUrl}
           partition={getWebviewPartition(securityProfile)}
-          openLinksExternal
           allowPopups={!!agentSessionId || securityProfile === WebviewSecurityProfile.AgentBrowser}
           reloadKey={reloadKey}
           ariaLabel={target.label}
