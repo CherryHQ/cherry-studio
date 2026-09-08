@@ -171,6 +171,27 @@ describe('resolveAiSdkProviderId', () => {
       })
       expect(resolveAiSdkProviderId(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('openai-compatible')
     })
+
+    it('uses the generic Responses adapter when a custom provider configures Responses without an adapterFamily', () => {
+      const provider = makeProvider({
+        id: 'custom-provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://express-ent-admin.cherryin.net/v1'
+          }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+
+      expect(resolvedEndpoint).toEqual({
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        baseUrl: 'https://express-ent-admin.cherryin.net/v1',
+        providerOptionsKey: undefined
+      })
+      expect(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType)).toBe('open-responses')
+    })
   })
 
   describe('Azure (catalog-driven)', () => {

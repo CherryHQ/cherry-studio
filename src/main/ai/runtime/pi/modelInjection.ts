@@ -379,7 +379,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
 }
 
 /** pi's thinking ladder. `off` is its name for Cherry's `none`; the rest share Cherry's spelling. */
-const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
 
 /**
  * Project the model's declared efforts onto pi's ladder, marking the rest `null`.

@@ -1266,6 +1266,37 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── syncConfig ─────────────────────────────────────────────
 
   describe('syncConfig', () => {
+    it('maps input-token pricing tiers to OpenClaw whole-request ranges', () => {
+      const model = createModel({
+        pricing: {
+          input: { perMillionTokens: 10 },
+          output: { perMillionTokens: 50 },
+          cacheRead: { perMillionTokens: 1 },
+          cacheWrite: { perMillionTokens: 12.5 },
+          inputTokenTiers: [
+            {
+              minInputTokens: 272001,
+              input: { perMillionTokens: 20 },
+              output: { perMillionTokens: 75 },
+              cacheRead: { perMillionTokens: 2 },
+              cacheWrite: { perMillionTokens: 25 }
+            }
+          ]
+        }
+      })
+
+      expect((service as any).toOpenClawCost(model)).toEqual({
+        input: 10,
+        output: 50,
+        cacheRead: 1,
+        cacheWrite: 12.5,
+        tieredPricing: [
+          { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5, range: [0, 272001] },
+          { input: 20, output: 75, cacheRead: 2, cacheWrite: 25, range: [272001] }
+        ]
+      })
+    })
+
     // Regression: syncProviderConfig writes config.gateway.port from this.gatewayPort, but sync
     // runs before startGateway(port) updates it. A caller-supplied port must be applied first, or
     // a custom port is written as the stale default (18790) and the gateway binds the wrong port.

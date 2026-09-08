@@ -329,7 +329,14 @@ describe('ProviderRegistryService', () => {
           },
           pricing: {
             input: { perMillionTokens: 5 },
-            output: { perMillionTokens: 15 }
+            output: { perMillionTokens: 15 },
+            inputTokenTiers: [
+              {
+                minInputTokens: 272001,
+                input: { perMillionTokens: 10 },
+                output: { perMillionTokens: 30 }
+              }
+            ]
           }
         } as any,
         {
@@ -348,7 +355,38 @@ describe('ProviderRegistryService', () => {
       })
       expect(model.pricing).toMatchObject({
         input: { perMillionTokens: 5 },
-        output: { perMillionTokens: 12 }
+        output: { perMillionTokens: 12 },
+        inputTokenTiers: [
+          {
+            minInputTokens: 272001,
+            input: { perMillionTokens: 10 },
+            output: { perMillionTokens: 30 }
+          }
+        ]
+      })
+    })
+
+    it('resolves provider-specific input limits within the provider context window', () => {
+      const model = mergePresetModel(
+        {
+          id: 'gpt-6-astra',
+          name: 'GPT-6 Astra',
+          contextWindow: 1_050_000,
+          maxInputTokens: 922_000,
+          maxOutputTokens: 128_000
+        },
+        {
+          providerId: 'openai-codex',
+          modelId: 'gpt-6-astra',
+          limits: { contextWindow: 272_000, maxInputTokens: 144_000 }
+        },
+        'openai-codex'
+      )
+
+      expect(model).toMatchObject({
+        contextWindow: 272_000,
+        maxInputTokens: 144_000,
+        maxOutputTokens: 128_000
       })
     })
 
