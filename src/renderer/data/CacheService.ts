@@ -1249,10 +1249,14 @@ export class CacheService {
                   const existingItems = existingEntry.items as Array<{ id?: string }>
                   const incomingItems = incomingEntry.items as Array<{ id?: string }>
                   const existingIds = new Set(
-                    existingItems.filter((it) => it && typeof it.id === 'string').map((it) => it!.id!)
+                    existingItems
+                      .filter((it): it is { id: string } => !!it && typeof it.id === 'string')
+                      .map((it) => it.id)
                   )
                   const incomingIds = new Set(
-                    incomingItems.filter((it) => it && typeof it.id === 'string').map((it) => it!.id!)
+                    incomingItems
+                      .filter((it): it is { id: string } => !!it && typeof it.id === 'string')
+                      .map((it) => it.id)
                   )
                   const newIdsInIncoming = [...incomingIds].filter((id) => !existingIds.has(id))
                   const missingIds = [...existingIds].filter((id) => !incomingIds.has(id))
