@@ -1,3 +1,4 @@
+import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,19 +10,6 @@ const { createPainting, updatePainting, deletePainting, refresh } = vi.hoisted((
   updatePainting: vi.fn(),
   deletePainting: vi.fn(),
   refresh: vi.fn()
-}))
-
-vi.mock('@renderer/hooks/usePaintings', () => ({
-  usePaintings: () => ({
-    records: [],
-    total: 0,
-    isLoading: false,
-    refresh,
-    createPainting,
-    updatePainting,
-    deletePainting,
-    reorderPaintings: vi.fn()
-  })
 }))
 
 function makePainting(overrides: Partial<PaintingData>): PaintingData {
@@ -58,6 +46,18 @@ describe('usePaintingList', () => {
     updatePainting.mockReset().mockResolvedValue(undefined)
     deletePainting.mockResolvedValue(undefined)
     refresh.mockResolvedValue(undefined)
+    mockUseMutation.mockImplementation((method) => ({
+      trigger:
+        method === 'PATCH'
+          ? (data) => updatePainting((data?.params as { id: string })?.id, data?.body)
+          : method === 'DELETE'
+            ? (data) => deletePainting((data?.params as { id: string })?.id)
+            : createPainting,
+      isLoading: false,
+      error: undefined
+    }))
+    const query = mockUseQuery('/paintings')
+    mockUseQuery.mockReturnValue({ ...query, refetch: refresh })
   })
 
   it('add() seeds a fresh in-memory draft without persisting it', async () => {
@@ -124,6 +124,7 @@ describe('usePaintingList', () => {
       await result.current.add()
     })
     expect(setCurrentPainting).not.toHaveBeenCalled()
+    expect(result.current.saving).toBe(false)
     await act(async () => {
       await result.current.add()
     })
@@ -149,9 +150,7 @@ describe('usePaintingList', () => {
     expect(setCurrentPainting).toHaveBeenCalledWith(expect.objectContaining({ prompt: '' }))
   })
 
-  it.each(['prompt', 'id', 'generationStatus'] as const)('handles %s changes during the New save', async (field) => {
-    const painting = makePainting({ id: 'saved', prompt: 'Edited', persistedAt: '2026-01-01' })
-    const setCurrentPainting = vi.fn()
+  it('locks New while saving and does not cancel it for generation updates', async () => {
     let finish!: () => void
     updatePainting.mockImplementationOnce(
       () =>
@@ -159,6 +158,8 @@ describe('usePaintingList', () => {
           finish = resolve
         })
     )
+    const painting = makePainting({ id: 'saved', prompt: 'Edited', persistedAt: '2026-01-01' })
+    const setCurrentPainting = vi.fn()
     const { result, rerender } = renderHook(
       (current) =>
         usePaintingList({
@@ -174,12 +175,18 @@ describe('usePaintingList', () => {
     act(() => {
       adding = result.current.add()
     })
-    rerender({ ...painting, [field]: field === 'generationStatus' ? 'running' : 'newer' })
+    expect(result.current.saving).toBe(true)
+    await act(async () => {
+      await result.current.add()
+    })
+    expect(updatePainting).toHaveBeenCalledTimes(1)
+    rerender({ ...painting, generationStatus: 'running' })
     await act(async () => {
       finish()
       await adding
     })
-    expect(setCurrentPainting).toHaveBeenCalledTimes(field === 'generationStatus' ? 1 : 0)
+    expect(result.current.saving).toBe(false)
+    expect(setCurrentPainting).toHaveBeenCalledTimes(1)
   })
 
   it('remove() deletes the record then refreshes the strip', async () => {

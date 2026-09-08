@@ -69,6 +69,7 @@ const PaintingPage: FC = () => {
   const {
     generating: liveGenerating,
     submitting,
+    preparing,
     submit,
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
@@ -104,6 +105,10 @@ const PaintingPage: FC = () => {
     cancelGeneration
   })
 
+  // Preparation may still replace/write the record. Once generation is running,
+  // it only persists output files and New can save editable fields independently.
+  const busy = list.saving || preparing
+
   const onCancel = useCallback(() => cancelGeneration(currentPainting.id), [cancelGeneration, currentPainting.id])
   const saveCurrentRef = useRef(list.saveCurrent)
   saveCurrentRef.current = list.saveCurrent
@@ -116,7 +121,7 @@ const PaintingPage: FC = () => {
 
   return (
     <div data-ui="paintings.view" className={paintingClasses.page}>
-      <div className={paintingClasses.content}>
+      <div className={paintingClasses.content} inert={busy} aria-busy={busy}>
         <div className="flex h-full flex-1 flex-col">
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
@@ -129,6 +134,7 @@ const PaintingPage: FC = () => {
                 onDeletePainting={list.remove}
                 onSelectPainting={list.select}
                 onAddPainting={list.add}
+                adding={busy}
               />
 
               <div className={paintingClasses.centerPane}>

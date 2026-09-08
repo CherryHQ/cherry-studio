@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { omit } from 'es-toolkit'
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
@@ -41,6 +41,8 @@ export function usePaintingList({
   const { updatePainting, deletePainting, refresh } = usePaintings()
   const historyItemsRef = useRef<PaintingData[]>([])
   const paintingRef = useRef(painting)
+  const savingRef = useRef(false)
+  const [saving, setSaving] = useState(false)
   historyItemsRef.current = historyItems
   paintingRef.current = painting
 
@@ -74,11 +76,15 @@ export function usePaintingList({
   }, [draftDefaults, setCurrentPainting])
 
   const add = useCallback(async () => {
-    const current = paintingRef.current
-    if (!(await saveCurrent())) return
-    // Do not discard a prompt edited or a different record opened during the save.
-    if (paintingRef.current.id !== current.id || paintingRef.current.prompt !== current.prompt) return
-    resetDraft()
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+      if (await saveCurrent()) resetDraft()
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
   }, [resetDraft, saveCurrent])
 
   const selectNextAfterDelete = useCallback(
@@ -123,5 +129,5 @@ export function usePaintingList({
     [cancelGeneration, deletePainting, painting.id, refresh, selectNextAfterDelete]
   )
 
-  return { add, remove, select, saveCurrent }
+  return { add, remove, select, saveCurrent, saving }
 }

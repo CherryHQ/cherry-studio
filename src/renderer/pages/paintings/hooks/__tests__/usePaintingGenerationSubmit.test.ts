@@ -75,7 +75,7 @@ describe('usePaintingGenerationSubmit', () => {
     })
 
     expect(materialize).toHaveBeenCalledTimes(1)
-    expect(mockGenerate).toHaveBeenCalledWith(entries)
+    expect(mockGenerate).toHaveBeenCalledWith(entries, expect.any(Function))
   })
 
   it('aborts without generating when the input set is incomplete', async () => {
@@ -129,6 +129,42 @@ describe('usePaintingGenerationSubmit', () => {
 
     expect(materialize).not.toHaveBeenCalled()
     expect(mockGenerate).not.toHaveBeenCalled()
+  })
+
+  it('ends preparation before the provider finishes, independently of the visible record', async () => {
+    let prepared!: () => void
+    let finish!: () => void
+    mockGenerate.mockImplementationOnce(async (_entries, onPrepared) => {
+      prepared = onPrepared
+      await new Promise<void>((resolve) => {
+        finish = resolve
+      })
+    })
+    const { result, rerender } = renderHook(
+      (painting) =>
+        usePaintingGenerationSubmit({
+          painting,
+          onPaintingChange: vi.fn(),
+          ensureCurrentCatalog: async () => []
+        }),
+      { initialProps: makePainting() }
+    )
+    let pending!: Promise<void>
+    await act(async () => {
+      pending = result.current.submit(async () => ({ entries: [], complete: true }))
+    })
+    expect(result.current.preparing).toBe(true)
+    act(() => {
+      prepared()
+    })
+    rerender(makePainting({ id: 'new-draft' }))
+    expect(result.current.preparing).toBe(false)
+    expect(result.current.submitting).toBe(true)
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.submitting).toBe(false)
   })
 
   it('exposes submitting for the duration of a request', async () => {
