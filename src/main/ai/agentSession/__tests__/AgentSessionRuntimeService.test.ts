@@ -2668,72 +2668,141 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
-    it('defers an admitted host turn behind a goal round and resumes it without re-sending the prompt', async () => {
-      // dsh accepted the prompt, then ran a queued goal round first. The round must open its own
-      // receive-only turn (not stream into the prompt's), and the prompt's reply — which can start
-      // before the renderer reattaches — must reach the resumed host turn.
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-      const entry = getEntry(service)
-      const send = vi.fn()
-      entry.connection = {
-        send,
-        close: vi.fn(),
-        events: [],
-        reconcile: vi.fn().mockResolvedValue('current'),
-        refreshTraceContext: vi.fn()
-      }
-      const hostTurn = entry.currentTurn
-      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
-      mocks.startRuntimeTurn.mockClear()
+    it.each(['before-persistence', 'before-reopen', 'after-reopen'] as const)(
+      'settles a deferred reply that finishes %s without re-sending',
+      async (finished) => {
+        // dsh accepted the prompt, then ran a queued goal round first. The round must open its own
+        // receive-only turn (not stream into the prompt's), and the prompt's reply — which can start
+        // before the renderer reattaches — must reach the resumed host turn.
+        const service = new AgentSessionRuntimeService()
+        service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+        const entry = getEntry(service)
+        const send = vi.fn()
+        entry.connection = {
+          send,
+          close: vi.fn(),
+          events: [],
+          reconcile: vi.fn().mockResolvedValue('current'),
+          refreshTraceContext: vi.fn()
+        }
+        const hostTurn = entry.currentTurn
+        entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+        mocks.startRuntimeTurn.mockClear()
 
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'autonomous-turn-state',
+          state: 'started',
+          origin: { kind: 'goal-round', round: 1 }
+        })
+        expect(entry.runtimeState.execution).toMatchObject({
+          kind: 'autonomous-turn',
+          deferredTurn: hostTurn,
+          deferredAdmission: 'admitted'
+        })
+        expect(mocks.suspendUnadmittedRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1')
+        await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+        const receiveOnlyTurn = entry.currentTurn
+        expect(receiveOnlyTurn).not.toBe(hostTurn)
+        const reader = service
+          .openTurnStream({
+            sessionId: 'session-1',
+            turnId: receiveOnlyTurn.turnId,
+            signal: new AbortController().signal
+          })
+          .getReader()
+        await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+        ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
+        ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+        await expect(reader.read()).resolves.toMatchObject({ done: true })
+        // The prompt's answer arrives while the round is still awaiting persistence.
+        ;(service as any).handleRuntimeEvent(entry, {
+          type: 'chunk',
+          chunk: { type: 'text-delta', id: 'reply', delta: '我很好' }
+        })
+        if (finished === 'before-persistence') (service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+        void terminalListener(mocks.startRuntimeTurn.mock.calls[0][0]).onDone({ status: 'success', isTopicDone: true })
+        await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+
+        expect(entry.runtimeState.execution).toMatchObject({
+          kind: 'turn',
+          turn: hostTurn,
+          admission: 'admitted',
+          buffer: [{ type: 'text-delta', id: 'reply', delta: '我很好' }]
+        })
+        if (finished === 'before-reopen') (service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+        const hostReader = service
+          .openTurnStream({ sessionId: 'session-1', turnId: hostTurn.turnId, signal: new AbortController().signal })
+          .getReader()
+        await expect(hostReader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+        await expect(hostReader.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: '我很好' } })
+        if (finished === 'after-reopen') (service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+        expect(entry.runtimeState.execution).toMatchObject({ stream: 'awaiting-persistence' })
+        await expect(hostReader.read()).resolves.toMatchObject({ done: true })
+        expect(send).not.toHaveBeenCalled()
+        void service.closeSession('session-1')
+      }
+    )
+
+    it('keeps an admitted turn approval pending until its stream reopens', async () => {
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, admission: 'admitted' }
+      const send = vi.fn()
+      entry.connection = { send, close: vi.fn(), events: [] }
+      const decisions: unknown[] = []
+      toolApprovalRegistry.register({
+        approvalId: 'deferred-approval',
+        sessionId: 'session-1',
+        toolCallId: 'deferred-call',
+        toolName: 'Bash',
+        originalInput: { command: 'pwd' },
+        presentation: 'stream',
+        resolve: (decision) => decisions.push(decision)
+      })
       ;(service as any).handleRuntimeEvent(entry, {
-        type: 'autonomous-turn-state',
-        state: 'started',
-        origin: { kind: 'goal-round', round: 1 }
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'deferred-call',
+          toolName: 'Bash',
+          input: { command: 'pwd' }
+        }
       })
-      expect(entry.runtimeState.execution).toMatchObject({
-        kind: 'autonomous-turn',
-        deferredTurn: hostTurn,
-        deferredAdmission: 'admitted'
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'tool-approval-request',
+        request: {
+          approvalId: 'deferred-approval',
+          toolCallId: 'deferred-call',
+          toolName: 'Bash',
+          input: { command: 'pwd' },
+          presentation: 'stream'
+        }
       })
-      expect(mocks.suspendUnadmittedRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1')
-      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
-      const receiveOnlyTurn = entry.currentTurn
-      expect(receiveOnlyTurn).not.toBe(hostTurn)
+      expect(decisions).toEqual([])
       const reader = service
         .openTurnStream({
           sessionId: 'session-1',
-          turnId: receiveOnlyTurn.turnId,
+          turnId: handle.turnId,
           signal: new AbortController().signal
         })
         .getReader()
-      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
-      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
-      await expect(reader.read()).resolves.toMatchObject({ done: true })
-      // The prompt's answer arrives while the round is still awaiting persistence.
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'chunk',
-        chunk: { type: 'text-delta', id: 'reply', delta: '我很好' }
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'tool-input-available', toolCallId: 'deferred-call' }
       })
-      void terminalListener(mocks.startRuntimeTurn.mock.calls[0][0]).onDone({ status: 'success', isTopicDone: true })
-      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
-
-      expect(entry.runtimeState.execution).toMatchObject({
-        kind: 'turn',
-        turn: hostTurn,
-        admission: 'admitted',
-        buffer: [{ type: 'text-delta', id: 'reply', delta: '我很好' }]
+      await expect(reader.read()).resolves.toMatchObject({
+        value: {
+          type: 'tool-approval-request',
+          approvalId: 'deferred-approval',
+          toolCallId: 'deferred-call'
+        }
       })
-      const hostReader = service
-        .openTurnStream({ sessionId: 'session-1', turnId: hostTurn.turnId, signal: new AbortController().signal })
-        .getReader()
-      await expect(hostReader.read()).resolves.toMatchObject({ value: { type: 'start' } })
-      await expect(hostReader.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: '我很好' } })
+      toolApprovalRegistry.dispatch('deferred-approval', { approved: true })
+      expect(decisions).toEqual([expect.objectContaining({ approved: true })])
       expect(send).not.toHaveBeenCalled()
-      void service.closeSession('session-1')
+      await service.closeSession('session-1')
     })
 
     it('relaunches a deferred admitted turn when the receive-only placeholder cannot be saved', async () => {

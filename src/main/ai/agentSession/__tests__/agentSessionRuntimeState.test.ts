@@ -322,6 +322,34 @@ describe('agentSessionRuntimeState', () => {
     expect(flushed.effects).toEqual([{ type: 'deliver-buffer', turn: admitted, chunks: [reply] }])
   })
 
+  it.each([
+    { status: 'success' as const },
+    { status: 'paused' as const },
+    { status: 'error' as const, error: 'provider failed' }
+  ])('delivers an early reply before settling its $status outcome when the stream reopens', (outcome) => {
+    const current = turn('deferred')
+    const reply = { type: 'text-delta', id: 'reply', delta: 'answer' } as const
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(current)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: current }).state
+    state = transitionAgentSessionRuntime(state, { type: 'buffer-chunk', chunk: reply }).state
+    state = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: current }).state
+
+    const flushed = transitionAgentSessionRuntime(state, { type: 'flush-transition' })
+    expect(flushed.effects).toEqual([
+      { type: 'deliver-buffer', turn: current, chunks: [reply] },
+      { type: 'settle-turn', turn: current, outcome }
+    ])
+    expect(flushed.state.execution).toMatchObject({ stream: 'awaiting-persistence', admission: 'admitted' })
+    expect(transitionAgentSessionRuntime(flushed.state, { type: 'flush-transition' }).effects).toEqual([])
+    const persisted = transitionAgentSessionRuntime(flushed.state, {
+      type: 'turn-terminal',
+      turn: current,
+      status: outcome.status
+    })
+    expect(persisted.state.execution).toEqual({ kind: 'idle', lastTurn: current })
+  })
+
   it('keeps a deferred admitted turn admitted when the receive-only placeholder is abandoned', () => {
     // startReceiveOnlyTurn abandons the autonomous turn when its placeholder save fails; restoring
     // the host turn as `pending` would re-send a prompt dsh already accepted.

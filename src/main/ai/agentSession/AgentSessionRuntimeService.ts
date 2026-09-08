@@ -1683,21 +1683,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)
-        // During a transition A1a is closed, or the receive-only stream is not open yet. Buffer the
-        // chunks so `flush-transition` can replay them into the exact successor stream in order.
-        const execution = entry.runtimeState.execution
-        const turn = this.currentTurn(entry)
-        if (
-          execution.kind === 'steer-transition' ||
-          (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) ||
-          // An admitted turn relaunched after a receive-only generation: the runtime may already be
-          // answering its prompt before the renderer reattaches its stream.
-          (execution.kind === 'turn' && execution.stream === 'unopened' && execution.admission === 'admitted')
-        ) {
-          this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk: event.chunk })
-          break
-        }
-        if (turn?.controller && this.isTurnLive(entry, turn)) this.enqueueTurnChunk(entry, turn, event.chunk)
+        this.deliverRuntimeChunk(entry, event.chunk)
         break
       }
       case 'tool-approval-request':
@@ -2315,22 +2301,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
-    const turn = this.currentTurn(entry)
     if (request.presentation === 'stream') {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,
         toolCallId: request.toolCallId
       }
-      if (
-        entry.runtimeState.execution.kind === 'steer-transition' ||
-        (entry.runtimeState.execution.kind === 'autonomous-turn' &&
-          !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn))
-      ) {
-        this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
-      } else if (turn?.controller && this.isTurnLive(entry, turn)) {
-        this.enqueueTurnChunk(entry, turn, chunk)
-      } else {
+      if (!this.deliverRuntimeChunk(entry, chunk)) {
         logger.warn('Live tool approval request lost its turn stream', {
           sessionId: entry.sessionId,
           approvalId: request.approvalId
@@ -2445,6 +2422,23 @@ export class AgentSessionRuntimeService extends BaseService {
       message: turn.userMessage,
       systemReminder: turn.systemReminder === true
     })
+  }
+
+  private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
+    const execution = entry.runtimeState.execution
+    const turn = this.currentTurn(entry)
+    // Approval cards and content share the same handoff while a successor stream is opening.
+    if (
+      execution.kind === 'steer-transition' ||
+      (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) ||
+      (execution.kind === 'turn' && execution.stream === 'unopened' && execution.admission === 'admitted')
+    ) {
+      this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
+      return true
+    }
+    if (!turn?.controller || !this.isTurnLive(entry, turn)) return false
+    this.enqueueTurnChunk(entry, turn, chunk)
+    return true
   }
 
   private enqueueTurnChunk(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
