@@ -1,3 +1,4 @@
+import type { Api as PiApi, Model as PiModel } from '@earendil-works/pi-ai'
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
@@ -155,6 +156,26 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.api).toBe('openai-responses')
   })
 
+  it('routes a model-level Responses hint through a custom provider Responses base URL', () => {
+    const provider = makeProvider({
+      id: 'custom-provider',
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: {
+        'openai-responses': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
+      }
+    })
+    const model = makeModel({
+      id: 'custom-provider::openai/gpt-6-astra',
+      apiModelId: 'openai/gpt-6-astra',
+      endpointTypes: ['openai-responses']
+    })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe('openai-responses')
+    expect(injection.providerConfig.baseUrl).toBe('https://express-ent-admin.cherryin.net/v1')
+  })
+
   it('keeps OpenAI Chat when the provider has no Anthropic endpoint configuration', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-chat-completions',
@@ -296,6 +317,28 @@ describe('buildPiProviderInjection', () => {
 
     expect(injection.providerConfig.headers).toEqual({ 'x-tenant': 'tenant-1' })
     expect(injection.requestEnvironment).toEqual({ AZURE_OPENAI_API_VERSION: '2025-04-01-preview' })
+  })
+
+  it('adds stable TokenDance app attribution', () => {
+    const provider = makeProvider({
+      id: 'tokendance',
+      presetProviderId: 'tokendance',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://tokendance.space/gateway'
+        }
+      },
+      settings: { extraHeaders: { 'x-app-url': 'https://wrong.example', 'x-trace': 'on' } }
+    })
+
+    const injection = buildPiProviderInjection(provider, makeModel({ apiModelId: 'gpt-5' }), REAL_KEY)
+
+    expect(injection.providerConfig.headers).toEqual({
+      'x-trace': 'on',
+      'X-App-URL': 'app://cherryai.com.cn'
+    })
   })
 
   it('hands pi header values it resolves back to the literals the user typed', async () => {
@@ -743,8 +786,20 @@ describe('pi thinking level ladder', () => {
       }
     })
 
-  const piModelFrom = (model: Model) =>
-    buildPiProviderInjection(relay(), model, REAL_KEY).providerConfig.models?.[0] as never
+  const piModelFrom = (model: Model, provider = relay()): PiModel<PiApi> => {
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+    const modelConfig = injection.providerConfig.models?.[0]
+    const api = modelConfig?.api ?? injection.providerConfig.api
+    const baseUrl = modelConfig?.baseUrl ?? injection.providerConfig.baseUrl
+    if (!modelConfig || !api || !baseUrl) throw new Error('Pi model configuration is incomplete')
+
+    return {
+      ...modelConfig,
+      api,
+      provider: injection.providerName,
+      baseUrl
+    }
+  }
 
   it("clamps pi's medium default onto a tier Kimi K3 actually offers", async () => {
     const { clampThinkingLevel, getSupportedThinkingLevels } = await import('@earendil-works/pi-ai/compat')
@@ -778,6 +833,55 @@ describe('pi thinking level ladder', () => {
     )
 
     expect(getSupportedThinkingLevels(piModel)).not.toContain('off')
+  })
+
+  it('preserves the provider-specific ultra tier for GPT-6 Astra', async () => {
+    const { clampThinkingLevel, getSupportedThinkingLevels } = await import('@earendil-works/pi-ai/compat')
+    const { streamSimple: streamOpenAIResponses } = await import('@earendil-works/pi-ai/api/openai-responses')
+    const piModel = piModelFrom(
+      makeModel({
+        id: 'openai-codex::gpt-6-astra',
+        providerId: 'openai-codex',
+        apiModelId: 'gpt-6-astra',
+        capabilities: ['reasoning'],
+        reasoning: {
+          controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'] }],
+          selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
+        }
+      } as Partial<Model>),
+      makeProvider({
+        id: 'openai-codex',
+        defaultChatEndpoint: 'openai-responses',
+        endpointConfigs: {
+          'openai-responses': { adapterFamily: 'openai-compatible', baseUrl: 'https://example.com/v1' }
+        }
+      })
+    )
+    if (piModel.api !== 'openai-responses') throw new Error('Expected an OpenAI Responses model')
+
+    expect(getSupportedThinkingLevels(piModel)).toContain('ultra')
+    expect(clampThinkingLevel(piModel, 'ultra')).toBe('ultra')
+
+    let requestBody: any
+    const stream = streamOpenAIResponses(
+      { ...piModel, api: 'openai-responses' },
+      { messages: [{ role: 'user', content: 'hello', timestamp: 1 }] },
+      {
+        apiKey: REAL_KEY,
+        reasoning: 'ultra',
+        fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+          requestBody = JSON.parse(init?.body as string)
+          return new Response(JSON.stringify({ error: { message: 'expected test rejection' } }), {
+            status: 401,
+            headers: { 'content-type': 'application/json' }
+          })
+        },
+        maxRetries: 0
+      }
+    )
+    await stream.result()
+
+    expect(requestBody.reasoning).toMatchObject({ effort: 'ultra' })
   })
 
   // A toggle model expresses on/off through the wire, not a ladder; an all-null map would read as
