@@ -1983,7 +1983,7 @@ export class AiStreamManager extends BaseService {
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText), exec)
     } else if (
-      !(request.runtime?.kind === 'agent-session' || topicId.startsWith('agent-session:')) &&
+      !(request.runtime?.kind === 'agent-session' || isAgentSessionTopic(topicId)) &&
       isEmptySuccessTurn(exec.finalMessage)
     ) {
       const noResponseError: SerializedError = {

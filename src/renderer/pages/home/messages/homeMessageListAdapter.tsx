@@ -50,6 +50,7 @@ import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { createDismissedNoResponsePart } from '@shared/data/types/uiParts'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -544,9 +545,7 @@ export function useHomeMessageListProviderValue({
         }
 
         const filtered = partsForEdit.filter((_, index) => index !== resolved.index)
-        const durableParts = isSyntheticFallback
-          ? [...filtered, { type: 'data-no-response-dismissed', data: {} } as unknown as CherryMessagePart]
-          : filtered
+        const durableParts = isSyntheticFallback ? [...filtered, createDismissedNoResponsePart()] : filtered
 
         await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts)
       } catch (error) {

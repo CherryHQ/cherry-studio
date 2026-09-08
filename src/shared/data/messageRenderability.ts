@@ -38,9 +38,11 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
     const data = (part as unknown as { data?: { url?: string; filePath?: string } }).data
     return !!data?.url?.trim() || !!data?.filePath?.trim()
   }
-  if (part.type.startsWith('tool-')) {
-    const p = part as unknown as { toolCallId?: string }
-    return !!p.toolCallId?.trim()
+  if (part.type === 'dynamic-tool' || part.type.startsWith('tool-')) {
+    const p = part as unknown as { toolCallId?: string; toolName?: string }
+    if (!p.toolCallId?.trim()) return false
+    if (part.type.startsWith('tool-')) return !!part.type.slice(5).trim()
+    return !!p.toolName?.trim()
   }
   return true
 }
