@@ -2,7 +2,7 @@
 title: Cloud login explains when Cherry Studio needs an update
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#20229"
 date: 2026-09-08
 ---
 
