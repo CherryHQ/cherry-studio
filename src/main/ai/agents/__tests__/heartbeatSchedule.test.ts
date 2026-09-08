@@ -326,8 +326,9 @@ describe('heartbeatSchedule', () => {
     const outcome = await syncHeartbeatSchedule(AGENT_ID)
 
     expect(outcome).toBe('updated')
-    const repaired = jobScheduleService.getById(row.id)
-    expect((repaired?.jobInputTemplate as { reuseRevision: number }).reuseRevision).toBe(0)
+    expect(jobScheduleService.getById(row.id)?.jobInputTemplate).toMatchObject({
+      reuseRevision: 0
+    })
   })
 
   it('treats a concurrent create name-conflict as a benign race and repairs the winner', async () => {
