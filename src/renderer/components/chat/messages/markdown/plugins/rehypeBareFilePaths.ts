@@ -297,7 +297,7 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
       !hasFilenameLikeLeaf(candidate) &&
       !continuedAcrossWhitespace &&
       scannedEnd === index + candidate.length &&
-      /\s/u.test(value[scannedEnd] ?? '')
+      /[ \t]/u.test(value[scannedEnd] ?? '')
     if (hasAmbiguousWhitespaceBoundary || !isValidPath(candidate, platform, continuedAcrossWhitespace)) {
       index = Math.max(index, scannedEnd - 1)
       continue

@@ -69,6 +69,10 @@ describe('findBareFilePathMatches', () => {
     ])
   })
 
+  it('keeps extensionless POSIX paths before an unambiguous line boundary', () => {
+    expect(paths('Open /Users/lee/Desktop\nNext step', 'posix')).toEqual(['/Users/lee/Desktop'])
+  })
+
   it('does not confuse ordinary lowercase get prose with an HTTP method', () => {
     expect(paths('Please get /Users/lee/report.pdf', 'posix')).toEqual(['/Users/lee/report.pdf'])
   })
