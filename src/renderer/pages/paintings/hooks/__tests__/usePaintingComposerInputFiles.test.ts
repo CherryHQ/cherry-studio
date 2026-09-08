@@ -38,7 +38,7 @@ describe('usePaintingComposerInputFiles', () => {
 
     renderHook(() =>
       usePaintingComposerInputFiles({
-        paintingId: 'p1',
+        sessionId: 'p1',
         inputFiles: [makeEntry('fe-1')],
         files: [],
         setFiles,
@@ -53,12 +53,43 @@ describe('usePaintingComposerInputFiles', () => {
     expect(seeded[0].path).toBe('/p/fe-1.png')
   })
 
+  it('reports user attachment changes but not history seeding or materialization', async () => {
+    const onDraftChange = vi.fn()
+    const { result } = renderHook(() => {
+      const [files, setFiles] = useState<ComposerAttachment[]>([])
+      const bridge = usePaintingComposerInputFiles({
+        sessionId: 'session',
+        inputFiles: [makeEntry('seed')],
+        files,
+        setFiles,
+        inputCapability: 'accept',
+        providerId: 'openai',
+        onDraftChange
+      })
+      return { files, setFiles, ...bridge }
+    })
+    await waitFor(() => expect(result.current.files).toHaveLength(1))
+    expect(onDraftChange).not.toHaveBeenCalled()
+    act(() => {
+      result.current.setFiles((files) => [...files, makeAttachment('user', '/tmp/new.png')])
+    })
+    expect(onDraftChange).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await result.current.materializeInputs()
+    })
+    expect(onDraftChange).toHaveBeenCalledTimes(1)
+    act(() => {
+      result.current.setFiles([])
+    })
+    expect(onDraftChange).toHaveBeenCalledTimes(2)
+  })
+
   it('clears attachments when the painting has no input files', () => {
     const setFiles = vi.fn()
 
     renderHook(() =>
       usePaintingComposerInputFiles({
-        paintingId: 'p2',
+        sessionId: 'p2',
         inputFiles: [],
         files: [],
         setFiles,
@@ -77,7 +108,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
       {
         initialProps: {
-          paintingId: 'p3',
+          sessionId: 'p3',
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
           setFiles,
@@ -88,7 +119,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     rerender({
-      paintingId: 'p3',
+      sessionId: 'p3',
       inputFiles: [],
       files: [makeAttachment('src-new', '/tmp/new.png')],
       setFiles,
@@ -114,11 +145,11 @@ describe('usePaintingComposerInputFiles', () => {
 
   // Stateful harness mirroring the provider: the SEED's `setFiles` re-renders with
   // the seeded attachments, so a cache-hit materialization reuses them.
-  const renderStatefulHarness = (paintingId: string, inputFiles: FileEntry[]) =>
+  const renderStatefulHarness = (sessionId: string, inputFiles: FileEntry[]) =>
     renderHook(() => {
       const [files, setFiles] = useState<ComposerAttachment[]>([])
       const { materializeInputs } = usePaintingComposerInputFiles({
-        paintingId,
+        sessionId,
         inputFiles,
         files,
         setFiles,
@@ -206,7 +237,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
       {
         initialProps: {
-          paintingId: 'p-wb-fail',
+          sessionId: 'p-wb-fail',
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
           setFiles,
@@ -217,7 +248,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     rerender({
-      paintingId: 'p-wb-fail',
+      sessionId: 'p-wb-fail',
       inputFiles: [],
       files: [makeAttachment('src-ok', '/tmp/ok.png'), makeAttachment('src-bad', '/tmp/bad.png')],
       setFiles,
@@ -257,7 +288,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: SwitchProps) => {
         const [files, setFiles] = useState<ComposerAttachment[]>([])
         const { materializeInputs } = usePaintingComposerInputFiles({
-          paintingId: 'p-switch',
+          sessionId: 'p-switch',
           inputFiles: [],
           files,
           setFiles,
@@ -337,7 +368,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: SwitchProps) => {
         const [files, setFiles] = useState<ComposerAttachment[]>([])
         const { materializeInputs } = usePaintingComposerInputFiles({
-          paintingId: 'p-race',
+          sessionId: 'p-race',
           inputFiles: [makeEntry('fe-race')],
           files,
           setFiles,

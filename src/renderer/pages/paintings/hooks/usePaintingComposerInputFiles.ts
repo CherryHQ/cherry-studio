@@ -5,7 +5,7 @@ import { createComposerFileTokenSourceId } from '@renderer/utils/message/compose
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('usePaintingComposerInputFiles')
@@ -18,7 +18,7 @@ const logger = loggerService.withContext('usePaintingComposerInputFiles')
 export type InputCapability = 'unknown' | 'accept' | 'reject'
 
 interface Params {
-  paintingId: string
+  sessionId: string
   inputFiles: FileEntry[]
   files: ComposerAttachment[]
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
@@ -26,6 +26,7 @@ interface Params {
   inputCapability: InputCapability
   /** Provider of the current painting; a change means switchModel reset the context. */
   providerId: string | undefined
+  onDraftChange?: () => void
 }
 
 const withDot = (ext: string | null | undefined): string => {
@@ -53,7 +54,7 @@ async function entryStillExists(id: FileEntryId): Promise<boolean> {
  * page's v2 `FileEntry[]` input files (the composer attachment pipeline predates
  * the v2 FileEntry layer — see composerAttachment.ts).
  *
- * - SEED: when the painting changes, project its `inputFiles` onto composer
+ * - SEED: when the editor session changes, project its `inputFiles` onto composer
  *   attachments so existing input images render as file chips, and prime the
  *   source-id→entry cache so a re-opened input maps back to its existing entry.
  * - MATERIALIZE: `materializeInputs()` is called at generate time (mirroring chat's
@@ -65,7 +66,7 @@ async function entryStillExists(id: FileEntryId): Promise<boolean> {
  *   input row to reclaim. Contract: an incomplete set (`complete: false`, some
  *   attachment failed to promote) must never reach generation — the caller aborts.
  * - CLEAR: a same-painting model switch does NOT remount the composer (the provider
- *   is keyed on painting id only), so SEED never re-runs to reconcile `switchModel`
+ *   is keyed on editor session only), so SEED never re-runs to reconcile `switchModel`
  *   dropping `inputFiles`. This effect is that reconciliation: switching to a model
  *   that can't accept images (`accept`→`reject`) or to a different provider clears
  *   the draft, mirroring `switchModel`'s `inputFiles: []`. It does NOT rely on the
@@ -81,12 +82,13 @@ async function entryStillExists(id: FileEntryId): Promise<boolean> {
  * as a starting point, and nothing writes back to it outside `generate`.
  */
 export function usePaintingComposerInputFiles({
-  paintingId,
+  sessionId,
   inputFiles,
   files,
-  setFiles,
+  setFiles: dispatchFiles,
   inputCapability,
-  providerId
+  providerId,
+  onDraftChange
 }: Params) {
   const { t } = useTranslation()
   const entryCacheRef = useRef(new Map<string, FileEntry>())
@@ -94,7 +96,7 @@ export function usePaintingComposerInputFiles({
   // composer chip, but must survive materialization so a transient read error never
   // shrinks the input list handed to generation (see materializeInputs).
   const unseededEntriesRef = useRef<FileEntry[]>([])
-  const seededPaintingIdRef = useRef<string | null>(null)
+  const seededSessionIdRef = useRef<string | null>(null)
   // Draft generation counter. Every event that discards the current draft bumps it,
   // so an in-flight SEED can tell its results are stale before writing them back.
   // An effect-local `cancelled` flag is not enough: it is only flipped by SEED's own
@@ -107,15 +109,35 @@ export function usePaintingComposerInputFiles({
   inputFilesRef.current = inputFiles
   const filesRef = useRef(files)
   filesRef.current = files
+  const observedFilesRef = useRef(files)
+  const setFiles = useCallback<Dispatch<SetStateAction<ComposerAttachment[]>>>(
+    (action) => {
+      if (typeof action === 'function') {
+        dispatchFiles((prev) => {
+          const next = action(prev)
+          observedFilesRef.current = next
+          return next
+        })
+      } else {
+        observedFilesRef.current = action
+        dispatchFiles(action)
+      }
+    },
+    [dispatchFiles]
+  )
+  useLayoutEffect(() => {
+    if (observedFilesRef.current !== files) onDraftChange?.()
+    observedFilesRef.current = files
+  }, [files, onDraftChange])
   // CLEAR bookkeeping: last *resolved* capability (ignores 'unknown' load blips) and
   // the last provider, to detect the model-switch transitions that drop the draft.
   const lastCapabilityRef = useRef<'accept' | 'reject' | null>(null)
   const lastProviderIdRef = useRef<string | undefined>(providerId)
 
-  // SEED — once per painting.
+  // SEED — once per editor session.
   useEffect(() => {
-    if (seededPaintingIdRef.current === paintingId) return
-    seededPaintingIdRef.current = paintingId
+    if (seededSessionIdRef.current === sessionId) return
+    seededSessionIdRef.current = sessionId
     unseededEntriesRef.current = []
 
     const entries = inputFilesRef.current
@@ -158,10 +180,10 @@ export function usePaintingComposerInputFiles({
     return () => {
       draftEpochRef.current++
     }
-  }, [paintingId, setFiles])
+  }, [sessionId, setFiles])
 
   // CLEAR — reconcile a same-painting model switch (which does NOT remount, so SEED
-  // never re-runs). See the hook docs. A different painting id remounts this hook
+  // never re-runs). See the hook docs. A different editor session remounts this hook
   // fresh, so the refs re-initialize and neither branch fires spuriously on mount.
   useEffect(() => {
     const providerChanged = lastProviderIdRef.current !== providerId

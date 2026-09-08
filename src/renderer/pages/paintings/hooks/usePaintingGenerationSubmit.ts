@@ -12,7 +12,7 @@ export type MaterializeInputs = () => Promise<{ entries: FileEntry[]; complete: 
 
 interface UsePaintingGenerationSubmitInput {
   painting: PaintingData
-  onPaintingChange: (painting: PaintingData) => void
+  bindGeneration: () => (painting: PaintingData) => void
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 
@@ -47,7 +47,7 @@ interface UsePaintingGenerationSubmitInput {
  */
 export function usePaintingGenerationSubmit({
   painting,
-  onPaintingChange,
+  bindGeneration,
   ensureCurrentCatalog
 }: UsePaintingGenerationSubmitInput) {
   const { validateBeforeGenerate } = usePaintingGenerationGuard({
@@ -55,8 +55,7 @@ export function usePaintingGenerationSubmit({
     ensureCurrentCatalog
   })
   const { generate, cancel, generating } = usePaintingGeneration({
-    painting,
-    onPaintingChange
+    painting
   })
 
   // Ref is the re-entrancy source of truth (it blocks a second call in the same
@@ -70,6 +69,7 @@ export function usePaintingGenerationSubmit({
       if (generating || submittingRef.current) return
       submittingRef.current = true
       setSubmitting(true)
+      const applyToSession = bindGeneration()
       try {
         const guardResult = await validateBeforeGenerate()
         if (!guardResult.ok) {
@@ -81,13 +81,13 @@ export function usePaintingGenerationSubmit({
         // dropped the failed chip and told the user; generating anyway would spend
         // the request on a silently smaller input set.
         if (!complete) return
-        await generate(entries)
+        await generate(entries, applyToSession)
       } finally {
         submittingRef.current = false
         setSubmitting(false)
       }
     },
-    [generate, generating, painting.providerId, validateBeforeGenerate]
+    [bindGeneration, generate, generating, painting.providerId, validateBeforeGenerate]
   )
 
   return { generating, submitting, submit, cancel }

@@ -13,7 +13,7 @@ interface UsePaintingResultSyncInput {
  * when they only landed in refreshed history.
  *
  * A background generation finishes by calling `usePaintingGeneration`'s
- * `applyIfVisible` — a no-op when the finishing painting isn't the visible one at
+ * session callback — a no-op when the originating session is no longer active at
  * completion time (the user switched away, or the generation belongs to a prior,
  * now-unmounted page instance). In that case the in-memory draft keeps
  * `files: []` while the DB row — and therefore the refreshed history — gained the
@@ -42,7 +42,7 @@ export function usePaintingResultSync({
     if (!historyFiles || historyFiles.length <= localFileCount) return
     setCurrentPainting((prev) => {
       // Re-check against the freshest state: the visible generation's own
-      // applyIfVisible may have merged these files between render and commit.
+      // session callback may have merged these files between render and commit.
       if (prev.id !== currentId || prev.files.length >= historyFiles.length) return prev
       return { ...prev, files: historyFiles }
     })

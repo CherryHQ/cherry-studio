@@ -59,6 +59,8 @@ const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'
   }) as PaintingData
 
 const handlers = {
+  sessionId: 0,
+  onDraftFilesChange: vi.fn(),
   generating: false,
   submitting: false,
   onPromptChange: vi.fn(),
@@ -94,11 +96,20 @@ describe('PaintingComposer painting switch', () => {
     )
     await waitFor(() => expect(filesCount()).toBe('2'))
 
-    rerender(<PaintingComposer {...handlers} painting={makePainting('B', [makeEntry('b1')])} />)
+    rerender(<PaintingComposer {...handlers} sessionId={1} painting={makePainting('B', [makeEntry('b1')])} />)
     await waitFor(() => expect(filesCount()).toBe('1'))
 
-    rerender(<PaintingComposer {...handlers} painting={makePainting('C', [])} />)
+    rerender(<PaintingComposer {...handlers} sessionId={2} painting={makePainting('C', [])} />)
     await waitFor(() => expect(filesCount()).toBe('0'))
+  })
+
+  it('keeps the attachment draft when generation changes the record ID within the session', async () => {
+    const { rerender } = render(
+      <PaintingComposer {...handlers} painting={makePainting('draft', [makeEntry('input')])} />
+    )
+    await waitFor(() => expect(screen.getByTestId('files-count').textContent).toBe('1'))
+    rerender(<PaintingComposer {...handlers} painting={makePainting('generated', [])} />)
+    expect(screen.getByTestId('files-count').textContent).toBe('1')
   })
 
   // switchModel clears inputFiles for a generate-only model on the SAME painting id.

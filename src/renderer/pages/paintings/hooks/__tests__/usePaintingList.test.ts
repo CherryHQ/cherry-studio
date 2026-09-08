@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
 import { usePaintingList } from '../usePaintingList'
+import { usePaintingSession } from '../usePaintingSession'
 
 const { createPainting, updatePainting, deletePainting, refresh } = vi.hoisted(() => ({
   createPainting: vi.fn(),
@@ -10,230 +11,264 @@ const { createPainting, updatePainting, deletePainting, refresh } = vi.hoisted((
   deletePainting: vi.fn(),
   refresh: vi.fn()
 }))
-
 vi.mock('@renderer/hooks/usePaintings', () => ({
-  usePaintings: () => ({
-    records: [],
-    total: 0,
-    isLoading: false,
-    refresh,
-    createPainting,
-    updatePainting,
-    deletePainting,
-    reorderPaintings: vi.fn()
-  })
+  usePaintings: () => ({ createPainting, updatePainting, deletePainting, refresh })
 }))
 
-function makePainting(overrides: Partial<PaintingData>): PaintingData {
+function makePainting(overrides: Partial<PaintingData> = {}): PaintingData {
   return {
-    id: 'p',
+    id: 'current',
     providerId: 'silicon',
     mode: 'generate',
-    prompt: '',
+    prompt: 'Revised prompt',
     files: [],
     params: {},
+    persistedAt: '2026-01-01',
     ...overrides
   }
 }
-
-function renderList(input: Partial<Parameters<typeof usePaintingList>[0]>) {
-  const setCurrentPainting = vi.fn()
+function renderList(painting = makePainting()) {
   const cancelGeneration = vi.fn()
-  const result = renderHook(() =>
-    usePaintingList({
-      painting: makePainting({ id: 'current', persistedAt: '2026-01-01T00:00:00.000Z' }),
-      setCurrentPainting,
-      draftDefaults: { providerId: 'silicon' },
-      historyItems: [],
-      cancelGeneration,
-      ...input
+  return {
+    cancelGeneration,
+    ...renderHook(() => {
+      const session = usePaintingSession(() => painting)
+      const list = usePaintingList({
+        painting: session.painting,
+        setCurrentPainting: session.replace,
+        beginTransition: session.beginTransition,
+        draftDefaults: { providerId: 'openai', modelId: 'dall-e-3' },
+        historyItems: [painting],
+        cancelGeneration
+      })
+      return { ...list, session }
     })
+  }
+}
+function delaySave() {
+  let finish!: () => void
+  updatePainting.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve
+      })
   )
-  return { ...result, setCurrentPainting, cancelGeneration }
+  return () => finish()
 }
 
-describe('usePaintingList', () => {
+describe('painting editor navigation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     updatePainting.mockReset().mockResolvedValue(undefined)
     deletePainting.mockResolvedValue(undefined)
     refresh.mockResolvedValue(undefined)
   })
-
-  it('add() saves prompt edits before replacing the current painting with a draft', async () => {
-    const { result, setCurrentPainting } = renderList({
-      painting: makePainting({ id: 'current', persistedAt: '2026-01-01', prompt: 'Revised prompt' })
-    })
-    let finishSave!: () => void
-    updatePainting.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishSave = resolve
-        })
-    )
-
-    let pending!: Promise<void> | void
+  it('saves only the prompt before New, leaving generated references owned by generation', async () => {
+    const { result } = renderList(makePainting({ files: [{ id: 'old-output' } as PaintingData['files'][number]] }))
+    const finish = delaySave()
+    let pending!: Promise<void>
     act(() => {
       pending = result.current.add()
     })
-    expect(setCurrentPainting).not.toHaveBeenCalled()
-    expect(updatePainting).toHaveBeenCalledWith('current', expect.objectContaining({ prompt: 'Revised prompt' }))
+    expect(result.current.session.painting.id).toBe('current')
+    expect(updatePainting).toHaveBeenCalledWith('current', { prompt: 'Revised prompt' })
     await act(async () => {
-      finishSave()
+      finish()
       await pending
     })
-
-    expect(setCurrentPainting).toHaveBeenCalledTimes(1)
-    const draft = setCurrentPainting.mock.calls[0][0] as PaintingData
-    expect(draft).toMatchObject({ providerId: 'silicon', mode: 'generate', prompt: '', files: [] })
-    // The whole point of the fix: a blank draft must NOT hit the DB / strip on click.
-    expect(draft.persistedAt).toBeUndefined()
+    expect(result.current.session.painting).toMatchObject({
+      providerId: 'openai',
+      model: 'dall-e-3',
+      prompt: '',
+      files: []
+    })
+    expect(result.current.session.painting.persistedAt).toBeUndefined()
     expect(createPainting).not.toHaveBeenCalled()
   })
-
-  it('add() uses the configured default model without saving an unsaved draft', async () => {
-    const { result, setCurrentPainting } = renderList({
-      draftDefaults: { providerId: 'openai', modelId: 'dall-e-3' },
-      painting: makePainting({ prompt: 'Unsaved draft' })
-    })
-
+  it('does not persist an ungenerated draft', async () => {
+    const { result } = renderList(makePainting({ persistedAt: undefined }))
     await act(async () => {
       await result.current.add()
     })
-
-    expect(setCurrentPainting).toHaveBeenCalledWith(
-      expect.objectContaining({ providerId: 'openai', model: 'dall-e-3' })
-    )
     expect(updatePainting).not.toHaveBeenCalled()
+    expect(createPainting).not.toHaveBeenCalled()
+    expect(result.current.session.painting.prompt).toBe('')
   })
-
-  it('remove() deletes the record then refreshes the strip', async () => {
-    const target = makePainting({ id: 'other', persistedAt: '2026-01-01T00:00:00.000Z' })
-    const { result, setCurrentPainting, cancelGeneration } = renderList({})
-
-    await act(async () => {
-      await result.current.remove(target)
-    })
-
-    expect(cancelGeneration).toHaveBeenCalledWith('other')
-    expect(deletePainting).toHaveBeenCalledWith('other')
-    expect(refresh).toHaveBeenCalledTimes(1)
-    expect(setCurrentPainting).not.toHaveBeenCalled()
-  })
-
-  it('add() keeps the edited painting selected when saving fails and allows retry', async () => {
-    const { result, setCurrentPainting } = renderList({})
+  it('retains the editor on save failure and permits retry', async () => {
+    const { result } = renderList()
     updatePainting.mockRejectedValueOnce(new Error('Save failed'))
     await act(async () => {
       await result.current.add()
     })
-    expect(setCurrentPainting).not.toHaveBeenCalled()
+    expect(result.current.session.painting.id).toBe('current')
     await act(async () => {
       await result.current.add()
     })
-    expect(setCurrentPainting).toHaveBeenCalledWith(expect.objectContaining({ prompt: '', providerId: 'silicon' }))
+    expect(result.current.session.painting.prompt).toBe('')
   })
-
-  it('add() preserves edits made while the previous prompt is being saved', async () => {
-    const painting = makePainting({ id: 'current', persistedAt: '2026-01-01', prompt: 'First edit' })
-    const setCurrentPainting = vi.fn()
-    const { result, rerender } = renderHook(
-      ({ current }) =>
-        usePaintingList({
-          painting: current,
-          setCurrentPainting,
-          draftDefaults: { providerId: 'silicon' },
-          historyItems: [],
-          cancelGeneration: vi.fn()
-        }),
-      { initialProps: { current: painting } }
-    )
-    let finishSave!: () => void
-    updatePainting.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          finishSave = resolve
-        })
-    )
+  it.each(['prompt', 'attachments'] as const)('retains newer %s edits made while saving', async (kind) => {
+    const { result } = renderList()
+    const finish = delaySave()
     let pending!: Promise<void>
     act(() => {
       pending = result.current.add()
     })
-    rerender({ current: { ...painting, prompt: 'Newer edit while saving' } })
+    act(() => {
+      if (kind === 'prompt') result.current.session.edit({ prompt: 'Newer edit' })
+      else result.current.session.touch()
+    })
     await act(async () => {
-      finishSave()
+      finish()
       await pending
     })
-    expect(setCurrentPainting).not.toHaveBeenCalled()
+    expect(result.current.session.painting.id).toBe('current')
     await act(async () => {
       await result.current.add()
     })
-    expect(updatePainting).toHaveBeenLastCalledWith(
-      'current',
-      expect.objectContaining({ prompt: 'Newer edit while saving' })
-    )
-    expect(setCurrentPainting).toHaveBeenCalledWith(expect.objectContaining({ prompt: '' }))
-  })
-
-  it('remove() replaces the last painting with an unsaved draft without saving the deleted record', async () => {
-    const target = makePainting({ id: 'current', persistedAt: '2026-01-01' })
-    const { result, setCurrentPainting } = renderList({ painting: target, historyItems: [target] })
-    await act(async () => {
-      await result.current.remove(target)
+    expect(updatePainting).toHaveBeenLastCalledWith('current', {
+      prompt: kind === 'prompt' ? 'Newer edit' : 'Revised prompt'
     })
+    expect(result.current.session.painting.prompt).toBe('')
+  })
+  it('allows New when generation materializes inputs and creates a new record during saving', async () => {
+    const { result } = renderList()
+    const applyGeneration = result.current.session.bindGeneration()
+    const finish = delaySave()
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.add()
+    })
+    act(() => {
+      applyGeneration(
+        makePainting({
+          id: 'generated',
+          prompt: 'Original generation snapshot',
+          inputFiles: [{ id: 'input' } as NonNullable<PaintingData['inputFiles']>[number]],
+          generationStatus: 'running'
+        })
+      )
+    })
+    expect(result.current.session.sessionId).toBe(0)
+    await act(async () => {
+      finish()
+      await pending
+    })
+    const draft = result.current.session.painting
+    expect(draft.prompt).toBe('')
+    expect(updatePainting).toHaveBeenLastCalledWith('generated', { prompt: 'Revised prompt' })
+    act(() => {
+      applyGeneration(makePainting({ id: 'generated', files: [{ id: 'output' } as PaintingData['files'][number]] }))
+    })
+    expect(result.current.session.painting).toBe(draft)
+  })
+  it('generation updates preserve newer prompt and parameter edits in the same session', () => {
+    const { result } = renderList()
+    const applyGeneration = result.current.session.bindGeneration()
+    act(() => {
+      result.current.session.edit({ prompt: 'Next request', params: { size: 'new-size' } })
+    })
+    act(() => {
+      applyGeneration(makePainting({ id: 'generated', files: [{ id: 'output' } as PaintingData['files'][number]] }))
+    })
+    expect(result.current.session.painting).toMatchObject({
+      id: 'generated',
+      prompt: 'Next request',
+      params: { size: 'new-size' },
+      files: [{ id: 'output' }]
+    })
+  })
+  it('a newer selection supersedes pending New even when the first save completes last', async () => {
+    const { result } = renderList()
+    const finish = delaySave()
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.add()
+    })
+    await act(async () => {
+      await result.current.select(makePainting({ id: 'selected' }))
+    })
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.session.painting.id).toBe('selected')
+  })
+  it('reselecting the current painting cancels pending New', async () => {
+    const { result } = renderList()
+    const finish = delaySave()
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.add()
+    })
+    await act(async () => {
+      await result.current.select(result.current.session.painting)
+    })
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.session.painting.id).toBe('current')
+  })
+  it('deletes the last record without saving it again', async () => {
+    const { result, cancelGeneration } = renderList()
+    await act(async () => {
+      await result.current.remove(result.current.session.painting)
+    })
+    expect(cancelGeneration).toHaveBeenCalledWith('current')
     expect(deletePainting).toHaveBeenCalledWith('current')
     expect(updatePainting).not.toHaveBeenCalled()
-    const draft = setCurrentPainting.mock.calls[0][0] as PaintingData
-    expect(draft.id).not.toBe('current')
-    expect(draft.persistedAt).toBeUndefined()
-    expect(draft.prompt).toBe('')
+    expect(result.current.session.painting.persistedAt).toBeUndefined()
   })
 
-  it('add() still opens a draft when generation updates arrive during saving', async () => {
-    const painting = makePainting({
-      id: 'current',
-      persistedAt: '2026-01-01',
-      prompt: 'Generate this',
-      generationStatus: 'running'
+  it('a delayed delete refresh cannot replace a newer selection', async () => {
+    const { result } = renderList()
+    updatePainting.mockImplementation(async (id: string) => {
+      if (id === 'current') throw new Error('NOT_FOUND: painting was deleted')
     })
-    const setCurrentPainting = vi.fn()
-    const { result, rerender } = renderHook(
-      ({ current }) =>
-        usePaintingList({
-          painting: current,
-          setCurrentPainting,
-          draftDefaults: { providerId: 'silicon' },
-          historyItems: [],
-          cancelGeneration: vi.fn()
-        }),
-      { initialProps: { current: painting } }
-    )
-    let finishSave!: () => void
-    updatePainting.mockImplementationOnce(
+    let finish!: () => void
+    refresh.mockImplementationOnce(
       () =>
         new Promise<void>((resolve) => {
-          finishSave = resolve
+          finish = resolve
         })
     )
     let pending!: Promise<void>
-    act(() => {
-      pending = result.current.add()
-    })
-    rerender({
-      current: {
-        ...painting,
-        generationStatus: null,
-        generationProgress: 100,
-        files: [{ id: 'output' } as PaintingData['files'][number]],
-        params: {},
-        inputFiles: []
-      }
+    await act(async () => {
+      pending = result.current.remove(result.current.session.painting)
     })
     await act(async () => {
-      finishSave()
+      await result.current.select(makePainting({ id: 'selected' }))
+    })
+    await act(async () => {
+      finish()
       await pending
     })
-    expect(setCurrentPainting).toHaveBeenCalledWith(expect.objectContaining({ prompt: '', files: [] }))
-    expect(createPainting).not.toHaveBeenCalled()
+    expect(result.current.session.painting.id).toBe('selected')
+  })
+
+  it('navigation discards the pending deletion without PATCHing its already deleted record', async () => {
+    const { result } = renderList()
+    let finish!: () => void
+    deletePainting.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        })
+    )
+    updatePainting.mockRejectedValue(new Error('NOT_FOUND: deletion committed before cache refresh'))
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.remove(result.current.session.painting)
+    })
+    await act(async () => {
+      await result.current.select(makePainting({ id: 'selected' }))
+    })
+    expect(result.current.session.painting.id).toBe('selected')
+    expect(updatePainting).not.toHaveBeenCalled()
+    await act(async () => {
+      finish()
+      await pending
+    })
+    expect(result.current.session.painting.id).toBe('selected')
   })
 })

@@ -14,7 +14,7 @@ const logger = loggerService.withContext('paintings/usePaintingModelSwitch')
 
 interface UsePaintingModelSwitchInput {
   painting: PaintingData
-  onPaintingChange: (updates: Partial<PaintingData>) => void
+  bindPaintingChange: () => (updates: Partial<PaintingData>) => void
   ensureProviderCatalog: (providerId: string) => Promise<ModelOption[]>
 }
 
@@ -22,7 +22,7 @@ export type PaintingModelSelection = { providerId: string; modelId: string }
 
 export function usePaintingModelSwitch({
   painting,
-  onPaintingChange,
+  bindPaintingChange,
   ensureProviderCatalog
 }: UsePaintingModelSwitchInput) {
   const currentProviderId = painting.providerId
@@ -30,6 +30,7 @@ export function usePaintingModelSwitch({
 
   return useCallback(
     async ({ providerId, modelId }: PaintingModelSelection) => {
+      const onPaintingChange = bindPaintingChange()
       if (providerId === currentProviderId) {
         // Reset stale fields the old model wrote but the new one doesn't
         // accept — the form writes into `painting.params`, so the reset
@@ -71,10 +72,7 @@ export function usePaintingModelSwitch({
       const targetPainting = createDefaultPainting({ providerId })
 
       onPaintingChange({
-        ...targetPainting,
-        id: painting.id,
-        files: painting.files,
-        prompt: painting.prompt,
+        params: targetPainting.params,
         providerId,
         mode: 'generate',
         model: modelId,
@@ -83,6 +81,6 @@ export function usePaintingModelSwitch({
         inputFiles: []
       } as Partial<PaintingData>)
     },
-    [currentProviderId, ensureProviderCatalog, models, onPaintingChange, painting]
+    [bindPaintingChange, currentProviderId, ensureProviderCatalog, models, painting]
   )
 }

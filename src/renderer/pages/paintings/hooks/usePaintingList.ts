@@ -1,12 +1,11 @@
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { isEqual } from 'es-toolkit'
 import { useCallback, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
-import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import { createDefaultPainting, type PaintingDraftDefaults } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
+import type { usePaintingSession } from './usePaintingSession'
 
 const logger = loggerService.withContext('paintings/usePaintingList')
 
@@ -16,6 +15,7 @@ interface UsePaintingListInput {
   draftDefaults: PaintingDraftDefaults
   historyItems: PaintingData[]
   cancelGeneration: (paintingId: string) => void
+  beginTransition: ReturnType<typeof usePaintingSession>['beginTransition']
 }
 
 /**
@@ -36,59 +36,66 @@ export function usePaintingList({
   setCurrentPainting,
   draftDefaults,
   historyItems,
-  cancelGeneration
+  cancelGeneration,
+  beginTransition
 }: UsePaintingListInput) {
   const { updatePainting, deletePainting, refresh } = usePaintings()
   const historyItemsRef = useRef<PaintingData[]>([])
   const paintingRef = useRef(painting)
+  const deletingIds = useRef(new Set<string>())
   historyItemsRef.current = historyItems
   paintingRef.current = painting
 
-  const saveCurrent = useCallback(async () => {
-    const current = paintingRef.current
-    if (!current.persistedAt) {
-      return true
-    }
+  const saveCurrent = useCallback(
+    async (current = paintingRef.current) => {
+      // Delete is an explicit discard. Its mutation also awaits cache refresh,
+      // so navigation must not PATCH this identity while deletion is pending.
+      if (!current.persistedAt || deletingIds.current.has(current.id)) {
+        return true
+      }
 
-    try {
-      await updatePainting(current.id, paintingDataToUpdateDto(current))
-      return true
-    } catch (error) {
-      presentPaintingGenerateError(error)
-      return false
-    }
-  }, [updatePainting])
+      try {
+        await updatePainting(current.id, { prompt: current.prompt })
+        return true
+      } catch (error) {
+        presentPaintingGenerateError(error)
+        return false
+      }
+    },
+    [updatePainting]
+  )
 
-  const select = useCallback(
-    async (target: PaintingData) => {
-      const current = paintingRef.current
-      if (target.id === current.id) return
-      if (!(await saveCurrent())) return
-      setCurrentPainting(target)
+  const saveAndReplace = useCallback(
+    async (intent: ReturnType<UsePaintingListInput['beginTransition']>, next: () => PaintingData) => {
+      // Generation can bind this editor to a newly created record while a save
+      // waits. Persist the prompt on that record too before leaving the session.
+      let savedId: string
+      do {
+        const current = intent.getPainting()
+        if (!(await saveCurrent(current)) || !intent.isCurrent()) return
+        savedId = current.id
+      } while (intent.getPainting().id !== savedId)
+      setCurrentPainting(next())
     },
     [saveCurrent, setCurrentPainting]
   )
 
+  const select = useCallback(
+    async (target: PaintingData) => {
+      const intent = beginTransition()
+      if (target.id === intent.getPainting().id) return
+      await saveAndReplace(intent, () => target)
+    },
+    [beginTransition, saveAndReplace]
+  )
+
   const add = useCallback(async () => {
-    const current = paintingRef.current
-    if (!(await saveCurrent())) return
-    const latest = paintingRef.current
-    // Generation status and output updates do not supersede the user's New action.
-    if (
-      latest.id !== current.id ||
-      latest.prompt !== current.prompt ||
-      latest.providerId !== current.providerId ||
-      latest.model !== current.model ||
-      latest.mode !== current.mode ||
-      !isEqual(latest.params ?? {}, current.params ?? {}) ||
-      !isEqual(latest.inputFiles ?? [], current.inputFiles ?? [])
-    )
-      return
-    setCurrentPainting(createDefaultPainting(draftDefaults))
-  }, [draftDefaults, saveCurrent, setCurrentPainting])
+    const intent = beginTransition()
+    await saveAndReplace(intent, () => createDefaultPainting(draftDefaults))
+  }, [beginTransition, draftDefaults, saveAndReplace])
 
   const selectNextAfterDelete = useCallback(
-    async (deletedId: string) => {
+    (deletedId: string) => {
       const currentItems = historyItemsRef.current
       const deletedIndex = currentItems.findIndex((item) => item.id === deletedId)
       const nextPainting =
@@ -96,19 +103,20 @@ export function usePaintingList({
           ? (currentItems[deletedIndex + 1] ?? currentItems[deletedIndex - 1])
           : currentItems.find((item) => item.id !== deletedId)
 
-      await refresh()
-
       if (nextPainting) {
         setCurrentPainting(nextPainting)
         return
       }
       setCurrentPainting(createDefaultPainting(draftDefaults))
     },
-    [draftDefaults, refresh, setCurrentPainting]
+    [draftDefaults, setCurrentPainting]
   )
 
   const remove = useCallback(
     async (target: PaintingData) => {
+      if (deletingIds.current.has(target.id)) return
+      deletingIds.current.add(target.id)
+      if (target.id === paintingRef.current.id) beginTransition()
       cancelGeneration(target.id)
       try {
         await deletePainting(target.id)
@@ -119,14 +127,15 @@ export function usePaintingList({
         logger.error('Failed to delete painting', error as Error)
         presentPaintingGenerateError(error)
         return
+      } finally {
+        deletingIds.current.delete(target.id)
       }
-      if (target.id === painting.id) {
-        await selectNextAfterDelete(target.id)
-      } else {
-        await refresh()
-      }
+      // Detach from the deleted record before awaiting the history refresh:
+      // navigation must never try to save a record already confirmed deleted.
+      if (target.id === paintingRef.current.id) selectNextAfterDelete(target.id)
+      await refresh()
     },
-    [cancelGeneration, deletePainting, painting.id, refresh, selectNextAfterDelete]
+    [beginTransition, cancelGeneration, deletePainting, refresh, selectNextAfterDelete]
   )
 
   return { add, remove, select, saveCurrent }

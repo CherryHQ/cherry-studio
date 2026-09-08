@@ -3,7 +3,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils/uuid'
 import type { FileEntry } from '@shared/data/types/file'
 import type { PaintingMode } from '@shared/data/types/painting'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
@@ -24,18 +24,12 @@ function hasOutput(painting: PaintingData) {
 
 interface UsePaintingGenerationInput {
   painting: PaintingData
-  onPaintingChange: (painting: PaintingData) => void
 }
 
-export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintingGenerationInput) {
+export function usePaintingGeneration({ painting }: UsePaintingGenerationInput) {
   const { createPainting, updatePainting, refresh } = usePaintings()
   const currentProviderId = painting.providerId
   const { provider } = usePaintingProviderRuntime(currentProviderId)
-  const visibleIdRef = useRef(painting.id)
-
-  useEffect(() => {
-    visibleIdRef.current = painting.id
-  }, [painting.id])
 
   // No unmount-abort: the page-level cache mirror in
   // `painting.generation.${id}` lets a navigated-away generation finish,
@@ -46,17 +40,8 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
     return p.generationStatus === 'running'
   }, [])
 
-  const applyIfVisible = useCallback(
-    (next: PaintingData) => {
-      if (visibleIdRef.current === next.id) {
-        onPaintingChange(next)
-      }
-    },
-    [onPaintingChange]
-  )
-
   const generate = useCallback(
-    async (inputFiles: FileEntry[]) => {
+    async (inputFiles: FileEntry[], applyToSession: (painting: PaintingData) => void) => {
       // The in-memory draft is the source of truth for this whole flow.
       // DB writes are bookkeeping for the frozen receipt (prompt + file ids);
       // they're not consulted again to rebuild the live painting. That keeps
@@ -101,11 +86,9 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       const pushGenerationState = (updates: Partial<PaintingGenerationState>) => {
         Object.assign(generationState, updates, { generationStatus: 'running' as const })
         cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
-        applyIfVisible({ ...targetPainting, ...generationState } as PaintingData)
+        applyToSession({ ...targetPainting, ...generationState } as PaintingData)
       }
 
-      visibleIdRef.current = targetPainting.id
-      onPaintingChange({ ...targetPainting, ...generationState } as PaintingData)
       registerPaintingAbortController(targetPainting.id, controller)
       pushGenerationState(generationState)
 
@@ -125,7 +108,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         cacheService.set(cacheKey, null)
         // Merge the freshly-generated output into the in-memory draft; do not
         // re-read from the DB record (which would drop params / mode again).
-        applyIfVisible({ ...targetPainting, files: generatedFiles } as PaintingData)
+        applyToSession({ ...targetPainting, files: generatedFiles } as PaintingData)
         await refresh()
       } catch (error) {
         const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
@@ -135,7 +118,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
         }
         cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
-        applyIfVisible({ ...targetPainting, ...failedState } as PaintingData)
+        applyToSession({ ...targetPainting, ...failedState } as PaintingData)
         if (!isCanceled) {
           presentPaintingGenerateError(error)
         }
@@ -143,7 +126,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         clearPaintingAbortController(targetPainting.id, controller)
       }
     },
-    [applyIfVisible, createPainting, painting, provider, refresh, onPaintingChange, updatePainting]
+    [createPainting, painting, provider, refresh, updatePainting]
   )
 
   const cancel = useCallback((paintingId: string) => {
