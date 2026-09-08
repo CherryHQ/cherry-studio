@@ -216,12 +216,12 @@ describe('TopicBranchPanel', () => {
     vi.mocked(dataApiService.get).mockResolvedValue([{ id: 'message-1' }, { id: 'leaf-1' }])
   })
 
-  it('renders the right-pane content and fetches the topic tree only while open', () => {
-    render(<TopicBranchPanel open={true} topicId="topic-1" topicName="AI 聊天应用技术选型" />)
+  it('renders the canvas without a secondary statistics header', () => {
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
-    expect(screen.getByText('AI 聊天应用技术选型')).toBeInTheDocument()
-    expect(screen.getByText('2 chat.message.flow.branches')).toBeInTheDocument()
-    expect(screen.getByText('1 chat.message.flow.nodes')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-message-flow-node-message-1')).toBeInTheDocument()
+    expect(screen.queryByText('2 chat.message.flow.branches')).not.toBeInTheDocument()
+    expect(screen.queryByText('1 chat.message.flow.nodes')).not.toBeInTheDocument()
     expect(mocks.useQuery).toHaveBeenCalledWith('/topics/:topicId/tree', {
       enabled: true,
       params: { topicId: 'topic-1' },

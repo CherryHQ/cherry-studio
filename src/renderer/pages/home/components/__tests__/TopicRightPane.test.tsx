@@ -119,7 +119,7 @@ vi.mock('react-i18next', () => ({
 function TestScope({ children, ...props }: ComponentProps<typeof TopicRightPane.Scope>) {
   return (
     <TopicRightPane.Scope {...props}>
-      <TopicBranchPortal topicId={props.topicId ?? ''} topicName={props.topicName} />
+      <TopicBranchPortal topicId={props.topicId ?? ''} />
       {children}
     </TopicRightPane.Scope>
   )
@@ -336,6 +336,7 @@ describe('TopicRightPane', () => {
     render(
       <TestScope
         topicId="topic-a"
+        topicName="Trip planning"
         traceId="trace-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
         <TopicRightPane.Shortcuts />
@@ -353,6 +354,7 @@ describe('TopicRightPane', () => {
     fireEvent.click(branchShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Trip planning')
     expect(screen.queryByRole('button', { name: 'common.minimize' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
     expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).not.toBeInTheDocument()
@@ -409,6 +411,7 @@ describe('TopicRightPane', () => {
     render(
       <TestScope
         topicId="topic-a"
+        topicName="Trip planning"
         traceId="trace-a"
         resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
         <ResourcePaneCountButton label="chat.topics.title" count={3} />
@@ -434,7 +437,7 @@ describe('TopicRightPane', () => {
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
     expect(screen.getByTestId('branch-pane')).toBe(branchPane)
     expect(branchPane).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Trip planning')
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.close' }))

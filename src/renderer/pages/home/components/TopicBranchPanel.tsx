@@ -24,7 +24,6 @@ import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
 interface Props {
   open: boolean
   topicId: string
-  topicName?: string
   liveState?: TopicMessageFlowLiveState | null
   focusKey?: string | number
   layoutReady?: boolean
@@ -46,15 +45,7 @@ function getMessageIdFromContextMenuEvent(event: MouseEvent): string | null {
   return target.closest<HTMLElement>('[data-message-id]')?.dataset.messageId ?? null
 }
 
-const TopicBranchPanel: FC<Props> = ({
-  open,
-  topicId,
-  topicName,
-  liveState,
-  focusKey,
-  layoutReady,
-  onLocateMessage
-}) => {
+const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layoutReady, onLocateMessage }) => {
   const { t } = useTranslation()
   const contextMenuMessageIdRef = useRef<string | null>(null)
   const messagesCachePath = `/topics/${topicId}/messages` as const
@@ -257,21 +248,6 @@ const TopicBranchPanel: FC<Props> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden text-card-foreground">
-      <div className="flex min-h-10 shrink-0 items-center gap-2 border-border-subtle border-b px-3 text-xs">
-        {topicName && (
-          <>
-            <span className="min-w-0 max-w-55 truncate text-foreground-tertiary">{topicName}</span>
-            <span className="shrink-0 text-foreground-tertiary">·</span>
-          </>
-        )}
-        <span className="shrink-0 text-foreground-tertiary">
-          {graph.stats.branchCount} {t('chat.message.flow.branches', { defaultValue: 'branches' })}
-        </span>
-        <span className="shrink-0 text-foreground-tertiary">·</span>
-        <span className="shrink-0 text-foreground-tertiary">
-          {graph.stats.nodeCount} {t('chat.message.flow.nodes', { defaultValue: 'nodes' })}
-        </span>
-      </div>
       <div className="min-h-0 flex-1">
         {error ? (
           <div className="flex h-full min-h-80 items-center justify-center text-destructive text-sm" role="alert">

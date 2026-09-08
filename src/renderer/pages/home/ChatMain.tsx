@@ -68,7 +68,7 @@ const ChatMain: FC<ChatMainProps> = ({
         <MessageList enableSearch />
       </MessageListProvider>
       <MessageListProvider value={branchValue}>
-        <TopicBranchPortal topicId={topic.id} topicName={topic.name} />
+        <TopicBranchPortal topicId={topic.id} />
       </MessageListProvider>
     </>
   )

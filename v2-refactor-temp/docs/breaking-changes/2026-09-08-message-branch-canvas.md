@@ -8,7 +8,7 @@ date: 2026-09-08
 
 ## What changed
 
-The conversation branch entry is now named Advanced View and opens only as a maximized canvas, starting with the first message on the left and branching to the right. Message cards display the producing assistant's avatar, name, and model, plus Markdown content with streaming updates and a maximum height; longer messages scroll inside the card while its header and existing actions remain visible. The minimap uses stronger node contrast and a visible viewport outline.
+The conversation branch entry is now named Advanced View and opens only as a maximized canvas, starting with the first message on the left and branching to the right, beneath a single header showing the topic title. Message cards display the producing assistant's avatar, name, and model, plus Markdown content with streaming updates and a maximum height; longer messages scroll inside the card while its header and existing actions remain visible. The minimap uses stronger node contrast and a visible viewport outline.
 
 ## Why this matters to the user
 

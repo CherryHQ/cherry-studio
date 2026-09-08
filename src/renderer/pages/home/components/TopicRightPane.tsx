@@ -157,13 +157,13 @@ function TopicBranchRightPanel({ scope }: RightPanelComponentProps<TopicRightPan
   return <div ref={registerTarget} className="h-full min-h-0" />
 }
 
-export function TopicBranchPortal({ topicId, topicName }: { topicId: string; topicName?: string }) {
+export function TopicBranchPortal({ topicId }: { topicId: string }) {
   const context = use(TopicBranchTargetContext)
   if (!context?.target || context.target.topicId !== topicId) return null
-  return <TopicBranchPortalContent target={context.target} topicName={topicName} />
+  return <TopicBranchPortalContent target={context.target} />
 }
 
-function TopicBranchPortalContent({ target, topicName }: { target: TopicBranchTarget; topicName?: string }) {
+function TopicBranchPortalContent({ target }: { target: TopicBranchTarget }) {
   const panelState = useRightPanelState()
   const branchLiveState = useTopicBranchLiveState(target.topicId)
   const canvasFocusKey = `${target.topicId}:${panelState.pdfLayoutRefreshKey}`
@@ -174,7 +174,6 @@ function TopicBranchPortalContent({ target, topicName }: { target: TopicBranchTa
         <TopicBranchPanel
           open={panelState.isActive('branch')}
           topicId={target.topicId}
-          topicName={topicName}
           liveState={branchLiveState}
           focusKey={canvasFocusKey}
           onLocateMessage={target.onLocateMessage}
@@ -255,7 +254,7 @@ function TopicRightPaneProvider({
       traceId,
       resourcePane: resourcePane ?? null,
       developerMode: enableDeveloperMode,
-      branchTitle: t('chat.message.flow.title'),
+      branchTitle: topicName || t('chat.default.topic.name'),
       traceTitle: t('trace.label')
     }),
     [enableDeveloperMode, resourcePane, t, topicId, topicName, traceId]
