@@ -115,8 +115,8 @@ export function normalizeExplorerSignature(
   if (targetPath) {
     const offset = typeof input.offset === 'number' ? `:${input.offset}` : ''
     const limit = typeof input.limit === 'number' ? `:${input.limit}` : ''
-    const pattern = typeof input.pattern === 'string' ? `:${input.pattern}` : ''
-    return `${toolName}:${targetPath.trim().replace(/\\/g, '/')}${pattern}${offset}${limit}`
+    const pattern = typeof input.pattern === 'string' ? `:${input.pattern.trim()}` : ''
+    return `${toolName}:${normalizePath(targetPath)}${pattern}${offset}${limit}`
   }
 
   const sortedKeys = Object.keys(input).sort()
@@ -167,11 +167,11 @@ export function evaluateIncomingExplorerCall(
       evalResult.rangeStart = offset
       evalResult.rangeEnd = rangeEnd
 
-      // Backward jump / traversal cycle check
-      if (offset < fileRecord.lastOffset && overlap >= 0.5) {
-        evalResult.isCycle = true
-      } else if (overlap >= 0.95 && fileRecord.intervals.length > 0) {
+      // Duplicate chunk / complete subset check (tested before backward cycle to prioritize subset rejection)
+      if (overlap >= 0.95 && fileRecord.intervals.length > 0) {
         evalResult.isDuplicateChunk = true
+      } else if (offset < fileRecord.lastOffset && overlap >= 0.5) {
+        evalResult.isCycle = true
       }
 
       if (fileRecord.readCount >= EXPLORER_SAME_FILE_CAP) {

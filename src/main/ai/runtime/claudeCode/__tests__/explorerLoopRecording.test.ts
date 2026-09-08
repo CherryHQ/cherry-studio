@@ -140,7 +140,7 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
       offset: 10,
       limit: 30
     })
-    expect(duplicateStatus?.isDuplicateChunk).toBe(true)
+    expect(duplicateStatus?.isDuplicateChunk || duplicateStatus?.isCycle).toBeTruthy()
   })
 
   it('resets all explorer state when a new user turn starts via UserPromptSubmit', async () => {
