@@ -55,7 +55,7 @@ async function estimateConvertedRequest(body: MessageCreateParams, signal?: Abor
   let caps = ALL_MEDIA
   let resolved: ResolvedGatewayModelAddress | undefined
   try {
-    resolved = resolveGatewayModelAddress(body.model)
+    resolved = await resolveGatewayModelAddress(body.model)
     dialect = resolveModelTokenDialect(resolved.provider, resolved.model)
     caps = resolveMediaCapabilities(resolved.model)
   } catch (error) {

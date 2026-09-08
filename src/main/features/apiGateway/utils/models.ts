@@ -1,8 +1,8 @@
+import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { getAppEdition } from '@main/utils/appEdition'
-import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
+import { isManagedCherryAiDefaultModel, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
@@ -85,8 +85,11 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   }
 }
 
-/** Resolve a `providerId:apiModelId`; Agent-only models require an authenticated internal request. */
-export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly = false): ResolvedGatewayModelAddress {
+/** Resolve a `providerId:apiModelId`; Cherry Cloud models require an authenticated internal Work request. */
+export async function resolveGatewayModelAddress(
+  modelAddress: string,
+  allowInternalAgent = false
+): Promise<ResolvedGatewayModelAddress> {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
     throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
@@ -107,8 +110,14 @@ export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly 
   if (!provider.isEnabled || isExternalCliProvider(provider)) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
-  if (!allowAgentOnly && isAgentOnlyProvider(provider, getAppEdition())) {
-    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+
+  let availableCloudAgentModelIds: Set<UniqueModelId> | undefined
+  if (isManagedCherryCloudModel(providerId)) {
+    if (!allowInternalAgent) {
+      throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+    }
+    const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
+    availableCloudAgentModelIds = new Set(availability.availableModelIdsByFeature.agent)
   }
 
   const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
@@ -116,7 +125,7 @@ export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly 
     const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
     return candidateApiModelId === apiModelId
   })
-  if (!model) {
+  if (!model || (availableCloudAgentModelIds && !availableCloudAgentModelIds.has(model.id))) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
 
@@ -137,15 +146,16 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     const uniqueModels = new Map<string, ApiModel>()
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
-      // Agent-only providers (external-CLI, edition-gated Cherry Cloud) are never advertised to
-      // external callers even though they pass the routable-model predicate (matches the renderer
-      // picker's exclusion).
-      if (provider && isAgentOnlyProvider(provider, getAppEdition())) {
+      // External-CLI providers carry no app-side credentials and cannot be proxied.
+      if (provider && isAgentOnlyProvider(provider)) {
         continue
       }
       // Same routable-model predicate as the renderer's gateway picker — the
       // listing must never advertise a model the proxy cannot route.
       if (!isGatewayRoutableModel(model)) {
+        continue
+      }
+      if (isManagedCherryCloudModel(model.providerId)) {
         continue
       }
 

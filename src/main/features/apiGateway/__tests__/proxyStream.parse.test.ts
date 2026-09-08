@@ -14,6 +14,7 @@ const {
   mockGetProvider,
   mockListModels,
   mockIsInternalAgentRequest,
+  mockSyncEntitledModelsIfStale,
   mockExtractStreamOptions,
   mockExtractProviderOptions,
   captured
@@ -22,6 +23,7 @@ const {
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
   mockIsInternalAgentRequest: vi.fn(),
+  mockSyncEntitledModelsIfStale: vi.fn(),
   mockExtractStreamOptions: vi.fn(),
   mockExtractProviderOptions: vi.fn(),
   captured: {
@@ -42,12 +44,13 @@ vi.mock('@application', () => ({
           isInternalAgentRequest: mockIsInternalAgentRequest
         }
       }
+      if (name === 'CherryCloudService') {
+        return { syncEntitledModelsIfStale: mockSyncEntitledModelsIfStale }
+      }
       return undefined
     })
   }
 }))
-// cn keeps Cherry Cloud agent-only, which the external-request rejection below relies on.
-vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'cn' }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProvider }
 }))
@@ -87,6 +90,16 @@ beforeEach(() => {
   })
   mockListModels.mockReturnValue([])
   mockIsInternalAgentRequest.mockReturnValue(false)
+  mockSyncEntitledModelsIfStale.mockResolvedValue({
+    entitledModelIds: [`${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`],
+    freeModelIds: [],
+    availableModelIdsByFeature: {
+      agent: [`${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`],
+      chat: [],
+      translate: []
+    },
+    quotaExhaustedModelIds: []
+  })
   mockExtractStreamOptions.mockReturnValue({})
   mockExtractProviderOptions.mockReturnValue(undefined)
   mockStreamPrompt.mockImplementation((opts) => {
@@ -240,7 +253,7 @@ describe('processMessage model-id parsing', () => {
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
   })
 
-  it('does not resolve Cherry Cloud models for external requests', async () => {
+  it('rejects a Cherry Cloud model from external requests regardless of downloaded features', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
 
     await expect(
@@ -250,7 +263,6 @@ describe('processMessage model-id parsing', () => {
         outputFormat: 'anthropic'
       })
     ).rejects.toMatchObject({ status: 400 })
-    expect(mockListModels).not.toHaveBeenCalled()
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
@@ -272,6 +284,7 @@ describe('processMessage model-id parsing', () => {
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
     expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
     expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
+    expect(mockSyncEntitledModelsIfStale).toHaveBeenCalledOnce()
     void captured.opts!.listener!.onDone({} as any)
 
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })

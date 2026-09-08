@@ -143,9 +143,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const isInternalAgentRequest =
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
-  let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
+  let resolvedAddress: Awaited<ReturnType<typeof resolveGatewayModelAddress>>
   try {
-    resolvedAddress = resolveGatewayModelAddress(modelString, isInternalAgentRequest)
+    resolvedAddress = await resolveGatewayModelAddress(modelString, isInternalAgentRequest)
   } catch (error) {
     throw asClientError(error)
   }
@@ -384,7 +384,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
-            ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
+            ...(isInternalAgentRequest
+              ? { modelUsageFeature: 'agent' as const, tokenUsageSource: 'agent' as const }
+              : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -468,7 +470,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       callOverrides,
       contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
-      ...(isInternalAgentRequest ? { tokenUsageSource: 'agent' as const } : {}),
+      ...(isInternalAgentRequest ? { modelUsageFeature: 'agent' as const, tokenUsageSource: 'agent' as const } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 
