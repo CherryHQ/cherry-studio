@@ -5,9 +5,9 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
-import { type EndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { type EndpointType, type Model, MODEL_OVERRIDE_FIELDS, parseUniqueModelId } from '@shared/data/types/model'
 import { getModelPreferredEndpoint } from '@shared/utils/provider'
-import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
+import { ChevronDown, ChevronUp, CircleHelp, X } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -45,7 +45,29 @@ interface EditModelDrawerProps {
   onClose: () => void
 }
 
+type ModelOverrideField = (typeof MODEL_OVERRIDE_FIELDS)[number]
+
+/** Label key per override field; the drawer already names most of them as inputs. */
+const OVERRIDE_FIELD_LABEL_KEYS: Record<ModelOverrideField, string> = {
+  name: 'settings.models.add.model_name.label',
+  description: 'settings.models.edit.overrides.field.description',
+  group: 'settings.models.add.group_name.label',
+  capabilities: 'settings.models.add.capabilities.label',
+  inputModalities: 'settings.models.add.input_modalities.label',
+  outputModalities: 'settings.models.edit.overrides.field.output_modalities',
+  endpointTypes: 'settings.models.add.endpoint_type.label',
+  preferredEndpointType: 'settings.models.add.preferred_endpoint.label',
+  contextWindow: 'settings.models.add.context_window.label',
+  maxInputTokens: 'settings.models.add.max_input_tokens.label',
+  maxOutputTokens: 'settings.models.add.max_output_tokens.label',
+  supportsStreaming: 'settings.models.add.supported_text_delta.label',
+  parameterSupport: 'settings.models.edit.overrides.field.parameter_support',
+  pricing: 'settings.models.edit.overrides.field.pricing'
+}
+
 interface BuildPatchOverrides {
+  /** Hand one field back to the registry (`null`). */
+  followRegistry?: ModelOverrideField
   name?: string
   group?: string
   endpointTypes?: EndpointType[]
@@ -121,6 +143,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         )
       : undefined
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
+  const overriddenFields = MODEL_OVERRIDE_FIELDS.filter((field) => model?.overrides?.[field])
   const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
   const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
@@ -159,6 +182,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextClassification = overrides.classification
 
       return {
+        ...(overrides.followRegistry ? { [overrides.followRegistry]: null } : {}),
         ...(has('name') ? { name: overrides.name || model.name } : {}),
         ...(has('group') ? { group: overrides.group || model.group } : {}),
         ...(has('endpointTypes') ? { endpointTypes: [...(overrides.endpointTypes ?? [])] } : {}),
@@ -395,6 +419,29 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         {showMoreSettings && (
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
+              {overriddenFields.length > 0 && (
+                <div className={drawerClasses.sectionCard}>
+                  <div className={drawerClasses.fieldTitle}>{t('settings.models.edit.overrides.label')}</div>
+                  <p className="text-muted-foreground text-xs">{t('settings.models.edit.overrides.hint')}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {overriddenFields.map((field) => {
+                      const label = t(OVERRIDE_FIELD_LABEL_KEYS[field])
+                      return (
+                        <Button
+                          key={field}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-label={t('settings.models.edit.overrides.remove', { field: label })}
+                          onClick={() => autoSave({ followRegistry: field })}>
+                          {label}
+                          <X size={12} />
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               <div className={drawerClasses.sectionCard}>
                 <ModelClassificationControls
                   value={classification}

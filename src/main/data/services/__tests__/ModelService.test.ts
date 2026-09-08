@@ -359,7 +359,7 @@ describe('ModelService.update', () => {
     expect(row.parameters).toEqual(params)
   })
 
-  it('records an explicitly empty input-modality update as user-owned', async () => {
+  it('stores an explicitly empty input-modality update', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(
       modelRow('openai', 'legacy-custom', {
@@ -375,7 +375,7 @@ describe('ModelService.update', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'legacy-custom')))
 
-    expect(row).toMatchObject({ inputModalities: [], inputModalitiesExplicit: true })
+    expect(row).toMatchObject({ inputModalities: [] })
   })
 
   it('throws NOT_FOUND when model does not exist', async () => {
@@ -1431,7 +1431,6 @@ describe('ModelService.list — registry enrichment', () => {
       }
     ])
     const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
-    expect(storedBeforeRegistryUpdate).toMatchObject({ inputModalitiesExplicit: true })
 
     lookupModelMock.mockReturnValue({
       presetModel: {
@@ -1496,7 +1495,7 @@ describe('ModelService.list — registry enrichment', () => {
       }
     ])
     const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
-    expect(storedBeforeRegistryUpdate).toMatchObject({ inputModalities: [], inputModalitiesExplicit: true })
+    expect(storedBeforeRegistryUpdate).toMatchObject({ inputModalities: [] })
 
     lookupModelMock.mockReturnValue({
       presetModel: {

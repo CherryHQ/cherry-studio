@@ -12,7 +12,9 @@ Editing a catalog model in the drawer now stores only the field that was edited,
 
 The classification section's reset now hands capabilities and input modalities back to the catalog instead of re-saving the current values. A field that follows the catalog keeps following it when the catalog updates; a field that was edited keeps the edited value until it is reset.
 
-An upgrade migration turns the old add form's "no modality chosen" marker back into "unset", so those models pick up the catalog's input modalities again.
+An upgrade migration turns the old add form's "no modality chosen" marker back into "unset", so those models pick up the catalog's input modalities again. A one-time pass on first launch also hands back every stored value that equals today's catalog value, since such a value changed nothing and only blocked future catalog updates.
+
+The drawer's "Overrides" card lists the fields a catalog model overrides; removing one makes that field follow the catalog again.
 
 ## Why this matters to the user
 

@@ -239,6 +239,23 @@ describe('EditModelDrawer', () => {
     expect(updateModelMock.mock.calls[0][2]).toEqual({ name: 'Claude 4 Sonnet Renamed' })
   })
 
+  it('hands one overridden field back to the registry from its chip', async () => {
+    const user = userEvent.setup()
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={{ ...makePricingModel(), presetModelId: 'claude-4-sonnet', overrides: { name: true, pricing: true } }}
+      />
+    )
+
+    await user.click(screen.getAllByLabelText('settings.models.edit.overrides.remove')[0])
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual({ name: null })
+  })
+
   it('hands classification back to the registry when a preset-backed model is reset', async () => {
     const user = userEvent.setup()
     render(

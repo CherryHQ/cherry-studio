@@ -311,7 +311,6 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     group: dto.group ?? null,
     capabilities: (dto.capabilities ?? []) as ModelCapability[],
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
-    inputModalitiesExplicit: dto.inputModalities !== undefined,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
     preferredEndpointType: (dto.preferredEndpointType ?? null) as EndpointType | null,
@@ -364,7 +363,6 @@ function presetDeltaToNewUserModel(
     group: fields.has('group') ? (dto.group ?? null) : null,
     capabilities: fields.has('capabilities') ? ((dto.capabilities ?? null) as ModelCapability[] | null) : null,
     inputModalities: fields.has('inputModalities') ? ((dto.inputModalities ?? null) as Modality[] | null) : null,
-    inputModalitiesExplicit: fields.has('inputModalities'),
     outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
     endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
     preferredEndpointType: fields.has('preferredEndpointType')
@@ -612,7 +610,6 @@ class ModelService {
       }
       ;(updates as Record<string, unknown>)[dbKey] = value
     }
-    if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
 
     // Reject only the contract violations this patch introduces: a row can already violate the
     // contract without being touched, and the read path tolerates that.

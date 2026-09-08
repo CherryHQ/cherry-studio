@@ -8,6 +8,7 @@ import { LocalModelSeeder } from './seeders/LocalModelSeeder'
 import { LongTextPastePreferenceUpgradeSeeder } from './seeders/longTextPastePreferenceUpgradeSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
+import { PresetModelOverrideUnfreezeSeeder } from './seeders/presetModelOverrideUnfreezeSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceUpgradeSeeder'
@@ -32,6 +33,7 @@ export const seeders: ISeeder[] = [
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
   new LocalModelSeeder(),
+  new PresetModelOverrideUnfreezeSeeder(),
   new MiniAppSeeder(),
   new BuiltinMcpServerSeeder()
 ]
