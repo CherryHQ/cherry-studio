@@ -478,12 +478,14 @@ export class McpPackageService extends BaseService {
     let tempPath: string | undefined
     try {
       // Reject malformed paths and extensions before touching the filesystem.
-      const fileName = validatePackageUploadPath(filePath, packageFormat)
+      validatePackageUploadPath(filePath, packageFormat)
       const sourceStat = await fs.promises.stat(filePath)
       if (!sourceStat.isFile()) {
         throw new Error('Invalid MCP package upload: source must be a regular file')
       }
-      validatePackageUploadSize(sourceStat.size)
+      // Reuse the complete source validator on the real stat result so the
+      // production upload path and its boundary tests cannot drift apart.
+      const fileName = validatePackageUploadSource(filePath, sourceStat.size, packageFormat)
       await fs.promises.mkdir(this.tempDir, { recursive: true })
       tempPath = path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
       await copyPackageWithinLimit(filePath, tempPath)

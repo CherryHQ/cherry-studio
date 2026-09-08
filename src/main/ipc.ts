@@ -138,6 +138,11 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
   handleGuarded(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
+  // Native file-capability exception: these two channels intentionally stay
+  // outside IpcApi so the isolated preload can derive a native path from the
+  // user-selected File without sending package bytes or a renderer-supplied
+  // path through the generic RPC surface. `handleGuarded` keeps the explicit
+  // source-trust gate; the service performs path, file-type, and size checks.
   handleGuarded(IpcChannel.Mcp_UploadDxt, (_event, filePath: string) =>
     application.get('McpPackageService').uploadDxt(filePath)
   )
