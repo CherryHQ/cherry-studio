@@ -294,7 +294,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-backup-restore" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
             <Button onClick={() => BackupPopup.show()} variant="outline">
@@ -308,7 +308,7 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-skip-file-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
           <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
         </SettingRow>
@@ -319,7 +319,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-app-data" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
           <PathRow>
             <PathText
@@ -338,7 +338,7 @@ const BasicDataSettings: React.FC = () => {
           </PathRow>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-app-logs" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
           <PathRow>
             <PathText
@@ -354,7 +354,7 @@ const BasicDataSettings: React.FC = () => {
           </PathRow>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-clear-cache" className="scroll-mt-6">
           <SettingRowTitle>
             {t('settings.data.clear_cache.title')}
             {cacheSize !== undefined && (
@@ -393,7 +393,7 @@ const BasicDataSettings: React.FC = () => {
           </>
         )}
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-reset" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
             <Button onClick={handleDataReset} variant="destructive">
@@ -405,7 +405,7 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.privacy.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-data-data-privacy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
           <Switch
             checked={enableDataCollection}

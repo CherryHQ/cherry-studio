@@ -34,6 +34,7 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -275,6 +276,15 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
+  const isDirectory = useCallback<NonNullable<MessageListActions['isDirectory']>>(
+    async (path) => {
+      const resolvedPath = requireWorkspaceFilePath(workspacePath, path)
+      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(resolvedPath))
+      return metadata?.kind === 'directory'
+    },
+    [workspacePath]
+  )
+
   const abortTool = useCallback((toolId: string) => {
     return ipcApi.request('mcp.tool.abort_call', { callId: toolId })
   }, [])
@@ -408,6 +418,7 @@ export function useAgentMessageListProviderValue({
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
       resolvePath,
+      isDirectory,
       openPath,
       openArtifactFile,
       openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
@@ -430,6 +441,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,

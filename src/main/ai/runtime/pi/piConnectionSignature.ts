@@ -6,6 +6,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
   type McpServerSnapshotMap,
   type NotifyChannel,
@@ -13,11 +14,14 @@ import {
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
 import { skillService } from '@main/ai/skills/SkillService'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+
+import { usesPiGateway } from './modelInjection'
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -39,6 +43,7 @@ export interface PiConnectionSnapshot {
   additionalSkillPaths: readonly string[]
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
+  effectiveLanguage: string | null
   signature: string
 }
 
@@ -48,6 +53,13 @@ export class PiInvalidConnectionSnapshotError extends Error {}
  * Capture every reconcilable fact consumed while constructing a Pi connection.
  * Prompt files intentionally remain connection-lifetime snapshots: changing them
  * does not invalidate a warm connection or its provider prompt cache.
+ * The effective agent language (per-agent `configuration.language` or global
+ * `agent.language` preference) is a rebuild fact: changing it invalidates the
+ * warm connection so the new language instruction is baked into the next
+ * connection's system prompt and prompt cache. This trades cache preservation
+ * for prompt correctness — the first turn after a language change pays full
+ * input-token cost until the new prefix is cached, but the user sees the new
+ * language on the next reconcile rather than only on the next natural connection.
  */
 export async function capturePiConnectionSnapshot(
   sessionId: string,
@@ -84,7 +96,8 @@ export async function capturePiConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-
+  const gatewayCredentials = usesPiGateway(provider) ? gatewayCredentialsFingerprint() : null
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const signature = createHash('sha256')
     .update(
       JSON.stringify(
@@ -101,7 +114,9 @@ export async function capturePiConnectionSnapshot(
           mcpTools,
           linkedChannel,
           notificationContext,
-          knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
+          knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
+          effectiveLanguage,
+          gatewayCredentials
         })
       )
     )
@@ -113,6 +128,7 @@ export async function capturePiConnectionSnapshot(
     provider,
     model,
     enabledApiKeys: apiKeys,
+    effectiveLanguage,
     additionalSkillPaths: [
       ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
       ...workspaceSkillPaths

@@ -44,6 +44,8 @@ export const agentSessionMessageTable = sqliteTable(
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
     // partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('agent_session_message_status_idx').on(t.status),
+    // Backs the model_id FK's ON DELETE SET NULL — same rationale as message_model_id_idx.
+    index('agent_session_message_model_id_idx').on(t.modelId),
     index('agent_session_message_delivery_status_idx').on(t.deliveryStatus),
     index('agent_session_message_delivery_turn_ref_idx').on(t.deliveryTurnRef),
     index('agent_session_message_delivery_sender_idx').on(t.deliverySenderSessionId, t.createdAt, t.id),

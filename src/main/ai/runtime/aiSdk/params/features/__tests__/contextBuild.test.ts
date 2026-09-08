@@ -437,7 +437,10 @@ describe('buildContextOptions — compression wiring', () => {
 
     // compress.enabled: false → nothing set regardless of model.
     const compressOff = makeScope({
-      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
+      contextSettings: {
+        ...DEFAULT_CONTEXT_SETTINGS,
+        compress: { ...DEFAULT_CONTEXT_SETTINGS.compress, enabled: false }
+      },
       compressionModel: {} as never
     })
     expect(buildContextOptions(compressOff)!.onBeforeCompress).toBeUndefined()
@@ -507,7 +510,10 @@ describe('buildContextOptions — compression wiring', () => {
     // Regression: setting onCompress/onBeforeCompress unconditionally made the middleware
     // build a Janitor on every request and warn when no model/tokenizer.
     const scope = makeScope({
-      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
+      contextSettings: {
+        ...DEFAULT_CONTEXT_SETTINGS,
+        compress: { ...DEFAULT_CONTEXT_SETTINGS.compress, enabled: false }
+      },
       compressionModel: {} as never
     })
     const opts = buildContextOptions(scope)!

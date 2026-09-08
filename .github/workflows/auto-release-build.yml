@@ -1,0 +1,67 @@
+name: Auto Release Build
+run-name: Auto build ${{ github.event.workflow_run.head_branch }} @ ${{ github.event.workflow_run.head_sha }}
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: auto-release-build-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Dispatch exact release head
+    if: >-
+      github.repository == 'CherryHQ/cherry-studio' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'release/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Revalidate and dispatch release build
+        shell: bash
+        env:
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          CI_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          export LC_ALL=C
+          TAG="${BRANCH#release/}"
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Ignoring invalid release branch $BRANCH"
+            exit 0
+          fi
+
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          if [ "$BRANCH_SHA" != "$CI_SHA" ]; then
+            echo "Ignoring stale CI result for $CI_SHA; $BRANCH now points to $BRANCH_SHA"
+            exit 0
+          fi
+
+          EXPECTED_TITLE="Release build all $BRANCH @ $CI_SHA"
+          RELEASE_RUNS="$(gh api --paginate --slurp \
+            "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$CI_SHA&event=workflow_dispatch&per_page=100")"
+          EXISTING_RUN="$(jq -c --arg title "$EXPECTED_TITLE" --arg sha "$CI_SHA" '
+            [.[] | .workflow_runs[] | select(
+              .display_title == $title and
+              .head_sha == $sha and
+              .event == "workflow_dispatch"
+            )][0] // empty
+          ' <<< "$RELEASE_RUNS")"
+          if [ -n "$EXISTING_RUN" ]; then
+            echo "Release build already exists: $(jq -r '.html_url' <<< "$EXISTING_RUN")"
+            exit 0
+          fi
+
+          gh workflow run release.yml --repo "$REPO" --ref "$BRANCH" \
+            -f platform=all \
+            -f expected_sha="$CI_SHA"
+          echo "Dispatched all-platform release build for $BRANCH at $CI_SHA"
