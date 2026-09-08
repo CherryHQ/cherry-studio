@@ -31,12 +31,16 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
     return !!data?.content?.trim()
   }
   if (part.type === 'data-compact') {
-    const data = (part as unknown as { data?: { content?: string; compactedContent?: string } }).data
-    return !!data?.content?.trim() || !!data?.compactedContent?.trim()
+    const data = (part as unknown as { data?: { content?: string } }).data
+    return !!data?.content?.trim()
   }
   if (part.type === 'data-video') {
     const data = (part as unknown as { data?: { url?: string; filePath?: string } }).data
     return !!data?.url?.trim() || !!data?.filePath?.trim()
+  }
+  if (part.type.startsWith('tool-')) {
+    const p = part as unknown as { toolCallId?: string }
+    return !!p.toolCallId?.trim()
   }
   return true
 }
