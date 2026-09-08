@@ -6,8 +6,9 @@
  * `resolveLanguageModel(plugins)`) and its own call-option overrides (sampling /
  * providerOptions / headers) — not the primary's. Fallbacks that are the active
  * model, were deleted, or can't support the request shape (native media/tools)
- * are skipped with diagnostics. Unexpected resolution errors still fail the
- * request. Returns `[]` when retry is disabled or unconfigured.
+ * are skipped with diagnostics. Unexpected model-resolution errors still fail
+ * the request; a failed Cherry Cloud availability refresh skips that fallback.
+ * Returns `[]` when retry is disabled or unconfigured.
  *
  * Note: the primary's tools + system are kept (the agent loop is built around
  * them and ai-retry can't re-shape them mid-call); the capability gate ensures a
@@ -126,7 +127,15 @@ async function resolveFallback(
 ): Promise<RetryFallback | null> {
   const { providerId } = parseUniqueModelId(uniqueModelId)
   if (isManagedCherryCloudModel(providerId)) {
-    const availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
+    let availability
+    try {
+      availability = await application.get('CherryCloudService').syncEntitledModelsIfStale()
+    } catch (error) {
+      logger.warn('skipping Cherry Cloud fallback because chat availability refresh failed', error as Error, {
+        uniqueModelId
+      })
+      return null
+    }
     if (!availability.availableModelIdsByFeature.chat.includes(uniqueModelId)) {
       logger.info('skipping Cherry Cloud fallback without chat permission', { uniqueModelId })
       return null
