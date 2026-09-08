@@ -294,9 +294,14 @@ function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOut
 
 /** Whether this part is a SendMessage receipt that resumed THIS agent — the round boundary. */
 function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): boolean {
-  const record = part as { toolName?: unknown; output?: unknown }
+  const record = part as { toolName?: unknown; output?: unknown; input?: unknown }
   const resumeToolName = record.toolName === AgentToolsType.SendMessage || record.toolName === 'send_message'
-  return resumeToolName && getResumedAgentId(record.output) === launchedAgentId
+  if (!resumeToolName) return false
+  // The result names the woken child; dsh's send_message input carries it in subagent_id.
+  const input = record.input as { subagent_id?: unknown } | undefined
+  const target =
+    getResumedAgentId(record.output) ?? (typeof input?.subagent_id === 'string' ? input.subagent_id : undefined)
+  return target === launchedAgentId
 }
 
 /** The request to show between rounds — the sent message, falling back to its summary. */

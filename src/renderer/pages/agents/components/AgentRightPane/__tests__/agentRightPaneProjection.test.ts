@@ -364,6 +364,35 @@ describe('agent right pane projections', () => {
     expect(texts('call_launch:agent-flow-assistant-1')).toEqual(['Second round findings'])
   })
 
+  // dsh names children subagent_id and wakes them with the lowercase send_message tool; the
+  // continuation splitter must treat that pair exactly like the claude SendMessage receipts.
+  it('splits rounds for a dsh send_message continuation', () => {
+    const parts = [
+      {
+        ...dshToolPart('call_launch', 'subagent', 'output-available'),
+        output: { status: 'async_launched', subagent_id: 'dsh-child-1' },
+        input: { description: 'DSH child' }
+      } as CherryMessagePart,
+      textPart('First round findings', 'call_launch'),
+      dshToolPart('call_resume', 'send_message', 'output-available', {
+        subagent_id: 'dsh-child-1',
+        message: 'Continue'
+      }),
+      textPart('Second round findings', 'call_launch')
+    ]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'call_launch')
+    expect(projection.messages.map((item) => item.id)).toEqual([
+      'call_launch:agent-flow-prompt',
+      'call_launch:agent-flow-assistant',
+      'call_launch:agent-flow-resume-1',
+      'call_launch:agent-flow-assistant-1'
+    ])
+    const texts = (id: string) => projection.partsByMessageId[id].map((part) => (part as { text?: string }).text)
+    expect(texts('call_launch:agent-flow-resume-1')).toEqual(['Continue'])
+  })
+
   // The CLI also spells the trailer 'agent_id:'; that spelling must establish the identity too.
   it('splits rounds for an agent_id-spelled textual launch receipt', () => {
     const launchOutput = 'Async agent launched successfully.\nagent_id: agent-77 (internal metadata - do not mention.)'
