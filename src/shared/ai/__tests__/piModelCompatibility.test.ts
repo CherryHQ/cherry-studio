@@ -86,13 +86,13 @@ describe('resolvePiApi', () => {
     expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
   })
 
-  it('rejects a model whose context window is unknown', () => {
+  it('accepts a model whose context window is unknown', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
     })
 
-    expect(isPiCompatibleModel(provider, makeModel({ contextWindow: undefined }))).toBe(false)
+    expect(isPiCompatibleModel(provider, makeModel({ contextWindow: undefined }))).toBe(true)
   })
 
   it('uses a cloned gateway per-model route before an unsupported provider default', () => {

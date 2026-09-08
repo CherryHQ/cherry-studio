@@ -30,7 +30,7 @@ const { sessionGetById, runtimeBusy } = vi.hoisted(() => ({
 }))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
-  agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
+  agentChatContextProvider: { prepareAgentSessionDispatch: prepareDispatchMock }
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -129,6 +129,29 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     await run
 
     expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({ listeners: [primary, extra] }))
+  })
+
+  it('passes notification authority through the Agent Session admission contract', async () => {
+    const primary = listener('task')
+    const trustedNotifyChannels = [{ id: 'channel-1', type: 'telegram' }] as const
+    const run = startAgentSessionRun({
+      sessionId: 's',
+      userParts: [text('scheduled')],
+      listeners: [primary],
+      trustedNotifyChannels
+    })
+    await flush()
+
+    const [, request, authority] = prepareDispatchMock.mock.calls[0] as unknown as [
+      StreamListener,
+      { topicId: string },
+      unknown
+    ]
+    expect(request).not.toHaveProperty('trustedNotifyChannels')
+    expect(authority).toEqual({ trustedNotifyChannels })
+
+    prepareResolvers[0]()
+    await run
   })
 
   it('returns busy before preparing a task turn', async () => {

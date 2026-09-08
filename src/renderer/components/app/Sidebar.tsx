@@ -15,8 +15,6 @@ import {
   getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
-  isMessageOnlyConversationUrl,
-  REQUIRED_SIDEBAR_FAVORITES,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
@@ -38,13 +36,19 @@ import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const {
     favorites,
+    appFavorites,
     miniAppFavoriteIds,
     agentFavoriteIds,
     assistantFavoriteIds,
@@ -110,15 +114,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [avatar, t, userName]
   )
   const sidebarLogo = useMemo(
-    () => (
-      <button
-        type="button"
-        aria-label={sidebarUser.name}
-        onClick={sidebarUser.onClick}
-        className="flex h-full w-full items-center justify-center rounded-full [-webkit-app-region:no-drag]">
-        <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />
-      </button>
-    ),
+    () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
     [sidebarUser]
   )
 
@@ -142,7 +138,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleRemoveSidebarFavorite = useCallback(
     (favorite: SidebarAppId) => {
-      if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       setAppPinned(favorite, false)
     },
     [setAppPinned]
@@ -150,28 +145,24 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const activeItem = resolveSidebarActiveItem(pathname)
 
-  const handleNavigate = useCallback(
-    (menuItemId: string) => {
-      const menuId = menuItemId as SidebarAppId
-      const app = getSidebarApp(menuId)
-      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
-      if (!app || !path) return
+  const navigateRouteTab = useCallback(
+    (path: string, title: string, options?: { inNewTab?: boolean; icon?: string }) => {
+      if (options?.inNewTab) {
+        openTab(path, { forceNew: true, title, icon: options.icon })
+        return
+      }
 
-      // Conversation apps: any owned tab is already "there" — its URL carries its own
-      // conversation, and re-entering through the route interceptor would just rebind
-      // it. Message-only viewers are not an app entry, so they navigate like any
-      // foreign tab. Apps without sub-instances keep exact-URL matching.
-      const isActiveTarget =
-        !!activeTab &&
-        (app.conversationRoute
-          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-          : activeTab.url === path)
-      if (isActiveTarget) return
-
-      const title = getDefaultRouteTitle(path)
+      if (activeTab?.url === path) return
 
       if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
+        openTab(path, { forceNew: true, title, icon: options?.icon })
+        return
+      }
+
+      // Keep a Mini App's owning tab intact when leaving it so the global
+      // WebView pool can preserve the guest instead of treating it as closed.
+      if (miniAppIdFromTabUrl(activeTab?.url)) {
+        openTab(path, { title, icon: options?.icon })
         return
       }
 
@@ -179,21 +170,42 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         updateTab(activeTab.id, {
           url: path,
           title,
-          icon: undefined,
+          icon: options?.icon,
           metadata: undefined
         })
         return
       }
 
-      openTab(path, { forceNew: true, title })
+      openTab(path, { forceNew: true, title, icon: options?.icon })
     },
-    [activeTab, defaultPaintingProvider, openTab, updateTab]
+    [activeTab, openTab, updateTab]
+  )
+
+  const handleNavigate = useCallback(
+    (menuItemId: string, options?: { inNewTab?: boolean }) => {
+      const menuId = menuItemId as SidebarAppId
+      const app = getSidebarApp(menuId)
+      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
+      if (!app || !path) return
+
+      if (!options?.inNewTab) {
+        // Conversation apps: any owned tab is already "there" — its URL carries its own
+        // conversation, and re-entering through the route interceptor would just rebind
+        // it. Apps without sub-instances keep exact-URL matching.
+        const isActiveTarget =
+          !!activeTab && (app.conversationRoute ? tabBelongsToApp(app, activeTab.url) : activeTab.url === path)
+        if (isActiveTarget) return
+      }
+
+      navigateRouteTab(path, getDefaultRouteTitle(path), options)
+    },
+    [activeTab, defaultPaintingProvider, navigateRouteTab]
   )
   const handleOpenLaunchpad = useCallback(() => {
     openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
   }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
-    openSettingsTab('/settings/general')
+    openSettingsTab()
   }, [])
   const handleOpenFeedback = useCallback(() => {
     setFeedbackDialogMounted(true)
@@ -201,11 +213,19 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }, [])
 
   const handleOpenMiniAppTab = useCallback(
-    (appId: string) => {
+    (appId: string, options?: { inNewTab?: boolean }) => {
       const app = openableMiniAppById.get(appId)
       if (!app) return
 
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
+      const title = app.nameKey ? t(app.nameKey) : app.name
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      const icon = app.logoSrc ?? app.logo
+      if (options?.inNewTab) {
+        navigateRouteTab(path, title, { ...options, icon })
+        return
+      }
+
       if (activeTab?.url === path) return
 
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
@@ -214,75 +234,28 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      const title = app.nameKey ? t(app.nameKey) : app.name
-      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
-      const icon = app.logoSrc ?? app.logo
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title, icon })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon,
-          metadata: undefined
-        })
-        return
-      }
-
-      openTab(path, {
-        forceNew: true,
-        title,
-        icon
-      })
+      navigateRouteTab(path, title, { ...options, icon })
     },
-    [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
+    [activeTab, navigateRouteTab, openableMiniAppById, setActiveTab, t, tabs]
   )
 
   // Pinned entities reuse tabs like mini apps do; the route interceptor turns the
   // `agentId` / `assistantId` param into that entity's most recent conversation.
-  const handleOpenEntityTab = useCallback(
-    (path: string, title: string) => {
-      if (activeTab?.url === path) return
-
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title })
-        return
-      }
-
-      if (activeTab) {
-        updateTab(activeTab.id, {
-          url: path,
-          title,
-          icon: undefined,
-          metadata: undefined
-        })
-        return
-      }
-
-      openTab(path, { forceNew: true, title })
-    },
-    [activeTab, openTab, updateTab]
-  )
-
   const handleOpenAgentTab = useCallback(
-    (agentId: string) => {
+    (agentId: string, options?: { inNewTab?: boolean }) => {
       const agent = installedAgents.get(agentId)
       if (!agent) return
-      handleOpenEntityTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name)
+      navigateRouteTab(`/app/agents?agentId=${encodeURIComponent(agentId)}`, agent.name, options)
     },
-    [handleOpenEntityTab, installedAgents]
+    [installedAgents, navigateRouteTab]
   )
   const handleOpenAssistantTab = useCallback(
-    (assistantId: string) => {
+    (assistantId: string, options?: { inNewTab?: boolean }) => {
       const assistant = installedAssistants.get(assistantId)
       if (!assistant) return
-      handleOpenEntityTab(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name)
+      navigateRouteTab(`/app/chat?assistantId=${encodeURIComponent(assistantId)}`, assistant.name, options)
     },
-    [handleOpenEntityTab, installedAssistants]
+    [installedAssistants, navigateRouteTab]
   )
 
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)
@@ -297,7 +270,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
-      isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
+      visibleAppCount: appFavorites.length,
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
       openAgent: handleOpenAgentTab,
@@ -316,6 +289,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
+      appFavorites.length,
       handleNavigate,
       handleOpenMiniAppTab,
       handleOpenAgentTab,
@@ -336,10 +310,22 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         const entry = resolveSidebarEntry(favorite, variantContext)
         if (!entry) return []
 
+        const newTabItem = entry.onOpenNewTab
+          ? [
+              {
+                type: 'item' as const,
+                id: `sidebar.open-in-new-tab.${entry.key}`,
+                label: t('common.open_in_new_tab'),
+                onSelect: entry.onOpenNewTab
+              }
+            ]
+          : []
+
         return [
           {
             ...entry,
             contextMenuItems: [
+              ...newTabItem,
               ...(entry.contextMenuItems ?? []),
               {
                 type: 'item' as const,
@@ -371,10 +357,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
+    isFullscreen,
     entries,
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
+    onHeaderClick: sidebarUser.onClick,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <SidebarShellActions
         layout={footerLayout}

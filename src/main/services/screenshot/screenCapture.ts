@@ -3,13 +3,7 @@ import { getScreenCapturePermissionStatus } from '@main/utils/screenCapturePermi
 import type { Monitor } from 'node-screenshots'
 
 import { loadNativeCaptureBackend } from './nativeCaptureBackend'
-import {
-  type CaptureResult,
-  type MonitorInfo,
-  type RawWindowInfo,
-  ScreenCaptureError,
-  ScreenCapturePermissionError
-} from './types'
+import { type CaptureResult, type MonitorInfo, ScreenCaptureError, ScreenCapturePermissionError } from './types'
 
 const logger = loggerService.withContext('screenCapture')
 
@@ -25,36 +19,6 @@ export function listMonitors(): MonitorInfo[] {
     scaleFactor: m.scaleFactor(),
     isPrimary: m.isPrimary()
   }))
-}
-
-/**
- * All windows, front-to-back.
- *
- * Every property accessor re-queries the OS window list, so an individual
- * window can fail if it closes between enumeration and the property read.
- * Such a window is skipped rather than failing the whole enumeration —
- * transient windows (menus, tooltips) close constantly, and aborting on one
- * would make hit-test list construction fail at random.
- */
-export function listWindows(): RawWindowInfo[] {
-  const result: RawWindowInfo[] = []
-  for (const w of loadNativeCaptureBackend().Window.all()) {
-    try {
-      result.push({
-        pid: w.pid(),
-        title: w.title(),
-        appName: w.appName(),
-        x: w.x(),
-        y: w.y(),
-        width: w.width(),
-        height: w.height(),
-        isMinimized: w.isMinimized()
-      })
-    } catch {
-      // Expected when a window closes mid-enumeration.
-    }
-  }
-  return result
 }
 
 /**

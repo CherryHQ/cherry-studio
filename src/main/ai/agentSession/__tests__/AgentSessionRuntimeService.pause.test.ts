@@ -118,6 +118,19 @@ function seedQueuedFollowUp(service: Service) {
   return entryOf(service)
 }
 
+function beginClosingConnection(service: Service) {
+  service.beginTurn(baseTurnInput)
+  const gate = createDeferred<void>()
+  const close = vi.fn(() => gate.promise)
+  entryOf(service).runtimeState.connection = {
+    kind: 'connected',
+    connection: { close },
+    occupancy: {}
+  }
+  const closing = service.closeSession('session-1')
+  return { close, closing, gate }
+}
+
 function stubLaunch(service: Service, target: LaunchTarget, implementation: () => Promise<void> | void) {
   const runtime = internals(service)
   switch (target) {
@@ -308,6 +321,40 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(drained).toBe(false)
+
+    gate.resolve()
+    await closing
+    await expect(drain).resolves.toEqual({ stragglerIds: [] })
+    hold.dispose()
+  })
+
+  it('reports a closing connection as active work after its runtime entry is removed', async () => {
+    const service = new AgentSessionRuntimeService()
+    const { close, closing, gate } = beginClosingConnection(service)
+
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(close).toHaveBeenCalledOnce()
+    expect(service.hasBusySessions()).toBe(true)
+    expect(service.listActiveWork()).toEqual([{ id: 'session-1', summary: 'closing=true' }])
+
+    gate.resolve()
+    await closing
+    expect(service.hasBusySessions()).toBe(false)
+    expect(service.listActiveWork()).toEqual([])
+  })
+
+  it('drains a closing connection after its runtime entry is removed', async () => {
+    const service = new AgentSessionRuntimeService()
+    const hold = service.pause('restore')
+    const { closing, gate } = beginClosingConnection(service)
+
+    let settled = false
+    const drain = service.drainInFlight({ timeoutMs: 5_000 }).then((result) => {
+      settled = true
+      return result
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(settled).toBe(false)
 
     gate.resolve()
     await closing

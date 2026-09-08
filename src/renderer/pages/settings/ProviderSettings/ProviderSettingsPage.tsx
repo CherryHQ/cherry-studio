@@ -1,34 +1,38 @@
+import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
+import type { AppRouter } from '@renderer/types/router'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { omit } from 'es-toolkit/compat'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import { ProviderList } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
-import { isProviderSettingsListVisibleProvider } from './utils/providerDisplay'
 
-interface ProviderSettingsPageProps {
-  isOnboarding?: boolean
+interface PendingApiSetup {
+  providerId: string
+  initialStep: ProviderApiSetupInitialStep
 }
 
-interface ProviderSettingsSearch {
-  addProviderData?: string
-  filter?: string
-  id?: string
+interface ProviderSettingsContentProps {
+  rawProviders: Provider[]
 }
 
-export default function ProviderSettingsPage({ isOnboarding = false }: ProviderSettingsPageProps) {
-  const search = useSearch({ strict: false }) as ProviderSettingsSearch
+function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
+  const search = useSearch<AppRouter, undefined, false>({ strict: false })
   const navigate = useNavigate()
-  const { providers: rawProviders } = useProviders()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
     'settings.provider.last_selected_provider_id'
   )
   const [selectedProviderId, setSelectedProviderIdState] = useState<string | undefined>(
     () => lastSelectedProviderId ?? undefined
   )
+  const [pendingApiSetup, setPendingApiSetup] = useState<PendingApiSetup | null>(null)
   const setLastSelectedProviderIdRef = useRef(setLastSelectedProviderId)
 
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
@@ -47,8 +51,17 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
   }, [lastSelectedProviderId])
 
   const setSelectedProviderId = useCallback((providerId: string | undefined) => {
+    setPendingApiSetup((current) => (current?.providerId === providerId ? current : null))
     setLastSelectedProviderIdRef.current(providerId ?? null)
     startTransition(() => setSelectedProviderIdState(providerId))
+  }, [])
+
+  const handleCustomProviderCreated = useCallback((providerId: string, hasApiKey: boolean) => {
+    setPendingApiSetup({ providerId, initialStep: hasApiKey ? 'models' : 'api-key' })
+  }, [])
+
+  const handleApiSetupClosed = useCallback((providerId: string) => {
+    setPendingApiSetup((current) => (current?.providerId === providerId ? null : current))
   }, [])
 
   useProviderDeepLinkImport(search.addProviderData, setSelectedProviderId)
@@ -62,8 +75,18 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
 
     if (search.id) {
       const provider = visibleProviders.find((item) => item.id === search.id)
-      setSelectedProviderId(provider?.id ?? visibleProviders[0]?.id)
-      shouldConsume = true
+      if (provider) {
+        setSelectedProviderId(provider.id)
+        shouldConsume = true
+      } else if (visibleProviders.length > 0) {
+        // Loaded and genuinely unknown — degrade to the first like before
+        setSelectedProviderId(visibleProviders[0]?.id)
+        shouldConsume = true
+      } else {
+        // Still loading: keep the param until the list resolves, else the
+        // selection is consumed with no provider mounted to own it
+        return
+      }
     }
 
     if (shouldConsume) {
@@ -73,6 +96,9 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
   }, [navigate, search, setSelectedProviderId, visibleProviders])
 
   useEffect(() => {
+    // A pending ?id= deep link owns the initial selection while providers
+    // load; the fallback must not race it to visibleProviders[0]
+    if (search.id) return
     if (!selectedProviderId && visibleProviders[0]) {
       setSelectedProviderId(visibleProviders[0].id)
       return
@@ -81,7 +107,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
     if (selectedProviderId && !visibleProviders.some((provider) => provider.id === selectedProviderId)) {
       setSelectedProviderId(visibleProviders[0]?.id)
     }
-  }, [selectedProviderId, setSelectedProviderId, visibleProviders])
+  }, [search.id, selectedProviderId, setSelectedProviderId, visibleProviders])
 
   const selectedProvider = useMemo(
     () => visibleProviders.find((provider) => provider.id === selectedProviderId),
@@ -94,10 +120,52 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
         selectedProviderId={selectedProviderId}
         filterModeHint={filterModeHint}
         onSelectProvider={setSelectedProviderId}
+        onCustomProviderCreated={handleCustomProviderCreated}
       />
       {selectedProvider && (
-        <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} isOnboarding={isOnboarding} />
+        <ProviderSetting
+          providerId={selectedProvider.id}
+          key={selectedProvider.id}
+          initialApiSetupStep={
+            pendingApiSetup?.providerId === selectedProvider.id ? pendingApiSetup.initialStep : undefined
+          }
+          onApiSetupClosed={() => handleApiSetupClosed(selectedProvider.id)}
+        />
       )}
     </div>
   )
+}
+
+export default function ProviderSettingsPage() {
+  const { t } = useTranslation()
+  const { providers, hasLoaded, isLoading, error, refetch } = useProviders()
+
+  if (error && !hasLoaded) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-6">
+        <Alert
+          type="error"
+          showIcon
+          message={t('common.error')}
+          description={error.message}
+          action={
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              {t('common.retry')}
+            </Button>
+          }
+          className="max-w-lg rounded-md px-4 py-3 shadow-none"
+        />
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-6">
+        <Spinner text={t('common.loading')} />
+      </div>
+    )
+  }
+
+  return <ProviderSettingsContent rawProviders={providers} />
 }

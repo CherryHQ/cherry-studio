@@ -83,6 +83,8 @@ describe('useChatWithHistory', () => {
     }))
 
     resumeStream.mockClear()
+    streamAbortMock.mockReset()
+    streamAbortMock.mockResolvedValue(undefined)
     setMessages.mockClear()
     stop.mockClear()
     sendMessage.mockClear()
@@ -309,6 +311,83 @@ describe('useChatWithHistory', () => {
     })
 
     expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort' })
+    expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts the main-process abort before stopping the local SDK stream', async () => {
+    const calls: string[] = []
+    streamAbortMock.mockImplementationOnce(async () => {
+      calls.push('main-abort')
+    })
+    stop.mockImplementationOnce(async () => {
+      calls.push('sdk-stop')
+    })
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+
+    await act(async () => {
+      await result.current.stop()
+    })
+
+    expect(calls).toEqual(['main-abort', 'sdk-stop'])
+  })
+
+  it('does not resolve stop() until the main-process stream has drained', async () => {
+    let finishDrain!: () => void
+    streamAbortMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishDrain = resolve
+      })
+    )
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+
+    const stopping = result.current.stop()
+    let settled = false
+    void stopping.then(() => {
+      settled = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(settled).toBe(false)
+
+    finishDrain()
+    await expect(stopping).resolves.toBeUndefined()
+  })
+
+  it('waits for the main-process drain before rejecting a local stop failure', async () => {
+    let finishDrain!: () => void
+    streamAbortMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishDrain = resolve
+      })
+    )
+    const stopError = new Error('local stop failed')
+    stop.mockRejectedValueOnce(stopError)
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+
+    const stopping = result.current.stop()
+    let settled = false
+    void stopping.catch(() => {
+      settled = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(settled).toBe(false)
+
+    finishDrain()
+    await expect(stopping).rejects.toBe(stopError)
+  })
+
+  it('rejects stop() when the main-process stream cannot be aborted', async () => {
+    const abortError = new Error('main abort failed')
+    streamAbortMock.mockRejectedValueOnce(abortError)
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result } = renderHook(() => useChatWithHistory('topic-abort', [], refresh))
+
+    await expect(result.current.stop()).rejects.toBe(abortError)
     expect(stop).toHaveBeenCalledTimes(1)
   })
 

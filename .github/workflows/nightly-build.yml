@@ -51,7 +51,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: main
 
@@ -141,24 +141,24 @@ jobs:
           # Windows artifacts - based on actual file naming pattern
           if [ "${{ matrix.os }}" == "windows-2022" ]; then
             # Setup installer
-            find dist -name "*-x64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64-setup.exe \;
-            find dist -name "*-arm64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64-setup.exe \;
+            find dist -name "*-win-x64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-win-x64-setup.exe \;
+            find dist -name "*-win-arm64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-win-arm64-setup.exe \;
 
             # Portable exe
-            find dist -name "*-x64-portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64-portable.exe \;
-            find dist -name "*-arm64-portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64-portable.exe \;
+            find dist -name "*-win-x64-portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-win-x64-portable.exe \;
+            find dist -name "*-win-arm64-portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-win-arm64-portable.exe \;
           fi
 
           # macOS artifacts
           if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            find dist -name "*-arm64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64.dmg \;
-            find dist -name "*-x64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64.dmg \;
+            find dist -name "*-mac-arm64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-mac-arm64.dmg \;
+            find dist -name "*-mac-x64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-mac-x64.dmg \;
           fi
 
           # Linux artifacts
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            find dist -name "*-x86_64.AppImage" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x86_64.AppImage \;
-            find dist -name "*-arm64.AppImage" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64.AppImage \;
+            find dist -name "*-linux-x64.AppImage" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-linux-x64.AppImage \;
+            find dist -name "*-linux-arm64.AppImage" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-linux-arm64.AppImage \;
           fi
 
           # Copy update files

@@ -2,9 +2,8 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistantMutations, useImportAssistantMutation } from '../assistantAdapter'
+import { useImportAssistantMutation } from '../assistantAdapter'
 
-const createTriggerMock = vi.hoisted(() => vi.fn())
 const importTriggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
 
@@ -59,43 +58,9 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   }
 }
 
-describe('useAssistantMutations', () => {
+describe('useImportAssistantMutation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useMutationMock.mockReturnValue({
-      trigger: createTriggerMock,
-      isLoading: false,
-      error: undefined
-    })
-  })
-
-  it('copies the single group id when duplicating an assistant', async () => {
-    const groupId = '11111111-1111-4111-8111-111111111111'
-    const created = createAssistant({ id: 'ast-copy' })
-    createTriggerMock.mockResolvedValue(created)
-
-    const source = createAssistant({ groupId })
-
-    const { result } = renderHook(() => useAssistantMutations())
-
-    await act(async () => {
-      await result.current.duplicateAssistant(source)
-    })
-
-    expect(createTriggerMock).toHaveBeenCalledTimes(1)
-    expect(createTriggerMock).toHaveBeenCalledWith({
-      body: {
-        name: '原助手 (副本)',
-        prompt: 'prompt',
-        emoji: '💬',
-        description: 'desc',
-        modelId: 'openai::gpt-4o',
-        settings: source.settings,
-        mcpServerIds: ['mcp-1'],
-        knowledgeBaseIds: ['kb-1'],
-        groupId
-      }
-    })
   })
 
   it('imports an assistant through the atomic import endpoint and refreshes groups', async () => {

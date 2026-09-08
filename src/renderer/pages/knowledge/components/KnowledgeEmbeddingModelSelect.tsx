@@ -1,6 +1,7 @@
 import LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownloadPopup'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { LOCAL_EMBEDDING_PROVIDER_ID, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY } from '@shared/data/presets/localModel'
 import type { Model } from '@shared/data/types/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +15,7 @@ const LOCAL_EMBEDDING_PRIORITIZED_PROVIDER_IDS = [LOCAL_EMBEDDING_PROVIDER_ID] a
 export const KnowledgeEmbeddingModelSelect = (props: KnowledgeEmbeddingModelSelectProps) => {
   const { t } = useTranslation()
   const { onChange } = props
-  const { status, isStatusResolved } = useLocalModel('embedding')
+  const { status, isStatusResolved } = useLocalModel(LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding)
 
   const handleChange = useCallback(
     async (modelId: string | null) => {
@@ -29,7 +30,7 @@ export const KnowledgeEmbeddingModelSelect = (props: KnowledgeEmbeddingModelSele
 
       // Resolves only once the model is on disk — see LocalModelDownloadPopup.
       const downloaded = await LocalModelDownloadPopup.show({
-        model: 'embedding',
+        id: LOCAL_MODEL_BUNDLE_BY_CAPABILITY.embedding,
         description: t('settings.dependencies.localModels.embedding.subtitle')
       })
       if (!downloaded) {

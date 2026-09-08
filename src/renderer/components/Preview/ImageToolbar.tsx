@@ -10,10 +10,11 @@ interface ImageToolbarProps {
   pan: (dx: number, dy: number, absolute?: boolean) => void
   zoom: (delta: number, absolute?: boolean) => void
   dialog: () => void
+  enablePanZoom?: boolean
   className?: string
 }
 
-const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
+const ImageToolbar = ({ pan, zoom, dialog, enablePanZoom = true, className }: ImageToolbarProps) => {
   const { t } = useTranslation()
 
   // 定义平移距离
@@ -35,50 +36,58 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
       )}
       role="toolbar"
       aria-label={t('preview.label')}>
-      {/* Up */}
-      <div className="flex w-full justify-center gap-1">
-        <div className="flex-1" />
-        <ImageToolButton
-          tooltip={t('preview.pan_up')}
-          icon={<ChevronUp size={'1rem'} />}
-          onClick={() => pan(0, -panDistance)}
-        />
-        <ImageToolButton tooltip={t('preview.dialog')} icon={<Scan size={'1rem'} />} onClick={dialog} />
-      </div>
+      {enablePanZoom ? (
+        <>
+          {/* Up */}
+          <div className="flex w-full justify-center gap-1">
+            <div className="flex-1" />
+            <ImageToolButton
+              tooltip={t('preview.pan_up')}
+              icon={<ChevronUp size={'1rem'} />}
+              onClick={() => pan(0, -panDistance)}
+            />
+            <ImageToolButton tooltip={t('preview.dialog')} icon={<Scan size={'1rem'} />} onClick={dialog} />
+          </div>
 
-      {/* Left, Reset, Right */}
-      <div className="flex w-full justify-center gap-1">
-        <ImageToolButton
-          tooltip={t('preview.pan_left')}
-          icon={<ChevronLeft size={'1rem'} />}
-          onClick={() => pan(-panDistance, 0)}
-        />
-        <ImageToolButton tooltip={t('preview.reset')} icon={<ResetIcon size={'1rem'} />} onClick={handleReset} />
-        <ImageToolButton
-          tooltip={t('preview.pan_right')}
-          icon={<ChevronRight size={'1rem'} />}
-          onClick={() => pan(panDistance, 0)}
-        />
-      </div>
+          {/* Left, Reset, Right */}
+          <div className="flex w-full justify-center gap-1">
+            <ImageToolButton
+              tooltip={t('preview.pan_left')}
+              icon={<ChevronLeft size={'1rem'} />}
+              onClick={() => pan(-panDistance, 0)}
+            />
+            <ImageToolButton tooltip={t('preview.reset')} icon={<ResetIcon size={'1rem'} />} onClick={handleReset} />
+            <ImageToolButton
+              tooltip={t('preview.pan_right')}
+              icon={<ChevronRight size={'1rem'} />}
+              onClick={() => pan(panDistance, 0)}
+            />
+          </div>
 
-      {/* Down, Zoom */}
-      <div className="flex w-full justify-center gap-1">
-        <ImageToolButton
-          tooltip={t('preview.zoom_out')}
-          icon={<ZoomOut size={'1rem'} />}
-          onClick={() => zoom(-zoomDelta)}
-        />
-        <ImageToolButton
-          tooltip={t('preview.pan_down')}
-          icon={<ChevronDown size={'1rem'} />}
-          onClick={() => pan(0, panDistance)}
-        />
-        <ImageToolButton
-          tooltip={t('preview.zoom_in')}
-          icon={<ZoomIn size={'1rem'} />}
-          onClick={() => zoom(zoomDelta)}
-        />
-      </div>
+          {/* Down, Zoom */}
+          <div className="flex w-full justify-center gap-1">
+            <ImageToolButton
+              tooltip={t('preview.zoom_out')}
+              icon={<ZoomOut size={'1rem'} />}
+              onClick={() => zoom(-zoomDelta)}
+            />
+            <ImageToolButton
+              tooltip={t('preview.pan_down')}
+              icon={<ChevronDown size={'1rem'} />}
+              onClick={() => pan(0, panDistance)}
+            />
+            <ImageToolButton
+              tooltip={t('preview.zoom_in')}
+              icon={<ZoomIn size={'1rem'} />}
+              onClick={() => zoom(zoomDelta)}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="flex w-full justify-center gap-1">
+          <ImageToolButton tooltip={t('preview.dialog')} icon={<Scan size={'1rem'} />} onClick={dialog} />
+        </div>
+      )}
     </div>
   )
 }

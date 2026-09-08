@@ -157,7 +157,7 @@ export class ChannelManager extends BaseService {
     return result
   }
 
-  /** Return all connected adapters for an agent. */
+  /** Return all registered adapters for an agent, connected or not (a dropped one stays for reconnect). */
   getAgentAdapters(agentId: string): ChannelAdapter[] {
     const result: ChannelAdapter[] = []
     for (const [, adapter] of this.adapters) {

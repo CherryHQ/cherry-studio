@@ -11,11 +11,8 @@ import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useMemo } from 'react'
 
-import type { TranslationOverlayEntry } from '../blocks/MessagePartsContext'
 import type { MessageStreamingLayers } from '../types'
 import { useStableMessagePartsLayers } from './useStableMessagePartsLayers'
-
-const EMPTY_TRANSLATION_OVERLAY: Record<string, TranslationOverlayEntry> = {}
 
 interface MessageStreamingLayersParams {
   messages: CherryUIMessage[]
@@ -25,7 +22,6 @@ interface MessageStreamingLayersParams {
   executions: readonly ActiveExecution[]
   /** Latest assistant snapshot per execution. */
   liveAssistants: CherryUIMessage[]
-  translationOverlay?: Record<string, TranslationOverlayEntry>
 }
 
 interface MessageStreamingLayersResult {
@@ -53,14 +49,9 @@ export function useMessageStreamingLayers({
   messages,
   overlay,
   executions,
-  liveAssistants,
-  translationOverlay = EMPTY_TRANSLATION_OVERLAY
+  liveAssistants
 }: MessageStreamingLayersParams): MessageStreamingLayersResult {
-  const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(
-    messages,
-    overlay,
-    translationOverlay
-  )
+  const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(messages, overlay)
   const liveMessageIdCandidates = useMemo(
     () =>
       Array.from(

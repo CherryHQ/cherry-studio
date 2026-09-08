@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   gatewayPort: undefined as number | undefined,
   requestMock: vi.fn(),
+  useIpcOn: vi.fn(),
+  events: new Map<string, (payload: Record<string, unknown>) => void>(),
   openSmartMiniApp: vi.fn(),
   toastError: vi.fn()
 }))
@@ -19,7 +21,8 @@ vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.requestMock }
+  ipcApi: { request: mocks.requestMock },
+  useIpcOn: mocks.useIpcOn
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -38,6 +41,12 @@ vi.mock('react-i18next', () => ({
 
 const { useOpenClawGatewayController } = await import('../useOpenClawGatewayController')
 
+const emit = (event: string, payload: Record<string, unknown>) => {
+  const handler = mocks.events.get(event)
+  if (!handler) throw new Error(`${event} handler not registered`)
+  handler(payload)
+}
+
 const enabledProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 
 describe('useOpenClawGatewayController', () => {
@@ -45,6 +54,10 @@ describe('useOpenClawGatewayController', () => {
     vi.clearAllMocks()
     vi.spyOn(Date, 'now').mockReturnValue(1_774_560_000_000)
     mocks.gatewayPort = undefined
+    mocks.events.clear()
+    mocks.useIpcOn.mockImplementation((event: string, handler: (payload: Record<string, unknown>) => void) => {
+      mocks.events.set(event, handler)
+    })
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
       if (route === 'openclaw.sync_config') return Promise.resolve({ success: true })
@@ -107,6 +120,12 @@ describe('useOpenClawGatewayController', () => {
     })
 
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: 18888 })
+
+    // Running state arrives as a main-pushed event, not a local write.
+    await act(async () => {
+      emit('openclaw.status_changed', { status: 'running' })
+    })
+    expect(result.current.running).toBe(true)
   })
 
   // Regression: sync_config writes openclaw.json's gateway.port from the service's in-memory

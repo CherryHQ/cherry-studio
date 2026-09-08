@@ -19,7 +19,11 @@ import {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
-vi.mock('../shellEnv', () => ({ getShellEnv: vi.fn() }))
+vi.mock('../shellEnv', () => ({
+  getShellEnv: vi.fn(),
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
 vi.mock('which')
 
 // On win32 `path` and `path.win32` are the same object, so a mock installed on one is
@@ -872,6 +876,7 @@ describe('findCommandInShellEnv', () => {
       .mockReturnValue(null as never)
     // Reset path.isAbsolute to real implementation for these tests
     vi.mocked(path.isAbsolute).mockImplementation((p) => p.startsWith('/') || /^[A-Z]:/i.test(p))
+    vi.mocked(path.resolve).mockImplementation((p: string) => p)
     vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
     vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
     vi.mocked(path.win32.relative).mockImplementation((from, to) => {
@@ -925,6 +930,38 @@ describe('findCommandInShellEnv', () => {
         expect(result).toBeNull()
         expect(commandLookup()).not.toHaveBeenCalled()
       }
+    })
+
+    it('should return an existing absolute executable without shell lookup', async () => {
+      const absolute = 'C:\\Program Files\\nodejs\\npx.cmd'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.mocked(fs.statSync).mockReturnValue({ isFile: () => true } as fs.Stats)
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBe(absolute)
+      expect(commandLookup()).not.toHaveBeenCalled()
+    })
+
+    it('should reject an absolute path that does not exist', async () => {
+      const absolute = 'C:\\missing\\uvx.exe'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBeNull()
+      expect(commandLookup()).not.toHaveBeenCalled()
+    })
+
+    it('should reject an absolute path that is a directory', async () => {
+      const absolute = '/usr/local/bin'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.mocked(fs.statSync).mockReturnValue({ isFile: () => false } as fs.Stats)
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBeNull()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject command names exceeding max length', async () => {

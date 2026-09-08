@@ -199,6 +199,18 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.content).toContain('401')
     })
 
+    it('requires all diagnosis fields to use the language selected in settings', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'summary', category: 'category', explanation: 'explanation', steps: [] })
+      )
+
+      await diagnoseError(makeError(), 'preferred-language')
+
+      expect(mockFetchGenerate.mock.calls[0][0].prompt).toContain(
+        'Write all values for summary, category, explanation, and steps[].text in preferred-language'
+      )
+    })
+
     it('defaults category to unknown when missing', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({
@@ -257,6 +269,83 @@ describe('ErrorDiagnosisService', () => {
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.prompt).toContain('MCP (Model Context Protocol) server error')
       expect(callArgs.prompt).not.toContain('Network or proxy error')
+    })
+
+    it('does not route an unqualified proxy mention to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'something proxy related' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium ERR_PROXY_CONNECTION_FAILED to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a SOCKS proxy rejected connection to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'Socks5 proxy rejected connection' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('does not route an unrelated ERR_ token near proxy configuration prose to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_INVALID_ARGUMENT in proxy configuration' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('Network or proxy error')
+    })
+
+    it('routes an undici ProxyAgent CONNECT failure to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'Proxy response (407) !== 200 when HTTP Tunneling' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes an https-proxy-agent CONNECT close to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'Proxy connection ended before receiving CONNECT response' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
     })
 
     it('forwards finishReason for safety-blocked responses', async () => {

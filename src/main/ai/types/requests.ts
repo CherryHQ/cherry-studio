@@ -11,7 +11,7 @@ import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
  * signatures so renderer payloads can't smuggle in `AbortSignal`.
  */
 export interface AiTransportOptions {
-  /** Layered on top of `defaultAppHeaders()` + `provider.settings.extraHeaders`; caller wins on conflict. */
+  /** Layered on top of provider-aware app attribution + `provider.settings.extraHeaders`; caller wins on conflict. */
   headers?: Record<string, string | undefined>
   /** Idle-chunk timeout (ms) for streaming flows; resets per chunk. Falls back to `DEFAULT_TIMEOUT` (30 min). */
   timeout?: number
@@ -112,4 +112,10 @@ export interface AiStreamRequest extends AiBaseRequest {
    */
   retainedContext?: RetainedContext
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
+  /**
+   * Attribution for callers with no assistant to derive it from. Neutral on purpose:
+   * the agent-only `usageContext` also rewrites `chatId` to an agent session id, so
+   * reusing it would record a mini app's call as an agent turn.
+   */
+  source?: SourceSnapshot | null
 }

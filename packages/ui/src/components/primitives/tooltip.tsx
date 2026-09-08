@@ -119,6 +119,8 @@ export interface TooltipProps {
   onOpenChange?: (open: boolean) => void
   onClick?: React.MouseEventHandler<HTMLDivElement>
   portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
+  /** Let the child own the trigger element and its semantics. */
+  asChild?: boolean
 }
 
 export const Tooltip = ({
@@ -136,7 +138,8 @@ export const Tooltip = ({
   isOpen,
   onOpenChange,
   onClick,
-  portalContainer
+  portalContainer,
+  asChild = false
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
@@ -147,6 +150,8 @@ export const Tooltip = ({
   )
 
   if (!tooltipContent || isDisabled) {
+    if (asChild) return children
+
     return (
       <div className={triggerWrapperClassName} onClick={onClick}>
         {children}
@@ -168,9 +173,13 @@ export const Tooltip = ({
     <TooltipProvider delayDuration={delay}>
       <RadixRoot delayDuration={delay} {...controlledProps}>
         <TooltipTrigger asChild>
-          <div className={triggerWrapperClassName} onClick={onClick}>
-            {children}
-          </div>
+          {asChild ? (
+            children
+          ) : (
+            <div className={triggerWrapperClassName} onClick={onClick}>
+              {children}
+            </div>
+          )}
         </TooltipTrigger>
         <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
           <RadixContent

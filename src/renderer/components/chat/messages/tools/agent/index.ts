@@ -1,5 +1,6 @@
 export { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from '../shared/terminalOutputHelpers'
 export { AgentExecutionTimeline, AgentToolRenderer } from './AgentExecutionTimeline'
+export { agentInlineResultPresentationRegistry } from './agentInlineResultPresentationRegistry'
 export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'

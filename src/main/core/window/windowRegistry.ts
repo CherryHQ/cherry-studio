@@ -574,9 +574,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     behavior: {
       // screen-saver level puts the overlay above the Dock and menu bar.
       alwaysOnTop: { level: 'screen-saver' },
-      // visibleOnFullScreen lets the overlay cover macOS fullscreen apps; skipTransformProcessType
-      // stops the process-type change that would flash the Dock icon and disturb focus.
-      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
+      // Keep the overlay on the Space where capture started while still allowing it
+      // above fullscreen apps. skipTransformProcessType avoids Dock/focus churn.
+      visibleOnAllWorkspaces: { enabled: false, visibleOnFullScreen: true, skipTransformProcessType: true },
       macShowInDock: false
     },
     quirks: {

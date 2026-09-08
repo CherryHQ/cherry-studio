@@ -1,6 +1,6 @@
 import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 
 interface OwnProps {
@@ -13,7 +13,7 @@ type Props = OwnProps & PopupInjectedProps<void>
 
 const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve }) => {
   const [fontSize] = usePreference('chat.message.font_size')
-  const { activeCmTheme } = useCodeStyle()
+  const activeCmTheme = useCmTheme(open && extension !== undefined)
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve()}>
@@ -30,7 +30,6 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, open, resolve
               readOnly={true}
               expanded={false}
               height="100%"
-              style={{ height: '100%' }}
               value={text}
               language={extension}
               options={{

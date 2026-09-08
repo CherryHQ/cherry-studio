@@ -11,7 +11,7 @@ import { buildAnnotation, isSignificantAnnotation } from '../utils/annotation'
 import { findWindowAtPoint } from '../utils/findWindowAtPoint'
 
 function makeWindow(overrides: Partial<DetectedWindow>): DetectedWindow {
-  return { title: 'w', appName: 'app', x: 0, y: 0, width: 100, height: 100, ...overrides }
+  return { title: 'w', x: 0, y: 0, width: 100, height: 100, ...overrides }
 }
 
 describe('findWindowAtPoint', () => {

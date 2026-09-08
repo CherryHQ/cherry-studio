@@ -41,8 +41,10 @@ import {
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
+import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
@@ -54,8 +56,9 @@ import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
+import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -64,6 +67,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
+  ArrowLeft,
   Bot,
   CheckCircle,
   Circle,
@@ -110,6 +114,7 @@ const logger = loggerService.withContext('AgentRightPane')
 // ── Agent-specific composition over the generic right panel ─────────────────
 
 const FLOW_TAB_PREFIX = 'flow:'
+const STATUS_PANE_ID = 'status'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 const TracePane = lazy(() =>
@@ -274,6 +279,7 @@ export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | n
 }
 
 interface AgentRightPaneActionsProviderProps {
+  artifactOpenRequestRef: { current: number }
   children: ReactNode
   conversationState: AgentConversationState
   sessionId?: string
@@ -289,6 +295,7 @@ interface AgentRightPaneActionsProviderProps {
 }
 
 function AgentRightPaneActionsProvider({
+  artifactOpenRequestRef,
   children,
   conversationState,
   sessionId,
@@ -302,8 +309,8 @@ function AgentRightPaneActionsProvider({
   setFileTreeSearchKeyword,
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
+  const { t } = useTranslation()
   const panelActions = useRightPanelActions()
-  const artifactOpenRequestRef = useRef(0)
   // Invalidate in-flight artifact-open requests when the session or workspace
   // changes (and on unmount), so a late getMetadata resolution cannot restore a
   // preview that the switch just cleared.
@@ -311,7 +318,7 @@ function AgentRightPaneActionsProvider({
     return () => {
       artifactOpenRequestRef.current += 1
     }
-  }, [sessionId, workspacePath])
+  }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
@@ -335,19 +342,34 @@ function AgentRightPaneActionsProvider({
         return
       }
 
-      void ipcApi
-        .request('file.get_metadata', createFilePathHandle(getArtifactPaneSelectionPath(selection)))
-        .then((metadata) => {
+      const targetPath = getArtifactPaneSelectionPath(selection)
+      void openFileTarget(targetPath, {
+        openArtifactFile: () => {
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(metadata?.kind === 'directory' ? null : selection)
-        })
-        .catch(() => {
-          if (artifactOpenRequestRef.current !== requestId) return
-          // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
           requestFileSelection(selection)
-        })
+        },
+        openPath: async (path) => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          await window.api.file.openPath(path)
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(null)
+        },
+        isDirectory: async () => {
+          try {
+            const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(targetPath))
+            return metadata?.kind === 'directory'
+          } catch {
+            // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
+            return false
+          }
+        },
+        onError: () => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          toast.error(t('chat.input.tools.open_file_error', { path: targetPath }))
+        }
+      })
     },
-    [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
+    [artifactOpenRequestRef, canOpenArtifactFile, panelActions, requestFileSelection, t, workspacePath]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
@@ -415,6 +437,7 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const artifactOpenRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
   // External route/session changes can update props before this subtree gets a
@@ -481,6 +504,7 @@ function AgentRightPaneStateProvider({
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null) => {
       if (isSameFileSelection(previewFileSelection, selection)) return
+      artifactOpenRequestRef.current += 1
       requestFileTransition(() => {
         setEditMode('preview')
         setPreviewFileSelection(selection)
@@ -625,6 +649,7 @@ function AgentRightPaneStateProvider({
               />
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider
+                artifactOpenRequestRef={artifactOpenRequestRef}
                 conversationState={conversationState}
                 sessionId={sessionId}
                 workspacePath={workspacePath}
@@ -672,7 +697,7 @@ function AgentHistoryPrefetcher({ sessionId, hasOlder, isLoading, loadOlder }: A
   useEffect(() => {
     if (
       !state.presentationOpen ||
-      !state.isActive(AGENT_STATUS_PANE_ID) ||
+      !state.isActive(STATUS_PANE_ID) ||
       isLoading ||
       !hasOlder ||
       !loadOlder ||
@@ -726,7 +751,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     lastSelectableFileRef.current = null
     actions.setSelectedFile(null)
   }, [actions, model.hasLoaded, model.nodeById, state.previewFileSelection, state.selectedFile, state.workspacePath])
-  return (
+  const pane = (
     <ArtifactPaneView
       headerVariant="pane"
       paneTitle={scope.filesTitle}
@@ -744,6 +769,15 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       searchKeyword={state.fileTreeSearchKeyword}
       onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />
+  )
+  const workspacePath = AbsoluteFilePathSchema.safeParse(state.workspacePath)
+
+  return actions.canOpenArtifactFile && workspacePath.success ? (
+    <FilePreviewNavigationProvider openFile={actions.openArtifactFile} workspacePath={workspacePath.data}>
+      {pane}
+    </FilePreviewNavigationProvider>
+  ) : (
+    pane
   )
 }
 
@@ -784,7 +818,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     isLoading: false,
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
-    openArtifactFile: actions.openArtifactFile,
+    openArtifactFile: actions.canOpenArtifactFile ? actions.openArtifactFile : undefined,
     messageNavigation,
     // Tool output is commonly workspace-relative (`dist/report.md`). Without the
     // root, open/reveal cannot resolve it and the directory probe fails closed.
@@ -798,7 +832,8 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
         selection: undefined,
         renderConfig: {
           ...providerValue.state.renderConfig,
-          collapseCompletedToolHistory: false
+          collapseCompletedToolHistory: true,
+          messageStyle: 'bubble' as const
         }
       }
     }),
@@ -807,7 +842,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 
   return (
     <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
+      <div className="h-full min-h-0 bg-muted/15 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
         <MessageList />
       </div>
     </MessageListProvider>
@@ -850,6 +885,28 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   return (
     <div className="h-full min-h-0 overflow-hidden">
       <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
+    </div>
+  )
+}
+
+function AgentFlowPanelTitle({ title }: { title: string }) {
+  const panelActions = useRightPanelActions()
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex min-w-0 items-center gap-0.5">
+      <Tooltip content={t('common.back')} delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={t('common.back')}
+          onClick={() => panelActions.tryOpen(STATUS_PANE_ID)}>
+          <ArrowLeft size={16} />
+        </Button>
+      </Tooltip>
+      <span className="min-w-0 flex-1 truncate px-1">{title}</span>
     </div>
   )
 }
@@ -1032,29 +1089,29 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
   return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
-/** Foreground runs belong to one assistant row; detached runs use the SDK's per-task edge state. */
-function useAgentRunLiveness(messages: CherryUIMessage[], taskEvents: AgentSessionTaskEvents): AgentRunLiveness {
+/** Foreground runs belong to one assistant row; detached runs use the runtime's current membership snapshot. */
+function useAgentRunLiveness(
+  messages: CherryUIMessage[],
+  backgroundTasks: AgentSessionBackgroundTasks
+): AgentRunLiveness {
   return useMemo(() => {
     const activeMessageIds = new Set(
       messages
         .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
         .map((message) => message.id)
     )
-    const liveBackgroundTaskIds = new Set(
-      Object.values(taskEvents)
-        .filter((event) => event.isBackgrounded === true && event.status !== 'completed' && event.status !== 'error')
-        .map((event) => event.taskId)
-    )
+    const liveBackgroundTaskIds = new Set(backgroundTasks.map((task) => task.id))
     return { activeMessageIds, liveBackgroundTaskIds }
-  }, [messages, taskEvents])
+  }, [backgroundTasks, messages])
 }
 
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
   const meta = useAgentRightPaneMeta()
+  const backgroundTasks = useAgentSessionBackgroundTasks(meta.sessionId)
   // Current-process per-task lifecycle edges.
   const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
-  const liveness = useAgentRunLiveness(runtime.messages, lateTaskEvents)
+  const liveness = useAgentRunLiveness(runtime.messages, backgroundTasks)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
     () =>
@@ -1208,7 +1265,6 @@ function resolveAgentTraceReadiness(scope: AgentRightPanelScope): RightPanelRead
 
 /** Stable capability registry; runtime messages are intentionally absent. */
 const TRACE_PANE_ID = 'trace'
-const AGENT_STATUS_PANE_ID = 'status'
 const AGENT_RESOURCE_PANE_CAPABILITY = createResourcePaneCapability<AgentRightPanelScope>({
   instanceKey: 'agent-resources'
 })
@@ -1237,7 +1293,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
   {
     component: AgentStatusRightPanel,
     resolve: (scope) => ({
-      id: AGENT_STATUS_PANE_ID,
+      id: STATUS_PANE_ID,
       instanceKey: `session:${scope.meta.sessionId ?? ''}`,
       title: scope.statusTitle,
       readiness: scope.meta.conversationState
@@ -1252,7 +1308,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       return {
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
-        title: tab.title,
+        title: <AgentFlowPanelTitle title={tab.title} />,
         readiness: scope.meta.conversationState
       }
     }
@@ -1398,11 +1454,11 @@ function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
   const panelState = useRightPanelState()
   const panelActions = useRightPanelActions()
   const { t } = useTranslation()
-  if (disabled || panelState.presentationMaximized || !panelActions.canOpen('status')) return null
+  if (disabled || panelState.presentationMaximized || !panelActions.canOpen(STATUS_PANE_ID)) return null
 
   const shortcut = (
     <RightPanelShortcut
-      tab="status"
+      tab={STATUS_PANE_ID}
       label={t('agent.right_pane.tabs.status')}
       icon={<Activity className="size-3.5" />}
       tooltip={false}
