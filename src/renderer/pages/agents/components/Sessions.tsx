@@ -1814,11 +1814,9 @@ const Sessions = ({
 
       if (displayMode !== 'agent' || group.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return false
 
-      const agentId = getAgentIdFromSessionGroupId(group.id)
-      const agent = agentId ? agentById.get(agentId) : undefined
-      return assistantIconType !== 'none' || Boolean(agent?.type)
+      return assistantIconType !== 'none'
     },
-    [agentById, assistantIconType, displayMode]
+    [assistantIconType, displayMode]
   )
 
   // Only the pseudo-group gets a tooltip: it needs explaining. Real agent rows don't — a hint about

@@ -76,11 +76,13 @@ export function renderAgentEntityIcon(
   fallbackModelId?: string | null,
   size: number = RESOURCE_ICON_SIZE
 ) {
+  if (iconType === 'none') return undefined
+
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
   const avatar =
     iconType === 'model' && modelAvatarModel ? (
       <ModelAvatar model={modelAvatarModel} size={size} />
-    ) : iconType === 'none' ? null : (
+    ) : (
       <EmojiIcon
         emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
         size={size}
