@@ -364,7 +364,10 @@ export function resolveDeepSeekHarnessEndpoint(
   // than rejecting a provider whose host is otherwise usable.
   const endpoint =
     resolvedEndpoint ??
-    (!provider.defaultChatEndpoint && !model.endpointTypes?.length
+    // Legacy/custom rows may carry a stale or unsupported default endpoint. When
+    // the model has no endpoint contract, prefer any configured DSH-compatible
+    // direct route instead of rejecting a provider whose host is usable.
+    (!model.endpointTypes?.length
       ? DIRECT_ENDPOINTS.find((endpointType) => Boolean(endpointConfigs?.[endpointType]?.baseUrl))
       : undefined)
 
