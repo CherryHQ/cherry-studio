@@ -686,7 +686,7 @@
   "chat.message.flow.copy_topic.label": "新しい会話としてコピー",
   "chat.message.flow.nodes": "ノード",
   "chat.message.flow.status.awaiting_input": "入力待ち",
-  "chat.message.flow.title": "ブランチ管理",
+  "chat.message.flow.title": "高度なビュー",
   "chat.message.more": "その他のアクション",
   "chat.message.new.branch.created": "新しいブランチが作成されました",
   "chat.message.new.branch.label": "新しいブランチ",

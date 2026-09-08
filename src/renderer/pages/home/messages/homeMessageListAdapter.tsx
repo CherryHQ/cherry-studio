@@ -155,6 +155,9 @@ export function useHomeMessageListProviderValue({
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
+  const getMessageParts = useCallback(async (messageId: string) => {
+    return partsByMessageIdRef.current[messageId] ?? (await dataApiService.get(`/messages/${messageId}`)).data.parts
+  }, [])
   const listRuntimeRef = useRef<MessageListRuntime | null>(null)
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
   const [translatingMessageIds, setTranslatingMessageIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -439,12 +442,15 @@ export function useHomeMessageListProviderValue({
       const { msgBlockId, codeBlockId, newContent } = data
 
       try {
-        const resolved = resolvePartFromParts(partsByMessageIdRef.current, msgBlockId)
+        const messageId = parseMessagePartId(msgBlockId)?.messageId
+        const sourceParts = messageId ? await getMessageParts(messageId) : undefined
+        const resolved =
+          messageId && sourceParts ? resolvePartFromParts({ [messageId]: sourceParts }, msgBlockId) : null
         if (resolved && resolved.part.type === 'text') {
           const textPart = resolved.part as { text?: string }
           const { updateCodeBlock } = await import('@renderer/utils/markdown')
           const updatedText = updateCodeBlock(textPart.text || '', codeBlockId, newContent)
-          const allParts = [...(partsByMessageIdRef.current[resolved.messageId] || [])]
+          const allParts = [...sourceParts!]
           allParts[resolved.index] = {
             ...resolved.part,
             text: updatedText
@@ -463,7 +469,7 @@ export function useHomeMessageListProviderValue({
         toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
-    [requireChatWrite, t]
+    [getMessageParts, requireChatWrite, t]
   )
 
   const openPath = useCallback((path: string) => {
@@ -522,7 +528,8 @@ export function useHomeMessageListProviderValue({
       const write = requireChatWrite('translateMessage')
       const isCurrentTranslation = () => translationAbortControllersRef.current.get(messageId) === controller
 
-      const currentParts = partsByMessageIdRef.current[messageId]
+      const currentParts = await getMessageParts(messageId)
+      if (!isCurrentTranslation()) return null
       if (!currentParts) {
         logger.error(`[createTranslationUpdater] cannot find parts for message: ${messageId}`)
         return null
@@ -569,7 +576,7 @@ export function useHomeMessageListProviderValue({
         waitForPendingUpdates: () => pendingUpdate
       }
     },
-    [requireChatWrite, topic.id]
+    [getMessageParts, requireChatWrite, topic.id]
   )
 
   const translateMessage = useCallback<NonNullable<MessageListActions['translateMessage']>>(
@@ -606,16 +613,16 @@ export function useHomeMessageListProviderValue({
         // a superseding call will have set a new controller by now and
         // owns the current data-translation part.
         if (translationAbortControllersRef.current.get(messageId) === controller) {
-          const currentParts = partsByMessageIdRef.current[messageId]
-          if (currentParts) {
-            const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
-            if (baseParts.length !== currentParts.length) {
-              try {
+          try {
+            const currentParts = await getMessageParts(messageId)
+            if (translationAbortControllersRef.current.get(messageId) === controller && currentParts) {
+              const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
+              if (baseParts.length !== currentParts.length) {
                 await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
-              } catch (cleanupError) {
-                logger.error('Failed to clean up translation loading part:', cleanupError as Error, { messageId })
               }
             }
+          } catch (cleanupError) {
+            logger.error('Failed to clean up translation loading part:', cleanupError as Error, { messageId })
           }
         }
       } finally {
@@ -625,7 +632,7 @@ export function useHomeMessageListProviderValue({
         }
       }
     },
-    [createTranslationUpdater, requireChatWrite, setMessageTranslating, t]
+    [createTranslationUpdater, getMessageParts, requireChatWrite, setMessageTranslating, t]
   )
 
   const abortMessageTranslation = useCallback<NonNullable<MessageListActions['abortMessageTranslation']>>(
@@ -637,13 +644,13 @@ export function useHomeMessageListProviderValue({
 
   const removeMessageTranslation = useCallback<NonNullable<MessageListActions['removeMessageTranslation']>>(
     async (messageId) => {
-      const currentParts = partsByMessageIdRef.current[messageId]
+      const currentParts = await getMessageParts(messageId)
       if (!currentParts) return
       const baseParts = currentParts.filter((part) => part.type !== 'data-translation')
       if (baseParts.length === currentParts.length) return
       await requireChatWrite('removeMessageTranslation').editMessage(messageId, baseParts)
     },
-    [requireChatWrite]
+    [getMessageParts, requireChatWrite]
   )
 
   const getMessageSiblings = useCallback(

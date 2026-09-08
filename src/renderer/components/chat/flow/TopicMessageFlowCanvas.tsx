@@ -4,6 +4,7 @@ import { cn } from '@renderer/utils/style'
 import {
   Controls,
   MiniMap,
+  type NodeChange,
   type NodeMouseHandler,
   type NodeTypes,
   ReactFlow,
@@ -14,14 +15,23 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR, TOPIC_MESSAGE_FLOW_NODE_SIZE } from './topicMessageFlowLayout'
-import TopicMessageFlowLegend from './TopicMessageFlowLegend'
+import {
+  layoutTopicMessageFlowGraph,
+  TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR,
+  TOPIC_MESSAGE_FLOW_NODE_SIZE,
+  type TopicMessageFlowNodeSize
+} from './topicMessageFlowLayout'
 import TopicMessageFlowNode from './TopicMessageFlowNode'
-import type { TopicMessageFlowEdgeModel, TopicMessageFlowLayout, TopicMessageFlowNodeModel } from './types'
+import type {
+  TopicMessageFlowEdgeModel,
+  TopicMessageFlowGraph,
+  TopicMessageFlowLayout,
+  TopicMessageFlowNodeModel
+} from './types'
 import { TOPIC_MESSAGE_FLOW_NODE_TYPE } from './types'
 
 interface TopicMessageFlowCanvasProps {
-  graph: TopicMessageFlowLayout
+  graph: TopicMessageFlowGraph
   onNodeSelect: (messageId: string) => void
   onNodeContextMenu?: (messageId: string) => void
   className?: string
@@ -34,7 +44,7 @@ const nodeTypes = {
 } satisfies NodeTypes
 
 const rootFocusViewport: Viewport = { x: 0, y: 0, zoom: 0.85 }
-const ROOT_TOP_OFFSET = 64
+const ROOT_LEFT_OFFSET = 32
 
 const rootFocusOptions = {
   duration: 0
@@ -47,33 +57,26 @@ const proOptions: ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdge
 function getMiniMapNodeColor(node: TopicMessageFlowNodeModel) {
   const data = node.data
 
-  if (data.isContextBoundary) return 'var(--muted)'
-  if (data.role === 'user') return 'var(--success)'
-  if (data.role === 'assistant') return 'var(--info)'
-  return 'var(--muted)'
+  if (data.isActive || data.isOnActivePath) return 'var(--primary)'
+  return 'var(--foreground-tertiary)'
 }
 
 function getEdgeStyle(edge: TopicMessageFlowEdgeModel): TopicMessageFlowEdgeModel['style'] {
   const data = edge.data
 
   return {
-    stroke: data?.isActivePath
-      ? 'var(--success)'
-      : data?.isInactiveBranch
-        ? TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR
-        : 'var(--border)',
+    stroke: data?.isActivePath ? 'var(--primary)' : TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR,
     strokeWidth: data?.isActivePath ? 2.25 : 1.5,
-    strokeDasharray: data?.isActivePath || data?.isSiblingBranch || data?.isInactiveBranch ? '4 4' : undefined,
-    ...edge.style
+    opacity: 1
   }
 }
 
 function getRootFocusNode(nodes: TopicMessageFlowNodeModel[]) {
   return nodes.reduce<TopicMessageFlowNodeModel | null>((rootNode, node) => {
     if (!rootNode) return node
-    if (node.position.y !== rootNode.position.y) return node.position.y < rootNode.position.y ? node : rootNode
+    if (node.position.x !== rootNode.position.x) return node.position.x < rootNode.position.x ? node : rootNode
     if (node.data.isOnActivePath !== rootNode.data.isOnActivePath) return node.data.isOnActivePath ? node : rootNode
-    return node.position.x < rootNode.position.x ? node : rootNode
+    return node.position.y < rootNode.position.y ? node : rootNode
   }, null)
 }
 
@@ -87,11 +90,11 @@ function getNodeCenter(node: TopicMessageFlowNodeModel) {
   }
 }
 
-function getRootFocusViewport(containerWidth: number, centerX: number, positionY: number): Viewport {
+function getRootFocusViewport(containerHeight: number, positionX: number, centerY: number): Viewport {
   const zoom = rootFocusViewport.zoom
   return {
-    x: containerWidth / 2 - centerX * zoom,
-    y: ROOT_TOP_OFFSET - positionY * zoom,
+    x: ROOT_LEFT_OFFSET - positionX * zoom,
+    y: containerHeight / 2 - centerY * zoom,
     zoom
   }
 }
@@ -112,29 +115,69 @@ const TopicMessageFlowCanvas = ({
     TopicMessageFlowEdgeModel
   > | null>(null)
 
-  const nodes = useMemo(
-    (): TopicMessageFlowNodeModel[] =>
-      graph.nodes.map((node) => ({
-        ...node,
-        type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
-        data: {
-          ...node.data,
-          isActive: node.data.isActive || node.data.messageId === graph.activeNodeId
-        }
-      })),
-    [graph.activeNodeId, graph.nodes]
-  )
+  const [measuredSizes, setMeasuredSizes] = useState<ReadonlyMap<string, TopicMessageFlowNodeSize>>(() => new Map())
+  const layoutCacheRef = useRef<{
+    key: string
+    sizes: ReadonlyMap<string, TopicMessageFlowNodeSize>
+    layout: TopicMessageFlowLayout
+  } | null>(null)
+  const layout = useMemo(() => {
+    const key = JSON.stringify([
+      graph.nodes.map(({ id, parentId, data }) => [
+        id,
+        parentId,
+        data.role,
+        data.createdAt,
+        data.isAwaitingInput,
+        data.isContextBoundary
+      ]),
+      graph.edges.map(({ source, target }) => [source, target])
+    ])
+    const cached = layoutCacheRef.current
+    if (cached?.key === key && cached.sizes === measuredSizes) return cached.layout
+    const next = layoutTopicMessageFlowGraph(graph, measuredSizes)
+    layoutCacheRef.current = { key, sizes: measuredSizes, layout: next }
+    return next
+  }, [graph, measuredSizes])
 
-  const edges = useMemo(
-    () =>
-      graph.edges.map((edge) => ({
-        ...edge,
-        type: edge.type ?? 'smoothstep',
-        animated: edge.animated ?? edge.data?.isActivePath ?? false,
-        style: getEdgeStyle(edge)
-      })),
-    [graph.edges]
-  )
+  const handleNodesChange = useCallback((changes: NodeChange<TopicMessageFlowNodeModel>[]) => {
+    setMeasuredSizes((current) => {
+      let next: Map<string, TopicMessageFlowNodeSize> | undefined
+      for (const change of changes) {
+        if (change.type !== 'dimensions' || !change.dimensions) continue
+        const size = { width: Math.ceil(change.dimensions.width), height: Math.ceil(change.dimensions.height) }
+        if (size.width <= 0 || size.height <= 0) continue
+        const previous = current.get(change.id)
+        if (previous?.width === size.width && previous.height === size.height) continue
+        next ??= new Map(current)
+        next.set(change.id, size)
+      }
+      return next ?? current
+    })
+  }, [])
+
+  const nodes = useMemo((): TopicMessageFlowNodeModel[] => {
+    const dataById = new Map(graph.nodes.map((node) => [node.id, node.data]))
+    return layout.nodes.map((node) => ({
+      ...node,
+      type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
+      data: {
+        ...dataById.get(node.id)!,
+        isActive: node.id === graph.activeNodeId
+      }
+    }))
+  }, [graph.activeNodeId, graph.nodes, layout.nodes])
+
+  const edges = useMemo(() => {
+    const dataById = new Map(graph.edges.map((edge) => [edge.id, edge.data]))
+    return layout.edges.map((edge) => ({
+      ...edge,
+      type: 'default' as const,
+      data: dataById.get(edge.id),
+      animated: false,
+      style: getEdgeStyle({ ...edge, data: dataById.get(edge.id) })
+    }))
+  }, [graph.edges, layout.edges])
 
   const handleNodeClick = useCallback<NodeMouseHandler<TopicMessageFlowNodeModel>>(
     (_event, node) => {
@@ -157,20 +200,20 @@ const TopicMessageFlowCanvas = ({
     const center = getNodeCenter(rootNode)
     return {
       key: `${rootNode.id}:${rootNode.position.x}:${rootNode.position.y}`,
-      centerX: center.x,
-      positionY: rootNode.position.y
+      positionX: rootNode.position.x,
+      centerY: center.y
     }
   }, [nodes])
   const rootFocusKey = rootFocusTarget?.key
-  const rootFocusCenterX = rootFocusTarget?.centerX
-  const rootFocusPositionY = rootFocusTarget?.positionY
+  const rootFocusPositionX = rootFocusTarget?.positionX
+  const rootFocusCenterY = rootFocusTarget?.centerY
   const focusSignature = rootFocusKey ? String(focusKey ?? 'initial') : null
   const [initialViewport, setInitialViewport] = useState<{ signature: string; viewport: Viewport } | null>(null)
   const initialViewportSignatureRef = useRef<string | null>(null)
   const readyViewport = initialViewport?.signature === focusSignature ? initialViewport.viewport : null
 
   useEffect(() => {
-    if (!layoutReady || !focusSignature || rootFocusCenterX === undefined || rootFocusPositionY === undefined) return
+    if (!layoutReady || !focusSignature || rootFocusPositionX === undefined || rootFocusCenterY === undefined) return
     if (initialViewportSignatureRef.current === focusSignature) return
 
     let frame = 0
@@ -178,8 +221,8 @@ const TopicMessageFlowCanvas = ({
 
     const measure = () => {
       if (cancelled) return
-      const containerWidth = containerRef.current?.clientWidth ?? 0
-      if (containerWidth <= 0) {
+      const containerHeight = containerRef.current?.clientHeight ?? 0
+      if (containerHeight <= 0) {
         frame = window.requestAnimationFrame(measure)
         return
       }
@@ -187,7 +230,7 @@ const TopicMessageFlowCanvas = ({
       initialViewportSignatureRef.current = focusSignature
       setInitialViewport({
         signature: focusSignature,
-        viewport: getRootFocusViewport(containerWidth, rootFocusCenterX, rootFocusPositionY)
+        viewport: getRootFocusViewport(containerHeight, rootFocusPositionX, rootFocusCenterY)
       })
     }
 
@@ -197,7 +240,7 @@ const TopicMessageFlowCanvas = ({
       cancelled = true
       window.cancelAnimationFrame(frame)
     }
-  }, [focusSignature, layoutReady, rootFocusCenterX, rootFocusPositionY])
+  }, [focusSignature, layoutReady, rootFocusPositionX, rootFocusCenterY])
 
   useEffect(() => {
     if (!reactFlowInstance || !readyViewport) return
@@ -222,7 +265,7 @@ const TopicMessageFlowCanvas = ({
     <div
       ref={containerRef}
       className={cn(
-        'relative h-full min-h-[320px] overflow-hidden rounded-md border border-border bg-background',
+        'relative h-full min-h-[320px] overflow-hidden rounded-md border border-border bg-background-subtle',
         className
       )}>
       {layoutReady && readyViewport && (
@@ -245,16 +288,18 @@ const TopicMessageFlowCanvas = ({
           onInit={setReactFlowInstance}
           onNodeClick={handleNodeClick}
           onNodeContextMenu={handleNodeContextMenu}
+          onNodesChange={handleNodesChange}
           onlyRenderVisibleElements
           panOnDrag
           proOptions={proOptions}
           selectionKeyCode={null}
           zoomOnDoubleClick={false}>
-          <TopicMessageFlowLegend />
           <MiniMap
             bgColor="var(--card)"
-            className="overflow-hidden rounded-md border border-border shadow-sm"
-            maskColor="color-mix(in srgb, var(--background) 72%, transparent)"
+            className="overflow-hidden rounded-md border border-border-strong shadow-sm"
+            maskColor="color-mix(in srgb, var(--background) 16%, transparent)"
+            maskStrokeColor="var(--primary)"
+            maskStrokeWidth={1.5}
             nodeColor={getMiniMapNodeColor}
             pannable
             position="bottom-right"

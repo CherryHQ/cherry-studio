@@ -55,7 +55,7 @@ export interface TopicMessageFlowGraph {
 
 export type TopicMessageFlowNodeModel = Node<TopicMessageFlowNodeData, typeof TOPIC_MESSAGE_FLOW_NODE_TYPE>
 
-export type TopicMessageFlowEdgeModel = Edge<TopicMessageFlowEdgeData, 'smoothstep'>
+export type TopicMessageFlowEdgeModel = Edge<TopicMessageFlowEdgeData, 'default'>
 
 export interface TopicMessageFlowLayout {
   nodes: TopicMessageFlowNodeModel[]

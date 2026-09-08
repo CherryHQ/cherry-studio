@@ -15,8 +15,20 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { Activity, GitBranch } from 'lucide-react'
-import type { PropsWithChildren } from 'react'
-import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+import type { Dispatch, PropsWithChildren, SetStateAction } from 'react'
+import {
+  Activity as ReactActivity,
+  createContext,
+  lazy,
+  Suspense,
+  use,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
@@ -90,6 +102,16 @@ function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
 const TopicBranchLiveStateStoreContext = createContext<TopicBranchLiveStateStore | null>(null)
 const TopicRightPaneViewportContext = createContext<TopicRightPaneViewportCallbacks | null>(null)
 
+interface TopicBranchTarget extends TopicRightPaneViewportCallbacks {
+  element: HTMLDivElement
+  topicId: string
+}
+
+const TopicBranchTargetContext = createContext<{
+  target: TopicBranchTarget | null
+  setTarget: Dispatch<SetStateAction<TopicBranchTarget | null>>
+} | null>(null)
+
 function useTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const store = use(TopicBranchLiveStateStoreContext)
   if (!store) throw new Error('useTopicBranchLiveStateStore must be used within <TopicRightPane.Scope>')
@@ -114,27 +136,52 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+function TopicBranchRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  const context = use(TopicBranchTargetContext)!
+  const { onLocateMessage } = useTopicRightPaneViewport()
+  const { setTarget } = context
+  const topicId = scope.topicId
+  const registerTarget = useCallback(
+    (element: HTMLDivElement | null) => {
+      // Retain the host when Activity hides the pane so the canvas keeps its viewport.
+      if (!topicId || !element) return
+      setTarget((current) =>
+        current?.element === element && current.onLocateMessage === onLocateMessage
+          ? current
+          : { element, topicId, onLocateMessage }
+      )
+    },
+    [onLocateMessage, setTarget, topicId]
+  )
+
+  return <div ref={registerTarget} className="h-full min-h-0" />
+}
+
+export function TopicBranchPortal({ topicId, topicName }: { topicId: string; topicName?: string }) {
+  const context = use(TopicBranchTargetContext)
+  if (!context?.target || context.target.topicId !== topicId) return null
+  return <TopicBranchPortalContent target={context.target} topicName={topicName} />
+}
+
+function TopicBranchPortalContent({ target, topicName }: { target: TopicBranchTarget; topicName?: string }) {
   const panelState = useRightPanelState()
-  const branchLiveState = useTopicBranchLiveState(scope.topicId ?? '')
-  const callbacks = useTopicRightPaneViewport()
-  const canvasFocusKey = `${scope.topicId ?? ''}:${panelState.maximized ? 'maximized' : 'docked'}:${panelState.pdfLayoutRefreshKey}`
-  const canvasLayoutReady = panelState.maximized || !panelState.pdfLayoutPending
+  const branchLiveState = useTopicBranchLiveState(target.topicId)
+  const canvasFocusKey = `${target.topicId}:${panelState.pdfLayoutRefreshKey}`
 
-  if (!scope.topicId) return null
-
-  return (
-    <Suspense fallback={null}>
-      <TopicBranchPanel
-        open={active}
-        topicId={scope.topicId}
-        topicName={scope.topicName}
-        liveState={branchLiveState}
-        focusKey={canvasFocusKey}
-        layoutReady={canvasLayoutReady}
-        onLocateMessage={callbacks.onLocateMessage}
-      />
-    </Suspense>
+  return createPortal(
+    <ReactActivity mode={panelState.isActive('branch') ? 'visible' : 'hidden'}>
+      <Suspense fallback={null}>
+        <TopicBranchPanel
+          open={panelState.isActive('branch')}
+          topicId={target.topicId}
+          topicName={topicName}
+          liveState={branchLiveState}
+          focusKey={canvasFocusKey}
+          onLocateMessage={target.onLocateMessage}
+        />
+      </Suspense>
+    </ReactActivity>,
+    target.element
   )
 }
 
@@ -168,7 +215,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
       title: scope.branchTitle,
       readiness: scope.topicId ? 'ready' : 'unavailable',
-      canMaximize: true
+      maximizedOnly: true
     })
   },
   TOPIC_TRACE_PANE_CAPABILITY
@@ -197,6 +244,8 @@ function TopicRightPaneProvider({
 >) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const [target, setTarget] = useState<TopicBranchTarget | null>(null)
+  const targetContext = useMemo(() => ({ target, setTarget }), [target])
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
   if (!storeRef.current) storeRef.current = createTopicBranchLiveStateStore()
   const scope = useMemo<TopicRightPanelScope>(
@@ -222,7 +271,9 @@ function TopicRightPaneProvider({
       userOpenIntentSeq={userOpenIntentSeq}
       present={present}>
       <ResourcePaneLocateOpener revealRequest={revealRequest} />
-      <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
+      <TopicBranchLiveStateStoreContext value={storeRef.current}>
+        <TopicBranchTargetContext value={targetContext}>{children}</TopicBranchTargetContext>
+      </TopicBranchLiveStateStoreContext>
     </RightPanelProvider>
   )
 }

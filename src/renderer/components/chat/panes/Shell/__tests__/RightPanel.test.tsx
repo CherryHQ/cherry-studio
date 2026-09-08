@@ -133,6 +133,7 @@ interface TestScope {
   firstKey: string
   firstReadiness: RightPanelReadiness
   firstHeaderMode?: 'shell' | 'content'
+  firstMaximizedOnly?: boolean
   firstShouldThrow?: boolean
   secondReadiness: RightPanelReadiness
 }
@@ -160,6 +161,7 @@ const capabilities = [
       title: 'First',
       readiness: scope.firstReadiness,
       headerMode: scope.firstHeaderMode,
+      maximizedOnly: scope.firstMaximizedOnly,
       canMaximize: true
     })
   },
@@ -197,6 +199,9 @@ function ControllerProbe() {
       </button>
       <button type="button" onClick={() => actions.tryOpen('second')}>
         open second
+      </button>
+      <button type="button" onClick={actions.minimize}>
+        restore panel
       </button>
     </>
   )
@@ -407,6 +412,38 @@ describe('RightPanel', () => {
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'false')
     expect(screen.getByTestId('presentation-maximized')).toHaveTextContent('false')
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+  })
+
+  it('applies maximized-only presentation to direct opens without maximizing other panels', () => {
+    render(
+      <Harness scope={{ ...readyScope, firstMaximizedOnly: true }}>
+        <RightPanelViewport />
+      </Harness>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open first' }))
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'true')
+    expect(screen.queryByRole('button', { name: 'common.minimize' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second' }))
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'false')
+  })
+
+  it('closes a maximized-only panel when its caller requests restoration', () => {
+    render(
+      <Harness defaultOpen scope={{ ...readyScope, firstMaximizedOnly: true }}>
+        <RightPanelViewport />
+      </Harness>
+    )
+
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'restore panel' }))
+    expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('true')
+    fireEvent.click(screen.getByRole('button', { name: 'settle pane' }))
+    expect(screen.getByTestId('composer-elevated')).toHaveTextContent('false')
   })
 
   it('lets a content-composed panel replace the shell header', () => {

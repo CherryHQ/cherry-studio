@@ -4,8 +4,9 @@ import type { MessageListActions, MessageStreamingLayers } from '@renderer/compo
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { FC } from 'react'
+import { type FC, useMemo } from 'react'
 
+import { TopicBranchPortal } from './components/TopicRightPane'
 import { useHomeMessageListProviderValue } from './messages/homeMessageListAdapter'
 
 interface ChatMainProps {
@@ -51,10 +52,25 @@ const ChatMain: FC<ChatMainProps> = ({
     openCitationsPanel,
     onStartBranchDraft
   })
+  const branchValue = useMemo(
+    () => ({
+      ...value,
+      state: {
+        ...value.state,
+        renderConfig: { ...value.state.renderConfig, renderInputMessageAsMarkdown: true }
+      }
+    }),
+    [value]
+  )
   return (
-    <MessageListProvider value={value}>
-      <MessageList enableSearch />
-    </MessageListProvider>
+    <>
+      <MessageListProvider value={value}>
+        <MessageList enableSearch />
+      </MessageListProvider>
+      <MessageListProvider value={branchValue}>
+        <TopicBranchPortal topicId={topic.id} topicName={topic.name} />
+      </MessageListProvider>
+    </>
   )
 }
 

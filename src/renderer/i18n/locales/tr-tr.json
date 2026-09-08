@@ -686,7 +686,7 @@
   "chat.message.flow.copy_topic.label": "Yeni Konuşma Olarak Kopyala",
   "chat.message.flow.nodes": "düğümler",
   "chat.message.flow.status.awaiting_input": "Girdi bekleniyor",
-  "chat.message.flow.title": "Dal Yönetimi",
+  "chat.message.flow.title": "Gelişmiş Görünüm",
   "chat.message.more": "Diğer eylemler",
   "chat.message.new.branch.created": "Yeni Dal Oluşturuldu",
   "chat.message.new.branch.label": "Yeni Dal",

@@ -686,7 +686,7 @@
   "chat.message.flow.copy_topic.label": "Скопировать как новый разговор",
   "chat.message.flow.nodes": "узлы",
   "chat.message.flow.status.awaiting_input": "Ожидание ввода",
-  "chat.message.flow.title": "Управление филиалами",
+  "chat.message.flow.title": "Расширенный вид",
   "chat.message.more": "Дополнительные действия",
   "chat.message.new.branch.created": "Новая ветка создана",
   "chat.message.new.branch.label": "Новая ветка",

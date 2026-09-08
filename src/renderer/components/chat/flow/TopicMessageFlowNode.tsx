@@ -1,60 +1,46 @@
-import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
-import { useQuery } from '@data/hooks/useDataApi'
+import { Button } from '@cherrystudio/ui'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
+import { MessagePartsScopeProvider, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import MessageAvatar from '@renderer/components/chat/messages/frame/MessageAvatar'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
-import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
-import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
-import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
+import MessageErrorBoundary from '@renderer/components/chat/messages/frame/MessageErrorBoundary'
+import MessageMenuBar from '@renderer/components/chat/messages/frame/MessageMenuBar'
+import {
+  useMessageListActions,
+  useMessageListData,
+  useMessageListEditingId,
+  useMessageListItemActivityState,
+  useMessageListMeta,
+  useMessageRenderConfig
+} from '@renderer/components/chat/messages/MessageListProvider'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import {
+  getMessageListItemModelName,
+  toMessageListItem
+} from '@renderer/components/chat/messages/utils/messageListItem'
+import { LoadingState } from '@renderer/components/chat/primitives'
+import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
+import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import dayjs from 'dayjs'
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { UserRound } from 'lucide-react'
+import type { RefObject } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { TopicMessageFlowNodeModel } from './types'
+import type { TopicMessageFlowNodeData, TopicMessageFlowNodeModel } from './types'
 
-const PREVIEW_OPEN_DELAY_MS = 300
-const PREVIEW_CLOSE_DELAY_MS = 120
-const PREVIEW_OPEN_TIMER_KEY = 'topic-message-flow-node-preview-open'
-const PREVIEW_CLOSE_TIMER_KEY = 'topic-message-flow-node-preview-close'
-const bodyXsTypographyClassName = 'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)]'
-const bodySmTypographyClassName = 'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]'
-
-const roleClassNames: Record<MessageRole, string> = {
-  user: 'border-success-border bg-success-subtle',
-  assistant: 'border-info-border bg-info-subtle',
-  system: 'border-border bg-muted/45',
-  // The virtual root is never rendered as a flow node; entry exists only to satisfy the
-  // exhaustive Record<MessageRole> type.
-  root: 'border-border bg-muted/45'
-}
-
-const statusDotClassNames: Record<MessageStatus, string> = {
+const STATUS_DOT_CLASS_NAMES: Record<MessageStatus, string> = {
   pending: 'bg-warning',
-  success: 'bg-success',
+  success: 'bg-foreground-disabled',
   error: 'bg-error',
   paused: 'border border-border-strong bg-muted'
 }
 
-function getModelShortLabel(modelId?: string | null) {
-  if (!modelId) return ''
-
-  const value = modelId.trim()
-  if (!value) return ''
-
-  return value.split('/').at(-1)?.split(':').at(-1) ?? value
-}
-
-function formatNodeTime(createdAt: string) {
-  const value = dayjs(createdAt)
-  return value.isValid() ? value.format('MM/DD HH:mm') : createdAt || '-'
-}
-
 function useRoleLabel(role: MessageRole, isContextBoundary?: boolean) {
   const { t } = useTranslation()
-
   if (isContextBoundary) return t('chat.message.new.context')
   if (role === 'user') return t('export.user')
   if (role === 'assistant') return t('export.assistant')
@@ -63,7 +49,6 @@ function useRoleLabel(role: MessageRole, isContextBoundary?: boolean) {
 
 function useStatusLabel(status: MessageStatus, isAwaitingInput?: boolean) {
   const { t } = useTranslation()
-
   if (isAwaitingInput) return t('chat.message.flow.status.awaiting_input')
   if (status === 'pending') return t('common.loading')
   if (status === 'success') return t('common.completed')
@@ -71,238 +56,201 @@ function useStatusLabel(status: MessageStatus, isAwaitingInput?: boolean) {
   return t('agent.task.status.paused')
 }
 
-interface TopicMessageFlowNodePreviewCardProps {
-  messageId: string
-  open: boolean
-  roleLabel: string
-  statusLabel: string
-  modelLabel: string
-  timeLabel: string
-}
-
-function TopicMessageFlowNodePreviewCard({
-  messageId,
-  open,
-  roleLabel,
-  statusLabel,
-  modelLabel,
-  timeLabel
-}: TopicMessageFlowNodePreviewCardProps) {
+function TopicMessageFlowHeader({
+  data,
+  message
+}: {
+  data: TopicMessageFlowNodeData
+  message?: MessageListItem | null
+}) {
   const { t } = useTranslation()
-  const {
-    data: message,
-    error,
-    isLoading
-  } = useQuery('/messages/:id', {
-    enabled: open,
-    params: { id: messageId }
-  })
-  const uiMessage = useMemo(() => (message ? sharedMessageToUIMessage(message) : null), [message])
-  const messageItems = useMemo(
-    () =>
-      uiMessage && message
-        ? [
-            toMessageListItem(uiMessage, {
-              topicId: message.topicId
-            })
-          ]
-        : [],
-    [message, uiMessage]
+  const meta = useMessageListMeta()
+  const renderConfig = useMessageRenderConfig()
+  const roleLabel = useRoleLabel(data.role, data.isContextBoundary)
+  const statusLabel = useStatusLabel(data.status, data.isAwaitingInput)
+  const isAssistant = data.role === 'assistant'
+  const snapshot = message?.messageSnapshot
+  const modelName = isAssistant && message ? getMessageListItemModelName(message) : ''
+  const authorName = snapshot ? snapshot.name : meta.assistantProfile?.name
+  const authorAvatar = snapshot ? snapshot.emoji : meta.assistantProfile?.avatar
+  const name = removeLeadingEmoji(
+    data.isContextBoundary
+      ? roleLabel
+      : isAssistant
+        ? authorName || modelName || roleLabel
+        : renderConfig.userName || t('common.you')
   )
-  const partsByMessageId = useMemo(() => (uiMessage ? uiMessagesToPartsMap([uiMessage]) : {}), [uiMessage])
-  const previewMessage = messageItems[0]
+  const time = dayjs(data.createdAt)
 
   return (
-    <div className="flex min-h-0 flex-col">
-      <div className="mb-3 flex min-w-0 items-start justify-between gap-3 border-border-subtle border-b pb-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={cn(
-              'shrink-0 rounded-3xs bg-muted px-1.5 py-0.5 font-medium text-foreground',
-              bodyXsTypographyClassName
-            )}>
-            {roleLabel}
+    <Button
+      variant="ghost"
+      className="nodrag h-auto w-full shrink-0 justify-start gap-2.5 rounded-lg px-4 py-3 text-left">
+      <MessageAvatar
+        avatar={isAssistant ? authorAvatar : meta.userProfile?.avatar}
+        fallback={isAssistant ? firstLetter(name).toUpperCase() : <UserRound className="size-4" />}
+      />
+      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="max-w-full truncate font-medium text-sm" title={name}>
+          {name}
+        </span>
+        {modelName && (
+          <span className="max-w-full truncate text-muted-foreground text-xs" title={modelName}>
+            {modelName}
           </span>
-          {modelLabel ? (
-            <span className={cn('truncate font-mono text-foreground-tertiary', bodyXsTypographyClassName)}>
-              {modelLabel}
-            </span>
-          ) : null}
-        </div>
-        <div className={cn('shrink-0 text-right text-foreground-tertiary', bodyXsTypographyClassName)}>
-          <div>{statusLabel}</div>
-          <time dateTime={message?.createdAt ?? undefined}>{timeLabel}</time>
-        </div>
-      </div>
+        )}
+      </span>
+      <span className="ml-auto flex shrink-0 items-center gap-2 text-muted-foreground text-xs">
+        {(data.status !== 'success' || data.isAwaitingInput) && (
+          <span
+            aria-label={statusLabel}
+            className={cn(
+              'size-1.5 rounded-full',
+              data.isAwaitingInput ? 'bg-warning' : STATUS_DOT_CLASS_NAMES[data.status]
+            )}
+          />
+        )}
+        {time.isValid() && <time dateTime={data.createdAt}>{time.format('MM/DD HH:mm')}</time>}
+      </span>
+    </Button>
+  )
+}
 
-      {error ? (
-        <div
-          className={cn('flex min-h-24 items-center justify-center text-destructive', bodySmTypographyClassName)}
-          role="alert">
-          {t('common.error')}
-        </div>
-      ) : isLoading || !message ? (
-        <LoadingState
-          className="min-h-24 justify-center"
-          data-testid="topic-message-flow-preview-loading"
-          label={t('common.loading')}
-        />
-      ) : previewMessage ? (
-        <MessageContentProvider
-          messages={messageItems}
-          partsByMessageId={partsByMessageId}
-          renderConfig={{ narrowMode: false, showMessageOutline: false }}>
-          <div className={cn('min-w-0', bodySmTypographyClassName)}>
-            <MessageContent message={previewMessage} />
+function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeData }) {
+  const { t } = useTranslation()
+  const { messages, topic } = useMessageListData()
+  const actions = useMessageListActions()
+  const renderConfig = useMessageRenderConfig()
+  const editingMessageId = useMessageListEditingId()
+  const partsByMessageId = usePartsMap()
+  const messageContainerRef = useRef<HTMLDivElement>(null)
+  const {
+    data: persistedMessage,
+    error,
+    refetch
+  } = useQuery('/messages/:id', {
+    params: { id: data.messageId },
+    swrOptions: { keepPreviousData: false }
+  })
+  useDataChange('/messages/:id', () => void refetch(), { routeParams: { id: data.messageId } })
+
+  const liveMessage = messages.find((message) => message.id === data.messageId)
+  const message = useMemo(() => {
+    const source =
+      liveMessage ??
+      (persistedMessage
+        ? toMessageListItem(sharedMessageToUIMessage(persistedMessage), {
+            topicId: topic.id,
+            assistantId: topic.assistantId
+          })
+        : null)
+    return source ? { ...source, isActiveBranch: data.isOnActivePath } : null
+  }, [data.isOnActivePath, liveMessage, persistedMessage, topic.assistantId, topic.id])
+  const parts = partsByMessageId?.[data.messageId] ?? persistedMessage?.data.parts
+  const startEditing = useCallback(() => {
+    if (message && parts) actions.startEditing?.(message, parts)
+  }, [actions, message, parts])
+
+  return (
+    <>
+      <TopicMessageFlowHeader data={data} message={message} />
+      {!message || !parts ? (
+        error ? (
+          <div className="px-4 py-6 text-destructive text-sm" role="alert">
+            {t('common.error')}
           </div>
-        </MessageContentProvider>
+        ) : (
+          <LoadingState className="min-h-24 justify-center" label={t('common.loading')} />
+        )
       ) : (
-        <EmptyState className="min-h-24 py-4" compact preset="no-result" title={t('common.no_results')} />
+        <MessagePartsScopeProvider messageId={message.id} parts={parts}>
+          <div
+            className="nodrag nopan flex min-h-0 min-w-0 flex-col pb-3"
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={(event) => event.stopPropagation()}
+            style={{
+              fontSize: renderConfig.fontSize,
+              fontFamily: renderConfig.messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)'
+            }}>
+            <div
+              ref={messageContainerRef}
+              className="nowheel min-h-0 cursor-auto select-text overflow-y-auto overscroll-contain px-4">
+              <MessageErrorBoundary>
+                <MessageContent message={message} defaultUserContentExpanded />
+              </MessageErrorBoundary>
+            </div>
+            <TopicMessageFlowMessageActions
+              message={message}
+              messageContainerRef={messageContainerRef}
+              onStartEditing={startEditing}
+              isEditing={editingMessageId === message.id}
+            />
+          </div>
+        </MessagePartsScopeProvider>
       )}
+    </>
+  )
+}
+
+function TopicMessageFlowMessageActions({
+  message,
+  messageContainerRef,
+  onStartEditing,
+  isEditing
+}: {
+  message: MessageListItem
+  messageContainerRef: RefObject<HTMLDivElement | null>
+  onStartEditing: () => void
+  isEditing: boolean
+}) {
+  const activity = useMessageListItemActivityState(message)
+  if (isEditing || activity.isStreamTarget || activity.isApprovalAnchor) return null
+
+  return (
+    <div className="mx-4 mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-border border-t pt-2 text-muted-foreground">
+      <MessageMenuBar
+        message={message}
+        isLastMessage={false}
+        forceVisible
+        isAssistantMessage={message.role === 'assistant'}
+        isProcessing={activity.isProcessing}
+        messageContainerRef={messageContainerRef as RefObject<HTMLDivElement>}
+        onStartEditing={onStartEditing}
+        variant={message.role === 'assistant' ? 'footer' : 'header'}
+      />
     </div>
   )
 }
 
 const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNodeModel>) => {
   const { t } = useTranslation()
-  const roleLabel = useRoleLabel(data.role, data.isContextBoundary)
   const statusLabel = useStatusLabel(data.status, data.isAwaitingInput)
-  const modelLabel = getModelShortLabel(data.modelId)
-  const timeLabel = formatNodeTime(data.createdAt)
-  const [open, setOpen] = useState(false)
-  const { clearTimeoutTimer, setTimeoutTimer } = useTimer()
-  const openTimerPendingRef = useRef(false)
-  const hasOpenedDuringHoverRef = useRef(false)
-
-  const clearOpenTimer = useCallback(() => {
-    clearTimeoutTimer(PREVIEW_OPEN_TIMER_KEY)
-    openTimerPendingRef.current = false
-  }, [clearTimeoutTimer])
-
-  const clearCloseTimer = useCallback(() => {
-    clearTimeoutTimer(PREVIEW_CLOSE_TIMER_KEY)
-  }, [clearTimeoutTimer])
-
-  const scheduleOpen = useCallback(() => {
-    clearCloseTimer()
-    if (open || hasOpenedDuringHoverRef.current || openTimerPendingRef.current) return
-
-    openTimerPendingRef.current = true
-    setTimeoutTimer(
-      PREVIEW_OPEN_TIMER_KEY,
-      () => {
-        openTimerPendingRef.current = false
-        hasOpenedDuringHoverRef.current = true
-        setOpen(true)
-      },
-      PREVIEW_OPEN_DELAY_MS
-    )
-  }, [clearCloseTimer, open, setTimeoutTimer])
-
-  const keepOpen = useCallback(() => {
-    clearCloseTimer()
-  }, [clearCloseTimer])
-
-  const scheduleClose = useCallback(() => {
-    clearOpenTimer()
-    clearCloseTimer()
-    setTimeoutTimer(
-      PREVIEW_CLOSE_TIMER_KEY,
-      () => {
-        setOpen(false)
-        hasOpenedDuringHoverRef.current = false
-      },
-      PREVIEW_CLOSE_DELAY_MS
-    )
-  }, [clearCloseTimer, clearOpenTimer, setTimeoutTimer])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverAnchor asChild>
-        <div
-          className={cn(
-            'group/topic-message-flow-node relative w-55 rounded-md border bg-card px-3 py-2 shadow-xs transition-[border-color,box-shadow,opacity]',
-            roleClassNames[data.role],
-            data.isContextBoundary && 'border-border bg-muted/45',
-            data.isAwaitingInput && 'border-warning-border bg-warning-subtle',
-            data.isActive &&
-              (data.isAwaitingInput
-                ? 'shadow-sm ring-2 ring-warning/25'
-                : 'border-primary shadow-sm ring-2 ring-primary/20'),
-            selected && !data.isActive && (data.isAwaitingInput ? 'ring-2 ring-warning/25' : 'ring-2 ring-primary/25'),
-            data.isInactiveBranch && 'opacity-55'
-          )}
-          data-active={data.isActive ? 'true' : 'false'}
-          data-message-id={data.messageId}
-          data-on-active-path={data.isOnActivePath ? 'true' : 'false'}
-          onMouseEnter={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleOpen}
-          onMouseLeave={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleClose}
-          onMouseMove={data.isAwaitingInput || data.isContextBoundary ? undefined : scheduleOpen}>
-          <Handle className="opacity-0" isConnectable={false} position={Position.Top} type="target" />
-
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span
-                className={cn(
-                  'shrink-0 rounded-3xs bg-background/70 px-1.5 py-0.5 font-medium text-foreground',
-                  bodyXsTypographyClassName
-                )}>
-                {roleLabel}
-              </span>
-              {modelLabel ? (
-                <span className={cn('truncate font-mono text-foreground-tertiary', bodyXsTypographyClassName)}>
-                  {modelLabel}
-                </span>
-              ) : null}
-            </div>
-          </div>
-
-          <p className={cn('mt-2 line-clamp-2 min-h-9 text-foreground', bodyXsTypographyClassName)}>
-            {data.isContextBoundary ? t('chat.message.new.context') : data.preview || '-'}
+    <div
+      className={cn(
+        'group/message relative flex max-h-105 min-w-0 flex-col rounded-lg border border-border-strong bg-card text-card-foreground',
+        data.role === 'user' && 'bg-chat-user',
+        data.isAwaitingInput && 'border-warning-border bg-warning-subtle',
+        (data.isActive || selected) && 'border-border-selected ring-1 ring-border-selected ring-inset',
+        data.isContextBoundary && 'bg-muted'
+      )}
+      data-active={data.isActive ? 'true' : 'false'}
+      data-message-id={data.messageId}
+      data-on-active-path={data.isOnActivePath ? 'true' : 'false'}>
+      <Handle className="opacity-0" isConnectable={false} position={Position.Left} type="target" />
+      {data.isAwaitingInput || data.isContextBoundary ? (
+        <>
+          <TopicMessageFlowHeader data={data} />
+          <p className="px-4 pb-4 text-muted-foreground text-sm">
+            {data.isContextBoundary ? t('chat.message.new.context') : statusLabel}
           </p>
-
-          <div
-            className={cn(
-              'mt-2 flex items-center justify-between gap-2 text-foreground-tertiary',
-              bodyXsTypographyClassName
-            )}>
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span
-                className={cn(
-                  'size-1.5 shrink-0 rounded-full',
-                  data.isAwaitingInput ? 'bg-warning' : statusDotClassNames[data.status]
-                )}
-              />
-              <span className="truncate">{statusLabel}</span>
-            </span>
-            <time className="shrink-0" dateTime={data.createdAt}>
-              {timeLabel}
-            </time>
-          </div>
-
-          <Handle className="opacity-0" isConnectable={false} position={Position.Bottom} type="source" />
-        </div>
-      </PopoverAnchor>
-      <PopoverContent
-        align="center"
-        className="z-80 max-h-[60vh] w-96 overflow-y-auto p-4"
-        onMouseEnter={keepOpen}
-        onMouseLeave={scheduleClose}
-        onOpenAutoFocus={(event) => event.preventDefault()}
-        side="right"
-        sideOffset={10}>
-        {open && !data.isAwaitingInput && !data.isContextBoundary ? (
-          <TopicMessageFlowNodePreviewCard
-            messageId={data.messageId}
-            modelLabel={modelLabel}
-            open={open}
-            roleLabel={roleLabel}
-            statusLabel={statusLabel}
-            timeLabel={timeLabel}
-          />
-        ) : null}
-      </PopoverContent>
-    </Popover>
+        </>
+      ) : (
+        <TopicMessageFlowMessage data={data} />
+      )}
+      <Handle className="opacity-0" isConnectable={false} position={Position.Right} type="source" />
+    </div>
   )
 }
 

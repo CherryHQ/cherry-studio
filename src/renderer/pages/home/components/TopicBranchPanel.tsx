@@ -5,7 +5,6 @@ import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/action
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   buildTopicMessageFlowGraph,
-  layoutTopicMessageFlowGraph,
   mergeTopicMessageFlowLiveTree,
   TopicMessageFlowCanvas,
   type TopicMessageFlowLiveState
@@ -84,7 +83,7 @@ const TopicBranchPanel: FC<Props> = ({
     () => mergeTopicMessageFlowLiveTree(data ?? emptyTree, liveState?.topicId === topicId ? liveState : null),
     [data, liveState, topicId]
   )
-  const graph = useMemo(() => layoutTopicMessageFlowGraph(buildTopicMessageFlowGraph(tree)), [tree])
+  const graph = useMemo(() => buildTopicMessageFlowGraph(tree), [tree])
 
   const handleNodeSelect = useCallback(
     async (messageId: string) => {

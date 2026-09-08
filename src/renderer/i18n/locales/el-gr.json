@@ -686,7 +686,7 @@
   "chat.message.flow.copy_topic.label": "Αντιγραφή ως Νέα Συνομιλία",
   "chat.message.flow.nodes": "κόμβοι",
   "chat.message.flow.status.awaiting_input": "Αναμονή εισόδου",
-  "chat.message.flow.title": "Διαχείριση Κλάδων",
+  "chat.message.flow.title": "Σύνθετη προβολή",
   "chat.message.more": "Περισσότερες ενέργειες",
   "chat.message.new.branch.created": "Νέα διακοπή δημιουργήθηκε",
   "chat.message.new.branch.label": "Διακοπή",

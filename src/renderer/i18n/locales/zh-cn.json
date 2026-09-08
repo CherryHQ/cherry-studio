@@ -686,7 +686,7 @@
   "chat.message.flow.copy_topic.label": "复制为新对话",
   "chat.message.flow.nodes": "节点",
   "chat.message.flow.status.awaiting_input": "待输入",
-  "chat.message.flow.title": "分支管理",
+  "chat.message.flow.title": "高阶视图",
   "chat.message.more": "更多操作",
   "chat.message.new.branch.created": "新分支已创建",
   "chat.message.new.branch.label": "分支",

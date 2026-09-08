@@ -686,7 +686,7 @@
   "chat.message.flow.copy_topic.label": "Copy as New Conversation",
   "chat.message.flow.nodes": "nodes",
   "chat.message.flow.status.awaiting_input": "Awaiting input",
-  "chat.message.flow.title": "Branch Management",
+  "chat.message.flow.title": "Advanced View",
   "chat.message.more": "More actions",
   "chat.message.new.branch.created": "New Branch Created",
   "chat.message.new.branch.label": "New Branch",

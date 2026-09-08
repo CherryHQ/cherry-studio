@@ -1,83 +1,59 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
-import type { ComponentProps, ReactElement, ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
+import type { MessageListActions, MessageListItem } from '@renderer/components/chat/messages/types'
+import type { Topic } from '@renderer/types/topic'
+import type { CherryMessagePart, Message } from '@shared/data/types/message'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { fireEvent, render, screen } from '@testing-library/react'
+import type { ComponentProps } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TopicMessageFlowNode from '../TopicMessageFlowNode'
 import type { TopicMessageFlowNodeData } from '../types'
 
-const mocks = vi.hoisted(() => ({
-  messageContentProps: [] as Array<{ message: { id: string } }>,
-  messageProviderProps: [] as Array<{
-    messages: Array<{ id: string }>
-    partsByMessageId: Record<string, unknown[]>
-  }>,
-  useQuery: vi.fn()
-}))
-
-vi.mock('@data/hooks/useDataApi', () => ({
-  useQuery: mocks.useQuery
-}))
-
 vi.mock('@xyflow/react', () => ({
-  Handle: () => <span data-testid="flow-handle" />,
-  Position: {
-    Bottom: 'bottom',
-    Top: 'top'
-  }
+  Handle: () => null,
+  Position: { Left: 'left', Right: 'right' }
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
-  const ReactModule = await import('react')
-  const PopoverContext = ReactModule.createContext(false)
-
+vi.mock('@renderer/components/chat/messages/frame/MessageContent', async () => {
+  const { useMessageParts } = await import('@renderer/components/chat/messages/blocks/MessagePartsContext')
   return {
-    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => (
-      <PopoverContext value={Boolean(open)}>{children}</PopoverContext>
-    ),
-    PopoverAnchor: ({ children }: { children: ReactElement }) => children,
-    PopoverContent: ({ children, ...props }: { children: ReactNode }) => {
-      const open = ReactModule.use(PopoverContext)
-      return open ? (
-        <div data-testid="message-preview-popover" {...props}>
-          {children}
-        </div>
-      ) : null
+    default: function MessageContent({ message }: { message: MessageListItem }) {
+      return (
+        <p>
+          {useMessageParts(message.id)
+            .map((part) => (part.type === 'text' ? part.text : ''))
+            .join('')}
+        </p>
+      )
     }
   }
 })
 
-vi.mock('@renderer/components/chat/primitives', () => ({
-  EmptyState: ({ title, ...props }: { title?: ReactNode }) => <div {...props}>{title}</div>,
-  LoadingState: ({ label, ...props }: { label?: ReactNode }) => <div {...props}>{label}</div>
-}))
-
-vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
-  MessageContentProvider: (props: {
-    children: ReactNode
-    messages: Array<{ id: string }>
-    partsByMessageId: Record<string, unknown[]>
-  }) => {
-    mocks.messageProviderProps.push(props)
-    return <div data-testid="message-content-provider">{props.children}</div>
+vi.mock('@renderer/components/chat/messages/frame/MessageMenuBar', async () => {
+  const { useMessageListActions } = await import('@renderer/components/chat/messages/MessageListProvider')
+  return {
+    default: function MessageMenuBar({
+      message,
+      onStartEditing
+    }: {
+      message: MessageListItem
+      onStartEditing: () => void
+    }) {
+      const actions = useMessageListActions()
+      return (
+        <>
+          <button type="button" onClick={onStartEditing}>
+            Edit message
+          </button>
+          <button type="button" onClick={() => actions.regenerateMessage?.(message.id)}>
+            Retry message
+          </button>
+        </>
+      )
+    }
   }
-}))
-
-vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
-  default: (props: { message: { id: string } }) => {
-    mocks.messageContentProps.push(props)
-    return <div data-testid="message-content">message:{props.message.id}</div>
-  }
-}))
-
-vi.mock('react-i18next', () => ({
-  initReactI18next: {
-    init: vi.fn(),
-    type: '3rdParty'
-  },
-  useTranslation: () => ({
-    t: (key: string) => key
-  })
-}))
+})
 
 const nodeData: TopicMessageFlowNodeData = {
   createdAt: '2026-01-01T00:01:00.000Z',
@@ -85,225 +61,161 @@ const nodeData: TopicMessageFlowNodeData = {
   isInactiveBranch: false,
   isOnActivePath: true,
   messageId: 'message-1',
-  modelId: 'openai/gpt-5-codex',
-  preview: 'Short preview',
+  preview: 'Truncated preview',
   role: 'assistant',
   status: 'success'
 }
 
-const message = {
+const message: Message = {
   id: 'message-1',
   topicId: 'topic-1',
-  parentId: null,
+  parentId: 'user-1',
   role: 'assistant',
-  data: {
-    parts: [{ type: 'text', text: 'Full message detail' }]
-  },
-  searchableText: 'Full message detail',
+  data: { parts: [{ type: 'text', text: 'Complete response including the final paragraph.' }] },
+  searchableText: '',
   status: 'success',
   siblingsGroupId: 0,
-  modelId: 'openai:gpt-5-codex',
+  modelId: null,
   messageSnapshot: null,
-  traceId: null,
   stats: null,
-  createdAt: '2026-01-01T00:01:00.000Z',
-  updatedAt: '2026-01-01T00:01:00.000Z'
+  createdAt: nodeData.createdAt,
+  updatedAt: nodeData.createdAt
 }
 
-function renderNode(overrides: Partial<TopicMessageFlowNodeData> = {}) {
-  const data = { ...nodeData, ...overrides }
+function NodeFixture({
+  data = nodeData,
+  actions = {},
+  partsByMessageId = {},
+  onSelect = () => {}
+}: {
+  data?: TopicMessageFlowNodeData
+  actions?: MessageListActions
+  partsByMessageId?: Record<string, CherryMessagePart[]>
+  onSelect?: () => void
+}) {
   const props = { data, id: data.messageId, selected: false } as ComponentProps<typeof TopicMessageFlowNode>
-  return render(<TopicMessageFlowNode {...props} />)
-}
-
-function getNodeElement() {
-  return screen.getByText('Short preview').closest('[data-message-id="message-1"]')!
-}
-
-async function advancePreviewDelay(ms = 300) {
-  await act(async () => {
-    vi.advanceTimersByTime(ms)
-  })
+  return (
+    <MessageContentProvider
+      messages={[]}
+      partsByMessageId={partsByMessageId}
+      topic={{ id: 'topic-1' } as Topic}
+      actions={actions}>
+      <div onClick={onSelect}>
+        <TopicMessageFlowNode {...props} />
+      </div>
+    </MessageContentProvider>
+  )
 }
 
 describe('TopicMessageFlowNode', () => {
   beforeEach(() => {
-    vi.useFakeTimers()
-    vi.clearAllMocks()
-    mocks.messageContentProps.length = 0
-    mocks.messageProviderProps.length = 0
-    mocks.useQuery.mockReturnValue({
-      data: undefined,
-      error: undefined,
-      isLoading: false
-    })
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/messages/:id', message)
   })
 
-  afterEach(() => {
-    vi.clearAllTimers()
-    vi.useRealTimers()
+  it('shows the complete saved response immediately on an inactive branch', () => {
+    render(<NodeFixture data={{ ...nodeData, isOnActivePath: false, isInactiveBranch: true }} />)
+    expect(screen.getByText('Complete response including the final paragraph.')).toBeVisible()
+    expect(screen.queryByText('Truncated preview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit message' })).toBeVisible()
   })
 
-  it.each([
-    ['user', 'user-message', 'User preview', 'border-success-border', 'bg-success-subtle'],
-    ['assistant', 'assistant-message', 'Assistant preview', 'border-info-border', 'bg-info-subtle'],
-    ['system', 'system-message', 'System preview', 'border-border', 'bg-muted/45']
-  ] as const)('keeps the %s role background color on canvas nodes', (role, messageId, preview, border, background) => {
-    renderNode({ messageId, preview, role })
-
-    expect(screen.getByText(preview).closest(`[data-message-id="${messageId}"]`)).toHaveClass(border, background)
+  it('uses live parts instead of the persisted response while streaming', () => {
+    const { rerender } = render(
+      <NodeFixture partsByMessageId={{ 'message-1': [{ type: 'text', text: 'First streamed chunk' }] }} />
+    )
+    expect(screen.getByText('First streamed chunk')).toBeVisible()
+    rerender(<NodeFixture partsByMessageId={{ 'message-1': [{ type: 'text', text: 'Latest streamed content' }] }} />)
+    expect(screen.getByText('Latest streamed content')).toBeVisible()
+    expect(screen.queryByText('First streamed chunk')).not.toBeInTheDocument()
+    expect(screen.queryByText('Complete response including the final paragraph.')).not.toBeInTheDocument()
   })
 
-  it('does not add a container border when a nested control receives focus', () => {
-    renderNode()
+  it('keeps an empty branch selectable and renders its content after the user sends it', () => {
+    let selected = false
+    const { rerender } = render(
+      <NodeFixture
+        data={{ ...nodeData, role: 'user', isAwaitingInput: true }}
+        onSelect={() => {
+          selected = true
+        }}
+      />
+    )
+    fireEvent.click(screen.getByRole('button'))
+    expect(selected).toBe(true)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
 
-    expect(getNodeElement()).not.toHaveClass('has-[:focus-visible]:border-primary')
-    expect(getNodeElement()).not.toHaveClass('focus-within:border-primary')
-  })
-
-  it('renders a clear marker as a neutral non-preview node', async () => {
-    renderNode({ isContextBoundary: true, role: 'user', preview: '' })
-
-    const labels = screen.getAllByText('chat.message.new.context')
-    const node = labels[0].closest('[data-message-id="message-1"]')!
-    expect(node).toHaveClass('border-border', 'bg-muted/45')
-
-    fireEvent.mouseEnter(node)
-    await advancePreviewDelay()
-    expect(mocks.useQuery).not.toHaveBeenCalled()
-  })
-
-  it('fetches the message preview only after hovering the node for 300ms', async () => {
-    renderNode()
-
-    expect(mocks.useQuery).not.toHaveBeenCalled()
-
-    fireEvent.mouseEnter(getNodeElement())
-    await advancePreviewDelay(299)
-
-    expect(mocks.useQuery).not.toHaveBeenCalled()
-
-    await advancePreviewDelay(1)
-
-    expect(mocks.useQuery).toHaveBeenCalledWith('/messages/:id', {
-      enabled: true,
-      params: { id: 'message-1' }
-    })
-  })
-
-  it('shows awaiting-input status without fetching an empty message preview', async () => {
-    renderNode({
-      isActive: true,
-      isAwaitingInput: true,
-      preview: '',
+    MockUseDataApiUtils.mockQueryData('/messages/:id', {
+      ...message,
       role: 'user',
-      status: 'success'
+      data: { parts: [{ type: 'text', text: 'Continue this branch' }] }
     })
-
-    const node = screen
-      .getAllByText('chat.message.flow.status.awaiting_input')[0]
-      .closest('[data-message-id="message-1"]')!
-
-    expect(node).toHaveTextContent('chat.message.flow.status.awaiting_input')
-    // Awaiting input owns the warning visual contract even while it is the active node.
-    expect(node).toHaveClass('border-warning-border', 'bg-warning-subtle', 'ring-warning/25')
-    expect(node).not.toHaveClass('border-primary', 'ring-primary/20')
-
-    fireEvent.mouseEnter(node)
-    await advancePreviewDelay()
-
-    expect(mocks.useQuery).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('message-preview-popover')).not.toBeInTheDocument()
+    rerender(<NodeFixture data={{ ...nodeData, role: 'user', isAwaitingInput: false }} />)
+    expect(screen.getByText('Continue this branch')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Edit message' })).toBeVisible()
   })
 
-  it('cancels the tooltip preview when hover ends before the delay', async () => {
-    renderNode()
+  it('edits and retries the card target without selecting its branch', () => {
+    let selected = false
+    let retried: string | undefined
+    let edited: { id: string; parts: CherryMessagePart[] } | undefined
+    render(
+      <NodeFixture
+        onSelect={() => {
+          selected = true
+        }}
+        actions={{
+          regenerateMessage: (id) => {
+            retried = id
+          },
+          startEditing: (item, parts) => {
+            edited = { id: item.id, parts }
+          }
+        }}
+      />
+    )
 
-    const node = getNodeElement()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry message' }))
+    expect(edited).toEqual({ id: 'message-1', parts: message.data.parts })
+    expect(retried).toBe('message-1')
+    expect(selected).toBe(false)
 
-    fireEvent.mouseEnter(node)
-    await advancePreviewDelay(250)
-    fireEvent.mouseLeave(node)
-    await advancePreviewDelay()
-
-    expect(mocks.useQuery).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('message-preview-popover')).not.toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button')[0])
+    expect(selected).toBe(true)
   })
 
-  it('opens the tooltip only once while moving inside the same hovered node', async () => {
-    mocks.useQuery.mockReturnValue({
-      data: message,
-      error: undefined,
-      isLoading: false
-    })
-
-    renderNode()
-
-    const node = getNodeElement()
-
-    fireEvent.mouseEnter(node)
-    fireEvent.mouseMove(node)
-    fireEvent.mouseMove(node)
-    await advancePreviewDelay()
-
-    expect(mocks.useQuery).toHaveBeenCalledTimes(1)
-
-    fireEvent.mouseMove(node)
-    fireEvent.mouseMove(node)
-    await advancePreviewDelay(1000)
-
-    expect(mocks.useQuery).toHaveBeenCalledTimes(1)
+  it('keeps a failed body load visible without offering actions on missing content', () => {
+    MockUseDataApiUtils.mockQueryError('/messages/:id', new Error('unavailable'))
+    render(<NodeFixture />)
+    expect(screen.getByRole('alert')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
   })
 
-  it('renders the shared loading state while the tooltip message is loading', async () => {
-    mocks.useQuery.mockReturnValue({
-      data: undefined,
-      error: undefined,
-      isLoading: true
+  it('shows the producing assistant avatar, name and full model name from the saved message', () => {
+    MockUseDataApiUtils.mockQueryData('/messages/:id', {
+      ...message,
+      messageSnapshot: {
+        id: 'assistant-1',
+        name: 'Travel planner',
+        emoji: '🌍',
+        model: { id: 'qwen-3', name: 'Qwen 3 Thinking', provider: 'provider-1' }
+      }
     })
-
-    renderNode()
-
-    fireEvent.mouseEnter(getNodeElement())
-    await advancePreviewDelay()
-
-    expect(screen.getByTestId('topic-message-flow-preview-loading')).toBeInTheDocument()
-    expect(screen.getByTestId('topic-message-flow-preview-loading')).toHaveTextContent('common.loading')
+    render(<NodeFixture />)
+    expect(screen.getByText('Travel planner')).toBeVisible()
+    expect(screen.getByText('Qwen 3 Thinking')).toBeVisible()
+    expect(screen.getAllByText('🌍').some((element) => element.closest('.message-avatar'))).toBe(true)
   })
 
-  it('renders the loaded message through the shared message content renderer', async () => {
-    mocks.useQuery.mockReturnValue({
-      data: message,
-      error: undefined,
-      isLoading: false
+  it('does not label user messages with the model that generated their responses', () => {
+    MockUseDataApiUtils.mockQueryData('/messages/:id', {
+      ...message,
+      role: 'user',
+      modelId: 'provider-1:qwen-3'
     })
-
-    renderNode()
-
-    fireEvent.mouseEnter(getNodeElement())
-    await advancePreviewDelay()
-
-    expect(screen.getByTestId('message-content')).toHaveTextContent('message:message-1')
-    expect(mocks.messageProviderProps[0].messages).toEqual([expect.objectContaining({ id: 'message-1' })])
-    expect(mocks.messageProviderProps[0].partsByMessageId).toEqual({
-      'message-1': [{ type: 'text', text: 'Full message detail' }]
-    })
-    expect(mocks.messageContentProps[0].message).toEqual(expect.objectContaining({ id: 'message-1' }))
-  })
-
-  it('shows an error state in the tooltip without hiding the node', async () => {
-    mocks.useQuery.mockReturnValue({
-      data: undefined,
-      error: new Error('failed'),
-      isLoading: false
-    })
-
-    renderNode()
-
-    fireEvent.mouseEnter(getNodeElement())
-    await advancePreviewDelay()
-
-    expect(screen.getByRole('alert')).toHaveTextContent('common.error')
-    expect(screen.getByText('Short preview')).toBeInTheDocument()
+    render(<NodeFixture data={{ ...nodeData, role: 'user', modelId: 'provider-1:qwen-3' }} />)
+    expect(screen.queryByText(/qwen/)).not.toBeInTheDocument()
   })
 })

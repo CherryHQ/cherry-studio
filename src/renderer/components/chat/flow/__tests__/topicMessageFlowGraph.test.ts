@@ -8,8 +8,6 @@ const createdAt = '2026-05-22T00:00:00.000Z'
 function treeNode({ id, ...overrides }: Partial<TreeNode> & Pick<TreeNode, 'id'>): TreeNode {
   return {
     id,
-    // Roots hang off the unrendered virtual root; use a non-node sentinel id so the
-    // edge guard skips the edge and the node still renders as a graph root.
     parentId: 'vroot',
     role: 'user',
     preview: id,
@@ -31,6 +29,19 @@ function siblingNode(
 }
 
 describe('buildTopicMessageFlowGraph', () => {
+  it('starts first-turn branches at real messages without displaying the virtual topic root', () => {
+    const graph = buildTopicMessageFlowGraph({
+      rootId: 'vroot',
+      activeNodeId: 'edited',
+      siblingsGroups: [],
+      nodes: [treeNode({ id: 'original' }), treeNode({ id: 'edited' })]
+    })
+    expect(graph.nodes.map((node) => node.id)).toEqual(['original', 'edited'])
+    expect(graph.edges).toEqual([])
+    expect(graph.stats).toEqual({ nodeCount: 2, branchCount: 2, activePathLength: 1 })
+    expect(graph.nodes.find((node) => node.id === 'edited')?.data.isOnActivePath).toBe(true)
+  })
+
   it('preserves clear markers as explicit graph nodes', () => {
     const tree: TreeResponse = {
       nodes: [

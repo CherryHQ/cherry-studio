@@ -2,8 +2,7 @@ import type { TreeNode, TreeResponse } from '@shared/data/types/message'
 
 import type { TopicMessageFlowGraph, TopicMessageFlowNodeData } from './types'
 
-// parentId stays nullable internally: null marks a node with no rendered parent
-// (a first turn, whose real parent is the unrendered virtual root) i.e. a graph root.
+// A null parent is reserved for the topic root or an explicitly rooted subtree.
 type GraphInputNode = Omit<TreeNode, 'parentId'> & {
   parentId: string | null
   siblingsGroupId?: number
@@ -17,15 +16,13 @@ export function buildTopicMessageFlowGraph(tree: TreeResponse): TopicMessageFlow
   const hasActivePath = activePath.size > 0
   const branchCount = countBranchPaths(graphInputNodes)
 
-  const nodes = graphInputNodes.map((node) => ({
+  const nodes: TopicMessageFlowGraph['nodes'] = graphInputNodes.map((node) => ({
     id: node.id,
     parentId: node.parentId,
     data: toNodeData(node, tree.activeNodeId, activePath, hasActivePath)
   }))
 
   const edges = graphInputNodes.flatMap((node) => {
-    // Skip the edge when the parent isn't a rendered node — e.g. the structural
-    // virtual root, which first-turn messages hang off but which is never a node.
     if (!node.parentId || !parentById.has(node.parentId)) {
       return []
     }
@@ -51,7 +48,7 @@ export function buildTopicMessageFlowGraph(tree: TreeResponse): TopicMessageFlow
     edges,
     activeNodeId: tree.activeNodeId,
     stats: {
-      nodeCount: nodes.length,
+      nodeCount: graphInputNodes.length,
       branchCount,
       activePathLength: activePath.size
     }

@@ -411,7 +411,8 @@ const renderPartsTree = (
   actions: MessageListProviderValue['actions'] = {},
   renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
   history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
-  hoistAttachments = false
+  hoistAttachments = false,
+  defaultUserContentExpanded = false
 ) => {
   const value: MessageListProviderValue = {
     state: {
@@ -437,7 +438,11 @@ const renderPartsTree = (
   return (
     <MessageListProvider value={value}>
       <PartsProvider value={{ [message.id]: parts }}>
-        <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
+        <MessagePartsRenderer
+          message={message}
+          hoistAttachments={hoistAttachments}
+          defaultUserContentExpanded={defaultUserContentExpanded}
+        />
       </PartsProvider>
     </MessageListProvider>
   )
@@ -544,6 +549,24 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('leaf rendering', () => {
+    it('shows the final lines of a long user prompt immediately when the canvas requests expanded content', () => {
+      const text = 'First line\nSecond line\nThird line\nFourth line\nFifth line\nFinal prompt instruction'
+      render(
+        renderPartsTree(
+          [{ type: 'text', text }],
+          msg({ role: 'user' }),
+          {},
+          defaultMessageRenderConfig,
+          [],
+          false,
+          true
+        )
+      )
+      expect(screen.getByText(/Final prompt instruction/)).toBeVisible()
+      fireEvent.click(screen.getByRole('button', { name: 'message.message.user_content.collapse' }))
+      expect(screen.queryByText(/Final prompt instruction/)).not.toBeInTheDocument()
+    })
+
     it('does not rerender unrelated message content when another message becomes active', () => {
       const firstMessage = msg({ id: 'msg-1' })
       const secondMessage = msg({ id: 'msg-2' })
