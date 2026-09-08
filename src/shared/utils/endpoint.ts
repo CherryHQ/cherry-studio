@@ -3,9 +3,9 @@ import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting
 import {
   ENDPOINT_TYPE,
   endpointImpliedCapability,
-  MODEL_CAPABILITY,
   type EndpointType,
-  type Model
+  type Model,
+  MODEL_CAPABILITY
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
