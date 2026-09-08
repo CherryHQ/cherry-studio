@@ -1,8 +1,9 @@
 import { application } from '@application'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type UniqueModelId } from '@shared/data/types/model'
 
-import type { ProviderConfig } from '../types'
+import type { ModelUsageFeature, ProviderConfig } from '../types'
+import { ModelUnavailableError } from './ModelUnavailableError'
 
 const CHERRY_CLOUD_MESSAGES_PATH = '/v1/messages'
 const CHERRY_CLOUD_CHAT_COMPLETIONS_PATH = '/v1/chat/completions'
@@ -37,11 +38,25 @@ function forwardedHeaders(source: Headers): Headers {
   return headers
 }
 
-export function buildCherryCloudProviderConfig(
+export async function buildCherryCloudProviderConfig(
   endpointType: EndpointType | undefined,
-  endpoint?: string
-): ProviderConfig {
+  endpoint: string | undefined,
+  uniqueModelId: UniqueModelId,
+  modelUsageFeature: ModelUsageFeature
+): Promise<ProviderConfig> {
   const service = application.get('CherryCloudService')
+  let availability
+  try {
+    availability = await service.syncEntitledModelsIfStale()
+  } catch (error) {
+    throw new ModelUnavailableError('Cherry Cloud model availability could not be refreshed', { cause: error })
+  }
+  if (
+    !availability.availableModelIdsByFeature[modelUsageFeature].includes(uniqueModelId) ||
+    availability.quotaExhaustedModelIds.includes(uniqueModelId)
+  ) {
+    throw new ModelUnavailableError(`Cherry Cloud model is unavailable for ${modelUsageFeature}`)
+  }
   const apiOrigin = new URL(service.getApiOrigin()).origin
   const requestPath =
     endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
