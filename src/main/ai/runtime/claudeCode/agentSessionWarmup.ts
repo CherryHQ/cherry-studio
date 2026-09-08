@@ -11,7 +11,7 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
@@ -911,6 +911,13 @@ function mergeRuntimeSettings(
   const env = mergeAgentLoopbackProxyBypass(
     {
       ...settings.env,
+      ...(route.branch === 'gateway'
+        ? {
+            API_TIMEOUT_MS: settings.env?.API_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT),
+            API_FORCE_IDLE_TIMEOUT: settings.env?.API_FORCE_IDLE_TIMEOUT ?? '0',
+            CLAUDE_STREAM_IDLE_TIMEOUT_MS: settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
+          }
+        : {}),
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
