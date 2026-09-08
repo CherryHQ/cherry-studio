@@ -8,6 +8,7 @@ import {
   toCherryBuiltinRuntimeName,
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
+import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -90,6 +91,11 @@ vi.mock('@logger', () => ({
   loggerService: {
     withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mocks.loggerWarn, error: vi.fn() }))
   }
+}))
+
+vi.mock('@main/ai/toolApproval/userDataSqliteGuard', async (importOriginal) => ({
+  ...(await importOriginal<typeof UserDataSqliteGuard>()),
+  evaluateUserDataSqliteGuard: vi.fn(async () => undefined)
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -2374,7 +2380,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       'navigate',
       'diagnose',
       'product_info',
-      'apply_setting'
+      'apply_setting',
+      'prepare_diagnostic_report'
     ])
   })
 
@@ -2534,8 +2541,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })
 
-  it('keeps Support product info in channel sessions while denying unattended diagnostics and all-KB access', async () => {
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'agent-1' })
+  it('keeps reusable Support tools mounted in channel sessions while denying unattended diagnostics and all-KB access', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1', agentId: 'support-1' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
       if (name === 'McpCatalogService') {
@@ -2575,6 +2582,13 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.mcpServers?.assistant).toBeDefined()
     expect(settings.mcpServers?.['assistant-files']).toBeDefined()
+    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet', [
+      'navigate',
+      'diagnose',
+      'product_info',
+      'apply_setting',
+      'prepare_diagnostic_report'
+    ])
     expect(settings.allowedTools).toContain('mcp__assistant__product_info')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
     await expect(

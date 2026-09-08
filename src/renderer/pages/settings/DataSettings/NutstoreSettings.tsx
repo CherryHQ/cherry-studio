@@ -107,19 +107,25 @@ const NutstoreSettings: FC = () => {
   const handleCheckConnection = async () => {
     if (!nutstoreToken) return
     setCheckConnectionLoading(true)
-    const isConnectedToNutstore = await checkConnection()
+    try {
+      const isConnectedToNutstore = await checkConnection()
 
-    toast[isConnectedToNutstore ? 'success' : 'error']({
-      timeout: 2000,
-      title: isConnectedToNutstore
-        ? t('settings.data.nutstore.checkConnection.success')
-        : t('settings.data.nutstore.checkConnection.fail')
-    })
+      toast[isConnectedToNutstore ? 'success' : 'error']({
+        timeout: 2000,
+        title: isConnectedToNutstore
+          ? t('settings.data.nutstore.checkConnection.success')
+          : t('settings.data.nutstore.checkConnection.fail')
+      })
 
-    setNsConnected(isConnectedToNutstore)
-    setCheckConnectionLoading(false)
+      setNsConnected(isConnectedToNutstore)
 
-    setTimeoutTimer('handleCheckConnection', () => setNsConnected(false), 3000)
+      setTimeoutTimer('handleCheckConnection', () => setNsConnected(false), 3000)
+    } catch (error) {
+      toast.error({ timeout: 2000, title: t('settings.data.nutstore.checkConnection.fail') })
+      setNsConnected(false)
+    } finally {
+      setCheckConnectionLoading(false)
+    }
   }
 
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =

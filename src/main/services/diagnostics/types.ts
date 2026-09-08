@@ -1,6 +1,7 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-export type DiagnosticSourceKind = 'logs' | 'traces'
+export type DiagnosticFileSourceKind = 'logs' | 'traces'
+export type DiagnosticSourceKind = DiagnosticFileSourceKind | 'chatRecords'
 export type DiagnosticWarning =
   | 'malformed_lines'
   | 'scan_failed'
@@ -25,7 +26,7 @@ export interface SourceCandidate {
   readonly archiveName: string
   readonly eligibleBytes: number
   readonly identity: SourceIdentity
-  readonly kind: DiagnosticSourceKind
+  readonly kind: DiagnosticFileSourceKind
   readonly latestAt: number
   readonly malformedLineCount: number
   readonly sourcePath: AbsoluteFilePath
@@ -41,6 +42,12 @@ export interface SourceStats {
   bytes: number
   fileCount: number
   malformedLineCount: number
+}
+
+export interface ChatRecordStats {
+  bytes: number
+  messageCount: number
+  recordCount: number
 }
 
 export interface StagedSource {

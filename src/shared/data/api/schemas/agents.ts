@@ -7,6 +7,7 @@
  */
 
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
@@ -61,7 +62,8 @@ export const AgentConfigurationSchema = z
     scheduler_last_run: z.string().optional(),
     heartbeat_enabled: z.boolean().optional(),
     heartbeat_interval: z.number().optional(),
-    builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional()
+    builtin_role: z.enum([BUILTIN_AGENT_ROLE.ASSISTANT, BUILTIN_AGENT_ROLE.SUPPORT]).optional(),
+    language: AgentLanguageSchema.nullable().optional()
   })
   // .loose() (passthrough) is intentional: the configuration object is stored as a JSON blob
   // and may contain keys written by older or newer versions of the app. Unknown fields must
@@ -195,7 +197,8 @@ export const TaskRunLogEntitySchema = z.strictObject({
   scheduleId: z.string(),
   sessionId: z.string().nullable().optional(),
   startedAt: z.string(),
-  durationMs: z.number(),
+  /** null while unfinished and for runs that never started (no queue-wait shown as duration). */
+  durationMs: z.number().nullable(),
   /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
   status: z.enum(['running', 'completed', 'failed', 'cancelled']),
   result: z.string().nullable().optional(),

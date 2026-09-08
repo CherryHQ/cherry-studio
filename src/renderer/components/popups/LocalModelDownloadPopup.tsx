@@ -12,23 +12,23 @@ import { LocalModelDownloadProgress } from '@renderer/components/LocalModelDownl
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import type { LocalModelKind } from '@shared/data/presets/localModel'
+import type { LocalModelBundleId } from '@shared/data/presets/localModel'
 import { Download, RefreshCw } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface LocalModelDownloadParams {
-  model: LocalModelKind
+  id: LocalModelBundleId
   /** What is being fetched, e.g. "PaddleOCR PP-OCRv6 · ~140 MB". */
   description: string
 }
 
 type Props = LocalModelDownloadParams & PopupInjectedProps<boolean>
 
-const PopupContainer: React.FC<Props> = ({ open, resolve, model, description }) => {
+const PopupContainer: React.FC<Props> = ({ open, resolve, id, description }) => {
   const { t } = useTranslation()
-  const { status, percent, download, cancel } = useLocalModel(model)
+  const { status, percent, download, cancel } = useLocalModel(id)
   const [failed, setFailed] = useState(false)
 
   const downloading = status === 'downloading'

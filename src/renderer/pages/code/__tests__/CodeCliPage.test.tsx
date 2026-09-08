@@ -33,6 +33,7 @@ const {
   ipcRequestMock,
   ipcEventHandlers,
   versionStatusesMock,
+  versionStatusesResolvedState,
   mockProviders,
   mockProviderConfigs,
   providersLoadingState,
@@ -62,6 +63,7 @@ const {
   ipcRequestMock: vi.fn(),
   ipcEventHandlers: new Map<string, (payload: unknown) => void>(),
   versionStatusesMock: vi.fn(),
+  versionStatusesResolvedState: { value: true },
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>,
   providersLoadingState: { value: false },
@@ -70,7 +72,8 @@ const {
     bundle: null as {
       provider: Provider
       apiKey: string | null
-      ensureReady: ReturnType<typeof vi.fn>
+      ensureRunning: ReturnType<typeof vi.fn>
+      getApiKey: ReturnType<typeof vi.fn>
     } | null,
     defaultModelId: undefined as string | undefined,
     modelsById: new Map<string, { id: string; providerId: string; modelId: string; apiModelId: string; name: string }>()
@@ -103,6 +106,9 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  // No `role` here: the real Alert derives it from `type` (`status` for anything but
+  // `error`), so hardcoding one would let assertions pin a role the component never emits.
+  Alert: ({ description }: { description?: ReactNode }) => <div>{description}</div>,
   Button: ({
     variant,
     size,
@@ -410,6 +416,8 @@ vi.mock('../constants/cliTools', () => ({
   CLI_TOOLS: [
     { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null },
     { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
+    { value: CodeCli.ANTIGRAVITY_CLI, label: 'Antigravity CLI', icon: () => null },
+    { value: CodeCli.GEMINI_CLI, label: 'Gemini CLI', icon: () => null },
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
     { value: CodeCli.HERMES, label: 'Hermes', icon: () => null },
@@ -433,7 +441,7 @@ vi.mock('../hooks/useBinaryActions', () => ({
 }))
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => versionStatusesMock()
+  useCliVersionStatuses: () => ({ statuses: versionStatusesMock(), resolved: versionStatusesResolvedState.value })
 }))
 
 vi.mock('../hooks/useConfigMetadata', () => ({
@@ -496,6 +504,13 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
   return {
     [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
     [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
+    [CodeCli.ANTIGRAVITY_CLI]: { ...base, ...overrides[CodeCli.ANTIGRAVITY_CLI] },
+    [CodeCli.GEMINI_CLI]: {
+      ...base,
+      installed: false,
+      source: 'none',
+      ...overrides[CodeCli.GEMINI_CLI]
+    },
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
     [CodeCli.DEEPSEEK_HARNESS]: { ...base, ...overrides[CodeCli.DEEPSEEK_HARNESS] },
     [CodeCli.HERMES]: { ...base, ...overrides[CodeCli.HERMES] },
@@ -515,6 +530,7 @@ describe('CodeCliPage', () => {
     gatewayState.modelsById.clear()
     mockCodeCliState()
     versionStatusesMock.mockReturnValue(baseVersionStatuses())
+    versionStatusesResolvedState.value = true
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
@@ -532,6 +548,129 @@ describe('CodeCliPage', () => {
       if (route === 'hermes_dashboard.start') return { success: true, url: 'http://127.0.0.1:49152' }
       return { success: true }
     })
+  })
+
+  it('shows Antigravity immediately while hiding Gemini until installation status is resolved', () => {
+    versionStatusesMock.mockReturnValue({})
+    versionStatusesResolvedState.value = false
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Antigravity CLI')).toBeInTheDocument()
+    expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
+  })
+
+  // A broken managed install is installed:false with no shim, so the `installed` filter hid the
+  // tool entirely — taking the Retry/Remove that repair or undo it out of reach for good.
+  it('keeps a broken Gemini installation reachable so it can be repaired or removed', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: false, source: 'none', applicationStatus: 'broken' }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  // The redirect used to bail whenever the status was absent, so a permanently failed read left
+  // a selected Gemini hidden AND unredirected — an empty pane with no way out.
+  it('falls back off a selected Gemini when the status read never produces one', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue({})
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
+  })
+
+  it('keeps a selected Gemini selected while its status is still unresolved', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue({})
+    versionStatusesResolvedState.value = false
+
+    render(<CodeCliPage />)
+
+    // Redirecting on an in-flight read would move an installed-Gemini user off it on every start.
+    expect(selectToolMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['system', 'mise'] as const)('shows an installed Gemini CLI from the %s snapshot', (source) => {
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('Gemini CLI')).toBeInTheDocument()
+  })
+
+  it('falls back to the first visible tool after a selected Gemini installation is removed', async () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(baseVersionStatuses())
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => expect(selectToolMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE))
+    expect(screen.queryByText('Gemini CLI')).not.toBeInTheDocument()
+  })
+
+  it('shows the discontinuation notice only on the installed Gemini detail page', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.GEMINI_CLI })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise' }
+      })
+    )
+
+    const { unmount } = render(<CodeCliPage />)
+    expect(screen.getByText('code.gemini_cli_discontinued')).toBeInTheDocument()
+    unmount()
+
+    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
+    render(<CodeCliPage />)
+    expect(screen.queryByText('code.gemini_cli_discontinued')).not.toBeInTheDocument()
+  })
+
+  it('keeps launch, upgrade, and uninstall actions available for an installed Gemini CLI', () => {
+    mockCodeCliState({
+      selectedCliTool: CodeCli.GEMINI_CLI,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new' } },
+      currentProviderId: 'anthropic'
+    })
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.GEMINI_CLI]: { installed: true, source: 'mise', current: '1.0.0', latest: '1.1.0', canUpgrade: true }
+      })
+    )
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: 'start tool' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'remove tool' })).toBeInTheDocument()
+  })
+
+  it('offers official login and Unified Gateway cards for Antigravity', () => {
+    mockProviders.splice(0, mockProviders.length)
+    gatewayState.bundle = {
+      provider: { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider,
+      apiKey: null,
+      ensureRunning: vi.fn(),
+      getApiKey: vi.fn()
+    }
+    mockCodeCliState({ selectedCliTool: CodeCli.ANTIGRAVITY_CLI })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: `toggle ${CLI_OWN_LOGIN_PROVIDER_ID}` })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `toggle ${CLI_API_GATEWAY_PROVIDER_ID}` })).toBeInTheDocument()
   })
 
   it('opens the config dialog instead of auto-selecting the first model when enabling an unconfigured provider', async () => {
@@ -569,11 +708,13 @@ describe('CodeCliPage', () => {
   })
 
   it('opens Hermes Dashboard before the Gateway bootstrap when no default Gateway model exists', async () => {
-    const ensureReady = vi.fn()
+    const ensureRunning = vi.fn()
+    const getApiKey = vi.fn()
     gatewayState.bundle = {
       provider: { ...provider, id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Gateway' },
       apiKey: 'gateway-key',
-      ensureReady
+      ensureRunning,
+      getApiKey
     }
     mockCodeCliState({ selectedCliTool: CodeCli.HERMES })
     render(<CodeCliPage />)
@@ -582,7 +723,8 @@ describe('CodeCliPage', () => {
     fireEvent.click(screen.getByText('start tool'))
 
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('hermes_dashboard.start'))
-    expect(ensureReady).not.toHaveBeenCalled()
+    expect(ensureRunning).not.toHaveBeenCalled()
+    expect(getApiKey).not.toHaveBeenCalled()
     expect(selectFolderMock).not.toHaveBeenCalled()
     expect(ipcRequestMock).not.toHaveBeenCalledWith('code_cli.run', expect.anything())
   })
@@ -826,8 +968,9 @@ describe('CodeCliPage', () => {
       apiModelId: 'claude-new',
       name: 'Claude New'
     }
-    const ensureReady = vi.fn().mockResolvedValue('cs-sk-default')
-    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureReady }
+    const ensureRunning = vi.fn().mockResolvedValue(undefined)
+    const getApiKey = vi.fn().mockResolvedValue('cs-sk-default')
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getApiKey }
     gatewayState.defaultModelId = defaultModel.id
     gatewayState.modelsById.set(defaultModel.id, defaultModel)
     mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
@@ -841,7 +984,8 @@ describe('CodeCliPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'start tool' }))
     fireEvent.click(await screen.findByRole('button', { name: 'launch tool' }))
 
-    await waitFor(() => expect(ensureReady).toHaveBeenCalledOnce())
+    await waitFor(() => expect(getApiKey).toHaveBeenCalledOnce())
+    expect(ensureRunning).toHaveBeenCalledOnce()
     expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
       cliTool: CodeCli.OPEN_CODE,
       modelId: defaultModel.id,
@@ -870,8 +1014,9 @@ describe('CodeCliPage', () => {
       apiModelId: 'claude-new',
       name: 'Claude New'
     }
-    const ensureReady = vi.fn().mockResolvedValue('cs-sk-default')
-    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureReady }
+    const ensureRunning = vi.fn().mockResolvedValue(undefined)
+    const getApiKey = vi.fn().mockResolvedValue('cs-sk-default')
+    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getApiKey }
     gatewayState.defaultModelId = defaultModel.id
     gatewayState.modelsById.set(defaultModel.id, defaultModel)
     unsupportedProviderIds.add(provider.id)
@@ -889,7 +1034,8 @@ describe('CodeCliPage', () => {
     await user.click(startButton)
     await user.click(await screen.findByRole('button', { name: 'launch tool' }))
 
-    await waitFor(() => expect(ensureReady).toHaveBeenCalledOnce())
+    await waitFor(() => expect(getApiKey).toHaveBeenCalledOnce())
+    expect(ensureRunning).toHaveBeenCalledOnce()
     expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
       cliTool: CodeCli.CLAUDE_CODE,
       modelId: defaultModel.id,
@@ -910,7 +1056,12 @@ describe('CodeCliPage', () => {
 
   it('waits for provider loading before treating a saved provider as unsupported', () => {
     const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
-    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureReady: vi.fn() }
+    gatewayState.bundle = {
+      provider: gatewayProvider,
+      apiKey: null,
+      ensureRunning: vi.fn(),
+      getApiKey: vi.fn()
+    }
     gatewayState.defaultModelId = 'anthropic::claude-new'
     gatewayState.modelsById.set('anthropic::claude-new', {
       id: 'anthropic::claude-new',
@@ -952,7 +1103,12 @@ describe('CodeCliPage', () => {
       .mockReturnValue(pendingRead)
     extractConnectionFromCliConfigDraftMock.mockReturnValue({ model: 'other-provider:other-model' })
     cliConfigConnectionMatchesProviderMock.mockReturnValue(false)
-    gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureReady: vi.fn() }
+    gatewayState.bundle = {
+      provider: gatewayProvider,
+      apiKey: null,
+      ensureRunning: vi.fn(),
+      getApiKey: vi.fn()
+    }
     gatewayState.defaultModelId = defaultModel.id
     gatewayState.modelsById.set(defaultModel.id, defaultModel)
     mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
@@ -971,7 +1127,8 @@ describe('CodeCliPage', () => {
     gatewayState.bundle = {
       provider: gatewayProvider,
       apiKey: null,
-      ensureReady: vi.fn().mockResolvedValue('cs-sk-default')
+      ensureRunning: vi.fn().mockResolvedValue(undefined),
+      getApiKey: vi.fn().mockResolvedValue('cs-sk-default')
     }
     mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
 

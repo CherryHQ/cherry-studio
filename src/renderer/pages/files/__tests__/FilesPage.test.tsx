@@ -644,10 +644,10 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.queryByText('files.empty.no_match_title')).not.toBeInTheDocument()
   })
 
-  it('loads another active page when a client-filtered view does not fill the viewport', async () => {
+  it('queries the selected type without scanning unrelated active pages', async () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockImplementation((_path, options) => {
-      const query = options?.query as { inTrash?: boolean } | undefined
+      const query = options?.query as { fileType?: string; inTrash?: boolean } | undefined
       return {
         pages: query?.inTrash ? [] : [{ items: [entry], total: 200, nextCursor: 'next-page' }],
         isLoading: false,
@@ -665,8 +665,74 @@ describe('FilesPage keyboard rename', () => {
     fireEvent.click(screen.getByText('files.text'))
 
     await waitFor(() => {
-      expect(loadNext).toHaveBeenCalledTimes(1)
+      const activeCall = mockUseInfiniteQuery.mock.calls
+        .filter((call) => !(call[1]?.query as { inTrash?: boolean } | undefined)?.inTrash)
+        .at(-1)
+      expect(activeCall?.[1]?.query).toMatchObject({ fileType: 'text' })
     })
+    expect(loadNext).not.toHaveBeenCalled()
+  })
+})
+
+describe('FilesPage keyboard select all', () => {
+  it('selects all visible files with Cmd+A on macOS', async () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    renderFilesPage([entry, secondEntry])
+    const user = userEvent.setup()
+
+    await user.keyboard('{Meta>}a{/Meta}')
+
+    const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
+    expect(checkboxes).toHaveLength(2)
+    for (const checkbox of checkboxes) {
+      expect(checkbox).toBeChecked()
+    }
+  })
+
+  it('selects all visible files with Ctrl+A outside macOS', async () => {
+    platformState.isMac = false
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    renderFilesPage([entry, secondEntry])
+    const user = userEvent.setup()
+
+    await user.keyboard('{Control>}a{/Control}')
+
+    const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
+    for (const checkbox of checkboxes) {
+      expect(checkbox).toBeChecked()
+    }
+  })
+
+  it('ignores select-all shortcuts from interactive controls', async () => {
+    renderFilesPage()
+    const user = userEvent.setup()
+
+    const typeHeader = screen.getByRole('button', { name: 'files.type' })
+    typeHeader.focus()
+    await user.keyboard('{Meta>}a{/Meta}')
+
+    expect(screen.getByRole('checkbox', { name: 'files.select_file' })).not.toBeChecked()
+  })
+
+  it('does not batch-delete files via select-all and delete shortcuts in the image grid', async () => {
+    ipcMocks.request.mockImplementation((route: string) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve({})
+    })
+    renderFilesPage([imageEntry])
+    const user = userEvent.setup()
+
+    const imageFilterButton = screen.getByRole('button', { name: /^files\.image/ })
+    await user.click(imageFilterButton)
+    imageFilterButton.blur()
+    await screen.findByAltText('photo.png')
+
+    await user.keyboard('{Meta>}a{/Meta}')
+    await user.keyboard('{Delete}')
+
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_trash', expect.anything())
   })
 })
 

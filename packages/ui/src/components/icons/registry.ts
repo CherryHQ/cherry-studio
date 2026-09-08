@@ -14,6 +14,7 @@ import type { IconMeta } from './types'
  * Order matters: more specific patterns must come before general ones.
  */
 const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
+  [/gpt-6-astra/i, 'gpt-6-astra'],
   // GPT 5.6 series (most specific first; APIs use both `5.6` and `5-6`)
   [/gpt-5[.-]6-luna/i, 'gpt-5-6-luna'],
   [/gpt-5[.-]6-sol/i, 'gpt-5-6-sol'],

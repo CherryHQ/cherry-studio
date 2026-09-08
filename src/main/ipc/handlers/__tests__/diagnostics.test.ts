@@ -25,6 +25,7 @@ describe('diagnosticsHandlers', () => {
       hasWarnings: false,
       sourceLimitBytes: 1,
       sources: {
+        chatRecords: { available: false, estimatedBytes: 0, messageCount: 0 },
         crashDumps: { fileCount: 0 },
         logs: { available: false, estimatedBytes: 0, fileCount: 0 },
         traces: { available: false, estimatedBytes: 0, fileCount: 0 }
@@ -39,7 +40,7 @@ describe('diagnosticsHandlers', () => {
   })
 
   it('passes the trusted caller window id to export', async () => {
-    const input = { includeLogs: true, includeTraces: false, range: '24h' as const }
+    const input = { includeChatRecords: false, includeLogs: true, includeTraces: false, range: '24h' as const }
     serviceMocks.exportBundle.mockResolvedValue({ status: 'canceled' })
 
     await expect(diagnosticsHandlers['diagnostics.bundle.export'](input, { senderId: 'main-window' })).resolves.toEqual(
@@ -51,6 +52,7 @@ describe('diagnosticsHandlers', () => {
   it('delegates diagnostic upload without adding a preload channel', async () => {
     const input = {
       description: 'The app stopped responding.',
+      includeChatRecords: true,
       includeLogs: true,
       includeTraces: true,
       range: '24h' as const

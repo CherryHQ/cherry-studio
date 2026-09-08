@@ -17,6 +17,7 @@ export function isOpenAIReasoningModelId(modelId: string): boolean {
     id.startsWith('o1') ||
     id.startsWith('o3') ||
     id.startsWith('o4-mini') ||
+    id.startsWith('gpt-6') ||
     (id.startsWith('gpt-5') && !id.startsWith('gpt-5-chat'))
   )
 }

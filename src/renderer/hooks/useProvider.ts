@@ -18,6 +18,10 @@ import type { SWRConfiguration } from 'swr'
 const EMPTY_PROVIDERS: Provider[] = []
 const logger = loggerService.withContext('useProviders')
 
+function getErrorType(error: unknown) {
+  return error instanceof Error ? error.name : typeof error
+}
+
 /**
  * All SWR cache keys that must revalidate after any mutation to a provider:
  * - `/providers` — the list
@@ -188,7 +192,7 @@ export function useProviderMutations(providerId: string) {
       try {
         await addApiKeyTrigger({ params: { providerId }, body: { key, label } })
       } catch (error) {
-        logger.error('Failed to add API key', { providerId, error })
+        logger.error('Failed to add API key', { providerId, errorType: getErrorType(error) })
         throw error
       }
     },
@@ -212,7 +216,7 @@ export function useProviderMutations(providerId: string) {
       try {
         await replaceApiKeysTrigger({ params: { providerId }, body: { keys: apiKeys } })
       } catch (error) {
-        logger.error('Failed to update API keys', { providerId, error })
+        logger.error('Failed to update API keys', { providerId, errorType: getErrorType(error) })
         throw error
       }
     },
@@ -224,7 +228,7 @@ export function useProviderMutations(providerId: string) {
       try {
         await updateApiKeyTrigger({ params: { providerId, keyId }, body: updates })
       } catch (error) {
-        logger.error('Failed to update API key', { providerId, keyId, error })
+        logger.error('Failed to update API key', { providerId, keyId, errorType: getErrorType(error) })
         throw error
       }
     },

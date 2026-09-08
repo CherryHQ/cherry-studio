@@ -549,6 +549,31 @@ describe('FileEntryService', () => {
       await dbh.db.insert(fileEntryTable).values(rows)
     }
 
+    async function seedFileTypes(): Promise<void> {
+      const now = Date.now()
+      const fixtures = [
+        ['image-a', 'png'],
+        ['image-b', 'JPG'],
+        ['image-c', 'webp'],
+        ['text', 'md'],
+        ['unknown', 'blobx'],
+        ['no-ext', null]
+      ] as const
+      await dbh.db.insert(fileEntryTable).values(
+        fixtures.map(([name, ext], index) => ({
+          id: `019606a0-0000-7000-8000-0000000002a${index}`,
+          origin: 'internal' as const,
+          name,
+          ext,
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + index,
+          updatedAt: now + index
+        }))
+      )
+    }
+
     it('returns { items, total, nextCursor } with active-only filtering by default', async () => {
       const now = Date.now()
       await dbh.db.insert(fileEntryTable).values([
@@ -599,6 +624,30 @@ describe('FileEntryService', () => {
       expect(page3.items.map((e) => e.name)).toEqual(['name4'])
       expect(page3.total).toBe(5)
       expect(page3.nextCursor).toBeUndefined()
+    })
+
+    it('filters known file types before cursor pagination and total counting', async () => {
+      await seedFileTypes()
+
+      const query = { fileType: 'image' as const, sortBy: 'name' as const, sortOrder: 'asc' as const, limit: 2 }
+      const page1 = fileEntryService.listCursor(query)
+      const page2 = fileEntryService.listCursor({ ...query, cursor: page1.nextCursor })
+
+      expect(page1.items.map((item) => item.name)).toEqual(['image-a', 'image-b'])
+      expect(page1.total).toBe(3)
+      expect(page1.nextCursor).toBeDefined()
+      expect(page2.items.map((item) => item.name)).toEqual(['image-c'])
+      expect(page2.total).toBe(3)
+      expect(page2.nextCursor).toBeUndefined()
+    })
+
+    it('classifies null and unknown extensions as other', async () => {
+      await seedFileTypes()
+
+      const result = fileEntryService.listCursor({ fileType: 'other', sortBy: 'name', sortOrder: 'asc' })
+
+      expect(result.items.map((item) => item.name)).toEqual(['no-ext', 'unknown'])
+      expect(result.total).toBe(2)
     })
 
     it('sorts ascending by createdAt by default; reverses with sortOrder=desc', async () => {

@@ -72,8 +72,10 @@ describe('isDshCompatibleModel', () => {
     ).toBe(false)
   })
 
-  it('still requires text input on the gateway route, but not a declared context window', () => {
+  it('does not use input modalities as a compatibility restriction', () => {
     expect(isDshCompatibleModel(azureProvider, makeModel({ contextWindow: undefined }))).toBe(true)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: [] }))).toBe(false)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: [] }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['image'] }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['audio'] }))).toBe(true)
   })
 })

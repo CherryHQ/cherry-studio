@@ -16,10 +16,10 @@ const taskLogsMock = vi.hoisted(() => {
     scheduleId: 'task-1',
     sessionId: 'session-1' as string | null,
     startedAt: '2026-06-25T00:00:00.000Z',
-    durationMs: 1200,
-    status: 'completed' as const,
-    result: 'done',
-    error: null
+    durationMs: 1200 as number | null,
+    status: 'completed' as 'completed' | 'running' | 'failed' | 'cancelled',
+    result: 'done' as string | null,
+    error: null as string | null
   }
 
   return {
@@ -1288,6 +1288,26 @@ describe('TasksSettings detail behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.logs.viewSession' }))
     expect(navigationMocks.openConversation).toHaveBeenCalledWith('session-1')
+  })
+
+  it('renders a dash for a run without a duration', async () => {
+    taskLogsMock.logs = [
+      {
+        ...taskLogsMock.defaultTaskLog,
+        id: 'log-null-duration',
+        status: 'cancelled' as const,
+        durationMs: null,
+        result: null,
+        error: 'cancelled before start'
+      }
+    ]
+
+    const user = userEvent.setup()
+    render(<TasksSettings />)
+
+    await user.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
+    const row = await screen.findByRole('row', { name: /agent\.tasks\.logs\.cancelled/ })
+    expect(within(row).getByText('-')).toBeInTheDocument()
   })
 
   it('filters channels to the owning Agent and uses Alert for delivery warnings', async () => {

@@ -75,7 +75,7 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 
 Using the collected commit information, generate release notes in **both English and Chinese**.
 
-**Format** (must match exactly):
+**Recommended format:**
 
 ```
 <!--LANG:en-->
@@ -109,6 +109,8 @@ Cherry Studio {version} - {简短中文标题}
 - [组件] 描述
 <!--LANG:END-->
 ```
+
+The language markers are the machine-readable contract: include each marker once, keep them in order, and provide non-empty English and Chinese sections. Titles and surrounding explanatory text are presentation choices, not validation requirements.
 
 **Rules:**
 - Only include categories that have entries (omit empty categories).
@@ -148,8 +150,8 @@ Release notes are for **end users**, not developers. Exclude anything users don'
 
 1. **`package.json`**: Update the `"version"` field to the new version.
 2. **`electron-builder.yml`**: Replace the content under `releaseInfo.releaseNotes: |` with the generated notes. Preserve the 4-space YAML indentation for the block scalar content.
-3. **`resources/cherry-studio/release-history.json`**: For a stable `x.y.z` release, add the version and its exact generated bilingual notes at the start of the array. Replace an existing entry for the same version instead of creating a duplicate. Leave this file unchanged for prereleases.
-4. **Validate source metadata**: For an interactive local run, run `node scripts/release/validate-prepared-release.js --target-version {version}` before generating the product manifest, and stop if it rejects the changed paths, version ordering, bilingual marker span, or stable history. In GitHub Actions, leave validation to the workflow step that runs after Claude.
+3. **`resources/cherry-studio/release-history.json`**: Never edit by hand; the notes must match `electron-builder.yml` byte for byte. Run `node scripts/release/sync-release-history.js --target-version {version}`, which prepends (or replaces) the entry for a stable release and leaves the file untouched for a prerelease. In GitHub Actions, the workflow runs this itself after the Claude step.
+4. **Validate source metadata**: For an interactive local run, run `node scripts/release/validate-prepared-release.js --target-version {version}` before generating the product manifest, and stop if it rejects the changed paths, version ordering, bilingual sections, or stable history. In GitHub Actions, leave validation to the workflow step that runs after Claude.
 5. **Built-in knowledge**: For an interactive local run, run `pnpm build:builtin-knowledge` after validation. This refreshes `resources/builtin-agents/cherry-assistant/product-manifest.json` with the new package version. Never edit the generated manifest by hand. In GitHub Actions, do not run the generator: the workflow runs the same validator first, then runs the trusted generator itself.
 
 ### Step 5: Present for Review
@@ -189,22 +191,22 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
    git log -1 --format=%B | grep -q '^Signed-off-by: '
    git push -u origin release/v{version}
    ```
-2. In GitHub Actions, stop after updating `package.json` and `electron-builder.yml`, plus `resources/cherry-studio/release-history.json` only for a stable release, and leave them uncommitted. The `prepare-release.yml` workflow validates their contents, generates the product manifest, owns branch creation, and uses GitHub's API to create and verify the signed, DCO-compliant commit. Never run `git commit` or `git push` from the Claude step.
+2. In GitHub Actions, stop after updating `package.json` and `electron-builder.yml`. Temporary helper files and local Git operations are allowed; the workflow extracts those two file changes, restores the frozen source SHA, and discards everything else. It then derives the release history, validates, generates the product manifest, creates the branch, and uses GitHub's API to create and verify the signed, DCO-compliant commit. Never push from the Claude step.
 3. Report the release branch and next steps. Do not create a PR yet: the release must be built and published from this branch first.
 
 ## CI Trigger Chain
 
-- Wait for the **CI** push run on the new `release/v{version}` commit to succeed, then run **`release.yml`** manually with that release branch selected. It validates the branch name against `package.json`, builds the exact branch commit on macOS, Windows, and Linux, and creates or updates a draft GitHub Release.
+- Wait for the **CI** push run on the new `release/v{version}` commit to succeed. **`auto-release-build.yml`** revalidates that exact live branch head and dispatches **`release.yml`** with `all`; it builds macOS, Windows, and Linux and creates or updates the draft GitHub Release. Use **`release.yml`** manually only to retry a failed all-platform build or one platform for the unchanged tagged commit.
 - While a single draft semantic-version release is active, **`backport-release-fixes.yml`** opens a backport PR for the first merged `hotfix: <description>` or `hotfix(<kebab-case-scope>): <description>` PR from `main`, applies any optional bilingual release note, then appends consecutive hotfixes and source markers to that same open topic branch. It manages every source PR's `hotfix` and backport-status labels and reports failures on the source PR; never merge `main` into the release branch.
-- Review the backport PR, wait for its CI, and merge it. After the resulting release-branch push passes CI, run **`release.yml`** again from the release branch to rebuild the draft release.
-- Publish only through the **`release.yml`** `publish` operation on the release branch. It shares the release-state lock with preparation, builds, and backports; verifies the exact successful all-platform build; then publishes the still-current draft. The final fetched `main` SHA is the hotfix cutoff; a hotfix merged after that snapshot belongs to the next release. Publication triggers **`post-release.yml`**, which verifies that the tag still matches the release branch, applies only the release metadata delta to the latest `main`, and creates a `release-sync/v{version}` metadata-only PR.
+- Review the backport PR, wait for its CI, and merge it. After the resulting release-branch push passes CI, the exact-head all-platform draft rebuild starts automatically.
+- A successful exact-head all-platform build starts **`publish-release.yml`**. Approve the `release` Environment deployment after inspecting the draft. Publication then acquires the release-state lock, revalidates the approved run, release branch, tag, draft, artifacts, open PRs, and pending hotfixes, and publishes only if they still agree. The draft body contains the bilingual `electron-builder.yml` notes followed by GitHub's generated changes. The final fetched `main` SHA is the hotfix cutoff; a hotfix merged after that snapshot belongs to the next release. Publication triggers **`post-release.yml`**, which uses the published tag as its source, applies only the release metadata delta to the latest `main`, and creates a `release-sync/v{version}` metadata-only PR.
 - The metadata PR synchronizes only `package.json`, `electron-builder.yml`, release history, and the generated product manifest. It triggers **`ci.yml`**; merge it only after CI passes.
 - When squash-merging the metadata PR, set the commit title to exactly `chore(release): sync v{version} metadata` with only GitHub's optional PR-number suffix, and keep `release-metadata-boundary: v{version}` on its own line in the squash commit body so the next release can find the boundary reliably.
 
 ## Constraints
 
 - Always read `electron-builder.yml` before modifying it to understand the current format.
-- Never modify files other than `package.json`, `electron-builder.yml`, `resources/cherry-studio/release-history.json`, and the generated `resources/builtin-agents/cherry-assistant/product-manifest.json`.
+- Never retain changes outside `package.json`, `electron-builder.yml`, `resources/cherry-studio/release-history.json`, and the generated `resources/builtin-agents/cherry-assistant/product-manifest.json`.
 - Never push directly to `main`.
 - Never create the release metadata PR before the GitHub Release is published; `post-release.yml` owns that step.
 - Always show the generated release notes to the user before creating the release branch (unless running in CI with no interactive user).

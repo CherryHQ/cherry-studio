@@ -50,14 +50,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: main
           path: main
           fetch-depth: 1
 
       - name: Checkout x-files/provider-registry branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: x-files/provider-registry
           path: pub

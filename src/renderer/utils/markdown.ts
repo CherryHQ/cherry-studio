@@ -13,7 +13,6 @@ export {
   findCitationInChildren,
   getCodeBlockId,
   isHtmlCode,
-  processLatexBrackets,
   purifyMarkdownImages,
   removeTrailingDoubleSpaces
 } from './markdownLight'

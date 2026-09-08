@@ -218,6 +218,23 @@ describe('computeModelFieldReset', () => {
     expect(patch).toEqual({})
   })
 
+  it('resets a decimal carried into an integer-backed catalog slider', async () => {
+    mockSupportPerModel({
+      modelA: generateSupport({ numImages: { type: 'range', min: 1, max: 10, default: 1 } }),
+      modelB: generateSupport({ numImages: { type: 'range', min: 1, max: 10, default: 1 } })
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'aihubmix',
+      oldModelId: 'modelA',
+      newModelId: 'modelB',
+      mode: 'generate',
+      currentValues: { numImages: '2.5' }
+    })
+
+    expect(patch).toEqual({ numImages: 1 })
+  })
+
   it('resets a stale default-less enum value to undefined', async () => {
     mockSupportPerModel({
       modelA: generateSupport({ style: { type: 'enum', options: ['vivid', 'natural'] } }),

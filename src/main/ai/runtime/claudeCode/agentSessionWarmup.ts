@@ -11,16 +11,16 @@ import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {
   type AgentNotificationContext,
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { getAppLanguage } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -31,7 +31,7 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
@@ -42,7 +42,7 @@ import {
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
-import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -129,6 +129,7 @@ interface ConnectionMaterializationFacts {
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
+  effectiveLanguage?: string | null
 }
 
 /**
@@ -137,6 +138,7 @@ interface ConnectionMaterializationFacts {
  * within the set is invisible; editing either input changes the fingerprint). Gateway routes hash
  * the stable per-install gateway key. External-cli routes have no key (subscription login) — constant.
  */
+
 function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
     .update(JSON.stringify([...material].sort()))
@@ -387,7 +389,12 @@ async function deriveConnectionConfigFromSnapshot(
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
-    language: getAppLanguage(),
+    // Rebuild fact: language change invalidates the warm connection so the new
+    // language instruction is baked into the next prompt and prompt cache. This
+    // trades cache preservation for correctness — first turn after change pays
+    // full input-token cost until the new prefix is cached.
+    language:
+      materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
@@ -534,6 +541,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       logger.warn('Failed to relocate restored Claude transcript', { sessionId: session.id, error })
     }
   }
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -548,7 +556,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
-        fastMode: fastModeTransport === 'claude-code'
+        fastMode: fastModeTransport === 'claude-code',
+        effectiveLanguage
       },
       agent
     ),
@@ -574,7 +583,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
-      })
+      }),
+      effectiveLanguage
     }
   )
   const sdkModelId = route.modelIds.primary
@@ -711,7 +721,10 @@ function deriveRouteFacts(
   }
 
   const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
+    (ref) =>
+      requiresAgentGateway(ref.providerId) ||
+      ref.providerId !== primaryProvider.id ||
+      !usesAnthropicMessagesEndpoint(ref)
   )
 
   if (shouldUseGateway) {
@@ -719,17 +732,10 @@ function deriveRouteFacts(
     const config = apiGatewayService.getCurrentConfig()
     const host = config.host || '127.0.0.1'
     const port = config.port || 23333
-    // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
-    // persist one). Before the gateway's first activation the preference is empty — the signature
-    // changes once when the key is generated, costing a single extra rebuild. Accepted.
-    const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
     return {
       branch: 'gateway',
-      baseUrl: `http://${host}:${port}`,
-      credentialsFingerprint: fingerprintCredentials([
-        typeof gatewayKey === 'string' ? gatewayKey : '',
-        gatewayStateTag(config.enabled, apiGatewayService.isRunning())
-      ]),
+      baseUrl: gatewayClientOrigin(host, port),
+      credentialsFingerprint: gatewayCredentialsFingerprint(),
       toolSearchCompatible,
       modelIds: {
         primary: toGatewayModelId(primaryRef),
@@ -810,7 +816,7 @@ async function resolveClaudeCodeRuntimeRoute(
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
         internalRequestToken: gateway.internalRequestToken,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
+        credentialsFingerprint: gatewayCredentialsFingerprint()
       }
     }
     case 'direct': {
@@ -924,6 +930,13 @@ function mergeRuntimeSettings(
   const env = mergeAgentLoopbackProxyBypass(
     {
       ...settings.env,
+      ...(route.branch === 'gateway'
+        ? {
+            API_TIMEOUT_MS: settings.env?.API_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT),
+            API_FORCE_IDLE_TIMEOUT: settings.env?.API_FORCE_IDLE_TIMEOUT ?? '0',
+            CLAUDE_STREAM_IDLE_TIMEOUT_MS: settings.env?.CLAUDE_STREAM_IDLE_TIMEOUT_MS ?? String(DEFAULT_TIMEOUT)
+          }
+        : {}),
       ANTHROPIC_MODEL: route.modelIds.primary,
       ANTHROPIC_DEFAULT_OPUS_MODEL: route.modelIds.opus,
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
@@ -957,6 +970,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
+    connectionRebuildSignature: request.connectionConfig.rebuildSignature,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,
     knowledgeBaseIds: request.knowledgeBaseIds,

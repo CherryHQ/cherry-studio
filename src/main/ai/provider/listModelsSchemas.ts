@@ -158,6 +158,25 @@ export const NewApiModelsResponseSchema = z.object({
   object: z.string().optional()
 })
 
+// === TokenDance ===
+
+export const TokenDanceModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      created: z.number().optional(),
+      description: z.string().optional(),
+      context_length: z.number().optional(),
+      supported_protocols: z
+        .array(z.string())
+        .nullable()
+        .optional()
+        .transform((v) => v ?? undefined)
+    })
+  )
+})
+
 // === OVMS (OpenVINO Model Server) ===
 
 export const OVMSConfigResponseSchema = z.record(

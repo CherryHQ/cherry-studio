@@ -56,6 +56,7 @@ import {
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
+  TokenDanceModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
@@ -68,6 +69,10 @@ const logger = loggerService.withContext('ModelListService')
 type ModelFetcher = {
   match: (provider: Provider) => boolean
   fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
+}
+
+function getErrorType(error: unknown) {
+  return error instanceof Error ? error.name : typeof error
 }
 
 function handleOptionalModelListFailure<T>(
@@ -85,7 +90,7 @@ function handleOptionalModelListFailure<T>(
 function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
-    error
+    errorType: getErrorType(error)
   })
   return { data: [] }
 }
@@ -138,8 +143,9 @@ function defaultGroup(modelId: string, providerId: string): string {
 
 /** Build a partial v2 Model from API response */
 function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
+  const safeModelId = apiModelId.replace(/[?#]/g, '')
   return {
-    id: createUniqueModelId(provider.id, apiModelId),
+    id: createUniqueModelId(provider.id, safeModelId),
     providerId: provider.id,
     apiModelId,
     name: extra?.name || apiModelId,
@@ -448,12 +454,18 @@ type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'
 
 const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  'anthropic:messages': ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
   embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'gemini:generate-content': ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:chat-completions': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:embeddings': ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+  'openai:image-generations': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'openai:responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
@@ -512,6 +524,38 @@ const newApiFetcher: ModelFetcher = {
         ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
       })
     })
+  }
+}
+
+const tokenDanceFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.tokendance),
+  fetch: async (provider, signal) => {
+    const modelsUrl =
+      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls?.default ??
+      `${formatApiHost(getBaseUrl(provider))}/models`
+    const response = await getFromApi({
+      url: modelsUrl,
+      headers: defaultHeaders(provider),
+      responseSchema: TokenDanceModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    return dedup(response.data, (m) => m.id)
+      .map((m) => {
+        const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
+        if (!endpointTypes) return undefined
+
+        const impliedCapability = endpointImpliedCapability(endpointTypes[0])
+
+        return toModel(m.id, provider, {
+          name: m.name || m.id,
+          description: m.description,
+          contextWindow: m.context_length,
+          endpointTypes,
+          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+        })
+      })
+      .filter((model): model is Partial<Model> => Boolean(model))
   }
 }
 
@@ -797,6 +841,7 @@ const fetchers: ModelFetcher[] = [
   ovmsFetcher,
   togetherFetcher,
   newApiFetcher,
+  tokenDanceFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
@@ -817,7 +862,7 @@ export async function listModels(
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {
-    logger.error('Error listing models', error as Error, { providerId: provider.id })
+    logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
     if (options?.throwOnError) {
       throw error
     }

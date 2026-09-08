@@ -16,7 +16,7 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 
 import type {
   CrashDumpInventory,
-  DiagnosticSourceKind,
+  DiagnosticFileSourceKind,
   DiagnosticTimeRange,
   DiagnosticWarning,
   SourceCandidate,
@@ -132,7 +132,7 @@ export function parseLogTimestampString(value: string): number | undefined {
   return Number.isFinite(timestamp) ? timestamp : undefined
 }
 
-function parseLineTimestamp(line: Buffer, kind: DiagnosticSourceKind): number | 'empty' | undefined {
+function parseLineTimestamp(line: Buffer, kind: DiagnosticFileSourceKind): number | 'empty' | undefined {
   const text = line.toString('utf8').trim()
   if (!text) return 'empty'
 
@@ -152,7 +152,7 @@ function isInRange(timestamp: number, range: DiagnosticTimeRange): boolean {
   return timestamp >= range.fromMs && timestamp <= range.toMs
 }
 
-function classifyLine(line: RawLine, kind: DiagnosticSourceKind, range: DiagnosticTimeRange): ClassifiedLine {
+function classifyLine(line: RawLine, kind: DiagnosticFileSourceKind, range: DiagnosticTimeRange): ClassifiedLine {
   if (line.tooLarge || !line.data) return 'malformed'
   const timestamp = parseLineTimestamp(line.data, kind)
   if (timestamp === 'empty') return undefined
@@ -176,7 +176,7 @@ export function logMayOverlapRange(fileName: string, range: DiagnosticTimeRange)
 
 async function scanSnapshot(
   snapshot: ReadableFileSnapshot,
-  kind: DiagnosticSourceKind,
+  kind: DiagnosticFileSourceKind,
   range: DiagnosticTimeRange
 ): Promise<ScanResult> {
   let eligibleBytes = 0
@@ -204,7 +204,7 @@ function portableSegment(value: string): string {
 async function scanCandidate(
   sourcePath: AbsoluteFilePath,
   archiveName: string,
-  kind: DiagnosticSourceKind,
+  kind: DiagnosticFileSourceKind,
   range: DiagnosticTimeRange,
   warnings: Set<DiagnosticWarning>
 ): Promise<SourceCandidate | undefined> {
@@ -312,10 +312,6 @@ export async function collectDiagnosticSources(
   return { logs, traces, warnings }
 }
 
-function newestFirst(a: SourceCandidate, b: SourceCandidate): number {
-  return b.latestAt - a.latestAt || a.archiveName.localeCompare(b.archiveName)
-}
-
 function canStageSnapshot(candidate: SourceCandidate, snapshot: ReadableFileSnapshot): boolean {
   if (hasSameIdentity(snapshot, candidate.identity)) return true
   return (
@@ -324,45 +320,6 @@ function canStageSnapshot(candidate: SourceCandidate, snapshot: ReadableFileSnap
     snapshot.ino === candidate.identity.ino &&
     snapshot.size > candidate.identity.size
   )
-}
-
-export function selectSourceCandidates(
-  candidates: readonly SourceCandidate[],
-  limitBytes: number
-): { selected: SourceCandidate[]; omitted: SourceCandidate[] } {
-  const byKind = {
-    logs: candidates.filter((candidate) => candidate.kind === 'logs').sort(newestFirst),
-    traces: candidates.filter((candidate) => candidate.kind === 'traces').sort(newestFirst)
-  }
-  const selected = new Set<SourceCandidate>()
-  let remainingBytes = limitBytes
-  const newestPerKind = [byKind.logs[0], byKind.traces[0]].filter(
-    (candidate): candidate is SourceCandidate => candidate !== undefined
-  )
-
-  if (newestPerKind.reduce((total, candidate) => total + candidate.eligibleBytes, 0) <= remainingBytes) {
-    for (const candidate of newestPerKind) {
-      selected.add(candidate)
-      remainingBytes -= candidate.eligibleBytes
-    }
-  } else {
-    for (const candidate of newestPerKind.sort(newestFirst)) {
-      if (candidate.eligibleBytes > remainingBytes) continue
-      selected.add(candidate)
-      remainingBytes -= candidate.eligibleBytes
-    }
-  }
-
-  for (const candidate of [...candidates].sort(newestFirst)) {
-    if (selected.has(candidate) || candidate.eligibleBytes > remainingBytes) continue
-    selected.add(candidate)
-    remainingBytes -= candidate.eligibleBytes
-  }
-
-  return {
-    selected: candidates.filter((candidate) => selected.has(candidate)).sort(newestFirst),
-    omitted: candidates.filter((candidate) => !selected.has(candidate)).sort(newestFirst)
-  }
 }
 
 export function sourceStats(candidates: readonly SourceCandidate[]): SourceStats {
