@@ -636,6 +636,7 @@
   "chat.input.reference_panel.session.no_results.description": "Δεν υπάρχουν συνεδρίες που να ταιριάζουν με την αναζήτησή σας",
   "chat.input.reference_panel.session.no_results.label": "Δεν Βρέθηκαν Συνεδρίες",
   "chat.input.reference_panel.session.title": "Συνεδρίες",
+  "chat.input.reference_panel.title": "Αναφορές",
   "chat.input.reference_panel.topic.no_results.description": "Δεν βρέθηκαν θέματα που να ταιριάζουν με την αναζήτησή σας",
   "chat.input.reference_panel.topic.no_results.label": "Δεν βρέθηκαν θέματα",
   "chat.input.reference_panel.topic.title": "Θέματα",

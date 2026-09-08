@@ -636,6 +636,7 @@
   "chat.input.reference_panel.session.no_results.description": "検索条件に一致するセッションはありません",
   "chat.input.reference_panel.session.no_results.label": "セッションが見つかりません",
   "chat.input.reference_panel.session.title": "セッション",
+  "chat.input.reference_panel.title": "参照",
   "chat.input.reference_panel.topic.no_results.description": "検索に一致するトピックはありません",
   "chat.input.reference_panel.topic.no_results.label": "トピックが見つかりません",
   "chat.input.reference_panel.topic.title": "トピック",

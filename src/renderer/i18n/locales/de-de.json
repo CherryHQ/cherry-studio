@@ -636,6 +636,7 @@
   "chat.input.reference_panel.session.no_results.description": "Keine Sitzungen entsprechen Ihrer Suche",
   "chat.input.reference_panel.session.no_results.label": "Keine Sitzungen gefunden",
   "chat.input.reference_panel.session.title": "Sitzungen",
+  "chat.input.reference_panel.title": "Referenzen",
   "chat.input.reference_panel.topic.no_results.description": "Keine Themen entsprechen Ihrer Suche",
   "chat.input.reference_panel.topic.no_results.label": "Keine Themen gefunden",
   "chat.input.reference_panel.topic.title": "Themen",
