@@ -575,6 +575,43 @@ describe('useAgentSessionParts', () => {
     expect(live.getIds()).toEqual(['message-1'])
   })
 
+  it('does not let a pending delete from another session block the current session', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
+    live.setItems('session-2', [sessionMessageRow('message-2', 'session-2')])
+    let resolveSessionOneDelete!: () => void
+    live.trigger
+      .mockImplementationOnce(
+        () =>
+          new Promise<undefined>((resolve) => {
+            resolveSessionOneDelete = () => resolve(undefined)
+          })
+      )
+      .mockResolvedValueOnce(undefined)
+    const { result, rerender } = renderHook(({ sessionId }) => useAgentSessionParts(sessionId), {
+      initialProps: { sessionId: 'session-1' }
+    })
+
+    let sessionOneDelete!: Promise<void>
+    act(() => {
+      sessionOneDelete = result.current.deleteMessage('message-1')
+    })
+    rerender({ sessionId: 'session-2' })
+    let sessionTwoDelete!: Promise<void>
+    act(() => {
+      sessionTwoDelete = result.current.deleteMessage('message-2')
+    })
+    const sessionTwoDeleteStartedBeforeSessionOneSettled = live.trigger.mock.calls.length === 2
+
+    await act(async () => {
+      resolveSessionOneDelete()
+      await Promise.all([sessionOneDelete, sessionTwoDelete])
+    })
+
+    expect(sessionTwoDeleteStartedBeforeSessionOneSettled).toBe(true)
+    expect(live.getIds('session-1')).toEqual([])
+    expect(live.getIds('session-2')).toEqual([])
+  })
+
   it('applies a late DELETE success to the session where deletion began', async () => {
     const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
     live.setItems('session-2', [sessionMessageRow('message-2', 'session-2')])
