@@ -9,6 +9,15 @@ sources:
 
 # Image-Generation Parameterized Architecture
 
+## Refactoring contract
+
+The [capability and execution contract](image-generation-contract.md) supersedes
+the mode-based routing design below. The remaining sections describe the migration
+baseline, not the completed target architecture. In particular, an input image is
+not an operation or a protocol, and a missing native binding is not permission to
+fall back to an SDK. The migration keeps one catalog reader until its consumers
+have moved; the catalog format changes atomically afterward.
+
 How the paintings page renders a per-model parameter form, collects the user's
 values, and turns them into a vendor-correct image-generation request — **all
 driven by registry + catalog data, with zero per-vendor UI code and the
