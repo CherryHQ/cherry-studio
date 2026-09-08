@@ -7,13 +7,13 @@
  */
 
 import { application } from '@application'
-import { appStateTable } from '@data/db/schemas/appState'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
 import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata } from '@data/services/ProviderRegistryService'
@@ -29,7 +29,6 @@ import { getAppEdition } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
-import type { MigrationStatusValue } from '@shared/data/migration/v2/types'
 import { isManagedCherryProviderId } from '@shared/data/presets/cherryai'
 import type { EndpointType } from '@shared/data/types/model'
 import type {
@@ -49,7 +48,6 @@ import { v4 as uuidv4 } from 'uuid'
 import { isRetiredProvider } from '../retiredProviders'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
-const MIGRATION_V2_STATUS = 'migration_v2_status'
 
 function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
   if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) return patch
@@ -74,7 +72,7 @@ type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
   const availableInEditions = provider.availableInEditions
-  return providerService.isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
+  return isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
 function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
@@ -331,25 +329,6 @@ function rotationCacheKey(providerId: string): string {
 }
 
 class ProviderService {
-  private migratedFromV1: boolean | undefined
-
-  /** Migration status is immutable after preboot, so the first database read is cached. */
-  isMigratedFromV1(): boolean {
-    if (this.migratedFromV1 === undefined) {
-      const row = application
-        .get('DbService')
-        .getDb()
-        .select({ value: appStateTable.value })
-        .from(appStateTable)
-        .where(eq(appStateTable.key, MIGRATION_V2_STATUS))
-        .get()
-      const status = row?.value as MigrationStatusValue | undefined
-      this.migratedFromV1 = status?.status === 'completed' && status.migratedFromV1 === true
-    }
-
-    return this.migratedFromV1
-  }
-
   private rethrowOrderError(error: unknown): never {
     if (
       error instanceof DataApiError &&

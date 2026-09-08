@@ -1,4 +1,3 @@
-import { appStateTable } from '@data/db/schemas/appState'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
@@ -8,12 +7,17 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationEdition } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' as AppEdition }
+const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
+  applicationEdition: { current: 'cn' as AppEdition },
+  migrationOrigin: { current: false }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => applicationEdition.current
+}))
+
+vi.mock('@data/migration/v1MigrationOrigin', () => ({
+  isMigratedFromV1: () => migrationOrigin.current
 }))
 
 vi.mock('@cherrystudio/provider-registry/node', () => {
@@ -48,7 +52,7 @@ describe('ProviderService edition availability', () => {
 
   beforeEach(() => {
     applicationEdition.current = 'cn'
-    ;(providerService as any).migratedFromV1 = undefined
+    migrationOrigin.current = false
   })
 
   it('makes a persisted global-only provider unavailable to every runtime read and mutation in China', async () => {
@@ -151,10 +155,7 @@ describe('ProviderService edition availability', () => {
   })
 
   it('keeps every persisted provider available for users migrated from v1', async () => {
-    await dbh.db.insert(appStateTable).values({
-      key: 'migration_v2_status',
-      value: { status: 'completed', migratedFromV1: true, version: '2.0.0' }
-    })
+    migrationOrigin.current = true
     await dbh.db.insert(userProviderTable).values({
       providerId: 'global-only',
       presetProviderId: 'global-only',

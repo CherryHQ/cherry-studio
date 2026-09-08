@@ -1,7 +1,6 @@
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
-import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { AppEdition } from '@shared/types/appEdition'
@@ -9,15 +8,18 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationEdition } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' as AppEdition }
+const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
+  applicationEdition: { current: 'cn' as AppEdition },
+  migrationOrigin: { current: false }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => applicationEdition.current
 }))
 
-const isMigratedFromV1Spy = vi.spyOn(providerService, 'isMigratedFromV1')
+vi.mock('@data/migration/v1MigrationOrigin', () => ({
+  isMigratedFromV1: () => migrationOrigin.current
+}))
 
 vi.mock('@cherrystudio/provider-registry/node', () => {
   class RegistryLoader {
@@ -71,7 +73,7 @@ describe('ModelService edition availability', () => {
 
   beforeEach(() => {
     applicationEdition.current = 'cn'
-    isMigratedFromV1Spy.mockReset().mockReturnValue(false)
+    migrationOrigin.current = false
   })
 
   it('excludes persisted models owned by providers unavailable in the current edition', async () => {
@@ -133,7 +135,7 @@ describe('ModelService edition availability', () => {
   })
 
   it('keeps every persisted model available for users migrated from v1', async () => {
-    isMigratedFromV1Spy.mockReturnValue(true)
+    migrationOrigin.current = true
     await dbh.db.insert(userProviderTable).values({
       providerId: 'global-only',
       presetProviderId: 'global-only',

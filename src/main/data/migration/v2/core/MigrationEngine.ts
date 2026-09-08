@@ -44,6 +44,7 @@ import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
+import { registerMigrationOriginReader } from '@data/migration/v1MigrationOrigin'
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
@@ -637,3 +638,5 @@ export class MigrationEngine {
 
 // Export singleton instance
 export const migrationEngine = new MigrationEngine()
+
+registerMigrationOriginReader(() => migrationEngine.isMigratedFromV1())
