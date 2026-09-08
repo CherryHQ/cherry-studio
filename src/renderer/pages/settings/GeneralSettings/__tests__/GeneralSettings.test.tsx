@@ -1,3 +1,4 @@
+import type { Model } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
@@ -23,7 +24,29 @@ vi.mock('@renderer/components/Selector', () => ({
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
+  ModelSelector: ({ filter, trigger }: { filter?: (model: Model) => boolean; trigger: ReactNode }) => (
+    <>
+      {trigger}
+      <span data-testid="chat-cloud-model-allowed">
+        {String(
+          filter?.({
+            id: 'cherryai-subscription::agent-only',
+            providerId: 'cherryai-subscription',
+            name: 'Agent only',
+            capabilities: [],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false
+          })
+        )}
+      </span>
+    </>
+  )
+}))
+
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelFilter: (feature: string, filter?: (model: Model) => boolean) => (model: Model) =>
+    !(feature === 'chat' && model.providerId === 'cherryai-subscription') && (filter?.(model) ?? true)
 }))
 
 vi.mock('../ContextManagementSettings', () => ({
@@ -124,6 +147,7 @@ describe('GeneralSettings', () => {
     expect(screen.getByLabelText('settings.models.retry.max_attempts')).toHaveValue('3')
     expect(screen.getByLabelText('settings.models.retry.backoff')).toBeInTheDocument()
     expect(screen.getByText('settings.models.retry.fallback_models_count')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-cloud-model-allowed')).toHaveTextContent('false')
 
     fireEvent.click(screen.getByLabelText('settings.models.retry.label'))
 

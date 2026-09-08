@@ -31,6 +31,9 @@ export interface InProcessUsageContext {
 /** Identifies which layer owns history shaping for an in-process AI request. */
 export type ContextOwner = 'cherry' | 'caller'
 
+/** Product feature whose server-provided model permission applies to this request. */
+export type ModelUsageFeature = 'agent' | 'chat' | 'translate'
+
 /**
  * First-class per-request overrides for callers that have no assistant to derive
  * settings from (the API gateway). Merged at highest precedence inside

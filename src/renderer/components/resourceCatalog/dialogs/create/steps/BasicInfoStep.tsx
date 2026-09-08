@@ -9,7 +9,7 @@ import {
   InputGroupInput
 } from '@cherrystudio/ui'
 import { AgentRuntimeTiles } from '@renderer/components/AgentRuntimeOption'
-import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import type { ModelSelectorDetailDescriptionResolver, ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
 import {
@@ -40,6 +40,7 @@ type ModelFieldProps = {
   setModelLabels: (labels: ModelLabels) => void
   modelFilter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
+  getModelDetailDescription?: ModelSelectorDetailDescriptionResolver
   onSettingsNavigate?: (navigate: () => void) => void
 }
 
@@ -49,6 +50,7 @@ type BasicInfoStepProps = {
   fallbackAvatar: string
   modelFilter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
+  getModelDetailDescription?: ModelSelectorDetailDescriptionResolver
   /** Agent create flows expose a runtime selector that drives the model filter (D8). */
   runtimeSelectable?: boolean
   onSettingsNavigate?: (navigate: () => void) => void
@@ -67,6 +69,7 @@ function AgentRuntimeModelFields({
   setModelLabels,
   modelFilter,
   isModelDisabled,
+  getModelDetailDescription,
   onSettingsNavigate
 }: ModelFieldProps) {
   const { t } = useTranslation()
@@ -135,6 +138,7 @@ function AgentRuntimeModelFields({
         labelClassName="font-medium"
         filter={modelFilter}
         isModelDisabled={isModelDisabled}
+        getModelDetailDescription={getModelDetailDescription}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
@@ -157,6 +161,7 @@ export function BasicInfoStep({
   fallbackAvatar,
   modelFilter,
   isModelDisabled,
+  getModelDetailDescription,
   runtimeSelectable = false,
   onSettingsNavigate
 }: BasicInfoStepProps) {
@@ -213,6 +218,7 @@ export function BasicInfoStep({
           setModelLabels={setModelLabels}
           modelFilter={modelFilter}
           isModelDisabled={isModelDisabled}
+          getModelDetailDescription={getModelDetailDescription}
           onSettingsNavigate={onSettingsNavigate}
         />
       ) : (
@@ -223,6 +229,7 @@ export function BasicInfoStep({
           labelClassName="font-medium"
           filter={modelFilter}
           isModelDisabled={isModelDisabled}
+          getModelDetailDescription={getModelDetailDescription}
           portalContainer={portalContainer}
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}

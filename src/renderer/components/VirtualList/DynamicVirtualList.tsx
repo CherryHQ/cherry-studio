@@ -80,6 +80,9 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
    */
   isSticky?: (index: number) => boolean
 
+  /** Item indexes that must remain mounted outside the visible range. */
+  keepMountedIndexes?: readonly number[]
+
   /**
    * Get the depth/level of an item for hierarchical sticky positioning
    * Used with isSticky to determine ancestor relationships
@@ -154,6 +157,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     size,
     estimateSize,
     isSticky,
+    keepMountedIndexes = [],
     getItemDepth,
     rangeExtractor: customRangeExtractor,
     itemContainerStyle,
@@ -238,7 +242,17 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     [stickyIndexes, getItemDepth]
   )
 
-  const rangeExtractor = customRangeExtractor ?? (isSticky ? internalStickyRangeExtractor : undefined)
+  const baseRangeExtractor = customRangeExtractor ?? (isSticky ? internalStickyRangeExtractor : undefined)
+  const rangeExtractorWithKeptIndexes = useCallback(
+    (range: Range) => {
+      const extracted = baseRangeExtractor?.(range) ?? defaultRangeExtractor(range)
+      return [
+        ...new Set([...extracted, ...keepMountedIndexes.filter((index) => index >= 0 && index < list.length)])
+      ].sort((a, b) => a - b)
+    },
+    [baseRangeExtractor, keepMountedIndexes, list.length]
+  )
+  const resolvedRangeExtractor = keepMountedIndexes.length > 0 ? rangeExtractorWithKeptIndexes : baseRangeExtractor
 
   const handleScrollbarHide = useCallback(
     (isScrolling: boolean) => {
@@ -261,7 +275,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     count: list.length,
     getScrollElement: () => internalScrollerRef.current,
     estimateSize,
-    rangeExtractor,
+    rangeExtractor: resolvedRangeExtractor,
     onChange: (instance, sync) => {
       restOptions.onChange?.(instance, sync)
       handleScrollbarHide(instance.isScrolling)

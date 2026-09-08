@@ -10,7 +10,8 @@ const modelHook = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
   defaultProvider: { id: 'provider', name: 'Provider', isEnabled: true } as Provider | undefined,
   useDefaultModel: vi.fn(),
-  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true)
+  agentModelFilter: vi.fn<(agentType: AgentType | undefined, model: Model, provider?: Provider) => boolean>(() => true),
+  agentModelDisabled: vi.fn<(model: Model, provider?: Provider) => boolean>(() => false)
 }))
 
 function makeModel(id: UniqueModelId = 'provider::default'): Model {
@@ -45,7 +46,10 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: (agentType: AgentType | undefined) => (model: Model, provider?: Provider) =>
     modelHook.agentModelFilter(agentType, model, provider),
-  useAgentModelDisabled: () => () => false
+  useAgentModelAvailability: () => ({
+    getModelDetailDescription: () => undefined,
+    isModelDisabled: (model: Model, provider?: Provider) => modelHook.agentModelDisabled(model, provider)
+  })
 }))
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
@@ -138,6 +142,8 @@ afterEach(() => {
   modelHook.useDefaultModel.mockReset()
   modelHook.agentModelFilter.mockReset()
   modelHook.agentModelFilter.mockReturnValue(true)
+  modelHook.agentModelDisabled.mockReset()
+  modelHook.agentModelDisabled.mockReturnValue(false)
 })
 
 describe('ResourceCreateWizard', () => {
@@ -156,6 +162,15 @@ describe('ResourceCreateWizard', () => {
 
   it('prefills the model from the default model when the wizard opens', async () => {
     modelHook.defaultModel = makeModel()
+
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(await screen.findByTestId('model-id')).toHaveTextContent('provider::default')
+  })
+
+  it('does not apply Work availability when prefilling an assistant model', async () => {
+    modelHook.defaultModel = makeModel()
+    modelHook.agentModelDisabled.mockReturnValue(true)
 
     render(<ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 

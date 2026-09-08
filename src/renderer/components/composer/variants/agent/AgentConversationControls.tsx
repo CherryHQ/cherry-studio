@@ -4,6 +4,7 @@ import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/Mo
 import { OpenTargetButton } from '@renderer/components/OpenTarget'
 import { type ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
+import { useAgentModelAvailability } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
@@ -51,7 +52,6 @@ export interface AgentConversationControlsProps {
   onModelSelect: (model: Model | undefined) => void
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   modelFilter?: ModelSelectorFilter
-  isModelDisabled?: ModelSelectorFilter
   onAgentDialogCloseAutoFocus?: () => void
 }
 
@@ -155,19 +155,12 @@ function ModelControl({
   side,
   iconOnly = false,
   onModelSelect,
-  modelFilter,
-  isModelDisabled
+  modelFilter
 }: Pick<
   AgentConversationControlsProps,
-  | 'model'
-  | 'selectModelLabel'
-  | 'canChangeModel'
-  | 'side'
-  | 'iconOnly'
-  | 'onModelSelect'
-  | 'modelFilter'
-  | 'isModelDisabled'
+  'model' | 'selectModelLabel' | 'canChangeModel' | 'side' | 'iconOnly' | 'onModelSelect' | 'modelFilter'
 >) {
+  const { getModelDetailDescription, isModelDisabled } = useAgentModelAvailability()
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
@@ -201,6 +194,7 @@ function ModelControl({
       onSelect={onModelSelect}
       filter={modelFilter}
       isModelDisabled={isModelDisabled}
+      getModelDetailDescription={getModelDetailDescription}
       shortcut={canChangeModel ? 'chat.model.select' : undefined}
       side={side}
       align="start"

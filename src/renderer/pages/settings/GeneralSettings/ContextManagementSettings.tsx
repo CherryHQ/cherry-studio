@@ -18,6 +18,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useCherryCloudModelFilter } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -50,7 +51,8 @@ const SettingRowTitleWithTooltip = ({ title, description }: { title: string; des
  */
 export const ContextManagementSettings = () => {
   const { t } = useTranslation()
-  const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const baseChatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
+  const chatModelFilter = useCherryCloudModelFilter('chat', baseChatModelFilter)
   const { theme } = useTheme()
   const [enabled, setEnabled] = usePreference('chat.context_settings.enabled')
   const [maxMessages, setMaxMessages] = usePreference('chat.context_settings.max_messages')

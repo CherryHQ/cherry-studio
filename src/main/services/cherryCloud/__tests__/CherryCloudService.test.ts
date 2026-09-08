@@ -149,7 +149,8 @@ const cloudModelCatalog = {
       endpoint_type: 'anthropic-messages',
       context_window: 128_000,
       max_output_tokens: 8_192,
-      capabilities: ['function-call']
+      capabilities: ['function-call'],
+      available_features: ['agent']
     },
     {
       id: 'deepseek-go',
@@ -157,7 +158,8 @@ const cloudModelCatalog = {
       endpoint_type: 'anthropic-messages',
       context_window: 256_000,
       max_output_tokens: 16_384,
-      capabilities: ['function-call', 'reasoning']
+      capabilities: ['function-call', 'reasoning'],
+      available_features: ['agent', 'chat', 'translate']
     },
     {
       id: 'deepseek-inactive',
@@ -165,7 +167,8 @@ const cloudModelCatalog = {
       endpoint_type: 'anthropic-messages',
       context_window: 64_000,
       max_output_tokens: 4_096,
-      capabilities: []
+      capabilities: [],
+      available_features: ['agent']
     }
   ]
 }
@@ -855,6 +858,12 @@ describe('CherryCloudService', () => {
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
       entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
+      freeModelIds: ['cherryai-subscription::deepseek-free'],
+      availableModelIdsByFeature: {
+        agent: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
+        chat: ['cherryai-subscription::deepseek-go'],
+        translate: ['cherryai-subscription::deepseek-go']
+      },
       quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
     })
 
@@ -896,6 +905,25 @@ describe('CherryCloudService', () => {
       expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
       expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
     }
+  })
+
+  it('does not mark a model as free when an active paid entitlement also includes it', async () => {
+    const service = await createSignedInService()
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        entitlements: [
+          accountSnapshot.entitlements[0],
+          { ...accountSnapshot.entitlements[1], model_ids: ['deepseek-free'] }
+        ]
+      },
+      { data: [cloudModelCatalog.data[0]] }
+    )
+
+    await expect(service['syncEntitledModels']()).resolves.toMatchObject({
+      entitledModelIds: ['cherryai-subscription::deepseek-free'],
+      freeModelIds: []
+    })
   })
 
   it('updates capabilities for an existing managed model', async () => {
@@ -1042,6 +1070,12 @@ describe('CherryCloudService', () => {
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
       entitledModelIds: ['cherryai-subscription::deepseek-free'],
+      freeModelIds: ['cherryai-subscription::deepseek-free'],
+      availableModelIdsByFeature: {
+        agent: ['cherryai-subscription::deepseek-free'],
+        chat: [],
+        translate: []
+      },
       quotaExhaustedModelIds: []
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
@@ -1077,6 +1111,8 @@ describe('CherryCloudService', () => {
 
     await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
       entitledModelIds: [],
+      freeModelIds: [],
+      availableModelIdsByFeature: { agent: [], chat: [], translate: [] },
       quotaExhaustedModelIds: []
     })
     expect(mocks.modelCreate).not.toHaveBeenCalled()
@@ -1104,6 +1140,12 @@ describe('CherryCloudService', () => {
 
       await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
         entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
+        freeModelIds: ['cherryai-subscription::deepseek-free'],
+        availableModelIdsByFeature: {
+          agent: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
+          chat: ['cherryai-subscription::deepseek-go'],
+          translate: ['cherryai-subscription::deepseek-go']
+        },
         quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
       })
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)

@@ -6,8 +6,9 @@
  * `resolveLanguageModel(plugins)`) and its own call-option overrides (sampling /
  * providerOptions / headers) — not the primary's. Fallbacks that are the active
  * model, were deleted, or can't support the request shape (native media/tools)
- * are skipped with diagnostics. Unexpected resolution errors still fail the
- * request. Returns `[]` when retry is disabled or unconfigured.
+ * are skipped with diagnostics. Unexpected model-resolution errors still fail
+ * the request; a provider-declared unavailable model skips only that fallback.
+ * Returns `[]` when retry is disabled or unconfigured.
  *
  * Note: the primary's tools + system are kept (the agent loop is built around
  * them and ai-retry can't re-shape them mid-call); the capability gate ensures a
@@ -16,6 +17,7 @@
 import { type AiPlugin, resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import type { ServingCredentialReceipt } from '@main/ai/provider/credential'
+import { ModelUnavailableError } from '@main/ai/provider/ModelUnavailableError'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isAbortError } from '@main/utils/error'
@@ -25,7 +27,7 @@ import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } f
 import type { Provider } from '@shared/data/types/provider'
 import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
-import type { AiBaseRequest, AppProviderSettingsMap } from '../../../types'
+import type { AiBaseRequest, AppProviderSettingsMap, ModelUsageFeature } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
@@ -39,6 +41,7 @@ export interface BuildFallbackModelsArgs {
   // Base request shape accepted by `buildAgentParams`; kept `messages`-agnostic so
   // both streamText (UIMessage[]) and generateText (ModelMessage[]) requests fit.
   request: AiBaseRequest & { chatId?: string; messageId?: string }
+  modelUsageFeature: ModelUsageFeature
   assistant: Assistant | undefined
   signal: AbortSignal | undefined
   /** Primary model's stored UniqueModelId — fallbacks equal to it are dropped. */
@@ -145,15 +148,24 @@ async function resolveFallback(
   }
 
   const repairUsagePlugins: { current?: AiPlugin[] } = {}
-  const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = await buildAgentParams({
-    request: args.request,
-    signal: args.signal,
-    provider,
-    model,
-    assistant: args.assistant,
-    extraFeatures: args.extraFeatures,
-    getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
-  })
+  let built
+  try {
+    built = await buildAgentParams({
+      request: args.request,
+      signal: args.signal,
+      provider,
+      model,
+      assistant: args.assistant,
+      modelUsageFeature: args.modelUsageFeature,
+      extraFeatures: args.extraFeatures,
+      getRepairUsagePlugins: () => repairUsagePlugins.current ?? []
+    })
+  } catch (error) {
+    if (!(error instanceof ModelUnavailableError)) throw error
+    logger.warn('skipping unavailable fallback model', error, { uniqueModelId })
+    return null
+  }
+  const { sdkConfig, credentialReceipt, plugins, options, nativeFileSupport } = built
   const unsupportedNativeType = (Object.keys(required) as Array<keyof NativeFileSupport>).find(
     (type) => required[type] && !nativeFileSupport[type]
   )
