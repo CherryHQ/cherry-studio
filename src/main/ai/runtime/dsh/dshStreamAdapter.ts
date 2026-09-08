@@ -191,17 +191,15 @@ export class DshStreamAdapter {
     this.autonomousTurn = true
   }
 
-  /**
-   * Classify the open turn from its entering `user/message` batch, which dsh appends right after
-   * `step/start` and before the model call, so it always precedes the turn's first content. The
-   * batch is `[injected context…, the claimed prompt]`, so the last recognised source wins.
-   */
+  // Entering context can surround the claimed prompt; once claimed, host ownership is final.
   private classifyEnteringMessage(source: MessageSource): void {
     if (source.kind === 'user') {
       // The host's queued prompt was claimed by this turn. A `user` message dsh raised on its own
       // is left to open an autonomous turn, as before.
       if (!this.hostPromptPending) return
       this.hostPromptPending = false
+      this.enteringTurn = false
+      this.turnOrigin = undefined
       this.turnActive = true
       this.autonomousTurn = false
       return

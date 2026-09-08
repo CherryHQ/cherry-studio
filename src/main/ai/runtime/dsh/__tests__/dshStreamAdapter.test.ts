@@ -145,6 +145,7 @@ describe('DshStreamAdapter', () => {
     const hostPrompt = { kind: 'user' }
     const goalRound = (round: number) => ({ kind: 'goal', goalId: 'g-1', revision: 1, round })
     const injectedContext = { kind: 'plugin', plugin: 'agent-instructions' }
+    const runtimeContext = { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' }
     const text = (turn: number, step: number, value: string) => [
       chunkEnvelope(turn, step, { type: 'block-start', index: 0, blockType: 'text' }),
       chunkEnvelope(turn, step, { type: 'text-delta', index: 0, text: value })
@@ -234,17 +235,21 @@ describe('DshStreamAdapter', () => {
       expect(onAutonomousTurnState).toHaveBeenCalledWith({ state: 'started', origin: { kind: 'background-work' } })
     })
 
-    it('classifies a host turn whose batch also carries injected context', () => {
-      // claim() returns [injected context…, the claimed prompt]: the prompt is not the first entry.
-      const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+    it.each([
+      { position: 'before', sources: [injectedContext, hostPrompt] },
+      { position: 'after', sources: [hostPrompt, runtimeContext] },
+      { position: 'around', sources: [injectedContext, hostPrompt, runtimeContext] }
+    ])('keeps the host stream when context appears $position the prompt', ({ sources }) => {
+      const { adapter, chunks, order, onTurnEnd, onAutonomousTurnState } = makeAdapter()
       adapter.beginTurn()
       adapter.handleEvent(envelope('turn/start', { turn: 1 }))
-      for (const event of [...entering(1, 1, injectedContext, hostPrompt), ...text(1, 1, 'answer')]) {
+      for (const event of [...entering(1, 1, ...sources), ...text(1, 1, 'answer')]) {
         adapter.handleEvent(event)
       }
       adapter.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'completed' } }))
 
       expect(onAutonomousTurnState).not.toHaveBeenCalled()
+      expect(order).toEqual(['text-start', 'text-delta', 'turn-end'])
       expect(deltas(chunks)).toEqual(['answer'])
       expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
     })
