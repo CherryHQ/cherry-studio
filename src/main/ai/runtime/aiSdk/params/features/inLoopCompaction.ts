@@ -1,7 +1,7 @@
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
- * about-to-send prompt in place when it crosses 80% of the model's context
- * window. The aiCore context module does the work via
+ * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
+ * the effective context window. The aiCore context module does the work via
  * `compactModelMessages` — it splits only on turn boundaries (never orphans a
  * tool result), preserves `system` verbatim, and returns
  * `[...system, <summary>, ...recent turns]`.
@@ -26,8 +26,7 @@ import {
   COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN,
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
-  CONTEXT_COMPACT_TRIGGER_RATIO
+  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
 } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
@@ -179,8 +178,9 @@ export const inLoopCompactionFeature: RequestFeature = {
         scope.endpointType
       )
     )
-    const trigger = Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)
-    const keepBudget = Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
+    const thresholdPercent = scope.contextSettings.compress.thresholdPercent
+    const trigger = Math.floor((inputRoom * thresholdPercent) / 100)
+    const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // The trigger/keep budgets above belong to the REQUEST model (they describe
     // the chat history it must fit), but the summarize call is issued against
     // the compressor, so its own budget must come from the compressor's window.
@@ -225,6 +225,17 @@ export const inLoopCompactionFeature: RequestFeature = {
           // A previously folded view that still fits is served as-is — zero LLM calls.
           return foldCache ? { messages: candidate } : undefined
         }
+        logger.info('in-loop compaction triggered', {
+          modelId: scope.model.id,
+          declaredContextWindow: contextWindow,
+          effectiveContextWindow,
+          thresholdPercent,
+          inputRoom,
+          trigger,
+          keepBudget,
+          estimate,
+          safetyMargin: COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+        })
         const keepRecentTurns = computeKeepRecentTurns(candidate, keepBudget, dialect)
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the

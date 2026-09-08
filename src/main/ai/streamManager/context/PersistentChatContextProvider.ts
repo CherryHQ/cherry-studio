@@ -14,8 +14,7 @@ import {
   COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN,
   COMPACTION_INPUT_SAFETY_RATIO,
   COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_RATIO,
-  CONTEXT_COMPACT_TRIGGER_RATIO
+  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
 } from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
@@ -968,15 +967,30 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Against the room the PROMPT actually has: whatever this request declares
     // as max_tokens is billed alongside the input, so it is not history's to use.
     const inputRoom = resolveInputRoom(effectiveContextWindow, resolveOutputReservation(assistantId, models))
+    const thresholdPercent = contextSettings.compress.thresholdPercent
+    const trigger = Math.floor((inputRoom * thresholdPercent) / 100)
+    const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // Selects the media cost tables only; text stays on tokenx, matching the
     // in-loop hook so the two triggers cannot disagree on the same history.
     const dialect = resolveRowDialect(models[0])
-    if (this.estimateContext(effective, dialect) <= Math.floor(inputRoom * CONTEXT_COMPACT_TRIGGER_RATIO)) {
+    const estimate = this.estimateContext(effective, dialect)
+    if (estimate <= trigger) {
       return serve(effective)
     }
+    logger.info('durable compaction triggered', {
+      topicId,
+      declaredContextWindow: minContextWindow,
+      effectiveContextWindow,
+      thresholdPercent,
+      inputRoom,
+      trigger,
+      keepBudget,
+      estimate,
+      safetyMargin: COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
+    })
 
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(inputRoom * CONTEXT_COMPACT_KEEP_BUDGET_RATIO), dialect)
+    const keepIdx = planKeepBoundary(recent, keepBudget, dialect)
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
     // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a

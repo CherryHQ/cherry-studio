@@ -10,6 +10,7 @@ export const DEFAULT_MAX_TOKENS = 8192
  */
 export const CONTEXT_COMPACT_TRIGGER_RATIO = 0.8
 export const CONTEXT_COMPACT_KEEP_BUDGET_RATIO = 0.3
+export const CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER = 0.375
 
 /**
  * Safety margin applied to the declared contextWindow when computing compaction
