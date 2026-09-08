@@ -13,6 +13,7 @@
  * the others are diffusion / OpenAI-image knobs that migrate into per-provider
  * WireProfiles in PR4+.
  */
+import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import type { CanonicalParamKey, ParamValue } from '@cherrystudio/provider-registry'
 
 /** A registry-declared `size`: `WxH` pixels, or a vendor shorthand (`1K`/`2K`/`4K`)
@@ -23,12 +24,9 @@ export type ImageSizeToken = `${number}x${number}` | (string & {})
  * The four genuine `ImageModelV3CallOptions` image params. The anchor of the split:
  * the binding table is checked against it, `VendorBag` is its complement.
  */
-export interface NativeImageParams {
-  n?: number
+export type NativeImageParams = Partial<Pick<ImageModelV3CallOptions, 'n' | 'seed' | 'aspectRatio'>> & {
   /** Wider than the SDK's `${number}x${number}` on purpose — see {@link ImageSizeToken}. */
   size?: ImageSizeToken
-  seed?: number
-  aspectRatio?: string
 }
 
 type NativeOptionName = keyof NativeImageParams
@@ -44,16 +42,15 @@ type NativeBindingTable = {
   }[NativeOptionName]
 }
 
-/**
- * Normalize the painting form's `ASPECT_X_Y` enum (or already-normalized `X:Y`)
- * into the `${number}:${number}` shape the AI SDK image option + Google/Imagen
- * accept. Returns `undefined` for blank / mismatched values so the field is
- * omitted. Idempotent (`X:Y → X:Y`), so emitters may re-apply it safely.
- */
-export function normalizeAspectRatio(value: string | undefined): string | undefined {
+function isSdkAspectRatio(value: string): value is NonNullable<ImageModelV3CallOptions['aspectRatio']> {
+  return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(value)
+}
+
+/** Normalize the painting form's `ASPECT_X_Y` enum or an already-normalized SDK ratio. */
+export function normalizeAspectRatio(value: string | undefined): NativeImageParams['aspectRatio'] {
   if (!value) return undefined
   const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
-  return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(stripped) ? stripped : undefined
+  return isSdkAspectRatio(stripped) ? stripped : undefined
 }
 
 /** `numImages → n` is the only rename; `aspectRatio` normalizes once here. */
@@ -78,4 +75,9 @@ export function nativeBindingFor(key: CanonicalParamKey): NativeBindingTable[Can
  */
 export function asSdkImageSize(size: ImageSizeToken): `${number}x${number}` {
   return size as `${number}x${number}`
+}
+
+/** `auto` is a size-only sentinel; absence lets the server choose its own default. */
+export function resolveImageRequestSize(size: ImageSizeToken | undefined): ImageSizeToken | undefined {
+  return size === 'auto' ? undefined : size
 }

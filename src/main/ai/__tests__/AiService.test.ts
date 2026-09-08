@@ -218,6 +218,7 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
 const { AiService, imageInputEntryParams, resolveRequiredNativeFileSupport } = await import('../AiService')
+const imageSdk = await import('../provider/imageSdk')
 const { messageService } = await import('@main/data/services/MessageService')
 
 /**
@@ -228,6 +229,22 @@ function createService(): InstanceType<typeof AiService> {
   BaseService.resetInstances()
   return new (AiService as any)()
 }
+
+function stubSdkImageConfig() {
+  return vi.spyOn(imageSdk, 'resolveSdkImageConfig').mockResolvedValue({
+    sdkConfig: {
+      providerId: 'openai-compatible',
+      providerSettings: { name: 'test-provider', baseURL: 'https://provider.example/v1' },
+      providerOptionsKey: resolveProviderOptionsKey('openai-compatible', { actualProviderId: 'test-provider' }),
+      modelId: 'test-model'
+    },
+    credentialReceipt: { attribution: 'unknown' }
+  })
+}
+
+afterEach(() => {
+  if (vi.isMockFunction(imageSdk.resolveSdkImageConfig)) vi.mocked(imageSdk.resolveSdkImageConfig).mockRestore()
+})
 
 describe('AiService', () => {
   beforeEach(() => {
@@ -437,20 +454,7 @@ describe('AiService', () => {
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: {
-        providerId: 'test-provider',
-        providerOptionsKey: resolveProviderOptionsKey('test-provider'),
-        providerSettings: {},
-        modelId: 'test-model'
-      },
-      model: {
-        id: 'test-provider::test-model',
-        providerId: 'test-provider',
-        modelId: 'test-model',
-        pricing: { input: { perMillionTokens: null }, output: { perMillionTokens: null }, perImage: { price: 0.05 } }
-      }
-    } as never)
+    stubSdkImageConfig()
 
     mockGenerateImage.mockResolvedValue({
       images: [{ base64: 'abc123', mediaType: 'image/png' }, { nonsense: true }],
@@ -494,8 +498,8 @@ describe('AiService', () => {
     })
 
     expect(mockGenerateImage).toHaveBeenCalledWith(
-      'test-provider',
-      {},
+      'openai-compatible',
+      expect.objectContaining({ name: 'test-provider' }),
       expect.objectContaining({
         model: 'test-model',
         prompt: 'draw a cat',
@@ -545,13 +549,7 @@ describe('AiService', () => {
 
   it('honors an explicit retry override for direct image requests', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: {
-        providerId: 'test-provider',
-        providerSettings: {},
-        modelId: 'test-model'
-      }
-    } as never)
+    stubSdkImageConfig()
     mockGenerateImage.mockResolvedValue({ images: [] })
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
@@ -575,7 +573,7 @@ describe('AiService', () => {
     )
     mockGetImageGenerationSupport.mockReturnValueOnce(ImageGenerationSupportSchema.parse(row?.imageGeneration))
     const execute = vi
-      .spyOn(service as never, 'buildAgentParamsFor')
+      .spyOn(imageSdk, 'resolveSdkImageConfig')
       .mockRejectedValue(new Error('unexpected provider execution'))
 
     await expect(
@@ -590,50 +588,9 @@ describe('AiService', () => {
     expect(mockGenerateImage).not.toHaveBeenCalled()
   })
 
-  it.each(['remix', 'edit'] as const)(
-    'delivers AiHubMix %s mode with its input image to the ImageModel adapter',
-    async (mode) => {
-      const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-        sdkConfig: {
-          providerId: 'aihubmix',
-          providerOptionsKey: 'aihubmix',
-          providerSettings: {},
-          modelId: 'V_3'
-        }
-      } as never)
-      mockProviderGetByProviderId.mockReturnValue({ id: 'aihubmix', presetProviderId: 'aihubmix' })
-      mockModelGetByKey.mockReturnValue({ id: 'aihubmix::V_3', providerId: 'aihubmix', apiModelId: 'V_3' })
-      mockGenerateImage.mockResolvedValue({ images: [] })
-
-      const inputImage = 'data:image/png;base64,AQI='
-      await service.generateImage({
-        uniqueModelId: 'aihubmix::V_3',
-        cleanupPolicy: 'delete_when_unreferenced',
-        prompt: `${mode} this`,
-        mode,
-        inputImages: [inputImage],
-        paramValues: {}
-      })
-
-      expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(
-        expect.objectContaining({
-          prompt: { text: `${mode} this`, images: [inputImage] },
-          providerOptions: { aihubmix: { mode } }
-        })
-      )
-    }
-  )
-
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: {
-        providerId: 'test-provider',
-        providerSettings: {},
-        modelId: 'test-model'
-      }
-    } as never)
+    stubSdkImageConfig()
 
     mockGenerateImage.mockResolvedValue({ images: [] })
     mockApplicationGet.mockImplementation((name: string) =>
@@ -659,59 +616,12 @@ describe('AiService', () => {
     expect(mockGenerateImage.mock.calls[1]?.[2] as Record<string, unknown>).not.toHaveProperty('size')
   })
 
-  it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
-    const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: {
-        providerId: 'silicon',
-        providerOptionsKey: resolveProviderOptionsKey('silicon'),
-        providerSettings: {},
-        modelId: 'Kwai-Kolors/Kolors'
-      }
-    } as never)
-
-    mockGenerateImage.mockResolvedValue({ images: [] })
-    mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
-    )
-
-    await service.generateImage({
-      uniqueModelId: 'silicon::Kwai-Kolors/Kolors',
-      cleanupPolicy: 'delete_when_unreferenced',
-      prompt: 'a fox',
-      // numImages is native (→ imageParams.n); the rest form the silicon vendor body.
-      paramValues: {
-        numImages: 2,
-        seed: 42,
-        negativePrompt: 'low quality',
-        numInferenceSteps: 25,
-        guidanceScale: 4.5,
-        cfg: 7.5
-      }
-    })
-
-    expect(mockGenerateImage).toHaveBeenCalledWith(
-      'silicon',
-      {},
-      expect.objectContaining({
-        n: 2,
-        // Byte-identical to the old buildImageProviderOptions diffusion bag.
-        providerOptions: {
-          silicon: { negative_prompt: 'low quality', seed: 42, num_inference_steps: 25, guidance_scale: 4.5, cfg: 7.5 }
-        }
-      })
-    )
-  })
-
   // The direct (non-job) image path observes the actual ImageModel doGenerate
   // call in aiCore. These tests pin both the usage payload and the fact that
   // local persistence happens after the provider output has been recorded.
   describe('generateImage — AI usage record (direct path)', () => {
-    function stubDirectImage(service: InstanceType<typeof AiService>) {
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
-      } as never)
+    function stubDirectImage() {
+      stubSdkImageConfig()
       mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
       const fileEntry = { id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
       mockApplicationGet.mockImplementation((name: string) =>
@@ -722,7 +632,7 @@ describe('AiService', () => {
 
     it('records the provider output count with modality "image"', async () => {
       const service = createService()
-      stubDirectImage(service)
+      stubDirectImage()
 
       await service.generateImage({
         uniqueModelId: 'test-provider::test-model',
@@ -747,11 +657,7 @@ describe('AiService', () => {
         name: 'Image Assistant',
         emoji: '🎨'
       })
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
-        model: { id: 'test-provider::test-model', providerId: 'test-provider' },
-        assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
-      } as never)
+      stubSdkImageConfig()
       mockGenerateImage.mockResolvedValue({
         images: [
           { base64: 'first', mediaType: 'image/png' },
@@ -2246,10 +2152,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     mockAddFileRefsTx.mockReset()
   })
 
-  // Force the job branch by resolving to a custom-transport provider id; real
-  // hasImageTransport('ppio', …) routes through generateImageViaJob before
-  // buildAgentParamsFor can select and rotate a serving key.
-  function stubResolution(service: InstanceType<typeof AiService>) {
+  function stubResolution() {
     mockProviderGetByProviderId.mockReturnValue({ id: 'ppio' })
     mockModelGetByKey.mockReturnValue({
       id: 'ppio::qwen-image',
@@ -2266,7 +2169,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     )
     mockGetImageGenerationSupport.mockReturnValue(ImageGenerationSupportSchema.parse(row?.imageGeneration))
     return vi
-      .spyOn(service as never, 'buildAgentParamsFor')
+      .spyOn(imageSdk, 'resolveSdkImageConfig')
       .mockRejectedValue(new Error('job path must not select a serving key before execution'))
   }
 
@@ -2276,14 +2179,6 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     mockProviderGetByProviderId.mockReturnValue({ id: 'ppio' })
     mockModelGetByKey.mockReturnValue({ id: 'ppio::custom-image', providerId: 'ppio', apiModelId: 'custom-image' })
     mockGetImageGenerationSupport.mockReturnValueOnce(null)
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: {
-        providerId: 'openai-compatible',
-        providerOptionsKey: 'openai',
-        providerSettings: {},
-        modelId: 'custom-image'
-      }
-    } as never)
     mockGenerateImage.mockResolvedValue({ images: [] })
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
@@ -2304,7 +2199,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
   it('preserves the registered watermark switch as false through the canonical Job boundary', async () => {
     const service = createService()
-    stubResolution(service)
+    stubResolution()
     const enqueue = vi.fn().mockReturnValue({
       id: 'job-1',
       snapshot: {},
@@ -2341,7 +2236,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
   it('derives modelDescriptor { id, endpoint, isSync, mode } from the registry vendorTransport (non-default mode)', async () => {
     const service = createService()
-    stubResolution(service)
+    stubResolution()
     mockModelGetByKey.mockReturnValue({
       id: 'ppio::qwen-image-edit',
       providerId: 'ppio',
@@ -2399,7 +2294,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
   it('maps a failed job snapshot to a thrown error', async () => {
     const service = createService()
-    stubResolution(service)
+    stubResolution()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager')
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
@@ -2430,7 +2325,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
   it('cancels the job and throws AbortError when the request is aborted', async () => {
     const service = createService()
-    stubResolution(service)
+    stubResolution()
     const controller = new AbortController()
     controller.abort()
     const cancel = vi.fn().mockResolvedValue({ outcome: 'cancelled' })
@@ -2466,7 +2361,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
   it('enqueues the job, returns its output files, and classifies the temp input copy for GC reclaim', async () => {
     const service = createService()
-    stubResolution(service)
+    stubResolution()
 
     // Distinct ids per create so the input and mask rows are told apart below.
     const createInternalEntry = vi.fn().mockResolvedValueOnce({ id: 'in-1' }).mockResolvedValueOnce({ id: 'mask-1' })
@@ -2530,7 +2425,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     // reported (never deleted) by the orphan sweep, so pruning the job row would strand
     // one copy per generation forever.
     const service = createService()
-    stubResolution(service)
+    stubResolution()
 
     const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
     const enqueue = vi.fn().mockReturnValue({
@@ -2569,7 +2464,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
   it('cleans up already-created temp input entries when setup fails before enqueue', async () => {
     const service = createService()
-    stubResolution(service)
+    stubResolution()
     const permanentDelete = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'FileManager') {
@@ -2604,7 +2499,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 
   it('reclaims the temp inputs when registering the job refs fails', async () => {
     const service = createService()
-    stubResolution(service)
+    stubResolution()
     const permanentDelete = vi.fn().mockResolvedValue(undefined)
     const enqueueTx = vi.fn().mockReturnValue({
       id: 'job-1',

@@ -59,9 +59,8 @@ import {
 } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
-import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
-import { resolveWireRegistration } from './provider/custom/wire/wireProfile'
 import { resolveImageExecutionTarget } from './provider/imageExecutionTarget'
+import { buildSdkImageOptions, resolveSdkImageConfig } from './provider/imageSdk'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
@@ -84,7 +83,7 @@ import type {
   InProcessUsageContext,
   ListModelsRequest
 } from './types'
-import { asSdkImageSize } from './utils/aiSdkNativeBindings'
+import { resolveImageRequestSize } from './utils/aiSdkNativeBindings'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { prepareImageRequest } from './utils/prepareImageRequest'
@@ -321,18 +320,6 @@ export function imageInputEntryParams(value: string): CreateInternalEntryIpcPara
   return value.startsWith('data:')
     ? { source: 'base64', data: value as Base64String, cleanupPolicy: 'delete_when_unreferenced' }
     : { source: 'url', url: value as UrlString, cleanupPolicy: 'delete_when_unreferenced' }
-}
-
-/**
- * Resolve the wire `size`. `'auto'` is the painting UI sentinel for "let the
- * server pick the size", so it's omitted. An absent size is also omitted — the
- * provider/server applies its own default. (A blanket client-forced
- * `1024x1024` was wrong for vendors like Doubao that only accept `1K`/`2K`/`4K`
- * and reject a pixel size; models that want a concrete default declare it on
- * their registry `size` param instead.)
- */
-function resolveImageRequestSize(size: string | undefined): string | undefined {
-  return size === 'auto' ? undefined : size
 }
 
 /** Embedding request. */
@@ -877,13 +864,12 @@ export class AiService extends BaseService {
     const transportModelId = model.apiModelId ?? model.id
     const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, transportModelId)
     const preparedRequest = { ...request, ...prepareImageRequest(request, imageSupport ?? undefined) }
-    const params = preparedRequest.paramValues
-    const { structured, vendorBag } = splitParamValues(params)
 
     const target = resolveImageExecutionTarget(provider, model, request.mode ?? 'generate', imageSupport)
     if (target.kind === 'unavailable') throw new Error(target.message)
     // Preserve the current Job scheduling policy; only its handler selects a serving key.
     if (target.scheduling === 'job') {
+      const { structured, vendorBag } = splitParamValues(preparedRequest.paramValues)
       return await this.generateImageViaJob(
         { ...preparedRequest, uniqueModelId: model.id },
         structured,
@@ -894,52 +880,14 @@ export class AiService extends BaseService {
       )
     }
 
-    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(preparedRequest, signal)
-    const promptParam = preparedRequest.inputImages
-      ? {
-          text: preparedRequest.prompt,
-          images: preparedRequest.inputImages,
-          ...(preparedRequest.mask && { mask: preparedRequest.mask })
-        }
-      : preparedRequest.prompt
-
-    // Vendor body (`providerOptions[providerOptionsKey]`): the WireProfile engine maps the
-    // canonical bag to each provider's wire — a registered profile for the
-    // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
-    // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = resolveWireRegistration(sdkConfig.providerId)
-    const imageProviderOptions = buildVendorProviderOptions(
-      sdkConfig.providerOptionsKey,
-      params,
-      registration,
-      vendorBag
+    const { sdkConfig, credentialReceipt } = await resolveSdkImageConfig(
+      provider,
+      model,
+      target,
+      request.apiKeyOverride
     )
-    if (
-      sdkConfig.providerId === 'aihubmix' &&
-      (request.mode === 'edit' || request.mode === 'remix' || request.mode === 'upscale')
-    ) {
-      imageProviderOptions.aihubmix = { ...imageProviderOptions.aihubmix, mode: request.mode }
-    }
-
-    // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
-    // native binding's `map` (in `splitParamValues`).
-    const requestSize = resolveImageRequestSize(structured.size)
-
-    // Only the genuine AI SDK `ImageModelV3CallOptions` image params (n/size/seed/
-    // aspectRatio). The vendor knobs (negativePrompt/quality/numInferenceSteps/…)
-    // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
-    // (the WireProfile engine), which the image models read; passing them here is
-    // dropped by `generateImage`, so they're omitted.
     const imageParams = {
-      model: sdkConfig.modelId,
-      prompt: promptParam,
-      n: structured.n ?? 1,
-      maxRetries: request.requestOptions?.maxRetries ?? 0,
-      ...(requestSize !== undefined && { size: asSdkImageSize(requestSize) }),
-      ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
-      ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
-      ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
-      ...(signal ? { abortSignal: signal } : {}),
+      ...buildSdkImageOptions(preparedRequest, sdkConfig, signal),
       experimental_download: async (downloads) => {
         return Promise.all(
           downloads.map(async ({ url }) => {
