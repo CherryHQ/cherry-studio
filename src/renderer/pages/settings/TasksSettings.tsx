@@ -508,7 +508,7 @@ function getTriggerSummary(trigger: Trigger, t: TFunction) {
   }
 }
 
-const TaskTimeSelect: FC<{
+export const TaskTimeSelect: FC<{
   value: string
   disabled?: boolean
   onChange: (value: string) => void
@@ -527,7 +527,14 @@ const TaskTimeSelect: FC<{
   // selection keeps the minute the user did not edit (e.g. 18:30 -> clear 18 ->
   // pick 20 yields 20:30, not 20:00). While no hour is selected the minute
   // stays a local preview only: the form value remains '' and saving is blocked.
-  const [rememberedMinute, setRememberedMinute] = useState('00')
+  // Seed the retained minute from the mounted value: lastValue starts equal to
+  // value, so the update block below never runs on the first render and a
+  // fresh/remounted selector loading a non-zero-minute schedule would otherwise
+  // fall back to 00 once every hour is cleared.
+  const [rememberedMinute, setRememberedMinute] = useState(() => {
+    const parsed = parseTimes(value)
+    return parsed && parsed.hours.length > 0 ? parsed.minute : '00'
+  })
   const [lastValue, setLastValue] = useState(value)
   if (value !== lastValue) {
     setLastValue(value)

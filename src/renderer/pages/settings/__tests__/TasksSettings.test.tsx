@@ -6,7 +6,12 @@ import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import TasksSettings, { formStateToTrigger, type ScheduleFormState, triggerToFormState } from '../TasksSettings'
+import TasksSettings, {
+  formStateToTrigger,
+  type ScheduleFormState,
+  TaskTimeSelect,
+  triggerToFormState
+} from '../TasksSettings'
 
 type TranslationFunction = (key: string, values?: Record<string, unknown>) => string
 
@@ -1804,5 +1809,42 @@ describe('TasksSettings detail behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     expect(screen.queryByRole('menuitem', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' })).toBeInTheDocument()
+  })
+})
+
+describe('TaskTimeSelect minute retention on fresh mount', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    translationMock.t = (key: string) => key
+  })
+
+  it('keeps a non-zero minute when a freshly mounted editor clears its only hour and re-picks', () => {
+    // Regression for the cherry-review blocking finding: TaskTimeSelect that
+    // mounts directly onto a non-zero-minute value (18:30) — no value-diff
+    // update ever runs — must seed its retained minute from that first value.
+    // Otherwise clearing the only hour drops the minute to 00 and re-picking
+    // 20 produces 20:00 instead of the intended 20:30.
+    const onChange = vi.fn()
+    const { rerender } = render(<TaskTimeSelect value="18:30" onChange={onChange} />)
+
+    const timeSelect = screen.getByRole('group', { name: 'agent.tasks.schedule.time' })
+    const minuteSelect = within(timeSelect).getByRole('combobox', { name: 'agent.tasks.schedule.minute' })
+    expect(minuteSelect).toHaveAttribute('data-value', '30')
+
+    const eighteenButton = within(timeSelect).getByRole('button', { name: '18' })
+    expect(eighteenButton).toHaveAttribute('aria-pressed', 'true')
+
+    // Clear the only hour; the minute must remain 30 as a local preview.
+    fireEvent.click(eighteenButton)
+    expect(onChange).toHaveBeenLastCalledWith('')
+    expect(minuteSelect).toHaveAttribute('data-value', '30')
+
+    // Controlled parent commits the cleared value; component stays mounted.
+    rerender(<TaskTimeSelect value="" onChange={onChange} />)
+    expect(minuteSelect).toHaveAttribute('data-value', '30')
+
+    // Re-picking 20 must reuse the retained minute -> 20:30, not 20:00.
+    fireEvent.click(within(timeSelect).getByRole('button', { name: '20' }))
+    expect(onChange).toHaveBeenLastCalledWith('20:30')
   })
 })
