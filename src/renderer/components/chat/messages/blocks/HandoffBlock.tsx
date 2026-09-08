@@ -1,10 +1,10 @@
-import { Button } from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button } from '@cherrystudio/ui'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import type { HandoffPartData } from '@shared/data/types/uiParts'
 import { ArrowRight, ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-export default function HandoffBlock({ data }: { data: HandoffPartData }) {
+export default function HandoffBlock({ data, context }: { data: HandoffPartData; context?: string }) {
   const { t } = useTranslation()
   const targetNavigation = useConversationNavigation('agents')
   const sourceNavigation = useConversationNavigation('assistants')
@@ -16,6 +16,16 @@ export default function HandoffBlock({ data }: { data: HandoffPartData }) {
         <span>{t('agent.session.handoff.block_title', { agent: targetName })}</span>
       </div>
       {data.goal ? <p className="mt-1 text-muted-foreground">{data.goal}</p> : null}
+      {context ? (
+        <Accordion type="single" collapsible>
+          <AccordionItem value="context" className="border-0">
+            <AccordionTrigger className="py-2 font-normal">{t('agent.session.handoff.context')}</AccordionTrigger>
+            <AccordionContent>
+              <div className="whitespace-pre-wrap break-words text-foreground">{context}</div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      ) : null}
       <div className="mt-3 flex gap-2">
         {data.targetSessionId ? (
           <Button

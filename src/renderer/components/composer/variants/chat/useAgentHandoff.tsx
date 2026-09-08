@@ -11,6 +11,7 @@ import {
 } from '@cherrystudio/ui'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from '@renderer/components/composer/tokens'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
+import { StaticMarkdown } from '@renderer/components/markdown'
 import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -78,6 +79,8 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
   const taskId = useId()
   const summaryId = useId()
   const [state, setState] = useState<HandoffState>(initialState)
+  const [editingSummary, setEditingSummary] = useState(false)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const { model: summaryModel } = useModelById(state.metadata?.modelId ?? state.summaryModelId)
   const { providers } = useProviders(undefined, { enabled: state.phase !== 'idle' })
   const stateRef = useRef(state)
@@ -111,6 +114,13 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
     )
   })
 
+  useEffect(() => {
+    if (state.phase !== 'generating') return
+    const startedAt = Date.now()
+    const timer = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [state.phase, state.streamId])
+
   const abort = useCallback((streamId: string) => {
     void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => undefined)
   }, [])
@@ -139,6 +149,8 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
       }
     ) => {
       cancel()
+      setEditingSummary(false)
+      setElapsedSeconds(0)
       const generation = ++generationRef.current
       const streamId = `handoff:draft:${crypto.randomUUID()}`
       const handoffId = options?.handoffId ?? crypto.randomUUID()
@@ -282,16 +294,47 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
               onChange={(event) => setState((value) => ({ ...value, task: event.target.value }))}
               disabled={inputDisabled}
             />
-            <label className="block font-medium text-sm" htmlFor={summaryId}>
-              {t('agent.session.handoff.summary')}
-            </label>
-            <Textarea.Input
-              className="max-h-80 min-h-40"
-              id={summaryId}
-              value={state.summary}
-              onChange={(event) => setState((value) => ({ ...value, summary: event.target.value }))}
-              disabled={inputDisabled}
-            />
+            <div className="flex items-center justify-between gap-2">
+              <label
+                className="font-medium text-sm"
+                id={`${summaryId}-label`}
+                htmlFor={editingSummary ? summaryId : undefined}>
+                {t('agent.session.handoff.summary')}
+              </label>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={inputDisabled}
+                onClick={() => setEditingSummary((value) => !value)}>
+                {t(editingSummary ? 'common.preview' : 'common.edit')}
+              </Button>
+            </div>
+            {state.phase === 'generating' ? (
+              <p role="status" className="text-muted-foreground text-sm">
+                {t('agent.session.handoff.generating', { seconds: elapsedSeconds })}
+              </p>
+            ) : null}
+            {editingSummary ? (
+              <Textarea.Input
+                className="max-h-80 min-h-40"
+                id={summaryId}
+                value={state.summary}
+                onChange={(event) => setState((value) => ({ ...value, summary: event.target.value }))}
+                disabled={inputDisabled}
+              />
+            ) : (
+              <div
+                role="region"
+                aria-labelledby={`${summaryId}-label`}
+                aria-busy={state.phase === 'generating'}
+                className="max-h-80 min-h-40 overflow-y-auto rounded-md border border-border p-3 text-sm">
+                {state.phase === 'generating' ? (
+                  <p className="whitespace-pre-wrap">{state.summary}</p>
+                ) : (
+                  <StaticMarkdown id={summaryId}>{state.summary}</StaticMarkdown>
+                )}
+              </div>
+            )}
             <WorkspaceSelector
               value={state.workspaceId}
               onChange={(workspaceId) => setState((value) => ({ ...value, workspaceId }))}
@@ -301,7 +344,8 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
                 </Button>
               }
             />
-            <fieldset disabled={inputDisabled}>
+            <fieldset disabled={inputDisabled} className="space-y-2">
+              <legend className="font-medium text-sm">{t('agent.session.handoff.summary_model')}</legend>
               <DefaultModelSelector
                 model={summaryModel}
                 providers={providers}
@@ -367,8 +411,9 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
             ) : null}
             <Button
               disabled={(state.phase !== 'ready' && state.phase !== 'error') || !state.task.trim()}
+              loading={state.phase === 'generating' || state.phase === 'starting'}
               onClick={() => void start()}>
-              {t(state.submitted ? 'common.retry' : 'agent.session.handoff.start')}
+              {t(state.submitted && state.phase === 'error' ? 'common.retry' : 'agent.session.handoff.start')}
             </Button>
           </DialogFooter>
         </DialogContent>

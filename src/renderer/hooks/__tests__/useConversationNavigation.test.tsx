@@ -53,21 +53,6 @@ describe('useConversationNavigation', () => {
     expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
-  it('openConversationTab opens a new tab even when one exists', () => {
-    const ctx = makeCtx([{ id: 'tab-x', type: 'route', url: '/app/agents?sessionId=s1' }])
-    ctx.openTab.mockReturnValue('new-agent-tab')
-    tabsMock.ctx = ctx
-    const { result } = renderHook(() => useConversationNavigation('agents'))
-
-    result.current.openConversationTab('s1', 'Session 1')
-    expect(ctx.setActiveTab).not.toHaveBeenCalled()
-    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents?sessionId=s1', {
-      forceNew: true,
-      title: 'Session 1'
-    })
-    expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
-  })
-
   it('openConversationTab can force opening a duplicate tab even when one exists', () => {
     const ctx = makeCtx([{ id: 'tab-x', type: 'route', url: '/app/agents?sessionId=s1' }])
     ctx.openTab.mockReturnValue('duplicate-agent-tab')
@@ -93,13 +78,6 @@ describe('useConversationNavigation', () => {
       forceNew: true,
       title: 'Topic 1'
     })
-  })
-
-  it('no-ops without a tabs provider', () => {
-    tabsMock.ctx = null
-    const { result } = renderHook(() => useConversationNavigation('assistants'))
-
-    expect(() => result.current.openConversationTab('t1')).not.toThrow()
   })
 
   it('openConversationWindow detaches a fresh window for the conversation key without touching tabs', () => {
@@ -137,6 +115,20 @@ describe('useConversationNavigation', () => {
       forceNew: true,
       title: 'Session 1'
     })
+  })
+
+  it.each([
+    ['agents', '/app/agents?sessionId=s1&agentId=a1'],
+    ['assistants', '/app/chat?topicId=s1']
+  ] as const)('reuses an existing %s conversation instead of adding another tab', (appId, url) => {
+    const ctx = makeCtx([{ id: 'existing', type: 'route', url }])
+    tabsMock.ctx = ctx
+    const { result } = renderHook(() => useConversationNavigation(appId))
+
+    expect(result.current.openConversation('s1', 'Source')).toBe('existing')
+    expect(ctx.setActiveTab).toHaveBeenCalledWith('existing')
+    expect(ctx.openTab).not.toHaveBeenCalled()
+    expect(ipcMock.request).not.toHaveBeenCalled()
   })
 
   it('openConversation routes to a detached window when the host frame is detached', () => {

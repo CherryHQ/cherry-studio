@@ -262,6 +262,7 @@ function getVideoFilePath(part: CherryMessagePart): string | undefined {
 type GroupedEntry = PartEntry | PartEntry[]
 
 interface RenderGroupedEntryOptions {
+  handoffContext?: string
   inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
@@ -656,6 +657,7 @@ function renderPart(
     }
 
     case 'text': {
+      if (options?.handoffContext !== undefined) return null
       const cherryMeta = getCherryMeta(part)
       const references = cherryMeta?.references as ContentReference[] | undefined
       let converted = references ? referenceCitationsCache.get(references) : undefined
@@ -717,7 +719,7 @@ function renderPart(
     case 'data-handoff': {
       const handoffData = 'data' in part ? part.data : undefined
       if (!handoffData) return null
-      return <HandoffBlock key={partId} data={handoffData} />
+      return <HandoffBlock key={partId} data={handoffData} context={options?.handoffContext} />
     }
 
     case 'data-video': {
@@ -1552,8 +1554,20 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     )
     return new Map(textParts.map((part, index) => [part, projections[index]]))
   }, [message.role, messageCitations, messageParts])
+  // Keep the complete Agent prompt available without repeating it above the handoff card.
+  const handoffContext = useMemo(
+    () =>
+      message.role === 'user' && messageParts.some((part) => part.type === 'data-handoff' && part.data)
+        ? messageParts
+            .filter((part) => part.type === 'text')
+            .map((part) => part.text)
+            .join('\n\n')
+        : undefined,
+    [message.role, messageParts]
+  )
   const renderOptions = useMemo(
     () => ({
+      handoffContext,
       citationProjectionByPart,
       expandedTextPartIds,
       messageCitations,
@@ -1565,6 +1579,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     }),
     [
       canRemoveTranslation,
+      handoffContext,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,

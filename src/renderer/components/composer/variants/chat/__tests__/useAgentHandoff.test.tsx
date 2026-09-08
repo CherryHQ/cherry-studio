@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { type ComponentProps, type ReactNode, useState } from 'react'
+import userEvent from '@testing-library/user-event'
+import { type ReactNode, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -33,21 +34,17 @@ vi.mock('@renderer/utils/file/buildFileParts', () => ({ buildFilePartsForAttachm
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   WorkspaceSelector: ({ trigger }: { trigger: ReactNode }) => trigger
 }))
-vi.mock('@cherrystudio/ui', () => ({
-  Button: (props: ComponentProps<'button'>) => <button {...props} />,
-  Checkbox: (props: ComponentProps<'input'>) => <input type="checkbox" {...props} />,
-  Dialog: ({ children }: { children: ReactNode }) => <>{children}</>,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  DialogFooter: ({ children }: { children: ReactNode }) => <footer>{children}</footer>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <header>{children}</header>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h1>{children}</h1>,
-  Textarea: Object.assign((props: ComponentProps<'textarea'>) => <textarea {...props} />, {
-    Input: (props: ComponentProps<'textarea'>) => <textarea {...props} />,
-    Root: (props: ComponentProps<'textarea'>) => <textarea {...props} />
-  })
+vi.unmock('@cherrystudio/ui')
+vi.mock('@renderer/components/markdown', () => ({
+  StaticMarkdown: ({ children }: { children: string }) => <div>{children}</div>
 }))
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
+vi.mock('react-i18next', async () => {
+  const { createInstance } = await import('i18next')
+  const { default: en } = await import('@renderer/i18n/locales/en-us.json')
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', resources: { en: { translation: en } }, keySeparator: false })
+  return { useTranslation: () => ({ t: i18n.t }) }
+})
 
 import { HandoffDraftOpenSchema } from '@shared/ipc/schemas/ai'
 
@@ -108,7 +105,7 @@ describe('useAgentHandoff', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open' }))
     const streamId = mocks.request.mock.calls[0][1].streamId
     await act(async () => mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' }))
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'agent.session.handoff.start' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Start Agent session' })))
     expect(mocks.openConversation).toHaveBeenCalledWith('session-1', 'Reviewer')
   })
 
@@ -145,7 +142,7 @@ describe('useAgentHandoff', () => {
     await act(async () =>
       mocks.listeners.get('ai.stream.done')?.({ topicId: draftOpens[1][1].streamId, status: 'success' })
     )
-    fireEvent.click(screen.getByRole('button', { name: 'common.regenerate' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Regenerate' })))
     const repeatedOpen = mocks.request.mock.calls
       .filter(([route]) => route === 'ai.agent.handoff.draft.open')
       .at(-1)![1]
@@ -160,7 +157,7 @@ describe('useAgentHandoff', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open' }))
     const streamId = mocks.request.mock.calls[0][1].streamId
     expect(streamId).toMatch(/^handoff:draft:/)
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(mocks.request).toHaveBeenCalledWith('ai.stream.abort', expect.anything())
     await act(async () => resolve({ modelId: 'm', messageCount: 0, attachments: [] }))
     expect(mocks.request.mock.calls.filter(([route]) => route === 'ai.stream.abort')).toHaveLength(2)
@@ -182,11 +179,12 @@ describe('useAgentHandoff', () => {
       mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' })
       await draftOpen
     })
-    fireEvent.change(screen.getByLabelText('agent.session.handoff.goal'), { target: { value: 'Edited goal' } })
-    fireEvent.change(screen.getByLabelText('agent.session.handoff.summary'), { target: { value: 'Edited summary' } })
-    fireEvent.click(screen.getByRole('button', { name: 'agent.session.handoff.start' }))
+    fireEvent.change(screen.getByLabelText('Goal'), { target: { value: 'Edited goal' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText('Summary'), { target: { value: 'Edited summary' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Start Agent session' }))
     await act(async () => {})
-    fireEvent.click(screen.getByRole('button', { name: 'common.retry' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Retry' })))
     const starts = mocks.request.mock.calls.filter(([route]) => route === 'ai.agent.handoff.start')
     expect(starts).toHaveLength(2)
     expect(starts[0][1]).toMatchObject({
@@ -220,7 +218,7 @@ describe('useAgentHandoff', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open' }))
     const streamId = mocks.request.mock.calls[0][1].streamId
     await act(async () => mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' }))
-    const start = screen.getByRole('button', { name: 'agent.session.handoff.start' })
+    const start = screen.getByRole('button', { name: 'Start Agent session' })
     await act(async () => {
       fireEvent.click(start)
       fireEvent.click(start)
@@ -240,8 +238,8 @@ describe('useAgentHandoff', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open' }))
     const streamId = mocks.request.mock.calls[0][1].streamId
     await act(async () => mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.session.handoff.start' }))
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start Agent session' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await act(async () => resolveFiles([]))
     expect(mocks.request.mock.calls.some(([route]) => route === 'ai.agent.handoff.start')).toBe(false)
   })
@@ -258,11 +256,37 @@ describe('useAgentHandoff', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open' }))
     const streamId = mocks.request.mock.calls[0][1].streamId
     await act(async () => mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.session.handoff.start' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start Agent session' }))
     await act(async () => {})
-    const openAgent = screen.getByRole('button', { name: 'agent.session.handoff.open_agent' })
+    const openAgent = screen.getByRole('button', { name: 'Open Agent' })
     expect(openAgent).toBeTruthy()
     fireEvent.click(openAgent)
     expect(mocks.openConversation).toHaveBeenCalledWith('session-1', 'Reviewer')
+  })
+
+  it('shows generation status and preserves reviewed edits when switching between preview and editing', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'open' }))
+    const streamId = mocks.request.mock.calls[0][1].streamId
+    expect(screen.getByRole('status')).toHaveTextContent('Generating summary')
+    expect(screen.getByRole('button', { name: 'Start Agent session' })).toBeDisabled()
+    await act(async () => {
+      mocks.listeners.get('ai.stream.chunk')?.({
+        topicId: streamId,
+        chunk: { type: 'text-delta', delta: 'Read-only analysis' }
+      })
+      mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' })
+    })
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Summary' })).toHaveTextContent('Read-only analysis')
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    const summary = screen.getByRole('textbox', { name: 'Summary' })
+    await user.clear(summary)
+    await user.type(summary, 'Verify the source before answering.')
+    await user.click(screen.getByRole('button', { name: 'Preview' }))
+    expect(screen.getByRole('region', { name: 'Summary' })).toHaveTextContent('Verify the source before answering.')
+    expect(screen.getByRole('group', { name: 'Summary model' })).toBeInTheDocument()
+    expect(mocks.request.mock.calls.some(([route]) => route === 'ai.agent.handoff.start')).toBe(false)
   })
 })

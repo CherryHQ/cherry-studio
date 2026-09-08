@@ -1518,6 +1518,7 @@ const ChatComposerInner = ({
     return [
       {
         ...entitySource,
+        title: t('agent.session.handoff.mention_title'),
         items: async (args: Parameters<typeof entitySource.items>[0]) => {
           const [entityItems, agentItems] = await Promise.all([entitySource.items(args), agentSource.items(args)])
           const filteredEntityItems = agentItems.length
@@ -1527,7 +1528,7 @@ const ChatComposerInner = ({
         }
       }
     ]
-  }, [agentHandoffSources, entityReferenceSources])
+  }, [agentHandoffSources, entityReferenceSources, t])
   const handoffTarget = getHandoffTarget(draftTokens ?? [])
   const agentHandoff = useAgentHandoff({ onStarted: clearCurrentDraft, sourceId: topicId })
 

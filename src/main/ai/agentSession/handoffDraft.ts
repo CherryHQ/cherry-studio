@@ -118,7 +118,9 @@ export function openHandoffDraft(input: HandoffDraftOpen, listener: StreamListen
     `Source coverage: ${JSON.stringify(coverage)}`,
     'Source conversation:',
     history.join('\n') || '[source conversation has no messages]',
-    'Prepare a concise handoff for the target Agent. State the goal, completed and unfinished work, decisions and constraints, verified facts versus hypotheses, relevant files, and concrete next steps. Preserve message IDs and attachment/tool references when they matter. Do not claim a check ran unless the source proves it.'
+    'Write the handoff in the same language as the next task, including all headings. Write for the user reviewing it before the Agent starts.',
+    'Use three short sections: goal, key facts and constraints, and next steps. Aim for 5–8 concise bullets in total; retain critical constraints even when that needs more space. Distinguish verified facts from hypotheses and do not claim a check ran unless the source proves it.',
+    'Do not repeat the task or constraints across sections. Omit Agent IDs, coverage metadata, empty messages, and unrelated historical API errors. Include message IDs and attachment/tool references only when needed to verify a specific fact; put those essential references in a short final references section. The Agent receives the source session ID separately.'
   ]
     .filter(Boolean)
     .join('\n\n')
