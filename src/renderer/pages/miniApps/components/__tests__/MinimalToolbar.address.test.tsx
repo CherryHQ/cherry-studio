@@ -111,6 +111,27 @@ describe('MinimalToolbar address bar', () => {
     mocks.loadURL.mockResolvedValue(undefined)
   })
 
+  it('does not report a superseded address load as a failure', async () => {
+    const { webview, navigate } = createWebview()
+    let rejectLoad!: (error: Error) => void
+    mocks.loadURL.mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectLoad = reject
+        })
+    )
+    renderToolbar(webview)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'https://pending.example/' } })
+    fireEvent.submit(input.closest('form')!)
+    await act(async () => {
+      navigate('did-navigate', 'https://new.example/')
+      rejectLoad(new Error('ERR_ABORTED (-3)'))
+    })
+    expect(input).toHaveValue('https://new.example/')
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('normalizes and loads an entered web address', async () => {
     const { webview } = createWebview()
     const user = userEvent.setup()

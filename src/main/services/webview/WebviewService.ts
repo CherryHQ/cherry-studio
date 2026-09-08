@@ -23,27 +23,6 @@ interface ExportAnnotationsInput {
 }
 
 /**
- * init the useragent of the webview session
- * remove the CherryStudio and Electron from the useragent
- */
-export function initSessionUserAgent() {
-  const wvSession = session.fromPartition(WEBVIEW_PARTITION)
-  const originUA = wvSession.getUserAgent()
-  const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
-
-  wvSession.setUserAgent(newUA)
-  wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
-    const language = application.get('PreferenceService').get('app.language')
-    const headers = {
-      ...details.requestHeaders,
-      'User-Agent': details.url.includes('google.com') ? originUA : newUA,
-      'Accept-Language': `${language}, en;q=0.9, *;q=0.5`
-    }
-    cb({ requestHeaders: headers })
-  })
-}
-
-/**
  * WebviewService handles the behavior of links opened from webview elements
  * It controls whether links should be opened within the application or in an external browser.
  *

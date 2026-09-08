@@ -209,6 +209,7 @@ export function buildWebviewElementSelector(element: Element): string | null {
   while (true) {
     const root = currentElement.getRootNode()
     if (!(root instanceof Document || root instanceof ShadowRoot)) return null
+    if (root instanceof ShadowRoot && root.mode === 'closed') return null
 
     const segment = buildSelectorInRoot(currentElement, root)
     if (!segment) return null
@@ -1258,7 +1259,9 @@ export class WebviewAnnotationController {
     const annotation = this.editorAnnotationId
       ? this.annotations.find((item) => item.id === this.editorAnnotationId)
       : undefined
-    const resolved = annotation ? this.resolveAnnotationElement(annotation) : null
+    const resolved =
+      (annotation ? this.resolveAnnotationElement(annotation) : null) ??
+      (this.pendingRegion || annotation?.region ? document.body : null)
     if (resolved) {
       this.editorElement = resolved
       this.highlightElement = resolved
