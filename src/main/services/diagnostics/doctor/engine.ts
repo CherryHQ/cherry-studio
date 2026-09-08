@@ -28,6 +28,7 @@ export interface EngineOptions<Id extends string, Outcome> {
   /** Cancels the whole run: running probes are aborted, unstarted ones settle as canceled errors. */
   readonly signal?: AbortSignal
   readonly laneLimits?: Readonly<Record<string, number>>
+  readonly onStart?: (id: Id) => void
   readonly onResult?: (result: EngineResult<Id, Outcome>) => void
   readonly now?: () => number
 }
@@ -122,7 +123,10 @@ export async function runDoctorChecks<Id extends string, Outcome extends { reado
           return
         }
         const lane = lanes.get(check.lane)
-        const run = () => probe(check, options.signal, now)
+        const run = () => {
+          options.onStart?.(check.id)
+          return probe(check, options.signal, now)
+        }
         settle({ id: check.id, ...(lane ? await lane.add(run, { throwOnTimeout: true }) : await run()) })
       })
     )

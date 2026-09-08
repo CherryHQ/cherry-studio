@@ -123,11 +123,12 @@ export class DoctorService extends BaseService {
         runId,
         tier: input.tier,
         startedAt: startedAt.toISOString(),
-        results: []
+        results: [],
+        activeCheckIds: []
       }
       this.publish(running)
-      const results = await this.execute(ids, controller.signal, (settled) =>
-        this.publish({ ...running, results: settled })
+      const results = await this.execute(ids, controller.signal, (results, activeCheckIds) =>
+        this.publish({ ...running, results, activeCheckIds })
       )
       if (controller.signal.aborted) {
         this.publish({ status: 'canceled', runId })
@@ -252,17 +253,24 @@ export class DoctorService extends BaseService {
   private async execute(
     ids: readonly DoctorCheckId[],
     signal?: AbortSignal,
-    onProgress?: (settled: readonly DoctorCheckResult[]) => void
+    onProgress?: (results: readonly DoctorCheckResult[], activeCheckIds: readonly DoctorCheckId[]) => void
   ): Promise<DoctorCheckResult[]> {
     const settled: DoctorCheckResult[] = []
+    const activeCheckIds = new Set<DoctorCheckId>()
     const memo: RunMemo = new Map()
     const results = (await runDoctorChecks({
       checks: ids.map((id) => toEngineCheck(id, memo)),
       signal,
       laneLimits: LANE_LIMITS,
+      onStart: (checkId) => {
+        activeCheckIds.add(checkId)
+        onProgress?.([...settled], [...activeCheckIds])
+      },
       onResult: (result) => {
-        settled.push(result as DoctorCheckResult)
-        onProgress?.([...settled])
+        const doctorResult = result as DoctorCheckResult
+        activeCheckIds.delete(doctorResult.id)
+        settled.push(doctorResult)
+        onProgress?.([...settled], [...activeCheckIds])
       }
     })) as DoctorCheckResult[]
     return results

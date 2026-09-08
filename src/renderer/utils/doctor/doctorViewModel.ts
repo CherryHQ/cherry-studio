@@ -35,6 +35,7 @@ interface DoctorViewModel {
   readonly tier?: DoctorRunTier
   readonly report?: DoctorReport
   readonly rows: readonly DoctorRowViewModel[]
+  readonly activeCheckIds: readonly DoctorCheckId[]
   readonly groups: readonly DoctorGroupViewModel[]
   readonly problemCount: number
   readonly summary: {
@@ -158,6 +159,7 @@ export function buildDoctorViewModel(state: DoctorState, now = Date.now()): Doct
     tier: state.status === 'running' ? state.tier : report?.tier,
     report,
     rows,
+    activeCheckIds: state.status === 'running' ? state.activeCheckIds : [],
     groups,
     problemCount: rows.filter((row) => row.status === 'warn' || row.status === 'fail').length,
     summary,

@@ -398,6 +398,7 @@ export type DoctorState =
       readonly tier: DoctorRunTier
       readonly startedAt: string
       readonly results: readonly DoctorCheckResult[]
+      readonly activeCheckIds: readonly DoctorCheckId[]
     }
   | { readonly status: 'completed'; readonly report: DoctorReport }
   | { readonly status: 'canceled'; readonly runId: string }

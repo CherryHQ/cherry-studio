@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { CANCELED_MESSAGE, DoctorEngineError, type EngineCheck, runDoctorChecks } from '../engine'
 
@@ -89,6 +89,31 @@ describe('runDoctorChecks', () => {
       laneLimits: { live: 2 }
     })
     expect(peak).toBe(2)
+  })
+
+  it('reports a queued probe as active only when its lane starts it', async () => {
+    let releaseFirst!: () => void
+    const started: string[] = []
+    const run = runDoctorChecks({
+      checks: [
+        check(
+          'first',
+          () =>
+            new Promise((resolve) => {
+              releaseFirst = () => resolve({ status: 'pass' })
+            }),
+          { lane: 'live' }
+        ),
+        check('second', pass, { lane: 'live' })
+      ],
+      laneLimits: { live: 1 },
+      onStart: (id) => started.push(id)
+    })
+
+    await vi.waitFor(() => expect(started).toEqual(['first']))
+    releaseFirst()
+    await expect(run).resolves.toHaveLength(2)
+    expect(started).toEqual(['first', 'second'])
   })
 
   it('streams each result as it settles and returns them in catalog order', async () => {
