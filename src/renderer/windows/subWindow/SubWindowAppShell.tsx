@@ -32,7 +32,7 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 
 export const SubWindowAppShell = () => {
   const tabsApi = useTabs()
-  const { tabs, activeTabId, updateTab, openTab, closeTab, closeTabs } = tabsApi
+  const { tabs, activeTabId, updateTab, openTab, closeTab, closeTabs, detachTab } = tabsApi
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
   const isFullscreen = useNativeFullscreen()
@@ -133,9 +133,18 @@ export const SubWindowAppShell = () => {
     [closeTabs, evictMiniAppsForClosedTabs, takeClearingSplitId]
   )
 
+  const handleDetachTab = useCallback(
+    (id: string) => {
+      const clearingSplitId = takeClearingSplitId([id])
+      evictMiniAppsForClosedTabs([id], clearingSplitId)
+      detachTab(id)
+    },
+    [detachTab, evictMiniAppsForClosedTabs, takeClearingSplitId]
+  )
+
   const tabsContextValue = useMemo(
-    () => ({ ...tabsApi, closeTab: handleCloseTab, closeTabs: handleCloseTabs }),
-    [tabsApi, handleCloseTab, handleCloseTabs]
+    () => ({ ...tabsApi, closeTab: handleCloseTab, closeTabs: handleCloseTabs, detachTab: handleDetachTab }),
+    [tabsApi, handleCloseTab, handleCloseTabs, handleDetachTab]
   )
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
