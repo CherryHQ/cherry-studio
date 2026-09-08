@@ -20,6 +20,7 @@ pdf -> pypdf, pptx -> python-pptx.
 import argparse
 import contextlib
 import csv
+import datetime
 import json
 import os
 import re
@@ -168,8 +169,40 @@ def slice_char_range(text: str, char_range) -> str:
 
 
 def cell_display(value) -> str:
+    """Render a cell in a shape a spreadsheet reader recognises, not the way Python prints it.
+
+    csv and md output is read as spreadsheet text and compared against the renderer's excerpt, so a
+    `str()` form only Python uses is wrong on both counts: `True` where every spreadsheet writes
+    `TRUE`, `2024-01-03 00:00:00` for a cell the user sees as `2024-01-03` (openpyxl hands back a
+    datetime for date-only cells too, never a bare date), and `1 day, 2:30:00` for a duration Excel
+    counts the hours through as `26:30:00`. Numbers keep their stored value (`0.4567`, not `45.67%`):
+    presenting them any other way means implementing number formats, which SKILL.md documents as an
+    accepted asymmetry between the extract and the excerpt.
+
+    A midnight time is what marks a date-only cell, because the cell's number format is not carried
+    through extract_xlsx and threading it there to decide this would touch every output path. The
+    rule errs in both directions — a date-formatted cell that stores a time prints the time, a
+    date-time cell that stores midnight prints as a date — and both are the number-format difference
+    the anchor check already sets aside. A text cell that says `TRUE` renders the same as the
+    boolean; so does the renderer, which is the point.
+    """
     if value is None:
         return ""
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, datetime.datetime):
+        if value.time() == datetime.time(0):
+            return value.date().isoformat()
+        return value.isoformat(sep=" ", timespec="seconds")
+    if isinstance(value, datetime.time):
+        return value.isoformat(timespec="seconds")
+    if isinstance(value, datetime.timedelta):
+        # Floor division on a negative total borrows an hour (-30 minutes would print -1:30:00), so
+        # split the sign off first and format the magnitude.
+        seconds = int(value.total_seconds())
+        sign = "-" if seconds < 0 else ""
+        seconds = abs(seconds)
+        return f"{sign}{seconds // 3600}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"
     return str(value)
 
 
