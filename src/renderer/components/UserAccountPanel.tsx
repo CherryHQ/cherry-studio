@@ -260,6 +260,17 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
                   <Badge className="border-success-border bg-success-subtle px-1.5 py-0 text-[10px] text-success-subtle-foreground leading-4">
                     {t('settings.provider.cherry_cloud.logged_in')}
                   </Badge>
+                ) : cloudStatusLoadState !== 'error' ? (
+                  <Button
+                    aria-label={isAuthorizing ? t('settings.provider.cherry_cloud.signing_in') : undefined}
+                    className="shrink-0"
+                    loading={cloudStatusLoadState === 'loading' || isAuthorizing}
+                    onClick={() => void handleCloudLogin()}
+                    size="sm"
+                    variant="outline">
+                    {!isAuthorizing && cloudStatusLoadState !== 'loading' ? <LogIn aria-hidden /> : null}
+                    {t('settings.provider.cherry_cloud.login')}
+                  </Button>
                 ) : null}
               </RowFlex>
               {cloudStatus?.phase === 'signed-in' && cloudStatus.displayName ? (
@@ -288,30 +299,16 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
               {!isRevokingSession ? <LogOut aria-hidden /> : null}
               {t('settings.provider.cherry_cloud.logout')}
             </Button>
-          ) : (
-            <ColFlex className="gap-2">
-              <Button
-                className="w-full"
-                loading={cloudStatusLoadState === 'loading' || isAuthorizing}
-                onClick={() => void handleCloudLogin()}
-                variant="outline">
-                {!isAuthorizing && cloudStatusLoadState !== 'loading' ? <LogIn aria-hidden /> : null}
-                {isAuthorizing
-                  ? t('settings.provider.cherry_cloud.signing_in')
-                  : t('settings.provider.cherry_cloud.login')}
-              </Button>
-              {isAuthorizing ? (
-                <Button
-                  className="w-full"
-                  loading={isCancellingLogin}
-                  onClick={() => void handleCloudLoginCancel()}
-                  variant="ghost">
-                  {!isCancellingLogin ? <X aria-hidden /> : null}
-                  {t('common.cancel')}
-                </Button>
-              ) : null}
-            </ColFlex>
-          )}
+          ) : isAuthorizing ? (
+            <Button
+              className="w-full"
+              loading={isCancellingLogin}
+              onClick={() => void handleCloudLoginCancel()}
+              variant="ghost">
+              {!isCancellingLogin ? <X aria-hidden /> : null}
+              {t('common.cancel')}
+            </Button>
+          ) : null}
         </ColFlex>
       ) : null}
     </ColFlex>
