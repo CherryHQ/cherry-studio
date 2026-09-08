@@ -136,8 +136,11 @@ async function resolveFallback(
       })
       return null
     }
-    if (!availability.availableModelIdsByFeature.chat.includes(uniqueModelId)) {
-      logger.info('skipping Cherry Cloud fallback without chat permission', { uniqueModelId })
+    if (
+      !availability.availableModelIdsByFeature.chat.includes(uniqueModelId) ||
+      availability.quotaExhaustedModelIds.includes(uniqueModelId)
+    ) {
+      logger.info('skipping unavailable Cherry Cloud fallback', { uniqueModelId })
       return null
     }
   }
