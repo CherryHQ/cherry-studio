@@ -52,13 +52,31 @@ export interface CallOverrides {
   providerOptions?: ProviderOptions
 }
 
-export interface AiBaseRequest {
-  assistantId?: string
+/**
+ * The conversation a chat request belongs to. Supplied by the caller — the only
+ * party that knows its unit of work (a topic, an agent session, one probe).
+ */
+export interface ConversationRef {
+  id: string
+  /** The stream manager's topic key (a chat topic, or a prompt stream's own id); absent for probes. */
+  topicId?: string
+}
+
+/** Transport-level request every modality shares: which model, which credential, how to send. */
+export interface AiRequest {
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId
-  mcpToolIds?: string[]
+  /** Usage attribution and, when `uniqueModelId` is absent, the model to fall back to. */
+  assistantId?: string
   /** Selected API key override, currently used by provider health checks. */
   apiKeyOverride?: string
+  requestOptions?: AiTransportOptions
+}
+
+/** Text generation (streaming or not): a conversation plus everything that shapes a turn. */
+export interface AiChatRequest extends AiRequest {
+  conversation: ConversationRef
+  mcpToolIds?: string[]
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured when the message was submitted. */
@@ -72,7 +90,6 @@ export interface AiBaseRequest {
    * assistant has no binding does this selection define the scope on its own.
    */
   knowledgeBaseIds?: string[]
-  requestOptions?: AiTransportOptions
   /**
    * Main-internal context ownership. Omitted means Cherry-managed; caller-owned
    * requests bypass Cherry's history truncation, pruning, and compaction.
@@ -97,7 +114,7 @@ export interface ListModelsRequest {
 export type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
 
 /** Streaming chat request — serialisable across IPC. */
-export interface AiStreamRequest extends AiBaseRequest {
+export interface AiStreamRequest extends AiChatRequest {
   /** `topicId` in the AiStreamManager path. */
   chatId: string
   trigger: ChatTrigger

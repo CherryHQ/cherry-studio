@@ -124,6 +124,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
 
     const streamRequest: AiStreamRequest = {
       chatId: req.topicId,
+      conversation: { id: req.topicId, topicId: req.topicId },
       trigger: 'submit-message',
       assistantId,
       uniqueModelId: model.id,

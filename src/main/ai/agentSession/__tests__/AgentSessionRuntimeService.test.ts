@@ -5078,6 +5078,7 @@ describe('AgentSessionRuntimeService', () => {
       rootSpan: expect.anything(),
       request: {
         chatId: 'agent-session:session-1',
+        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
         trigger: 'submit-message',
         messageId: 'generated-message-id',
         messages: [

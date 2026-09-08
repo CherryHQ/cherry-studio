@@ -295,7 +295,20 @@ describe('AiStreamManager', () => {
       )
     })
 
-    it('keeps stream identity separate from conversation identity', () => {
+    it('makes an anonymous prompt stream its own conversation', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        listener: new FakeListener('gateway:request-1')
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' } })
+      )
+    })
+
+    it('keeps a trusted Agent SDK call in its agent session conversation', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
         uniqueModelId: 'provider-a::model-a',
@@ -311,7 +324,11 @@ describe('AiStreamManager', () => {
       })
 
       expect(mockStreamText).toHaveBeenCalledWith(
-        expect.objectContaining({ chatId: 'session-1', tokenUsageSource: 'agent' })
+        expect.objectContaining({
+          chatId: 'gateway-request-1',
+          conversation: { id: 'session-1', topicId: 'gateway-request-1' },
+          tokenUsageSource: 'agent'
+        })
       )
     })
   })

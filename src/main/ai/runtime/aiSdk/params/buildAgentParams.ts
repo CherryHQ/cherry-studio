@@ -32,15 +32,9 @@ import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequ
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
 import { createHttpTraceFetch } from '../../../observability'
-import { resolveProviderAiSdkConfig } from '../../../provider/config'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
-import {
-  resolveAiSdkProviderId,
-  type ResolvedEndpoint,
-  resolveEffectiveEndpoint,
-  resolveProviderOptionsKey,
-  resolveWireModelId
-} from '../../../provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
@@ -52,7 +46,7 @@ import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
-import type { AiBaseRequest, CallOverrides } from '../../../types'
+import type { AiChatRequest, CallOverrides } from '../../../types'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -92,8 +86,7 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
-  request: AiBaseRequest & {
-    chatId?: string
+  request: AiChatRequest & {
     messageId?: string
     messages?: UIMessage[]
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
@@ -134,10 +127,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride,
-    request.chatId
+    request.apiKeyOverride
   )
-  applyHttpTrace(sdkConfig, request.chatId, model)
+  applyHttpTrace(sdkConfig, request.conversation.topicId, model)
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /
@@ -244,7 +236,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
-    topicId: request.chatId,
+    topicId: request.conversation.topicId,
     assistant,
     abortSignal: signal,
     fileAttachments,
@@ -340,32 +332,6 @@ export function applyResponsesInstructions(
   // `instructions` does not displace the system input message; without this the
   // whole prompt ships twice.
   namespace.systemMessageMode = 'remove'
-}
-
-async function resolveSdkConfig(
-  provider: Provider,
-  model: Model,
-  resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string,
-  sessionId?: string
-): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
-  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
-    apiKeyOverride,
-    resolvedEndpoint,
-    sessionId
-  })
-  return {
-    sdkConfig: {
-      ...config,
-      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
-        actualProviderId: provider.id,
-        endpointType: resolvedEndpoint.endpointType,
-        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-      }),
-      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
-    },
-    credentialReceipt
-  }
 }
 
 export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
@@ -684,7 +650,11 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
-  const { headers, maxRetries } = request.requestOptions ?? {}
+  const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
+  // A provider that keys on the conversation declared the header; the caller's own headers win.
+  const headers = sdkConfig.conversationHeader
+    ? { [sdkConfig.conversationHeader]: request.conversation.id, ...callerHeaders }
+    : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
