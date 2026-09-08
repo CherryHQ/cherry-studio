@@ -497,6 +497,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'menu.presentation_mode': PreferenceTypes.MenuPresentationMode
     // target-key-definitions/complex/complex
+    'shortcut.app.chat.open': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
     'shortcut.app.fullscreen.exit': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.app.print': PreferenceTypes.PreferenceShortcutType
@@ -507,7 +509,11 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'shortcut.app.sidebar.toggle': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
+    'shortcut.app.translate.open': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
     'shortcut.app.window.show': PreferenceTypes.PreferenceShortcutType
+    // target-key-definitions/complex/complex
+    'shortcut.app.work.open': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
     'shortcut.app.zoom.in': PreferenceTypes.PreferenceShortcutType
     // target-key-definitions/complex/complex
@@ -843,12 +849,15 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.translate.temperature': 1,
     'feature.translate.top_p': 1,
     'menu.presentation_mode': 'cherry',
+    'shortcut.app.chat.open': { binding: [], enabled: false },
     'shortcut.app.fullscreen.exit': { binding: ['Escape'], enabled: true },
     'shortcut.app.print': { binding: ['CommandOrControl', 'P'], enabled: true },
     'shortcut.app.search': { binding: ['CommandOrControl', 'Shift', 'F'], enabled: true },
     'shortcut.app.settings.open': { binding: ['CommandOrControl', ','], enabled: true },
     'shortcut.app.sidebar.toggle': { binding: ['CommandOrControl', '['], enabled: true },
+    'shortcut.app.translate.open': { binding: [], enabled: false },
     'shortcut.app.window.show': { binding: [], enabled: false },
+    'shortcut.app.work.open': { binding: [], enabled: false },
     'shortcut.app.zoom.in': { binding: ['CommandOrControl', '='], enabled: true },
     'shortcut.app.zoom.out': { binding: ['CommandOrControl', '-'], enabled: true },
     'shortcut.app.zoom.reset': { binding: ['CommandOrControl', '0'], enabled: true },
@@ -895,7 +904,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 269
+ * - 总配置项: 272
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0
