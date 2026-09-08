@@ -101,6 +101,12 @@ export function resolveAiSdkProviderId(provider: Provider, endpointType: Endpoin
   if (adapterFamily && adapterFamily in appProviderIds) {
     return resolveProviderVariant(appProviderIds[adapterFamily], endpointType)
   }
+  // A custom provider may declare a Responses-capable model while keeping one
+  // shared OpenAI-compatible `/v1` host under its Chat endpoint. In that case
+  // use the Responses adapter even though no separate endpoint config exists.
+  if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+    return appProviderIds['open-responses']
+  }
   return appProviderIds['openai-compatible']
 }
 

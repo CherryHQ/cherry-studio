@@ -188,6 +188,31 @@ describe('buildDshGatewayInjection', () => {
 })
 
 describe('buildDshProviderInjection', () => {
+  it('routes a model-level Responses hint through a custom provider Chat base URL', () => {
+    const provider = {
+      id: 'custom-provider',
+      name: 'Custom Provider',
+      reportsActualCost: false,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://express-ent-admin.cherryin.net/v1'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({
+      id: 'custom-provider::openai/gpt-6-astra',
+      providerId: 'custom-provider',
+      apiModelId: 'openai/gpt-6-astra',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.baseUrl).toBe('https://express-ent-admin.cherryin.net/v1')
+  })
+
   it('coerces user headers to the strings the dsh route schema accepts', () => {
     const provider = {
       ...nativeProvider,

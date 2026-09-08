@@ -63,7 +63,19 @@ export function resolveCanonicalEndpoint(
     // Cherry Cloud models are provisioned by the authenticated cloud service.
     // Their provider intentionally has no local endpointConfigs/base URL; the
     // dedicated builder supplies the origin and transport after selection.
-    return Boolean(provider.endpointConfigs?.[endpointType]) || isManagedCherryCloudModel(provider.id)
+    if (Boolean(provider.endpointConfigs?.[endpointType]) || isManagedCherryCloudModel(provider.id)) return true
+
+    // Custom OpenAI-compatible providers commonly expose one shared `/v1` host
+    // under the Chat endpoint while catalog rows identify Responses-capable
+    // models explicitly. Reuse that configured host for the Responses dialect,
+    // but never infer it for known multi-backend gateways (their endpoint map is
+    // the routing contract and a stale declaration must remain undefined).
+    const isKnownGateway = provider.id === 'aihubmix' || provider.presetProviderId === 'aihubmix'
+    return (
+      endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+      !isKnownGateway &&
+      Boolean(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl)
+    )
   }
   const endpointBackedCapabilities = new Set(
     Object.values(ENDPOINT_TYPE)
