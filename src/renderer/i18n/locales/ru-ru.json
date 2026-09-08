@@ -681,6 +681,8 @@
   "chat.input.web_search.route.client_with_fallback": "Поиск с {{provider}}. Если сервис недоступен, запрос автоматически отправляется в {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Gemini не поддерживает одновременное использование встроенного инструмента поиска в сети и вызова функций",
   "chat.message.editing_current": "Это сообщение редактируется в композере",
+  "chat.message.flow.actions_unavailable": "Дождитесь завершения текущей операции",
+  "chat.message.flow.continue_here": "Продолжить отсюда",
   "chat.message.flow.copy_topic.created": "Скопировано в новый диалог",
   "chat.message.flow.copy_topic.label": "Скопировать как новый разговор",
   "chat.message.flow.status.awaiting_input": "Ожидание ввода",

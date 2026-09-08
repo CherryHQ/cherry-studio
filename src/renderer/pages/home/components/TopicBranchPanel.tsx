@@ -11,12 +11,14 @@ import {
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
-import { CopyPlus, GitBranch } from 'lucide-react'
+import { CopyPlus, CornerDownRight, GitBranch } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
@@ -48,6 +50,10 @@ function getMessageIdFromContextMenuEvent(event: MouseEvent): string | null {
 const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layoutReady, onLocateMessage }) => {
   const { t } = useTranslation()
   const contextMenuMessageIdRef = useRef<string | null>(null)
+  const [revealNodeId, setRevealNodeId] = useState<string>()
+  const [branchActionPending, setBranchActionPending] = useState(false)
+  const { isPending, status } = useTopicStreamStatus(topicId)
+  const actionsDisabled = branchActionPending || isPending || status === 'awaiting-approval'
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
   const { data, error, isLoading, refetch } = useQuery('/topics/:topicId/tree', {
@@ -76,27 +82,29 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
   )
   const graph = useMemo(() => buildTopicMessageFlowGraph(tree), [tree])
 
-  const handleNodeSelect = useCallback(
+  const handleActivateNodeBranch = useCallback(
     async (messageId: string) => {
+      if (actionsDisabled) return
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
-      if (selectedNode?.data.isAwaitingInput && messageId === graph.activeNodeId) return
-      if (selectedNode?.data.isOnActivePath) {
-        onLocateMessage?.(messageId)
-        return
-      }
-
+      setBranchActionPending(true)
       let leafId = messageId
       try {
-        const path = (await dataApiService.get(`/topics/${topicId}/path`, {
-          query: { nodeId: messageId }
-        })) as DbMessage[]
-        if (path.length > 0) {
-          leafId = path[path.length - 1].id
+        if (selectedNode?.data.isOnActivePath) {
+          if (!selectedNode.data.isAwaitingInput) onLocateMessage?.(messageId)
+        } else {
+          const path = (await dataApiService.get(`/topics/${topicId}/path`, {
+            query: { nodeId: messageId }
+          })) as DbMessage[]
+          if (path.length > 0) {
+            leafId = path[path.length - 1].id
+          }
+          await setActiveNode({
+            params: { id: topicId },
+            body: { nodeId: leafId }
+          })
         }
-        await setActiveNode({
-          params: { id: topicId },
-          body: { nodeId: leafId }
-        })
+        setRevealNodeId(leafId)
+        void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId })
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })
@@ -104,20 +112,25 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
         }
         logger.error('Failed to set active branch from topic flow', err as Error)
         toast.error(t('common.error'))
+      } finally {
+        setBranchActionPending(false)
       }
     },
-    [graph.activeNodeId, graph.nodes, onLocateMessage, setActiveNode, t, topicId]
+    [actionsDisabled, graph.nodes, onLocateMessage, setActiveNode, t, topicId]
   )
 
   const handleStartNodeBranch = useCallback(
     async (messageId: string) => {
+      if (actionsDisabled) return
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
       if (selectedNode?.data.role !== 'assistant') {
         return
       }
 
+      setBranchActionPending(true)
       try {
-        await reserveBranch(messageId)
+        const branch = await reserveBranch(messageId)
+        setRevealNodeId(branch.id)
         toast.success(t('chat.message.new.branch.created'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
@@ -126,9 +139,11 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
         }
         logger.error('Failed to start message branch from topic flow', err as Error)
         toast.error(t('common.error'))
+      } finally {
+        setBranchActionPending(false)
       }
     },
-    [graph.nodes, reserveBranch, t, topicId]
+    [actionsDisabled, graph.nodes, reserveBranch, t, topicId]
   )
 
   const handleCopyBranchToNewTopic = useCallback(
@@ -186,6 +201,15 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
 
       const actions: ResolvedAction[] = [
         {
+          id: 'topic-flow.activate-branch',
+          label: t('chat.message.flow.continue_branch'),
+          icon: <CornerDownRight size={14} />,
+          group: 'branch',
+          danger: false,
+          availability: { visible: true, enabled: !actionsDisabled },
+          children: []
+        },
+        {
           id: 'topic-flow.start-branch',
           commandId: 'message.newBranch',
           label: t('chat.message.new.branch.label'),
@@ -194,7 +218,7 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
           danger: false,
           availability: {
             visible: canShowStartBranch,
-            enabled: canShowStartBranch
+            enabled: canShowStartBranch && !actionsDisabled
           },
           children: []
         },
@@ -226,6 +250,10 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
 
       return actionsToCommandMenuExtraItems(actions, (action) => {
         if (!action.availability.enabled) return
+        if (action.id === 'topic-flow.activate-branch') {
+          void handleActivateNodeBranch(messageId)
+          return
+        }
         if (action.id === 'topic-flow.start-branch') {
           void handleStartNodeBranch(messageId)
           return
@@ -239,7 +267,15 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
         }
       })
     },
-    [graph.nodes, handleCopyBranchToNewTopic, handleDeleteAwaitingInputMessage, handleStartNodeBranch, t]
+    [
+      actionsDisabled,
+      graph.nodes,
+      handleActivateNodeBranch,
+      handleCopyBranchToNewTopic,
+      handleDeleteAwaitingInputMessage,
+      handleStartNodeBranch,
+      t
+    ]
   )
 
   const handleContextMenuOpenChange = useCallback((open: boolean) => {
@@ -269,7 +305,10 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
                 graph={graph}
                 layoutReady={layoutReady}
                 onNodeContextMenu={handleNodeContextMenu}
-                onNodeSelect={handleNodeSelect}
+                onNodeActivate={handleActivateNodeBranch}
+                onStartBranch={handleStartNodeBranch}
+                actionsDisabled={actionsDisabled}
+                revealNodeId={revealNodeId}
               />
             </div>
           </CommandContextMenu>

@@ -7,6 +7,7 @@ import {
   type RightPanelCapability,
   type RightPanelComponentProps,
   type RightPanelComposition,
+  RightPanelHeaderControls,
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
@@ -15,7 +16,7 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { Activity, GitBranch } from 'lucide-react'
-import type { Dispatch, PropsWithChildren, SetStateAction } from 'react'
+import type { Dispatch, PropsWithChildren, ReactNode, SetStateAction } from 'react'
 import {
   Activity as ReactActivity,
   createContext,
@@ -45,6 +46,7 @@ interface TopicRightPaneMeta {
 }
 
 interface TopicRightPaneViewportCallbacks {
+  branchHeader?: ReactNode
   onLocateMessage?: (messageId: string) => void
 }
 
@@ -138,7 +140,7 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
 
 function TopicBranchRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   const context = use(TopicBranchTargetContext)!
-  const { onLocateMessage } = useTopicRightPaneViewport()
+  const { branchHeader, onLocateMessage } = useTopicRightPaneViewport()
   const { setTarget } = context
   const topicId = scope.topicId
   const registerTarget = useCallback(
@@ -154,7 +156,17 @@ function TopicBranchRightPanel({ scope }: RightPanelComponentProps<TopicRightPan
     [onLocateMessage, setTarget, topicId]
   )
 
-  return <div ref={registerTarget} className="h-full min-h-0" />
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {branchHeader ?? (
+        <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-border-subtle border-b px-2">
+          <div className="min-w-0 flex-1 truncate px-1 font-medium text-sm">{scope.branchTitle}</div>
+          <RightPanelHeaderControls />
+        </div>
+      )}
+      <div ref={registerTarget} className="min-h-0 flex-1" />
+    </div>
+  )
 }
 
 export function TopicBranchPortal({ topicId }: { topicId: string }) {
@@ -213,6 +225,7 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       id: 'branch',
       instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
       title: scope.branchTitle,
+      headerMode: 'content',
       readiness: scope.topicId ? 'ready' : 'unavailable',
       maximizedOnly: true
     })
@@ -277,8 +290,11 @@ function TopicRightPaneProvider({
   )
 }
 
-function TopicRightPaneViewport({ onLocateMessage }: TopicRightPaneViewportCallbacks) {
-  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(() => ({ onLocateMessage }), [onLocateMessage])
+function TopicRightPaneViewport({ branchHeader, onLocateMessage }: TopicRightPaneViewportCallbacks) {
+  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(
+    () => ({ branchHeader, onLocateMessage }),
+    [branchHeader, onLocateMessage]
+  )
 
   return (
     <TopicRightPaneViewportContext value={callbacks}>

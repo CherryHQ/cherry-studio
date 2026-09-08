@@ -17,7 +17,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatComposerSlot from './ChatComposerSlot'
@@ -143,6 +143,12 @@ const ChatContentInner: FC<InnerProps> = ({
 }) => {
   const { t } = useTranslation()
   const { reserveBranch } = useTopicBranchActions(topic.id)
+  const handleStartBranchDraft = useCallback(
+    async (messageId: string) => {
+      await reserveBranch(messageId)
+    },
+    [reserveBranch]
+  )
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const runtime = useChatRuntimeState({
@@ -221,7 +227,7 @@ const ChatContentInner: FC<InnerProps> = ({
         loadOlder={loadOlder}
         hasOlder={hasOlder}
         openCitationsPanel={onOpenCitationsPanel}
-        onStartBranchDraft={reserveBranch}
+        onStartBranchDraft={handleStartBranchDraft}
       />
     </div>
   )

@@ -53,7 +53,15 @@ export interface TopicMessageFlowGraph {
   stats: TopicMessageFlowStats
 }
 
-export type TopicMessageFlowNodeModel = Node<TopicMessageFlowNodeData, typeof TOPIC_MESSAGE_FLOW_NODE_TYPE>
+export interface TopicMessageFlowNodeActions {
+  onStartBranch?: (messageId: string) => void | Promise<void>
+  actionsDisabled?: boolean
+}
+
+export type TopicMessageFlowNodeModel = Node<
+  TopicMessageFlowNodeData & TopicMessageFlowNodeActions,
+  typeof TOPIC_MESSAGE_FLOW_NODE_TYPE
+>
 
 export type TopicMessageFlowEdgeModel = Edge<TopicMessageFlowEdgeData, 'default'>
 

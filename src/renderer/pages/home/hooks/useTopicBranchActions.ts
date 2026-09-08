@@ -18,7 +18,7 @@ export function useTopicBranchActions(topicId: string) {
   const reserveBranch = useCallback(
     async (anchorMessageId: string) => {
       const activate = !isPending && status !== 'awaiting-approval'
-      await reserveBranchTrigger({
+      const branch = await reserveBranchTrigger({
         params: { id: anchorMessageId },
         body: { activate }
       })
@@ -26,6 +26,7 @@ export function useTopicBranchActions(topicId: string) {
       if (activate) {
         void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId })
       }
+      return branch
     },
     [isPending, reserveBranchTrigger, status, topicId]
   )

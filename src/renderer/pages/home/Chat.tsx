@@ -1,6 +1,11 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
-import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import {
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps,
+  RightPanelHeaderControls,
+  useOptionalRightPanelState
+} from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
@@ -80,6 +85,7 @@ const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const clearTopicMessages = useClearTopicMessages()
   const { t } = useTranslation()
+  const branchViewActive = useOptionalRightPanelState()?.isActive('branch') ?? false
   const [messageStyle] = usePreference('chat.message.style')
   const [topicDisplayMode] = usePreference('topic.tab.display_mode')
   const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
@@ -230,6 +236,43 @@ const Chat: FC<Props> = (props) => {
   // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
   const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>
 
+  const conversationControls = activeTopic ? (
+    <ChatTopBarControls
+      assistantId={assistantContext.assistant?.id ?? null}
+      assistantName={
+        assistantContext.assistant?.name ??
+        (assistantContext.isLoading ? t('common.loading') : t('button.select_assistant'))
+      }
+      assistantEmoji={assistantContext.assistant?.emoji}
+      model={assistantContext.model}
+      modelPending={
+        assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot
+      }
+      providers={providers}
+      mentionedModels={activeConversationControlsSnapshot?.mentionedModels ?? EMPTY_MODELS}
+      mentionedModelSelectorValue={
+        activeConversationControlsSnapshot?.mentionedModelSelectorValue ??
+        (assistantContext.model ? [assistantContext.model] : EMPTY_MODELS)
+      }
+      lockedMentionedModels={activeConversationControlsSnapshot?.lockedMentionedModels ?? EMPTY_MODELS}
+      mentionedModelMultiSelectMode={activeConversationControlsSnapshot?.mentionedModelMultiSelectMode ?? false}
+      selectModelLabel={assistantContext.isModelPending ? t('common.loading') : t('button.select_model')}
+      useMentionedModelSelector
+      shouldAutoSelectCreatedAssistant={false}
+      assistantTriggerAction={topicDisplayMode === 'assistant' ? 'edit' : 'select'}
+      onDialogCloseAutoFocus={handleRestoreComposerFocus}
+      onAssistantChange={handleAssistantChange}
+      onModelSelect={activeConversationControlsSnapshot?.onModelSelect ?? NOOP_MODEL_SELECT}
+      onMentionedModelsSelect={activeConversationControlsSnapshot?.onMentionedModelsSelect ?? NOOP_MODELS_SELECT}
+      onMentionedModelMultiSelectModeChange={
+        activeConversationControlsSnapshot?.onMentionedModelMultiSelectModeChange ?? NOOP_MULTI_SELECT_MODE_CHANGE
+      }
+      onMentionedModelSelectorRestore={
+        activeConversationControlsSnapshot?.onMentionedModelSelectorRestore ?? NOOP_MODEL_SELECTOR_RESTORE
+      }
+    />
+  ) : undefined
+
   return (
     <ConversationShell
       id="chat"
@@ -241,51 +284,9 @@ const Chat: FC<Props> = (props) => {
       onPaneAutoCollapseChange={props.onPaneAutoCollapseChange}
       paneManualToggle={props.paneManualToggle}
       topBar={
-        showConversationChrome ? (
+        showConversationChrome && !branchViewActive ? (
           <ChatNavbar
-            conversationControls={
-              activeTopic ? (
-                <ChatTopBarControls
-                  assistantId={assistantContext.assistant?.id ?? null}
-                  assistantName={
-                    assistantContext.assistant?.name ??
-                    (assistantContext.isLoading ? t('common.loading') : t('button.select_assistant'))
-                  }
-                  assistantEmoji={assistantContext.assistant?.emoji}
-                  model={assistantContext.model}
-                  modelPending={
-                    assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot
-                  }
-                  providers={providers}
-                  mentionedModels={activeConversationControlsSnapshot?.mentionedModels ?? EMPTY_MODELS}
-                  mentionedModelSelectorValue={
-                    activeConversationControlsSnapshot?.mentionedModelSelectorValue ??
-                    (assistantContext.model ? [assistantContext.model] : EMPTY_MODELS)
-                  }
-                  lockedMentionedModels={activeConversationControlsSnapshot?.lockedMentionedModels ?? EMPTY_MODELS}
-                  mentionedModelMultiSelectMode={
-                    activeConversationControlsSnapshot?.mentionedModelMultiSelectMode ?? false
-                  }
-                  selectModelLabel={assistantContext.isModelPending ? t('common.loading') : t('button.select_model')}
-                  useMentionedModelSelector
-                  shouldAutoSelectCreatedAssistant={false}
-                  assistantTriggerAction={topicDisplayMode === 'assistant' ? 'edit' : 'select'}
-                  onDialogCloseAutoFocus={handleRestoreComposerFocus}
-                  onAssistantChange={handleAssistantChange}
-                  onModelSelect={activeConversationControlsSnapshot?.onModelSelect ?? NOOP_MODEL_SELECT}
-                  onMentionedModelsSelect={
-                    activeConversationControlsSnapshot?.onMentionedModelsSelect ?? NOOP_MODELS_SELECT
-                  }
-                  onMentionedModelMultiSelectModeChange={
-                    activeConversationControlsSnapshot?.onMentionedModelMultiSelectModeChange ??
-                    NOOP_MULTI_SELECT_MODE_CHANGE
-                  }
-                  onMentionedModelSelectorRestore={
-                    activeConversationControlsSnapshot?.onMentionedModelSelectorRestore ?? NOOP_MODEL_SELECTOR_RESTORE
-                  }
-                />
-              ) : undefined
-            }
+            conversationControls={conversationControls}
             showSidebarControls={props.showResourceListControls}
             sidebarOpen={props.sidebarOpen}
             onSidebarToggle={props.onSidebarToggle}
@@ -313,7 +314,23 @@ const Chat: FC<Props> = (props) => {
         ) : undefined
       }
       center={center}
-      rightPane={<TopicRightPane.Viewport onLocateMessage={setBranchLocateMessageId} />}
+      rightPane={
+        <TopicRightPane.Viewport
+          onLocateMessage={setBranchLocateMessageId}
+          branchHeader={
+            branchViewActive ? (
+              <ChatNavbar
+                title={activeTopic?.name || t('chat.default.topic.name')}
+                conversationControls={conversationControls}
+                showSidebarControls={props.showResourceListControls}
+                sidebarOpen={props.sidebarOpen}
+                onSidebarToggle={props.onSidebarToggle}
+                actions={<RightPanelHeaderControls />}
+              />
+            ) : undefined
+          }
+        />
+      }
       centerId={centerSurface?.id ?? (showConversation ? 'chat-main' : undefined)}
       centerRef={centerSurface?.ref ?? (showConversation ? mainRef : undefined)}
       centerClassName={

@@ -26,13 +26,15 @@ import type {
   TopicMessageFlowEdgeModel,
   TopicMessageFlowGraph,
   TopicMessageFlowLayout,
+  TopicMessageFlowNodeActions,
   TopicMessageFlowNodeModel
 } from './types'
 import { TOPIC_MESSAGE_FLOW_NODE_TYPE } from './types'
 
-interface TopicMessageFlowCanvasProps {
+interface TopicMessageFlowCanvasProps extends Pick<TopicMessageFlowNodeActions, 'onStartBranch' | 'actionsDisabled'> {
   graph: TopicMessageFlowGraph
-  onNodeSelect: (messageId: string) => void
+  onNodeActivate: (messageId: string) => void | Promise<void>
+  revealNodeId?: string
   onNodeContextMenu?: (messageId: string) => void
   className?: string
   focusKey?: string | number
@@ -103,13 +105,18 @@ const TopicMessageFlowCanvas = ({
   className,
   graph,
   onNodeContextMenu,
-  onNodeSelect,
+  onNodeActivate,
+  onStartBranch,
+  actionsDisabled,
+  revealNodeId,
   focusKey,
   layoutReady = true
 }: TopicMessageFlowCanvasProps) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const hasNodes = graph.nodes.length > 0
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const revealedNodeIdRef = useRef<string | undefined>(undefined)
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance<
     TopicMessageFlowNodeModel,
     TopicMessageFlowEdgeModel
@@ -141,6 +148,11 @@ const TopicMessageFlowCanvas = ({
   }, [graph, measuredSizes])
 
   const handleNodesChange = useCallback((changes: NodeChange<TopicMessageFlowNodeModel>[]) => {
+    for (const change of changes) {
+      if (change.type === 'select') {
+        setSelectedNodeId((current) => (change.selected ? change.id : current === change.id ? null : current))
+      }
+    }
     setMeasuredSizes((current) => {
       let next: Map<string, TopicMessageFlowNodeSize> | undefined
       for (const change of changes) {
@@ -160,13 +172,16 @@ const TopicMessageFlowCanvas = ({
     const dataById = new Map(graph.nodes.map((node) => [node.id, node.data]))
     return layout.nodes.map((node) => ({
       ...node,
+      selected: node.id === selectedNodeId,
       type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
       data: {
         ...dataById.get(node.id)!,
-        isActive: node.id === graph.activeNodeId
+        isActive: node.id === graph.activeNodeId,
+        onStartBranch,
+        actionsDisabled
       }
     }))
-  }, [graph.activeNodeId, graph.nodes, layout.nodes])
+  }, [actionsDisabled, graph.activeNodeId, graph.nodes, layout.nodes, onStartBranch, selectedNodeId])
 
   const edges = useMemo(() => {
     const dataById = new Map(graph.edges.map((edge) => [edge.id, edge.data]))
@@ -181,9 +196,10 @@ const TopicMessageFlowCanvas = ({
 
   const handleNodeClick = useCallback<NodeMouseHandler<TopicMessageFlowNodeModel>>(
     (_event, node) => {
-      onNodeSelect(node.data.messageId)
+      setSelectedNodeId(node.id)
+      if (!actionsDisabled) void onNodeActivate(node.data.messageId)
     },
-    [onNodeSelect]
+    [actionsDisabled, onNodeActivate]
   )
 
   const handleNodeContextMenu = useCallback<NodeMouseHandler<TopicMessageFlowNodeModel>>(
@@ -248,6 +264,40 @@ const TopicMessageFlowCanvas = ({
     void reactFlowInstance.setViewport(readyViewport, rootFocusOptions)
   }, [reactFlowInstance, readyViewport])
 
+  useEffect(() => {
+    if (!reactFlowInstance || !revealNodeId || revealedNodeIdRef.current === revealNodeId) return
+    const node = nodes.find((item) => item.id === revealNodeId)
+    const container = containerRef.current
+    if (!node || !container?.clientWidth || !container.clientHeight) return
+
+    const viewport = reactFlowInstance.getViewport()
+    const composerInset =
+      Number.parseFloat(window.getComputedStyle(container).getPropertyValue('--chat-composer-inset')) || 0
+    const usableHeight = Math.max(0, container.clientHeight - composerInset)
+    const center = getNodeCenter(node)
+    const width = node.width ?? TOPIC_MESSAGE_FLOW_NODE_SIZE.width
+    const height = node.measured?.height ?? TOPIC_MESSAGE_FLOW_NODE_SIZE.height
+    const left = node.position.x * viewport.zoom + viewport.x
+    const top = node.position.y * viewport.zoom + viewport.y
+    if (
+      left < 48 ||
+      left + width * viewport.zoom > container.clientWidth - 48 ||
+      top < 48 ||
+      top + height * viewport.zoom > usableHeight - 48
+    ) {
+      void reactFlowInstance.setViewport(
+        {
+          x: Math.max(container.clientWidth / 2, 48 + (width * viewport.zoom) / 2) - center.x * viewport.zoom,
+          y: Math.max(usableHeight / 2, 48 + (height * viewport.zoom) / 2) - center.y * viewport.zoom,
+          zoom: viewport.zoom
+        },
+        rootFocusOptions
+      )
+    }
+    revealedNodeIdRef.current = revealNodeId
+    setSelectedNodeId(revealNodeId)
+  }, [nodes, reactFlowInstance, revealNodeId])
+
   if (!hasNodes) {
     return (
       <div
@@ -287,6 +337,7 @@ const TopicMessageFlowCanvas = ({
           nodeTypes={nodeTypes}
           onInit={setReactFlowInstance}
           onNodeClick={handleNodeClick}
+          onPaneClick={() => setSelectedNodeId(null)}
           onNodeContextMenu={handleNodeContextMenu}
           onNodesChange={handleNodesChange}
           onlyRenderVisibleElements

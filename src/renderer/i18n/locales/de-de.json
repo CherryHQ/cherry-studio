@@ -681,6 +681,8 @@
   "chat.input.web_search.route.client_with_fallback": "Suchen mit {{provider}}. Falls nicht verfügbar, wird die Suchanfrage automatisch an {{fallbackProvider}} gesendet.",
   "chat.mcp.warning.gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen",
   "chat.message.editing_current": "Diese Nachricht wird im Composer bearbeitet",
+  "chat.message.flow.actions_unavailable": "Warte, bis der aktuelle Vorgang abgeschlossen ist",
+  "chat.message.flow.continue_here": "Von hier aus fortsetzen",
   "chat.message.flow.copy_topic.created": "In eine neue Unterhaltung kopiert",
   "chat.message.flow.copy_topic.label": "Als neue Konversation kopieren",
   "chat.message.flow.status.awaiting_input": "Warten auf Eingabe",

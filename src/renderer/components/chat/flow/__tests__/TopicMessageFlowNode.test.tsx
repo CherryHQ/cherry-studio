@@ -3,7 +3,9 @@ import type { MessageListActions, MessageListItem } from '@renderer/components/c
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -108,7 +110,8 @@ function NodeFixture({
 }
 
 describe('TopicMessageFlowNode', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await i18next.changeLanguage('en-us')
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/messages/:id', message)
   })
@@ -131,17 +134,22 @@ describe('TopicMessageFlowNode', () => {
     expect(screen.queryByText('Complete response including the final paragraph.')).not.toBeInTheDocument()
   })
 
-  it('keeps an empty branch selectable and renders its content after the user sends it', () => {
+  it('lets the user resume an empty branch and renders its content after sending', async () => {
+    const user = userEvent.setup()
     let selected = false
     const { rerender } = render(
       <NodeFixture
-        data={{ ...nodeData, role: 'user', isAwaitingInput: true }}
+        data={{
+          ...nodeData,
+          role: 'user',
+          isAwaitingInput: true
+        }}
         onSelect={() => {
           selected = true
         }}
       />
     )
-    fireEvent.click(screen.getByRole('button'))
+    await user.click(screen.getByText('Awaiting input'))
     expect(selected).toBe(true)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit message' })).not.toBeInTheDocument()
@@ -156,7 +164,25 @@ describe('TopicMessageFlowNode', () => {
     expect(screen.getByRole('button', { name: 'Edit message' })).toBeVisible()
   })
 
-  it('edits and retries the card target without selecting its branch', () => {
+  it('blocks duplicate continuation requests while the first operation is pending', async () => {
+    const user = userEvent.setup()
+    const reserved: string[] = []
+    const data = {
+      ...nodeData,
+      onStartBranch: (id: string) => {
+        reserved.push(id)
+      }
+    }
+    const { rerender } = render(<NodeFixture data={{ ...data, actionsDisabled: true }} />)
+    await user.click(screen.getByRole('button', { name: 'Continue from here' }))
+    expect(reserved).toEqual([])
+    rerender(<NodeFixture data={{ ...data, actionsDisabled: false }} />)
+    await user.click(screen.getByRole('button', { name: 'Continue from here' }))
+    expect(reserved).toEqual(['message-1'])
+  })
+
+  it('selects a branch from its message body while keeping message actions separate', async () => {
+    const user = userEvent.setup()
     let selected = false
     let retried: string | undefined
     let edited: { id: string; parts: CherryMessagePart[] } | undefined
@@ -176,13 +202,13 @@ describe('TopicMessageFlowNode', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Retry message' }))
+    await user.click(screen.getByRole('button', { name: 'Edit message' }))
+    await user.click(screen.getByRole('button', { name: 'Retry message' }))
     expect(edited).toEqual({ id: 'message-1', parts: message.data.parts })
     expect(retried).toBe('message-1')
     expect(selected).toBe(false)
 
-    fireEvent.click(screen.getAllByRole('button')[0])
+    await user.click(screen.getByText('Complete response including the final paragraph.'))
     expect(selected).toBe(true)
   })
 

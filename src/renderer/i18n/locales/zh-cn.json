@@ -681,6 +681,8 @@
   "chat.input.web_search.route.client_with_fallback": "使用 {{provider}} 搜索；不可用时，查询将自动发送到 {{fallbackProvider}}。",
   "chat.mcp.warning.gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
   "chat.message.editing_current": "这条消息正在输入框中编辑",
+  "chat.message.flow.actions_unavailable": "请等待当前操作完成",
+  "chat.message.flow.continue_here": "从这里继续",
   "chat.message.flow.copy_topic.created": "已复制为新对话",
   "chat.message.flow.copy_topic.label": "复制为新对话",
   "chat.message.flow.status.awaiting_input": "待输入",

@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { MessagePartsScopeProvider, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import MessageAvatar from '@renderer/components/chat/messages/frame/MessageAvatar'
@@ -25,7 +25,7 @@ import { cn } from '@renderer/utils/style'
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import dayjs from 'dayjs'
-import { UserRound } from 'lucide-react'
+import { Plus, UserRound } from 'lucide-react'
 import type { RefObject } from 'react'
 import { memo, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -116,7 +116,7 @@ function TopicMessageFlowHeader({
   )
 }
 
-function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeData }) {
+function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeModel['data'] }) {
   const { t } = useTranslation()
   const { messages, topic } = useMessageListData()
   const actions = useMessageListActions()
@@ -166,7 +166,12 @@ function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeData }) {
         <MessagePartsScopeProvider messageId={message.id} parts={parts}>
           <div
             className="nodrag nopan flex min-h-0 min-w-0 flex-col pb-3"
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              const target = event.target instanceof Element ? event.target : null
+              if (target?.closest('a,button,input,textarea,select,[role="button"],[contenteditable="true"]')) {
+                event.stopPropagation()
+              }
+            }}
             onDoubleClick={(event) => event.stopPropagation()}
             style={{
               fontSize: renderConfig.fontSize,
@@ -186,9 +191,46 @@ function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeData }) {
               isEditing={editingMessageId === message.id}
             />
           </div>
+          {editingMessageId !== message.id && <TopicMessageFlowBranchButton data={data} message={message} />}
         </MessagePartsScopeProvider>
       )}
     </>
+  )
+}
+
+function TopicMessageFlowBranchButton({
+  data,
+  message
+}: {
+  data: TopicMessageFlowNodeModel['data']
+  message: MessageListItem
+}) {
+  const { t } = useTranslation()
+  const activity = useMessageListItemActivityState(message)
+  const disabled = data.actionsDisabled || activity.isStreamTarget || activity.isApprovalAnchor
+  if (data.role !== 'assistant' || !data.onStartBranch) return null
+
+  const visibility =
+    'nodrag nopan absolute z-10 opacity-0 pointer-events-none group-hover/flow-node:opacity-100 group-hover/flow-node:pointer-events-auto group-focus-within/flow-node:opacity-100 group-focus-within/flow-node:pointer-events-auto group-data-[selected=true]/flow-node:opacity-100 group-data-[selected=true]/flow-node:pointer-events-auto group-data-[active=true]/flow-node:opacity-100 group-data-[active=true]/flow-node:pointer-events-auto'
+  const continueLabel = t('chat.message.flow.continue_here')
+
+  return (
+    <div className={cn(visibility, '-translate-y-1/2 top-1/2 right-0 flex translate-x-1/2')}>
+      <Tooltip content={disabled ? t('chat.message.flow.actions_unavailable') : continueLabel} placement="top">
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-5 rounded-full border-border-strong bg-card text-primary"
+          aria-label={continueLabel}
+          disabled={disabled}
+          onClick={(event) => {
+            event.stopPropagation()
+            void data.onStartBranch?.(data.messageId)
+          }}>
+          <Plus className="size-3" />
+        </Button>
+      </Tooltip>
+    </div>
   )
 }
 
@@ -207,7 +249,9 @@ function TopicMessageFlowMessageActions({
   if (isEditing || activity.isStreamTarget || activity.isApprovalAnchor) return null
 
   return (
-    <div className="mx-4 mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-border border-t pt-2 text-muted-foreground">
+    <div
+      className="mx-4 mt-3 flex shrink-0 flex-wrap items-center justify-between gap-2 border-border border-t pt-2 text-muted-foreground"
+      onClick={(event) => event.stopPropagation()}>
       <MessageMenuBar
         message={message}
         isLastMessage={false}
@@ -229,13 +273,14 @@ const TopicMessageFlowNode = ({ data, selected }: NodeProps<TopicMessageFlowNode
   return (
     <div
       className={cn(
-        'group/message relative flex max-h-105 min-w-0 flex-col rounded-lg border border-border-strong bg-card text-card-foreground',
+        'group/message group/flow-node relative flex max-h-105 min-w-0 flex-col rounded-lg border border-border-strong bg-card text-card-foreground',
         data.role === 'user' && 'bg-chat-user',
-        data.isAwaitingInput && 'border-warning-border bg-warning-subtle',
+        data.isAwaitingInput && 'border-dashed',
         (data.isActive || selected) && 'border-border-selected ring-1 ring-border-selected ring-inset',
         data.isContextBoundary && 'bg-muted'
       )}
       data-active={data.isActive ? 'true' : 'false'}
+      data-selected={selected ? 'true' : 'false'}
       data-message-id={data.messageId}
       data-on-active-path={data.isOnActivePath ? 'true' : 'false'}>
       <Handle className="opacity-0" isConnectable={false} position={Position.Left} type="target" />

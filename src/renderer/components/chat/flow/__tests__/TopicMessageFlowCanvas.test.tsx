@@ -1,5 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactFlowProps } from '@xyflow/react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TopicMessageFlowCanvas from '../TopicMessageFlowCanvas'
@@ -18,7 +20,10 @@ vi.mock('@xyflow/react', async () => {
       flow.props = props
       const { onInit } = props
       React.useEffect(() => {
-        onInit?.({ setViewport: flow.setViewport } as unknown as Parameters<NonNullable<FlowProps['onInit']>>[0])
+        onInit?.({
+          setViewport: flow.setViewport,
+          getViewport: () => ({ x: -900, y: -900, zoom: 0.7 })
+        } as unknown as Parameters<NonNullable<FlowProps['onInit']>>[0])
       }, [onInit])
       return (
         <div data-testid="react-flow">
@@ -27,6 +32,7 @@ vi.mock('@xyflow/react', async () => {
               type="button"
               key={node.id}
               onClick={(event) => props.onNodeClick?.(event, node)}
+              onDoubleClick={(event) => props.onNodeDoubleClick?.(event, node)}
               onContextMenu={(event) => props.onNodeContextMenu?.(event, node)}>
               {node.id}
             </button>
@@ -85,7 +91,7 @@ describe('TopicMessageFlowCanvas', () => {
   afterEach(() => vi.restoreAllMocks())
 
   it('opens with the first message at the left and vertically centered', async () => {
-    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
+    render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
     await screen.findByTestId('react-flow')
     const viewport = flow.props!.defaultViewport!
     const root = node('user-1')
@@ -100,7 +106,7 @@ describe('TopicMessageFlowCanvas', () => {
   })
 
   it('reflows siblings when a complete response grows taller', async () => {
-    render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} />)
+    render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
     await screen.findByTestId('react-flow')
     act(() =>
       flow.props!.onNodesChange!([{ id: 'answer-a', type: 'dimensions', dimensions: { width: 440, height: 900 } }])
@@ -109,7 +115,7 @@ describe('TopicMessageFlowCanvas', () => {
   })
 
   it('preserves the viewport when active branch and streamed content change', async () => {
-    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} focusKey="topic-1" />)
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} focusKey="topic-1" />)
     await waitFor(() => expect(flow.setViewport).toHaveBeenCalledTimes(1))
     const previousViewport = flow.props!.defaultViewport
     flow.setViewport.mockClear()
@@ -123,7 +129,7 @@ describe('TopicMessageFlowCanvas', () => {
             data: { ...item.data, preview: 'New streamed content' }
           }))
         }}
-        onNodeSelect={vi.fn()}
+        onNodeActivate={vi.fn()}
         focusKey="topic-1"
       />
     )
@@ -132,38 +138,47 @@ describe('TopicMessageFlowCanvas', () => {
   })
 
   it('waits for the pane transition before mounting the canvas', async () => {
-    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} layoutReady={false} />)
+    const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} layoutReady={false} />)
     expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
-    rerender(<TopicMessageFlowCanvas graph={graph} onNodeSelect={vi.fn()} layoutReady />)
+    rerender(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} layoutReady />)
     expect(await screen.findByTestId('react-flow')).toBeVisible()
   })
 
-  it('selects and opens menus for first messages and their response branches', async () => {
-    let selection: string | undefined
-    let menu: string | undefined
-    render(
-      <TopicMessageFlowCanvas
-        graph={graph}
-        onNodeSelect={(id) => {
-          selection = id
-        }}
-        onNodeContextMenu={(id) => {
-          menu = id
-        }}
-      />
-    )
-    fireEvent.click(await screen.findByRole('button', { name: 'user-1' }))
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'user-1' }))
-    expect(selection).toBe('user-1')
-    expect(menu).toBe('user-1')
-    fireEvent.click(screen.getByRole('button', { name: 'answer-b' }))
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'answer-b' }))
-    expect(selection).toBe('answer-b')
-    expect(menu).toBe('answer-b')
+  it('switches the conversation target when clicking a historical node', async () => {
+    function Conversation() {
+      const [activeBranch, setActiveBranch] = useState('answer-a')
+      return (
+        <>
+          <output aria-label="Conversation branch">{activeBranch}</output>
+          <TopicMessageFlowCanvas graph={graph} onNodeActivate={setActiveBranch} />
+        </>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Conversation />)
+    const answer = await screen.findByRole('button', { name: 'answer-b' })
+    await user.click(answer)
+    expect(screen.getByLabelText('Conversation branch')).toHaveTextContent('answer-b')
+  })
+
+  it('brings a requested offscreen branch into view without changing the user zoom', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(480)
+    render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={() => {}} revealNodeId="answer-b" />)
+    await waitFor(() => {
+      const viewport = flow.setViewport.mock.lastCall?.[0]
+      expect(viewport?.zoom).toBe(0.7)
+      const target = node('answer-b')
+      const left = target.position.x * viewport.zoom + viewport.x
+      const top = target.position.y * viewport.zoom + viewport.y
+      expect(left).toBeGreaterThanOrEqual(0)
+      expect(left + target.width! * viewport.zoom).toBeLessThanOrEqual(480)
+      expect(top).toBeGreaterThanOrEqual(0)
+      expect(top + target.measured!.height! * viewport.zoom).toBeLessThanOrEqual(600)
+    })
   })
 
   it('keeps empty conversations out of React Flow', () => {
-    render(<TopicMessageFlowCanvas graph={{ ...graph, nodes: [], edges: [] }} onNodeSelect={vi.fn()} />)
+    render(<TopicMessageFlowCanvas graph={{ ...graph, nodes: [], edges: [] }} onNodeActivate={vi.fn()} />)
     expect(screen.getByTestId('topic-message-flow-empty')).toBeVisible()
     expect(screen.queryByTestId('react-flow')).not.toBeInTheDocument()
   })

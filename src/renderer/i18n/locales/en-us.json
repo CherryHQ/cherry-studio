@@ -681,6 +681,8 @@
   "chat.input.web_search.route.client_with_fallback": "Searches with {{provider}}. If unavailable, the query is automatically sent to {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
   "chat.message.editing_current": "This message is being edited in the composer",
+  "chat.message.flow.actions_unavailable": "Wait for the current operation to finish",
+  "chat.message.flow.continue_here": "Continue from here",
   "chat.message.flow.copy_topic.created": "Copied to a new conversation",
   "chat.message.flow.copy_topic.label": "Copy as New Conversation",
   "chat.message.flow.status.awaiting_input": "Awaiting input",

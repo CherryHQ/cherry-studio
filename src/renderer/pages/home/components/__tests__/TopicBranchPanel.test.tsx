@@ -144,11 +144,11 @@ vi.mock('@renderer/components/chat/flow', () => ({
   TopicMessageFlowCanvas: ({
     graph,
     onNodeContextMenu,
-    onNodeSelect
+    onNodeActivate
   }: {
     graph: { nodes: { data: { messageId: string; preview?: string; isAwaitingInput?: boolean } }[] }
     onNodeContextMenu?: (messageId: string) => void
-    onNodeSelect: (messageId: string) => void
+    onNodeActivate: (messageId: string) => void
   }) => (
     <div>
       {graph.nodes.map((node) => (
@@ -159,7 +159,7 @@ vi.mock('@renderer/components/chat/flow', () => ({
           data-awaiting-input={String(Boolean(node.data.isAwaitingInput))}
           data-testid={`topic-message-flow-node-${node.data.messageId}`}
           onContextMenu={() => onNodeContextMenu?.(node.data.messageId)}
-          onClick={() => onNodeSelect(node.data.messageId)}>
+          onClick={() => onNodeActivate(node.data.messageId)}>
           {node.data.preview}
         </button>
       ))}
@@ -386,7 +386,7 @@ describe('TopicBranchPanel', () => {
     expect(screen.getByText('Hello')).toBeInTheDocument()
   })
 
-  it('reserves a branch from the right-clicked node without activating it during a stream', async () => {
+  it('disables branch creation while the topic is generating', async () => {
     mocks.topicPending = true
     mocks.useQuery.mockReturnValue({
       data: {
@@ -443,19 +443,12 @@ describe('TopicBranchPanel', () => {
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-message-1'))
-    fireEvent.click(await screen.findByRole('button', { name: 'chat.message.new.branch.label' }))
-
-    await waitFor(() => {
-      expect(mocks.reserveBranch).toHaveBeenCalledWith({
-        params: { id: 'message-1' },
-        body: { activate: false }
-      })
-    })
-    expect(dataApiService.get).not.toHaveBeenCalled()
+    const branchButton = await screen.findByRole('button', { name: 'chat.message.new.branch.label' })
+    expect(branchButton).toBeDisabled()
+    fireEvent.click(branchButton)
+    expect(mocks.reserveBranch).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
     expect(mocks.eventEmit).not.toHaveBeenCalled()
-    expect(toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
   })
 
   it('renders and reactivates a persisted awaiting-input message as a real canvas node', async () => {

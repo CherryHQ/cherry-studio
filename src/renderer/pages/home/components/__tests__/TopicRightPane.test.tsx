@@ -354,7 +354,7 @@ describe('TopicRightPane', () => {
     fireEvent.click(branchShortcut as HTMLElement)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Trip planning')
+    expect(screen.getByText('Trip planning')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'common.minimize' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
     expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).not.toBeInTheDocument()
@@ -437,7 +437,7 @@ describe('TopicRightPane', () => {
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
     expect(screen.getByTestId('branch-pane')).toBe(branchPane)
     expect(branchPane).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Trip planning')
+    expect(screen.getByText('Trip planning')).toBeVisible()
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.close' }))

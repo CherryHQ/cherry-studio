@@ -681,6 +681,8 @@
   "chat.input.web_search.route.client_with_fallback": "Αναζήτηση με {{provider}}. Αν δεν είναι διαθέσιμο, το ερώτημα αποστέλλεται αυτόματα στο {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Το Gemini δεν υποστηρίζει την ταυτόχρονη χρήση του εργαλείου αυτόματης αναζήτησης και της κλήσης συναρτήσεων",
   "chat.message.editing_current": "Αυτό το μήνυμα επεξεργάζεται στον συνθέτη",
+  "chat.message.flow.actions_unavailable": "Περιμένετε να ολοκληρωθεί η τρέχουσα ενέργεια",
+  "chat.message.flow.continue_here": "Συνέχεια από εδώ",
   "chat.message.flow.copy_topic.created": "Αντιγράφηκε σε μια νέα συνομιλία",
   "chat.message.flow.copy_topic.label": "Αντιγραφή ως Νέα Συνομιλία",
   "chat.message.flow.status.awaiting_input": "Αναμονή εισόδου",
