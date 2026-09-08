@@ -18,21 +18,28 @@ pdf -> pypdf, pptx -> python-pptx.
 """
 
 import argparse
-import contextlib
 import csv
 import datetime
-import json
-import os
 import re
 import sys
 
 # SkillInstaller verifies built-in skills by directory hash; a __pycache__ dir would
 # make that hash mismatch and the skill would be unlinked, so never write bytecode.
+# The sibling imports below are what would create one, so this has to come first.
 sys.dont_write_bytecode = True
 
-import tempfile
-import zipfile
 from pathlib import Path
+
+from office.common import (
+    MAX_ENTRY_BYTES,
+    atomic_output,
+    fail,
+    parse_json_object,
+    preflight_zip_path,
+    require_index,
+    slice_char_range,
+    validate_io_paths,
+)
 
 A1_CELL_RE = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
 
@@ -41,50 +48,6 @@ MAX_RANGE_CELLS = 1_000_000
 # The SpreadsheetML grid (ECMA-376): columns A..XFD, rows 1..1048576.
 MAX_COLUMN_INDEX = 16_384
 MAX_ROW_NUMBER = 1_048_576
-MAX_ZIP_ENTRIES = 10_000
-MAX_ENTRY_BYTES = 256 * 1024 * 1024
-MAX_TOTAL_BYTES = 1024 * 1024 * 1024
-
-
-def fail(message: str) -> "sys.NoReturn":
-    print(f"error: {message}", file=sys.stderr)
-    raise SystemExit(1)
-
-
-@contextlib.contextmanager
-def atomic_output(out_path: Path):
-    """Yield a staging path renamed onto `out_path` only on success, so a failure leaves nothing behind.
-
-    Without this, an interrupted write leaves a partial file that both looks like a result and blocks
-    the retry with "output path already exists".
-
-    `Path.replace` overwrites unconditionally, so the caller's earlier `out_path.exists()` check only
-    narrows the window between deciding the path is free and taking it — it does not close it.
-    Claiming the path with `O_CREAT | O_EXCL` up front does. Only that claim sits outside the `try`,
-    because `fail` raises `SystemExit` and cleaning up from inside it would delete the file whoever
-    won the race had just published. Everything after the claim is inside, so a staging file that
-    cannot even be created still takes the empty claim back down with it.
-
-    office_patch_copy.py carries this protocol verbatim, deliberately: each script stands alone and
-    neither imports the other. Change one and change both — the no-overwrite guarantee is worth only
-    as much as the weaker copy.
-    """
-    try:
-        os.close(os.open(out_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644))
-    except FileExistsError:
-        fail(f"output path already exists: {out_path} — pick a fresh name instead of overwriting")
-    staging = None
-    try:
-        handle, staging_name = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.", suffix=".part")
-        os.close(handle)
-        staging = Path(staging_name)
-        yield staging
-        staging.replace(out_path)
-    except BaseException:
-        if staging is not None:
-            staging.unlink(missing_ok=True)
-        out_path.unlink(missing_ok=True)
-        raise
 
 
 def column_to_index(letters: str) -> int:
@@ -117,60 +80,6 @@ def parse_a1_range(ref: str) -> tuple[int, int, int, int]:
         max(start[0], end[0]),
         max(start[1], end[1]),
     )
-
-
-def preflight_zip(path: "Path") -> None:
-    """Refuse pathological OOXML packages before a reader decompresses them."""
-    try:
-        with zipfile.ZipFile(path) as archive:
-            infos = archive.infolist()
-    except zipfile.BadZipFile:
-        fail(f"not a valid OOXML package: {path}")
-    if len(infos) > MAX_ZIP_ENTRIES:
-        fail(f"package has {len(infos)} entries (limit {MAX_ZIP_ENTRIES})")
-    total = 0
-    for info in infos:
-        if info.file_size > MAX_ENTRY_BYTES:
-            fail(f"package entry {info.filename!r} decompresses to {info.file_size} bytes (limit {MAX_ENTRY_BYTES})")
-        total += info.file_size
-    if total > MAX_TOTAL_BYTES:
-        fail(f"package decompresses to {total} bytes in total (limit {MAX_TOTAL_BYTES})")
-
-
-def require_index(value, field: str, minimum: int) -> int:
-    """Return an anchor ordinal, refusing anything int() would silently reinterpret.
-
-    Bare int() accepts "3", 3.7 (truncated) and True (1), each of which addresses a different
-    paragraph/page/slide than the caller meant and reports nothing. bool is checked first because it
-    is a subclass of int.
-    """
-    if isinstance(value, bool) or not isinstance(value, int):
-        fail(f"{field} must be an integer, not {type(value).__name__}: {value!r}")
-    if value < minimum:
-        fail(f"{field} must be >= {minimum}: {value!r}")
-    return value
-
-
-def slice_char_range(text: str, char_range) -> str:
-    if char_range is None:
-        return text
-    # int() would happily take "26" (as two characters) or 1.9 (truncated), each of which slices a
-    # different span than the caller asked for and reports nothing.
-    if not isinstance(char_range, (list, tuple)) or len(char_range) != 2:
-        fail(f"charRange must be a two-element [start, end] array: {char_range!r}")
-    if not all(isinstance(bound, int) and not isinstance(bound, bool) for bound in char_range):
-        fail(f"charRange bounds must be integers: {char_range!r}")
-    start, end = char_range
-    if start > end or start < 0:
-        fail(f"invalid charRange: {char_range!r}")
-    # Python slicing clamps silently; every other ordinal in this file fails loudly when out of range,
-    # and a charRange past the end of the text means the anchor no longer describes this paragraph.
-    if start > len(text) or end > len(text):
-        fail(
-            f"charRange {char_range!r} runs past the end of the anchored text ({len(text)} characters); "
-            f"the document changed since the anchor was captured — re-select instead of truncating"
-        )
-    return text[start:end]
 
 
 def cell_display(value) -> str:
@@ -481,27 +390,9 @@ def main() -> None:
 
     src = Path(args.file)
     out_path = Path(args.out)
-    # Both paths are documented, and schema-validated upstream, as absolute. Accepting a relative one
-    # silently resolves it against whatever working directory the agent happens to be in.
-    for label, candidate in (("--file", src), ("--out", out_path)):
-        if not candidate.is_absolute():
-            fail(f"{label} must be an absolute path: {str(candidate)!r}")
-    if not src.is_file():
-        fail(f"source file not found: {src}")
-    if out_path.resolve() == src.resolve():
-        fail("output path must differ from the source file — the source is never modified")
-    if out_path.exists():
-        fail(f"output path already exists: {out_path} — pick a fresh name instead of overwriting")
+    validate_io_paths(src, out_path)
 
-    try:
-        anchor = json.loads(args.anchor)
-    except json.JSONDecodeError as error:
-        fail(f"anchor is not valid JSON: {error}")
-    # `null` and `[]` parse fine and then fail on .get() with a traceback, which reads to the caller
-    # as a broken script rather than a bad argument. An unhashable "format" — a list or a dict —
-    # does the same on the lookup below, so it takes the same route to the same message.
-    if not isinstance(anchor, dict):
-        fail(f"anchor must be a JSON object, not {type(anchor).__name__}: {anchor!r}")
+    anchor = parse_json_object(args.anchor, "anchor")
     anchor_format = anchor.get("format")
     extractor = EXTRACTORS.get(anchor_format) if isinstance(anchor_format, str) else None
     if extractor is None:
@@ -512,7 +403,7 @@ def main() -> None:
         fail("output path needs an extension so the output format can be inferred")
 
     if anchor_format in ("xlsx", "docx", "pptx"):
-        preflight_zip(src)
+        preflight_zip_path(src)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with atomic_output(out_path) as staging:

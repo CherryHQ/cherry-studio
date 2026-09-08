@@ -44,33 +44,44 @@ never leaves a partial package behind (see atomic_output).
 """
 
 import argparse
-import codecs
-import contextlib
-import json
 import math
-import os
 import posixpath
 import re
 import sys
 
 # SkillInstaller verifies built-in skills by directory hash; a __pycache__ dir would
 # make that hash mismatch and the skill would be unlinked, so never write bytecode.
+# The sibling imports below are what would create one, so this has to come first.
 sys.dont_write_bytecode = True
 
-import tempfile
 import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from xml.dom import minidom
 
+from office.common import (
+    atomic_output,
+    fail,
+    parse_json_object,
+    preflight_zip,
+    validate_io_paths,
+)
+from office.ooxml import (
+    element_children,
+    first_child,
+    local_name,
+    make_tag,
+    read_xml_part,
+    reject_invalid_xml_text,
+    reject_strict_ooxml,
+    resolve_namespace,
+    serialize_part,
+)
+
 SPREADSHEET_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 RELATIONSHIP_ATTR_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PACKAGE_RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
-
-# ISO 29500 Strict binds the same elements to a second namespace family. Every lookup below matches
-# the Transitional URIs above literally, so a Strict package is out of scope — see reject_strict_ooxml.
-STRICT_NS_PREFIX = "http://purl.oclc.org/ooxml/"
 
 A1_CELL_RE = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
 
@@ -79,74 +90,10 @@ WORKBOOK_RELS_PART = "xl/_rels/workbook.xml.rels"
 CALC_CHAIN_PART = "xl/calcChain.xml"
 WORKBOOK_PART = "xl/workbook.xml"
 
-MAX_ZIP_ENTRIES = 10_000
-MAX_ENTRY_BYTES = 256 * 1024 * 1024
-MAX_TOTAL_BYTES = 1024 * 1024 * 1024
-
 # The SpreadsheetML grid (ECMA-376): columns A..XFD, rows 1..1048576. A1 notation happily spells
 # coordinates past both, and writing one produces a cell Excel cannot place.
 MAX_COLUMN_INDEX = 16_384
 MAX_ROW_NUMBER = 1_048_576
-
-
-def fail(message: str) -> "sys.NoReturn":
-    print(f"error: {message}", file=sys.stderr)
-    raise SystemExit(1)
-
-
-def reject_strict_ooxml(namespace: str, part: str) -> None:
-    """Refuse an ISO 29500 Strict package by name rather than by its symptom.
-
-    Matching both families would assert the two are interchangeable, which they are not — attribute
-    value spaces and date representations differ — and it would buy nothing, since openpyxl and
-    python-docx, the readers this skill pairs with, cannot open Strict either. Only the diagnosis is
-    worth fixing. Without this a Strict workbook reports having no worksheets at all, and a Strict
-    paragraph is refused for "containing <w:r>": both send the caller searching the wrong file for
-    the wrong problem.
-    """
-    if namespace.startswith(STRICT_NS_PREFIX):
-        fail(
-            f"{part} uses the ISO 29500 Strict namespace ({namespace}); this script reads Transitional "
-            f"OOXML only, which is what Excel and Word write by default. Re-save the file in the "
-            f'default format (not "Strict Open XML"), then retry.'
-        )
-
-
-@contextlib.contextmanager
-def atomic_output(out_path: Path):
-    """Yield a staging path in the destination directory, renamed onto `out_path` only on success.
-
-    Nothing partial ever appears at the destination: a failure removes the staging file, so the same
-    command can be retried without tripping the "output path already exists" check.
-
-    `Path.replace` overwrites unconditionally, so the caller's earlier `out_path.exists()` check only
-    narrows the window between deciding the path is free and taking it — it does not close it, and a
-    patch-copy of a large workbook holds that window open for the whole rewrite. Claiming the path
-    with `O_CREAT | O_EXCL` up front closes it. Only that claim sits outside the `try`, because
-    `fail` raises `SystemExit` and cleaning up from inside it would delete the file whoever won the
-    race had just published. Everything after the claim is inside, so a staging file that cannot
-    even be created still takes the empty claim back down with it.
-
-    office_extract.py carries this protocol verbatim, deliberately: each script stands alone and
-    neither imports the other. Change one and change both — the no-overwrite guarantee is worth only
-    as much as the weaker copy.
-    """
-    try:
-        os.close(os.open(out_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644))
-    except FileExistsError:
-        fail(f"output path already exists: {out_path} — pick a fresh name instead of overwriting")
-    staging = None
-    try:
-        handle, staging_name = tempfile.mkstemp(dir=out_path.parent, prefix=f".{out_path.name}.", suffix=".part")
-        os.close(handle)
-        staging = Path(staging_name)
-        yield staging
-        staging.replace(out_path)
-    except BaseException:
-        if staging is not None:
-            staging.unlink(missing_ok=True)
-        out_path.unlink(missing_ok=True)
-        raise
 
 
 def column_to_index(letters: str) -> int:
@@ -175,96 +122,6 @@ def parse_a1_cell(ref: str) -> tuple[int, int]:
             f"(max {index_to_column(MAX_COLUMN_INDEX)}{MAX_ROW_NUMBER}); Excel cannot place it"
         )
     return column, row
-
-
-def preflight_zip(archive: zipfile.ZipFile) -> None:
-    """Refuse pathological packages before decompressing anything into memory."""
-    infos = archive.infolist()
-    if len(infos) > MAX_ZIP_ENTRIES:
-        fail(f"package has {len(infos)} entries (limit {MAX_ZIP_ENTRIES})")
-    total = 0
-    for info in infos:
-        if info.file_size > MAX_ENTRY_BYTES:
-            fail(f"package entry {info.filename!r} decompresses to {info.file_size} bytes (limit {MAX_ENTRY_BYTES})")
-        total += info.file_size
-    if total > MAX_TOTAL_BYTES:
-        fail(f"package decompresses to {total} bytes in total (limit {MAX_TOTAL_BYTES})")
-
-
-def reject_invalid_xml_text(value: str, where: str) -> None:
-    """Refuse text XML 1.0 cannot represent, before it reaches a text node.
-
-    minidom escapes `& < > " '` but happily serializes C0 control characters, which XML 1.0 forbids in
-    character data (only tab, LF and CR are legal). Writing one produces a part no parser will read
-    back — Excel and Word open the derived file in repair mode. This is reachable from the skill's own
-    output: python-pptx maps a soft line break to \x0B, so text extracted from a deck and fed back in
-    as a cell value or paragraph carries it.
-    """
-    for index, char in enumerate(value):
-        code = ord(char)
-        legal = code in (0x9, 0xA, 0xD) or 0x20 <= code <= 0xD7FF or 0xE000 <= code <= 0xFFFD or code >= 0x10000
-        if not legal:
-            fail(
-                f"{where} contains a character XML cannot store (U+{code:04X} at offset {index}); "
-                f"strip control characters — a derived file holding one will not open"
-            )
-
-
-def contains_doctype(data: bytes) -> bool:
-    """Look for a DTD across the encodings an XML part may legally use.
-
-    A raw `b"<!DOCTYPE" in data` only matches UTF-8/ASCII. XML also permits UTF-16 and UTF-32, where the
-    same text is interleaved with null bytes — so a UTF-16 part carrying a DTD walked straight past the
-    check and reached the parser with its entities intact. Decode by BOM (falling back to UTF-8) and look
-    at text instead of bytes.
-    """
-    for bom, encoding in (
-        (codecs.BOM_UTF32_LE, "utf-32-le"),
-        (codecs.BOM_UTF32_BE, "utf-32-be"),
-        (codecs.BOM_UTF16_LE, "utf-16-le"),
-        (codecs.BOM_UTF16_BE, "utf-16-be"),
-        (codecs.BOM_UTF8, "utf-8-sig"),
-    ):
-        if data.startswith(bom):
-            return "<!DOCTYPE" in data.decode(encoding, errors="ignore")
-    # No BOM: XML without one must be UTF-8, but a null-interleaved body still means UTF-16/32 was used,
-    # so decoding under both keeps the check honest rather than trusting the declaration.
-    if b"\x00" in data[:4]:
-        return any("<!DOCTYPE" in data.decode(enc, errors="ignore") for enc in ("utf-16-le", "utf-16-be"))
-    return "<!DOCTYPE" in data.decode("utf-8", errors="ignore")
-
-
-def read_xml_part(archive: zipfile.ZipFile, name: str) -> bytes:
-    try:
-        data = archive.read(name)
-    except KeyError:
-        fail(f"package has no part named {name!r}")
-    # OOXML parts never carry a DTD; one here can only mean entity-expansion mischief.
-    if contains_doctype(data):
-        fail(f"part {name!r} contains a DOCTYPE declaration; refusing to parse it")
-    return data
-
-
-# ── minidom helpers ──────────────────────────────────────────────────────────
-
-
-def element_children(parent, local_name: str = None):
-    for node in parent.childNodes:
-        if node.nodeType != minidom.Node.ELEMENT_NODE:
-            continue
-        if local_name is None or node.tagName.rsplit(":", 1)[-1] == local_name:
-            yield node
-
-
-def first_child(parent, local_name: str):
-    return next(element_children(parent, local_name), None)
-
-
-def make_tag(sample_tag: str, local_name: str) -> str:
-    """Build a tag using the same namespace prefix as a sibling/parent tag."""
-    if ":" in sample_tag:
-        return sample_tag.rsplit(":", 1)[0] + ":" + local_name
-    return local_name
 
 
 # The whitespace class shared with the renderer's normalizeSelectionText, written out rather than
@@ -348,23 +205,6 @@ def paragraph_text(paragraph) -> str:
                 append_run(run)
 
     return "".join(parts)
-
-
-def serialize_part(doc: minidom.Document) -> bytes:
-    """Serialize a part, refusing to emit anything that cannot be parsed back.
-
-    The reparse is a structural backstop, not a formality. Character-level gates catch the cases we
-    thought of one at a time — a C0 control character slipped through exactly that way. Handing the
-    output back to the same parser catches the whole class mechanically: if expat cannot read it,
-    neither can Excel or Word, and a derived file that opens in repair mode is the failure this
-    script exists to prevent.
-    """
-    part = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + doc.documentElement.toxml().encode("utf-8")
-    try:
-        minidom.parseString(part)
-    except Exception as error:  # noqa: BLE001 - any parse failure means the part is unusable
-        fail(f"refusing to write a part that cannot be parsed back ({error}); this is a bug in the edit path")
-    return part
 
 
 # ── xlsx ─────────────────────────────────────────────────────────────────────
@@ -750,28 +590,6 @@ CONTENT_DESCRIPTIONS = {
 }
 
 
-def local_name(element) -> str:
-    return element.tagName.rsplit(":", 1)[-1]
-
-
-def resolve_namespace(element) -> str:
-    """Namespace URI for an element, resolved through the xmlns declarations in scope.
-
-    `minidom.parseString` is not namespace-aware, so `element.namespaceURI` is always None and only
-    the literal prefix survives. Matching on the prefix would be wrong in both directions: a document
-    may bind `w:` to something else, and it may bind WordprocessingML to a different prefix. It also
-    conflates namespaces that share a local name — `m:t` (equation text) would pass a bare "t" check.
-    """
-    prefix = element.tagName.rsplit(":", 1)[0] if ":" in element.tagName else ""
-    declaration = f"xmlns:{prefix}" if prefix else "xmlns"
-    node = element
-    while node is not None and node.nodeType == minidom.Node.ELEMENT_NODE:
-        if node.hasAttribute(declaration):
-            return node.getAttribute(declaration)
-        node = node.parentNode
-    return ""
-
-
 def describe_element(key: tuple[str, str], element) -> str:
     if key in CONTENT_DESCRIPTIONS:
         return CONTENT_DESCRIPTIONS[key]
@@ -923,27 +741,9 @@ def main() -> None:
 
     src = Path(args.file)
     out_path = Path(args.out)
-    # Both paths are documented, and schema-validated upstream, as absolute. Accepting a relative one
-    # silently resolves it against whatever working directory the agent happens to be in.
-    for label, candidate in (("--file", src), ("--out", out_path)):
-        if not candidate.is_absolute():
-            fail(f"{label} must be an absolute path: {str(candidate)!r}")
-    if not src.is_file():
-        fail(f"source file not found: {src}")
-    if out_path.resolve() == src.resolve():
-        fail("output path must differ from the source file — the source is never modified")
-    if out_path.exists():
-        fail(f"output path already exists: {out_path} — pick a fresh name instead of overwriting")
+    validate_io_paths(src, out_path)
 
-    try:
-        edits = json.loads(args.edits)
-    except json.JSONDecodeError as error:
-        fail(f"edits is not valid JSON: {error}")
-    # `null` and `[]` parse fine and then fail on .get() with a traceback, which reads to the caller
-    # as a broken script rather than a bad argument. An unhashable "format" — a list or a dict —
-    # does the same on the lookup below, so it takes the same route to the same message.
-    if not isinstance(edits, dict):
-        fail(f"edits must be a JSON object, not {type(edits).__name__}: {edits!r}")
+    edits = parse_json_object(args.edits, "edits")
     edits_format = edits.get("format")
     patcher = PATCHERS.get(edits_format) if isinstance(edits_format, str) else None
     if patcher is None:
