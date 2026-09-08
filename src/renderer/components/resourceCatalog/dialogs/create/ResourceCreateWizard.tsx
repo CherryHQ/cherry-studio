@@ -138,8 +138,11 @@ export function ResourceCreateWizard({
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined, open && kind === 'agent')
   const assistantModelFilter = useCherryCloudModelFilter('chat', modelFilter, open && kind === 'assistant')
-  const { getModelDetailDescription, isModelDisabled } = useAgentModelAvailability(open && kind === 'agent')
+  const { getModelDetailDescription, isModelDisabled: isAgentModelDisabled } = useAgentModelAvailability(
+    open && kind === 'agent'
+  )
   const activeModelFilter = kind === 'agent' ? agentModelFilter : assistantModelFilter
+  const isModelDisabled = kind === 'agent' ? isAgentModelDisabled : undefined
   const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
@@ -149,7 +152,7 @@ export function ResourceCreateWizard({
     availableModels.some((model) => model.id === defaultModel.id) &&
     defaultModelProvider?.isEnabled &&
     (!activeModelFilter || activeModelFilter(defaultModel, defaultModelProvider)) &&
-    !isModelDisabled(defaultModel, defaultModelProvider)
+    !isModelDisabled?.(defaultModel, defaultModelProvider)
       ? defaultModel.id
       : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
