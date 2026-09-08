@@ -18,9 +18,16 @@ import { HEARTBEAT_PROMPT_SENTINEL } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
+import {
+  DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
+  DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
+  MAX_HEARTBEAT_INTERVAL_MINUTES,
+  MIN_HEARTBEAT_INTERVAL_MINUTES
+} from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import { type JobScheduleSnapshot, type Trigger, triggersEqual } from '@shared/data/api/schemas/jobs'
+import { JOB_ERROR_CODES, type JobScheduleSnapshot, type Trigger, triggersEqual } from '@shared/data/api/schemas/jobs'
 
 import { agentDataDirectoryPath } from './agentDataDirectory'
 import { ensureHeartbeatFile } from './heartbeat'
@@ -28,15 +35,6 @@ import { ensureHeartbeatFile } from './heartbeat'
 const logger = loggerService.withContext('HeartbeatSchedule')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
-
-/** Same default as user tasks (`DEFAULT_TIMEOUT_MINUTES` in AgentJobsService). */
-const HEARTBEAT_TIMEOUT_MINUTES = 2
-
-/** Mirrors the renderer form default (`DEFAULT_HEARTBEAT_INTERVAL`). */
-export const DEFAULT_HEARTBEAT_INTERVAL_MINUTES = 30
-
-/** Mirrors the renderer form clamp (InputNumber max in AgentEditDialog). */
-const MAX_HEARTBEAT_INTERVAL_MINUTES = 1440
 
 export type HeartbeatSyncOutcome =
   | 'created'
@@ -60,9 +58,8 @@ function clampIntervalMinutes(raw: unknown): number {
   if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) {
     return DEFAULT_HEARTBEAT_INTERVAL_MINUTES
   }
-  // Rounding a fractional value could land on 0 (e.g. 0.4) — never arm a
-  // 0ms trigger; the UI already enforces a 1–1440 minute range.
-  return Math.min(Math.max(1, Math.round(raw)), MAX_HEARTBEAT_INTERVAL_MINUTES)
+  // A bare Math.round could land on 0 (e.g. 0.4) and arm a 0ms trigger.
+  return Math.min(Math.max(MIN_HEARTBEAT_INTERVAL_MINUTES, Math.round(raw)), MAX_HEARTBEAT_INTERVAL_MINUTES)
 }
 
 /** A row is this agent's heartbeat iff its template carries the sentinel prompt. */
@@ -73,28 +70,42 @@ function isHeartbeatRow(row: { jobInputTemplate: unknown }, agentId: string): bo
 }
 
 function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
-  return rows.find((row) => isHeartbeatRow(row, agentId)) ?? null
+  return (
+    rows.find((row) => isHeartbeatRow(row, agentId)) ??
+    // Self-heal fallback: a corrupted sentinel prompt (legacy migration, manual
+    // edit) still leaves the reserved name + template agentId as identity.
+    rows.find((row) => {
+      if (row.name !== `heartbeat_${agentId}`) return false
+      const template = row.jobInputTemplate as { agentId?: unknown } | null
+      return template?.agentId === agentId
+    }) ??
+    null
+  )
 }
 
-/**
- * True when the error is the (type, name) UNIQUE-conflict raised by
- * registerJobScheduleTx. The schedule service reports it as a DataApiError
- * whose message carries the `JOB_SCHEDULE_NAME_CONFLICT:` prefix; matching the
- * prefix keeps the check robust to whichever code field the caller surfaces.
- */
+/** True when the error is the (type, name) UNIQUE-conflict from registerJobScheduleTx. */
 function isScheduleNameConflict(error: unknown): boolean {
+  const prefix = JOB_ERROR_CODES.SCHEDULE_NAME_CONFLICT
+  if (error instanceof DataApiError) {
+    return error.code === ErrorCode.CONFLICT && error.message.startsWith(prefix)
+  }
   const message = error instanceof Error ? error.message : String(error)
-  return message.includes('JOB_SCHEDULE_NAME_CONFLICT')
+  return message.startsWith(prefix)
 }
 
 /** True when the stored template no longer matches what sync would write. */
 function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): boolean {
   if (typeof current !== 'object' || current === null) return true
-  const template = current as { timeoutMinutes?: unknown; reuseRevision?: unknown; workspace?: unknown }
+  const template = current as {
+    agentId?: unknown
+    prompt?: unknown
+    timeoutMinutes?: unknown
+    reuseRevision?: unknown
+    workspace?: unknown
+  }
+  if (template.agentId !== target.agentId || template.prompt !== target.prompt) return true
   if (template.timeoutMinutes !== target.timeoutMinutes) return true
-  // reuseRevision is read at run time (runAgentTask's session-reuse decision),
-  // so a row that drifts only there must still be repaired — a 'noop' would
-  // leave the stale revision committed indefinitely.
+  // reuseRevision is read at run time, so drift there must not report 'noop'.
   if (template.reuseRevision !== target.reuseRevision) return true
   const workspace = template.workspace as { type?: unknown; workspaceId?: unknown } | null
   if (typeof workspace !== 'object' || workspace === null) return true
@@ -113,6 +124,16 @@ export async function syncHeartbeatSchedule(
 ): Promise<HeartbeatSyncOutcome> {
   const agent = agentService.getAgent(agentId)
   if (!agent) return 'skipped-missing-agent'
+
+  if (!(agent.type in AGENT_RUNTIME_CAPABILITIES)) {
+    // Corrupted/legacy/future runtime: without this warn the heartbeat is
+    // silently never armed even though the config save succeeded.
+    logger.warn('Agent runtime missing from the capabilities table; heartbeat not armed', {
+      agentId,
+      type: agent.type
+    })
+    return 'skipped-capability'
+  }
 
   // The heartbeat switch only renders for runtimes that support it; honor
   // the same capability here so a schedule is never armed for, say, dsh.
@@ -140,15 +161,17 @@ export async function syncHeartbeatSchedule(
   // Heartbeat sessions run in a user workspace pointing at the agent data
   // directory — the stable per-agent home where heartbeat.md lives.
   const workspacePath = agentDataDirectoryPath(application.getPath('feature.agents.data'), agentId)
-  await ensureHeartbeatFile(workspacePath)
+  // Workspace row before the file: if this throws (a SYSTEM row owns the
+  // path), no orphaned heartbeat.md is left behind to wedge future syncs.
   const workspace = agentWorkspaceService.findOrCreateByPath(workspacePath, {
     name: `Heartbeat — ${agent.name}`
   })
+  await ensureHeartbeatFile(workspacePath)
   const trigger: Trigger = { kind: 'interval', ms: intervalMinutes * 60_000 }
   const jobInputTemplate: HeartbeatJobInputTemplate = {
     agentId,
     prompt: HEARTBEAT_PROMPT_SENTINEL,
-    timeoutMinutes: HEARTBEAT_TIMEOUT_MINUTES,
+    timeoutMinutes: DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
     workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: workspace.id },
     reuseRevision: 0
   }
@@ -179,11 +202,8 @@ export async function syncHeartbeatSchedule(
 
   const existing = findHeartbeatRow(agentId, rows)
   if (!existing) {
-    // (type, name) is UNIQUE. A concurrent sync (config-save racing the startup
-    // repair pass) may have registered this agent's row against a stale
-    // snapshot, so a name-conflict here means the winner's row now exists.
-    // That is a benign race, not a failure: the INSERT transaction rolls back,
-    // we re-read by (type, name), and repair the winner's row in place.
+    // (type, name) is UNIQUE: a concurrent sync may have registered this row
+    // against a stale snapshot — a benign race, repair the winner in place.
     try {
       const { id } = application.get('DbService').withWriteTx((tx) =>
         jobManager.registerJobScheduleTx(tx, {
@@ -200,10 +220,8 @@ export async function syncHeartbeatSchedule(
       return 'created'
     } catch (error) {
       const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
-      // Only treat the conflict as a benign race when the (type, name) winner
-      // really is this agent's heartbeat row. A non-heartbeat schedule that
-      // happens to share the name (manual DB edit, legacy row, future feature)
-      // must not be silently overwritten with the heartbeat template.
+      // Benign only when the (type, name) winner is this agent's heartbeat
+      // row — a foreign row sharing the reserved name must stay untouched.
       if (!isScheduleNameConflict(error) || !winner || !isHeartbeatRow(winner, agentId)) throw error
       logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
         agentId,
@@ -228,15 +246,16 @@ export async function repairHeartbeatSchedules(): Promise<void> {
   // Identity is per-agent, so mid-pass inserts for one agent never affect another.
   const rows = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
   const counts = new Map<HeartbeatSyncOutcome | 'failed', number>()
-  for (const agent of agents) {
-    try {
-      const outcome = await syncHeartbeatSchedule(agent.id, rows)
-      counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
-    } catch (error) {
+  // Per-agent I/O is independent — overlap it; one rejection must not block the rest.
+  const results = await Promise.allSettled(agents.map((agent) => syncHeartbeatSchedule(agent.id, rows)))
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      counts.set(result.value, (counts.get(result.value) ?? 0) + 1)
+    } else {
       counts.set('failed', (counts.get('failed') ?? 0) + 1)
-      logger.warn('Heartbeat sync failed at startup', { agentId: agent.id, error })
+      logger.warn('Heartbeat sync failed at startup', { agentId: agents[index].id, error: result.reason })
     }
-  }
+  })
   const provisioned = (counts.get('created') ?? 0) + (counts.get('updated') ?? 0)
   if (provisioned > 0) {
     logger.info('Heartbeat schedules provisioned at startup', {

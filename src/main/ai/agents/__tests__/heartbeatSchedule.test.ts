@@ -14,12 +14,14 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import { DEFAULT_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
@@ -47,11 +49,7 @@ vi.mock('../agentTaskJobHandler', () => ({
   } satisfies JobHandler
 }))
 
-import {
-  DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
-  repairHeartbeatSchedules,
-  syncHeartbeatSchedule
-} from '../heartbeatSchedule'
+import { repairHeartbeatSchedules, syncHeartbeatSchedule } from '../heartbeatSchedule'
 
 const AGENT_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_AGENT_ID = '22222222-2222-4222-8222-222222222222'
@@ -70,11 +68,7 @@ describe('heartbeatSchedule', () => {
   let agentsRoot: string
 
   /** Insert an agent row and its data directory — what createAgent provisions in production. */
-  function seedAgent(
-    id: string,
-    configuration: AgentConfiguration = {},
-    type: 'claude-code' | 'dsh' = 'claude-code'
-  ): void {
+  function seedAgent(id: string, configuration: AgentConfiguration = {}, type: string = 'claude-code'): void {
     mkdirSync(path.join(agentsRoot, id), { recursive: true })
     dbh.db
       .insert(agentTable)
@@ -421,6 +415,75 @@ describe('heartbeatSchedule', () => {
     expect(listAllSpy).toHaveBeenCalledTimes(1)
     listAllSpy.mockRestore()
     expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(1)
+  })
+
+  it('repairs a row whose sentinel prompt was corrupted in place', async () => {
+    // The corrupted prompt breaks sentinel identity; the reserved name +
+    // template agentId must still find the row so drift repair can heal it.
+    seedAgent(AGENT_ID)
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: 3_600_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__ ',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('updated')
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    expect(jobScheduleService.getById(id)?.jobInputTemplate).toMatchObject({
+      prompt: '__heartbeat__',
+      workspace: { type: 'user' }
+    })
+    expect(scheduler.has(`schedule:${id}`)).toBe(true)
+  })
+
+  it('skips an agent type missing from the capabilities table', async () => {
+    seedAgent(AGENT_ID, {}, 'legacy-removed-runtime')
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('skipped-capability')
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+  })
+
+  it('does not seed heartbeat.md when the workspace path is owned by a system row', async () => {
+    // Ordering guard: findOrCreateByPath throws for a SYSTEM-owned path — the
+    // file must not be provisioned first and orphaned (wedging future syncs).
+    seedAgent(AGENT_ID)
+    const workspacePath = path.join(agentsRoot, AGENT_ID)
+    dbh.db
+      .insert(agentWorkspaceTable)
+      .values({ name: 'legacy system workspace', path: workspacePath, type: 'system', orderKey: AGENT_ID })
+      .run()
+    try {
+      await expect(syncHeartbeatSchedule(AGENT_ID)).rejects.toThrow()
+      await expect(readFile(path.join(workspacePath, 'heartbeat.md'))).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      dbh.db.delete(agentWorkspaceTable).run()
+    }
+  })
+
+  it('isolates a failing agent in the repair pass and provisions the rest', async () => {
+    // AGENT_ID's data path is blocked by a regular file: its sync rejects, but
+    // the allSettled pass must still provision the other agent.
+    seedAgent(AGENT_ID)
+    seedAgent(OTHER_AGENT_ID)
+    rmSync(path.join(agentsRoot, AGENT_ID), { recursive: true, force: true })
+    await writeFile(path.join(agentsRoot, AGENT_ID), 'not a directory')
+
+    await repairHeartbeatSchedules()
+
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
     expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(1)
   })
 })

@@ -12,6 +12,7 @@ import {
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from '@shared/ai/agentHeartbeat'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -27,7 +28,6 @@ import { repairHeartbeatSchedules, syncHeartbeatSchedule } from './heartbeatSche
 const logger = loggerService.withContext('AgentJobsService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
-const DEFAULT_TIMEOUT_MINUTES = 2
 
 type AgentTaskJobInputTemplate = {
   agentId: string
@@ -50,7 +50,8 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
   return {
     agentId: template.agentId,
     prompt: typeof template.prompt === 'string' ? template.prompt : '',
-    timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_TIMEOUT_MINUTES,
+    timeoutMinutes:
+      typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
     workspace: workspace.data,
     reuseRevision: normalizeTaskSessionReuseRevision(template.reuseRevision)
   }
@@ -96,6 +97,11 @@ export class AgentJobsService extends BaseService {
         if (!('heartbeat_enabled' in configPatch) && !('heartbeat_interval' in configPatch)) return
         void syncHeartbeatSchedule(agent.id).catch((error) => {
           logger.warn('Failed to sync heartbeat schedule after config update', { agentId: agent.id, error })
+          // Eagerly re-run the startup repair so a transient failure does not
+          // leave the agent heartbeat-less until the next launch.
+          void repairHeartbeatSchedules().catch((repairError) => {
+            logger.warn('Heartbeat schedule re-repair failed after config update', { repairError })
+          })
         })
       })
     )
@@ -121,7 +127,8 @@ export class AgentJobsService extends BaseService {
         jobInputTemplate: {
           agentId,
           prompt: form.prompt,
-          timeoutMinutes: form.timeoutMinutes === null ? 0 : (form.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES),
+          timeoutMinutes:
+            form.timeoutMinutes === null ? 0 : (form.timeoutMinutes ?? DEFAULT_AGENT_TASK_TIMEOUT_MINUTES),
           workspace: form.workspace,
           reuseRevision: 0
         },

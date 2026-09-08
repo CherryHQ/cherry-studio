@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 import { createAgentDataDirectory, removeAgentDataDirectory } from './agentDataDirectory'
-import { syncHeartbeatSchedule } from './heartbeatSchedule'
+import { repairHeartbeatSchedules, syncHeartbeatSchedule } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('CreateAgent')
 
@@ -17,11 +17,16 @@ export async function createAgent(request: CreateAgentCommand) {
 
   try {
     const agent = agentService.createAgentWithId(agentId, request)
-    // Provision the heartbeat schedule; failure is logged, not fatal (v1 contract).
-    // The startup repair pass covers any agent left without a row.
-    void syncHeartbeatSchedule(agent.id).catch((error) => {
+    // Await so a transient failure cannot leave the agent heartbeat-less until
+    // the next restart; failure stays non-fatal (v1 contract), with one eager retry.
+    try {
+      await syncHeartbeatSchedule(agent.id)
+    } catch (error) {
       logger.warn('Failed to provision heartbeat schedule for new agent', { agentId, error })
-    })
+      void repairHeartbeatSchedules().catch((repairError) => {
+        logger.warn('Heartbeat schedule re-repair failed after agent creation', { agentId, repairError })
+      })
+    }
     return agent
   } catch (error) {
     try {

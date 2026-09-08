@@ -7,7 +7,9 @@ const logger = loggerService.withContext('HeartbeatReader')
 
 const HEARTBEAT_FILENAME = 'heartbeat.md'
 
-const HTML_COMMENT_PATTERN = /<!--[\s\S]*?-->/g
+// An unterminated `<!--` consumes the rest of the file (HTML5 rule), so a
+// truncated template still counts as comments-only instead of firing a model call.
+const HTML_COMMENT_PATTERN = /<!--[\s\S]*?(?:-->|$)/g
 
 /** Comments-only template: readHeartbeat skips it, so a fresh heartbeat costs nothing until the user adds real entries. */
 const HEARTBEAT_TEMPLATE = [
@@ -64,21 +66,26 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
   try {
     await writeTemplate(resolved)
     logger.info(`Provisioned heartbeat file: ${resolved}`)
+    return
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') return
-    // Missing workspace directory (migrated/corrupted install or manual deletion): create it and retry once.
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      await mkdir(path.dirname(resolved), { recursive: true })
-      try {
-        await writeTemplate(resolved)
-        logger.info(`Provisioned heartbeat file after recreating workspace: ${resolved}`)
-      } catch (retryError) {
-        if ((retryError as NodeJS.ErrnoException).code === 'EEXIST') return
-        throw retryError
-      }
-      return
-    }
-    throw error
+    // Missing workspace directory (migrated/corrupted install or manual deletion): recreate and retry once.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  try {
+    await mkdir(path.dirname(resolved), { recursive: true })
+  } catch (mkdirError) {
+    throw new Error(`Cannot recreate workspace directory for heartbeat file: ${resolved}`, { cause: mkdirError })
+  }
+  try {
+    await writeTemplate(resolved)
+    logger.info(`Provisioned heartbeat file after recreating workspace: ${resolved}`)
+  } catch (retryError) {
+    if ((retryError as NodeJS.ErrnoException).code === 'EEXIST') return
+    if ((retryError as NodeJS.ErrnoException).code !== 'ENOENT') throw retryError
+    // A concurrent remover deleted the directory between mkdir and open; a
+    // missing file reads as empty, so skip rather than abort the sync.
+    logger.warn(`Workspace directory vanished while provisioning heartbeat file: ${resolved}`)
   }
 }
 
