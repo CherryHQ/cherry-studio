@@ -60,3 +60,8 @@ Earlier imports have no persisted completion marker and may receive the prompt o
 
 Page annotation controls are available only in the Agent browser pane, where saved annotations
 are added to the conversation draft. Standalone Browser tabs and MiniApps no longer show these controls.
+
+Standalone Browser tabs restore their last committed URL after hibernation. Explicit external
+MiniApp links keep opening in the system browser even when automatic links use the built-in browser.
+New and imported history entries remove sensitive parameters from URL fragments, including hash-route
+queries, while preserving ordinary anchors and routes. Existing history entries are unchanged.

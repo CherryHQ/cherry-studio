@@ -76,6 +76,7 @@ export function WebviewHost({
   const [webview, setWebview] = useState<WebviewTag | null>(null)
   const onWebviewChangeRef = useRef(onWebviewChange)
   const readyWebviewRef = useRef<WebviewTag | null>(null)
+  const committedLocationRef = useRef<{ webview: WebviewTag; url: string } | null>(null)
   const loadedSourceRef = useRef<{ reloadKey?: number | string; src?: string; webview?: WebviewTag }>({})
 
   const handleRef = useCallback(
@@ -130,7 +131,12 @@ export function WebviewHost({
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
       onDidStartLoading?.()
     }
-    const handleNavigate = (event: DidNavigateEvent | DidNavigateInPageEvent) => onDidNavigate?.(event)
+    const handleNavigate = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
+      if (!('isMainFrame' in event) || event.isMainFrame) {
+        committedLocationRef.current = { webview, url: event.url }
+      }
+      onDidNavigate?.(event)
+    }
 
     // Replay the guest's keydown on the host window so the normal keybinding
     // resolution (find-in-page and friends) sees it; `target` identifies the webview.
@@ -198,6 +204,7 @@ export function WebviewHost({
     loadedSourceRef.current = { reloadKey, src, webview }
 
     if (previous.webview !== webview || previous.src !== src) {
+      if (committedLocationRef.current?.webview === webview && committedLocationRef.current.url === src) return
       webview.setAttribute('src', src)
       return
     }

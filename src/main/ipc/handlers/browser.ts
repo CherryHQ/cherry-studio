@@ -10,9 +10,6 @@ export const browserHandlers: IpcHandlersFor<typeof browserRequestSchemas> = {
     return application.get('BrowserSessionService').pickAndImport(options, window)
   },
   'browser.data.clear': async ({ kind }) => application.get('BrowserSessionService').clearData(kind),
-  'browser.pane.list': async () => application.get('BrowserSessionService').agentBrowser.list(),
-  'browser.pane.open': async ({ sessionId, url }) =>
-    application.get('BrowserSessionService').agentBrowser.open(sessionId, url),
   'browser.pane.attach': async ({ sessionId, webviewId }, { senderId }) =>
     application.get('BrowserSessionService').agentBrowser.attach(sessionId, webviewId, senderId),
   'browser.pane.detach': async ({ sessionId, tabId }, { senderId }) =>

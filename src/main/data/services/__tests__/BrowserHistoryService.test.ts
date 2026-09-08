@@ -26,6 +26,25 @@ describe('Browser history persistence', () => {
     }
   })
 
+  it.each([
+    ['#api_key=private&session=private&signature=private&view=grid', '#view=grid'],
+    ['#access%5Ftoken=private&%61uth=private', ''],
+    ['#/reports?api_key=private&q=hello', '#/reports?q=hello'],
+    ['#/reports?password=private', '#/reports'],
+    ['#section-2', '#section-2'],
+    ['#authentication', '#authentication'],
+    ['#api_key=private?value&view=grid', '#view=grid'],
+    ['#/reports?q=hello%20world', '#/reports?q=hello%20world']
+  ])('sanitizes live and imported fragments while preserving navigation: %s', (fragment, expected) => {
+    const url = `https://example.com/${fragment}`
+    browserHistoryService.record({ url, title: url, visitedAt: 100 })
+    browserHistoryService.importVisits([{ url, title: url, visitedAt: 200, source: 'chrome:Default' }])
+    expect(dbh.sqlite.prepare('SELECT url, title FROM browser_visit ORDER BY visited_at').all()).toEqual([
+      { url: `https://example.com/${expected}`, title: `https://example.com/${expected}` },
+      { url: `https://example.com/${expected}`, title: `https://example.com/${expected}` }
+    ])
+  })
+
   it('deduplicates imports without changing original timestamps, and searches literal URL/title text', () => {
     const visits = [
       {

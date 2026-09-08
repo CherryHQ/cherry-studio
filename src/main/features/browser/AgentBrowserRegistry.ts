@@ -161,25 +161,6 @@ export class AgentBrowserRegistry implements Disposable {
     })
   }
 
-  list() {
-    return [...this.targets.values()].map((target) => ({
-      sessionId: target.sessionId,
-      title: target.guest.getTitle() || target.sessionId
-    }))
-  }
-
-  async open(sessionId: string, url: string): Promise<void> {
-    const target = this.targets.get(sessionId)
-    if (!target || agentSessionService.getById(sessionId).agentId !== target.agentId)
-      throw new BrowserSessionError('not_found')
-    url = normalizeBrowserUrl(url)
-    await application
-      .get('ConversationNavigationService')
-      .focusOrOpen({ conversationType: 'agent', conversationId: sessionId }, target.guest.getTitle(), target.windowId)
-    const current = await this.reveal(target, AbortSignal.timeout(10_000), url)
-    application.get('IpcApiService').send(current.windowId, 'browser.pane.open_requested', { sessionId, url })
-  }
-
   dispose(): void {
     for (const target of this.targets.values()) target.dispose()
     this.changed.dispose()

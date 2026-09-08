@@ -136,7 +136,6 @@ describe('Agent browser authority and control lifetime', () => {
     service.agentBrowser.detach(sessionId, tabId, windowId)
     await rejected
     expect(service.agentBrowser.get({ agentId, sessionId })).toBeUndefined()
-    expect(service.agentBrowser.list()).toEqual([{ sessionId, title: 'Test page' }])
     expect(annotation.isAvailable()).toBe(true)
     expect(fixture.mock.isDestroyed()).toBe(false)
     const replacement = service.agentBrowser.attach(sessionId, 1, windowId)
@@ -144,7 +143,6 @@ describe('Agent browser authority and control lifetime', () => {
     await expect(controller.getSession(false, tabId)).rejects.toMatchObject({ code: 'not_found' })
     service.release(fixture.guest, 'annotation')
     fixture.mock.close()
-    expect(service.agentBrowser.list()).toEqual([])
   })
 
   it('rejects control after disablement and never closes the user page on disconnect', async () => {

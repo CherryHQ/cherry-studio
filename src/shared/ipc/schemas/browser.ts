@@ -10,14 +10,6 @@ export const browserRequestSchemas = {
     input: z.strictObject({ kind: z.enum(['site_data', 'cache']) }),
     output: z.void()
   }),
-  'browser.pane.open': defineRoute({
-    input: z.strictObject({ url: z.string(), sessionId: z.uuid() }),
-    output: z.void()
-  }),
-  'browser.pane.list': defineRoute({
-    input: z.void(),
-    output: z.array(z.object({ sessionId: z.string(), title: z.string() }))
-  }),
   'browser.pane.attach': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), webviewId: z.number().int().positive() }),
     output: z.strictObject({ tabId: z.uuid() })

@@ -13,15 +13,33 @@ export interface BrowserVisitInput {
   sourceKey?: string
 }
 
+function removeSensitiveParameters(params: URLSearchParams): boolean {
+  let changed = false
+  for (const key of [...params.keys()]) {
+    if (isSensitiveKey(key) || /^(code|signature)$/i.test(key)) {
+      params.delete(key)
+      changed = true
+    }
+  }
+  return changed
+}
+
 function normalizeVisit(input: BrowserVisitInput) {
   const url = new URL(input.url)
   if (!['http:', 'https:'].includes(url.protocol) || !Number.isSafeInteger(input.visitedAt) || input.visitedAt < 0)
     return undefined
   url.username = ''
   url.password = ''
-  for (const key of [...url.searchParams.keys()])
-    if (isSensitiveKey(key) || /^(code|signature)$/i.test(key)) url.searchParams.delete(key)
-  if (/(?:token|password|secret|code)=/i.test(url.hash)) url.hash = ''
+  removeSensitiveParameters(url.searchParams)
+  const fragment = url.hash.slice(1)
+  const separator = fragment.indexOf('?')
+  const queryStart = separator >= 0 && !fragment.slice(0, separator).includes('=') ? separator : -1
+  const fragmentQuery = fragment.slice(queryStart + 1)
+  const fragmentParams = new URLSearchParams(fragmentQuery)
+  if (fragmentQuery.includes('=') && removeSensitiveParameters(fragmentParams)) {
+    const query = fragmentParams.toString()
+    url.hash = queryStart < 0 ? query : `${fragment.slice(0, queryStart)}${query ? `?${query}` : ''}`
+  }
   if (url.href.length > 16_384) return undefined
   return {
     ...input,

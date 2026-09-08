@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest'
+
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
-import { act, render } from '@testing-library/react'
+import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import type { WebviewTag } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BrowserPage } from '../BrowserPage'
@@ -12,23 +16,75 @@ const tabs = vi.hoisted(() => ({
   updateTab: vi.fn()
 }))
 vi.mock('@renderer/hooks/tab/useTabsContext', () => ({ useOptionalTabsContext: () => tabs }))
-vi.mock('@renderer/components/WebviewAnnotationControls', () => ({ WebviewAnnotationControls: () => null }))
-vi.mock(
-  '@renderer/data/hooks/usePreference',
-  async () => (await import('@test-mocks/renderer/usePreference')).MockUsePreference
-)
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) }, useIpcOn: vi.fn() }))
 
 beforeEach(() => vi.clearAllMocks())
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) }, useIpcOn: vi.fn() }))
 
-describe('Browser tab metadata', () => {
-  it('follows page titles and favicons across navigation without retaining the previous website icon', () => {
-    const view = render(
+function openBrowser(href: string) {
+  const root = createRootRoute()
+  const route = createRoute({
+    getParentRoute: () => root,
+    path: '/app/browser',
+    validateSearch: (search): { url: string } => ({ url: String(search.url) }),
+    component: () => (
       <TabIdProvider tabId="browser-tab">
-        <BrowserPage initialUrl="https://first.test" />
+        <BrowserPage initialUrl={route.useSearch().url} />
       </TabIdProvider>
     )
-    const guest = view.getByTestId('webview-browser-guest')
+  })
+  const router = createRouter({
+    routeTree: root.addChildren([route]),
+    history: createMemoryHistory({ initialEntries: [href] })
+  })
+  return { router, ...render(<RouterProvider router={router} />) }
+}
+
+describe('Browser tab restoration', () => {
+  it('restores committed navigation after unmount without reloading the guest during route synchronization', async () => {
+    const first = 'https://example.com/start'
+    const view = openBrowser(`/app/browser?url=${encodeURIComponent(first)}`)
+    const guest = (await screen.findByTestId('webview-browser-guest')) as unknown as WebviewTag
+    let currentUrl = first
+    Object.assign(guest, {
+      getURL: () => currentUrl,
+      getTitle: () => 'Example',
+      getWebContentsId: () => 42,
+      isLoading: () => false,
+      canGoBack: () => false,
+      canGoForward: () => false,
+      stopFindInPage: vi.fn()
+    })
+    act(() => {
+      guest.dispatchEvent(new Event('dom-ready'))
+    })
+    const setAttribute = vi.spyOn(guest, 'setAttribute')
+    const emit = (name: string, url: string, fields = {}) => {
+      act(() => {
+        guest.dispatchEvent(Object.assign(new Event(name), { url, ...fields }))
+      })
+    }
+
+    currentUrl = 'https://example.com/redirected?q=a%20b'
+    emit('did-navigate', currentUrl)
+    await waitFor(() => expect(view.router.state.location.search).toEqual({ url: currentUrl }))
+    currentUrl = 'https://example.com/redirected?q=a%20b#/details'
+    emit('did-navigate-in-page', currentUrl, { isMainFrame: true })
+    await waitFor(() => expect(view.router.state.location.search).toEqual({ url: currentUrl }))
+    emit('did-navigate-in-page', 'https://frame.test/', { isMainFrame: false })
+    expect(view.router.state.location.search).toEqual({ url: currentUrl })
+    expect(setAttribute.mock.calls.filter(([name]) => name === 'src')).toEqual([])
+
+    const savedRoute = view.router.state.location.href
+    view.unmount()
+    openBrowser(savedRoute)
+    expect(await screen.findByTestId('webview-browser-guest')).toHaveAttribute('src', currentUrl)
+  })
+})
+
+describe('Browser tab metadata', () => {
+  it('follows page titles and favicons across navigation without retaining the previous website icon', async () => {
+    const view = openBrowser('/app/browser?url=https://first.test')
+    const guest = await view.findByTestId('webview-browser-guest')
     Object.assign(guest, {
       getWebContentsId: () => 42,
       getURL: () => 'https://first.test',

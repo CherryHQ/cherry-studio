@@ -368,6 +368,25 @@ describe('WebviewService webview ownership', () => {
     expect(destroyedGuest.setWindowOpenHandler).not.toHaveBeenCalled()
   })
 
+  it('preserves explicit external intent when global internal browsing is enabled', async () => {
+    await application.get('PreferenceService').set('app.browser.open_links_in_browser', true)
+    try {
+      const guest = createContents(7, host)
+      guestById.set(7, guest)
+      service.setOpenLinkExternal(7, true, 'owner')
+      const external = guest.setWindowOpenHandler.mock.calls.at(-1)![0]
+      expect(external({ url: 'https://example.com' })).toEqual({ action: 'deny' })
+      expect(application.get('MainWindowService').openWebsite).toHaveBeenLastCalledWith('https://example.com', true)
+
+      service.setOpenLinkExternal(7, false, 'owner')
+      const automatic = guest.setWindowOpenHandler.mock.calls.at(-1)![0]
+      expect(automatic({ url: 'https://example.com' })).toEqual({ action: 'deny' })
+      expect(application.get('MainWindowService').openWebsite).toHaveBeenLastCalledWith('https://example.com', false)
+    } finally {
+      await application.get('PreferenceService').set('app.browser.open_links_in_browser', false)
+    }
+  })
+
   it('changes popup policy only for an owned site webview', () => {
     const guest = createContents(7, host)
     guestById.set(7, guest)
@@ -376,7 +395,7 @@ describe('WebviewService webview ownership', () => {
     expect(guest.setWindowOpenHandler).toHaveBeenCalledOnce()
     const externalHandler = guest.setWindowOpenHandler.mock.calls[0][0]
     expect(externalHandler({ url: 'https://cherrystudio.com/page' })).toEqual({ action: 'deny' })
-    expect(application.get('MainWindowService').openWebsite).toHaveBeenCalledWith('https://cherrystudio.com/page')
+    expect(application.get('MainWindowService').openWebsite).toHaveBeenCalledWith('https://cherrystudio.com/page', true)
     expect(externalHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
     expect(application.get('MainWindowService').openWebsite).toHaveBeenCalledOnce()
 

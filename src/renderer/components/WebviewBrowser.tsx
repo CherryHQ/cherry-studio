@@ -3,6 +3,8 @@ import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type {
   DidFailLoadEvent,
+  DidNavigateEvent,
+  DidNavigateInPageEvent,
   DidStartNavigationEvent,
   PageFaviconUpdatedEvent,
   PageTitleUpdatedEvent,
@@ -27,6 +29,7 @@ interface Props {
     | typeof WebviewSecurityProfile.AgentHtmlArtifact
   agentSessionId?: string
   onNavigate?: (url: string) => void
+  onUrlChange?: (url: string) => void
   onTitleChange?: (title: string) => void
   onFaviconChange?: (url: string | undefined) => void
   target: WebviewAnnotationTarget
@@ -41,6 +44,7 @@ export function WebviewBrowser({
   initialUrl,
   agentSessionId,
   onNavigate,
+  onUrlChange,
   onTitleChange,
   onFaviconChange,
   securityProfile,
@@ -92,6 +96,14 @@ export function WebviewBrowser({
       onFaviconChange?.(undefined)
     },
     [onTitleChange, onFaviconChange]
+  )
+
+  const handleDidNavigate = useCallback(
+    (event: DidNavigateEvent | DidNavigateInPageEvent) => {
+      if ('isMainFrame' in event && !event.isMainFrame) return
+      onUrlChange?.(event.url)
+    },
+    [onUrlChange]
   )
 
   const handlePageTitleUpdated = useCallback(
@@ -153,6 +165,7 @@ export function WebviewBrowser({
           onDomReady={handleDomReady}
           onDidStartLoading={handleDidStartLoading}
           onDidStartNavigation={handleDidStartNavigation}
+          onDidNavigate={handleDidNavigate}
           onPageTitleUpdated={handlePageTitleUpdated}
           onPageFaviconUpdated={handlePageFaviconUpdated}
           onDidFinishLoad={handleDidFinishLoad}

@@ -47,7 +47,7 @@ function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: bo
       if (isSafeExternalUrl(url)) {
         void application
           .get('MainWindowService')
-          .openWebsite(url)
+          .openWebsite(url, isExternal)
           .catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
