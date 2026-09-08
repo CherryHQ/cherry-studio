@@ -9,6 +9,16 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  Checkbox: ({ checked, disabled, onCheckedChange, ...props }: any) => (
+    <input
+      type="checkbox"
+      data-state={checked === true ? 'checked' : checked === 'indeterminate' ? 'indeterminate' : 'unchecked'}
+      checked={checked === true}
+      disabled={disabled}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+      {...props}
+    />
+  ),
   Tooltip: ({ children, content }: any) => <span data-tooltip-content={content}>{children}</span>
 }))
 
@@ -94,6 +104,70 @@ describe('MultiSelectionPopup', () => {
       render(<MultiSelectActionPopup {...controlledProps()} onSave={undefined} />)
       expect(screen.queryByTestId('save-icon')).not.toBeInTheDocument()
       expect(screen.getByTestId('copy-icon')).toBeInTheDocument()
+    })
+  })
+
+  describe('select-all checkbox', () => {
+    const popupProps = () => ({
+      selectedMessageIds: ['m1', 'm2'],
+      isMultiSelectMode: true,
+      onClose: vi.fn()
+    })
+
+    it('renders left of the selection count with a select-all label', () => {
+      render(<MultiSelectActionPopup {...popupProps()} selectAllState={false} onToggleSelectAll={vi.fn()} />)
+
+      const checkbox = screen.getByRole('checkbox', { name: 'common.select_all' })
+      const count = screen.getByText('common.selectedMessages:2')
+      expect(checkbox.compareDocumentPosition(count) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it.each([
+      [false, 'unchecked'],
+      ['indeterminate', 'indeterminate'],
+      [true, 'checked']
+    ] as const)('reflects the %s select-all state', (selectAllState, expectedState) => {
+      render(<MultiSelectActionPopup {...popupProps()} selectAllState={selectAllState} onToggleSelectAll={vi.fn()} />)
+
+      expect(screen.getByRole('checkbox')).toHaveAttribute('data-state', expectedState)
+    })
+
+    it.each([
+      ['from unchecked', false, true],
+      ['from indeterminate', 'indeterminate', true],
+      ['from checked', true, false]
+    ] as const)('toggles %s', (_label, selectAllState, expectedChecked) => {
+      const onToggleSelectAll = vi.fn()
+      render(
+        <MultiSelectActionPopup
+          {...popupProps()}
+          selectAllState={selectAllState}
+          onToggleSelectAll={onToggleSelectAll}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('checkbox'))
+
+      expect(onToggleSelectAll).toHaveBeenCalledWith(expectedChecked)
+    })
+
+    it('disables the checkbox when no messages are selectable', () => {
+      render(
+        <MultiSelectActionPopup
+          {...popupProps()}
+          selectAllState={false}
+          selectAllDisabled
+          onToggleSelectAll={vi.fn()}
+        />
+      )
+
+      expect(screen.getByRole('checkbox')).toBeDisabled()
+    })
+
+    it('omits the checkbox when no toggle handler is provided', () => {
+      render(<MultiSelectActionPopup {...popupProps()} />)
+
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     })
   })
 })

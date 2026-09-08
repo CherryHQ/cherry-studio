@@ -898,6 +898,9 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       <MultiSelectActionPopup
         selectedMessageIds={selectedMessageIds}
         isMultiSelectMode={isMultiSelectMode}
+        selectAllState={selection?.selectAllState}
+        selectAllDisabled={selection?.selectAllDisabled}
+        onToggleSelectAll={actions.toggleSelectAllMessages}
         deleteDisabledReason={
           selectedMessageIds
             .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))

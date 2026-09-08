@@ -6,7 +6,8 @@ import { loggerService } from '@logger'
 import type {
   MessageListActions,
   MessageListItem,
-  MessageListSelectionState
+  MessageListSelectionState,
+  SelectAllState
 } from '@renderer/components/chat/messages/types'
 import {
   createSelectedMessageExportViews,
@@ -34,6 +35,7 @@ interface MessageSelectionController {
   actions: Pick<
     MessageListActions,
     | 'selectMessage'
+    | 'toggleSelectAllMessages'
     | 'toggleMultiSelectMode'
     | 'copySelectedMessages'
     | 'saveSelectedMessages'
@@ -79,6 +81,43 @@ export function useMessageSelectionController({
       setSelectedMessageIds((prev) =>
         selected ? (prev.includes(messageId) ? [...prev] : [...prev, messageId]) : prev.filter((id) => id !== messageId)
       )
+    },
+    [setSelectedMessageIds]
+  )
+
+  const selectableIds = useMemo(
+    () =>
+      messages
+        .filter(
+          (message) =>
+            // Mirrors MessageFrame's isContextBoundary early return — no checkbox is rendered there.
+            !message.isContextBoundary &&
+            // Hidden fold-layout siblings of multi-model groups; remove if multi-select ever unhides them (PRD D6).
+            !(message.role === 'assistant' && message.siblingsGroupId != null && message.isActiveBranch === false)
+        )
+        .map((message) => message.id),
+    [messages]
+  )
+  // Keep the toggle action identity stable while streaming rewrites the messages array.
+  const latestSelectableIdsRef = useRef(selectableIds)
+  latestSelectableIdsRef.current = selectableIds
+
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const selectedSelectableCount = useMemo(
+    () => selectableIds.filter((id) => selectedIdSet.has(id)).length,
+    [selectableIds, selectedIdSet]
+  )
+  const selectAllState: SelectAllState =
+    selectableIds.length > 0 && selectedSelectableCount === selectableIds.length
+      ? true
+      : selectedSelectableCount > 0
+        ? 'indeterminate'
+        : false
+  const selectAllDisabled = selectableIds.length === 0
+
+  const toggleSelectAllMessages = useCallback(
+    (checked: boolean) => {
+      setSelectedMessageIds(checked ? latestSelectableIdsRef.current : [])
     },
     [setSelectedMessageIds]
   )
@@ -203,14 +242,17 @@ export function useMessageSelectionController({
     () => ({
       enabled: true,
       isMultiSelectMode: isMultiSelectMode ?? false,
-      selectedMessageIds: selectedIds
+      selectedMessageIds: selectedIds,
+      selectAllState,
+      selectAllDisabled
     }),
-    [isMultiSelectMode, selectedIds]
+    [isMultiSelectMode, selectAllDisabled, selectAllState, selectedIds]
   )
 
   const actions = useMemo<MessageSelectionController['actions']>(
     () => ({
       selectMessage,
+      toggleSelectAllMessages,
       toggleMultiSelectMode,
       copySelectedMessages,
       saveSelectedMessages: saveTextFile ? saveSelectedMessages : undefined,
@@ -223,7 +265,8 @@ export function useMessageSelectionController({
       saveSelectedMessages,
       saveTextFile,
       selectMessage,
-      toggleMultiSelectMode
+      toggleMultiSelectMode,
+      toggleSelectAllMessages
     ]
   )
 

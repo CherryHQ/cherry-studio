@@ -2,6 +2,7 @@ import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -282,5 +283,90 @@ describe('useMessageSelectionController', () => {
     expect(setCacheValue).not.toHaveBeenCalledWith('chat.selected_message_ids', [])
     expect(cacheValues['chat.multi_select_mode']).toBe(true)
     expect(cacheValues['chat.selected_message_ids']).toEqual(['a'])
+  })
+
+  describe('select all', () => {
+    const renderController = (messages: MessageListItem[]) => {
+      const utils = renderHook(
+        ({ messages }: { messages: MessageListItem[] }) =>
+          useMessageSelectionController({ topicId: 'topic-1', messages, partsByMessageId: {} }),
+        { initialProps: { messages } }
+      )
+      return utils
+    }
+
+    it('selects every selectable message in order, skipping context boundaries and hidden multi-model siblings', () => {
+      const messages: MessageListItem[] = [
+        message('u1'),
+        { ...message('divider'), isContextBoundary: true },
+        { ...message('a-active'), role: 'assistant' as const, siblingsGroupId: 1, isActiveBranch: true },
+        { ...message('a-hidden'), role: 'assistant' as const, siblingsGroupId: 1, isActiveBranch: false },
+        message('u2')
+      ]
+      const { result } = renderController(messages)
+
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['u1', 'a-active', 'u2'])
+    })
+
+    it('keeps single-model retry group representatives selectable despite carrying siblingsGroupId', () => {
+      const messages: MessageListItem[] = [
+        message('u1'),
+        { ...message('a1'), role: 'assistant' as const, siblingsGroupId: 2, isActiveBranch: true }
+      ]
+      const { result } = renderController(messages)
+
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['u1', 'a1'])
+    })
+
+    it('clears the selection when toggled off from fully selected', () => {
+      const messages: MessageListItem[] = [message('a'), message('b')]
+      const { result } = renderController(messages)
+
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(false)
+      })
+
+      expect(cacheValues['chat.selected_message_ids']).toEqual([])
+    })
+
+    it('reports indeterminate for a partial selection and completes it on toggle', () => {
+      const messages: MessageListItem[] = [message('a'), message('b')]
+      const { result, rerender } = renderController(messages)
+
+      expect(result.current.selection.selectAllState).toBe(false)
+
+      act(() => {
+        result.current.actions.selectMessage?.('a', true)
+      })
+      rerender({ messages })
+      expect(result.current.selection.selectAllState).toBe('indeterminate')
+
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+      rerender({ messages })
+      expect(result.current.selection.selectAllState).toBe(true)
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['a', 'b'])
+    })
+
+    it('marks select-all disabled for a topic without selectable messages', () => {
+      const empty = renderController([])
+      expect(empty.result.current.selection.selectAllState).toBe(false)
+      expect(empty.result.current.selection.selectAllDisabled).toBe(true)
+
+      const populated = renderController([message('a')])
+      expect(populated.result.current.selection.selectAllDisabled).toBe(false)
+    })
   })
 })
