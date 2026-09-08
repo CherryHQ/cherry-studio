@@ -61,6 +61,8 @@ export type AgentSessionRuntimeExecution<TTurn, TReservation> =
       admission: AgentSessionRuntimeAdmissionPhase
       reservation?: TReservation
       terminal?: AgentSessionTerminalOutcome
+      /** Content of an already-admitted turn that arrived before its relaunched stream opened. */
+      buffer?: UIMessageChunk[]
     }
   | {
       kind: 'steer-transition'
@@ -81,6 +83,10 @@ export type AgentSessionRuntimeExecution<TTurn, TReservation> =
       turn?: TTurn
       contextTurn?: TTurn
       deferredTurn?: TTurn
+      /** The deferred turn's admission when it was deferred; an admitted prompt must not be re-sent. */
+      deferredAdmission?: AgentSessionRuntimeAdmissionPhase
+      /** The deferred turn's content that the runtime produced before its stream was relaunched. */
+      deferredBuffer?: UIMessageChunk[]
       ownership: 'active' | 'released'
       buffer: UIMessageChunk[]
       stream: AgentSessionRuntimeStreamPhase
@@ -209,7 +215,8 @@ function resumeAfterAutonomous<TTurn, TPendingTurn, TReservation>(
           kind: 'turn',
           turn: execution.deferredTurn,
           stream: 'unopened',
-          admission: 'pending'
+          admission: execution.deferredAdmission ?? 'pending',
+          ...(execution.deferredBuffer?.length ? { buffer: execution.deferredBuffer } : {})
         },
         launch: canSchedule ? { kind: 'scheduled', target: 'deferred-turn' } : state.launch,
         lastTerminal: execution.settled
@@ -299,8 +306,7 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
       if (event.state === 'started') {
         if (state.execution.kind === 'autonomous-turn') return { state, effects: [] }
         if (state.execution.kind === 'steer-transition') return invalid(state, event)
-        const deferredTurn =
-          event.deferCurrentTurn && state.execution.kind === 'turn' ? state.execution.turn : undefined
+        const deferred = event.deferCurrentTurn && state.execution.kind === 'turn' ? state.execution : undefined
         return {
           state: {
             ...state,
@@ -308,7 +314,7 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
               kind: 'autonomous-turn',
               origin: event.origin,
               ...(event.contextTurn ? { contextTurn: event.contextTurn } : {}),
-              ...(deferredTurn ? { deferredTurn } : {}),
+              ...(deferred ? { deferredTurn: deferred.turn, deferredAdmission: deferred.admission } : {}),
               ownership: 'active',
               buffer: [],
               stream: 'unopened'
@@ -375,21 +381,40 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
         state: { ...state, execution: { ...state.execution, admission: 'admitted' } },
         effects: []
       }
-    case 'buffer-chunk':
+    case 'buffer-chunk': {
+      const execution = state.execution
+      // An admitted turn the runtime resumed before its relaunched stream opened.
+      if (execution.kind === 'turn' && execution.stream === 'unopened' && execution.admission === 'admitted') {
+        return {
+          state: { ...state, execution: { ...execution, buffer: [...(execution.buffer ?? []), event.chunk] } },
+          effects: []
+        }
+      }
+      // A receive-only generation has ended; anything after it belongs to the deferred admitted turn.
+      if (execution.kind === 'autonomous-turn' && execution.deferredTurn && execution.stream !== 'unopened') {
+        return {
+          state: {
+            ...state,
+            execution: { ...execution, deferredBuffer: [...(execution.deferredBuffer ?? []), event.chunk] }
+          },
+          effects: []
+        }
+      }
       if (
-        (state.execution.kind !== 'steer-transition' && state.execution.kind !== 'autonomous-turn') ||
-        state.execution.stream !== 'unopened' ||
-        state.execution.terminal
+        (execution.kind !== 'steer-transition' && execution.kind !== 'autonomous-turn') ||
+        execution.stream !== 'unopened' ||
+        execution.terminal
       ) {
         return invalid(state, event)
       }
       return {
         state: {
           ...state,
-          execution: { ...state.execution, buffer: [...state.execution.buffer, event.chunk] }
+          execution: { ...execution, buffer: [...execution.buffer, event.chunk] }
         },
         effects: []
       }
+    }
     case 'runtime-terminal': {
       const execution = state.execution
       if (execution.kind === 'turn') {
@@ -442,6 +467,14 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
     case 'flush-transition': {
       const execution = state.execution
       if (execution.kind === 'turn') {
+        // A deferred admitted turn: hand over what the runtime answered before this stream reopened.
+        if (execution.stream === 'open' && execution.buffer?.length) {
+          const { buffer, ...rest } = execution
+          return {
+            state: { ...state, execution: rest },
+            effects: [{ type: 'deliver-buffer', turn: execution.turn, chunks: buffer }]
+          }
+        }
         if (execution.stream !== 'open' || !execution.terminal) return { state, effects: [] }
         return {
           state: {

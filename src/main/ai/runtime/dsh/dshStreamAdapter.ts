@@ -140,6 +140,8 @@ export class DshStreamAdapter {
   private autonomousTurn = false
   /** A host prompt is queued but no turn has claimed it yet — dsh may run other turns first. */
   private hostPromptPending = false
+  /** `beginTurn()` opened the current turn for the host (as opposed to leaving a runtime turn alone). */
+  private hostClaimedTurn = false
   /** Why the runtime opened the current turn on its own, read off its entering batch. */
   private turnOrigin?: AutonomousTurnOrigin
   /** Still reading the open turn's entering `user/message` batch; later input never reclassifies. */
@@ -149,17 +151,23 @@ export class DshStreamAdapter {
 
   /** Mark the next turn as host-prompted; called by the connection before each bridge prompt. */
   beginTurn(): void {
+    this.hostPromptPending = true
+    // A runtime-started turn is already under way (classified from its entering batch, or open):
+    // the prompt queues behind it in dsh, so it must not take over that turn's stream.
+    if (this.turnOrigin !== undefined || (this.turnActive && this.autonomousTurn)) return
     this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
-    this.hostPromptPending = true
+    this.hostClaimedTurn = true
   }
 
   /** Roll back a `beginTurn()` whose prompt never reached the runtime. */
   abortTurn(): void {
+    this.hostPromptPending = false
+    if (!this.hostClaimedTurn) return
+    this.hostClaimedTurn = false
     this.turnActive = false
     this.autonomousTurn = false
-    this.hostPromptPending = false
   }
 
   /**
@@ -205,6 +213,7 @@ export class DshStreamAdapter {
     // own receive-only stream rather than consume the one the host's prompt will own.
     this.turnActive = false
     this.autonomousTurn = false
+    this.hostClaimedTurn = false
   }
 
   handleEvent(event: SessionEvent): void {
@@ -247,6 +256,7 @@ export class DshStreamAdapter {
         this.flushPendingProviderUsage()
         this.turnOrigin = undefined
         this.enteringTurn = false
+        this.hostClaimedTurn = false
         // A turn that never carried content (a stale goal round rejected at pre-step)
         // has nothing to settle — surfacing it would fabricate an empty host turn.
         if (!this.turnActive) return

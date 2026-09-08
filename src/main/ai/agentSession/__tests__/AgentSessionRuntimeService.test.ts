@@ -2668,6 +2668,74 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    it('defers an admitted host turn behind a goal round and resumes it without re-sending the prompt', async () => {
+      // dsh accepted the prompt, then ran a queued goal round first. The round must open its own
+      // receive-only turn (not stream into the prompt's), and the prompt's reply — which can start
+      // before the renderer reattaches — must reach the resumed host turn.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const send = vi.fn()
+      entry.connection = {
+        send,
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      }
+      const hostTurn = entry.currentTurn
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+      mocks.startRuntimeTurn.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'goal-round', round: 1 }
+      })
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'autonomous-turn',
+        deferredTurn: hostTurn,
+        deferredAdmission: 'admitted'
+      })
+      expect(mocks.suspendUnadmittedRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1')
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+      const receiveOnlyTurn = entry.currentTurn
+      expect(receiveOnlyTurn).not.toBe(hostTurn)
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: receiveOnlyTurn.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'finished' })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      // The prompt's answer arrives while the round is still awaiting persistence.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: { type: 'text-delta', id: 'reply', delta: '我很好' }
+      })
+      void terminalListener(mocks.startRuntimeTurn.mock.calls[0][0]).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2))
+
+      expect(entry.runtimeState.execution).toMatchObject({
+        kind: 'turn',
+        turn: hostTurn,
+        admission: 'admitted',
+        buffer: [{ type: 'text-delta', id: 'reply', delta: '我很好' }]
+      })
+      const hostReader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: hostTurn.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(hostReader.read()).resolves.toMatchObject({ value: { type: 'start' } })
+      await expect(hostReader.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: '我很好' } })
+      expect(send).not.toHaveBeenCalled()
+      void service.closeSession('session-1')
+    })
+
     it('keeps a receive-only wake interactive when the background work started from an interactive turn', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
@@ -3009,23 +3077,6 @@ describe('AgentSessionRuntimeService', () => {
       expect(entry.runtimeState.execution).toMatchObject({ kind: 'turn', turn: entry.currentTurn })
 
       void service.closeSession('session-1')
-    })
-
-    it('ignores a receive-only signal while an admitted turn is live', () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      const entry = getEntry(service)
-      markEntryTurnAdmitted(entry)
-      mocks.startRuntimeTurn.mockClear()
-
-      ;(service as any).handleRuntimeEvent(entry, {
-        type: 'autonomous-turn-state',
-        state: 'started',
-        origin: { kind: 'background-work' }
-      })
-
-      expect(entry.runtimeState.execution.kind).toBe('turn')
-      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
     })
 
     it('lets a receive-only generation finish before admitting a user turn that was still reconciling', async () => {

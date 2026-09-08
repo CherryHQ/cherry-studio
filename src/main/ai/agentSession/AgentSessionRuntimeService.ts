@@ -1689,7 +1689,10 @@ export class AgentSessionRuntimeService extends BaseService {
         const turn = this.currentTurn(entry)
         if (
           execution.kind === 'steer-transition' ||
-          (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn))
+          (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) ||
+          // An admitted turn relaunched after a receive-only generation: the runtime may already be
+          // answering its prompt before the renderer reattaches its stream.
+          (execution.kind === 'turn' && execution.stream === 'unopened' && execution.admission === 'admitted')
         ) {
           this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk: event.chunk })
           break
@@ -1772,10 +1775,10 @@ export class AgentSessionRuntimeService extends BaseService {
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
-        // chunks until its receive-only stream exists and owns any still-unadmitted user turn.
+        // chunks until its receive-only stream exists and owns the current user turn meanwhile — even
+        // an admitted one: dsh runs a queued goal round before the prompt it has already accepted.
         const turn = this.currentTurn(entry)
         const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
-        if (turnLive && turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) break
         if (entry.runtimeState.execution.kind === 'steer-transition') break
         this.applyRuntimeStateEvent(entry, {
           type: 'autonomous-turn-state',
@@ -1786,7 +1789,7 @@ export class AgentSessionRuntimeService extends BaseService {
         })
         this.clearIdleTimer(entry)
         if (turnLive && turn) {
-          this.deferUnadmittedTurnForReceiveOnly(entry, turn)
+          this.deferTurnForReceiveOnly(entry, turn)
         } else {
           this.requestRuntimeLaunch(entry, 'receive-only')
         }
@@ -2699,19 +2702,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Runtime-generated content can arrive in the narrow window after a user turn's renderer stream
-   * opened but before its prompt was admitted. Detach that empty execution, keep the turn object
+   * Runtime-generated content can arrive after a user turn's renderer stream opened but before the
+   * runtime produced anything for it — the prompt may not be admitted yet, or (dsh) a queued goal
+   * round runs ahead of the admitted prompt. Detach that empty execution, keep the turn object
    * queued, and let the receive-only generation own the connection first.
    */
-  private deferUnadmittedTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+  private deferTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     const execution = entry.runtimeState.execution
-    if (
-      execution.kind !== 'autonomous-turn' ||
-      execution.deferredTurn !== turn ||
-      isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)
-    ) {
-      return
-    }
+    if (execution.kind !== 'autonomous-turn' || execution.deferredTurn !== turn) return
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
     try {
       turn.controller?.close()

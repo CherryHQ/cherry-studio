@@ -953,8 +953,9 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Detach one not-yet-admitted runtime execution without terminalizing its reserved assistant row.
-   * The runtime closes the upstream stream immediately after this call, then waits for the returned
+   * Detach one runtime execution that has produced nothing yet (prompt not admitted, or admitted but
+   * queued behind a runtime-started turn) without terminalizing its reserved assistant row. The
+   * runtime closes the upstream stream immediately after this call, then waits for the returned
    * promise before opening the receive-only generation that preempted it.
    */
   async suspendUnadmittedRuntimeTurn(topicId: string): Promise<void> {

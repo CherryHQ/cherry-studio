@@ -199,6 +199,31 @@ describe('DshStreamAdapter', () => {
       expect(onTurnEnd).toHaveBeenCalledTimes(2)
     })
 
+    it('does not let a host prompt sent during an already-classified goal round take over that round', () => {
+      // The user replies right after the host turn ended: dsh has already opened round 1 (its entering
+      // batch is in) when `beginTurn()` fires. Seen live: the round's content landed under the user's
+      // prompt with no badge, and the prompt's own reply was dropped.
+      const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+      onTurnEnd.mockClear()
+
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of entering(2, 1, goalRound(1))) adapter.handleEvent(event)
+      adapter.beginTurn()
+      for (const event of text(2, 1, 'E')) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+      adapter.handleEvent(envelope('turn/start', { turn: 3 }))
+      for (const event of [...entering(3, 1, hostPrompt), ...text(3, 1, '我很好')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 3, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual([
+        { state: 'started', origin: { kind: 'goal-round', round: 1 } },
+        { state: 'finished' }
+      ])
+      expect(deltas(chunks)).toEqual(['answer', 'E', '我很好'])
+      expect(onTurnEnd).toHaveBeenCalledTimes(2)
+    })
+
     it('tags autonomous turns that are not goal rounds as background work', () => {
       const { adapter, onAutonomousTurnState } = makeAdapter()
       hostTurn(adapter, 1, 'answer')
