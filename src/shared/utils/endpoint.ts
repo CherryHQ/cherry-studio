@@ -1,6 +1,12 @@
 import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
-import { ENDPOINT_TYPE, endpointImpliedCapability, type EndpointType, type Model } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  endpointImpliedCapability,
+  MODEL_CAPABILITY,
+  type EndpointType,
+  type Model
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -31,13 +37,25 @@ export function resolveCanonicalEndpoint(
   // An endpointTypes entry still carries an unambiguous operation contract, so
   // preserve its dedicated semantics even for those legacy rows.
   const capabilities = model.capabilities ?? []
-  const hasAnyDedicatedEndpoint = model.endpointTypes?.some(
+  const endpointTypes = model.endpointTypes ?? []
+  const primaryEndpointCapability = endpointImpliedCapability(endpointTypes[0])
+  const hasAnyDedicatedEndpoint = endpointTypes.some(
     (endpointType) => endpointImpliedCapability(endpointType) !== undefined
   )
-  const hasDeclaredDedicatedEndpoint = endpointImpliedCapability(model.endpointTypes?.[0]) !== undefined
+  const hasDeclaredDedicatedEndpoint = primaryEndpointCapability !== undefined
   // A missing image/embedding/etc. configuration must not silently fall through
   // to a chat endpoint that happens to be configured.
-  const nonChat = isNonChatModel({ ...model, capabilities }) || Boolean(hasDeclaredDedicatedEndpoint)
+  // A model whose catalog row lists a chat endpoint first is chat-primary even
+  // when it also advertises a secondary capability (for example image output).
+  // Capability-only rows with no chat endpoint remain non-chat.
+  // A chat-primary row may advertise an image-generation capability for a tool
+  // call (New API / CherryIN style). In that shape the primary protocol is still
+  // the chat transport; only a dedicated primary endpoint or another explicit
+  // operation-only capability should force a non-chat route.
+  const chatPrimaryImageCapability =
+    !hasDeclaredDedicatedEndpoint && capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
+  const nonChat =
+    Boolean(hasDeclaredDedicatedEndpoint) || (isNonChatModel({ ...model, capabilities }) && !chatPrimaryImageCapability)
   const isAllowed = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
     Boolean(endpointType && (!allowedEndpointTypes || allowedEndpointTypes.includes(endpointType)))
   const hasEndpointConfig = (endpointType: EndpointType | undefined): endpointType is EndpointType => {

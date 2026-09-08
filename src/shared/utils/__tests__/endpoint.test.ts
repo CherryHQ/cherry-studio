@@ -48,6 +48,17 @@ describe('resolveCanonicalEndpoint', () => {
     )
   })
 
+  it('keeps a capability-tagged chat-primary model on chat when the dedicated route is secondary', () => {
+    const multimodalChatModel = model({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+
+    expect(resolveCanonicalEndpoint(provider(), multimodalChatModel).endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  })
+
   it('skips a stale default whose endpoint configuration is missing', () => {
     const stale = provider({
       endpointConfigs: {

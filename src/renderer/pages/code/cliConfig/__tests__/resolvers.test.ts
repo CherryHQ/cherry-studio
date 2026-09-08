@@ -2,7 +2,12 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { resolveGeminiBaseUrl, resolveHermesProviderInfo, resolvePiProviderInfo } from '../resolvers'
+import {
+  resolveGeminiBaseUrl,
+  resolveHermesProviderInfo,
+  resolveOpenCodeNpmInfo,
+  resolvePiProviderInfo
+} from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
@@ -198,6 +203,15 @@ describe('resolvePiProviderInfo', () => {
       baseUrl: '',
       endpointType: 'openai-responses'
     })
+  })
+
+  it('fails closed when the model advertises no endpoint supported by the CLI', () => {
+    expect(() =>
+      resolveOpenCodeNpmInfo(
+        provider({ endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://chat.example' } } }),
+        ['openai-embeddings']
+      )
+    ).toThrow('does not advertise a google-generate-content or anthropic-messages or openai-responses or')
   })
 
   it('normalizes the Google endpoint to the v1beta API required by Pi', () => {

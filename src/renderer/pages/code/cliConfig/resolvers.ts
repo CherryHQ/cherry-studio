@@ -82,21 +82,29 @@ function resolveSupportedEndpointType(
     Boolean(type && supportedEndpoints.includes(type))
   const isModelCapable = (type: EndpointType) => !modelEndpointTypes?.length || modelEndpointTypes.includes(type)
 
-  return (
-    (isSupported(provider.defaultChatEndpoint) &&
+  const providerDefault =
+    isSupported(provider.defaultChatEndpoint) &&
     isModelCapable(provider.defaultChatEndpoint) &&
     hasEndpoint(provider.defaultChatEndpoint)
       ? provider.defaultChatEndpoint
-      : undefined) ??
-    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
-    // endpointTypes is a capability constraint, not merely a preference. When
-    // none of the model's advertised protocols has a configured provider URL,
-    // keep the selected protocol within that declaration so the generated CLI
-    // config cannot claim support for a different wire format. The write path
-    // will report the missing endpoint as an actionable credential error.
-    (modelEndpointTypes?.length ? modelEndpointTypes.find(isSupported) : supportedEndpoints.find(hasEndpoint)) ??
-    fallbackEndpoint
-  )
+      : undefined
+  const configuredModelEndpoint = modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type))
+
+  if (providerDefault) return providerDefault
+  if (configuredModelEndpoint) return configuredModelEndpoint
+
+  if (modelEndpointTypes?.length) {
+    // endpointTypes is a capability constraint, not merely a preference. Keep
+    // an unconfigured but CLI-supported declaration so the caller can report
+    // the missing credential/host, but never fall back to a protocol the model
+    // does not advertise. If the model exposes no protocol this CLI supports,
+    // fail explicitly instead of generating a misleading config.
+    const declaredSupportedEndpoint = modelEndpointTypes.find(isSupported)
+    if (declaredSupportedEndpoint) return declaredSupportedEndpoint
+    throw new Error(`Model does not advertise a ${supportedEndpoints.join(' or ')} endpoint for this CLI`)
+  }
+
+  return supportedEndpoints.find(hasEndpoint) ?? fallbackEndpoint
 }
 
 /** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */
