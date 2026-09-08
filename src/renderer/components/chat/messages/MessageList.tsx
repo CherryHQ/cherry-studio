@@ -17,6 +17,7 @@ import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
+import { MessageCaptureLeaseProvider, useMessageCaptureLeases } from './list/MessageCaptureLeaseContext'
 import MessageGroup from './list/MessageGroup'
 import { MessageListSearch } from './list/MessageListSearch'
 import MessageNavigation from './list/MessageNavigation'
@@ -209,6 +210,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const topicImageCaptureRef = useRef<HTMLDivElement | null>(null)
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const { leasedMessageIds, acquireMessageCaptureLease } = useMessageCaptureLeases()
   const isLoadingMoreRef = useRef(false)
   const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
   const [topicImageCaptureActions, setTopicImageCaptureActions] = useState<PendingTopicImageRuntimeAction[]>([])
@@ -216,6 +218,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  const captureLeaseGroupKeys = useMemo(() => {
+    if (leasedMessageIds.length === 0) return []
+
+    const leasedIds = new Set(leasedMessageIds)
+    return groupedMessages.flatMap(([groupKey, groupMessages]) =>
+      groupMessages.some((message) => leasedIds.has(message.id)) ? [groupKey] : []
+    )
+  }, [groupedMessages, leasedMessageIds])
   // Streaming allocates a fresh `messages` array per chunk, so the anchor rail
   // needs a projection that only changes when its topology does — otherwise its
   // `memo` never bails and every chunk re-renders all of its ticks.
@@ -301,6 +311,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   }, [])
 
   const getMessageElement = useCallback((id: string) => messageElements.current.get(id) ?? null, [])
+
+  const messageCaptureLeaseContextValue = useMemo(
+    () => ({
+      acquireMessageCaptureLease,
+      getRenderedMessageElement: getMessageElement
+    }),
+    [acquireMessageCaptureLease, getMessageElement]
+  )
 
   const scrollToBottom = useCallback(() => {
     messageListRef.current?.scrollToBottom()
@@ -725,6 +743,13 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     })
   }, [bindRuntime])
 
+  const keepMountedKeys = useMemo(() => {
+    const keys = new Set<string>()
+    if (shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey) keys.add(latestAssistantGroupKey)
+    for (const key of captureLeaseGroupKeys) keys.add(key)
+    return [...keys]
+  }, [captureLeaseGroupKeys, latestAssistantGroupKey, shouldKeepLatestAssistantGroupMounted])
+
   if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
     return <MessageListInitialLoading />
   }
@@ -732,8 +757,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const keepMountedKeys =
-    shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
@@ -922,7 +945,11 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     </MessagesContainer>
   )
 
-  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
+  return (
+    <HtmlArtifactPopupHost>
+      <MessageCaptureLeaseProvider value={messageCaptureLeaseContextValue}>{messageList}</MessageCaptureLeaseProvider>
+    </HtmlArtifactPopupHost>
+  )
 }
 
 export default MessageList
