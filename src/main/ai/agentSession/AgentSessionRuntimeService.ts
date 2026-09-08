@@ -2557,11 +2557,13 @@ export class AgentSessionRuntimeService extends BaseService {
             if (this.isCurrentEntry(entry)) {
               this.applyRuntimeStateEvent(entry, { type: 'launch-finished', target })
               if (target === 'receive-only') {
+                // A turn deferred behind this launch (or restored by an abandon) has no stream yet,
+                // whatever its admission: an admitted relaunch reopens the stream without re-sending.
                 const turn = this.currentTurn(entry)
                 if (
                   entry.runtimeState.execution.kind === 'turn' &&
+                  entry.runtimeState.execution.stream === 'unopened' &&
                   turn &&
-                  !isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) &&
                   this.isTurnLive(entry, turn)
                 ) {
                   this.requestRuntimeLaunch(entry, 'deferred-turn')

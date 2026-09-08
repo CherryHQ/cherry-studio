@@ -2736,6 +2736,40 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    it('relaunches a deferred admitted turn when the receive-only placeholder cannot be saved', async () => {
+      // Abandoning the receive-only turn restores the admitted prompt; without a relaunch it would
+      // sit with no stream while dsh answers it.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const send = vi.fn()
+      entry.connection = {
+        send,
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      }
+      const hostTurn = entry.currentTurn
+      entry.runtimeState.execution = { ...entry.runtimeState.execution, stream: 'open', admission: 'admitted' }
+      mocks.startRuntimeTurn.mockClear()
+      mocks.saveMessage.mockImplementationOnce(() => {
+        throw new Error('disk full')
+      })
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'goal-round', round: 1 }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
+
+      expect(entry.runtimeState.execution).toMatchObject({ kind: 'turn', turn: hostTurn, admission: 'admitted' })
+      expect(mocks.startRuntimeTurn.mock.calls[0][0].request.messageId).toBe(hostTurn.assistantMessageId)
+      expect(send).not.toHaveBeenCalled()
+      void service.closeSession('session-1')
+    })
+
     it('keeps a receive-only wake interactive when the background work started from an interactive turn', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
