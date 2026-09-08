@@ -304,7 +304,7 @@ def extract_docx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
     try:
         import docx
     except ImportError:
-        fail("python-docx is required for docx sources — rerun via `uv run --with python-docx python ...`")
+        fail("python-docx is required for docx sources — rerun via `uv run --with 'python-docx>=1.1,<2' python ...`")
 
     if anchor.get("paragraph") is None:
         fail("docx anchor requires a non-negative 'paragraph' ordinal")
