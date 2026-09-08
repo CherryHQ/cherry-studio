@@ -2,7 +2,7 @@
 title: Advanced View displays complete messages on a horizontal canvas
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#20212'
 date: 2026-09-08
 ---
 
