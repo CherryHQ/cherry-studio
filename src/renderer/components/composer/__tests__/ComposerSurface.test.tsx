@@ -4446,6 +4446,32 @@ describe('ComposerSurface', () => {
     expect(onTokensChange).toHaveBeenCalledWith([])
   })
 
+  it('routes a clipboard image through file handling when a prompt variable is selected', async () => {
+    mocks.selection = {
+      from: 1,
+      node: {
+        type: { name: 'composerToken' },
+        attrs: { id: 'prompt-variable:0:city', kind: 'promptVariable', label: 'city', promptText: '${city}' }
+      }
+    }
+    const pasteHandler = mocks.pasteHandler.mockResolvedValue(true)
+    render(<ComposerSurface {...baseProps} supportedExts={['.png']} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'screenshot text flavor' : '')),
+        files: [{ name: 'screenshot.png', type: 'image/png' }]
+      }
+    }
+
+    expect(mocks.editorOptions.handlePaste(mocks.currentView, event)).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(pasteHandler).toHaveBeenCalledWith(event, expect.any(Object))
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+  })
+
   it('preserves a newer selection when deferred file preparation completes', async () => {
     render(<ComposerSurface {...baseProps} />)
 

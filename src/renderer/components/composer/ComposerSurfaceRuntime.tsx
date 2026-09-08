@@ -1653,7 +1653,19 @@ export default function ComposerSurfaceRuntime({
           editor.commands.deleteSelection()
         }
       }
+      const shouldPreferClipboardImage = hasSupportedClipboardImage(
+        Array.from(event.clipboardData?.files ?? []),
+        supportedExts
+      )
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
+      // A clipboard screenshot is a file payload even when the browser also exposes a text
+      // flavor. Route it through the file lifecycle before prompt-variable editing so the image
+      // cannot be consumed as plain text by a selected token.
+      if (shouldPreferClipboardImage) {
+        event.preventDefault()
+        void handlePaste(event, filePasteLifecycle)
+        return true
+      }
       if (editor && selectedPromptVariable && pastedText) {
         event.preventDefault()
         const limitedPastedText = getComposerInputTextWithinLimit(
@@ -1679,10 +1691,6 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const shouldPreferClipboardImage = hasSupportedClipboardImage(
-        Array.from(event.clipboardData?.files ?? []),
-        supportedExts
-      )
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
@@ -1714,16 +1722,6 @@ export default function ComposerSurfaceRuntime({
           }
           return true
         }
-      }
-
-      // Some desktop clipboards expose a text flavor alongside a screenshot.
-      // Once a supported image is present, route the whole paste through the
-      // file lifecycle before considering any plain-text insertion; otherwise
-      // a selected managed attachment can survive while the image is appended.
-      if (shouldPreferClipboardImage) {
-        event.preventDefault()
-        void handlePaste(event, filePasteLifecycle)
-        return true
       }
 
       const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
