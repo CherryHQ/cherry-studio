@@ -99,10 +99,7 @@ describe('AgentJobsService startup reconciliation', () => {
   })
 
   it('notifies completed deletions before propagating a later cleanup failure', async () => {
-    mocks.schedules = [
-      schedule('first-orphan', 'agent-first-missing'),
-      schedule('later-orphan', 'agent-later-missing')
-    ]
+    mocks.schedules = [schedule('first-orphan', 'agent-first-missing'), schedule('later-orphan', 'agent-later-missing')]
     mocks.agentExists.mockReturnValue(false)
     mocks.unregisterJobScheduleById.mockImplementation(async (scheduleId: string) => {
       if (scheduleId === 'first-orphan') return true
@@ -118,10 +115,7 @@ describe('AgentJobsService startup reconciliation', () => {
   })
 
   it('pauses JobManager when orphan cleanup fails without rejecting service startup', async () => {
-    mocks.schedules = [
-      schedule('first-orphan', 'agent-first-missing'),
-      schedule('later-orphan', 'agent-later-missing')
-    ]
+    mocks.schedules = [schedule('first-orphan', 'agent-first-missing'), schedule('later-orphan', 'agent-later-missing')]
     mocks.agentExists.mockReturnValue(false)
     mocks.unregisterJobScheduleById.mockImplementation(async (scheduleId: string) => {
       if (scheduleId === 'first-orphan') return true

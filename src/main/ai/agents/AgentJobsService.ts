@@ -99,7 +99,9 @@ export class AgentJobsService extends BaseService {
     try {
       await this.reconcileOrphanedSchedules()
     } catch (error) {
-      this.startupReconciliationPauseHold ??= application.get('JobManager').pause('agent-task startup reconciliation failed')
+      this.startupReconciliationPauseHold ??= application
+        .get('JobManager')
+        .pause('agent-task startup reconciliation failed')
       logger.error('Failed to reconcile orphaned agent task schedules; JobManager paused', error as Error)
     }
   }
