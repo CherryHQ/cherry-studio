@@ -289,15 +289,17 @@ export class AgentJobsService extends BaseService {
     })
 
     const deletedIds: string[] = []
-    for (const schedule of orphaned) {
-      if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
-        deletedIds.push(schedule.id)
+    try {
+      for (const schedule of orphaned) {
+        if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+          deletedIds.push(schedule.id)
+        }
       }
-    }
-
-    if (deletedIds.length > 0) {
-      logger.info('Reconciled orphaned agent task schedules', { deleted: deletedIds.length })
-      agentTaskService.notifyReadModelChange(deletedIds)
+    } finally {
+      if (deletedIds.length > 0) {
+        logger.info('Reconciled orphaned agent task schedules', { deleted: deletedIds.length })
+        agentTaskService.notifyReadModelChange(deletedIds)
+      }
     }
     return deletedIds.length
   }

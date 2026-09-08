@@ -98,14 +98,40 @@ describe('AgentJobsService startup reconciliation', () => {
     expect(mocks.pause).not.toHaveBeenCalled()
   })
 
-  it('pauses JobManager when orphan cleanup fails without rejecting service startup', async () => {
-    mocks.schedules = [schedule('orphan', 'agent-missing')]
+  it('notifies completed deletions before propagating a later cleanup failure', async () => {
+    mocks.schedules = [
+      schedule('first-orphan', 'agent-first-missing'),
+      schedule('later-orphan', 'agent-later-missing')
+    ]
     mocks.agentExists.mockReturnValue(false)
-    mocks.unregisterJobScheduleById.mockRejectedValue(new Error('schedule delete failed'))
+    mocks.unregisterJobScheduleById.mockImplementation(async (scheduleId: string) => {
+      if (scheduleId === 'first-orphan') return true
+      throw new Error('later schedule delete failed')
+    })
+
+    const service = new AgentJobsService()
+
+    await expect(service.reconcileOrphanedSchedules()).rejects.toThrow('later schedule delete failed')
+    expect(mocks.unregisterJobScheduleById).toHaveBeenCalledTimes(2)
+    expect(mocks.notifyReadModelChange).toHaveBeenCalledTimes(1)
+    expect(mocks.notifyReadModelChange).toHaveBeenCalledWith(['first-orphan'])
+  })
+
+  it('pauses JobManager when orphan cleanup fails without rejecting service startup', async () => {
+    mocks.schedules = [
+      schedule('first-orphan', 'agent-first-missing'),
+      schedule('later-orphan', 'agent-later-missing')
+    ]
+    mocks.agentExists.mockReturnValue(false)
+    mocks.unregisterJobScheduleById.mockImplementation(async (scheduleId: string) => {
+      if (scheduleId === 'first-orphan') return true
+      throw new Error('later schedule delete failed')
+    })
 
     const service = new AgentJobsService()
 
     await expect(service._doInit()).resolves.toBeUndefined()
+    expect(mocks.notifyReadModelChange).toHaveBeenCalledWith(['first-orphan'])
     expect(mocks.pause).toHaveBeenCalledTimes(1)
     expect(mocks.pause).toHaveBeenCalledWith('agent-task startup reconciliation failed')
   })
