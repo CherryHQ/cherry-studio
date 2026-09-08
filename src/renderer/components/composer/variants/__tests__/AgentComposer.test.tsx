@@ -2845,6 +2845,66 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
+  it('does not settle a late preview into a reference token that was edited meanwhile', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([])
+    let resolveMessages: ((value: unknown) => void) | undefined
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') {
+        return {
+          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+        }
+      }
+      if (path === '/agent-sessions/s1/messages') {
+        return new Promise((resolve) => {
+          resolveMessages = resolve
+        })
+      }
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: '', editor: {} as any })
+    const item = items?.find((entry) => entry.id === 'reference:session:s1')
+    if (!item) throw new Error('Expected a session reference item')
+    const { editor, transaction, nodes } = buildComposerEditorMock()
+
+    await act(async () => {
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+    })
+
+    // Simulate an edit that replaces the pending token before its request resolves.
+    nodes[0].attrs.payload = { entityType: 'session', id: 's2', name: 'Another Session', agentId: 'agent-1' }
+    await act(async () => {
+      resolveMessages?.({
+        items: [
+          {
+            id: 'm1',
+            sessionId: 's1',
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'stale session context' }] }
+          }
+        ],
+        nextCursor: undefined
+      })
+    })
+
+    expect(transaction.setNodeMarkup).not.toHaveBeenCalled()
+    expect(transaction.delete).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
   it('recomputes the remaining composer budget when a Session reference pointer settles', async () => {
     mocks.listDirectoryEntries.mockResolvedValue([])
     vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {

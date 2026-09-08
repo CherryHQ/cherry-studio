@@ -79,7 +79,8 @@ function settlePendingReferenceToken(
   editor: Editor,
   tokenId: string,
   promptText: string | null,
-  fitPromptText?: (maxTotalChars: number) => string
+  fitPromptText?: (maxTotalChars: number) => string,
+  expectedTarget?: EntityReferenceTarget
 ) {
   if (editor.isDestroyed) return
 
@@ -91,6 +92,22 @@ function settlePendingReferenceToken(
   })
   const match = matches[0]
   if (!match) return
+
+  // A reference is settled asynchronously. The user may have edited, replaced, or restored the
+  // token while its transcript was loading. Only mutate the still-pending node that initiated this
+  // request; otherwise a late response could write a pointer for one Session into another token.
+  if (match.node.attrs.kind !== 'reference' || match.node.attrs.promptText) return
+  if (expectedTarget) {
+    const payload = match.node.attrs.payload
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      (payload as Record<string, unknown>).entityType !== expectedTarget.entityType ||
+      (payload as Record<string, unknown>).id !== expectedTarget.id
+    ) {
+      return
+    }
+  }
 
   const transaction = editor.state.tr
   if (promptText === null) {
@@ -194,26 +211,26 @@ export function useEntityReferenceMentionItems({
               setPendingCount((count) => count + 1)
 
               void (async () => {
+                const target =
+                  entityType === 'topic'
+                    ? ({ entityType, id: hit.id, name: title } as const)
+                    : ({ entityType, id: hit.id, name: title, agentId: hit.agentId } as const)
                 try {
-                  const target =
-                    entityType === 'topic'
-                      ? ({ entityType, id: hit.id, name: title } as const)
-                      : ({ entityType, id: hit.id, name: title, agentId: hit.agentId } as const)
                   if (target.entityType === 'session') {
                     const preview = await fetchEntityReferencePromptText(target, {
                       maxTotalChars: Math.min(remainingChars, AGENT_REFERENCE_PREVIEW_MAX_CHARS)
                     })
                     const fitPromptText = (maxTotalChars: number) =>
                       buildAgentSessionReferencePointer(target, preview || null, maxTotalChars)
-                    settlePendingReferenceToken(editor, tokenId, fitPromptText(remainingChars), fitPromptText)
+                    settlePendingReferenceToken(editor, tokenId, fitPromptText(remainingChars), fitPromptText, target)
                   } else {
                     const promptText = await fetchEntityReferencePromptText(target, { maxTotalChars: remainingChars })
                     const fitPromptText = (maxTotalChars: number) =>
                       fitEntityReferencePromptText(promptText, maxTotalChars)
-                    settlePendingReferenceToken(editor, tokenId, fitPromptText(remainingChars), fitPromptText)
+                    settlePendingReferenceToken(editor, tokenId, fitPromptText(remainingChars), fitPromptText, target)
                   }
                 } catch {
-                  settlePendingReferenceToken(editor, tokenId, null)
+                  settlePendingReferenceToken(editor, tokenId, null, undefined, target)
                   toast.error(t('chat.input.reference_panel.load_failed'))
                 } finally {
                   setPendingCount((count) => count - 1)
