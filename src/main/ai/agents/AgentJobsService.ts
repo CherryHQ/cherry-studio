@@ -11,7 +11,7 @@ import {
 } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -70,6 +70,8 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['JobManager'])
 export class AgentJobsService extends BaseService {
+  private startupReconciliationPauseHold: Disposable | undefined
+
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
 
@@ -97,7 +99,7 @@ export class AgentJobsService extends BaseService {
     try {
       await this.reconcileOrphanedSchedules()
     } catch (error) {
-      application.get('JobManager').pause('agent-task startup reconciliation failed')
+      this.startupReconciliationPauseHold ??= application.get('JobManager').pause('agent-task startup reconciliation failed')
       logger.error('Failed to reconcile orphaned agent task schedules; JobManager paused', error as Error)
     }
   }

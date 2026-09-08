@@ -150,6 +150,24 @@ describe('AgentJobsService startup reconciliation', () => {
     expect(hold.dispose).not.toHaveBeenCalled()
   })
 
+  it('does not stack fail-closed pause holds when reconciliation fails repeatedly', async () => {
+    const hold = { dispose: vi.fn() }
+    mocks.pause.mockReturnValue(hold)
+    mocks.schedules = [schedule('orphan', 'agent-missing')]
+    mocks.agentExists.mockReturnValue(false)
+    mocks.unregisterJobScheduleById.mockRejectedValue(new Error('schedule delete failed'))
+
+    const service = new AgentJobsService()
+    const runReady = () => (service as unknown as { onReady(): Promise<void> }).onReady()
+
+    await runReady()
+    await runReady()
+
+    expect(mocks.pause).toHaveBeenCalledTimes(1)
+    expect(mocks.pause).toHaveBeenCalledWith('agent-task startup reconciliation failed')
+    expect(hold.dispose).not.toHaveBeenCalled()
+  })
+
   it('is idempotent after the orphan has been removed', async () => {
     mocks.schedules = [schedule('orphan', 'agent-missing')]
     mocks.agentExists.mockReturnValue(false)
