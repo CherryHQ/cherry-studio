@@ -1,6 +1,8 @@
 import { application } from '@application'
 import { BROWSER_TOOL_NAMES, browserToolFromRuntimeName } from '@shared/ai/browserTools'
 
+import type { BuiltinToolPolicyEntry } from './builtinToolPolicyRegistry'
+
 export function resolveBrowserToolPermission(runtimeName: string) {
   const toolName = browserToolFromRuntimeName(runtimeName)
   if (!toolName) return undefined
@@ -14,4 +16,13 @@ export function browserRuntimeNamesWithPermission(permission: 'ask' | 'allow' | 
   return BROWSER_TOOL_NAMES.map((name) => `mcp__browser__${name}`).filter(
     (name) => resolveBrowserToolPermission(name) === permission
   )
+}
+
+export function listBrowserToolPolicies(): BuiltinToolPolicyEntry[] {
+  return BROWSER_TOOL_NAMES.map((name) => ({
+    serverName: 'browser',
+    toolName: name,
+    approval: resolveBrowserToolPermission(`mcp__browser__${name}`) === 'allow' ? 'auto' : 'required',
+    bypassApproval: 'lift'
+  }))
 }

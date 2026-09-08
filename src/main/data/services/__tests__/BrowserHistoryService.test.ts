@@ -28,14 +28,20 @@ describe('Browser history persistence', () => {
   })
 
   it.each([
-    ['#api_key=private&session=private&signature=private&view=grid', '#view=grid'],
+    ['#api_key=private&session=private&signature=private&view=grid', ''],
     ['#access%5Ftoken=private&%61uth=private', ''],
-    ['#/reports?api_key=private&q=hello', '#/reports?q=hello'],
+    ['#/reports?api_key=private&q=hello', '#/reports'],
     ['#/reports?password=private', '#/reports'],
     ['#section-2', '#section-2'],
     ['#authentication', '#authentication'],
-    ['#api_key=private?value&view=grid', '#view=grid'],
-    ['#/reports?q=hello%20world', '#/reports?q=hello%20world']
+    ['#api_key=private?value&view=grid', ''],
+    ['#/reports?q=hello%20world', '#/reports'],
+    ['#jwt=private', ''],
+    ['#ticket=private', ''],
+    ['#/reports?sig=private&q=hello', '#/reports'],
+    ['#custom_field=private', ''],
+    ['#?custom_field=private', ''],
+    ['#!/reports?custom_field=private', '#!/reports']
   ])('sanitizes live and imported fragments while preserving navigation: %s', (fragment, expected) => {
     const url = `https://example.com/${fragment}`
     browserHistoryService.record({ url, title: url, visitedAt: 100 })

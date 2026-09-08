@@ -74,3 +74,8 @@ Browsing history now loads older visits while scrolling, retaining date groups a
 instead of replacing pages. Each row has one hover surface. Website favicons are cached locally
 from browsing and supported browser imports, with a globe fallback when unavailable. Previously
 imported visits can acquire a site icon when that site is revisited or its history is reimported.
+
+History now drops fragment parameters regardless of key names to avoid storing custom-named
+credentials. Ordinary anchors and hash-route paths remain; reopening a visit does not restore
+fragment-based search/filter parameters. This applies to new visits and imports; existing rows
+are not rewritten.

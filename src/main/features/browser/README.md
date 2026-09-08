@@ -86,6 +86,10 @@ it on navigation, context destruction or detach. Snapshot link destinations use 
 same credential/data-URL sanitization as page URLs. Same-document navigation preserves
 the document identity and refs.
 
+New and imported history URLs retain ordinary anchors and hash-route paths, but discard
+fragment parameters regardless of their names. Reopening history does not restore filters or
+search state encoded in those parameters. Query-string redaction remains key-based.
+
 History browsing uses a descending `(visitedAt, id)` cursor and a grouped virtual list, so
 loading older visits preserves date groups and bounds rendered rows. Offset queries remain
 available for address-bar suggestions. Actual page favicons are captured into the main persist
