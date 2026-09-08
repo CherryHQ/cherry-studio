@@ -147,7 +147,9 @@ export async function getClaudeCodeLoginShellEnvironment(
   // may be visible only as a shims directory in PATH without MISE_* vars.
   const rawShellEnv = await getRawShellEnv()
   const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
-  const hasUserMise = rawMiseEntries.length > 0 || hasMiseInPath(getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>))
+  const hasUserMise =
+    rawMiseEntries.length > 0 ||
+    hasMiseInPath(getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>))
   if (hasUserMise) {
     // User has mise activated — replace the contract wholesale: drop
     // Cherry-only MISE keys, then restore the user's values.

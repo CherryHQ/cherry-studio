@@ -403,8 +403,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)
       const bundledGitDir = getBundledGitDir()
       const tailDirs = hasUserMise
-        ? bundledGitDir ? [...standaloneDirs, bundledGitDir] : standaloneDirs
-        : bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
+        ? bundledGitDir
+          ? [...standaloneDirs, bundledGitDir]
+          : standaloneDirs
+        : bundledGitDir
+          ? [...cherryToolDirs, bundledGitDir]
+          : cherryToolDirs
       const binaryExecutionEnv = mergePathSuffixes(loginPath !== undefined ? { PATH: loginPath } : {}, tailDirs)
       const cherryMiseEnv = getBinaryExecutionEnv()
       const miseEnv = hasUserMise ? rawMiseEnv : cherryMiseEnv

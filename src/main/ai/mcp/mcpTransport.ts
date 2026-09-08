@@ -177,8 +177,12 @@ async function createStdio(
   const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)
   const bundledGitDir = getBundledGitDir()
   const tailDirs = hasUserMiseEnv
-    ? bundledGitDir ? [...standaloneDirs, bundledGitDir] : standaloneDirs
-    : bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
+    ? bundledGitDir
+      ? [...standaloneDirs, bundledGitDir]
+      : standaloneDirs
+    : bundledGitDir
+      ? [...cherryToolDirs, bundledGitDir]
+      : cherryToolDirs
   const baseShellEnv = mergePathSuffixes(rawShellEnv, tailDirs)
   const loginShellEnv = hasUserMiseEnv ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
 
