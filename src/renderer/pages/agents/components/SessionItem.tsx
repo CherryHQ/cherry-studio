@@ -12,7 +12,7 @@ import {
   useResourceListActions,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
-import { useCache } from '@renderer/data/hooks/useCache'
+import { useCacheSelector } from '@renderer/data/hooks/useCache'
 import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuActions'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
@@ -85,8 +85,11 @@ const SessionItem = ({
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
-  const [renamingTopics] = useCache('topic.renaming')
-  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
+  const isRenaming = useCacheSelector(['topic.renaming'] as const, ([topicIds]) => topicIds?.includes(topicId) ?? false)
+  const isNewlyRenamed = useCacheSelector(
+    ['topic.newly_renamed'] as const,
+    ([topicIds]) => topicIds?.includes(topicId) ?? false
+  )
   const {
     status,
     awaitingApprovalAnchors,
@@ -97,8 +100,6 @@ const SessionItem = ({
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
-  const isRenaming = renamingTopics?.includes(topicId) === true
-  const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
   // A live stream can pause for tool approval without a status transition
   // (anchors set mid-stream), while the MCP needsApproval path ends the stream
