@@ -151,6 +151,7 @@
     "sharp": "0.35.3",
     "smol-toml": "^1.7.0",
     "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",
+    "systeminformation": "5.33.8",
     "tar": "^7.5.11",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",

@@ -26,6 +26,7 @@ import {
   refreshProductSessionResponseSchema
 } from './contracts'
 import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from './crypto'
+import { getMachineCode } from './machineCode'
 
 const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
@@ -103,6 +104,7 @@ class CherryCloudSessionRequiredError extends Error {
 @ServicePhase(Phase.WhenReady)
 export class CherryCloudService extends BaseService {
   private cloudState = emptyState()
+  private machineCode: string | null = null
   private lifecycleGeneration = 0
   private authorizationOperation: AuthorizationOperation | null = null
   private loginPromise: Promise<CherryCloudStatus> | null = null
@@ -155,6 +157,7 @@ export class CherryCloudService extends BaseService {
     this.clearSessionExpiryTimer()
     if (this.cloudState.session) this.sessionGeneration += 1
     this.cloudState = emptyState()
+    this.machineCode = null
   }
 
   public async getStatus(): Promise<CherryCloudStatus> {
@@ -212,6 +215,10 @@ export class CherryCloudService extends BaseService {
     this.assertAuthorizationOperation(operation)
     if (current.phase !== 'signed-out') return current
 
+    const machineCode = await getMachineCode()
+    this.assertLifecycleGeneration(lifecycleGeneration)
+    this.assertAuthorizationOperation(operation)
+    this.machineCode = machineCode
     const device = this.getOrCreateDevice()
     const secrets = createAuthorizationSecrets()
     const loopbackCallback = await this.openLoopbackCallback(lifecycleGeneration, operation)
@@ -230,6 +237,7 @@ export class CherryCloudService extends BaseService {
           code_challenge: secrets.codeChallenge,
           code_challenge_method: 'S256',
           device_public_key: device.publicKey,
+          machine_code: machineCode,
           platform: platformName(),
           client_version: app.getVersion().replace(/^v/, ''),
           ...(loopbackCallback ? { callback_port: loopbackCallback.port } : {})
@@ -893,11 +901,15 @@ export class CherryCloudService extends BaseService {
   ): Promise<Response> {
     const device = this.cloudState.device
     if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
+    const machineCode = this.machineCode ?? (await getMachineCode())
+    if (this.cloudState.device !== device) throw new Error('Cherry Cloud device credentials changed')
+    this.machineCode = machineCode
     const method = (init?.method ?? 'GET').toUpperCase()
     const body = Buffer.from(init?.body ?? '', 'utf8')
     const headers = new Headers(init?.headers)
     for (const name of [
       'Cherry-Device-ID',
+      'Cherry-Machine-Code',
       'Cherry-Request-ID',
       'Cherry-Timestamp',
       'Cherry-Body-SHA256',
@@ -914,6 +926,7 @@ export class CherryCloudService extends BaseService {
     const requestTarget = `${url.pathname}${url.search}`
     const signature = createDeviceSignature({
       privateKey: device.privateKey,
+      machineCode,
       method,
       requestTarget,
       body,

@@ -25,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   showMainWindow: vi.fn()
 }))
 
+vi.mock('systeminformation', () => ({
+  uuid: vi.fn(async () => ({ os: 'abcdef12123456789abc1234567890ab', hardware: '', macs: [] }))
+}))
+
 vi.mock('@data/dataApiDataChange', () => ({
   notifyDataApiDataChange: mocks.notifyDataChange
 }))
@@ -98,6 +102,7 @@ vi.mock('../CherryCloudLoopbackCallback', () => ({
 }))
 
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { uuid } from 'systeminformation'
 
 import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
 
@@ -397,6 +402,60 @@ describe('CherryCloudService', () => {
 
     const createBody = authorizationRequestBody()
     expect(createBody.device_public_key).toBe(firstDevicePublicKey)
+  })
+
+  it('uses the current computer when restoring copied credentials and requires login after rejection', async () => {
+    const original = await createSignedInService()
+    mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
+    await original.authenticatedFetch('/v1/models')
+    const originalCode = new Headers(requestCalls('/v1/models')[0][1].headers).get('Cherry-Machine-Code')
+    expect(originalCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const originalDevice = structuredClone(mocks.savedDevice)
+    mocks.netFetch.mockClear()
+    vi.mocked(uuid).mockResolvedValueOnce({ os: '12345678123456789abc1234567890ab', hardware: '', macs: [] })
+    let restoredCode: string | null = null
+    mockCloudRoute('/api/v1/product-sessions/refresh', (init) => {
+      restoredCode = new Headers(init.headers).get('Cherry-Machine-Code')
+      return restoredCode === originalCode
+        ? jsonResponse(refreshedTokenSet())
+        : jsonResponse({ error: { code: 'REAUTH_REQUIRED' } }, 401)
+    })
+    CherryCloudService.resetInstances()
+    const copied = await createService()
+    await vi.waitFor(async () => {
+      expect(await copied.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    })
+    expect(restoredCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(restoredCode).not.toBe(originalCode)
+    expect(mocks.savedSession).toBeNull()
+    expect(mocks.savedDevice).toEqual(originalDevice)
+  })
+
+  it('sends the same machine code after local credentials are deleted and a new device key is generated', async () => {
+    const service = await createService()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await service.startLogin()
+    const first = authorizationRequestBody()
+    await service._doStop()
+    CherryCloudService.resetInstances()
+    mocks.savedDevice = null
+    mocks.savedSession = null
+    mocks.netFetch.mockClear()
+    const restarted = await createService()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await restarted.startLogin()
+    const second = authorizationRequestBody()
+    expect(second.device_public_key).not.toBe(first.device_public_key)
+    expect(second.machine_code).toBe(first.machine_code)
+    expect(second.machine_code).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  })
+
+  it('does not start cloud authorization when the system machine ID is missing', async () => {
+    vi.mocked(uuid).mockResolvedValueOnce({ os: '', hardware: '', macs: [] })
+    const service = await createService()
+    await expect(service.startLogin()).rejects.toThrow('valid system machine ID is required')
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+    expect(mocks.savedDevice).toBeNull()
   })
 
   it('keeps the Session when automatic Gateway startup fails', async () => {
