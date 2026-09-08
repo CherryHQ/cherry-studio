@@ -1491,7 +1491,7 @@ describe('AgentRightPane', () => {
     expect(screen.getByText('index.html')).toBeInTheDocument()
   })
 
-  it('hides the artifacts section when the workspace cannot open files', () => {
+  it('hides file-opening actions for a persisted filesystem-root workspace', () => {
     const parts = [
       {
         type: 'dynamic-tool',
@@ -1504,7 +1504,12 @@ describe('AgentRightPane', () => {
     const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
 
     render(
-      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/tmp/.."
+        workspaceType="user"
+        messages={messages}
+        partsByMessageId={{ m1: parts }}>
         <AgentRightPane.Shortcuts />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
@@ -1512,6 +1517,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
     expect(screen.queryByText('agent.right_pane.info.artifacts')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
   })
 
   it('restores the stop button and reports an error when the runtime cannot stop the task', async () => {

@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   t: vi.fn((key: string, options?: { path?: string }) => `${key}:${options?.path ?? ''}`)
 }))
 
-vi.mock('@application', () => ({ application: { getPath: vi.fn() } }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory()
+})
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn() }) }
 }))
