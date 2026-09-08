@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { cacheService } from '@data/CacheService'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
-import type { FollowupQueueItem } from '@shared/data/cache/cacheValueTypes'
+import type { FollowupQueueItem, FollowupQueueState } from '@shared/data/cache/cacheValueTypes'
 
 import type { ComposerSerializedDraft } from './tokens'
 import { isComposerDraftTokenKind } from './tokens'
@@ -18,11 +18,6 @@ export type { FollowupQueueItem }
  */
 const QUEUE_STORAGE_KEY = 'ui.composer.followup_queue'
 
-interface FollowupQueueState {
-  items: FollowupQueueItem[]
-  paused: boolean
-}
-
 /** Load + validate a persisted queue (persist cache holds arbitrary JSON; discard malformed entries). */
 function loadState(scopeKey: string): FollowupQueueState {
   try {
@@ -32,7 +27,7 @@ function loadState(scopeKey: string): FollowupQueueState {
     // Tombstone for cross-window deletion propagation (null sentinel stored via persistState)
     if (entry === null) return { items: [], paused: false }
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return { items: [], paused: false }
-    const raw = entry as { items?: unknown; paused?: unknown }
+    const raw = entry as { items?: unknown; paused?: unknown; failedItemId?: unknown }
     const items = Array.isArray(raw.items)
       ? (raw.items as unknown[]).filter((item) => {
           if (item == null || typeof item !== 'object' || Array.isArray(item)) return false
@@ -77,7 +72,9 @@ function loadState(scopeKey: string): FollowupQueueState {
       : []
     return {
       items: items as unknown as FollowupQueueItem[],
-      paused: raw.paused === true
+      paused: raw.paused === true,
+      failedItemId:
+        typeof raw.failedItemId === 'string' && raw.failedItemId.length > 0 ? raw.failedItemId : undefined
     }
   } catch {
     return { items: [], paused: false }
@@ -89,7 +86,12 @@ function loadState(scopeKey: string): FollowupQueueState {
  * Uses the functional updater so concurrent writes from other windows (same persist tier) merge
  * against the latest stored value instead of clobbering each other's entries.
  */
-function persistState(scopeKey: string, items: FollowupQueueItem[], paused: boolean): void {
+function persistState(
+  scopeKey: string,
+  items: FollowupQueueItem[],
+  paused: boolean,
+  failedItemId?: string | null
+): void {
   cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
     const next = { ...prev } as Record<string, unknown>
     if (items.length === 0 && !paused) {
@@ -97,7 +99,11 @@ function persistState(scopeKey: string, items: FollowupQueueItem[], paused: bool
       // instead of resurrecting the entry from the other window's stale snapshot.
       next[scopeKey] = null as unknown as FollowupQueueState
     } else {
-      next[scopeKey] = { items, paused }
+      next[scopeKey] = {
+        items,
+        paused,
+        ...(failedItemId ? { failedItemId } : {})
+      }
     }
     return next as typeof prev
   })
@@ -158,8 +164,12 @@ export function useFollowupQueue({
   markSeen,
   onDrain
 }: UseFollowupQueueParams): FollowupQueueController {
-  const [state, setState] = useState<FollowupQueueState>(() => loadState(scopeKey))
-  const [failedItemId, setFailedItemId] = useState<string | null>(null)
+  const initial = loadState(scopeKey)
+  const [state, setState] = useState<FollowupQueueState>(() => ({
+    items: initial.items,
+    paused: initial.paused
+  }))
+  const [failedItemId, setFailedItemId] = useState<string | null>(() => initial.failedItemId ?? null)
 
   // Serialize drains: only one send may be in flight per queue at a time.
   const drainingIdRef = useRef<string | null>(null)
@@ -180,8 +190,9 @@ export function useFollowupQueue({
   const markSeenRef = useRef(markSeen)
   markSeenRef.current = markSeen
 
-  const persist = useCallback((next: FollowupQueueState) => {
-    persistState(scopeKeyRef.current, next.items, next.paused)
+  const persist = useCallback((next: FollowupQueueState, failedId?: string | null) => {
+    const fid = failedId !== undefined ? failedId : failedItemIdRef.current
+    persistState(scopeKeyRef.current, next.items, next.paused, fid)
   }, [])
 
   // Mark the head as failed and auto-pause; the user resolves it via the dock (Skip/Retry/Abort).
@@ -190,7 +201,7 @@ export function useFollowupQueue({
       setFailedItemId(id)
       setState((prev) => {
         const next = { ...prev, paused: true }
-        persist(next)
+        persist(next, id)
         stateRef.current = next
         return next
       })
@@ -231,12 +242,12 @@ export function useFollowupQueue({
     // Sync the ref before React commits the new state — otherwise the drain effect
     // running in the same commit would still see the previous conversation's items
     // and could drain the old head through the new conversation's completion edge.
-    stateRef.current = next
-    setState(next)
-    setFailedItemId(null)
+    stateRef.current = { items: next.items, paused: next.paused }
+    setState({ items: next.items, paused: next.paused })
+    setFailedItemId(next.failedItemId ?? null)
     // If the restored queue is non-empty and completion is already fulfilled, re-arm
     // draining immediately — the isFulfilled effect won't re-fire since its dep hasn't changed.
-    if (next.items.length > 0 && !next.paused && isFulfilledRef.current && isWindowFocused()) {
+    if (next.items.length > 0 && !next.paused && !next.failedItemId && isFulfilledRef.current && isWindowFocused()) {
       const head = next.items[0]
       if (head) {
         markSeenRef.current()
@@ -270,7 +281,13 @@ export function useFollowupQueue({
         if (items.length >= QUEUE_LIMIT) return prev
         items.push(newItem)
         if (items.length > QUEUE_LIMIT) return prev
-        next[scopeKeyRef.current] = { items, paused: entry.paused === true }
+        next[scopeKeyRef.current] = {
+          items,
+          paused: entry.paused === true,
+          ...(typeof entry.failedItemId === 'string' && entry.failedItemId.length > 0
+            ? { failedItemId: entry.failedItemId }
+            : {})
+        }
         return next as typeof prev
       })
     } catch {
@@ -282,8 +299,11 @@ export function useFollowupQueue({
     const added = synced.items.some((it) => it.id === newItem.id)
     if (!added) return false
 
-    stateRef.current = synced
-    setState(synced)
+    stateRef.current = { items: synced.items, paused: synced.paused }
+    setState({ items: synced.items, paused: synced.paused })
+    if (synced.failedItemId !== undefined) {
+      setFailedItemId(synced.failedItemId ?? null)
+    }
     return true
   }, [])
 
@@ -295,9 +315,10 @@ export function useFollowupQueue({
         drainingIdRef.current = null
       }
       const shouldClearFailed = failedItemIdRef.current !== null && !nextIds.has(failedItemIdRef.current)
+      const nextFailedId = shouldClearFailed ? null : failedItemIdRef.current
       setState((prev) => {
         const next = { items: nextItems, paused: shouldClearFailed ? false : prev.paused }
-        persist(next)
+        persist(next, nextFailedId)
         stateRef.current = next
         return next
       })
@@ -310,7 +331,7 @@ export function useFollowupQueue({
     drainEpochRef.current += 1
     drainingIdRef.current = null
     const next = { items: [], paused: false }
-    persist(next)
+    persist(next, null)
     setState(next)
     stateRef.current = next
     setFailedItemId(null)
@@ -323,13 +344,14 @@ export function useFollowupQueue({
         drainEpochRef.current += 1
         drainingIdRef.current = null
       }
+      const nextFailedId = wasFailed ? null : failedItemIdRef.current
       setState((prev) => {
         const filtered = prev.items.filter((item) => item.id !== id)
         const next: FollowupQueueState = {
           items: filtered,
           paused: wasFailed ? false : prev.paused
         }
-        persist(next)
+        persist(next, nextFailedId)
         stateRef.current = next
         return next
       })
@@ -430,14 +452,36 @@ export function useFollowupQueue({
   useEffect(() => {
     return cacheService.subscribe(QUEUE_STORAGE_KEY, () => {
       let next = loadState(scopeKeyRef.current)
-      if (isEqual(next, stateRef.current)) return
-      // If the failed item was removed externally, clear the failure so drains can resume.
+      const nextFailedId = next.failedItemId ?? null
+      const localFailedId = failedItemIdRef.current
+      const itemsEqual = isEqual(next.items, stateRef.current.items) && next.paused === stateRef.current.paused
+      const failedEqual = nextFailedId === localFailedId
+      if (itemsEqual && failedEqual) return
+      // Sync persisted failedItemId (survives reload / cross-window)
+      if (nextFailedId !== localFailedId) {
+        if (nextFailedId && next.items.some((item) => item.id === nextFailedId)) {
+          setFailedItemId(nextFailedId)
+        } else if (nextFailedId && !next.items.some((item) => item.id === nextFailedId)) {
+          // Stale failed id (item gone) — clear it
+          setFailedItemId(null)
+          if (next.paused) {
+            next = { ...next, paused: false, failedItemId: undefined }
+            persistState(scopeKeyRef.current, next.items, next.paused, null)
+          } else {
+            next = { ...next, failedItemId: undefined }
+          }
+        } else if (!nextFailedId && localFailedId) {
+          // Remote cleared failure
+          setFailedItemId(null)
+        }
+      }
+      // If the local failed item was removed externally, clear the failure so drains can resume.
       let didUnpause = false
       if (failedItemIdRef.current && !next.items.some((item) => item.id === failedItemIdRef.current)) {
         setFailedItemId(null)
         if (next.paused) {
-          next = { ...next, paused: false }
-          persistState(scopeKeyRef.current, next.items, next.paused)
+          next = { ...next, paused: false, failedItemId: undefined }
+          persistState(scopeKeyRef.current, next.items, next.paused, null)
           didUnpause = true
         }
       }
@@ -446,8 +490,12 @@ export function useFollowupQueue({
         drainEpochRef.current += 1
         drainingIdRef.current = null
       }
-      stateRef.current = next
-      setState(next)
+      stateRef.current = { items: next.items, paused: next.paused }
+      setState({ items: next.items, paused: next.paused })
+      if (nextFailedId !== localFailedId) {
+        // Keep ref in sync for the new value (setFailedItemId is async)
+        failedItemIdRef.current = nextFailedId
+      }
       if (didUnpause && isFulfilledRef.current && drainingIdRef.current === null && isWindowFocused()) {
         const head = next.items[0]
         if (head) {
@@ -471,7 +519,7 @@ export function useFollowupQueue({
     const remaining = stateRef.current.items.filter((item) => item.id !== failed)
     setFailedItemId(null)
     const next = { items: remaining, paused: false }
-    persist(next)
+    persist(next, null)
     setState(next)
     stateRef.current = next
     drainHead(remaining[0])

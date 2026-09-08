@@ -1223,11 +1223,15 @@ export class CacheService {
                 typeof incomingVal === 'object' &&
                 !Array.isArray(incomingVal)
               ) {
-                const existingEntry = existingVal as { items?: unknown; paused?: unknown }
-                const incomingEntry = incomingVal as { items?: unknown; paused?: unknown }
+                const existingEntry = existingVal as { items?: unknown; paused?: unknown; failedItemId?: unknown }
+                const incomingEntry = incomingVal as { items?: unknown; paused?: unknown; failedItemId?: unknown }
                 if (Array.isArray(existingEntry.items) && Array.isArray(incomingEntry.items)) {
                   // Preserve pause intent from either window; do not let an idle window clear a failure pause.
                   const pausedMerged = existingEntry.paused === true || incomingEntry.paused === true
+                  const existingFailedId =
+                    typeof existingEntry.failedItemId === 'string' ? existingEntry.failedItemId : undefined
+                  const incomingFailedId =
+                    typeof incomingEntry.failedItemId === 'string' ? incomingEntry.failedItemId : undefined
                   const existingItems = existingEntry.items as Array<{ id?: string }>
                   const incomingItems = incomingEntry.items as Array<{ id?: string }>
                   // Union on enqueue (incoming larger) to avoid losing concurrent enqueues;
@@ -1240,9 +1244,33 @@ export class CacheService {
                     for (const it of incomingItems) {
                       if (it && typeof it.id === 'string' && !byId.has(it.id)) byId.set(it.id, it)
                     }
-                    merged[convKey] = { ...incomingEntry, paused: pausedMerged, items: Array.from(byId.values()) }
+                    const mergedItems = Array.from(byId.values()) as Array<{ id?: string }>
+                    const mergedFailedId =
+                      mergedItems.some((it) => it.id === existingFailedId)
+                        ? existingFailedId
+                        : mergedItems.some((it) => it.id === incomingFailedId)
+                          ? incomingFailedId
+                          : undefined
+                    merged[convKey] = {
+                      ...incomingEntry,
+                      paused: pausedMerged,
+                      items: mergedItems,
+                      ...(mergedFailedId ? { failedItemId: mergedFailedId } : {})
+                    }
                   } else {
-                    merged[convKey] = { ...incomingEntry, paused: pausedMerged, items: incomingItems }
+                    // Use incoming items as authoritative; preserve failed id only if it still exists
+                    const failedIdToKeep =
+                      incomingItems.some((it) => it.id === incomingFailedId)
+                        ? incomingFailedId
+                        : incomingItems.some((it) => it.id === existingFailedId)
+                          ? existingFailedId
+                          : undefined
+                    merged[convKey] = {
+                      ...incomingEntry,
+                      paused: pausedMerged,
+                      items: incomingItems,
+                      ...(failedIdToKeep ? { failedItemId: failedIdToKeep } : {})
+                    }
                   }
                   continue
                 }
