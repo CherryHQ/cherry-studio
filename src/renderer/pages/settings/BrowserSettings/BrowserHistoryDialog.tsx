@@ -179,7 +179,7 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
                             <Globe aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                             <span
                               id={`browser-history-title-${visit.id}`}
-                              className="min-w-0 truncate text-foreground text-sm">
+                              className="min-w-0 flex-1 truncate text-foreground text-sm">
                               {title}
                             </span>
                             <span
