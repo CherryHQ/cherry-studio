@@ -447,15 +447,21 @@ def grouped_formula_ranges(sheet_data) -> list[tuple[str, str, tuple[int, int, i
 
 
 def set_cell_value(doc: minidom.Document, cell, value) -> None:
+    # CT_Cell is `f?, v?, is?, extLst?`. The value is what the edit replaces; an extension payload is
+    # untouched content like everything else in the part — kept verbatim, never descended into, the
+    # way pPr is on the docx side — so it stays, and the new value goes in ahead of it to hold the
+    # sequence. Clearing every child took it with the old value.
+    extension = first_child(cell, "extLst")
     for child in list(cell.childNodes):
-        cell.removeChild(child)
+        if child is not extension:
+            cell.removeChild(child)
     if cell.hasAttribute("t"):
         cell.removeAttribute("t")
     if isinstance(value, bool):
         cell.setAttribute("t", "b")
         v = doc.createElement(make_tag(cell.tagName, "v"))
         v.appendChild(doc.createTextNode("1" if value else "0"))
-        cell.appendChild(v)
+        cell.insertBefore(v, extension)
     elif isinstance(value, (int, float)):
         # json.loads accepts NaN/Infinity/-Infinity literals, and 1e999 overflows to inf on its own.
         # repr() spells those "nan"/"inf", which are well-formed XML but not valid xsd:double, so the
@@ -467,7 +473,7 @@ def set_cell_value(doc: minidom.Document, cell, value) -> None:
             )
         v = doc.createElement(make_tag(cell.tagName, "v"))
         v.appendChild(doc.createTextNode(repr(value)))
-        cell.appendChild(v)
+        cell.insertBefore(v, extension)
     elif isinstance(value, str):
         reject_invalid_xml_text(value, f"cell {cell.getAttribute('r') or '?'}")
         cell.setAttribute("t", "inlineStr")
@@ -476,7 +482,7 @@ def set_cell_value(doc: minidom.Document, cell, value) -> None:
         text.setAttribute("xml:space", "preserve")
         text.appendChild(doc.createTextNode(value))
         inline.appendChild(text)
-        cell.appendChild(inline)
+        cell.insertBefore(inline, extension)
     else:
         fail(f"unsupported cell value type: {type(value).__name__} (use number, string, or boolean)")
 
