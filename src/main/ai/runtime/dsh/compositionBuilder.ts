@@ -34,9 +34,9 @@ export function toDshPluginUrl(pluginPath: string, windows = isWin): string {
   return pathToFileURL(pluginPath, { windows }).href
 }
 
-/** Resolve the `dsh-jsonrpc-agent` runtime bin spawned via `ELECTRON_RUN_AS_NODE`. */
+/** Resolve Cherry's DSH runtime bin spawned via `ELECTRON_RUN_AS_NODE`. */
 export function resolveDshRuntimeBinPath(): string {
-  return resolveDshPluginPath('@deepseek-ai/dsh-sdk-jsonrpc-demo/bin')
+  return resolveDshPluginPath('@cherrystudio/dsh-bridge/bin')
 }
 
 export interface DshCompositionInput {
@@ -103,30 +103,14 @@ function buildProviderRoute(input: DshCompositionInput): Record<string, unknown>
   }
 }
 
-function buildSpineConfig(input: DshCompositionInput, isWindows: boolean): Record<string, unknown> {
+function buildSystemPromptConfig(input: DshCompositionInput): Record<string, unknown> {
   return {
     // dsh interpolates {{var}} strictly at render (unknown refs THROW); Cherry text
     // never uses dsh variables, so break every opener instead of crashing turns.
     ...(input.persona ? { persona: input.persona.replaceAll('{{', '{ {') } : {}),
     // A workspace system.md replaces the persona base; drop only the dsh identity
     // sentence — tool-guidance sections stay (mechanics, not persona).
-    ...(input.customBase ? { includeHarnessIdentity: false } : {}),
-    // AGENTS.md/CLAUDE.md are trusted workspace text — parity with pi's `noContextFiles: false`.
-    workspaceContext: { maxBytes: 32768 },
-    skills: input.skillDirs.length
-      ? {
-          enabled: true,
-          filesystem: {
-            // Fail-closed skill discovery: Cherry owns the root list (pi's noSkills +
-            // additionalSkillPaths analogue); membership changes rebuild via the signature.
-            includeDefaultRoots: false,
-            customSkillDirs: [...input.skillDirs],
-            watch: false
-          }
-        }
-      : { enabled: false },
-    toolBash: isWindows ? false : { enableRunInBackground: false },
-    toolJobs: false
+    ...(input.customBase ? { includeHarnessIdentity: false } : {})
   }
 }
 
@@ -159,7 +143,43 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     }),
     // policy: ask ALWAYS — bypass is expressed by the bridge plugin's allow-all, never `never`.
     entry('approval', '@deepseek-ai/dsh-user-approval', { policy: 'ask' }),
-    entry('agent-spine', '@deepseek-ai/dsh-agent-spine-demo', buildSpineConfig(input, isWindows)),
+    entry('timer', '@deepseek-ai/cordis-plugin-timer'),
+    entry('llm-runtime', '@deepseek-ai/dsh-llm'),
+    entry('session', '@deepseek-ai/dsh-session'),
+    entry('session-title', '@deepseek-ai/dsh-session-title', {
+      fallbackMaxWords: 5,
+      fallbackMaxBytes: 40,
+      maxTitleBytes: 80
+    }),
+    entry('system-prompt', '@deepseek-ai/dsh-system-prompt', buildSystemPromptConfig(input)),
+    entry('tools', '@deepseek-ai/dsh-tools'),
+    entry('agent', '@deepseek-ai/dsh-agent'),
+    entry('jobs', '@deepseek-ai/dsh-jobs-local'),
+    entry('invariants', '@deepseek-ai/dsh-invariants'),
+    entry('session-invariant', '@deepseek-ai/dsh-session/invariant'),
+    entry('agent-invariant', '@deepseek-ai/dsh-agent/invariant'),
+    entry('scope-invariant', '@deepseek-ai/dsh-scope/invariant'),
+    entry('agent-loop-invariant', '@deepseek-ai/dsh-agent-loop/invariant'),
+    entry('agent-loop', '@deepseek-ai/dsh-agent-loop', { agents: [] }),
+    entry('workspace-context', '@deepseek-ai/dsh-agent-instructions', { maxBytes: 32768 }),
+    ...(input.skillDirs.length
+      ? [
+          entry('skill', '@deepseek-ai/dsh-skill'),
+          entry('skill-filesystem', '@deepseek-ai/dsh-skill-filesystem', {
+            dshHome: input.dshRoot,
+            includeDefaultRoots: false,
+            customSkillDirs: [...input.skillDirs],
+            watch: false
+          }),
+          entry('tool-skill', '@deepseek-ai/dsh-tool-skill')
+        ]
+      : []),
+    ...(!isWindows
+      ? [
+          entry('shell-env', '@deepseek-ai/dsh-shell-env', { dshHome: input.dshRoot }),
+          entry('tool-bash', '@deepseek-ai/dsh-tool-bash', { enableRunInBackground: false })
+        ]
+      : []),
     ...(isWindows
       ? [
           entry('shell-env', '@deepseek-ai/dsh-shell-env', { dshHome: input.dshRoot }),
@@ -169,7 +189,7 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     entry('fs', '@deepseek-ai/dsh-fs-local', { cwd: input.workspacePath }),
     entry('attachments', '@deepseek-ai/dsh-attachment-local', { dshHome: input.dshRoot }),
     entry('tool-fs', '@deepseek-ai/dsh-tool-fs'),
-    // No background bash and no jobs plane; background work is continuable subagents only.
+    // No background bash or model-facing job tools; background work uses continuable subagents.
     entry('tool-todo', '@deepseek-ai/dsh-tool-todo', { allowParallelInProgress: false }),
     // token-meter rejects any config key; session-projection carries its contextBreakdown unit.
     entry('token-meter', '@deepseek-ai/dsh-token-meter'),
@@ -209,8 +229,7 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
       enableRunInBackground: false,
       toolFilter: { deny: ['exit_plan_mode'] }
     }),
-    entry('tool-subagent-report', '@deepseek-ai/dsh-tool-subagent-report'),
-    // Plan review reaches the host through the bridge's userQuestions provider; plan
+    // Plan review reaches the host through the bridge's user-questions listener; plan
     // enforcement itself lives in the bridge policy (dsh plan-mode is guidance-only).
     entry('user-questions', '@deepseek-ai/dsh-user-questions'),
     entry('plan-mode', '@deepseek-ai/dsh-plan-mode', { section: DSH_PLAN_MODE_SECTION }),

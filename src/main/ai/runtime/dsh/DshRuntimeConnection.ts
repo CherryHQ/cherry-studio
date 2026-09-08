@@ -377,9 +377,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
       const client = new sdk.HarnessClient({
-        command: process.execPath,
-        args: [resolveDshRuntimeBinPath(), this.compositionPath],
-        cwd: workspacePath,
+        dshBin: resolveDshRuntimeBinPath(),
+        profile: 'cherry',
+        processCwd: workspacePath,
         env: {
           ...binaryExecutionEnv,
           ...(loginShellEnv.HOME !== undefined
@@ -389,6 +389,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
               : {}),
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
+          CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
           [BRIDGE_TOKEN_ENV]: this.bridge.authenticationToken,
           DSH_HOME: dshRoot

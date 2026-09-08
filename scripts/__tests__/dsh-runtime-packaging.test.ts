@@ -17,7 +17,7 @@ describe('DSH runtime packaging', () => {
       expect(existsSync(resolveBundledDshRuntimeEntry(specifier)), specifier).toBe(true)
     }
 
-    const runtimeDirectory = path.dirname(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-sdk-jsonrpc-demo/bin'))
+    const runtimeDirectory = path.dirname(resolveBundledDshRuntimeEntry('@cherrystudio/dsh-bridge/bin'))
     const fileCount = readdirSync(runtimeDirectory, { recursive: true, withFileTypes: true }).filter((entry) =>
       entry.isFile()
     ).length

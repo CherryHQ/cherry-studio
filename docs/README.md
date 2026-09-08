@@ -238,6 +238,7 @@
 |----------|-------------|
 | [Testing Reference](./references/testing/README.md) | Home for testing reference docs covering frontend test policy and the SQLite database test harness |
 | [Database Testing Guide](./references/testing/database-testing.md) | How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations |
+| [DSH Runtime Upgrade Tests](./references/testing/dsh-runtime-upgrade.md) | Build and regression examples for the DSH 0.1.2-rc.1 runtime, including offline subprocess startup and persisted session recovery |
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates |
 
 ### Utility Process

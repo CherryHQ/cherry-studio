@@ -12,7 +12,9 @@ const runtimeEntries = Object.fromEntries(
     entryName,
     specifier === '@cherrystudio/dsh-bridge/plugin'
       ? path.join(import.meta.dirname, 'src/plugin.ts')
-      : require_.resolve(specifier)
+      : specifier === '@cherrystudio/dsh-bridge/bin'
+        ? path.join(import.meta.dirname, 'src/runtimeBin.ts')
+        : require_.resolve(specifier)
   ])
 )
 

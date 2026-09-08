@@ -194,7 +194,7 @@ export function apply(ctx: Context): void {
     const controller = new AbortController()
     pendingCommands.set(params.sessionId, controller)
     try {
-      const execution = await commands.execute(agent, params.line, controller.signal)
+      const execution = await commands.execute(agent, params.line, [], controller.signal)
       if (execution === undefined) return { handled: false }
       return {
         handled: true,
@@ -292,32 +292,26 @@ export function apply(ctx: Context): void {
 
   // Relay `ctx.userQuestions` asks (plan review) to the host UI; abort is the
   // caller's teardown/dismissal and must surface as the seam's own error code.
-  ctx.effect(
-    () =>
-      ctx.userQuestions.registerProvider({
-        async ask(request) {
-          try {
-            return await link.request(
-              'question/ask',
-              {
-                sessionId: request.agent?.id ?? '',
-                callId: correlatePlanReviewCallId(request),
-                questions: request.questions
-              },
-              request.signal
-            )
-          } catch (error) {
-            if (request.signal?.aborted) {
-              throw new UserQuestionError('the ask was aborted before the user answered', 'ASK_ABORTED', {
-                cause: error instanceof Error ? error : undefined
-              })
-            }
-            throw error
-          }
-        }
-      }),
-    'cherry-bridge.userQuestions'
-  )
+  ctx.on('user-questions/request', async (request) => {
+    try {
+      return await link.request(
+        'question/ask',
+        {
+          sessionId: request.agent?.id ?? '',
+          callId: correlatePlanReviewCallId(request),
+          questions: request.questions
+        },
+        request.signal
+      )
+    } catch (error) {
+      if (request.signal?.aborted) {
+        throw new UserQuestionError('the ask was aborted before the user answered', 'ASK_ABORTED', {
+          cause: error instanceof Error ? error : undefined
+        })
+      }
+      throw error
+    }
+  })
 
   // Per-epoch residency edges (a cold resume opens a new epoch). The parent id is
   // read at start while the child agent is live and cached for the end edge.
@@ -367,6 +361,9 @@ export function apply(ctx: Context): void {
     if (agent === undefined) return next()
     const delegated = agent.session.header.parentSession !== undefined
     const rootSessionId = rootSessionOf(agent)
+    if (!agent.session.header.cwd) {
+      return { kind: 'deny' as const, reason: 'The tool caller has no verified workspace directory.' }
+    }
     try {
       const guard = await link.request(
         'guard/check',
@@ -457,7 +454,7 @@ function isMissingSessionError(error: unknown): boolean {
 /** Attach the asked-about call's arguments: latest `tool/call` with the request's callId. */
 function correlateCallArguments(req: ApprovalRequest): unknown {
   if (req.callId === undefined) return undefined
-  const events = req.agent.session.events
+  const events = req.agent.session.snapshotEvents()
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i]
     if (event.type !== 'tool/call' || event.data.callId !== req.callId) continue
@@ -478,7 +475,7 @@ function correlatePlanReviewCallId(request: AskUserQuestionRequest): string {
     throw new UserQuestionError('only an agent plan review can cross the Cherry bridge', 'UNSUPPORTED_QUESTION')
   }
 
-  const events = request.agent.session.events
+  const events = request.agent.session.snapshotEvents()
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i]
     if (event.type !== 'tool/call' || event.data.name !== 'exit_plan_mode') continue

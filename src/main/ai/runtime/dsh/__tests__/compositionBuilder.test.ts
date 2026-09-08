@@ -111,29 +111,28 @@ describe('buildDshCompositionYaml', () => {
     const withSkills = buildDshCompositionYaml(
       makeInput({ skillDirs: ['/data/Skills/pdf-tools', '/data/Skills/review'] })
     )
-    expect(entryById(withSkills, 'agent-spine').config?.skills).toEqual({
-      enabled: true,
-      filesystem: {
-        includeDefaultRoots: false,
-        customSkillDirs: ['/data/Skills/pdf-tools', '/data/Skills/review'],
-        watch: false
-      }
+    expect(entryById(withSkills, 'skill-filesystem').config).toEqual({
+      dshHome: '/tmp/dsh-root',
+      includeDefaultRoots: false,
+      customSkillDirs: ['/data/Skills/pdf-tools', '/data/Skills/review'],
+      watch: false
     })
 
     const without = buildDshCompositionYaml(makeInput())
-    expect(entryById(without, 'agent-spine').config?.skills).toEqual({ enabled: false })
+    expect(parseEntries(without).map((entry) => entry.id)).not.toContain('skill-filesystem')
+    expect(parseEntries(without).map((entry) => entry.id)).not.toContain('tool-skill')
   })
 
   it('breaks {{ openers in the persona so dsh strict interpolation cannot throw', () => {
     const yml = buildDshCompositionYaml(makeInput({ persona: 'Use {{secret}} and {{cwd}} literally.' }))
     expect(yml).not.toContain('{{')
-    expect(entryById(yml, 'agent-spine').config?.persona).toBe('Use { {secret}} and { {cwd}} literally.')
+    expect(entryById(yml, 'system-prompt').config?.persona).toBe('Use { {secret}} and { {cwd}} literally.')
   })
 
   it('drops the dsh identity sentence only for a custom base', () => {
-    const custom = entryById(buildDshCompositionYaml(makeInput({ customBase: true })), 'agent-spine')
+    const custom = entryById(buildDshCompositionYaml(makeInput({ customBase: true })), 'system-prompt')
     expect(custom.config?.includeHarnessIdentity).toBe(false)
-    const native = entryById(buildDshCompositionYaml(makeInput()), 'agent-spine')
+    const native = entryById(buildDshCompositionYaml(makeInput()), 'system-prompt')
     expect(native.config).not.toHaveProperty('includeHarnessIdentity')
   })
 
@@ -172,7 +171,7 @@ describe('buildDshCompositionYaml', () => {
     expect(names).not.toContain('bash-sandbox.mjs')
     expect(names).toContain('sandbox-local.mjs')
     expect(names).toContain('sandbox-policy.mjs')
-    expect(entryById(yml, 'agent-spine').config?.toolBash).toBe(false)
+    expect(entries.map((entry) => entry.id)).not.toContain('tool-bash')
     expect(entryById(yml, 'sandbox-policy').config?.workspaceRoot).toBe('C:\\Users\\Cherry\\workspace')
     expect(entryById(yml, 'shell-executor').config?.cwd).toBe('C:\\Users\\Cherry\\workspace')
   })
@@ -227,8 +226,7 @@ describe('buildDshCompositionYaml', () => {
       'subagent-spawn',
       'subagent-fork',
       'tool-subagent-control',
-      'tool-subagent-list-agents',
-      'tool-subagent-report'
+      'tool-subagent-list-agents'
     ]) {
       expect(ids).toContain(id)
     }
@@ -450,7 +448,7 @@ describe('buildDshCompositionYaml', () => {
     const pluginUrl = pathToFileURL(resolveDshPluginPath('@deepseek-ai/dsh-llm-pi-ai')).href
     const { Config } = await import(pluginUrl)
 
-    expect(Config(llmConfig).providers.deepseek.models[0].compat).toEqual({ supportsDeveloperRole: false })
+    expect(Config(llmConfig).providers.deepseek.models[0].compat).toMatchObject({ supportsDeveloperRole: false })
   })
 
   it('sends system only when the configured endpoint rejects the developer role', async () => {

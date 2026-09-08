@@ -30,7 +30,7 @@ describe('dsh SDK bundling viability', () => {
 
   it('resolves the runtime bin and every composed plugin to on-disk entries', () => {
     const specifiers = [
-      '@deepseek-ai/dsh-sdk-jsonrpc-demo/bin',
+      '@cherrystudio/dsh-bridge/bin',
       '@deepseek-ai/dsh-sdk-jsonrpc-server',
       '@deepseek-ai/dsh-llm-pi-ai',
       '@deepseek-ai/dsh-llm-retry',
@@ -41,7 +41,9 @@ describe('dsh SDK bundling viability', () => {
       '@deepseek-ai/dsh-subprocess-local',
       '@deepseek-ai/dsh-bash-sandbox',
       '@deepseek-ai/dsh-user-approval',
-      '@deepseek-ai/dsh-agent-spine-demo',
+      '@deepseek-ai/dsh-agent-loop',
+      '@deepseek-ai/dsh-system-prompt',
+      '@deepseek-ai/dsh-agent-instructions',
       '@deepseek-ai/dsh-attachment-local',
       '@deepseek-ai/dsh-fs-local',
       '@deepseek-ai/dsh-tool-fs',
@@ -72,7 +74,7 @@ describe('dsh SDK bundling viability', () => {
   })
 
   it('loads the unified sharp stack through attachment-local and decodes a real PNG', async () => {
-    const [{ detectImage }, { default: sharp }] = await Promise.all([
+    const [{ prepareImageFile }, { default: sharp }] = await Promise.all([
       import(pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href),
       import('sharp')
     ])
@@ -82,7 +84,18 @@ describe('dsh SDK bundling viability', () => {
       .png()
       .toBuffer()
 
-    await expect(detectImage(png)).resolves.toEqual({ mediaType: 'image/png', width: 1, height: 1 })
+    const prepared = await prepareImageFile(
+      { data: png, mediaType: 'image/png' },
+      {
+        maxImageBytes: 1048576,
+        maxImagesPerMessage: 1,
+        maxMessageImageBytes: 1048576,
+        maxImagePixels: 1024,
+        maxImageDimension: 32
+      },
+      { maxPixels: 1024, maxDimension: 32, maxBytes: 1048576 }
+    )
+    expect(prepared.ref).toMatchObject({ mediaType: 'image/png', width: 1, height: 1 })
     expect(sharp.versions.sharp).toBe('0.35.3')
   })
 })
