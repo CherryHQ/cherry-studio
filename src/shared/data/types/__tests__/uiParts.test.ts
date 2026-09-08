@@ -73,6 +73,24 @@ describe('CherryToolMetaSchema', () => {
     const bad = CherryToolMetaSchema.safeParse({ tool: { type: 'pluggable' } })
     expect(bad.success).toBe(false)
   })
+  it('keeps the subagent resume linkage fields through a readCherryMeta round-trip', () => {
+    const part = {
+      type: 'dynamic-tool',
+      providerMetadata: {
+        cherry: {
+          parentToolCallId: 'task-root',
+          launchToolCallId: 'task-root',
+          resumedViaCallId: 'call-resume'
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    expect(readCherryMeta(part)).toMatchObject({
+      parentToolCallId: 'task-root',
+      launchToolCallId: 'task-root',
+      resumedViaCallId: 'call-resume'
+    })
+  })
 })
 
 describe('CherryFileMetaSchema', () => {

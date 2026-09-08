@@ -178,6 +178,10 @@ export interface CherryToolMeta {
   toolName?: string
   /** Runtime-neutral subagent linkage: the spawning tool call this part nests under. */
   parentToolCallId?: string
+  /** Launch-root tool-call id stamped on a SendMessage resume receipt. */
+  launchToolCallId?: string
+  /** The SendMessage call id whose resume this part continues, when the runtime tagged it. */
+  resumedViaCallId?: string
   /** MCP / builtin tool identity. Matches `ToolType` consumed by `toolResponse.ts`. */
   tool?: {
     serverId?: string
@@ -297,6 +301,9 @@ export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.objec
 export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
   transport: z.string().optional(),
   toolName: z.string().optional(),
+  parentToolCallId: z.string().optional(),
+  launchToolCallId: z.string().optional(),
+  resumedViaCallId: z.string().optional(),
   tool: z
     .object({
       serverId: z.string().optional(),

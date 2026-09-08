@@ -6,6 +6,7 @@ import type { Currency } from '@shared/data/types/model'
 import type { AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
+import type { AgentSessionFlowRecoveryOrphan } from '../../ai/agentSessionFlowParts'
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
@@ -502,12 +503,15 @@ export type MainPersistCacheSchema = {
   // a @main enum (no reverse import), so the key type is `string`; the
   // windowBoundsTracker is the sole writer and controls which keys appear.
   'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
+  // Teardown-orphaned detached-flow chunks, restart-safe so a reopen can still deliver them.
+  'agent.session.flow_recovery_orphans': AgentSessionFlowRecoveryOrphan[]
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
-  'window.bounds': {}
+  'window.bounds': {},
+  'agent.session.flow_recovery_orphans': []
 }
 
 // ============================================================================

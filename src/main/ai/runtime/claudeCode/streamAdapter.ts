@@ -34,6 +34,7 @@ import type {
   BetaServerToolUseBlock,
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
@@ -501,6 +502,10 @@ export class ClaudeCodeStreamAdapter {
   /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
   private backgroundTasks: AgentSessionBackgroundTask[] = []
   private readonly backgroundTaskToolCallIds = new Map<string, string>()
+  /** launch root tool-call id → the SendMessage call id that last resumed it. Instance-scoped
+   *  (survives idle flow-context clears) and only-overwrite: resumed content arrives after the
+   *  turn's result, so clearing would strip markers from the bulk of a continued round. */
+  private readonly resumeMarkers = new Map<string, string>()
   /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
    *  main agent's counters. Their sink is detached from the turn when that turn completes. */
   private readonly flowContexts: FlowContext[] = []
@@ -1210,7 +1215,47 @@ export class ClaudeCodeStreamAdapter {
       toolName === 'Workflow' && isRecord(normalizedResult) && normalizedResult.taskType === 'local_workflow'
     if (!isError && (isSubagentToolName(toolName) || isLocalWorkflowLaunch)) {
       const taskId = getLaunchedBackgroundTaskId(normalizedResult)
-      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
+      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id, true)
+    }
+    // A SendMessage receipt that resumed a background agent carries the launch root id in its
+    // own metadata (so the renderer can navigate without scanning) AND re-tags subsequent
+    // content of that agent for round splitting. Only-overwrite, never clear. A receipt for a
+    // still-running target has no resumedAgentId — its queued form only carries `pin.id`.
+    if (!isError && isRecord(normalizedResult)) {
+      const resumedAgentId =
+        typeof normalizedResult.resumedAgentId === 'string'
+          ? normalizedResult.resumedAgentId
+          : isRecord(normalizedResult.pin) && typeof normalizedResult.pin.id === 'string'
+            ? normalizedResult.pin.id
+            : undefined
+      if (resumedAgentId) {
+        let launchToolCallId: string | undefined = this.backgroundTaskToolCallIds.get(resumedAgentId)
+        // The receipt is the last event some resumes ever produce (fresh adapter, queued pin);
+        // when the registration-time recovery failed or never ran, recover the launch root here
+        // rather than leaving the task permanently unmapped.
+        if (!launchToolCallId) {
+          try {
+            launchToolCallId =
+              agentSessionMessageService.findLaunchToolCallId(this.sessionId, resumedAgentId) ?? undefined
+            if (launchToolCallId) {
+              this.backgroundTaskToolCallIds.set(resumedAgentId, launchToolCallId)
+              if (this.backgroundTasks.some((task) => task.id === resumedAgentId)) this.publishBackgroundTasks()
+            }
+          } catch (error) {
+            // Silent: the renderer's scanning fallback covers the unresolved entry.
+            logger.warn('Failed to recover launch tool call id from resume receipt', {
+              sessionId: this.sessionId,
+              resumedAgentId,
+              error
+            })
+          }
+        }
+        if (launchToolCallId) {
+          this.resumeMarkers.set(launchToolCallId, result.tool_use_id)
+          const cherry = providerMetadata.cherry as Record<string, unknown>
+          cherry.launchToolCallId = launchToolCallId
+        }
+      }
     }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
@@ -1407,9 +1452,32 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
-    if (this.backgroundTaskToolCallIds.get(taskId) === toolCallId) return
-    this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string, allowToolCallIdFallback: boolean): void {
+    // First registration wins: resume edges carry the resuming call's id, not the launch root.
+    if (this.backgroundTaskToolCallIds.has(taskId)) return
+    // A fresh adapter (app restart) has no in-memory mapping: the persisted launch task event is
+    // authoritative and must win over a resume edge that arrives before the launch receipt context.
+    let launchToolCallId: string | null = null
+    try {
+      launchToolCallId = agentSessionMessageService.findLaunchToolCallId(this.sessionId, taskId)
+    } catch (error) {
+      // A transient database error must not kill the connection — and must not pin the resume
+      // edge id either (first-wins would then block the launch root forever). Skip registration;
+      // the next task event or receipt re-runs this lookup and self-heals.
+      logger.warn('Failed to recover launch tool call id for background task', {
+        sessionId: this.sessionId,
+        taskId,
+        error
+      })
+      return
+    }
+    if (launchToolCallId) {
+      this.backgroundTaskToolCallIds.set(taskId, launchToolCallId)
+    } else if (allowToolCallIdFallback) {
+      // The launch receipt's own call id is the launch root (miss is transient pre-persist);
+      // a task edge's id may be a resume call's and must not be pinned while the row is absent.
+      this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+    }
     if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
   }
 
@@ -1446,7 +1514,7 @@ export class ClaudeCodeStreamAdapter {
         eventData.taskType === 'local_workflow' ||
         eventData.subagentType)
     ) {
-      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId)
+      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId, false)
     }
 
     // Keep a process-scoped per-task surface for status history and stop targets.
@@ -1790,17 +1858,20 @@ export class ClaudeCodeStreamAdapter {
 
   private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
+    const resumedViaCallId = this.resumeMarkers.get(sdkParentToolUseId)
     return {
       'claude-code': {
         parentToolCallId: sdkParentToolUseId
       },
       cherry: {
-        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport
+        transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...(resumedViaCallId ? { resumedViaCallId } : {})
       }
     }
   }
 
   private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
+    const resumedViaCallId = state.parentToolCallId ? this.resumeMarkers.get(state.parentToolCallId) : undefined
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
@@ -1812,6 +1883,7 @@ export class ClaudeCodeStreamAdapter {
       'claude-code': claudeCode,
       cherry: {
         transport: AGENT_RUNTIME_CAPABILITIES['claude-code'].transport,
+        ...(resumedViaCallId ? { resumedViaCallId } : {}),
         tool: {
           type: state.toolType ?? 'provider',
           ...(state.displayName ? { name: state.displayName } : {}),
