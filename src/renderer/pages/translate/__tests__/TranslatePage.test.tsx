@@ -2082,6 +2082,56 @@ describe('TranslatePage', () => {
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('current output')
   })
 
+  it('blocks language mutations while history language persistence is pending', async () => {
+    const user = userEvent.setup()
+    const pendingWrites: Array<() => void> = []
+    const persistLanguages = vi.fn(
+      (values: { sourceLanguage?: string; targetLanguage?: string }) =>
+        new Promise<void>((resolve) => {
+          pendingWrites.push(() => {
+            MockUsePreferenceUtils.setMultiplePreferenceValues({
+              'feature.translate.page.source_language': values.sourceLanguage,
+              'feature.translate.page.target_language': values.targetLanguage
+            })
+            resolve()
+          })
+        })
+    )
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [
+            alias,
+            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
+          ])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        render(<TranslatePage />)
+        const sourceChange = languageBarMock.mock.calls.at(-1)?.[0].onSourceChange as (language: string) => void
+        const targetChange = languageBarMock.mock.calls.at(-1)?.[0].onTargetChange as (language: string) => void
+
+        await user.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        await user.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+
+        await user.click(screen.getByRole('button', { name: 'translate.exchange.label' }))
+        act(() => sourceChange('ja-jp'))
+        act(() => targetChange('en-us'))
+        const writesWhileHistoryPending = persistLanguages.mock.calls.length
+
+        await act(async () => pendingWrites.forEach((complete) => complete()))
+        expect(writesWhileHistoryPending).toBe(1)
+      }
+    )
+  })
+
   it('does not overwrite newer input after history language persistence completes', async () => {
     const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
     MockUseCacheUtils.setCacheValue('translate.input', 'current input')

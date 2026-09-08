@@ -285,6 +285,7 @@ const TranslatePage: FC = () => {
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
   const exchangePendingRef = useRef(false)
+  const historyRestorePendingRef = useRef(false)
   const isMountedRef = useRef(true)
   const translateContentRef = useRef({ input: translateInput, output: translateOutput, pdfFile })
 
@@ -609,7 +610,8 @@ const TranslatePage: FC = () => {
       targetLanguage === UNKNOWN_LANG_CODE ||
       isTranslating ||
       isDetecting ||
-      exchangePendingRef.current
+      exchangePendingRef.current ||
+      historyRestorePendingRef.current
     )
       return
     exchangePendingRef.current = true
@@ -642,52 +644,65 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     async (history: TranslateHistory, files?: TranslationFiles) => {
-      if (exchangePendingRef.current) return
-      const contentBeforePersist = translateContentRef.current
-      const nextTargetLanguage =
-        history.targetLanguage ??
-        (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
-      const nextSourceLanguage =
-        history.kind === 'file' || history.sourceLanguage ? (history.sourceLanguage ?? 'auto') : undefined
+      if (exchangePendingRef.current || historyRestorePendingRef.current) return
+      historyRestorePendingRef.current = true
+      try {
+        const contentBeforePersist = translateContentRef.current
+        const nextTargetLanguage =
+          history.targetLanguage ??
+          (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
+        const nextSourceLanguage =
+          history.kind === 'file' || history.sourceLanguage ? (history.sourceLanguage ?? 'auto') : undefined
 
-      // Only reachable from the detail panel's preview action, which `isPdfTranslation`
-      // already gated — a future non-PDF file translation has no viewer to restore into
-      // and never offers the button.
-      let filePaths: { source: AbsoluteFilePath; target: AbsoluteFilePath } | undefined
-      if (history.kind === 'file') {
-        if (!files?.source?.path || !files.target?.path) {
-          toast.error(t('translate.history.file.unavailable'))
+        // Only reachable from the detail panel's preview action, which `isPdfTranslation`
+        // already gated — a future non-PDF file translation has no viewer to restore into
+        // and never offers the button.
+        let filePaths: { source: AbsoluteFilePath; target: AbsoluteFilePath } | undefined
+        if (history.kind === 'file') {
+          if (!files?.source?.path || !files.target?.path) {
+            toast.error(t('translate.history.file.unavailable'))
+            return
+          }
+          filePaths = { source: files.source.path, target: files.target.path }
+        }
+
+        const persisted = await safePersist(
+          setTranslateLanguages({
+            ...(nextSourceLanguage ? { sourceLanguage: nextSourceLanguage } : {}),
+            targetLanguage: nextTargetLanguage
+          }),
+          'translate history languages'
+        )
+        const currentContent = translateContentRef.current
+        if (
+          !persisted ||
+          !isMountedRef.current ||
+          contentBeforePersist.input !== currentContent.input ||
+          contentBeforePersist.output !== currentContent.output ||
+          contentBeforePersist.pdfFile !== currentContent.pdfFile
+        )
           return
+
+        if (filePaths) {
+          translateContentRef.current = {
+            input: contentBeforePersist.input,
+            output: contentBeforePersist.output,
+            pdfFile: { name: history.sourceText, path: filePaths.source }
+          }
+          resetPdfMode()
+          setRestoredPdf({ output: { outputPath: filePaths.target, fileName: history.targetText }, key: history.id })
+          setPdfFile({ name: history.sourceText, path: filePaths.source })
+        } else {
+          translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
+          resetPdfMode()
+          setTranslateInput(history.sourceText)
+          setTranslateOutput(history.targetText)
         }
-        filePaths = { source: files.source.path, target: files.target.path }
+
+        setHistoryOpen(false)
+      } finally {
+        historyRestorePendingRef.current = false
       }
-
-      const persisted = await safePersist(
-        setTranslateLanguages({
-          ...(nextSourceLanguage ? { sourceLanguage: nextSourceLanguage } : {}),
-          targetLanguage: nextTargetLanguage
-        }),
-        'translate history languages'
-      )
-      if (!persisted || !isMountedRef.current || contentBeforePersist !== translateContentRef.current) return
-
-      if (filePaths) {
-        translateContentRef.current = {
-          input: contentBeforePersist.input,
-          output: contentBeforePersist.output,
-          pdfFile: { name: history.sourceText, path: filePaths.source }
-        }
-        resetPdfMode()
-        setRestoredPdf({ output: { outputPath: filePaths.target, fileName: history.targetText }, key: history.id })
-        setPdfFile({ name: history.sourceText, path: filePaths.source })
-      } else {
-        translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
-        resetPdfMode()
-        setTranslateInput(history.sourceText)
-        setTranslateOutput(history.targetText)
-      }
-
-      setHistoryOpen(false)
     },
     [resetPdfMode, safePersist, setTranslateLanguages, setTranslateInput, setTranslateOutput, t, targetLanguage]
   )
@@ -989,13 +1004,13 @@ const TranslatePage: FC = () => {
             className="px-0 py-0 lg:px-0"
             sourceLanguage={sourceLanguage}
             onSourceChange={(language) => {
-              if (!exchangePendingRef.current) {
+              if (!exchangePendingRef.current && !historyRestorePendingRef.current) {
                 void safePersist(setSourceLanguage(language), 'translate source language')
               }
             }}
             targetLanguage={targetLanguage}
             onTargetChange={(language) => {
-              if (!exchangePendingRef.current) {
+              if (!exchangePendingRef.current && !historyRestorePendingRef.current) {
                 void safePersist(setTargetLanguage(language), 'translate target language')
               }
             }}
