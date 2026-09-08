@@ -260,15 +260,13 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
             for column_offset, cell in enumerate(row)
             if cell.data_type == "e"
         )
-    # read_only mode does not mask merge followers: it hands back the master's value for every cell in
-    # the range, so a range covering a merge reads as if the text were repeated. Excel shows it once,
-    # at the top-left. Mask the followers so what we extract matches what the user sees — the skill's
-    # verify-after-edit step compares against this, and it has to be telling the truth.
-    for merge in getattr(worksheet, "merged_cells", None) or []:
-        for row_number in range(max(merge.min_row, min_row), min(merge.max_row, max_row) + 1):
-            for column in range(max(merge.min_col, min_col), min(merge.max_col, max_col) + 1):
-                if (column, row_number) != (merge.min_col, merge.min_row):
-                    values[row_number - min_row][column - min_col] = None
+    # Merge followers are not masked: a read_only worksheet has no merged_cells, so a mask keyed on it
+    # never runs, and fetching the ranges means either a second, non-streaming load — giving up the
+    # streaming this reader exists for — or hand-parsing <mergeCells>. Excel and openpyxl clear a
+    # follower when the merge is made, so followers read back empty and match what the user sees;
+    # the file that kept hidden text under a merge extracts it, which SKILL.md "## Limits" says out
+    # loud. Any future mask must clamp to the rows iter_rows actually returned, not to max_row:
+    # read_only stops at the last populated row, so a merge below the data would index past `values`.
     workbook.close()
 
     if out_format == "xlsx":
