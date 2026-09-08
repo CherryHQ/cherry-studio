@@ -2,7 +2,6 @@ import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
-import { isMessageOnlyConversationUrl } from '@renderer/utils/sidebar'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { useCallback, useEffect, useRef } from 'react'
@@ -118,9 +117,7 @@ export function useMainWindowNavigation() {
 
       if (WORKSPACE_ENTRY_ROUTES.has(to)) {
         const existingWorkspaceTab = tabs
-          .filter(
-            (tab) => tab.type === 'route' && getRoutePathname(tab.url) === to && !isMessageOnlyConversationUrl(tab.url)
-          )
+          .filter((tab) => tab.type === 'route' && getRoutePathname(tab.url) === to)
           .reduce<(typeof tabs)[number] | undefined>(
             (latest, tab) => (!latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest),
             undefined
