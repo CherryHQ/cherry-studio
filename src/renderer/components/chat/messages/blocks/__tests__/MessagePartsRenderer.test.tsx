@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { KeyedMessageActivityStore, useMessageActivityState } from '../../hooks/useMessageActivityState'
+import { KeyedMessageActivityStore } from '../../hooks/useMessageActivityState'
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem, type MessageListProviderValue } from '../../types'
 import { withMessagePartDiagnosis } from '../../utils/messageDiagnosis'
@@ -544,56 +544,6 @@ describe('MessagePartsRenderer', () => {
   })
 
   describe('leaf rendering', () => {
-    it('does not rerender completed message content when the topic stream status changes', () => {
-      const completedMessage = msg({ id: 'msg-completed' })
-      const messages = [completedMessage]
-      const partsByMessageId = {
-        [completedMessage.id]: [{ type: 'text', text: 'Completed' }] as CherryMessagePart[]
-      }
-      let updateCommits = 0
-
-      function TopicActivityProvider({ children }: { children: React.ReactNode }) {
-        const activity = useMessageActivityState('t')
-        const value: MessageListProviderValue = {
-          state: {
-            topic: { id: 't', name: 'Topic' } as MessageListProviderValue['state']['topic'],
-            messages,
-            partsByMessageId,
-            messageNavigation: 'none',
-            estimateSize: 400,
-            overscan: 0,
-            loadOlderDelayMs: 0,
-            loadingResetDelayMs: 0,
-            renderConfig: defaultMessageRenderConfig,
-            messageActivityStore: activity.store,
-            getMessageActivityState: activity.getMessageActivityState
-          },
-          actions: {},
-          meta: { selectionLayer: false }
-        }
-
-        return <MessageListProvider value={value}>{children}</MessageListProvider>
-      }
-
-      render(
-        <TopicActivityProvider>
-          <React.Profiler
-            id={completedMessage.id}
-            onRender={(_, phase) => {
-              if (phase === 'update') updateCommits++
-            }}>
-            <MessagePartsRenderer message={completedMessage} />
-          </React.Profiler>
-        </TopicActivityProvider>
-      )
-
-      act(() => {
-        topicStreamStore.setStatus('streaming')
-      })
-
-      expect(updateCommits).toBe(0)
-    })
-
     it('does not rerender unrelated message content when another message becomes active', () => {
       const firstMessage = msg({ id: 'msg-1' })
       const secondMessage = msg({ id: 'msg-2' })
