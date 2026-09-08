@@ -2,36 +2,21 @@ import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { bundleDtype, bundleForCapability } from '../../catalog/catalog'
 import { localModelStorageService } from '../../installation/LocalModelStorageService'
+import { type EmbeddingInferenceContract, embeddingInferenceProcess } from '../../runtime/inferenceProcess'
 import { InferenceServiceBase } from '../../runtime/InferenceServiceBase'
-import { onnxRuntimeWorkerSource } from '../../runtime/worker/onnxRuntime'
-import { EMBEDDING_RESULT_KEYS, type EmbeddingRequestPayloads, type EmbeddingResultPayloads } from './protocol'
-import { embeddingWorkerSource } from './worker'
 
-/** Local text-embedding inference (transformers.js / Qwen3-Embedding) in its own
- * worker; see {@link InferenceServiceBase} for the shared worker lifecycle. */
+/** Local text-embedding inference (transformers.js / Qwen3-Embedding) in its own utility process. */
 @Injectable('EmbeddingInferenceService')
 @ServicePhase(Phase.WhenReady)
-export class EmbeddingInferenceService extends InferenceServiceBase<
-  'embedding',
-  EmbeddingRequestPayloads,
-  EmbeddingResultPayloads
-> {
+export class EmbeddingInferenceService extends InferenceServiceBase<EmbeddingInferenceContract> {
   constructor() {
-    const bundle = bundleForCapability('embedding')
-    super({
-      capability: 'embedding',
-      sharedArtifacts: bundle.requires,
-      runtimeModuleSource: onnxRuntimeWorkerSource,
-      workerModuleSource: embeddingWorkerSource,
-      resultKeys: EMBEDDING_RESULT_KEYS
-    })
+    super(embeddingInferenceProcess, 'embedding')
   }
 
   /** Embed texts off the main thread, loading the installed model when it is not cached in memory. */
   async embed(texts: string[], signal?: AbortSignal): Promise<number[][]> {
     const { modelDir, dtype } = this.resolveModel()
-    const { embeddings } = await this.send('embed', { modelDir, dtype, texts }, { signal })
-    return embeddings
+    return this.run('embed', { modelDir, dtype, texts }, { signal })
   }
 
   /** Count tokens via the pipeline's own tokenizer, off the main thread — the main
@@ -39,8 +24,7 @@ export class EmbeddingInferenceService extends InferenceServiceBase<
    * localEmbeddingTokenLimit.ts, which transitively requires onnxruntime-node). */
   async countTokens(texts: string[], signal?: AbortSignal): Promise<number[]> {
     const { modelDir, dtype } = this.resolveModel()
-    const { tokenCounts } = await this.send('countTokens', { modelDir, dtype, texts }, { signal })
-    return tokenCounts
+    return this.run('countTokens', { modelDir, dtype, texts }, { signal })
   }
 
   private resolveModel(): { modelDir: string; dtype: string } {
