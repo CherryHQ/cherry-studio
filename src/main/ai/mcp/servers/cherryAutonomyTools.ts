@@ -18,6 +18,7 @@ import { agentTaskService as taskService } from '@data/services/AgentTaskService
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import { conversationEvidence } from '@main/ai/messages/conversationEvidence'
 import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
@@ -320,7 +321,7 @@ const SESSION_SEARCH_TOOL: Tool = {
 const SESSION_READ_TOOL: Tool = {
   name: SESSION_READ_TOOL_NAME,
   description:
-    'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result.',
+    'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result. Attachments are descriptive only: their addresses and contents are omitted.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -657,7 +658,7 @@ export class CherryAutonomyTools {
       includeSiblings: parsed.data.include_siblings,
       messageId: parsed.data.message_id
     }
-    const conversation = readConversation(readInput)
+    const conversation = conversationEvidence(readConversation(readInput))
     if (parsed.data.tool_call_id && parsed.data.message_id) {
       const topicId = conversation.source === 'agent' ? buildAgentSessionTopicId(sessionId) : sessionId
       const toolResult = await findPersistedToolOutput(topicId, parsed.data.message_id, parsed.data.tool_call_id)

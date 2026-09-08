@@ -301,6 +301,94 @@ describe('CherryAutonomyTools', () => {
       })
     })
 
+    it.each(['topic', 'agent', 'temporary', 'exact-topic', 'exact-agent', 'tool-result'])(
+      'does not expose attachment locators or runtime metadata through %s reads',
+      async (mode) => {
+        const privatePath = '/private/handoff-unselected.pdf'
+        const message = {
+          id: 'message-1',
+          role: 'user',
+          metadata: { attachmentPath: privatePath },
+          data: {
+            metadata: { attachmentPath: privatePath },
+            parts: [
+              { type: 'text', text: 'Keep the factual evidence.', providerMetadata: { cherry: { path: privatePath } } },
+              {
+                type: 'file',
+                filename: privatePath,
+                mediaType: 'application/pdf',
+                url: `file://${privatePath}`,
+                providerMetadata: { cherry: { fileEntryId: 'private-entry' } }
+              },
+              {
+                type: 'file',
+                filename: 'remote.pdf',
+                mediaType: 'application/pdf',
+                url: 'https://private.example/signed-secret'
+              },
+              { type: 'data-video', data: { filePath: privatePath, url: `file://${privatePath}` } },
+              { type: 'data-agent-task-event', data: { outputFile: privatePath } },
+              { type: 'reasoning', text: 'private reasoning' },
+              { type: 'source-url', sourceId: 'citation-1', url: 'https://example.com/evidence', title: 'Evidence' },
+              {
+                type: 'tool-search',
+                toolCallId: 'call-1',
+                state: 'output-available',
+                input: { query: 'failure' },
+                output: 'Found the cause.',
+                callProviderMetadata: { path: privatePath }
+              }
+            ]
+          }
+        }
+        const before = structuredClone(message)
+        const exact = mode.startsWith('exact-') || mode === 'tool-result'
+        const source = mode === 'tool-result' ? 'agent' : mode.replace('exact-', '')
+        mockReadConversation.mockReturnValue({
+          source,
+          sessionId: 'source-1',
+          ...(exact
+            ? { message }
+            : {
+                messages: source === 'topic' ? [{ message, siblingsGroup: [message] }] : [message],
+                nextCursor: 'next-page'
+              })
+        })
+        mockFindPersistedToolOutput.mockResolvedValue({ found: true, output: 'Complete tool evidence.' })
+        const result = await callTool(
+          createServer(),
+          {
+            session_id: 'source-1',
+            ...(exact ? { message_id: 'message-1' } : {}),
+            ...(mode === 'tool-result' ? { tool_call_id: 'call-1' } : {})
+          },
+          'session_read'
+        )
+        expect(result.isError).not.toBe(true)
+        const serialized = result.content[0].text
+        for (const secret of [
+          privatePath,
+          'file://',
+          'private-entry',
+          'signed-secret',
+          'private reasoning',
+          'ProviderMetadata'
+        ]) {
+          expect(serialized).not.toContain(secret)
+        }
+        expect(serialized).toContain('Keep the factual evidence.')
+        expect(serialized).toContain('handoff-unselected.pdf')
+        expect(serialized).toContain('https://example.com/evidence')
+        expect(serialized).toContain('Found the cause.')
+        expect(serialized).toContain('call-1')
+        const evidence = JSON.parse(serialized)
+        if (!exact) expect(evidence.nextCursor).toBe('next-page')
+        if (mode === 'tool-result')
+          expect(evidence.toolResult).toEqual({ found: true, output: 'Complete tool evidence.' })
+        expect(message).toEqual(before)
+      }
+    )
+
     it('adds a persisted tool result to an exact session_read', async () => {
       mockReadConversation.mockReturnValue({
         source: 'agent',

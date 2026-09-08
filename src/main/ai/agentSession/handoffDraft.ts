@@ -2,7 +2,6 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
@@ -12,6 +11,7 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { type FileUIPart, isToolUIPart } from 'ai'
 
 import { resolveOutputReservation } from '../contextBuild/resolveOutputReservation'
+import { conversationPartEvidence } from '../messages/conversationEvidence'
 import { ConversationReadError, readAllConversationMessages } from '../messages/readConversation'
 import type { StreamListener } from '../streamManager'
 
@@ -22,28 +22,6 @@ export class HandoffDraftError extends Error {
   ) {
     super(message)
     this.name = 'HandoffDraftError'
-  }
-}
-
-function materializePart(part: CherryMessagePart): Record<string, unknown> | null {
-  if (part.type === 'reasoning') return { type: 'reasoning', omitted: true }
-  if (part.type === 'file') {
-    return { type: 'file', filename: part.filename, mediaType: part.mediaType, reference: part.url }
-  }
-  // Only conversation evidence belongs in the prompt; runtime data parts stay local.
-  if (isToolUIPart(part)) return { ...part }
-  switch (part.type) {
-    case 'text':
-    case 'source-url':
-    case 'source-document':
-    case 'data-code':
-    case 'data-compact':
-    case 'data-error':
-    case 'data-translation':
-    case 'data-video':
-      return { ...part }
-    default:
-      return null
   }
 }
 
@@ -98,7 +76,7 @@ export function openHandoffDraft(input: HandoffDraftOpen, listener: StreamListen
       const handle = readCherryMeta(part)?.fileEntryId ?? part.url
       if (!attachments.has(handle)) attachments.set(handle, structuredClone(part))
     }
-    return `<source-message id="${message.id}" role="${message.role}" model="${message.modelId ?? ''}">\n${JSON.stringify(parts.map(materializePart).filter((part) => part !== null))}\n</source-message>`
+    return `<source-message id="${message.id}" role="${message.role}" model="${message.modelId ?? ''}">\n${JSON.stringify(parts.map(conversationPartEvidence).filter((part) => part !== null))}\n</source-message>`
   })
   const coverage = {
     source: source.source,

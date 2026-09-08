@@ -265,5 +265,9 @@ describe('openHandoffDraft', () => {
       listener
     )
     expect(metadata.attachments).toEqual([attachment])
+    const prompt = stream.start.mock.calls[0][0].prompt
+    expect(prompt).toContain('source.txt')
+    expect(prompt).not.toContain('file:///tmp/source.txt')
+    expect(prompt).not.toContain('entry-1')
   })
 })
