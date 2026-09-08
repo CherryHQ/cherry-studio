@@ -150,6 +150,6 @@ async function main() {
   console.log(published.join(' '))
 }
 
-if (require.main === module) main()
+if (require.main === module) void main()
 
 exports.publishRegistryCatalog = publishRegistryCatalog

@@ -91,6 +91,14 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "min_app_version=$MIN_APP_VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Provide the frozen baselines' runtime dependency
+        run: |
+          # v2's baseline was generated before the bundler inlined every dependency,
+          # and a published baseline is immutable — so supply `semver` here instead.
+          npm install --no-save --prefix "$RUNNER_TEMP/baseline-deps" semver@^7.7.1
+          mkdir -p main/node_modules
+          cp -R "$RUNNER_TEMP/baseline-deps/node_modules/semver" main/node_modules/
+
       - name: Validate catalog against frozen schema
         run: |
           node "main/packages/provider-registry/compat/v${{ steps.ver.outputs.version }}-validator.mjs" \
