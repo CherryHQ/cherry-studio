@@ -28,3 +28,13 @@ WHERE `capabilities` IS NOT NULL
       'video-generation'
     )
   );
+--> statement-breakpoint
+-- The old add-model form stored `[]` for "no input modality chosen". Under the delta contract
+-- `[]` means "explicitly cleared", so those rows move to NULL (inherit) — every later `[]` was
+-- written with the provenance bit set and keeps its meaning. Then the bit itself goes.
+UPDATE `user_model`
+SET `input_modalities` = NULL
+WHERE `input_modalities` = '[]'
+  AND `input_modalities_explicit` = 0;
+--> statement-breakpoint
+ALTER TABLE `user_model` DROP COLUMN `input_modalities_explicit`;

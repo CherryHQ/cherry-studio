@@ -151,22 +151,8 @@
     {
       "idx": 21,
       "version": "6",
-      "when": 1788264134005,
-      "tag": "0021_broken_doorman",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "6",
-      "when": 1788860180008,
-      "tag": "0022_normalize_legacy_input_modalities",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "6",
-      "when": 1788863987324,
-      "tag": "0023_drop_input_modalities_explicit",
+      "when": 1788865520535,
+      "tag": "0021_model_endpoint_preference",
       "breakpoints": true
     }
   ],

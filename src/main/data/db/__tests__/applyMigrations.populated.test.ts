@@ -107,7 +107,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('backfills text generation only when a persisted capability list has no operation', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_broken_doorman'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_model_endpoint_preference'))
     const now = Date.now()
     sqlite
       .prepare(
@@ -208,7 +208,7 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('turns a legacy implicit empty input-modality list back into an unset column', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0022_normalize_legacy_input_modalities'))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_model_endpoint_preference'))
     const now = Date.now()
     sqlite
       .prepare(
