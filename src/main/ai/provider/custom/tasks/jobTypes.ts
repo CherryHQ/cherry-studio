@@ -4,7 +4,7 @@ import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { ImageSizeToken } from '../../../utils/aiSdkNativeBindings'
-import type { ImageTransportDescriptor } from '../imageGenerationModel'
+import type { NativeImageTarget } from '../imageTransportRegistry'
 
 /**
  * Payload for the image-generation job. Carries only what the handler needs to
@@ -37,7 +37,7 @@ export interface ImageGenerationJobPayload {
   /** Per-model transport routing, derived in main from the registry — persisted
    *  here so the handler reaches the right endpoint / response family without
    *  re-resolving the registry. */
-  modelDescriptor?: ImageTransportDescriptor
+  target: NativeImageTarget
   /** Non-secret request source captured when the job is enqueued. */
   source?: SourceSnapshot
   providerParams: VendorBag

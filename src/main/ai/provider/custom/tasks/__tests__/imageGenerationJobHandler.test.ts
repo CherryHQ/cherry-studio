@@ -14,6 +14,7 @@
 import type { JobContext } from '@main/core/job/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ImageTransportRegistry from '../../imageTransportRegistry'
 import type { ImageGenerationJobPayload } from '../jobTypes'
 
 const {
@@ -49,9 +50,9 @@ const {
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('../../imageTransportRegistry', () => ({
-  isImageTransportConfig: () => true,
-  resolveImageTransport: resolveImageTransportMock
+vi.mock('../../imageTransportRegistry', async (importOriginal) => ({
+  ...(await importOriginal<typeof ImageTransportRegistry>()),
+  createNativeImageTransport: resolveImageTransportMock
 }))
 vi.mock('../../../config', () => ({ resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock }))
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -88,7 +89,10 @@ function createCtx(
       prompt: 'a cat',
       n: 1,
       size: '1024x1024',
-      modelDescriptor: { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false },
+      target: {
+        providerId: 'ppio',
+        modelDescriptor: { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false }
+      },
       providerParams: {},
       cleanupPolicy: 'delete_when_unreferenced'
     },
@@ -154,6 +158,7 @@ describe('imageGenerationJobHandler contract', () => {
     expect(imageGenerationJobHandler.recovery).toBe('abandon')
     expect(
       imageGenerationJobHandler.defaultQueue?.({
+        ...createCtx().input,
         uniqueModelId: 'ppio::qwen-image',
         n: 1,
         providerParams: {},
@@ -197,7 +202,7 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz' })
     expect(queryMock).toHaveBeenCalledWith(
       'task-xyz',
-      expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
+      expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.target.modelDescriptor })
     )
     expect(ctx.reportProgress).toHaveBeenCalledWith(50, { stage: 'polling' })
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
@@ -222,25 +227,20 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
-  it('passes modelDescriptor through as undefined when the payload carries none', async () => {
-    // `AiService` only sets the field when the registry resolved a vendorTransport
-    // endpoint, so an absent descriptor is a normal payload — the transport must
-    // receive `undefined` rather than the handler throwing on the way there.
-    submitMock.mockResolvedValue({ kind: 'completed', imageUrls: ['https://cdn.example.com/none.png'] })
-
+  it('rejects settings for a different protocol before submitting the saved target', async () => {
     const ctx = createCtx({
       input: {
+        ...createCtx().input,
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'a cat',
         n: 1,
         cleanupPolicy: 'delete_when_unreferenced',
-        providerParams: {}
+        providerParams: {},
+        target: { providerId: 'modelscope', modelDescriptor: undefined }
       }
     })
-    await imageGenerationJobHandler.execute(ctx)
-
-    const submitArg = submitMock.mock.calls[0][0]
-    expect(submitArg.modelDescriptor).toBeUndefined()
+    await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow("cannot use 'ppio' settings")
+    expect(submitMock).not.toHaveBeenCalled()
   })
 
   it('does not issue the first query until async task metadata is durably patched', async () => {
@@ -295,6 +295,7 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const ctx = createCtx({
       input: {
+        ...createCtx().input,
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'edit',
         n: 1,
@@ -318,6 +319,7 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const ctx = createCtx({
       input: {
+        ...createCtx().input,
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'x',
         n: 1,
@@ -413,10 +415,5 @@ describe('imageGenerationJobHandler.execute', () => {
       'task-mid',
       expect.objectContaining({ signal: undefined, modelDescriptor: expect.any(Object) })
     )
-  })
-
-  it('throws when transport resolution yields nothing', async () => {
-    resolveImageTransportMock.mockReturnValue(null)
-    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/no async transport/i)
   })
 })

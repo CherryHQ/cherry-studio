@@ -3,34 +3,102 @@ import type { VendorBag } from '../../utils/imageOptions'
 import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
 import type { ImageGenerationTransport, ImageTransportDescriptor } from './imageGenerationModel'
 
-const TRANSPORT_SUPPORT = {
-  ppio: { requiresDescriptor: true, supports: () => true },
-  dashscope: { requiresDescriptor: true, supports: () => true },
-  modelscope: { requiresDescriptor: false, supports: () => true },
-  dmxapi: { requiresDescriptor: false, supports: dmxapiUsesCustomTransport },
-  tokenhub: { requiresDescriptor: true, supports: () => true }
+export type NativeImageTarget =
+  | { providerId: 'ppio'; modelDescriptor: ImageTransportDescriptor }
+  | { providerId: 'dashscope'; modelDescriptor: ImageTransportDescriptor }
+  | { providerId: 'tokenhub'; modelDescriptor: ImageTransportDescriptor }
+  | { providerId: 'modelscope'; modelDescriptor: ImageTransportDescriptor | undefined }
+  | { providerId: 'dmxapi'; modelDescriptor: ImageTransportDescriptor | undefined }
+
+export type NativeImageTargetResolution =
+  | { kind: 'custom'; target: NativeImageTarget }
+  | { kind: 'unavailable'; message: string }
+  | { kind: 'adapter' }
+
+/** Native protocol requirements are independent of Job scheduling and credential selection. */
+export function resolveNativeImageTarget(
+  providerId: string,
+  modelId: string,
+  modelDescriptor: ImageTransportDescriptor | undefined
+): NativeImageTargetResolution {
+  switch (providerId) {
+    case 'ppio':
+    case 'dashscope':
+    case 'tokenhub':
+      if (!modelDescriptor) {
+        return { kind: 'unavailable', message: `No image protocol configured for '${providerId}/${modelId}'` }
+      }
+      return { kind: 'custom', target: { providerId, modelDescriptor } }
+    case 'modelscope':
+      return { kind: 'custom', target: { providerId, modelDescriptor } }
+    case 'dmxapi':
+      if (dmxapiUsesCustomTransport(modelId)) return { kind: 'custom', target: { providerId, modelDescriptor } }
+  }
+  return { kind: 'adapter' }
 }
 
-export type ImageTransportProviderId = keyof typeof TRANSPORT_SUPPORT
+export type BoundNativeImageTarget = {
+  [P in NativeImageTarget['providerId']]: Extract<NativeImageTarget, { providerId: P }> & {
+    settings: ProviderConfig<P>['providerSettings']
+  }
+}[NativeImageTarget['providerId']]
 
-const TRANSPORT_PROVIDER_IDS: ReadonlySet<string> = new Set(Object.keys(TRANSPORT_SUPPORT))
-
-function isImageTransportProviderId(providerId: string): providerId is ImageTransportProviderId {
-  return TRANSPORT_PROVIDER_IDS.has(providerId)
+export function bindNativeImageTarget(target: NativeImageTarget, config: ProviderConfig): BoundNativeImageTarget {
+  switch (target.providerId) {
+    case 'ppio':
+      if (config.providerId === 'ppio') return { ...target, settings: config.providerSettings }
+      break
+    case 'dashscope':
+      if (config.providerId === 'dashscope') return { ...target, settings: config.providerSettings }
+      break
+    case 'tokenhub':
+      if (config.providerId === 'tokenhub') return { ...target, settings: config.providerSettings }
+      break
+    case 'modelscope':
+      if (config.providerId === 'modelscope') return { ...target, settings: config.providerSettings }
+      break
+    case 'dmxapi':
+      if (config.providerId === 'dmxapi') return { ...target, settings: config.providerSettings }
+      break
+  }
+  throw new Error(`Image protocol '${target.providerId}' cannot use '${config.providerId}' settings`)
 }
 
-export function requiresImageTransportDescriptor(providerId: string): boolean {
-  return isImageTransportProviderId(providerId) && TRANSPORT_SUPPORT[providerId].requiresDescriptor
+export async function createNativeImageTransport(
+  target: BoundNativeImageTarget
+): Promise<ImageGenerationTransport<VendorBag>> {
+  switch (target.providerId) {
+    case 'ppio': {
+      const { buildPpioTransport } = await import('./ppio/ppioProvider')
+      return buildPpioTransport(target.settings)
+    }
+    case 'dashscope': {
+      const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
+      return buildDashScopeTransport(target.settings)
+    }
+    case 'modelscope': {
+      const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
+      return buildModelscopeTransport(target.settings)
+    }
+    case 'dmxapi': {
+      const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
+      return buildDmxapiTransport(target.settings)
+    }
+    case 'tokenhub': {
+      const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
+      return buildTokenhubTransport(target.settings)
+    }
+  }
 }
+
+export type ImageTransportProviderId = NativeImageTarget['providerId']
 
 export function hasImageTransport(
   providerId: string,
   modelId: string,
   modelDescriptor?: ImageTransportDescriptor
 ): providerId is ImageTransportProviderId {
-  if (!isImageTransportProviderId(providerId)) return false
-  const support = TRANSPORT_SUPPORT[providerId]
-  return support.supports(modelId) && (!support.requiresDescriptor || modelDescriptor !== undefined)
+  return resolveNativeImageTarget(providerId, modelId, modelDescriptor).kind === 'custom'
 }
 
 export function isImageTransportConfig(
@@ -46,28 +114,7 @@ export async function resolveImageTransport(
   modelId: string,
   modelDescriptor?: ImageTransportDescriptor
 ): Promise<ImageGenerationTransport<VendorBag> | null> {
-  if (!hasImageTransport(config.providerId, modelId, modelDescriptor)) return null
-
-  switch (config.providerId) {
-    case 'ppio': {
-      const { buildPpioTransport } = await import('./ppio/ppioProvider')
-      return buildPpioTransport(config.providerSettings)
-    }
-    case 'dashscope': {
-      const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
-      return buildDashScopeTransport(config.providerSettings)
-    }
-    case 'modelscope': {
-      const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
-      return buildModelscopeTransport(config.providerSettings)
-    }
-    case 'dmxapi': {
-      const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
-      return buildDmxapiTransport(config.providerSettings)
-    }
-    case 'tokenhub': {
-      const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
-      return buildTokenhubTransport(config.providerSettings)
-    }
-  }
+  const resolution = resolveNativeImageTarget(config.providerId, modelId, modelDescriptor)
+  if (resolution.kind !== 'custom') return null
+  return createNativeImageTransport(bindNativeImageTarget(resolution.target, config))
 }

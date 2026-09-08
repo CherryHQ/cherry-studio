@@ -52,17 +52,16 @@ import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { resolveProviderAiSdkConfig } from './provider/config'
-import { type ImageTransportDescriptor, imageTransportDescriptorFor } from './provider/custom/imageTransport'
 import {
-  hasImageTransport,
-  isImageTransportConfig,
-  resolveImageTransport
+  bindNativeImageTarget,
+  createNativeImageTransport,
+  type NativeImageTarget
 } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { resolveWireRegistration } from './provider/custom/wire/wireProfile'
-import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
+import { resolveImageExecutionTarget } from './provider/imageExecutionTarget'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
@@ -875,26 +874,24 @@ export class AiService extends BaseService {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const source = sourceSnapshotForAssistant(assistant)
 
-    const transportProviderId = provider.presetProviderId ?? provider.id
     const transportModelId = model.apiModelId ?? model.id
     const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, transportModelId)
     const preparedRequest = { ...request, ...prepareImageRequest(request, imageSupport ?? undefined) }
     const params = preparedRequest.paramValues
     const { structured, vendorBag } = splitParamValues(params)
 
-    // Custom-provider transports (ppio / dashscope / modelscope /
-    // dmxapi-bespoke / tokenhub) run through the job system. Decide this before
-    // `buildAgentParamsFor` selects a serving key:
-    // the job handler is the single selection owner for this path. A transport
-    // builds its own request envelope per model, so it receives the canonical
-    // camelCase `vendorBag` directly (native n/size/seed travel via the job
-    // payload → `input.*`). No wire-naming, no casing probes. Keyed by preset,
-    // not `provider.id`: a user-added instance carries a UUID id and would fall
-    // through to the direct image model, which never passes `modelDescriptor`.
-    const transportMode = request.mode ?? 'generate'
-    const modelDescriptor = imageTransportDescriptorFor(transportModelId, transportMode, imageSupport)
-    if (request.uniqueModelId && hasImageTransport(transportProviderId, transportModelId, modelDescriptor)) {
-      return await this.generateImageViaJob(preparedRequest, structured, vendorBag, signal, source, modelDescriptor)
+    const target = resolveImageExecutionTarget(provider, model, request.mode ?? 'generate', imageSupport)
+    if (target.kind === 'unavailable') throw new Error(target.message)
+    // Preserve the current Job scheduling policy; only its handler selects a serving key.
+    if (target.scheduling === 'job') {
+      return await this.generateImageViaJob(
+        { ...preparedRequest, uniqueModelId: model.id },
+        structured,
+        vendorBag,
+        signal,
+        source,
+        target.protocol
+      )
     }
 
     const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(preparedRequest, signal)
@@ -1020,7 +1017,7 @@ export class AiService extends BaseService {
     providerParams: SplitImageParams['vendorBag'],
     signal: AbortSignal | undefined,
     source: SourceSnapshot | undefined,
-    modelDescriptor: ImageTransportDescriptor | undefined
+    target: NativeImageTarget
   ): Promise<AiImageResult> {
     const uniqueModelId = request.uniqueModelId
     if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
@@ -1055,7 +1052,7 @@ export class AiService extends BaseService {
         seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
-        ...(modelDescriptor && { modelDescriptor }),
+        target,
         ...(source && { source }),
         providerParams,
         cleanupPolicy: request.cleanupPolicy
@@ -1309,10 +1306,10 @@ export class AiService extends BaseService {
           probeParams[key] = spec.default
         }
       }
-      const transportProviderId = provider.presetProviderId ?? provider.id
-      const transportModelId = model.apiModelId ?? model.id
-      const modelDescriptor = imageTransportDescriptorFor(transportModelId, probeMode, imageSupport)
-      if (request.uniqueModelId && hasImageTransport(transportProviderId, transportModelId, modelDescriptor)) {
+      const target = resolveImageExecutionTarget(provider, model, probeMode, imageSupport)
+      if (target.kind === 'unavailable') {
+        probe = Promise.reject(new Error(target.message))
+      } else if (target.kind === 'custom') {
         // Transport models run their submit/poll loop on the job system, whose
         // handler re-selects a serving key — dropping the health check's
         // `apiKeyOverride` and possibly probing a different rotated credential
@@ -1321,25 +1318,20 @@ export class AiService extends BaseService {
         // with the caller's key, no job row, no result download.
         probe = (async () => {
           const { config } = await resolveProviderAiSdkConfig(provider, model, {
-            apiKeyOverride: request.apiKeyOverride
+            apiKeyOverride: request.apiKeyOverride,
+            resolvedEndpoint: target.endpoint,
+            nativeImageTarget: target.protocol
           })
-          const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
-          if (!isImageTransportConfig(config, wireModelId, modelDescriptor)) {
-            throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
-          }
-          const transport = await resolveImageTransport(config, wireModelId, modelDescriptor)
-          if (!transport) {
-            throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
-          }
+          const transport = await createNativeImageTransport(bindNativeImageTarget(target.protocol, config))
           await transport.submit({
-            modelId: wireModelId,
+            modelId: target.modelId,
             prompt: 'a red circle',
             n: 1,
             size: undefined,
             seed: undefined,
             files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
             mask: undefined,
-            modelDescriptor,
+            modelDescriptor: target.protocol.modelDescriptor,
             providerParams: probeParams,
             signal: controller.signal
           })

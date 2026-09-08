@@ -49,7 +49,7 @@ import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { type ImageTransportDescriptor, imageTransportDescriptorFor } from './custom/imageTransport'
-import { requiresImageTransportDescriptor } from './custom/imageTransportRegistry'
+import { type NativeImageTarget, resolveNativeImageTarget } from './custom/imageTransportRegistry'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
@@ -80,6 +80,7 @@ interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
   sessionId?: string
+  nativeImageTarget?: NativeImageTarget
 }
 
 export interface ResolvedProviderAiSdkConfig {
@@ -202,6 +203,11 @@ export async function resolveProviderAiSdkConfig(
   const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
   const imageTransportDescriptors = buildImageTransportDescriptors(model)
   const hasDeclaredImageTransport = imageTransportDescriptors !== undefined
+  const nativeImageRoute = resolveNativeImageTarget(
+    provider.presetProviderId ?? provider.id,
+    model.apiModelId ?? model.id,
+    undefined
+  )
 
   const ctx: BuilderContext = {
     actualProvider: provider,
@@ -344,7 +350,7 @@ export async function resolveProviderAiSdkConfig(
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
         imageExtensionPreset !== undefined &&
-        (!requiresImageTransportDescriptor(imageExtensionPreset) || hasDeclaredImageTransport) &&
+        (hasDeclaredImageTransport || nativeImageRoute.kind !== 'unavailable') &&
         (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
       build: withSelectedApiKey((ctx) => ({
         // Non-null by the match above.
@@ -386,7 +392,21 @@ export async function resolveProviderAiSdkConfig(
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
   let resolved: ResolvedProviderConfigBuild
-  if (builder) {
+  if (options?.nativeImageTarget) {
+    const target = options.nativeImageTarget
+    resolved = await withSelectedApiKey((ctx) => {
+      if (target.providerId === 'dashscope') return buildDashScopeConfig(ctx)
+      if (target.providerId === 'dmxapi') return buildDmxapiConfig(ctx)
+      return {
+        providerId: target.providerId,
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        }
+      }
+    })(ctx)
+  } else if (builder) {
     resolved = await builder.build(ctx)
   } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     resolved = await withSelectedApiKey(buildGenericProviderConfig)(ctx)

@@ -1509,7 +1509,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     it.each(['ppio', 'dashscope', 'tokenhub'] as const)(
-      'keeps an unregistered %s image model on openai-compatible',
+      'keeps chat configuration usable when an unregistered %s model also advertises images',
       async (presetProviderId) => {
         const provider = makeProvider({
           id: `custom-${presetProviderId}`,

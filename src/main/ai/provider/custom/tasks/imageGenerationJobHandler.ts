@@ -16,7 +16,7 @@ import { resolveProviderAiSdkConfig } from '../../config'
 import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
 import { warnUnsupportedTransportInputs } from '../imageGenerationModel'
 import type { ImageGenerationSubmitInput } from '../imageTransport'
-import { isImageTransportConfig, resolveImageTransport } from '../imageTransportRegistry'
+import { bindNativeImageTarget, createNativeImageTransport } from '../imageTransportRegistry'
 import { executeImageTransport } from '../imageTransportRuntime'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
 
@@ -67,7 +67,9 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const model = modelService.getByKey(providerId, modelId)
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
-    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model)
+    const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
+      nativeImageTarget: input.target
+    })
     const sdkConfig = {
       ...config,
       modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
@@ -90,15 +92,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     })
     const usageStartedAt = Date.now()
 
-    if (!isImageTransportConfig(sdkConfig, sdkConfig.modelId, input.modelDescriptor)) {
-      throw new Error(`Image generation job: no transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`)
-    }
-    const transport = await resolveImageTransport(sdkConfig, sdkConfig.modelId, input.modelDescriptor)
-    if (!transport) {
-      throw new Error(
-        `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
-      )
-    }
+    const transport = await createNativeImageTransport(bindNativeImageTarget(input.target, config))
 
     const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
     warnUnsupportedTransportInputs(transport, submitInput, { jobId: ctx.jobId, uniqueModelId: input.uniqueModelId })
@@ -149,7 +143,7 @@ async function buildSubmitInput(
     seed: input.seed,
     files,
     mask,
-    modelDescriptor: input.modelDescriptor,
+    modelDescriptor: input.target.modelDescriptor,
     providerParams: input.providerParams,
     signal
   }

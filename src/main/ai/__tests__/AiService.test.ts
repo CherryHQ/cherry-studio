@@ -115,14 +115,12 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   }
 }))
 
-// Inline health-check probes resolve the transport through this module. Keep
-// `hasImageTransport` real (routing tests depend on the true registry) and stub
-// only the transport resolution so submit never reaches the network.
+// Exercise target resolution and settings binding; only replace network execution.
 vi.mock('../provider/custom/imageTransportRegistry', async (importOriginal) => {
   const actual = await importOriginal<typeof ImageTransportRegistryModule>()
   return {
     ...actual,
-    resolveImageTransport: (...args: unknown[]) => mockResolveImageTransport(...args)
+    createNativeImageTransport: (...args: unknown[]) => mockResolveImageTransport(...args)
   }
 })
 
@@ -1983,20 +1981,18 @@ describe('AiService tool approval', () => {
   // inline instead, resolving the config WITH the caller's key.
   it('probes transport image models inline with the caller API-key override', async () => {
     const service = createService()
-    const imageGeneration = {
-      modes: {
-        edit: {
-          supports: { sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' as const } },
-          vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
-        }
-      }
-    }
-    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
+    const row = providerModelCatalog.overrides.find(
+      (entry) => entry.providerId === 'dashscope' && entry.modelId === 'qwen-mt-image'
+    )
+    const imageGeneration = ImageGenerationSupportSchema.parse(row?.imageGeneration)
+    const protocol = imageGeneration.modes.edit?.vendorTransport
+    if (!protocol) throw new Error('Missing DashScope translation fixture')
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'dashscope', name: 'DashScope' }))
     mockModelGetByKey.mockReturnValue({
-      id: 'ppio::qwen-image-edit',
-      providerId: 'ppio',
-      apiModelId: 'qwen-image-edit',
-      name: 'Qwen Image Edit',
+      id: 'dashscope::qwen-mt-image',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-mt-image',
+      name: 'Qwen Image Translation',
       capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
       supportsStreaming: false,
       isEnabled: true,
@@ -2004,42 +2000,55 @@ describe('AiService tool approval', () => {
       imageGeneration
     })
     mockGetImageGenerationSupport.mockReturnValueOnce(imageGeneration)
-    const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/img.png'] })
+    const submit = vi.fn().mockResolvedValue({ kind: 'completed', imageUrls: ['https://example.test/img.png'] })
     mockResolveImageTransport.mockReturnValueOnce({ submit })
 
     await service.checkModel({
-      uniqueModelId: 'ppio::qwen-image-edit',
+      uniqueModelId: 'dashscope::qwen-mt-image',
       apiKeyOverride: 'sk-selected'
     })
 
-    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('dashscope', 'sk-selected')
     expect(mockResolveImageTransport).toHaveBeenCalledWith(
       expect.objectContaining({
-        providerId: 'ppio',
-        providerSettings: expect.objectContaining({ apiKey: 'sk-selected' })
-      }),
-      'qwen-image-edit',
-      {
-        id: 'qwen-image-edit',
-        endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
-        isSync: true,
-        mode: 'edit'
-      }
+        providerId: 'dashscope',
+        settings: expect.objectContaining({ apiKey: 'sk-selected' }),
+        modelDescriptor: { id: 'qwen-mt-image', ...protocol, mode: 'edit' }
+      })
     )
     expect(submit).toHaveBeenCalledTimes(1)
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({
-        modelId: 'qwen-image-edit',
-        modelDescriptor: {
-          id: 'qwen-image-edit',
-          endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
-          isSync: true,
-          mode: 'edit'
-        },
-        providerParams: { sourceLang: 'auto' },
+        modelId: 'qwen-mt-image',
+        modelDescriptor: { id: 'qwen-mt-image', ...protocol, mode: 'edit' },
+        providerParams: { sourceLang: 'auto', targetLang: 'en' },
         files: [{ type: 'file', mediaType: 'image/png', data: expect.any(String) }]
       })
     )
+  })
+
+  it('rejects a native image health check with no protocol and cleans up its timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const service = createService()
+      mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'tokenhub' }))
+      mockModelGetByKey.mockReturnValue({
+        id: 'tokenhub::unknown-image',
+        providerId: 'tokenhub',
+        apiModelId: 'unknown-image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+      mockGetImageGenerationSupport.mockReturnValueOnce(null)
+      const timers = vi.getTimerCount()
+      await expect(service.checkModel({ uniqueModelId: 'tokenhub::unknown-image' })).rejects.toThrow(
+        'No image protocol configured'
+      )
+      expect(vi.getTimerCount()).toBe(timers)
+      expect(mockProviderResolveApiKey).not.toHaveBeenCalled()
+      expect(mockGenerateImage).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps generate-capable image probes mode-less', async () => {
@@ -2261,8 +2270,9 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       .mockRejectedValue(new Error('job path must not select a serving key before execution'))
   }
 
-  it('keeps an unregistered ppio image model on the direct SDK path', async () => {
+  it('rejects an unregistered ppio image model before credentials, Job enqueue or SDK execution', async () => {
     const service = createService()
+    mockProviderResolveApiKey.mockClear()
     mockProviderGetByProviderId.mockReturnValue({ id: 'ppio' })
     mockModelGetByKey.mockReturnValue({ id: 'ppio::custom-image', providerId: 'ppio', apiModelId: 'custom-image' })
     mockGetImageGenerationSupport.mockReturnValueOnce(null)
@@ -2279,14 +2289,17 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
     )
 
-    await service.generateImage({
-      uniqueModelId: 'ppio::custom-image',
-      cleanupPolicy: 'delete_when_unreferenced',
-      prompt: 'a cat',
-      paramValues: {}
-    })
+    await expect(
+      service.generateImage({
+        uniqueModelId: 'ppio::custom-image',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: 'a cat',
+        paramValues: {}
+      })
+    ).rejects.toThrow('No image protocol configured')
 
-    expect(mockGenerateImage).toHaveBeenCalledOnce()
+    expect(mockGenerateImage).not.toHaveBeenCalled()
+    expect(mockProviderResolveApiKey).not.toHaveBeenCalled()
   })
 
   it('preserves the registered watermark switch as false through the canonical Job boundary', async () => {
@@ -2371,11 +2384,14 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     expect(enqueue).toHaveBeenCalledWith(
       'image-generation.generate',
       expect.objectContaining({
-        modelDescriptor: {
-          id: 'qwen-image-edit',
-          endpoint: transport.endpoint,
-          isSync: transport.isSync,
-          mode: 'edit'
+        target: {
+          providerId: 'ppio',
+          modelDescriptor: {
+            id: 'qwen-image-edit',
+            endpoint: transport.endpoint,
+            isSync: transport.isSync,
+            mode: 'edit'
+          }
         }
       })
     )
