@@ -18,6 +18,7 @@ import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { Citation } from '@renderer/types/message'
+import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
   isCitationSourcePart,
@@ -719,7 +720,14 @@ function renderPart(
     case 'data-handoff': {
       const handoffData = 'data' in part ? part.data : undefined
       if (!handoffData) return null
-      return <HandoffBlock key={partId} data={handoffData} context={options?.handoffContext} />
+      return (
+        <HandoffBlock
+          key={partId}
+          data={handoffData}
+          context={options?.handoffContext}
+          conversationId={extractAgentSessionIdFromTopicId(message.topicId)}
+        />
+      )
     }
 
     case 'data-video': {

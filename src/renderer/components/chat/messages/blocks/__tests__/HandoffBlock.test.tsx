@@ -31,7 +31,8 @@ it('keeps the task visible while hiding the full Agent context until requested',
     state: 'started'
   }
   const context = 'Task: Review the change\nBackground summary: Verify exact source first.\nOriginal session: topic-1'
-  render(<HandoffBlock data={data} context={context} />)
+  const view = render(<HandoffBlock data={data} context={context} conversationId="session-1" />)
+  expect(screen.queryByRole('button', { name: 'Open Agent' })).not.toBeInTheDocument()
   expect(screen.getByText('Review the change')).toBeVisible()
   expect(screen.queryByText(/Original session/)).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Handoff context' }))
@@ -40,4 +41,7 @@ it('keeps the task visible while hiding the full Agent context until requested',
   await user.click(screen.getByRole('button', { name: 'Handoff context' }))
   expect(screen.queryByText(/Original session/)).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Open source' })).toBeVisible()
+  view.rerender(<HandoffBlock data={data} conversationId="topic-1" />)
+  expect(screen.getByRole('button', { name: 'Open Agent' })).toBeVisible()
+  expect(screen.queryByRole('button', { name: 'Open source' })).not.toBeInTheDocument()
 })

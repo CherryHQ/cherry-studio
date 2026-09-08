@@ -4,7 +4,15 @@ import type { HandoffPartData } from '@shared/data/types/uiParts'
 import { ArrowRight, ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-export default function HandoffBlock({ data, context }: { data: HandoffPartData; context?: string }) {
+export default function HandoffBlock({
+  data,
+  context,
+  conversationId
+}: {
+  data: HandoffPartData
+  context?: string
+  conversationId: string
+}) {
   const { t } = useTranslation()
   const targetNavigation = useConversationNavigation('agents')
   const sourceNavigation = useConversationNavigation('assistants')
@@ -27,7 +35,7 @@ export default function HandoffBlock({ data, context }: { data: HandoffPartData;
         </Accordion>
       ) : null}
       <div className="mt-3 flex gap-2">
-        {data.targetSessionId ? (
+        {data.targetSessionId && data.targetSessionId !== conversationId ? (
           <Button
             size="sm"
             variant="secondary"
@@ -36,12 +44,14 @@ export default function HandoffBlock({ data, context }: { data: HandoffPartData;
             {t('agent.session.handoff.open_agent')}
           </Button>
         ) : null}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => sourceNavigation.openConversation(data.source.id, data.source.name)}>
-          {t('agent.session.handoff.open_source')}
-        </Button>
+        {data.source.id !== conversationId ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => sourceNavigation.openConversation(data.source.id, data.source.name)}>
+            {t('agent.session.handoff.open_source')}
+          </Button>
+        ) : null}
       </div>
     </div>
   )
