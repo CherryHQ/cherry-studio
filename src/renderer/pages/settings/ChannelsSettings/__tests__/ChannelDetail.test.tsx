@@ -81,7 +81,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async () => {
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void } | null>(null)
 
   const passthrough =
@@ -128,12 +128,7 @@ vi.mock('@cherrystudio/ui', () => {
     DialogTitle: passthrough('h2'),
     EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-    SecretInput: ({ hideLabel, inputClassName, showLabel, ...props }: any) => {
-      void hideLabel
-      void inputClassName
-      void showLabel
-      return <input type="password" {...props} />
-    },
+    SecretInput: (await import('@test-mocks/renderer/CherrystudioUI')).MockSecretInput,
     Label: passthrough('label'),
     NormalTooltip: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Select: ({ children, onValueChange }: { children?: React.ReactNode; onValueChange?: (value: string) => void }) => (
