@@ -19,6 +19,7 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -401,6 +402,88 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.name).toBe('Updated Name')
+  })
+
+  // Rows written before the operation contract can hold a full capability override with no
+  // operation at all. The contract is closed at read time against the registry baseline: the
+  // stored list keeps what it says and gains the operation its baseline declares.
+  it('gives a legacy full override on a chat preset its baseline operation at read time', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values({
+      ...modelRow('openai', 'gpt-4o', { presetModelId: 'gpt-4o' }),
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const model = modelService.getByKey('openai', 'gpt-4o')
+
+    // The user's override still wins for what it covers — reasoning stays off — but the model chats.
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.TEXT_GENERATION])
+    expect(isNonChatModel(model)).toBe(false)
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
+  })
+
+  it('does not turn a legacy override on an image preset into a chat model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('gemini', 'Gemini'))
+    await dbh.db.insert(userModelTable).values({
+      ...modelRow('gemini', 'imagen-4.0-generate-001', { presetModelId: 'imagen-4-0-generate-001' }),
+      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+    })
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'imagen-4-0-generate-001',
+        name: 'Imagen 4',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        outputModalities: ['image']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const model = modelService.getByKey('gemini', 'imagen-4.0-generate-001')
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.IMAGE_GENERATION])
+    expect(isNonChatModel(model)).toBe(true)
+  })
+
+  it('gives a custom row with an empty capability list the shared default operation', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('relay', 'Relay'))
+    await dbh.db.insert(userModelTable).values({ ...modelRow('relay', 'seeded'), capabilities: [] })
+
+    const model = modelService.getByKey('relay', 'seeded')
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
+    expect(isNonChatModel(model)).toBe(false)
+  })
+
+  it('treats a reordered copy of the baseline capability list as no override', async () => {
+    await seedExistingModel()
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.TEXT_GENERATION]
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    // The drawer rebuilds the list in its own order; the set is what the user sees and means.
+    modelService.update('openai', 'gpt-4o', {
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+    })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.capabilities).toBeNull()
   })
 
   it('removes an override when a PATCH echoes the current registry baseline', async () => {
@@ -1252,7 +1335,7 @@ describe('ModelService.list — registry enrichment', () => {
       presetModel: {
         id: 'gpt-4o',
         name: 'GPT-4o (registry)',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL],
         contextWindow: 128_000
       },
       registryOverride: null,
@@ -1263,7 +1346,7 @@ describe('ModelService.list — registry enrichment', () => {
 
     expect(model).toMatchObject({
       name: 'GPT-4o (registry)',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL],
       contextWindow: 128_000,
       supportsStreaming: true
     })
@@ -1557,7 +1640,11 @@ describe('ModelService.list — registry enrichment', () => {
         description: 'Current description',
         family: 'GPT-4o',
         ownedBy: 'openai',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        capabilities: [
+          MODEL_CAPABILITY.TEXT_GENERATION,
+          MODEL_CAPABILITY.FUNCTION_CALL,
+          MODEL_CAPABILITY.IMAGE_RECOGNITION
+        ],
         inputModalities: ['text', 'image'],
         outputModalities: ['text'],
         contextWindow: 128_000,
@@ -1597,7 +1684,11 @@ describe('ModelService.list — registry enrichment', () => {
       description: 'Current description',
       family: 'GPT-4o',
       ownedBy: 'openai',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+      capabilities: [
+        MODEL_CAPABILITY.TEXT_GENERATION,
+        MODEL_CAPABILITY.FUNCTION_CALL,
+        MODEL_CAPABILITY.IMAGE_RECOGNITION
+      ],
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
       endpointTypes: ['openai-responses'],

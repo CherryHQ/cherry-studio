@@ -9,7 +9,12 @@
 
 import { application } from '@application'
 import type { ModelEndpointContractInput, ModelLookupResult } from '@cherrystudio/provider-registry'
-import { getModelEndpointContractIssues, inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import {
+  defaultOperationCapability,
+  getModelEndpointContractIssues,
+  getModelOperationCapabilities,
+  inferReasoningOwnedBy
+} from '@cherrystudio/provider-registry'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -331,11 +336,43 @@ function getBaselineField(model: Model, field: PresetDeltaField): unknown {
   return model[field as keyof Model]
 }
 
+const SET_VALUED_DELTA_FIELDS: ReadonlySet<PresetDeltaField> = new Set([
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes'
+])
+
 function matchesBaseline(value: unknown, baseline: unknown, field: PresetDeltaField): boolean {
   if (field === 'pricing') {
     return matchesModelPricingBaseline(value, baseline)
   }
+  // These arrays are sets: the drawer rebuilds them in its own order, and storing a reordered copy
+  // of the baseline as a "delta" would freeze the model against every later registry update.
+  if (SET_VALUED_DELTA_FIELDS.has(field) && Array.isArray(value) && Array.isArray(baseline)) {
+    return (
+      value.length === baseline.length &&
+      new Set(value).size === value.length &&
+      value.every((v) => baseline.includes(v))
+    )
+  }
   return isEqual(value, baseline)
+}
+
+/**
+ * The operation contract holds over the effective model, so it is closed here — where the registry
+ * baseline is in hand — rather than guessed at write or migration time. A stored capability list
+ * from before the contract (a full override like `["function-call"]`, or a seeded `[]`) keeps what
+ * it says and gains the operation its baseline declares; an unmatched row gets the shared default.
+ */
+function ensureOperationCapability(model: Model, baseline: Model | null): Model {
+  if (getModelOperationCapabilities(model.capabilities).length > 0) return model
+  const baselineOperations = baseline ? getModelOperationCapabilities(baseline.capabilities) : []
+  const operations =
+    baselineOperations.length > 0
+      ? baselineOperations
+      : [defaultOperationCapability(model.inputModalities, model.outputModalities)]
+  return { ...model, capabilities: [...model.capabilities, ...operations] }
 }
 
 function collectPresetDeltaFields(dto: CreateModelDto | UpdateModelDto, baseline: Model | null): PresetDeltaField[] {
@@ -475,7 +512,7 @@ function createPresetFallback(
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
+  return applyStoredModelState(ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline), row)
 }
 
 /** Field → messages, so an update can reject only the violations it introduces. */
@@ -861,7 +898,7 @@ class ModelService {
             reasoningProfile.support,
             serviceTierControl
           )
-          const resolved = applyStoredPresetDeltas(baseline, row)
+          const resolved = ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
@@ -874,7 +911,7 @@ class ModelService {
         }
       }
 
-      const model = customRowToRuntimeModel(row)
+      const model = ensureOperationCapability(customRowToRuntimeModel(row), null)
       const modelId = model.apiModelId
       if (!modelId) return model
       try {

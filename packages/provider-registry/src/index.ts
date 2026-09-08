@@ -132,6 +132,7 @@ export type {
 export {
   applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
+  defaultOperationCapability,
   ENDPOINT_OPERATION_CONTRACT,
   endpointAllowedOperationCapabilities,
   endpointDefaultOperationCapability,

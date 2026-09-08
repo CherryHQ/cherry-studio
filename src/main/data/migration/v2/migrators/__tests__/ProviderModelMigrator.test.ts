@@ -882,7 +882,11 @@ describe('ProviderModelMigrator', () => {
       registryFixtures.models.set('known-model', {
         id: 'known-model',
         name: 'Registry Model',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        capabilities: [
+          MODEL_CAPABILITY.TEXT_GENERATION,
+          MODEL_CAPABILITY.FUNCTION_CALL,
+          MODEL_CAPABILITY.IMAGE_RECOGNITION
+        ],
         inputModalities: ['text', 'image'],
         outputModalities: ['text'],
         contextWindow: 128_000,
@@ -963,7 +967,11 @@ describe('ProviderModelMigrator', () => {
       const runtimeModel = modelService.getByKey(providerId, 'known-model')
       expect(runtimeModel).toMatchObject({
         name: 'My Known Model',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        capabilities: [
+          MODEL_CAPABILITY.TEXT_GENERATION,
+          MODEL_CAPABILITY.FUNCTION_CALL,
+          MODEL_CAPABILITY.IMAGE_RECOGNITION
+        ],
         inputModalities: ['text', 'image'],
         outputModalities: ['text'],
         contextWindow: 128_000,

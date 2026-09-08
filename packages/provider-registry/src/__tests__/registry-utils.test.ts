@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
+  defaultOperationCapability,
   ENDPOINT_OPERATION_CONTRACT,
   endpointAllowedOperationCapabilities,
   endpointDefaultOperationCapability,
@@ -357,5 +358,17 @@ describe('endpoint operation contract', () => {
       "Preferred endpoint 'openai-embeddings' must be declared by the model",
       "Preferred endpoint 'openai-embeddings' is incompatible with the model operation capabilities"
     ])
+  })
+})
+
+describe('defaultOperationCapability', () => {
+  it('names a dedicated transcriber by its audio-in, text-out, no-text-in shape', () => {
+    expect(defaultOperationCapability(['audio'], ['text'])).toBe('audio-transcript')
+  })
+
+  it('assumes chat for everything else, including a multimodal chat model and unknown modalities', () => {
+    expect(defaultOperationCapability(['text', 'audio'], ['text'])).toBe('text-generation')
+    expect(defaultOperationCapability(['audio'], ['text', 'audio'])).toBe('text-generation')
+    expect(defaultOperationCapability(undefined, undefined)).toBe('text-generation')
   })
 })

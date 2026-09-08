@@ -169,7 +169,8 @@ describe('applyMigrations over a populated database', () => {
       now
     )
     // A preset-backed row's capability list is a delta over the registry, which already states the
-    // model's operation — guessing text generation here turns an image model into a chat model.
+    // model's operation — guessing text generation here turns an image model into a chat model. The
+    // read path closes that gap with the baseline in hand (ModelService.ensureOperationCapability).
     insert.run(
       'operation-migration::preset-image',
       'preset-image',

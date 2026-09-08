@@ -3,7 +3,14 @@
  * Safe to import from browser/renderer contexts.
  */
 
-import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  MODALITY,
+  type Modality,
+  MODEL_CAPABILITY,
+  type ModelCapability
+} from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
 import type { EndpointDialect, ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
@@ -234,6 +241,23 @@ export interface ModelEndpointContractInput {
 
 export function isModelOperationCapability(capability: ModelCapability): capability is ModelOperationCapability {
   return (MODEL_OPERATION_CAPABILITIES as readonly ModelCapability[]).includes(capability)
+}
+
+/**
+ * The one operation a model gets when it declares none — a last-resort default, not a derivation.
+ * Audio in, text out, no text in is a dedicated transcriber; everything else is assumed to chat.
+ * Shared by catalog generation and the runtime read path so both fill the same gap the same way.
+ */
+export function defaultOperationCapability(
+  inputModalities: readonly Modality[] | undefined,
+  outputModalities: readonly Modality[] | undefined
+): ModelOperationCapability {
+  const isDedicatedAudioTranscript =
+    inputModalities?.includes(MODALITY.AUDIO) === true &&
+    !inputModalities.includes(MODALITY.TEXT) &&
+    outputModalities?.length === 1 &&
+    outputModalities.includes(MODALITY.TEXT)
+  return isDedicatedAudioTranscript ? MODEL_CAPABILITY.AUDIO_TRANSCRIPT : MODEL_CAPABILITY.TEXT_GENERATION
 }
 
 export function getModelOperationCapabilities(

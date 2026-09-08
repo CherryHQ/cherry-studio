@@ -29,10 +29,11 @@ import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
 import {
   applyModelCapabilityOverride,
+  defaultOperationCapability,
   getModelEndpointContractIssues,
   MODEL_OPERATION_CAPABILITIES
 } from '../src/registry-utils'
-import { MODALITY, MODEL_CAPABILITY, type ModelCapability, SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
+import { type ModelCapability, SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
@@ -485,22 +486,14 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
   // that already declares one keeps exactly what it declares, so a multi-operation model (an omni
   // SKU that both chats and speaks) has to say so at its source; upstream modality metadata is too
   // noisy to infer a second operation from (it would hand `text-generation` to rerankers and to
-  // image models whose vendor serves them off the images API). Dedicated audio-to-text is inferred
-  // before the generic text fallback so ASR rows cannot enter chat routes.
+  // image models whose vendor serves them off the images API). The runtime read path fills the same
+  // gap with the same rule for rows that reach it without one.
   const operationCapabilities = new Set<ModelCapability>(MODEL_OPERATION_CAPABILITIES)
   for (const m of models.values()) {
     const capabilities = (m.capabilities ?? []) as ModelCapability[]
     if (capabilities.some((capability) => operationCapabilities.has(capability))) continue
 
-    const isDedicatedAudioTranscript =
-      m.inputModalities?.includes(MODALITY.AUDIO) &&
-      !m.inputModalities.includes(MODALITY.TEXT) &&
-      m.outputModalities?.length === 1 &&
-      m.outputModalities?.includes(MODALITY.TEXT)
-    m.capabilities = [
-      ...capabilities,
-      isDedicatedAudioTranscript ? MODEL_CAPABILITY.AUDIO_TRANSCRIPT : MODEL_CAPABILITY.TEXT_GENERATION
-    ]
+    m.capabilities = [...capabilities, defaultOperationCapability(m.inputModalities, m.outputModalities)]
   }
   // Server-tool eligibility is compiled separately from provider declarations.
   // Remove any stale/upstream web-search capability so it cannot become a
