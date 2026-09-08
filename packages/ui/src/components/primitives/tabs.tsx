@@ -76,7 +76,7 @@ const tabsListVariants = cva('inline-flex items-center justify-center', {
     {
       variant: 'default',
       orientation: 'vertical',
-      class: 'h-fit w-fit flex-col'
+      class: 'h-fit w-fit flex-col p-[3px]'
     },
     {
       variant: 'line',

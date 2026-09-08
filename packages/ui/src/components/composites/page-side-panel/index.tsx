@@ -94,7 +94,7 @@ function PageSidePanel({
       if (event.key !== 'Tab' || !panelRef.current) return
 
       const focusableSelector =
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
+        'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), summary, textarea:not(:disabled), [contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
       const focusable = [panelRef.current, portalHostRef.current].flatMap((root) => {
         if (!root) return []
         return Array.from(root.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => {

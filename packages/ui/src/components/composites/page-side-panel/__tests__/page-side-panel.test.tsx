@@ -245,6 +245,25 @@ describe('PageSidePanel', () => {
       expect(first).toHaveFocus()
     })
 
+    it('ignores controls disabled by a fieldset when wrapping focus', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <button type="button">Last</button>
+          <fieldset disabled>
+            <button type="button">Disabled</button>
+          </fieldset>
+        </PageSidePanel>
+      )
+      const first = screen.getByRole('button', { name: 'First' })
+      const last = screen.getByRole('button', { name: 'Last' })
+
+      last.focus()
+      fireEvent.keyDown(last, { key: 'Tab' })
+
+      expect(first).toHaveFocus()
+    })
+
     it('keeps the modal focus scope local to a scoped portal', () => {
       const controls: { first: HTMLButtonElement | null; last: HTMLButtonElement | null } = {
         first: null,

@@ -26,6 +26,20 @@ describe('Tabs density', () => {
     expect(screen.getByRole('tablist')).toHaveAttribute('data-size', 'sm')
     expect(screen.getByRole('tab', { name: 'First' })).toHaveAttribute('data-size', 'sm')
   })
+
+  it('preserves the default density padding in vertical lists', () => {
+    render(
+      <Tabs defaultValue="first" orientation="vertical">
+        <TabsList>
+          <TabsTrigger value="first">First</TabsTrigger>
+          <TabsTrigger value="second">Second</TabsTrigger>
+        </TabsList>
+      </Tabs>
+    )
+
+    // The padding is the maintained default-density layout contract.
+    expect(screen.getByRole('tablist')).toHaveClass('p-[3px]')
+  })
 })
 
 describe('Tabs workflow variant', () => {
