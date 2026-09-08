@@ -13,16 +13,6 @@ import {
 } from './qwenFamily'
 import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
-import {
-  effortChatWire,
-  highMaxSupport,
-  kimiK3Support,
-  qwen38ChatWire,
-  qwen38PreviewChatWire,
-  qwen38PreviewSupport,
-  qwen38Support,
-  qwenChatWire
-} from './qwenFamily'
 
 const webSearchModelPrefixes = [
   'qwen3-8-flash',
