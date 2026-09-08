@@ -9,8 +9,9 @@ import { imageGenerationToFields } from '../form/imageGenerationToFields'
 const logger = loggerService.withContext('paintings/modelFieldReset')
 
 /**
- * Diff a painting's form-field state against the model it's about to use.
- * Returns a patch to merge into `painting.params` that:
+ * Load the model constraints, then return a synchronous reset function so the
+ * caller can compute and merge a patch against the latest params atomically.
+ * The patch:
  *   1. Nulls fields the old model wrote but the new model doesn't accept
  *      (otherwise stale `aspectRatio` / `styleType` / etc. would leak to the
  *      wire on a model that rejects them).
@@ -30,21 +31,20 @@ const logger = loggerService.withContext('paintings/modelFieldReset')
  * post-switch state contains exactly the fields the new model accepts AND
  * the visible defaults match what the wire will actually receive.
  *
- * Returns `{}` when the new model has no registry block (custom or
+ * Produces `{}` when the new model has no registry block (custom or
  * user-named models without an `imageGeneration` entry) — no info, no
- * patch. Cross-provider switches go through `createPaintingData`, which
+ * patch. Cross-provider switches go through `createDefaultPainting`, which
  * starts from a clean slate; this helper handles the same-provider case
  * (including the first model selection, where `oldModelId` is undefined).
  */
-export async function computeModelFieldReset(input: {
+export async function loadModelFieldReset(input: {
   providerId: string
   oldModelId: string | undefined
   newModelId: string
   mode: ImageGenerationMode | undefined
-  currentValues?: Record<string, unknown>
-}): Promise<Record<string, unknown>> {
-  const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
-  if (oldModelId && oldModelId === newModelId) return {}
+}): Promise<(currentValues: Record<string, unknown>) => Record<string, unknown>> {
+  const { providerId, oldModelId, newModelId, mode } = input
+  if (oldModelId && oldModelId === newModelId) return () => ({})
 
   const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
     try {
@@ -65,7 +65,7 @@ export async function computeModelFieldReset(input: {
 
   const oldItems = oldSupport ? imageGenerationToFields(oldSupport, { mode }) : []
   const newItems = newSupport ? imageGenerationToFields(newSupport, { mode }) : []
-  if (newItems.length === 0) return {}
+  if (newItems.length === 0) return () => ({})
 
   const collectKeys = (items: BaseConfigItem[]): Set<string> => {
     const keys = new Set<string>()
@@ -86,45 +86,47 @@ export async function computeModelFieldReset(input: {
   const oldKeys = collectKeys(oldItems)
   const newKeys = collectKeys(newItems)
 
-  const patch: Record<string, unknown> = {}
-  for (const key of oldKeys) {
-    if (!newKeys.has(key)) patch[key] = undefined
+  return (currentValues) => {
+    const patch: Record<string, unknown> = {}
+    for (const key of oldKeys) {
+      if (!newKeys.has(key)) patch[key] = undefined
+    }
+
+    for (const item of newItems) {
+      if (!item.key) continue
+      if (Object.prototype.hasOwnProperty.call(patch, item.key)) continue
+
+      const currentValue = currentValues[item.key]
+      const isMissing = currentValue === undefined || currentValue === null || currentValue === ''
+
+      // Field the user never set: seed the new model's registry default so the
+      // widget's visible default matches the wire. Default-less field stays unset.
+      if (isMissing) {
+        if (item.initialValue !== undefined) patch[item.key] = item.initialValue
+        continue
+      }
+
+      // Field carried a value over from the previous model. Validate it against
+      // the new model's constraints; reset to the new default (or `undefined`
+      // when there's none) whenever it no longer fits.
+      const options = isOptionsConfigItem(item)
+        ? typeof item.options === 'function'
+          ? item.options(item, currentValues)
+          : item.options
+        : []
+      if (options.length > 0) {
+        const allowedValues = new Set(options.map((option) => controlValue(option.value)))
+        if (!allowedValues.has(controlValue(currentValue))) patch[item.key] = item.initialValue
+        continue
+      }
+
+      if (item.type === 'slider') {
+        const numeric = optionalParamNumber(item.key, currentValue)
+        const outOfRange = numeric === null || numeric < item.min || numeric > item.max
+        if (outOfRange) patch[item.key] = item.initialValue
+      }
+    }
+
+    return patch
   }
-
-  for (const item of newItems) {
-    if (!item.key) continue
-    if (Object.prototype.hasOwnProperty.call(patch, item.key)) continue
-
-    const currentValue = currentValues[item.key]
-    const isMissing = currentValue === undefined || currentValue === null || currentValue === ''
-
-    // Field the user never set: seed the new model's registry default so the
-    // widget's visible default matches the wire. Default-less field stays unset.
-    if (isMissing) {
-      if (item.initialValue !== undefined) patch[item.key] = item.initialValue
-      continue
-    }
-
-    // Field carried a value over from the previous model. Validate it against
-    // the new model's constraints; reset to the new default (or `undefined`
-    // when there's none) whenever it no longer fits.
-    const options = isOptionsConfigItem(item)
-      ? typeof item.options === 'function'
-        ? item.options(item, currentValues)
-        : item.options
-      : []
-    if (options.length > 0) {
-      const allowedValues = new Set(options.map((option) => controlValue(option.value)))
-      if (!allowedValues.has(controlValue(currentValue))) patch[item.key] = item.initialValue
-      continue
-    }
-
-    if (item.type === 'slider') {
-      const numeric = optionalParamNumber(item.key, currentValue)
-      const outOfRange = numeric === null || numeric < item.min || numeric > item.max
-      if (outOfRange) patch[item.key] = item.initialValue
-    }
-  }
-
-  return patch
 }

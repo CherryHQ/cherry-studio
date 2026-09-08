@@ -38,7 +38,7 @@ describe('usePaintingComposerInputFiles', () => {
 
     renderHook(() =>
       usePaintingComposerInputFiles({
-        sessionId: 'p1',
+        sessionId: 0,
         inputFiles: [makeEntry('fe-1')],
         files: [],
         setFiles,
@@ -58,7 +58,7 @@ describe('usePaintingComposerInputFiles', () => {
     const { result } = renderHook(() => {
       const [files, setFiles] = useState<ComposerAttachment[]>([])
       const bridge = usePaintingComposerInputFiles({
-        sessionId: 'session',
+        sessionId: 0,
         inputFiles: [makeEntry('seed')],
         files,
         setFiles,
@@ -89,7 +89,7 @@ describe('usePaintingComposerInputFiles', () => {
 
     renderHook(() =>
       usePaintingComposerInputFiles({
-        sessionId: 'p2',
+        sessionId: 0,
         inputFiles: [],
         files: [],
         setFiles,
@@ -108,7 +108,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
       {
         initialProps: {
-          sessionId: 'p3',
+          sessionId: 0,
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
           setFiles,
@@ -119,7 +119,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     rerender({
-      sessionId: 'p3',
+      sessionId: 0,
       inputFiles: [],
       files: [makeAttachment('src-new', '/tmp/new.png')],
       setFiles,
@@ -145,7 +145,7 @@ describe('usePaintingComposerInputFiles', () => {
 
   // Stateful harness mirroring the provider: the SEED's `setFiles` re-renders with
   // the seeded attachments, so a cache-hit materialization reuses them.
-  const renderStatefulHarness = (sessionId: string, inputFiles: FileEntry[]) =>
+  const renderStatefulHarness = (sessionId: number, inputFiles: FileEntry[]) =>
     renderHook(() => {
       const [files, setFiles] = useState<ComposerAttachment[]>([])
       const { materializeInputs } = usePaintingComposerInputFiles({
@@ -165,7 +165,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     // fe-bad fails to seed (no chip) but survives; fe-ok seeds and materializes from cache.
-    const { result } = renderStatefulHarness('p-partial', [makeEntry('fe-bad'), makeEntry('fe-ok')])
+    const { result } = renderStatefulHarness(0, [makeEntry('fe-bad'), makeEntry('fe-ok')])
 
     await waitFor(() => expect(result.current.files).toHaveLength(1))
     let out = { entries: [] as FileEntry[], complete: false }
@@ -187,7 +187,7 @@ describe('usePaintingComposerInputFiles', () => {
     const seeded = makeEntry('fe-gone')
     ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockResolvedValue('/p/fe-gone.png')
 
-    const { result } = renderStatefulHarness('p-reclaimed', [seeded])
+    const { result } = renderStatefulHarness(0, [seeded])
     await waitFor(() => expect(result.current.files).toHaveLength(1))
 
     // The entry is reclaimed between seeding and the send: the probe now rejects.
@@ -208,7 +208,7 @@ describe('usePaintingComposerInputFiles', () => {
   it('carries every input through when all seeds fail to resolve their path', async () => {
     ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('blob missing'))
 
-    const { result } = renderStatefulHarness('p-fail', [makeEntry('fe-1'), makeEntry('fe-2')])
+    const { result } = renderStatefulHarness(0, [makeEntry('fe-1'), makeEntry('fe-2')])
 
     // Both fail to seed → no chips, but both are preserved.
     await waitFor(() => expect(window.api.file.getPhysicalPath).toHaveBeenCalledTimes(2))
@@ -237,7 +237,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: Parameters<typeof usePaintingComposerInputFiles>[0]) => usePaintingComposerInputFiles(props),
       {
         initialProps: {
-          sessionId: 'p-wb-fail',
+          sessionId: 0,
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
           setFiles,
@@ -248,7 +248,7 @@ describe('usePaintingComposerInputFiles', () => {
     )
 
     rerender({
-      sessionId: 'p-wb-fail',
+      sessionId: 0,
       inputFiles: [],
       files: [makeAttachment('src-ok', '/tmp/ok.png'), makeAttachment('src-bad', '/tmp/bad.png')],
       setFiles,
@@ -288,7 +288,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: SwitchProps) => {
         const [files, setFiles] = useState<ComposerAttachment[]>([])
         const { materializeInputs } = usePaintingComposerInputFiles({
-          sessionId: 'p-switch',
+          sessionId: 0,
           inputFiles: [],
           files,
           setFiles,
@@ -368,7 +368,7 @@ describe('usePaintingComposerInputFiles', () => {
       (props: SwitchProps) => {
         const [files, setFiles] = useState<ComposerAttachment[]>([])
         const { materializeInputs } = usePaintingComposerInputFiles({
-          sessionId: 'p-race',
+          sessionId: 0,
           inputFiles: [makeEntry('fe-race')],
           files,
           setFiles,

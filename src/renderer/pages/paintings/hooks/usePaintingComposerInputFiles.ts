@@ -18,7 +18,7 @@ const logger = loggerService.withContext('usePaintingComposerInputFiles')
 export type InputCapability = 'unknown' | 'accept' | 'reject'
 
 interface Params {
-  sessionId: string
+  sessionId: number
   inputFiles: FileEntry[]
   files: ComposerAttachment[]
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
@@ -96,7 +96,7 @@ export function usePaintingComposerInputFiles({
   // composer chip, but must survive materialization so a transient read error never
   // shrinks the input list handed to generation (see materializeInputs).
   const unseededEntriesRef = useRef<FileEntry[]>([])
-  const seededSessionIdRef = useRef<string | null>(null)
+  const seededSessionIdRef = useRef<number | null>(null)
   // Draft generation counter. Every event that discards the current draft bumps it,
   // so an in-flight SEED can tell its results are stale before writing them back.
   // An effect-local `cancelled` flag is not enough: it is only flipped by SEED's own

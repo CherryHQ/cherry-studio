@@ -9,6 +9,7 @@ export function usePaintingSession(initialPainting: () => PaintingData) {
   const current = useRef(painting)
   const identity = useRef({})
   const revision = useRef(0)
+  const action = useRef(0)
 
   const update = useCallback((next: SetStateAction<PaintingData>) => {
     current.current = typeof next === 'function' ? next(current.current) : next
@@ -18,9 +19,9 @@ export function usePaintingSession(initialPainting: () => PaintingData) {
     revision.current++
   }, [])
   const edit = useCallback(
-    (patch: Partial<PaintingData>) => {
+    (patch: Partial<PaintingData> | ((painting: PaintingData) => Partial<PaintingData>)) => {
       touch()
-      update((prev) => ({ ...prev, ...patch }))
+      update((prev) => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }))
     },
     [touch, update]
   )
@@ -35,17 +36,20 @@ export function usePaintingSession(initialPainting: () => PaintingData) {
   )
   const beginTransition = useCallback(() => {
     revision.current++
+    const request = ++action.current
     const owner = identity.current
     const version = revision.current
     return {
       getPainting: () => current.current,
-      isCurrent: () => identity.current === owner && revision.current === version
+      isCurrent: () => identity.current === owner && revision.current === version,
+      // Typing does not supersede a model request; another request or navigation does.
+      isLatestAction: () => identity.current === owner && action.current === request
     }
   }, [])
   const bindEdit = useCallback(() => {
     const intent = beginTransition()
-    return (patch: Partial<PaintingData>) => {
-      if (intent.isCurrent()) edit(patch)
+    return (patch: Parameters<typeof edit>[0]) => {
+      if (intent.isLatestAction()) edit(patch)
     }
   }, [beginTransition, edit])
   const bindGeneration = useCallback(() => {

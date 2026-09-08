@@ -1,7 +1,13 @@
 import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { computeModelFieldReset } from '../computeModelFieldReset'
+import { loadModelFieldReset } from '../loadModelFieldReset'
+
+async function computeModelFieldReset(
+  input: Parameters<typeof loadModelFieldReset>[0] & { currentValues?: Record<string, unknown> }
+) {
+  return (await loadModelFieldReset(input))(input.currentValues ?? {})
+}
 
 const prefetchMock = vi.fn<(path: string, options?: unknown) => Promise<ImageGenerationSupport | null>>()
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -26,6 +32,21 @@ const generateSupport = (supports: ImageModeDef['supports']): ImageGenerationSup
 describe('computeModelFieldReset', () => {
   beforeEach(() => {
     prefetchMock.mockReset()
+  })
+
+  it('applies loaded constraints to the values supplied at commit time', async () => {
+    mockSupportPerModel({
+      next: generateSupport({ quality: { type: 'enum', options: ['auto', 'high'], default: 'auto' } })
+    })
+    const reset = await loadModelFieldReset({
+      providerId: 'openai',
+      oldModelId: 'old',
+      newModelId: 'next',
+      mode: 'generate'
+    })
+    expect(reset({})).toEqual({ quality: 'auto' })
+    expect(reset({ quality: 'high' })).toEqual({})
+    expect(reset({ quality: 'unsupported' })).toEqual({ quality: 'auto' })
   })
 
   it('populates the new model defaults on first model selection (oldModelId undefined)', async () => {

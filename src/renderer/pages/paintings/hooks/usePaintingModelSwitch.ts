@@ -7,14 +7,15 @@ import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { createDefaultPainting } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import { computeModelFieldReset } from '../utils/computeModelFieldReset'
+import { loadModelFieldReset } from '../utils/loadModelFieldReset'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import type { usePaintingSession } from './usePaintingSession'
 
 const logger = loggerService.withContext('paintings/usePaintingModelSwitch')
 
 interface UsePaintingModelSwitchInput {
   painting: PaintingData
-  bindPaintingChange: () => (updates: Partial<PaintingData>) => void
+  bindPaintingChange: ReturnType<typeof usePaintingSession>['bindEdit']
   ensureProviderCatalog: (providerId: string) => Promise<ModelOption[]>
 }
 
@@ -38,12 +39,11 @@ export function usePaintingModelSwitch({
         // registry block; this brings the underlying values in sync.
         // Returns `{}` when either model is unknown to the registry, so
         // custom-id paintings stay untouched.
-        const resetPatch = await computeModelFieldReset({
+        const resetFields = await loadModelFieldReset({
           providerId: currentProviderId,
           oldModelId: painting.model,
           newModelId: modelId,
-          mode: tabToImageGenerationMode(painting.mode),
-          currentValues: painting.params ?? {}
+          mode: tabToImageGenerationMode(painting.mode)
         })
         // Drop attached input images when the target model can't accept them:
         // the prompt-bar upload UI is gated on `isEditImageModel`, so a hidden
@@ -52,11 +52,11 @@ export function usePaintingModelSwitch({
         // clear must be explicit.
         const nextModel = models.find((model) => model.apiModelId === modelId)
         const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
-        onPaintingChange({
-          params: { ...painting.params, ...resetPatch },
+        onPaintingChange((current) => ({
+          params: { ...current.params, ...resetFields(current.params ?? {}) },
           model: modelId,
           ...(keepInputFiles ? {} : { inputFiles: [] })
-        } as Partial<PaintingData>)
+        }))
         return
       }
 

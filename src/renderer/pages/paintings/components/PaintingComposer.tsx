@@ -251,7 +251,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const inputCapability: InputCapability = !model ? 'unknown' : couldAddImageFile ? 'accept' : 'reject'
 
   const { materializeInputs } = usePaintingComposerInputFiles({
-    sessionId: String(sessionId),
+    sessionId,
     inputFiles: painting.inputFiles ?? [],
     files,
     setFiles,
