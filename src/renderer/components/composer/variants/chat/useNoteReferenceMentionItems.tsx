@@ -1,10 +1,11 @@
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { ipcApi } from '@renderer/ipc'
-import { projectNotesTree } from '@renderer/services/NotesService'
+import { projectNotesTree, resolveNotesPath } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
+import type { NotesTreeNode } from '@renderer/types/note'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { Editor } from '@tiptap/core'
+import type { TFunction } from 'i18next'
 import { NotebookPen } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +25,52 @@ interface NoteReferenceMentionItems {
   getItems: (options: { query: string; editor: Editor }) => Promise<ComposerSuggestionItem[]>
 }
 
+interface NotesPathResolution {
+  requestPath: string
+  path?: string
+  error?: Error
+}
+
+interface PendingNotesLoad {
+  requestPath: string
+  promise: Promise<void>
+  resolve: () => void
+}
+
+interface LatestMentionState {
+  files: ComposerAttachment[]
+  isLoadTerminal: boolean
+  noteFiles: NotesTreeNode[]
+  notesPath: string
+  pathError: Error | null
+  requestedNotesPath: string | null
+  setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
+  t: TFunction
+  treeError: Error | null
+}
+
 const normalizePath = (value: string) => value.replace(/\\/g, '/')
+
+function createPendingNotesLoad(requestPath: string): PendingNotesLoad {
+  let resolve!: () => void
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+
+  return { requestPath, promise, resolve }
+}
+
+function loadFailedItem(t: TFunction): ComposerSuggestionItem[] {
+  return [
+    {
+      id: 'note-reference:mention-error',
+      label: t('chat.input.note_reference.load_failed'),
+      icon: <NotebookPen size={16} />,
+      disabled: true,
+      command: () => undefined
+    }
+  ]
+}
 
 export function useNoteReferenceMentionItems({
   files,
@@ -32,84 +78,119 @@ export function useNoteReferenceMentionItems({
 }: NoteReferenceMentionOptions): NoteReferenceMentionItems {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
-  const [dataRequested, setDataRequested] = useState(false)
-  const [defaultNotesPath, setDefaultNotesPath] = useState<string>()
-  const [pathError, setPathError] = useState<Error | null>(null)
-  const stateRef = useRef({ files, notesPath, setFiles, t })
-  stateRef.current = { files, notesPath, setFiles, t }
+  const configuredNotesPath = notesPath || ''
+  const [requestedNotesPath, setRequestedNotesPath] = useState<string | null>(null)
+  const [resolution, setResolution] = useState<NotesPathResolution | null>(null)
+  const pendingLoadRef = useRef<PendingNotesLoad | null>(null)
+  const mountedRef = useRef(true)
+  const stateRef = useRef<LatestMentionState | null>(null)
 
   useEffect(() => {
-    if (!dataRequested) return
+    mountedRef.current = true
 
-    setPathError(null)
-    if (notesPath) return
+    return () => {
+      mountedRef.current = false
+      pendingLoadRef.current?.resolve()
+      pendingLoadRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (requestedNotesPath === null) return
 
     let cancelled = false
+    setResolution(null)
 
-    void ipcApi
-      .request('app.get_info')
-      .then((appInfo) => {
-        if (!cancelled) setDefaultNotesPath(appInfo.notesPath)
+    void resolveNotesPath(requestedNotesPath)
+      .then((resolved) => {
+        if (!cancelled) setResolution({ requestPath: requestedNotesPath, path: resolved.path })
       })
       .catch((error) => {
-        if (!cancelled) setPathError(error instanceof Error ? error : new Error(String(error)))
+        if (!cancelled) {
+          setResolution({
+            requestPath: requestedNotesPath,
+            error: error instanceof Error ? error : new Error(String(error))
+          })
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [dataRequested, notesPath])
+  }, [requestedNotesPath])
 
-  const activeNotesPath = notesPath || defaultNotesPath
-  const { root, isLoading, error, version } = useDirectoryTree(
-    dataRequested ? activeNotesPath : undefined,
-    NOTES_TREE_OPTIONS
+  const resolvedNotesPath =
+    resolution?.requestPath === requestedNotesPath && !resolution.error ? resolution.path : undefined
+  const pathError = resolution?.requestPath === requestedNotesPath ? (resolution.error ?? null) : null
+  const { root, isLoading, error, version } = useDirectoryTree(resolvedNotesPath, NOTES_TREE_OPTIONS)
+  const treeMatchesResolvedPath = Boolean(
+    root && resolvedNotesPath && normalizePath(root.path) === normalizePath(resolvedNotesPath)
   )
+  const treeError = resolvedNotesPath ? error : null
+  const isLoadTerminal = Boolean(pathError || treeError || (resolvedNotesPath && treeMatchesResolvedPath && !isLoading))
   const noteFiles = useMemo(() => {
     void version
-    if (!root || !activeNotesPath) return []
-    return flattenTreeToFiles(projectNotesTree(root, activeNotesPath))
-  }, [activeNotesPath, root, version])
+    if (!root || !resolvedNotesPath || !treeMatchesResolvedPath) return []
+    return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
+  }, [resolvedNotesPath, root, treeMatchesResolvedPath, version])
+
+  stateRef.current = {
+    files,
+    isLoadTerminal,
+    noteFiles,
+    notesPath: configuredNotesPath,
+    pathError,
+    requestedNotesPath,
+    setFiles,
+    t,
+    treeError
+  }
+
+  useEffect(() => {
+    const pending = pendingLoadRef.current
+    if (!pending || pending.requestPath !== requestedNotesPath || !isLoadTerminal) return
+
+    pending.resolve()
+    pendingLoadRef.current = null
+  }, [isLoadTerminal, requestedNotesPath])
+
+  const waitForCurrentNotes = useCallback(async (): Promise<LatestMentionState | null> => {
+    while (mountedRef.current) {
+      const current = stateRef.current
+      if (!current) return null
+
+      const requestPath = current.notesPath
+      if (current.requestedNotesPath === requestPath && current.isLoadTerminal) return current
+
+      let pending = pendingLoadRef.current
+      if (!pending || pending.requestPath !== requestPath) {
+        pending?.resolve()
+        pending = createPendingNotesLoad(requestPath)
+        pendingLoadRef.current = pending
+        setRequestedNotesPath(requestPath)
+      }
+
+      await pending.promise
+    }
+
+    return null
+  }, [])
 
   const getItems = useCallback(
     async ({ query }: { query: string; editor: Editor }): Promise<ComposerSuggestionItem[]> => {
-      const { files, t } = stateRef.current
-      if (!dataRequested) setDataRequested(true)
-
-      if (pathError || error) {
-        return [
-          {
-            id: 'note-reference:mention-error',
-            label: t('chat.input.note_reference.load_failed'),
-            icon: <NotebookPen size={16} />,
-            disabled: true,
-            command: () => undefined
-          }
-        ]
-      }
-
-      if (!dataRequested || isLoading || !activeNotesPath) {
-        return [
-          {
-            id: 'note-reference:mention-loading',
-            label: t('chat.input.note_reference.loading'),
-            icon: <NotebookPen size={16} />,
-            disabled: true,
-            command: () => undefined
-          }
-        ]
-      }
+      const current = await waitForCurrentNotes()
+      if (!current || current.pathError || current.treeError) return loadFailedItem(current?.t ?? t)
 
       const normalizedQuery = query.trim().toLowerCase()
 
-      return noteFiles
+      return current.noteFiles
         .filter((note) =>
           normalizedQuery ? `${note.name} ${note.treePath}`.toLowerCase().includes(normalizedQuery) : true
         )
         .slice(0, NOTE_MENTION_RESULT_LIMIT)
         .map((note): ComposerSuggestionItem => {
           const normalizedPath = normalizePath(note.externalPath)
-          const isSelected = files.some((file) => normalizePath(file.path ?? '') === normalizedPath)
+          const isSelected = current.files.some((file) => normalizePath(file.path ?? '') === normalizedPath)
 
           return {
             id: `note-reference:${normalizedPath}`,
@@ -119,12 +200,12 @@ export function useNoteReferenceMentionItems({
             icon: <NotebookPen size={16} />,
             disabled: isSelected,
             command: ({ editor }) => {
-              const currentFiles = stateRef.current.files
+              const currentFiles = stateRef.current?.files ?? []
               if (currentFiles.some((file) => normalizePath(file.path ?? '') === normalizedPath)) return
 
               const attachment = noteToComposerAttachment(note)
               editor.chain().focus().insertComposerToken(fileToComposerToken(attachment)).insertContent(' ').run()
-              stateRef.current.setFiles((previousFiles) =>
+              stateRef.current?.setFiles((previousFiles) =>
                 previousFiles.some((file) => normalizePath(file.path ?? '') === normalizedPath)
                   ? previousFiles
                   : [...previousFiles, attachment]
@@ -133,7 +214,7 @@ export function useNoteReferenceMentionItems({
           }
         })
     },
-    [activeNotesPath, dataRequested, error, isLoading, noteFiles, pathError]
+    [t, waitForCurrentNotes]
   )
 
   return { getItems }

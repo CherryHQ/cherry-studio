@@ -164,6 +164,7 @@ export const fileRequestSchemas = {
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.validate_notes_directory': defineRoute({ input: AbsoluteFilePathSchema, output: z.boolean() }),
 
   // DirectoryTreeBuilder primitive. `create` returns the snapshot with its revision;
   // `activate` releases the buffered mutations once the renderer mirror is listening.
