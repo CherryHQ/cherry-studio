@@ -286,12 +286,15 @@ export function getResumedAgentId(output: unknown): string | undefined {
   if (typeof output === 'string') {
     return (
       /"resumedAgentId"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
-      /"pin"\s*:\s*\{[^}]*"id"\s*:\s*"([^"]+)"/.exec(output)?.[1]
+      /"pin"\s*:\s*\{[^}]*"id"\s*:\s*"([^"]+)"/.exec(output)?.[1] ??
+      /"subagent_id"\s*:\s*"([^"]+)"/.exec(output)?.[1]
     )
   }
   if (output && typeof output === 'object') {
-    const record = output as { resumedAgentId?: unknown; pin?: unknown }
+    const record = output as { resumedAgentId?: unknown; pin?: unknown; subagent_id?: unknown }
     if (typeof record.resumedAgentId === 'string') return record.resumedAgentId
+    // dsh's send_message result names the woken child this way.
+    if (typeof record.subagent_id === 'string') return record.subagent_id
     if (record.pin && typeof record.pin === 'object' && typeof (record.pin as { id?: unknown }).id === 'string') {
       return (record.pin as { id: string }).id
     }
@@ -316,8 +319,9 @@ export function extractLaunchReceiptId(output: unknown): string | undefined {
     return /\b(?:agent_?[Ii]d|Internal id)\s*:\s*([a-zA-Z0-9-]+)/.exec(output)?.[1]
   }
   if (isRecord(output)) {
-    // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools).
-    const agentId = output.agentId ?? output.agent_id ?? output.taskId
+    // Structured launches identify by agentId, agent_id, or taskId (Workflow/local tools);
+    // dsh names its children subagent_id.
+    const agentId = output.agentId ?? output.agent_id ?? output.subagent_id ?? output.taskId
     return typeof agentId === 'string' && agentId.length > 0 ? agentId : undefined
   }
   return undefined
