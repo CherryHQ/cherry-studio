@@ -59,6 +59,11 @@ describe('findBareFilePathMatches', () => {
 
   it('does not join a dotfile with the following filename-like token', () => {
     expect(paths('Open /tmp/.env README.md', 'posix')).toEqual(['/tmp/.env'])
+    expect(paths('Open /tmp/.config.local README.md', 'posix')).toEqual(['/tmp/.config.local'])
+  })
+
+  it('does not join slash-containing prose after an extensionless path', () => {
+    expect(paths('See /tmp/docs and/or continue below', 'posix')).toEqual([])
   })
 
   it('keeps paths followed by line and tab boundaries', () => {
@@ -88,6 +93,18 @@ describe('findBareFilePathMatches', () => {
       String.raw`\\server\share\项目.txt`,
       String.raw`~\Desktop\a.txt`,
       '~/Desktop/b.txt'
+    ])
+  })
+
+  it('preserves apostrophes and spaces in unquoted Windows paths', () => {
+    expect(paths(String.raw`Open C:\Users\O'Brien\Project Files\report.pdf`, 'windows')).toEqual([
+      String.raw`C:\Users\O'Brien\Project Files\report.pdf`
+    ])
+  })
+
+  it('rejects Windows reserved device names', () => {
+    expect(paths(String.raw`Open C:\Users\CON.txt or C:\tmp\report.txt`, 'windows')).toEqual([
+      String.raw`C:\tmp\report.txt`
     ])
   })
 

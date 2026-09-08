@@ -38,6 +38,7 @@ const QUOTE_PAIRS = new Map([
 const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?', '。', '，', '；', '：', '！', '？'])
 const SENTENCE_PUNCTUATION = new Set([...TRAILING_PUNCTUATION].filter((character) => character !== '.'))
 const WORD_CHARACTER_PATTERN = /[\p{L}\p{N}_]/u
+const WINDOWS_RESERVED_NAME_PATTERN = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/iu
 const HTTP_METHOD_CONTEXT_PATTERN = /(?:^|\s)(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|TRACE|CONNECT)\s*[:=]?\s*$/u
 const PATTERN_CONTEXT_PATTERN = /(?:^|\s)(?:regex|regexp|正则(?:表达式)?)\s*[:=]?\s*$/iu
 const CONTEXT_LOOKBEHIND_LENGTH = 32
@@ -64,7 +65,7 @@ function isBoundary(value: string, index: number): boolean {
 }
 
 function isUnquotedTerminator(character: string): boolean {
-  return /\s/u.test(character) || hasControlCharacter(character) || '<>`"\'|'.includes(character)
+  return /\s/u.test(character) || hasControlCharacter(character) || '<>`"|'.includes(character)
 }
 
 function isLikelySentenceBoundary(
@@ -145,15 +146,26 @@ function isValidWindowsPath(value: string): boolean {
   const locationSuffix = value.match(/(?::\d+){1,2}$/u)?.[0] ?? ''
   const pathWithoutLocation = locationSuffix ? value.slice(0, -locationSuffix.length) : value
   const invalidTailPattern = /[<>:"|?*]/
+  const hasReservedName = (path: string, separatorPattern: RegExp) =>
+    path.split(separatorPattern).some((segment) => WINDOWS_RESERVED_NAME_PATTERN.test(segment.trimEnd()))
 
   if (/^[A-Za-z]:[\\/]/.test(pathWithoutLocation)) {
     const tail = pathWithoutLocation.slice(3)
-    return !invalidTailPattern.test(tail) && (tail.length === 0 || hasValidSegments(tail, /[\\/]/))
+    return (
+      !invalidTailPattern.test(tail) &&
+      !hasReservedName(tail, /[\\/]/) &&
+      (tail.length === 0 || hasValidSegments(tail, /[\\/]/))
+    )
   }
 
   if (pathWithoutLocation.startsWith('~\\') || pathWithoutLocation.startsWith('~/')) {
     const tail = pathWithoutLocation.slice(2)
-    return tail.length > 0 && !invalidTailPattern.test(tail) && hasValidSegments(tail, /[\\/]/)
+    return (
+      tail.length > 0 &&
+      !invalidTailPattern.test(tail) &&
+      !hasReservedName(tail, /[\\/]/) &&
+      hasValidSegments(tail, /[\\/]/)
+    )
   }
 
   if (!pathWithoutLocation.startsWith('\\\\')) return false
@@ -162,7 +174,8 @@ function isValidWindowsPath(value: string): boolean {
     segments.length >= 2 &&
     segments[0].length > 0 &&
     segments[1].length > 0 &&
-    !invalidTailPattern.test(pathWithoutLocation.slice(2))
+    !invalidTailPattern.test(pathWithoutLocation.slice(2)) &&
+    !hasReservedName(pathWithoutLocation.slice(2), /[\\/]/)
   )
 }
 
@@ -218,7 +231,19 @@ function looksLikeUnquotedPathContinuation(value: string, end: number): boolean 
   const nextToken = trimUnmatchedClosingBrackets(value.slice(nextStart, nextEnd))
   if (startsPath(value, nextStart, 'posix') || startsPath(value, nextStart, 'windows')) return false
   if (/[，。；：！？（）【】「」“”‘’]/u.test(nextToken)) return false
-  return /[\\/]/.test(nextToken) || /\.[\p{L}\p{N}]+$/u.test(nextToken)
+  return /\.[\p{L}\p{N}][\p{L}\p{N}_+-]*$/u.test(nextToken)
+}
+
+function looksLikeUnquotedWindowsPathContinuation(value: string, end: number): boolean {
+  if (value[end] !== ' ' && value[end] !== '\t') return false
+  let nextStart = end
+  while (value[nextStart] === ' ' || value[nextStart] === '\t') nextStart += 1
+  let nextEnd = nextStart
+  while (nextEnd < value.length && !isUnquotedTerminator(value[nextEnd])) nextEnd += 1
+  const nextToken = trimUnmatchedClosingBrackets(value.slice(nextStart, nextEnd))
+  if (startsPath(value, nextStart, 'posix') || startsPath(value, nextStart, 'windows')) return false
+  if (/[，。；：！？（）【】「」“”‘’]/u.test(nextToken)) return false
+  return /\.[\p{L}\p{N}][\p{L}\p{N}_+-]*$/u.test(nextToken)
 }
 
 function hasClearFileExtension(value: string): boolean {
@@ -233,7 +258,7 @@ function hasFilenameLikeLeaf(value: string): boolean {
   // A dotfile is already a complete filename. Treating it as a directory
   // makes the whitespace heuristic incorrectly join the next prose token
   // (for example `/tmp/.env README.md`).
-  return /^\.[^.]+$/u.test(finalSegment)
+  return /^\.[^./\\]+(?:\.[^./\\]+)*$/u.test(finalSegment)
 }
 
 export function findBareFilePathMatches(value: string, platform: BareFilePathPlatform): BareFilePathMatch[] {
@@ -273,7 +298,13 @@ export function findBareFilePathMatches(value: string, platform: BareFilePathPla
       end += 1
     let candidate = trimUnmatchedClosingBrackets(value.slice(index, end))
     let continuedAcrossWhitespace = false
-    while (platform === 'posix' && !hasFilenameLikeLeaf(candidate) && looksLikeUnquotedPathContinuation(value, end)) {
+    while (
+      (platform === 'posix' || platform === 'windows') &&
+      !hasFilenameLikeLeaf(candidate) &&
+      (platform === 'posix'
+        ? looksLikeUnquotedPathContinuation(value, end)
+        : looksLikeUnquotedWindowsPathContinuation(value, end))
+    ) {
       let nextStart = end
       while (value[nextStart] === ' ' || value[nextStart] === '\t') nextStart += 1
       let nextEnd = nextStart
