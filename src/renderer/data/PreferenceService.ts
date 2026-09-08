@@ -44,16 +44,7 @@ export class PreferenceService {
     }
   >()
 
-  // Request queues for managing concurrent updates to the same key
-  private requestQueues = new Map<
-    UnifiedPreferenceKeyType,
-    Array<{
-      requestId: string
-      value: any
-      resolve: (value: void | PromiseLike<void>) => void
-      reject: (reason?: any) => void
-    }>
-  >()
+  private writeTails = new Map<UnifiedPreferenceKeyType, Promise<void>>()
 
   constructor() {
     this.setupChangeListeners()
@@ -147,11 +138,9 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K],
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
-    if (options.optimistic) {
-      return this.setOptimistic(key, value)
-    } else {
-      return this.setPessimistic(key, value)
-    }
+    return this.enqueueWrite([key], () =>
+      options.optimistic ? this.setOptimistic(key, value) : this.setPessimistic(key, value)
+    )
   }
 
   /**
@@ -166,7 +155,7 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K]
   ): Promise<void> {
     const requestId = this.generateRequestId()
-    return this.enqueueRequest(key, requestId, value)
+    return this.executeOptimisticUpdate(key, value, requestId)
   }
 
   /**
@@ -316,11 +305,10 @@ export class PreferenceService {
     updates: Partial<UnifiedPreferenceType>,
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
-    if (options.optimistic) {
-      return this.setMultipleOptimistic(updates)
-    } else {
-      return this.setMultiplePessimistic(updates)
-    }
+    const keys = Object.keys(updates) as UnifiedPreferenceKeyType[]
+    return this.enqueueWrite(keys, () =>
+      options.optimistic ? this.setMultipleOptimistic(updates) : this.setMultiplePessimistic(updates)
+    )
   }
 
   /**
@@ -544,9 +532,6 @@ export class PreferenceService {
     if (optimisticState && optimisticState.requestId === requestId) {
       this.optimisticValues.delete(key)
       logger.debug(`Optimistic update confirmed for ${key} (${requestId})`)
-
-      // Process next queued request
-      this.completeQueuedRequest(key)
     } else {
       logger.warn(
         `Attempted to confirm mismatched request for ${key}: expected ${optimisticState?.requestId}, got ${requestId}`
@@ -571,9 +556,6 @@ export class PreferenceService {
 
       const duration = Date.now() - optimisticState.timestamp
       logger.warn(`Optimistic update rolled back for ${key} (${requestId}) after ${duration}ms to original value`)
-
-      // Process next queued request
-      this.completeQueuedRequest(key)
     } else {
       logger.warn(
         `Attempted to rollback mismatched request for ${key}: expected ${optimisticState?.requestId}, got ${requestId}`
@@ -611,66 +593,26 @@ export class PreferenceService {
     return `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   }
 
-  /**
-   * Add request to queue for a specific key to prevent race conditions
-   * @param key The preference key to update
-   * @param requestId Unique identifier for this request
-   * @param value The value to set
-   * @returns Promise that resolves when the request is processed
-   */
-  private enqueueRequest(key: UnifiedPreferenceKeyType, requestId: string, value: any): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      if (!this.requestQueues.has(key)) {
-        this.requestQueues.set(key, [])
-      }
-
-      const queue = this.requestQueues.get(key)!
-      queue.push({ requestId, value, resolve, reject })
-
-      // If this is the first request in queue, process it immediately
-      if (queue.length === 1) {
-        void this.processNextQueuedRequest(key)
-      }
+  private enqueueWrite(keys: UnifiedPreferenceKeyType[], execute: () => Promise<void>): Promise<void> {
+    const uniqueKeys = Array.from(new Set(keys))
+    const predecessors = uniqueKeys.flatMap((key) => {
+      const tail = this.writeTails.get(key)
+      return tail ? [tail] : []
     })
-  }
+    let release!: () => void
+    const tail = new Promise<void>((resolve) => {
+      release = resolve
+    })
 
-  /**
-   * Process the next queued request for a key
-   * @param key The preference key to process requests for
-   * @returns Promise that resolves when processing completes
-   */
-  private async processNextQueuedRequest(key: UnifiedPreferenceKeyType): Promise<void> {
-    const queue = this.requestQueues.get(key)
-    if (!queue || queue.length === 0) {
-      return
-    }
+    uniqueKeys.forEach((key) => this.writeTails.set(key, tail))
 
-    const currentRequest = queue[0]
-    try {
-      await this.executeOptimisticUpdate(key, currentRequest.value, currentRequest.requestId)
-      currentRequest.resolve()
-    } catch (error) {
-      currentRequest.reject(error)
-    }
-  }
-
-  /**
-   * Complete current request and process next in queue
-   * @param key The preference key to complete processing for
-   */
-  private completeQueuedRequest(key: UnifiedPreferenceKeyType): void {
-    const queue = this.requestQueues.get(key)
-    if (queue && queue.length > 0) {
-      queue.shift() // Remove completed request
-
-      // Process next request if any
-      if (queue.length > 0) {
-        void this.processNextQueuedRequest(key)
-      } else {
-        // Clean up empty queue
-        this.requestQueues.delete(key)
-      }
-    }
+    const write = predecessors.length > 0 ? Promise.all(predecessors).then(execute) : execute()
+    return write.finally(() => {
+      release()
+      uniqueKeys.forEach((key) => {
+        if (this.writeTails.get(key) === tail) this.writeTails.delete(key)
+      })
+    })
   }
 
   /**
@@ -691,9 +633,9 @@ export class PreferenceService {
       this.changeListenerCleanup = null
     }
 
-    // Clear all optimistic states and request queues
+    // Clear all optimistic states and write queues
     this.optimisticValues.clear()
-    this.requestQueues.clear()
+    this.writeTails.clear()
 
     this.clearCache()
     this.allChangesListeners.clear()

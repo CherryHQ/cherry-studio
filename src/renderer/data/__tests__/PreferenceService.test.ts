@@ -26,7 +26,7 @@ const subscribe = vi.fn(async () => {})
 const get = vi.fn(async (): Promise<unknown> => true)
 const getMultipleRaw = vi.fn(async (keys: string[]) => Object.fromEntries(keys.map((key) => [key, `${key}-value`])))
 const set = vi.fn(async () => {})
-const setMultiple = vi.fn(async () => {})
+const setMultiple = vi.fn<(updates: Record<string, unknown>) => Promise<void>>().mockResolvedValue(undefined)
 
 beforeEach(() => {
   onChanged.mockClear()
@@ -200,5 +200,70 @@ describe('renderer PreferenceService write consistency', () => {
     expect(set).toHaveBeenNthCalledWith(2, 'app.developer_mode.enabled', true)
     expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
     expect(service.getPendingOptimisticUpdates()).toEqual([])
+  })
+
+  it('serializes a reverse language exchange started after the page remounts', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const targetKey = 'feature.translate.page.target_language'
+    const persisted = { [sourceKey]: 'en-us', [targetKey]: 'zh-cn' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let resolveFirst!: () => void
+    setMultiple
+      .mockImplementationOnce(
+        (updates) =>
+          new Promise<void>((resolve) => {
+            resolveFirst = () => {
+              Object.assign(persisted, updates)
+              resolve()
+            }
+          })
+      )
+      .mockImplementationOnce(async (updates) => {
+        Object.assign(persisted, updates)
+      })
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey, targetKey])
+
+    const firstExchange = service.setMultiple({ [sourceKey]: 'zh-cn', [targetKey]: 'en-us' })
+    const reverseExchange = service.setMultiple({ [sourceKey]: 'en-us', [targetKey]: 'zh-cn' })
+
+    resolveFirst()
+    await Promise.all([firstExchange, reverseExchange])
+
+    expect(persisted).toEqual({ [sourceKey]: 'en-us', [targetKey]: 'zh-cn' })
+    expect(service.getCachedValue(sourceKey)).toBe('en-us')
+    expect(service.getCachedValue(targetKey)).toBe('zh-cn')
+  })
+
+  it('rolls a failed selector update back to the last persisted value', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    const persisted = { [sourceKey]: 'en-us' }
+    getMultipleRaw.mockResolvedValueOnce(persisted)
+    let resolveFirst!: () => void
+    const secondError = new Error('second write failed')
+    setMultiple
+      .mockImplementationOnce(
+        (updates) =>
+          new Promise<void>((resolve) => {
+            resolveFirst = () => {
+              Object.assign(persisted, updates)
+              resolve()
+            }
+          })
+      )
+      .mockRejectedValueOnce(secondError)
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey])
+
+    const firstUpdate = service.setMultiple({ [sourceKey]: 'zh-cn' })
+    const secondUpdate = service.setMultiple({ [sourceKey]: 'ja-jp' })
+    const secondResult = expect(secondUpdate).rejects.toBe(secondError)
+
+    resolveFirst()
+    await firstUpdate
+    await secondResult
+
+    expect(persisted[sourceKey]).toBe('zh-cn')
+    expect(service.getCachedValue(sourceKey)).toBe('zh-cn')
   })
 })
