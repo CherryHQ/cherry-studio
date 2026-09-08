@@ -360,12 +360,30 @@ describe('ExportService.exportToWord', () => {
       }))
       expect(items).toEqual([
         { texts: ['1.'], indent: '720' },
-        { texts: ['code'], indent: undefined },
+        { texts: ['code'], indent: '720' },
         { texts: ['2.', 'two'], indent: '720' },
         { texts: ['•'], indent: '720' },
         { texts: ['•', 'nested'], indent: '1440' },
         { texts: ['•', 'top'], indent: '720' }
       ])
+    })
+    it.each([
+      ['1. ```\n   code\n   ```', 720],
+      ['1.     code', 720],
+      ['- 1. ```\n     code\n     ```', 1440],
+      ['> 1. ```\n>    code\n>    ```', 1440]
+    ])('keeps code inside its list in %j without indenting following content', async (markdown, indent) => {
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      const service = await freshService()
+      await service.exportToWord(`${markdown}\n\noutside`, 'doc.docx')
+
+      const xml = new AdmZip(tmpFile).readAsText('word/document.xml')
+      const paragraphs = xml.match(/<w:p>[\s\S]*?<\/w:p>/g) ?? []
+      const code = paragraphs.find((paragraph) => textsOf(paragraph).includes('code'))
+      const outside = paragraphs.find((paragraph) => textsOf(paragraph).includes('outside'))
+      expect(code).toContain(`<w:ind w:left="${indent}"`)
+      expect(outside).toBeDefined()
+      expect(outside).not.toContain('<w:ind')
     })
   })
 })

@@ -221,6 +221,7 @@ export class ExportService {
                     break: index === 0 ? 0 : 1
                   })
               ),
+              indent: { left: (listCounters.length + quoteLevel) * 720 },
               shading: {
                 type: ShadingType.SOLID,
                 color: 'F5F5F5'
