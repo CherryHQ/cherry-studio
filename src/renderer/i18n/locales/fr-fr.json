@@ -252,6 +252,8 @@
   "agent.session_delivery.status.consumed": "Traité",
   "agent.session_delivery.status.delivering": "En cours de livraison",
   "agent.session_delivery.status.failed": "Échec",
+  "agent.session_turn_origin.background_work": "Poursuivi après un travail en arrière-plan",
+  "agent.session_turn_origin.goal_round": "Tour d’objectif {{round}}",
   "agent.settings.permissionMode.title": "Mode d'autorisation",
   "agent.settings.skills.addMore": "Gérer les compétences",
   "agent.settings.tooling.mcp.toggle": "Basculer {{name}}",

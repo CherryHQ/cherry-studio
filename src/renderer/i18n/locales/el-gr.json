@@ -252,6 +252,8 @@
   "agent.session_delivery.status.consumed": "Ολοκληρώθηκε",
   "agent.session_delivery.status.delivering": "Παραδίδεται",
   "agent.session_delivery.status.failed": "Απέτυχε",
+  "agent.session_turn_origin.background_work": "Συνέχεια μετά από εργασία στο παρασκήνιο",
+  "agent.session_turn_origin.goal_round": "Γύρος στόχου {{round}}",
   "agent.settings.permissionMode.title": "Λειτουργία Αδειών",
   "agent.settings.skills.addMore": "Διαχείριση δεξιοτήτων",
   "agent.settings.tooling.mcp.toggle": "Εναλλαγή {{name}}",

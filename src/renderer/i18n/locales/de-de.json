@@ -252,6 +252,8 @@
   "agent.session_delivery.status.consumed": "Verarbeitet",
   "agent.session_delivery.status.delivering": "Wird zugestellt",
   "agent.session_delivery.status.failed": "Fehlgeschlagen",
+  "agent.session_turn_origin.background_work": "Nach Hintergrundarbeit fortgesetzt",
+  "agent.session_turn_origin.goal_round": "Zielrunde {{round}}",
   "agent.settings.permissionMode.title": "Berechtigungsmodus",
   "agent.settings.skills.addMore": "Skills verwalten",
   "agent.settings.tooling.mcp.toggle": "{{name}} umschalten",
