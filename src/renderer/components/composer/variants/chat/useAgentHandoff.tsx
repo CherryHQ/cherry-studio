@@ -85,7 +85,6 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
   const { providers } = useProviders(undefined, { enabled: state.phase !== 'idle' })
   const stateRef = useRef(state)
   stateRef.current = state
-  const generationRef = useRef(0)
   const streamIdRef = useRef<string | undefined>(undefined)
   const startingRef = useRef(false)
   const submittedRequestRef = useRef<HandoffStart | undefined>(undefined)
@@ -126,7 +125,6 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
   }, [])
 
   const cancel = useCallback(() => {
-    ++generationRef.current
     const streamId = streamIdRef.current
     if (streamId) abort(streamId)
     streamIdRef.current = undefined
@@ -151,7 +149,6 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
       cancel()
       setEditingSummary(false)
       setElapsedSeconds(0)
-      const generation = ++generationRef.current
       const streamId = `handoff:draft:${crypto.randomUUID()}`
       const handoffId = options?.handoffId ?? crypto.randomUUID()
       streamIdRef.current = streamId
@@ -178,14 +175,14 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
           streamId
         })
         .then((metadata) => {
-          if (generation !== generationRef.current || streamIdRef.current !== streamId) {
+          if (streamIdRef.current !== streamId) {
             abort(streamId)
             return
           }
           setState((current) => (current.streamId === streamId ? { ...current, metadata } : current))
         })
         .catch((error) => {
-          if (generation === generationRef.current && streamIdRef.current === streamId) {
+          if (streamIdRef.current === streamId) {
             setState((current) => ({ ...current, phase: 'error', error: errorMessage(error) }))
           }
         })
@@ -197,7 +194,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
     const current = stateRef.current
     if (startingRef.current || !current.source || !current.target || !current.handoffId || !current.task.trim()) return
     if (current.phase !== 'ready' && current.phase !== 'error') return
-    const generation = generationRef.current
+    const streamId = streamIdRef.current
     startingRef.current = true
     setState((value) => ({ ...value, phase: 'starting', error: undefined }))
     try {
@@ -209,7 +206,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
           ...(current.metadata?.attachments ?? []).filter((part) => !current.excludedAttachments.includes(part.url)),
           ...(await buildFilePartsForAttachments(files))
         ]
-        if (generation !== generationRef.current) return
+        if (streamId !== streamIdRef.current) return
         // Freeze the request before IPC: a lost response must retry the same confirmation.
         submittedRequestRef.current = {
           handoffId: current.handoffId,
@@ -223,7 +220,7 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
         setState((value) => ({ ...value, submitted: true }))
       }
       const result = await ipcApi.request('ai.agent.handoff.start', submittedRequestRef.current)
-      if (generation !== generationRef.current) return
+      if (streamId !== streamIdRef.current) return
       if (result.error && result.state !== 'started') {
         setState((value) => ({ ...value, phase: 'error', result, error: errorMessage(result.error) }))
         return
@@ -231,11 +228,11 @@ export function useAgentHandoff({ onStarted, sourceId }: { onStarted?: () => voi
       onStarted?.()
       setState((value) => ({ ...value, phase: 'complete', result }))
     } catch (error) {
-      if (generation === generationRef.current) {
+      if (streamId === streamIdRef.current) {
         setState((value) => ({ ...value, phase: 'error', error: errorMessage(error) }))
       }
     } finally {
-      if (generation === generationRef.current) startingRef.current = false
+      if (streamId === streamIdRef.current) startingRef.current = false
     }
   }, [onStarted])
 

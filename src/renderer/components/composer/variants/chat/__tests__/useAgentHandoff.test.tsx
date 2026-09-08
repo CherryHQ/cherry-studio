@@ -163,6 +163,54 @@ describe('useAgentHandoff', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'ai.stream.abort')).toHaveLength(2)
   })
 
+  it('ignores old summary events and metadata after reopening', async () => {
+    let resolveOld!: (value: unknown) => void
+    mocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveOld = resolve)))
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'open' }))
+    const oldStream = mocks.request.mock.calls[0][1].streamId
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open' }))
+    const newStream = mocks.request.mock.calls
+      .filter(([route]) => route === 'ai.agent.handoff.draft.open')
+      .at(-1)![1].streamId
+    await act(async () => {
+      resolveOld({ modelId: 'old', messageCount: 1, attachments: [{ filename: 'stale.txt', url: 'old' }] })
+      mocks.listeners.get('ai.stream.chunk')?.({
+        topicId: oldStream,
+        chunk: { type: 'text-delta', delta: 'stale summary' }
+      })
+      mocks.listeners.get('ai.stream.done')?.({ topicId: oldStream, status: 'success' })
+      mocks.listeners.get('ai.stream.chunk')?.({
+        topicId: newStream,
+        chunk: { type: 'text-delta', delta: 'current summary' }
+      })
+    })
+    expect(screen.getByRole('region', { name: 'Summary' })).toHaveTextContent('current summary')
+    expect(screen.getByRole('region', { name: 'Summary' })).not.toHaveTextContent('stale summary')
+    expect(screen.queryByText('stale.txt')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Start Agent session' })).toBeDisabled()
+  })
+
+  it('ignores a late start response after the source changes and another draft opens', async () => {
+    let resolveStart!: (value: unknown) => void
+    mocks.request.mockImplementation((route: string) =>
+      route === 'ai.agent.handoff.start'
+        ? new Promise((resolve) => (resolveStart = resolve))
+        : Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
+    )
+    const view = render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'open' }))
+    const streamId = mocks.request.mock.calls[0][1].streamId
+    await act(async () => mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Start Agent session' })))
+    view.rerender(<Harness sourceId="topic-2" />)
+    fireEvent.click(screen.getByRole('button', { name: 'open' }))
+    await act(async () => resolveStart({ sessionId: 'old-session', state: 'started' }))
+    expect(mocks.openConversation).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('Generating summary')
+  })
+
   it('submits edited goal and summary with the same confirmation identity after a retry', async () => {
     const draftOpen = Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
     mocks.request.mockImplementation((route: string) =>

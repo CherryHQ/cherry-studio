@@ -318,34 +318,26 @@ const SESSION_SEARCH_TOOL: Tool = {
   }
 }
 
+const SessionReadArgsSchema = z.strictObject({
+  session_id: z.string().min(1).describe('Chat topic, Agent Session, or temporary conversation id.'),
+  cursor: z.string().optional().describe('Opaque cursor returned by the previous page.'),
+  limit: z.number().int().positive().optional().describe('Maximum messages to return.'),
+  node_id: z.string().optional().describe('Topic branch endpoint message id.'),
+  include_siblings: z.boolean().optional().describe('Include sibling replies for topic messages.'),
+  message_id: z.string().min(1).optional().describe('Read one exact message in the conversation.'),
+  tool_call_id: z.string().min(1).optional().describe('Restore the persisted output for message_id tool call.')
+})
+
+const sessionReadInputSchema = z.toJSONSchema(SessionReadArgsSchema)
+// Strict MCP clients reject the JSON Schema dialect marker.
+delete sessionReadInputSchema.$schema
+
 const SESSION_READ_TOOL: Tool = {
   name: SESSION_READ_TOOL_NAME,
   description:
     'Read messages from a Cherry Chat topic, Agent Session, or temporary conversation. The session type is detected from session_id. Use message_id for one exact message and tool_call_id with it to restore a persisted tool result. Attachments are descriptive only: their addresses and contents are omitted.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      session_id: { type: 'string', description: 'Chat topic, Agent Session, or temporary conversation id.' },
-      cursor: { type: 'string', description: 'Opaque cursor returned by the previous page.' },
-      limit: { type: 'number', description: 'Maximum messages to return.' },
-      node_id: { type: 'string', description: 'Topic branch endpoint message id.' },
-      include_siblings: { type: 'boolean', description: 'Include sibling replies for topic messages.' },
-      message_id: { type: 'string', description: 'Read one exact message in the conversation.' },
-      tool_call_id: { type: 'string', description: 'Restore the persisted output for message_id tool call.' }
-    },
-    required: ['session_id']
-  }
+  inputSchema: sessionReadInputSchema as Tool['inputSchema']
 }
-
-const SessionReadArgsSchema = z.strictObject({
-  session_id: z.string().min(1),
-  cursor: z.string().optional(),
-  limit: z.number().int().positive().optional(),
-  node_id: z.string().optional(),
-  include_siblings: z.boolean().optional(),
-  message_id: z.string().min(1).optional(),
-  tool_call_id: z.string().min(1).optional()
-})
 
 const SESSION_DELIVERIES_TOOL: Tool = {
   name: SESSION_DELIVERIES_TOOL_NAME,

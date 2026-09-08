@@ -190,6 +190,8 @@ describe('CherryAutonomyTools', () => {
     expect(tools.map((tool) => tool.name)).toContain('agent_list')
     const readSchema = tools.find((tool) => tool.name === 'session_read')?.inputSchema
     expect(readSchema?.required).toContain('session_id')
+    expect(readSchema?.properties?.limit).toMatchObject({ type: 'integer', exclusiveMinimum: 0 })
+    expect(readSchema).not.toHaveProperty('$schema')
     expect(readSchema?.properties).not.toHaveProperty('type')
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
