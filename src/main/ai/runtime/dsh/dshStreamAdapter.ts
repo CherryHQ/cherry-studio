@@ -244,12 +244,16 @@ export class DshStreamAdapter {
             this.resetStepTiming()
             return
           }
-          // First withinGrace turn while awaiting host: distinguish fast
-          // autonomous racing (queued before beginTurn, arrives <50ms after it)
-          // from a genuine host turn that arrives later.
+          // First withinGrace turn while awaiting host: distinguish a racing
+          // autonomous turn queued before beginTurn from the genuine host turn.
+          // The autonomous turn was created before the host prompt was sent, so
+          // its event time precedes pendingHostTurnSince; the host turn is
+          // created after. This avoids the previous arrival-time heuristic that
+          // could discard a fast host turn.
           if (this.pendingHostTurn && this.suppressedTurn === undefined) {
-            const since = this.pendingHostTurnSince !== undefined ? Date.now() - this.pendingHostTurnSince : 0
-            if (since > 50) {
+            const createdBeforeHostPrompt =
+              this.pendingHostTurnSince !== undefined && event.time < this.pendingHostTurnSince
+            if (!createdBeforeHostPrompt) {
               this.pendingHostTurn = false
               this.pendingHostTurnSince = undefined
               this.flushPendingProviderUsage()
