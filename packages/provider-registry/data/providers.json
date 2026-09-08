@@ -755,6 +755,54 @@
     },
     {
       "availableInEditions": ["global", "cn"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Token Market - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.tokensmarket.ai/v1",
+          "reasoningFormat": {
+            "type": "openai-chat",
+            "wire": {
+              "auto": {
+                "operations": [
+                  {
+                    "target": "enable_thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": true
+                    }
+                  }
+                ]
+              },
+              "off": {
+                "operations": [
+                  {
+                    "target": "enable_thinking",
+                    "value": {
+                      "source": "literal",
+                      "value": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "id": "tokensmarket",
+      "metadata": {
+        "website": {
+          "apiKey": "https://www.tokensmarket.ai/console",
+          "docs": "https://www.tokensmarket.ai/docs",
+          "models": "https://www.tokensmarket.ai/models",
+          "official": "https://www.tokensmarket.ai"
+        }
+      },
+      "name": "Token Market"
+    },
+    {
+      "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2533,5 +2581,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4d44bc4a2d81dbd5"
+  "version": "163ee2b18de62d57"
 }

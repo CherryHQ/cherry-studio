@@ -286,6 +286,13 @@ describe('provider reasoning contracts', () => {
     expect(wire?.effort).toBeUndefined()
   })
 
+  it('encodes Token Market thinking through enable_thinking', () => {
+    const wire = provider('tokensmarket').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+    expect(wire?.off?.operations).toEqual([{ target: 'enable_thinking', value: { source: 'literal', value: false } }])
+    expect(wire?.auto?.operations).toEqual([{ target: 'enable_thinking', value: { source: 'literal', value: true } }])
+    expect(wire?.effort).toBeUndefined()
+  })
+
   it.each(['qwen3-coder', 'qwen3-coder-next'])('does not declare a DashScope reasoning contract for %s', (modelId) => {
     expect(
       provider('dashscope').overrides?.some((entry) => entry.modelId === modelId && entry.reasoningContracts)

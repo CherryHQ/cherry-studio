@@ -462,8 +462,8 @@
     }
   ],
   "providers": {
-    "version": "4d44bc4a2d81dbd5",
-    "count": 62,
+    "version": "163ee2b18de62d57",
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
@@ -548,6 +548,10 @@
       {
         "id": "jalapeno-cloud",
         "name": "Jalapeno Cloud"
+      },
+      {
+        "id": "tokensmarket",
+        "name": "Token Market"
       },
       {
         "id": "new-api",
