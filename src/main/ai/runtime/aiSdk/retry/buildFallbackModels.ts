@@ -31,7 +31,7 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { isAudioModel, isFunctionCallingModel, isVideoModel, isVisionModel } from '@shared/utils/model'
 
-import type { AiBaseRequest, AppProviderSettingsMap } from '../../../types'
+import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import type { AgentOptions } from '../loop/types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
@@ -44,7 +44,7 @@ const logger = loggerService.withContext('ModelRetry')
 export interface BuildFallbackModelsArgs {
   // Base request shape accepted by `buildAgentParams`; kept `messages`-agnostic so
   // both streamText (UIMessage[]) and generateText (ModelMessage[]) requests fit.
-  request: AiBaseRequest & { chatId?: string; messageId?: string }
+  request: AiChatRequest & { messageId?: string }
   assistant: Assistant | undefined
   signal: AbortSignal | undefined
   /** Primary model's stored UniqueModelId — fallbacks equal to it are dropped. */

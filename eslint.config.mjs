@@ -114,6 +114,7 @@ const UTILITY_CHILD_ZONE = {
     'src/main/core/paths',
     'src/main/data',
     'src/main/ipc',
+    'src/main/services/proxy',
     'src/main/core/utilityProcess/host',
     'src/main/core/utilityProcess/UtilityProcessManager.ts'
   ],

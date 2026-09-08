@@ -1,10 +1,8 @@
 import path from 'node:path'
 
 import { isMainExternalModule } from '../../electron.vite.config'
+import { hermeticEntryGuardPlugin } from '../utilityProcessEntryGuard'
 import { smokeAppDir } from './appDir'
-import { hermeticEntryGuardPlugin } from './hermeticEntryGuardPlugin'
-
-const repoRoot = path.resolve(__dirname, '../..')
 
 export default {
   main: {
@@ -23,11 +21,9 @@ export default {
         external: isMainExternalModule,
         output: {
           entryFileNames: '[name].js',
+          chunkFileNames: '[name]-[hash].js',
           format: 'cjs',
-          hoistTransitiveImports: false,
-          // Keeps emitted paths stable; isolation comes from building without a main entry.
-          preserveModules: true,
-          preserveModulesRoot: repoRoot
+          hoistTransitiveImports: false
         }
       },
       sourcemap: true

@@ -705,7 +705,7 @@ const ct = (e) => {
         })
       })
   }),
-  T = r(`$ZodCheckStringFormat`, (e, t) => {
+  St = r(`$ZodCheckStringFormat`, (e, t) => {
     var n, r
     w.init(e, t),
       e._zod.onattach.push((e) => {
@@ -729,8 +729,8 @@ const ct = (e) => {
           }))
         : ((r = e._zod).check ?? (r.check = () => {}))
   }),
-  St = r(`$ZodCheckRegex`, (e, t) => {
-    T.init(e, t),
+  Ct = r(`$ZodCheckRegex`, (e, t) => {
+    St.init(e, t),
       (e._zod.check = (n) => {
         ;(t.pattern.lastIndex = 0),
           !t.pattern.test(n.value) &&
@@ -745,13 +745,13 @@ const ct = (e) => {
             })
       })
   }),
-  Ct = r(`$ZodCheckLowerCase`, (e, t) => {
-    ;(t.pattern ??= ft), T.init(e, t)
+  wt = r(`$ZodCheckLowerCase`, (e, t) => {
+    ;(t.pattern ??= ft), St.init(e, t)
   }),
-  wt = r(`$ZodCheckUpperCase`, (e, t) => {
-    ;(t.pattern ??= pt), T.init(e, t)
+  Tt = r(`$ZodCheckUpperCase`, (e, t) => {
+    ;(t.pattern ??= pt), St.init(e, t)
   }),
-  Tt = r(`$ZodCheckIncludes`, (e, t) => {
+  Et = r(`$ZodCheckIncludes`, (e, t) => {
     w.init(e, t)
     let n = _(t.includes),
       r = new RegExp(typeof t.position == `number` ? `^.{${t.position}}${n}` : n)
@@ -773,7 +773,7 @@ const ct = (e) => {
           })
       })
   }),
-  Et = r(`$ZodCheckStartsWith`, (e, t) => {
+  Dt = r(`$ZodCheckStartsWith`, (e, t) => {
     w.init(e, t)
     let n = RegExp(`^${_(t.prefix)}.*`)
     ;(t.pattern ??= n),
@@ -794,7 +794,7 @@ const ct = (e) => {
           })
       })
   }),
-  Dt = r(`$ZodCheckEndsWith`, (e, t) => {
+  Ot = r(`$ZodCheckEndsWith`, (e, t) => {
     w.init(e, t)
     let n = RegExp(`.*${_(t.suffix)}$`)
     ;(t.pattern ??= n),
@@ -815,13 +815,13 @@ const ct = (e) => {
           })
       })
   }),
-  Ot = r(`$ZodCheckOverwrite`, (e, t) => {
+  kt = r(`$ZodCheckOverwrite`, (e, t) => {
     w.init(e, t),
       (e._zod.check = (e) => {
         e.value = t.tx(e.value)
       })
   })
-var kt = class {
+var At = class {
   constructor(e = []) {
     ;(this.content = []), (this.indent = 0), this && (this.args = e)
   }
@@ -852,10 +852,10 @@ var kt = class {
     )
   }
 }
-const At = { major: 4, minor: 3, patch: 6 },
-  E = r(`$ZodType`, (e, t) => {
+const jt = { major: 4, minor: 3, patch: 6 },
+  T = r(`$ZodType`, (e, t) => {
     var n
-    ;(e ??= {}), (e._zod.def = t), (e._zod.bag = e._zod.bag || {}), (e._zod.version = At)
+    ;(e ??= {}), (e._zod.def = t), (e._zod.bag = e._zod.bag || {}), (e._zod.version = jt)
     let r = [...(e._zod.def.checks ?? [])]
     e._zod.traits.has(`$ZodCheck`) && r.unshift(e)
     for (let t of r) for (let n of t._zod.onattach) n(e)
@@ -922,8 +922,8 @@ const At = { major: 4, minor: 3, patch: 6 },
       version: 1
     }))
   }),
-  jt = r(`$ZodString`, (e, t) => {
-    E.init(e, t),
+  Mt = r(`$ZodString`, (e, t) => {
+    T.init(e, t),
       (e._zod.pattern = [...(e?._zod.bag?.patterns ?? [])].pop() ?? ct(e._zod.bag)),
       (e._zod.parse = (n, r) => {
         if (t.coerce)
@@ -937,25 +937,25 @@ const At = { major: 4, minor: 3, patch: 6 },
         )
       })
   }),
-  D = r(`$ZodStringFormat`, (e, t) => {
-    T.init(e, t), jt.init(e, t)
+  E = r(`$ZodStringFormat`, (e, t) => {
+    St.init(e, t), Mt.init(e, t)
   }),
-  Mt = r(`$ZodGUID`, (e, t) => {
-    ;(t.pattern ??= Ke), D.init(e, t)
+  Nt = r(`$ZodGUID`, (e, t) => {
+    ;(t.pattern ??= Ke), E.init(e, t)
   }),
-  Nt = r(`$ZodUUID`, (e, t) => {
+  Pt = r(`$ZodUUID`, (e, t) => {
     if (t.version) {
       let e = { v1: 1, v2: 2, v3: 3, v4: 4, v5: 5, v6: 6, v7: 7, v8: 8 }[t.version]
       if (e === void 0) throw Error(`Invalid UUID version: "${t.version}"`)
       t.pattern ??= qe(e)
     } else t.pattern ??= qe()
-    D.init(e, t)
+    E.init(e, t)
   }),
-  Pt = r(`$ZodEmail`, (e, t) => {
-    ;(t.pattern ??= Je), D.init(e, t)
+  Ft = r(`$ZodEmail`, (e, t) => {
+    ;(t.pattern ??= Je), E.init(e, t)
   }),
-  Ft = r(`$ZodURL`, (e, t) => {
-    D.init(e, t),
+  It = r(`$ZodURL`, (e, t) => {
+    E.init(e, t),
       (e._zod.check = (n) => {
         try {
           let r = n.value.trim(),
@@ -991,45 +991,45 @@ const At = { major: 4, minor: 3, patch: 6 },
         }
       })
   }),
-  It = r(`$ZodEmoji`, (e, t) => {
-    ;(t.pattern ??= Ye()), D.init(e, t)
+  Lt = r(`$ZodEmoji`, (e, t) => {
+    ;(t.pattern ??= Ye()), E.init(e, t)
   }),
-  Lt = r(`$ZodNanoID`, (e, t) => {
-    ;(t.pattern ??= We), D.init(e, t)
+  Rt = r(`$ZodNanoID`, (e, t) => {
+    ;(t.pattern ??= We), E.init(e, t)
   }),
-  Rt = r(`$ZodCUID`, (e, t) => {
-    ;(t.pattern ??= ze), D.init(e, t)
+  zt = r(`$ZodCUID`, (e, t) => {
+    ;(t.pattern ??= ze), E.init(e, t)
   }),
-  zt = r(`$ZodCUID2`, (e, t) => {
-    ;(t.pattern ??= Be), D.init(e, t)
+  Bt = r(`$ZodCUID2`, (e, t) => {
+    ;(t.pattern ??= Be), E.init(e, t)
   }),
-  Bt = r(`$ZodULID`, (e, t) => {
-    ;(t.pattern ??= Ve), D.init(e, t)
+  Vt = r(`$ZodULID`, (e, t) => {
+    ;(t.pattern ??= Ve), E.init(e, t)
   }),
-  Vt = r(`$ZodXID`, (e, t) => {
-    ;(t.pattern ??= He), D.init(e, t)
+  Ht = r(`$ZodXID`, (e, t) => {
+    ;(t.pattern ??= He), E.init(e, t)
   }),
-  Ht = r(`$ZodKSUID`, (e, t) => {
-    ;(t.pattern ??= Ue), D.init(e, t)
+  Ut = r(`$ZodKSUID`, (e, t) => {
+    ;(t.pattern ??= Ue), E.init(e, t)
   }),
-  Ut = r(`$ZodISODateTime`, (e, t) => {
-    ;(t.pattern ??= st(t)), D.init(e, t)
+  Wt = r(`$ZodISODateTime`, (e, t) => {
+    ;(t.pattern ??= st(t)), E.init(e, t)
   }),
-  Wt = r(`$ZodISODate`, (e, t) => {
-    ;(t.pattern ??= it), D.init(e, t)
+  Gt = r(`$ZodISODate`, (e, t) => {
+    ;(t.pattern ??= it), E.init(e, t)
   }),
-  Gt = r(`$ZodISOTime`, (e, t) => {
-    ;(t.pattern ??= ot(t)), D.init(e, t)
+  Kt = r(`$ZodISOTime`, (e, t) => {
+    ;(t.pattern ??= ot(t)), E.init(e, t)
   }),
-  Kt = r(`$ZodISODuration`, (e, t) => {
-    ;(t.pattern ??= Ge), D.init(e, t)
+  qt = r(`$ZodISODuration`, (e, t) => {
+    ;(t.pattern ??= Ge), E.init(e, t)
   }),
-  qt = r(`$ZodIPv4`, (e, t) => {
-    ;(t.pattern ??= Xe), D.init(e, t), (e._zod.bag.format = `ipv4`)
+  Jt = r(`$ZodIPv4`, (e, t) => {
+    ;(t.pattern ??= Xe), E.init(e, t), (e._zod.bag.format = `ipv4`)
   }),
-  Jt = r(`$ZodIPv6`, (e, t) => {
+  Yt = r(`$ZodIPv6`, (e, t) => {
     ;(t.pattern ??= Ze),
-      D.init(e, t),
+      E.init(e, t),
       (e._zod.bag.format = `ipv6`),
       (e._zod.check = (n) => {
         try {
@@ -1039,12 +1039,12 @@ const At = { major: 4, minor: 3, patch: 6 },
         }
       })
   }),
-  Yt = r(`$ZodCIDRv4`, (e, t) => {
-    ;(t.pattern ??= Qe), D.init(e, t)
+  Xt = r(`$ZodCIDRv4`, (e, t) => {
+    ;(t.pattern ??= Qe), E.init(e, t)
   }),
-  Xt = r(`$ZodCIDRv6`, (e, t) => {
+  Zt = r(`$ZodCIDRv6`, (e, t) => {
     ;(t.pattern ??= $e),
-      D.init(e, t),
+      E.init(e, t),
       (e._zod.check = (n) => {
         let r = n.value.split(`/`)
         try {
@@ -1059,7 +1059,7 @@ const At = { major: 4, minor: 3, patch: 6 },
         }
       })
   })
-function Zt(e) {
+function Qt(e) {
   if (e === ``) return !0
   if (e.length % 4 != 0) return !1
   try {
@@ -1068,33 +1068,33 @@ function Zt(e) {
     return !1
   }
 }
-const Qt = r(`$ZodBase64`, (e, t) => {
+const $t = r(`$ZodBase64`, (e, t) => {
   ;(t.pattern ??= et),
-    D.init(e, t),
+    E.init(e, t),
     (e._zod.bag.contentEncoding = `base64`),
     (e._zod.check = (n) => {
-      Zt(n.value) ||
+      Qt(n.value) ||
         n.issues.push({ code: `invalid_format`, format: `base64`, input: n.value, inst: e, continue: !t.abort })
     })
 })
-function $t(e) {
+function en(e) {
   if (!tt.test(e)) return !1
   let t = e.replace(/[-_]/g, (e) => (e === `-` ? `+` : `/`))
-  return Zt(t.padEnd(Math.ceil(t.length / 4) * 4, `=`))
+  return Qt(t.padEnd(Math.ceil(t.length / 4) * 4, `=`))
 }
-const en = r(`$ZodBase64URL`, (e, t) => {
+const tn = r(`$ZodBase64URL`, (e, t) => {
     ;(t.pattern ??= tt),
-      D.init(e, t),
+      E.init(e, t),
       (e._zod.bag.contentEncoding = `base64url`),
       (e._zod.check = (n) => {
-        $t(n.value) ||
+        en(n.value) ||
           n.issues.push({ code: `invalid_format`, format: `base64url`, input: n.value, inst: e, continue: !t.abort })
       })
   }),
-  tn = r(`$ZodE164`, (e, t) => {
-    ;(t.pattern ??= nt), D.init(e, t)
+  nn = r(`$ZodE164`, (e, t) => {
+    ;(t.pattern ??= nt), E.init(e, t)
   })
-function nn(e, t = null) {
+function rn(e, t = null) {
   try {
     let n = e.split(`.`)
     if (n.length !== 3) return !1
@@ -1106,15 +1106,15 @@ function nn(e, t = null) {
     return !1
   }
 }
-const rn = r(`$ZodJWT`, (e, t) => {
-    D.init(e, t),
+const an = r(`$ZodJWT`, (e, t) => {
+    E.init(e, t),
       (e._zod.check = (n) => {
-        nn(n.value, t.alg) ||
+        rn(n.value, t.alg) ||
           n.issues.push({ code: `invalid_format`, format: `jwt`, input: n.value, inst: e, continue: !t.abort })
       })
   }),
-  an = r(`$ZodNumber`, (e, t) => {
-    E.init(e, t),
+  on = r(`$ZodNumber`, (e, t) => {
+    T.init(e, t),
       (e._zod.pattern = e._zod.bag.pattern ?? ut),
       (e._zod.parse = (n, r) => {
         if (t.coerce)
@@ -1130,11 +1130,11 @@ const rn = r(`$ZodJWT`, (e, t) => {
         )
       })
   }),
-  on = r(`$ZodNumberFormat`, (e, t) => {
-    vt.init(e, t), an.init(e, t)
+  sn = r(`$ZodNumberFormat`, (e, t) => {
+    vt.init(e, t), on.init(e, t)
   }),
-  sn = r(`$ZodBoolean`, (e, t) => {
-    E.init(e, t),
+  cn = r(`$ZodBoolean`, (e, t) => {
+    T.init(e, t),
       (e._zod.pattern = dt),
       (e._zod.parse = (n, r) => {
         if (t.coerce)
@@ -1147,20 +1147,20 @@ const rn = r(`$ZodJWT`, (e, t) => {
         )
       })
   }),
-  cn = r(`$ZodUnknown`, (e, t) => {
-    E.init(e, t), (e._zod.parse = (e) => e)
+  ln = r(`$ZodUnknown`, (e, t) => {
+    T.init(e, t), (e._zod.parse = (e) => e)
   }),
-  ln = r(`$ZodNever`, (e, t) => {
-    E.init(e, t),
+  un = r(`$ZodNever`, (e, t) => {
+    T.init(e, t),
       (e._zod.parse = (t, n) => (
         t.issues.push({ expected: `never`, code: `invalid_type`, input: t.value, inst: e }), t
       ))
   })
-function un(e, t, n) {
+function dn(e, t, n) {
   e.issues.length && t.issues.push(...x(n, e.issues)), (t.value[n] = e.value)
 }
-const dn = r(`$ZodArray`, (e, t) => {
-  E.init(e, t),
+const fn = r(`$ZodArray`, (e, t) => {
+  T.init(e, t),
     (e._zod.parse = (n, r) => {
       let i = n.value
       if (!Array.isArray(i)) return n.issues.push({ expected: `array`, code: `invalid_type`, input: i, inst: e }), n
@@ -1169,19 +1169,19 @@ const dn = r(`$ZodArray`, (e, t) => {
       for (let e = 0; e < i.length; e++) {
         let o = i[e],
           s = t.element._zod.run({ value: o, issues: [] }, r)
-        s instanceof Promise ? a.push(s.then((t) => un(t, n, e))) : un(s, n, e)
+        s instanceof Promise ? a.push(s.then((t) => dn(t, n, e))) : dn(s, n, e)
       }
       return a.length ? Promise.all(a).then(() => n) : n
     })
 })
-function O(e, t, n, r, i) {
+function pn(e, t, n, r, i) {
   if (e.issues.length) {
     if (i && !(n in r)) return
     t.issues.push(...x(n, e.issues))
   }
   e.value === void 0 ? n in r && (t.value[n] = void 0) : (t.value[n] = e.value)
 }
-function fn(e) {
+function mn(e) {
   let t = Object.keys(e.shape)
   for (let n of t)
     if (!e.shape?.[n]?._zod?.traits?.has(`$ZodType`))
@@ -1189,7 +1189,7 @@ function fn(e) {
   let n = le(e.shape)
   return { ...e, keys: t, keySet: new Set(t), numKeys: t.length, optionalKeys: new Set(n) }
 }
-function pn(e, t, n, r, i, a) {
+function hn(e, t, n, r, i, a) {
   let o = [],
     s = i.keySet,
     c = i.catchall._zod,
@@ -1202,15 +1202,15 @@ function pn(e, t, n, r, i, a) {
       continue
     }
     let a = c.run({ value: t[i], issues: [] }, r)
-    a instanceof Promise ? e.push(a.then((e) => O(e, n, i, t, u))) : O(a, n, i, t, u)
+    a instanceof Promise ? e.push(a.then((e) => pn(e, n, i, t, u))) : pn(a, n, i, t, u)
   }
   return (
     o.length && n.issues.push({ code: `unrecognized_keys`, keys: o, input: t, inst: a }),
     e.length ? Promise.all(e).then(() => n) : n
   )
 }
-const mn = r(`$ZodObject`, (e, t) => {
-    if ((E.init(e, t), !Object.getOwnPropertyDescriptor(t, `shape`)?.get)) {
+const gn = r(`$ZodObject`, (e, t) => {
+    if ((T.init(e, t), !Object.getOwnPropertyDescriptor(t, `shape`)?.get)) {
       let e = t.shape
       Object.defineProperty(t, `shape`, {
         get: () => {
@@ -1219,7 +1219,7 @@ const mn = r(`$ZodObject`, (e, t) => {
         }
       })
     }
-    let n = u(() => fn(t))
+    let n = u(() => mn(t))
     f(e._zod, `propValues`, () => {
       let e = t.shape,
         n = {}
@@ -1246,17 +1246,17 @@ const mn = r(`$ZodObject`, (e, t) => {
         let n = l[e],
           r = n._zod.optout === `optional`,
           i = n._zod.run({ value: s[e], issues: [] }, o)
-        i instanceof Promise ? c.push(i.then((n) => O(n, t, e, s, r))) : O(i, t, e, s, r)
+        i instanceof Promise ? c.push(i.then((n) => pn(n, t, e, s, r))) : pn(i, t, e, s, r)
       }
-      return i ? pn(c, s, t, o, n.value, e) : c.length ? Promise.all(c).then(() => t) : t
+      return i ? hn(c, s, t, o, n.value, e) : c.length ? Promise.all(c).then(() => t) : t
     }
   }),
-  hn = r(`$ZodObjectJIT`, (e, t) => {
-    mn.init(e, t)
+  _n = r(`$ZodObjectJIT`, (e, t) => {
+    gn.init(e, t)
     let n = e._zod.parse,
-      r = u(() => fn(t)),
+      r = u(() => mn(t)),
       i = (e) => {
-        let t = new kt([`shape`, `payload`, `ctx`]),
+        let t = new At([`shape`, `payload`, `ctx`]),
           n = r.value,
           i = (e) => {
             let t = re(e)
@@ -1325,12 +1325,12 @@ const mn = r(`$ZodObject`, (e, t) => {
       let te = o.value
       return s(te)
         ? c && l && u?.async === !1 && u.jitless !== !0
-          ? ((a ||= i(t.shape)), (o = a(o, u)), ee ? pn([], te, o, u, d, e) : o)
+          ? ((a ||= i(t.shape)), (o = a(o, u)), ee ? hn([], te, o, u, d, e) : o)
           : n(o, u)
         : (o.issues.push({ expected: `object`, code: `invalid_type`, input: te, inst: e }), o)
     }
   })
-function gn(e, t, n, r) {
+function vn(e, t, n, r) {
   for (let n of e) if (n.issues.length === 0) return (t.value = n.value), t
   let i = e.filter((e) => !b(e))
   return i.length === 1
@@ -1343,8 +1343,8 @@ function gn(e, t, n, r) {
       }),
       t)
 }
-const _n = r(`$ZodUnion`, (e, t) => {
-    E.init(e, t),
+const yn = r(`$ZodUnion`, (e, t) => {
+    T.init(e, t),
       f(e._zod, `optin`, () => (t.options.some((e) => e._zod.optin === `optional`) ? `optional` : void 0)),
       f(e._zod, `optout`, () => (t.options.some((e) => e._zod.optout === `optional`) ? `optional` : void 0)),
       f(e._zod, `values`, () => {
@@ -1370,11 +1370,11 @@ const _n = r(`$ZodUnion`, (e, t) => {
           s.push(t)
         }
       }
-      return o ? Promise.all(s).then((t) => gn(t, i, e, a)) : gn(s, i, e, a)
+      return o ? Promise.all(s).then((t) => vn(t, i, e, a)) : vn(s, i, e, a)
     }
   }),
-  vn = r(`$ZodDiscriminatedUnion`, (e, t) => {
-    ;(t.inclusive = !1), _n.init(e, t)
+  bn = r(`$ZodDiscriminatedUnion`, (e, t) => {
+    ;(t.inclusive = !1), yn.init(e, t)
     let n = e._zod.parse
     f(e._zod, `propValues`, () => {
       let e = {}
@@ -1422,25 +1422,25 @@ const _n = r(`$ZodUnion`, (e, t) => {
             i)
     }
   }),
-  yn = r(`$ZodIntersection`, (e, t) => {
-    E.init(e, t),
+  xn = r(`$ZodIntersection`, (e, t) => {
+    T.init(e, t),
       (e._zod.parse = (e, n) => {
         let r = e.value,
           i = t.left._zod.run({ value: r, issues: [] }, n),
           a = t.right._zod.run({ value: r, issues: [] }, n)
         return i instanceof Promise || a instanceof Promise
-          ? Promise.all([i, a]).then(([t, n]) => xn(e, t, n))
-          : xn(e, i, a)
+          ? Promise.all([i, a]).then(([t, n]) => Cn(e, t, n))
+          : Cn(e, i, a)
       })
   })
-function bn(e, t) {
+function Sn(e, t) {
   if (e === t || (e instanceof Date && t instanceof Date && +e == +t)) return { valid: !0, data: e }
   if (g(e) && g(t)) {
     let n = Object.keys(t),
       r = Object.keys(e).filter((e) => n.indexOf(e) !== -1),
       i = { ...e, ...t }
     for (let n of r) {
-      let r = bn(e[n], t[n])
+      let r = Sn(e[n], t[n])
       if (!r.valid) return { valid: !1, mergeErrorPath: [n, ...r.mergeErrorPath] }
       i[n] = r.data
     }
@@ -1452,7 +1452,7 @@ function bn(e, t) {
     for (let r = 0; r < e.length; r++) {
       let i = e[r],
         a = t[r],
-        o = bn(i, a)
+        o = Sn(i, a)
       if (!o.valid) return { valid: !1, mergeErrorPath: [r, ...o.mergeErrorPath] }
       n.push(o.data)
     }
@@ -1460,7 +1460,7 @@ function bn(e, t) {
   }
   return { valid: !1, mergeErrorPath: [] }
 }
-function xn(e, t, n) {
+function Cn(e, t, n) {
   let r = new Map(),
     i
   for (let n of t.issues)
@@ -1473,12 +1473,12 @@ function xn(e, t, n) {
     else e.issues.push(t)
   let a = [...r].filter(([, e]) => e.l && e.r).map(([e]) => e)
   if ((a.length && i && e.issues.push({ ...i, keys: a }), b(e))) return e
-  let o = bn(t.value, n.value)
+  let o = Sn(t.value, n.value)
   if (!o.valid) throw Error(`Unmergable intersection. Error path: ${JSON.stringify(o.mergeErrorPath)}`)
   return (e.value = o.data), e
 }
-const Sn = r(`$ZodRecord`, (e, t) => {
-    E.init(e, t),
+const wn = r(`$ZodRecord`, (e, t) => {
+    T.init(e, t),
       (e._zod.parse = (n, r) => {
         let i = n.value
         if (!g(i)) return n.issues.push({ expected: `record`, code: `invalid_type`, input: i, inst: e }), n
@@ -1539,8 +1539,8 @@ const Sn = r(`$ZodRecord`, (e, t) => {
         return a.length ? Promise.all(a).then(() => n) : n
       })
   }),
-  Cn = r(`$ZodEnum`, (e, t) => {
-    E.init(e, t)
+  Tn = r(`$ZodEnum`, (e, t) => {
+    T.init(e, t)
     let n = c(t.entries),
       r = new Set(n)
     ;(e._zod.values = r),
@@ -1555,8 +1555,8 @@ const Sn = r(`$ZodRecord`, (e, t) => {
         return r.has(a) || t.issues.push({ code: `invalid_value`, values: n, input: a, inst: e }), t
       })
   }),
-  wn = r(`$ZodLiteral`, (e, t) => {
-    if ((E.init(e, t), t.values.length === 0)) throw Error(`Cannot create literal schema with no valid values`)
+  En = r(`$ZodLiteral`, (e, t) => {
+    if ((T.init(e, t), t.values.length === 0)) throw Error(`Cannot create literal schema with no valid values`)
     let n = new Set(t.values)
     ;(e._zod.values = n),
       (e._zod.pattern = RegExp(
@@ -1567,8 +1567,8 @@ const Sn = r(`$ZodRecord`, (e, t) => {
         return n.has(a) || r.issues.push({ code: `invalid_value`, values: t.values, input: a, inst: e }), r
       })
   }),
-  Tn = r(`$ZodTransform`, (e, t) => {
-    E.init(e, t),
+  Dn = r(`$ZodTransform`, (e, t) => {
+    T.init(e, t),
       (e._zod.parse = (n, r) => {
         if (r.direction === `backward`) throw new a(e.constructor.name)
         let o = t.transform(n.value, n)
@@ -1577,11 +1577,11 @@ const Sn = r(`$ZodRecord`, (e, t) => {
         return (n.value = o), n
       })
   })
-function En(e, t) {
+function On(e, t) {
   return e.issues.length && t === void 0 ? { issues: [], value: void 0 } : e
 }
-const Dn = r(`$ZodOptional`, (e, t) => {
-    E.init(e, t),
+const kn = r(`$ZodOptional`, (e, t) => {
+    T.init(e, t),
       (e._zod.optin = `optional`),
       (e._zod.optout = `optional`),
       f(e._zod, `values`, () => (t.innerType._zod.values ? new Set([...t.innerType._zod.values, void 0]) : void 0)),
@@ -1592,19 +1592,19 @@ const Dn = r(`$ZodOptional`, (e, t) => {
       (e._zod.parse = (e, n) => {
         if (t.innerType._zod.optin === `optional`) {
           let r = t.innerType._zod.run(e, n)
-          return r instanceof Promise ? r.then((t) => En(t, e.value)) : En(r, e.value)
+          return r instanceof Promise ? r.then((t) => On(t, e.value)) : On(r, e.value)
         }
         return e.value === void 0 ? e : t.innerType._zod.run(e, n)
       })
   }),
-  On = r(`$ZodExactOptional`, (e, t) => {
-    Dn.init(e, t),
+  An = r(`$ZodExactOptional`, (e, t) => {
+    kn.init(e, t),
       f(e._zod, `values`, () => t.innerType._zod.values),
       f(e._zod, `pattern`, () => t.innerType._zod.pattern),
       (e._zod.parse = (e, n) => t.innerType._zod.run(e, n))
   }),
-  kn = r(`$ZodNullable`, (e, t) => {
-    E.init(e, t),
+  jn = r(`$ZodNullable`, (e, t) => {
+    T.init(e, t),
       f(e._zod, `optin`, () => t.innerType._zod.optin),
       f(e._zod, `optout`, () => t.innerType._zod.optout),
       f(e._zod, `pattern`, () => {
@@ -1614,40 +1614,40 @@ const Dn = r(`$ZodOptional`, (e, t) => {
       f(e._zod, `values`, () => (t.innerType._zod.values ? new Set([...t.innerType._zod.values, null]) : void 0)),
       (e._zod.parse = (e, n) => (e.value === null ? e : t.innerType._zod.run(e, n)))
   }),
-  An = r(`$ZodDefault`, (e, t) => {
-    E.init(e, t),
+  Mn = r(`$ZodDefault`, (e, t) => {
+    T.init(e, t),
       (e._zod.optin = `optional`),
       f(e._zod, `values`, () => t.innerType._zod.values),
       (e._zod.parse = (e, n) => {
         if (n.direction === `backward`) return t.innerType._zod.run(e, n)
         if (e.value === void 0) return (e.value = t.defaultValue), e
         let r = t.innerType._zod.run(e, n)
-        return r instanceof Promise ? r.then((e) => jn(e, t)) : jn(r, t)
+        return r instanceof Promise ? r.then((e) => Nn(e, t)) : Nn(r, t)
       })
   })
-function jn(e, t) {
+function Nn(e, t) {
   return e.value === void 0 && (e.value = t.defaultValue), e
 }
-const Mn = r(`$ZodPrefault`, (e, t) => {
-    E.init(e, t),
+const Pn = r(`$ZodPrefault`, (e, t) => {
+    T.init(e, t),
       (e._zod.optin = `optional`),
       f(e._zod, `values`, () => t.innerType._zod.values),
       (e._zod.parse = (e, n) => (
         n.direction === `backward` || (e.value === void 0 && (e.value = t.defaultValue)), t.innerType._zod.run(e, n)
       ))
   }),
-  Nn = r(`$ZodNonOptional`, (e, t) => {
-    E.init(e, t),
+  Fn = r(`$ZodNonOptional`, (e, t) => {
+    T.init(e, t),
       f(e._zod, `values`, () => {
         let e = t.innerType._zod.values
         return e ? new Set([...e].filter((e) => e !== void 0)) : void 0
       }),
       (e._zod.parse = (n, r) => {
         let i = t.innerType._zod.run(n, r)
-        return i instanceof Promise ? i.then((t) => Pn(t, e)) : Pn(i, e)
+        return i instanceof Promise ? i.then((t) => In(t, e)) : In(i, e)
       })
   })
-function Pn(e, t) {
+function In(e, t) {
   return (
     !e.issues.length &&
       e.value === void 0 &&
@@ -1655,8 +1655,8 @@ function Pn(e, t) {
     e
   )
 }
-const Fn = r(`$ZodCatch`, (e, t) => {
-    E.init(e, t),
+const Ln = r(`$ZodCatch`, (e, t) => {
+    T.init(e, t),
       f(e._zod, `optin`, () => t.innerType._zod.optin),
       f(e._zod, `optout`, () => t.innerType._zod.optout),
       f(e._zod, `values`, () => t.innerType._zod.values),
@@ -1684,8 +1684,8 @@ const Fn = r(`$ZodCatch`, (e, t) => {
             e)
       })
   }),
-  In = r(`$ZodPipe`, (e, t) => {
-    E.init(e, t),
+  Rn = r(`$ZodPipe`, (e, t) => {
+    T.init(e, t),
       f(e._zod, `values`, () => t.in._zod.values),
       f(e._zod, `optin`, () => t.in._zod.optin),
       f(e._zod, `optout`, () => t.out._zod.optout),
@@ -1693,17 +1693,17 @@ const Fn = r(`$ZodCatch`, (e, t) => {
       (e._zod.parse = (e, n) => {
         if (n.direction === `backward`) {
           let r = t.out._zod.run(e, n)
-          return r instanceof Promise ? r.then((e) => k(e, t.in, n)) : k(r, t.in, n)
+          return r instanceof Promise ? r.then((e) => D(e, t.in, n)) : D(r, t.in, n)
         }
         let r = t.in._zod.run(e, n)
-        return r instanceof Promise ? r.then((e) => k(e, t.out, n)) : k(r, t.out, n)
+        return r instanceof Promise ? r.then((e) => D(e, t.out, n)) : D(r, t.out, n)
       })
   })
-function k(e, t, n) {
+function D(e, t, n) {
   return e.issues.length ? ((e.aborted = !0), e) : t._zod.run({ value: e.value, issues: e.issues }, n)
 }
-const Ln = r(`$ZodReadonly`, (e, t) => {
-  E.init(e, t),
+const zn = r(`$ZodReadonly`, (e, t) => {
+  T.init(e, t),
     f(e._zod, `propValues`, () => t.innerType._zod.propValues),
     f(e._zod, `values`, () => t.innerType._zod.values),
     f(e._zod, `optin`, () => t.innerType?._zod?.optin),
@@ -1711,31 +1711,31 @@ const Ln = r(`$ZodReadonly`, (e, t) => {
     (e._zod.parse = (e, n) => {
       if (n.direction === `backward`) return t.innerType._zod.run(e, n)
       let r = t.innerType._zod.run(e, n)
-      return r instanceof Promise ? r.then(Rn) : Rn(r)
+      return r instanceof Promise ? r.then(Bn) : Bn(r)
     })
 })
-function Rn(e) {
+function Bn(e) {
   return (e.value = Object.freeze(e.value)), e
 }
-const zn = r(`$ZodCustom`, (e, t) => {
+const Vn = r(`$ZodCustom`, (e, t) => {
   w.init(e, t),
-    E.init(e, t),
+    T.init(e, t),
     (e._zod.parse = (e, t) => e),
     (e._zod.check = (n) => {
       let r = n.value,
         i = t.fn(r)
-      if (i instanceof Promise) return i.then((t) => Bn(t, n, r, e))
-      Bn(i, n, r, e)
+      if (i instanceof Promise) return i.then((t) => Hn(t, n, r, e))
+      Hn(i, n, r, e)
     })
 })
-function Bn(e, t, n, r) {
+function Hn(e, t, n, r) {
   if (!e) {
     let e = { code: `custom`, input: n, inst: r, path: [...(r._zod.def.path ?? [])], continue: !r._zod.def.abort }
     r._zod.def.params && (e.params = r._zod.def.params), t.issues.push(C(e))
   }
 }
-var Vn,
-  Hn = class {
+var Un,
+  Wn = class {
     constructor() {
       ;(this._map = new WeakMap()), (this._idmap = new Map())
     }
@@ -1764,81 +1764,81 @@ var Vn,
       return this._map.has(e)
     }
   }
-function Un() {
-  return new Hn()
+function Gn() {
+  return new Wn()
 }
-;(Vn = globalThis).__zod_globalRegistry ?? (Vn.__zod_globalRegistry = Un())
-const A = globalThis.__zod_globalRegistry
-function Wn(e, t) {
+;(Un = globalThis).__zod_globalRegistry ?? (Un.__zod_globalRegistry = Gn())
+const O = globalThis.__zod_globalRegistry
+function Kn(e, t) {
   return new e({ type: `string`, ...y(t) })
 }
-function Gn(e, t) {
+function qn(e, t) {
   return new e({ type: `string`, format: `email`, check: `string_format`, abort: !1, ...y(t) })
 }
-function Kn(e, t) {
+function Jn(e, t) {
   return new e({ type: `string`, format: `guid`, check: `string_format`, abort: !1, ...y(t) })
 }
-function qn(e, t) {
+function Yn(e, t) {
   return new e({ type: `string`, format: `uuid`, check: `string_format`, abort: !1, ...y(t) })
 }
-function Jn(e, t) {
+function Xn(e, t) {
   return new e({ type: `string`, format: `uuid`, check: `string_format`, abort: !1, version: `v4`, ...y(t) })
 }
-function Yn(e, t) {
+function Zn(e, t) {
   return new e({ type: `string`, format: `uuid`, check: `string_format`, abort: !1, version: `v6`, ...y(t) })
 }
-function Xn(e, t) {
+function Qn(e, t) {
   return new e({ type: `string`, format: `uuid`, check: `string_format`, abort: !1, version: `v7`, ...y(t) })
 }
-function Zn(e, t) {
+function $n(e, t) {
   return new e({ type: `string`, format: `url`, check: `string_format`, abort: !1, ...y(t) })
 }
-function Qn(e, t) {
+function er(e, t) {
   return new e({ type: `string`, format: `emoji`, check: `string_format`, abort: !1, ...y(t) })
 }
-function $n(e, t) {
+function tr(e, t) {
   return new e({ type: `string`, format: `nanoid`, check: `string_format`, abort: !1, ...y(t) })
 }
-function er(e, t) {
+function nr(e, t) {
   return new e({ type: `string`, format: `cuid`, check: `string_format`, abort: !1, ...y(t) })
 }
-function tr(e, t) {
+function rr(e, t) {
   return new e({ type: `string`, format: `cuid2`, check: `string_format`, abort: !1, ...y(t) })
 }
-function nr(e, t) {
+function ir(e, t) {
   return new e({ type: `string`, format: `ulid`, check: `string_format`, abort: !1, ...y(t) })
 }
-function rr(e, t) {
+function ar(e, t) {
   return new e({ type: `string`, format: `xid`, check: `string_format`, abort: !1, ...y(t) })
 }
-function ir(e, t) {
+function or(e, t) {
   return new e({ type: `string`, format: `ksuid`, check: `string_format`, abort: !1, ...y(t) })
 }
-function ar(e, t) {
+function sr(e, t) {
   return new e({ type: `string`, format: `ipv4`, check: `string_format`, abort: !1, ...y(t) })
 }
-function or(e, t) {
+function cr(e, t) {
   return new e({ type: `string`, format: `ipv6`, check: `string_format`, abort: !1, ...y(t) })
 }
-function sr(e, t) {
+function lr(e, t) {
   return new e({ type: `string`, format: `cidrv4`, check: `string_format`, abort: !1, ...y(t) })
 }
-function cr(e, t) {
+function ur(e, t) {
   return new e({ type: `string`, format: `cidrv6`, check: `string_format`, abort: !1, ...y(t) })
 }
-function lr(e, t) {
+function dr(e, t) {
   return new e({ type: `string`, format: `base64`, check: `string_format`, abort: !1, ...y(t) })
 }
-function ur(e, t) {
+function fr(e, t) {
   return new e({ type: `string`, format: `base64url`, check: `string_format`, abort: !1, ...y(t) })
 }
-function dr(e, t) {
+function pr(e, t) {
   return new e({ type: `string`, format: `e164`, check: `string_format`, abort: !1, ...y(t) })
 }
-function fr(e, t) {
+function mr(e, t) {
   return new e({ type: `string`, format: `jwt`, check: `string_format`, abort: !1, ...y(t) })
 }
-function pr(e, t) {
+function hr(e, t) {
   return new e({
     type: `string`,
     format: `datetime`,
@@ -1849,98 +1849,98 @@ function pr(e, t) {
     ...y(t)
   })
 }
-function mr(e, t) {
+function gr(e, t) {
   return new e({ type: `string`, format: `date`, check: `string_format`, ...y(t) })
 }
-function hr(e, t) {
+function _r(e, t) {
   return new e({ type: `string`, format: `time`, check: `string_format`, precision: null, ...y(t) })
 }
-function gr(e, t) {
+function vr(e, t) {
   return new e({ type: `string`, format: `duration`, check: `string_format`, ...y(t) })
 }
-function _r(e, t) {
+function yr(e, t) {
   return new e({ type: `number`, checks: [], ...y(t) })
 }
-function vr(e, t) {
+function br(e, t) {
   return new e({ type: `number`, check: `number_format`, abort: !1, format: `safeint`, ...y(t) })
 }
-function yr(e, t) {
+function xr(e, t) {
   return new e({ type: `boolean`, ...y(t) })
 }
-function br(e) {
+function Sr(e) {
   return new e({ type: `unknown` })
 }
-function xr(e, t) {
+function Cr(e, t) {
   return new e({ type: `never`, ...y(t) })
 }
-function Sr(e, t) {
+function wr(e, t) {
   return new ht({ check: `less_than`, ...y(t), value: e, inclusive: !1 })
 }
-function Cr(e, t) {
+function Tr(e, t) {
   return new ht({ check: `less_than`, ...y(t), value: e, inclusive: !0 })
 }
-function wr(e, t) {
+function Er(e, t) {
   return new gt({ check: `greater_than`, ...y(t), value: e, inclusive: !1 })
 }
-function Tr(e, t) {
+function Dr(e, t) {
   return new gt({ check: `greater_than`, ...y(t), value: e, inclusive: !0 })
 }
-function Er(e, t) {
+function Or(e, t) {
   return new _t({ check: `multiple_of`, ...y(t), value: e })
 }
-function Dr(e, t) {
+function kr(e, t) {
   return new yt({ check: `max_length`, ...y(t), maximum: e })
 }
-function Or(e, t) {
+function Ar(e, t) {
   return new bt({ check: `min_length`, ...y(t), minimum: e })
 }
-function kr(e, t) {
+function jr(e, t) {
   return new xt({ check: `length_equals`, ...y(t), length: e })
 }
-function Ar(e, t) {
-  return new St({ check: `string_format`, format: `regex`, ...y(t), pattern: e })
+function Mr(e, t) {
+  return new Ct({ check: `string_format`, format: `regex`, ...y(t), pattern: e })
 }
-function jr(e) {
-  return new Ct({ check: `string_format`, format: `lowercase`, ...y(e) })
+function Nr(e) {
+  return new wt({ check: `string_format`, format: `lowercase`, ...y(e) })
 }
-function Mr(e) {
-  return new wt({ check: `string_format`, format: `uppercase`, ...y(e) })
-}
-function Nr(e, t) {
-  return new Tt({ check: `string_format`, format: `includes`, ...y(t), includes: e })
-}
-function Pr(e, t) {
-  return new Et({ check: `string_format`, format: `starts_with`, ...y(t), prefix: e })
+function Pr(e) {
+  return new Tt({ check: `string_format`, format: `uppercase`, ...y(e) })
 }
 function Fr(e, t) {
-  return new Dt({ check: `string_format`, format: `ends_with`, ...y(t), suffix: e })
+  return new Et({ check: `string_format`, format: `includes`, ...y(t), includes: e })
 }
-function j(e) {
-  return new Ot({ check: `overwrite`, tx: e })
+function Ir(e, t) {
+  return new Dt({ check: `string_format`, format: `starts_with`, ...y(t), prefix: e })
 }
-function Ir(e) {
-  return j((t) => t.normalize(e))
+function Lr(e, t) {
+  return new Ot({ check: `string_format`, format: `ends_with`, ...y(t), suffix: e })
 }
-function Lr() {
-  return j((e) => e.trim())
+function k(e) {
+  return new kt({ check: `overwrite`, tx: e })
 }
-function Rr() {
-  return j((e) => e.toLowerCase())
+function Rr(e) {
+  return k((t) => t.normalize(e))
 }
 function zr() {
-  return j((e) => e.toUpperCase())
+  return k((e) => e.trim())
 }
 function Br() {
-  return j((e) => ie(e))
+  return k((e) => e.toLowerCase())
 }
-function Vr(e, t, n) {
+function Vr() {
+  return k((e) => e.toUpperCase())
+}
+function Hr() {
+  return k((e) => ie(e))
+}
+function Ur(e, t, n) {
   return new e({ type: `array`, element: t, ...y(n) })
 }
-function Hr(e, t, n) {
+function Wr(e, t, n) {
   return new e({ type: `custom`, check: `custom`, fn: t, ...y(n) })
 }
-function Ur(e) {
-  let t = Wr(
+function Gr(e) {
+  let t = Kr(
     (n) => (
       (n.addIssue = (e) => {
         if (typeof e == `string`) n.issues.push(C(e, n.value, t._zod.def))
@@ -1959,18 +1959,18 @@ function Ur(e) {
   )
   return t
 }
-function Wr(e, t) {
+function Kr(e, t) {
   let n = new w({ check: `custom`, ...y(t) })
   return (n._zod.check = e), n
 }
-function Gr(e) {
+function qr(e) {
   let t = e?.target ?? `draft-2020-12`
   return (
     t === `draft-4` && (t = `draft-04`),
     t === `draft-7` && (t = `draft-07`),
     {
       processors: e.processors ?? {},
-      metadataRegistry: e?.metadata ?? A,
+      metadataRegistry: e?.metadata ?? O,
       target: t,
       unrepresentable: e?.unrepresentable ?? `throw`,
       override: e?.override ?? (() => {}),
@@ -1983,7 +1983,7 @@ function Gr(e) {
     }
   )
 }
-function M(e, t, n = { path: [], schemaPath: [] }) {
+function A(e, t, n = { path: [], schemaPath: [] }) {
   var r
   let i = e._zod.def,
     a = t.seen.get(e)
@@ -2002,18 +2002,18 @@ function M(e, t, n = { path: [], schemaPath: [] }) {
       a(e, t, n, r)
     }
     let a = e._zod.parent
-    a && ((o.ref ||= a), M(a, t, r), (t.seen.get(a).isParent = !0))
+    a && ((o.ref ||= a), A(a, t, r), (t.seen.get(a).isParent = !0))
   }
   let c = t.metadataRegistry.get(e)
   return (
     c && Object.assign(o.schema, c),
-    t.io === `input` && N(e) && (delete o.schema.examples, delete o.schema.default),
+    t.io === `input` && j(e) && (delete o.schema.examples, delete o.schema.default),
     t.io === `input` && o.schema._prefault && ((r = o.schema).default ?? (r.default = o.schema._prefault)),
     delete o.schema._prefault,
     t.seen.get(e).schema
   )
 }
-function Kr(e, t) {
+function Jr(e, t) {
   let n = e.seen.get(t)
   if (!n) throw Error(`Unprocessed schema. This is a bug in Zod.`)
   let r = new Map()
@@ -2086,7 +2086,7 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
     }
   }
 }
-function qr(e, t) {
+function Yr(e, t) {
   let n = e.seen.get(t)
   if (!n) throw Error(`Unprocessed schema. This is a bug in Zod.`)
   let r = (t) => {
@@ -2154,7 +2154,7 @@ function qr(e, t) {
       Object.defineProperty(n, `~standard`, {
         value: {
           ...t[`~standard`],
-          jsonSchema: { input: Yr(t, `input`, e.processors), output: Yr(t, `output`, e.processors) }
+          jsonSchema: { input: Zr(t, `input`, e.processors), output: Zr(t, `output`, e.processors) }
         },
         enumerable: !1,
         writable: !1
@@ -2165,15 +2165,15 @@ function qr(e, t) {
     throw Error(`Error converting schema to JSON.`)
   }
 }
-function N(e, t) {
+function j(e, t) {
   let n = t ?? { seen: new Set() }
   if (n.seen.has(e)) return !1
   n.seen.add(e)
   let r = e._zod.def
   if (r.type === `transform`) return !0
-  if (r.type === `array`) return N(r.element, n)
-  if (r.type === `set`) return N(r.valueType, n)
-  if (r.type === `lazy`) return N(r.getter(), n)
+  if (r.type === `array`) return j(r.element, n)
+  if (r.type === `set`) return j(r.valueType, n)
+  if (r.type === `lazy`) return j(r.getter(), n)
   if (
     r.type === `promise` ||
     r.type === `optional` ||
@@ -2183,46 +2183,46 @@ function N(e, t) {
     r.type === `default` ||
     r.type === `prefault`
   )
-    return N(r.innerType, n)
-  if (r.type === `intersection`) return N(r.left, n) || N(r.right, n)
-  if (r.type === `record` || r.type === `map`) return N(r.keyType, n) || N(r.valueType, n)
-  if (r.type === `pipe`) return N(r.in, n) || N(r.out, n)
+    return j(r.innerType, n)
+  if (r.type === `intersection`) return j(r.left, n) || j(r.right, n)
+  if (r.type === `record` || r.type === `map`) return j(r.keyType, n) || j(r.valueType, n)
+  if (r.type === `pipe`) return j(r.in, n) || j(r.out, n)
   if (r.type === `object`) {
-    for (let e in r.shape) if (N(r.shape[e], n)) return !0
+    for (let e in r.shape) if (j(r.shape[e], n)) return !0
     return !1
   }
   if (r.type === `union`) {
-    for (let e of r.options) if (N(e, n)) return !0
+    for (let e of r.options) if (j(e, n)) return !0
     return !1
   }
   if (r.type === `tuple`) {
-    for (let e of r.items) if (N(e, n)) return !0
-    return !!(r.rest && N(r.rest, n))
+    for (let e of r.items) if (j(e, n)) return !0
+    return !!(r.rest && j(r.rest, n))
   }
   return !1
 }
-const Jr =
+const Xr =
     (e, t = {}) =>
     (n) => {
-      let r = Gr({ ...n, processors: t })
-      return M(e, r), Kr(r, e), qr(r, e)
+      let r = qr({ ...n, processors: t })
+      return A(e, r), Jr(r, e), Yr(r, e)
     },
-  Yr =
+  Zr =
     (e, t, n = {}) =>
     (r) => {
       let { libraryOptions: i, target: a } = r ?? {},
-        o = Gr({ ...(i ?? {}), target: a, io: t, processors: n })
-      return M(e, o), Kr(o, e), qr(o, e)
+        o = qr({ ...(i ?? {}), target: a, io: t, processors: n })
+      return A(e, o), Jr(o, e), Yr(o, e)
     },
-  Xr = { guid: `uuid`, url: `uri`, datetime: `date-time`, json_string: `json-string`, regex: `` },
-  Zr = (e, t, n, r) => {
+  Qr = { guid: `uuid`, url: `uri`, datetime: `date-time`, json_string: `json-string`, regex: `` },
+  $r = (e, t, n, r) => {
     let i = n
     i.type = `string`
     let { minimum: a, maximum: o, format: s, patterns: c, contentEncoding: l } = e._zod.bag
     if (
       (typeof a == `number` && (i.minLength = a),
       typeof o == `number` && (i.maxLength = o),
-      s && ((i.format = Xr[s] ?? s), i.format === `` && delete i.format, s === `time` && delete i.format),
+      s && ((i.format = Qr[s] ?? s), i.format === `` && delete i.format, s === `time` && delete i.format),
       l && (i.contentEncoding = l),
       c && c.size > 0)
     ) {
@@ -2240,7 +2240,7 @@ const Jr =
           ])
     }
   },
-  Qr = (e, t, n, r) => {
+  ei = (e, t, n, r) => {
     let i = n,
       { minimum: a, maximum: o, format: s, multipleOf: c, exclusiveMaximum: l, exclusiveMinimum: u } = e._zod.bag
     typeof s == `string` && s.includes(`int`) ? (i.type = `integer`) : (i.type = `number`),
@@ -2260,20 +2260,20 @@ const Jr =
         typeof l == `number` && t.target !== `draft-04` && (l <= o ? delete i.maximum : delete i.exclusiveMaximum)),
       typeof c == `number` && (i.multipleOf = c)
   },
-  $r = (e, t, n, r) => {
+  ti = (e, t, n, r) => {
     n.type = `boolean`
   },
-  ei = (e, t, n, r) => {
+  ni = (e, t, n, r) => {
     n.not = {}
   },
-  ti = (e, t, n, r) => {
+  ri = (e, t, n, r) => {
     let i = e._zod.def,
       a = c(i.entries)
     a.every((e) => typeof e == `number`) && (n.type = `number`),
       a.every((e) => typeof e == `string`) && (n.type = `string`),
       (n.enum = a)
   },
-  ni = (e, t, n, r) => {
+  ii = (e, t, n, r) => {
     let i = e._zod.def,
       a = []
     for (let e of i.values)
@@ -2295,27 +2295,27 @@ const Jr =
           a.every((e) => e === null) && (n.type = `null`),
           (n.enum = a)
   },
-  ri = (e, t, n, r) => {
+  ai = (e, t, n, r) => {
     if (t.unrepresentable === `throw`) throw Error(`Custom types cannot be represented in JSON Schema`)
   },
-  ii = (e, t, n, r) => {
+  oi = (e, t, n, r) => {
     if (t.unrepresentable === `throw`) throw Error(`Transforms cannot be represented in JSON Schema`)
   },
-  ai = (e, t, n, r) => {
+  si = (e, t, n, r) => {
     let i = n,
       a = e._zod.def,
       { minimum: o, maximum: s } = e._zod.bag
     typeof o == `number` && (i.minItems = o),
       typeof s == `number` && (i.maxItems = s),
       (i.type = `array`),
-      (i.items = M(a.element, t, { ...r, path: [...r.path, `items`] }))
+      (i.items = A(a.element, t, { ...r, path: [...r.path, `items`] }))
   },
-  oi = (e, t, n, r) => {
+  ci = (e, t, n, r) => {
     let i = n,
       a = e._zod.def
     ;(i.type = `object`), (i.properties = {})
     let o = a.shape
-    for (let e in o) i.properties[e] = M(o[e], t, { ...r, path: [...r.path, `properties`, e] })
+    for (let e in o) i.properties[e] = A(o[e], t, { ...r, path: [...r.path, `properties`, e] })
     let s = new Set(Object.keys(o)),
       c = new Set(
         [...s].filter((e) => {
@@ -2328,69 +2328,69 @@ const Jr =
         ? (i.additionalProperties = !1)
         : a.catchall
           ? a.catchall &&
-            (i.additionalProperties = M(a.catchall, t, { ...r, path: [...r.path, `additionalProperties`] }))
+            (i.additionalProperties = A(a.catchall, t, { ...r, path: [...r.path, `additionalProperties`] }))
           : t.io === `output` && (i.additionalProperties = !1)
   },
-  si = (e, t, n, r) => {
+  li = (e, t, n, r) => {
     let i = e._zod.def,
       a = i.inclusive === !1,
-      o = i.options.map((e, n) => M(e, t, { ...r, path: [...r.path, a ? `oneOf` : `anyOf`, n] }))
+      o = i.options.map((e, n) => A(e, t, { ...r, path: [...r.path, a ? `oneOf` : `anyOf`, n] }))
     a ? (n.oneOf = o) : (n.anyOf = o)
   },
-  ci = (e, t, n, r) => {
+  ui = (e, t, n, r) => {
     let i = e._zod.def,
-      a = M(i.left, t, { ...r, path: [...r.path, `allOf`, 0] }),
-      o = M(i.right, t, { ...r, path: [...r.path, `allOf`, 1] }),
+      a = A(i.left, t, { ...r, path: [...r.path, `allOf`, 0] }),
+      o = A(i.right, t, { ...r, path: [...r.path, `allOf`, 1] }),
       s = (e) => `allOf` in e && Object.keys(e).length === 1
     n.allOf = [...(s(a) ? a.allOf : [a]), ...(s(o) ? o.allOf : [o])]
   },
-  li = (e, t, n, r) => {
+  di = (e, t, n, r) => {
     let i = n,
       a = e._zod.def
     i.type = `object`
     let o = a.keyType,
       s = o._zod.bag?.patterns
     if (a.mode === `loose` && s && s.size > 0) {
-      let e = M(a.valueType, t, { ...r, path: [...r.path, `patternProperties`, `*`] })
+      let e = A(a.valueType, t, { ...r, path: [...r.path, `patternProperties`, `*`] })
       i.patternProperties = {}
       for (let t of s) i.patternProperties[t.source] = e
     } else
       (t.target === `draft-07` || t.target === `draft-2020-12`) &&
-        (i.propertyNames = M(a.keyType, t, { ...r, path: [...r.path, `propertyNames`] })),
-        (i.additionalProperties = M(a.valueType, t, { ...r, path: [...r.path, `additionalProperties`] }))
+        (i.propertyNames = A(a.keyType, t, { ...r, path: [...r.path, `propertyNames`] })),
+        (i.additionalProperties = A(a.valueType, t, { ...r, path: [...r.path, `additionalProperties`] }))
     let c = o._zod.values
     if (c) {
       let e = [...c].filter((e) => typeof e == `string` || typeof e == `number`)
       e.length > 0 && (i.required = e)
     }
   },
-  ui = (e, t, n, r) => {
+  fi = (e, t, n, r) => {
     let i = e._zod.def,
-      a = M(i.innerType, t, r),
+      a = A(i.innerType, t, r),
       o = t.seen.get(e)
     t.target === `openapi-3.0` ? ((o.ref = i.innerType), (n.nullable = !0)) : (n.anyOf = [a, { type: `null` }])
   },
-  di = (e, t, n, r) => {
+  pi = (e, t, n, r) => {
     let i = e._zod.def
-    M(i.innerType, t, r)
+    A(i.innerType, t, r)
     let a = t.seen.get(e)
     a.ref = i.innerType
   },
-  fi = (e, t, n, r) => {
+  mi = (e, t, n, r) => {
     let i = e._zod.def
-    M(i.innerType, t, r)
+    A(i.innerType, t, r)
     let a = t.seen.get(e)
     ;(a.ref = i.innerType), (n.default = JSON.parse(JSON.stringify(i.defaultValue)))
   },
-  pi = (e, t, n, r) => {
+  hi = (e, t, n, r) => {
     let i = e._zod.def
-    M(i.innerType, t, r)
+    A(i.innerType, t, r)
     let a = t.seen.get(e)
     ;(a.ref = i.innerType), t.io === `input` && (n._prefault = JSON.parse(JSON.stringify(i.defaultValue)))
   },
-  mi = (e, t, n, r) => {
+  gi = (e, t, n, r) => {
     let i = e._zod.def
-    M(i.innerType, t, r)
+    A(i.innerType, t, r)
     let a = t.seen.get(e)
     a.ref = i.innerType
     let o
@@ -2401,50 +2401,50 @@ const Jr =
     }
     n.default = o
   },
-  hi = (e, t, n, r) => {
+  _i = (e, t, n, r) => {
     let i = e._zod.def,
       a = t.io === `input` ? (i.in._zod.def.type === `transform` ? i.out : i.in) : i.out
-    M(a, t, r)
+    A(a, t, r)
     let o = t.seen.get(e)
     o.ref = a
   },
-  gi = (e, t, n, r) => {
+  vi = (e, t, n, r) => {
     let i = e._zod.def
-    M(i.innerType, t, r)
+    A(i.innerType, t, r)
     let a = t.seen.get(e)
     ;(a.ref = i.innerType), (n.readOnly = !0)
   },
-  _i = (e, t, n, r) => {
+  yi = (e, t, n, r) => {
     let i = e._zod.def
-    M(i.innerType, t, r)
+    A(i.innerType, t, r)
     let a = t.seen.get(e)
     a.ref = i.innerType
   },
-  vi = r(`ZodISODateTime`, (e, t) => {
-    Ut.init(e, t), L.init(e, t)
+  bi = r(`ZodISODateTime`, (e, t) => {
+    Wt.init(e, t), F.init(e, t)
   })
-function yi(e) {
-  return pr(vi, e)
-}
-const bi = r(`ZodISODate`, (e, t) => {
-  Wt.init(e, t), L.init(e, t)
-})
 function xi(e) {
-  return mr(bi, e)
+  return hr(bi, e)
 }
-const Si = r(`ZodISOTime`, (e, t) => {
-  Gt.init(e, t), L.init(e, t)
+const Si = r(`ZodISODate`, (e, t) => {
+  Gt.init(e, t), F.init(e, t)
 })
 function Ci(e) {
-  return hr(Si, e)
+  return gr(Si, e)
 }
-const wi = r(`ZodISODuration`, (e, t) => {
-  Kt.init(e, t), L.init(e, t)
+const wi = r(`ZodISOTime`, (e, t) => {
+  Kt.init(e, t), F.init(e, t)
 })
 function Ti(e) {
-  return gr(wi, e)
+  return _r(wi, e)
 }
-const Ei = (e, t) => {
+const Ei = r(`ZodISODuration`, (e, t) => {
+  qt.init(e, t), F.init(e, t)
+})
+function Di(e) {
+  return vr(Ei, e)
+}
+const Oi = (e, t) => {
   xe.init(e, t),
     (e.name = `ZodError`),
     Object.defineProperties(e, {
@@ -2467,26 +2467,26 @@ const Ei = (e, t) => {
       }
     })
 }
-r(`ZodError`, Ei)
-const P = r(`ZodError`, Ei, { Parent: Error }),
-  Di = Te(P),
-  Oi = Ee(P),
-  ki = De(P),
-  Ai = ke(P),
-  ji = je(P),
-  Mi = Me(P),
-  Ni = Ne(P),
-  Pi = Pe(P),
-  Fi = Fe(P),
-  Ii = Ie(P),
-  Li = Le(P),
-  Ri = Re(P),
-  F = r(
+r(`ZodError`, Oi)
+const M = r(`ZodError`, Oi, { Parent: Error }),
+  ki = Te(M),
+  Ai = Ee(M),
+  ji = De(M),
+  Mi = ke(M),
+  Ni = je(M),
+  Pi = Me(M),
+  Fi = Ne(M),
+  Ii = Pe(M),
+  Li = Fe(M),
+  Ri = Ie(M),
+  zi = Le(M),
+  Bi = Re(M),
+  N = r(
     `ZodType`,
     (e, t) => (
-      E.init(e, t),
-      Object.assign(e[`~standard`], { jsonSchema: { input: Yr(e, `input`), output: Yr(e, `output`) } }),
-      (e.toJSONSchema = Jr(e, {})),
+      T.init(e, t),
+      Object.assign(e[`~standard`], { jsonSchema: { input: Zr(e, `input`), output: Zr(e, `output`) } }),
+      (e.toJSONSchema = Xr(e, {})),
       (e.def = t),
       (e.type = t.type),
       Object.defineProperty(e, `_def`, { value: t }),
@@ -2506,50 +2506,50 @@ const P = r(`ZodError`, Ei, { Parent: Error }),
       (e.clone = (t, n) => v(e, t, n)),
       (e.brand = () => e),
       (e.register = (t, n) => (t.add(e, n), e)),
-      (e.parse = (t, n) => Di(e, t, n, { callee: e.parse })),
-      (e.safeParse = (t, n) => ki(e, t, n)),
-      (e.parseAsync = async (t, n) => Oi(e, t, n, { callee: e.parseAsync })),
-      (e.safeParseAsync = async (t, n) => Ai(e, t, n)),
+      (e.parse = (t, n) => ki(e, t, n, { callee: e.parse })),
+      (e.safeParse = (t, n) => ji(e, t, n)),
+      (e.parseAsync = async (t, n) => Ai(e, t, n, { callee: e.parseAsync })),
+      (e.safeParseAsync = async (t, n) => Mi(e, t, n)),
       (e.spa = e.safeParseAsync),
-      (e.encode = (t, n) => ji(e, t, n)),
-      (e.decode = (t, n) => Mi(e, t, n)),
-      (e.encodeAsync = async (t, n) => Ni(e, t, n)),
-      (e.decodeAsync = async (t, n) => Pi(e, t, n)),
-      (e.safeEncode = (t, n) => Fi(e, t, n)),
-      (e.safeDecode = (t, n) => Ii(e, t, n)),
-      (e.safeEncodeAsync = async (t, n) => Li(e, t, n)),
-      (e.safeDecodeAsync = async (t, n) => Ri(e, t, n)),
-      (e.refine = (t, n) => e.check(Ga(t, n))),
-      (e.superRefine = (t) => e.check(Ka(t))),
-      (e.overwrite = (t) => e.check(j(t))),
-      (e.optional = () => Da(e)),
-      (e.exactOptional = () => ka(e)),
-      (e.nullable = () => ja(e)),
-      (e.nullish = () => Da(ja(e))),
-      (e.nonoptional = (t) => La(e, t)),
-      (e.array = () => H(e)),
-      (e.or = (t) => ga([e, t])),
-      (e.and = (t) => ya(e, t)),
-      (e.transform = (t) => Va(e, Ta(t))),
-      (e.default = (t) => Na(e, t)),
-      (e.prefault = (t) => Fa(e, t)),
-      (e.catch = (t) => za(e, t)),
-      (e.pipe = (t) => Va(e, t)),
-      (e.readonly = () => Ua(e)),
+      (e.encode = (t, n) => Ni(e, t, n)),
+      (e.decode = (t, n) => Pi(e, t, n)),
+      (e.encodeAsync = async (t, n) => Fi(e, t, n)),
+      (e.decodeAsync = async (t, n) => Ii(e, t, n)),
+      (e.safeEncode = (t, n) => Li(e, t, n)),
+      (e.safeDecode = (t, n) => Ri(e, t, n)),
+      (e.safeEncodeAsync = async (t, n) => zi(e, t, n)),
+      (e.safeDecodeAsync = async (t, n) => Bi(e, t, n)),
+      (e.refine = (t, n) => e.check(Ka(t, n))),
+      (e.superRefine = (t) => e.check(qa(t))),
+      (e.overwrite = (t) => e.check(k(t))),
+      (e.optional = () => Oa(e)),
+      (e.exactOptional = () => Aa(e)),
+      (e.nullable = () => Ma(e)),
+      (e.nullish = () => Oa(Ma(e))),
+      (e.nonoptional = (t) => Ra(e, t)),
+      (e.array = () => V(e)),
+      (e.or = (t) => _a([e, t])),
+      (e.and = (t) => ba(e, t)),
+      (e.transform = (t) => Ha(e, Ea(t))),
+      (e.default = (t) => Pa(e, t)),
+      (e.prefault = (t) => Ia(e, t)),
+      (e.catch = (t) => Ba(e, t)),
+      (e.pipe = (t) => Ha(e, t)),
+      (e.readonly = () => Wa(e)),
       (e.describe = (t) => {
         let n = e.clone()
-        return A.add(n, { description: t }), n
+        return O.add(n, { description: t }), n
       }),
       Object.defineProperty(e, `description`, {
         get() {
-          return A.get(e)?.description
+          return O.get(e)?.description
         },
         configurable: !0
       }),
       (e.meta = (...t) => {
-        if (t.length === 0) return A.get(e)
+        if (t.length === 0) return O.get(e)
         let n = e.clone()
-        return A.add(n, t[0]), n
+        return O.add(n, t[0]), n
       }),
       (e.isOptional = () => e.safeParse(void 0).success),
       (e.isNullable = () => e.safeParse(null).success),
@@ -2557,143 +2557,143 @@ const P = r(`ZodError`, Ei, { Parent: Error }),
       e
     )
   ),
-  zi = r(`_ZodString`, (e, t) => {
-    jt.init(e, t), F.init(e, t), (e._zod.processJSONSchema = (t, n, r) => Zr(e, t, n, r))
+  Vi = r(`_ZodString`, (e, t) => {
+    Mt.init(e, t), N.init(e, t), (e._zod.processJSONSchema = (t, n, r) => $r(e, t, n, r))
     let n = e._zod.bag
     ;(e.format = n.format ?? null),
       (e.minLength = n.minimum ?? null),
       (e.maxLength = n.maximum ?? null),
-      (e.regex = (...t) => e.check(Ar(...t))),
-      (e.includes = (...t) => e.check(Nr(...t))),
-      (e.startsWith = (...t) => e.check(Pr(...t))),
-      (e.endsWith = (...t) => e.check(Fr(...t))),
-      (e.min = (...t) => e.check(Or(...t))),
-      (e.max = (...t) => e.check(Dr(...t))),
-      (e.length = (...t) => e.check(kr(...t))),
-      (e.nonempty = (...t) => e.check(Or(1, ...t))),
-      (e.lowercase = (t) => e.check(jr(t))),
-      (e.uppercase = (t) => e.check(Mr(t))),
-      (e.trim = () => e.check(Lr())),
-      (e.normalize = (...t) => e.check(Ir(...t))),
-      (e.toLowerCase = () => e.check(Rr())),
-      (e.toUpperCase = () => e.check(zr())),
-      (e.slugify = () => e.check(Br()))
+      (e.regex = (...t) => e.check(Mr(...t))),
+      (e.includes = (...t) => e.check(Fr(...t))),
+      (e.startsWith = (...t) => e.check(Ir(...t))),
+      (e.endsWith = (...t) => e.check(Lr(...t))),
+      (e.min = (...t) => e.check(Ar(...t))),
+      (e.max = (...t) => e.check(kr(...t))),
+      (e.length = (...t) => e.check(jr(...t))),
+      (e.nonempty = (...t) => e.check(Ar(1, ...t))),
+      (e.lowercase = (t) => e.check(Nr(t))),
+      (e.uppercase = (t) => e.check(Pr(t))),
+      (e.trim = () => e.check(zr())),
+      (e.normalize = (...t) => e.check(Rr(...t))),
+      (e.toLowerCase = () => e.check(Br())),
+      (e.toUpperCase = () => e.check(Vr())),
+      (e.slugify = () => e.check(Hr()))
   }),
-  Bi = r(`ZodString`, (e, t) => {
-    jt.init(e, t),
-      zi.init(e, t),
-      (e.email = (t) => e.check(Gn(Vi, t))),
-      (e.url = (t) => e.check(Zn(Ui, t))),
-      (e.jwt = (t) => e.check(fr(ia, t))),
-      (e.emoji = (t) => e.check(Qn(Wi, t))),
-      (e.guid = (t) => e.check(Kn(Hi, t))),
-      (e.uuid = (t) => e.check(qn(R, t))),
-      (e.uuidv4 = (t) => e.check(Jn(R, t))),
-      (e.uuidv6 = (t) => e.check(Yn(R, t))),
-      (e.uuidv7 = (t) => e.check(Xn(R, t))),
-      (e.nanoid = (t) => e.check($n(Gi, t))),
-      (e.guid = (t) => e.check(Kn(Hi, t))),
-      (e.cuid = (t) => e.check(er(Ki, t))),
-      (e.cuid2 = (t) => e.check(tr(qi, t))),
-      (e.ulid = (t) => e.check(nr(Ji, t))),
-      (e.base64 = (t) => e.check(lr(ta, t))),
-      (e.base64url = (t) => e.check(ur(na, t))),
-      (e.xid = (t) => e.check(rr(Yi, t))),
-      (e.ksuid = (t) => e.check(ir(Xi, t))),
-      (e.ipv4 = (t) => e.check(ar(Zi, t))),
-      (e.ipv6 = (t) => e.check(or(Qi, t))),
-      (e.cidrv4 = (t) => e.check(sr($i, t))),
-      (e.cidrv6 = (t) => e.check(cr(ea, t))),
-      (e.e164 = (t) => e.check(dr(ra, t))),
-      (e.datetime = (t) => e.check(yi(t))),
-      (e.date = (t) => e.check(xi(t))),
-      (e.time = (t) => e.check(Ci(t))),
-      (e.duration = (t) => e.check(Ti(t)))
+  Hi = r(`ZodString`, (e, t) => {
+    Mt.init(e, t),
+      Vi.init(e, t),
+      (e.email = (t) => e.check(qn(Ui, t))),
+      (e.url = (t) => e.check($n(Gi, t))),
+      (e.jwt = (t) => e.check(mr(oa, t))),
+      (e.emoji = (t) => e.check(er(Ki, t))),
+      (e.guid = (t) => e.check(Jn(Wi, t))),
+      (e.uuid = (t) => e.check(Yn(I, t))),
+      (e.uuidv4 = (t) => e.check(Xn(I, t))),
+      (e.uuidv6 = (t) => e.check(Zn(I, t))),
+      (e.uuidv7 = (t) => e.check(Qn(I, t))),
+      (e.nanoid = (t) => e.check(tr(qi, t))),
+      (e.guid = (t) => e.check(Jn(Wi, t))),
+      (e.cuid = (t) => e.check(nr(Ji, t))),
+      (e.cuid2 = (t) => e.check(rr(Yi, t))),
+      (e.ulid = (t) => e.check(ir(Xi, t))),
+      (e.base64 = (t) => e.check(dr(ra, t))),
+      (e.base64url = (t) => e.check(fr(ia, t))),
+      (e.xid = (t) => e.check(ar(Zi, t))),
+      (e.ksuid = (t) => e.check(or(Qi, t))),
+      (e.ipv4 = (t) => e.check(sr($i, t))),
+      (e.ipv6 = (t) => e.check(cr(ea, t))),
+      (e.cidrv4 = (t) => e.check(lr(ta, t))),
+      (e.cidrv6 = (t) => e.check(ur(na, t))),
+      (e.e164 = (t) => e.check(pr(aa, t))),
+      (e.datetime = (t) => e.check(xi(t))),
+      (e.date = (t) => e.check(Ci(t))),
+      (e.time = (t) => e.check(Ti(t))),
+      (e.duration = (t) => e.check(Di(t)))
   })
-function I(e) {
-  return Wn(Bi, e)
+function P(e) {
+  return Kn(Hi, e)
 }
-const L = r(`ZodStringFormat`, (e, t) => {
-    D.init(e, t), zi.init(e, t)
+const F = r(`ZodStringFormat`, (e, t) => {
+    E.init(e, t), Vi.init(e, t)
   }),
-  Vi = r(`ZodEmail`, (e, t) => {
-    Pt.init(e, t), L.init(e, t)
+  Ui = r(`ZodEmail`, (e, t) => {
+    Ft.init(e, t), F.init(e, t)
   }),
-  Hi = r(`ZodGUID`, (e, t) => {
-    Mt.init(e, t), L.init(e, t)
+  Wi = r(`ZodGUID`, (e, t) => {
+    Nt.init(e, t), F.init(e, t)
   }),
-  R = r(`ZodUUID`, (e, t) => {
-    Nt.init(e, t), L.init(e, t)
+  I = r(`ZodUUID`, (e, t) => {
+    Pt.init(e, t), F.init(e, t)
   }),
-  Ui = r(`ZodURL`, (e, t) => {
-    Ft.init(e, t), L.init(e, t)
+  Gi = r(`ZodURL`, (e, t) => {
+    It.init(e, t), F.init(e, t)
   })
-function z(e) {
-  return Zn(Ui, e)
+function L(e) {
+  return $n(Gi, e)
 }
-const Wi = r(`ZodEmoji`, (e, t) => {
-    It.init(e, t), L.init(e, t)
+const Ki = r(`ZodEmoji`, (e, t) => {
+    Lt.init(e, t), F.init(e, t)
   }),
-  Gi = r(`ZodNanoID`, (e, t) => {
-    Lt.init(e, t), L.init(e, t)
+  qi = r(`ZodNanoID`, (e, t) => {
+    Rt.init(e, t), F.init(e, t)
   }),
-  Ki = r(`ZodCUID`, (e, t) => {
-    Rt.init(e, t), L.init(e, t)
+  Ji = r(`ZodCUID`, (e, t) => {
+    zt.init(e, t), F.init(e, t)
   }),
-  qi = r(`ZodCUID2`, (e, t) => {
-    zt.init(e, t), L.init(e, t)
+  Yi = r(`ZodCUID2`, (e, t) => {
+    Bt.init(e, t), F.init(e, t)
   }),
-  Ji = r(`ZodULID`, (e, t) => {
-    Bt.init(e, t), L.init(e, t)
+  Xi = r(`ZodULID`, (e, t) => {
+    Vt.init(e, t), F.init(e, t)
   }),
-  Yi = r(`ZodXID`, (e, t) => {
-    Vt.init(e, t), L.init(e, t)
+  Zi = r(`ZodXID`, (e, t) => {
+    Ht.init(e, t), F.init(e, t)
   }),
-  Xi = r(`ZodKSUID`, (e, t) => {
-    Ht.init(e, t), L.init(e, t)
+  Qi = r(`ZodKSUID`, (e, t) => {
+    Ut.init(e, t), F.init(e, t)
   }),
-  Zi = r(`ZodIPv4`, (e, t) => {
-    qt.init(e, t), L.init(e, t)
+  $i = r(`ZodIPv4`, (e, t) => {
+    Jt.init(e, t), F.init(e, t)
   }),
-  Qi = r(`ZodIPv6`, (e, t) => {
-    Jt.init(e, t), L.init(e, t)
+  ea = r(`ZodIPv6`, (e, t) => {
+    Yt.init(e, t), F.init(e, t)
   }),
-  $i = r(`ZodCIDRv4`, (e, t) => {
-    Yt.init(e, t), L.init(e, t)
+  ta = r(`ZodCIDRv4`, (e, t) => {
+    Xt.init(e, t), F.init(e, t)
   }),
-  ea = r(`ZodCIDRv6`, (e, t) => {
-    Xt.init(e, t), L.init(e, t)
+  na = r(`ZodCIDRv6`, (e, t) => {
+    Zt.init(e, t), F.init(e, t)
   }),
-  ta = r(`ZodBase64`, (e, t) => {
-    Qt.init(e, t), L.init(e, t)
+  ra = r(`ZodBase64`, (e, t) => {
+    $t.init(e, t), F.init(e, t)
   }),
-  na = r(`ZodBase64URL`, (e, t) => {
-    en.init(e, t), L.init(e, t)
+  ia = r(`ZodBase64URL`, (e, t) => {
+    tn.init(e, t), F.init(e, t)
   }),
-  ra = r(`ZodE164`, (e, t) => {
-    tn.init(e, t), L.init(e, t)
+  aa = r(`ZodE164`, (e, t) => {
+    nn.init(e, t), F.init(e, t)
   }),
-  ia = r(`ZodJWT`, (e, t) => {
-    rn.init(e, t), L.init(e, t)
+  oa = r(`ZodJWT`, (e, t) => {
+    an.init(e, t), F.init(e, t)
   }),
-  aa = r(`ZodNumber`, (e, t) => {
-    an.init(e, t),
-      F.init(e, t),
-      (e._zod.processJSONSchema = (t, n, r) => Qr(e, t, n, r)),
-      (e.gt = (t, n) => e.check(wr(t, n))),
-      (e.gte = (t, n) => e.check(Tr(t, n))),
-      (e.min = (t, n) => e.check(Tr(t, n))),
-      (e.lt = (t, n) => e.check(Sr(t, n))),
-      (e.lte = (t, n) => e.check(Cr(t, n))),
-      (e.max = (t, n) => e.check(Cr(t, n))),
-      (e.int = (t) => e.check(sa(t))),
-      (e.safe = (t) => e.check(sa(t))),
-      (e.positive = (t) => e.check(wr(0, t))),
-      (e.nonnegative = (t) => e.check(Tr(0, t))),
-      (e.negative = (t) => e.check(Sr(0, t))),
-      (e.nonpositive = (t) => e.check(Cr(0, t))),
-      (e.multipleOf = (t, n) => e.check(Er(t, n))),
-      (e.step = (t, n) => e.check(Er(t, n))),
+  sa = r(`ZodNumber`, (e, t) => {
+    on.init(e, t),
+      N.init(e, t),
+      (e._zod.processJSONSchema = (t, n, r) => ei(e, t, n, r)),
+      (e.gt = (t, n) => e.check(Er(t, n))),
+      (e.gte = (t, n) => e.check(Dr(t, n))),
+      (e.min = (t, n) => e.check(Dr(t, n))),
+      (e.lt = (t, n) => e.check(wr(t, n))),
+      (e.lte = (t, n) => e.check(Tr(t, n))),
+      (e.max = (t, n) => e.check(Tr(t, n))),
+      (e.int = (t) => e.check(la(t))),
+      (e.safe = (t) => e.check(la(t))),
+      (e.positive = (t) => e.check(Er(0, t))),
+      (e.nonnegative = (t) => e.check(Dr(0, t))),
+      (e.negative = (t) => e.check(wr(0, t))),
+      (e.nonpositive = (t) => e.check(Tr(0, t))),
+      (e.multipleOf = (t, n) => e.check(Or(t, n))),
+      (e.step = (t, n) => e.check(Or(t, n))),
       (e.finite = () => e)
     let n = e._zod.bag
     ;(e.minValue = Math.max(n.minimum ?? -1 / 0, n.exclusiveMinimum ?? -1 / 0) ?? null),
@@ -2702,105 +2702,105 @@ const Wi = r(`ZodEmoji`, (e, t) => {
       (e.isFinite = !0),
       (e.format = n.format ?? null)
   })
-function B(e) {
-  return _r(aa, e)
+function R(e) {
+  return yr(sa, e)
 }
-const oa = r(`ZodNumberFormat`, (e, t) => {
-  on.init(e, t), aa.init(e, t)
+const ca = r(`ZodNumberFormat`, (e, t) => {
+  sn.init(e, t), sa.init(e, t)
 })
-function sa(e) {
-  return vr(oa, e)
+function la(e) {
+  return br(ca, e)
 }
-const ca = r(`ZodBoolean`, (e, t) => {
-  sn.init(e, t), F.init(e, t), (e._zod.processJSONSchema = (t, n, r) => $r(e, t, n, r))
+const ua = r(`ZodBoolean`, (e, t) => {
+  cn.init(e, t), N.init(e, t), (e._zod.processJSONSchema = (t, n, r) => ti(e, t, n, r))
 })
-function V(e) {
-  return yr(ca, e)
+function z(e) {
+  return xr(ua, e)
 }
-const la = r(`ZodUnknown`, (e, t) => {
-  cn.init(e, t), F.init(e, t), (e._zod.processJSONSchema = (e, t, n) => void 0)
+const da = r(`ZodUnknown`, (e, t) => {
+  ln.init(e, t), N.init(e, t), (e._zod.processJSONSchema = (e, t, n) => void 0)
 })
-function ua() {
-  return br(la)
+function B() {
+  return Sr(da)
 }
-const da = r(`ZodNever`, (e, t) => {
-  ln.init(e, t), F.init(e, t), (e._zod.processJSONSchema = (t, n, r) => ei(e, t, n, r))
+const fa = r(`ZodNever`, (e, t) => {
+  un.init(e, t), N.init(e, t), (e._zod.processJSONSchema = (t, n, r) => ni(e, t, n, r))
 })
-function fa(e) {
-  return xr(da, e)
+function pa(e) {
+  return Cr(fa, e)
 }
-const pa = r(`ZodArray`, (e, t) => {
-  dn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => ai(e, t, n, r)),
+const ma = r(`ZodArray`, (e, t) => {
+  fn.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => si(e, t, n, r)),
     (e.element = t.element),
-    (e.min = (t, n) => e.check(Or(t, n))),
-    (e.nonempty = (t) => e.check(Or(1, t))),
-    (e.max = (t, n) => e.check(Dr(t, n))),
-    (e.length = (t, n) => e.check(kr(t, n))),
+    (e.min = (t, n) => e.check(Ar(t, n))),
+    (e.nonempty = (t) => e.check(Ar(1, t))),
+    (e.max = (t, n) => e.check(kr(t, n))),
+    (e.length = (t, n) => e.check(jr(t, n))),
     (e.unwrap = () => e.element)
 })
-function H(e, t) {
-  return Vr(pa, e, t)
+function V(e, t) {
+  return Ur(ma, e, t)
 }
-const ma = r(`ZodObject`, (e, t) => {
-  hn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => oi(e, t, n, r)),
+const ha = r(`ZodObject`, (e, t) => {
+  _n.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => ci(e, t, n, r)),
     f(e, `shape`, () => t.shape),
-    (e.keyof = () => K(Object.keys(e._zod.def.shape))),
+    (e.keyof = () => G(Object.keys(e._zod.def.shape))),
     (e.catchall = (t) => e.clone({ ...e._zod.def, catchall: t })),
-    (e.passthrough = () => e.clone({ ...e._zod.def, catchall: ua() })),
-    (e.loose = () => e.clone({ ...e._zod.def, catchall: ua() })),
-    (e.strict = () => e.clone({ ...e._zod.def, catchall: fa() })),
+    (e.passthrough = () => e.clone({ ...e._zod.def, catchall: B() })),
+    (e.loose = () => e.clone({ ...e._zod.def, catchall: B() })),
+    (e.strict = () => e.clone({ ...e._zod.def, catchall: pa() })),
     (e.strip = () => e.clone({ ...e._zod.def, catchall: void 0 })),
     (e.extend = (t) => pe(e, t)),
     (e.safeExtend = (t) => me(e, t)),
     (e.merge = (t) => he(e, t)),
     (e.pick = (t) => de(e, t)),
     (e.omit = (t) => fe(e, t)),
-    (e.partial = (...t) => ge(Ea, e, t[0])),
-    (e.required = (...t) => _e(Ia, e, t[0]))
+    (e.partial = (...t) => ge(Da, e, t[0])),
+    (e.required = (...t) => _e(La, e, t[0]))
 })
-function U(e, t) {
-  return new ma({ type: `object`, shape: e ?? {}, ...y(t) })
+function H(e, t) {
+  return new ha({ type: `object`, shape: e ?? {}, ...y(t) })
 }
-const ha = r(`ZodUnion`, (e, t) => {
-  _n.init(e, t), F.init(e, t), (e._zod.processJSONSchema = (t, n, r) => si(e, t, n, r)), (e.options = t.options)
+const ga = r(`ZodUnion`, (e, t) => {
+  yn.init(e, t), N.init(e, t), (e._zod.processJSONSchema = (t, n, r) => li(e, t, n, r)), (e.options = t.options)
 })
-function ga(e, t) {
-  return new ha({ type: `union`, options: e, ...y(t) })
+function _a(e, t) {
+  return new ga({ type: `union`, options: e, ...y(t) })
 }
-const _a = r(`ZodDiscriminatedUnion`, (e, t) => {
-  ha.init(e, t), vn.init(e, t)
+const va = r(`ZodDiscriminatedUnion`, (e, t) => {
+  ga.init(e, t), bn.init(e, t)
 })
-function W(e, t, n) {
-  return new _a({ type: `union`, options: t, discriminator: e, ...y(n) })
+function U(e, t, n) {
+  return new va({ type: `union`, options: t, discriminator: e, ...y(n) })
 }
-const va = r(`ZodIntersection`, (e, t) => {
-  yn.init(e, t), F.init(e, t), (e._zod.processJSONSchema = (t, n, r) => ci(e, t, n, r))
+const ya = r(`ZodIntersection`, (e, t) => {
+  xn.init(e, t), N.init(e, t), (e._zod.processJSONSchema = (t, n, r) => ui(e, t, n, r))
 })
-function ya(e, t) {
-  return new va({ type: `intersection`, left: e, right: t })
+function ba(e, t) {
+  return new ya({ type: `intersection`, left: e, right: t })
 }
-const ba = r(`ZodRecord`, (e, t) => {
-  Sn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => li(e, t, n, r)),
+const xa = r(`ZodRecord`, (e, t) => {
+  wn.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => di(e, t, n, r)),
     (e.keyType = t.keyType),
     (e.valueType = t.valueType)
 })
-function xa(e, t, n) {
-  return new ba({ type: `record`, keyType: e, valueType: t, ...y(n) })
+function Sa(e, t, n) {
+  return new xa({ type: `record`, keyType: e, valueType: t, ...y(n) })
 }
-function G(e, t, n) {
+function W(e, t, n) {
   let r = v(e)
-  return (r._zod.values = void 0), new ba({ type: `record`, keyType: r, valueType: t, ...y(n) })
+  return (r._zod.values = void 0), new xa({ type: `record`, keyType: r, valueType: t, ...y(n) })
 }
-const Sa = r(`ZodEnum`, (e, t) => {
-  Cn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => ti(e, t, n, r)),
+const Ca = r(`ZodEnum`, (e, t) => {
+  Tn.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => ri(e, t, n, r)),
     (e.enum = t.entries),
     (e.options = Object.values(t.entries))
   let n = new Set(Object.keys(t.entries))
@@ -2809,23 +2809,23 @@ const Sa = r(`ZodEnum`, (e, t) => {
     for (let r of e)
       if (n.has(r)) i[r] = t.entries[r]
       else throw Error(`Key ${r} not found in enum`)
-    return new Sa({ ...t, checks: [], ...y(r), entries: i })
+    return new Ca({ ...t, checks: [], ...y(r), entries: i })
   }),
     (e.exclude = (e, r) => {
       let i = { ...t.entries }
       for (let t of e)
         if (n.has(t)) delete i[t]
         else throw Error(`Key ${t} not found in enum`)
-      return new Sa({ ...t, checks: [], ...y(r), entries: i })
+      return new Ca({ ...t, checks: [], ...y(r), entries: i })
     })
 })
-function K(e, t) {
-  return new Sa({ type: `enum`, entries: Array.isArray(e) ? Object.fromEntries(e.map((e) => [e, e])) : e, ...y(t) })
+function G(e, t) {
+  return new Ca({ type: `enum`, entries: Array.isArray(e) ? Object.fromEntries(e.map((e) => [e, e])) : e, ...y(t) })
 }
-const Ca = r(`ZodLiteral`, (e, t) => {
-  wn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => ni(e, t, n, r)),
+const wa = r(`ZodLiteral`, (e, t) => {
+  En.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => ii(e, t, n, r)),
     (e.values = new Set(t.values)),
     Object.defineProperty(e, `value`, {
       get() {
@@ -2835,13 +2835,13 @@ const Ca = r(`ZodLiteral`, (e, t) => {
       }
     })
 })
-function q(e, t) {
-  return new Ca({ type: `literal`, values: Array.isArray(e) ? e : [e], ...y(t) })
+function K(e, t) {
+  return new wa({ type: `literal`, values: Array.isArray(e) ? e : [e], ...y(t) })
 }
-const wa = r(`ZodTransform`, (e, t) => {
-  Tn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => ii(e, t, n, r)),
+const Ta = r(`ZodTransform`, (e, t) => {
+  Dn.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => oi(e, t, n, r)),
     (e._zod.parse = (n, r) => {
       if (r.direction === `backward`) throw new a(e.constructor.name)
       n.addIssue = (r) => {
@@ -2859,45 +2859,45 @@ const wa = r(`ZodTransform`, (e, t) => {
       return i instanceof Promise ? i.then((e) => ((n.value = e), n)) : ((n.value = i), n)
     })
 })
-function Ta(e) {
-  return new wa({ type: `transform`, transform: e })
+function Ea(e) {
+  return new Ta({ type: `transform`, transform: e })
 }
-const Ea = r(`ZodOptional`, (e, t) => {
-  Dn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => _i(e, t, n, r)),
-    (e.unwrap = () => e._zod.def.innerType)
-})
-function Da(e) {
-  return new Ea({ type: `optional`, innerType: e })
-}
-const Oa = r(`ZodExactOptional`, (e, t) => {
-  On.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => _i(e, t, n, r)),
-    (e.unwrap = () => e._zod.def.innerType)
-})
-function ka(e) {
-  return new Oa({ type: `optional`, innerType: e })
-}
-const Aa = r(`ZodNullable`, (e, t) => {
+const Da = r(`ZodOptional`, (e, t) => {
   kn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => ui(e, t, n, r)),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => yi(e, t, n, r)),
     (e.unwrap = () => e._zod.def.innerType)
 })
-function ja(e) {
-  return new Aa({ type: `nullable`, innerType: e })
+function Oa(e) {
+  return new Da({ type: `optional`, innerType: e })
 }
-const Ma = r(`ZodDefault`, (e, t) => {
+const ka = r(`ZodExactOptional`, (e, t) => {
   An.init(e, t),
-    F.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => yi(e, t, n, r)),
+    (e.unwrap = () => e._zod.def.innerType)
+})
+function Aa(e) {
+  return new ka({ type: `optional`, innerType: e })
+}
+const ja = r(`ZodNullable`, (e, t) => {
+  jn.init(e, t),
+    N.init(e, t),
     (e._zod.processJSONSchema = (t, n, r) => fi(e, t, n, r)),
+    (e.unwrap = () => e._zod.def.innerType)
+})
+function Ma(e) {
+  return new ja({ type: `nullable`, innerType: e })
+}
+const Na = r(`ZodDefault`, (e, t) => {
+  Mn.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => mi(e, t, n, r)),
     (e.unwrap = () => e._zod.def.innerType),
     (e.removeDefault = e.unwrap)
 })
-function Na(e, t) {
-  return new Ma({
+function Pa(e, t) {
+  return new Na({
     type: `default`,
     innerType: e,
     get defaultValue() {
@@ -2905,14 +2905,14 @@ function Na(e, t) {
     }
   })
 }
-const Pa = r(`ZodPrefault`, (e, t) => {
-  Mn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => pi(e, t, n, r)),
+const Fa = r(`ZodPrefault`, (e, t) => {
+  Pn.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => hi(e, t, n, r)),
     (e.unwrap = () => e._zod.def.innerType)
 })
-function Fa(e, t) {
-  return new Pa({
+function Ia(e, t) {
+  return new Fa({
     type: `prefault`,
     innerType: e,
     get defaultValue() {
@@ -2920,50 +2920,50 @@ function Fa(e, t) {
     }
   })
 }
-const Ia = r(`ZodNonOptional`, (e, t) => {
-  Nn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => di(e, t, n, r)),
+const La = r(`ZodNonOptional`, (e, t) => {
+  Fn.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => pi(e, t, n, r)),
     (e.unwrap = () => e._zod.def.innerType)
 })
-function La(e, t) {
-  return new Ia({ type: `nonoptional`, innerType: e, ...y(t) })
+function Ra(e, t) {
+  return new La({ type: `nonoptional`, innerType: e, ...y(t) })
 }
-const Ra = r(`ZodCatch`, (e, t) => {
-  Fn.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => mi(e, t, n, r)),
+const za = r(`ZodCatch`, (e, t) => {
+  Ln.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => gi(e, t, n, r)),
     (e.unwrap = () => e._zod.def.innerType),
     (e.removeCatch = e.unwrap)
 })
-function za(e, t) {
-  return new Ra({ type: `catch`, innerType: e, catchValue: typeof t == `function` ? t : () => t })
+function Ba(e, t) {
+  return new za({ type: `catch`, innerType: e, catchValue: typeof t == `function` ? t : () => t })
 }
-const Ba = r(`ZodPipe`, (e, t) => {
-  In.init(e, t), F.init(e, t), (e._zod.processJSONSchema = (t, n, r) => hi(e, t, n, r)), (e.in = t.in), (e.out = t.out)
+const Va = r(`ZodPipe`, (e, t) => {
+  Rn.init(e, t), N.init(e, t), (e._zod.processJSONSchema = (t, n, r) => _i(e, t, n, r)), (e.in = t.in), (e.out = t.out)
 })
-function Va(e, t) {
-  return new Ba({ type: `pipe`, in: e, out: t })
+function Ha(e, t) {
+  return new Va({ type: `pipe`, in: e, out: t })
 }
-const Ha = r(`ZodReadonly`, (e, t) => {
-  Ln.init(e, t),
-    F.init(e, t),
-    (e._zod.processJSONSchema = (t, n, r) => gi(e, t, n, r)),
+const Ua = r(`ZodReadonly`, (e, t) => {
+  zn.init(e, t),
+    N.init(e, t),
+    (e._zod.processJSONSchema = (t, n, r) => vi(e, t, n, r)),
     (e.unwrap = () => e._zod.def.innerType)
 })
-function Ua(e) {
-  return new Ha({ type: `readonly`, innerType: e })
+function Wa(e) {
+  return new Ua({ type: `readonly`, innerType: e })
 }
-const Wa = r(`ZodCustom`, (e, t) => {
-  zn.init(e, t), F.init(e, t), (e._zod.processJSONSchema = (t, n, r) => ri(e, t, n, r))
+const Ga = r(`ZodCustom`, (e, t) => {
+  Vn.init(e, t), N.init(e, t), (e._zod.processJSONSchema = (t, n, r) => ai(e, t, n, r))
 })
-function Ga(e, t = {}) {
-  return Hr(Wa, e, t)
+function Ka(e, t = {}) {
+  return Wr(Ga, e, t)
 }
-function Ka(e) {
-  return Ur(e)
+function qa(e) {
+  return Gr(e)
 }
-const J = {
+const q = {
     ANTHROPIC_MESSAGES: `anthropic-messages`,
     GOOGLE_GENERATE_CONTENT: `google-generate-content`,
     JINA_RERANK: `jina-rerank`,
@@ -2980,8 +2980,7 @@ const J = {
     OPENAI_TEXT_TO_SPEECH: `openai-text-to-speech`,
     OPENAI_VIDEO_GENERATION: `openai-video-generation`
   },
-  qa = {
-    TEXT_GENERATION: `text-generation`,
+  Ja = {
     FUNCTION_CALL: `function-call`,
     REASONING: `reasoning`,
     IMAGE_RECOGNITION: `image-recognition`,
@@ -2999,9 +2998,9 @@ const J = {
     FILE_SEARCH: `file-search`,
     COMPUTER_USE: `computer-use`
   },
-  Ja = { WEB_SEARCH: `web-search`, URL_CONTEXT: `url-context` },
-  Ya = { ALL_CHAT_MODELS: `all-chat-models`, MODEL_DEPENDENT: `model-dependent` },
-  Y = {
+  Ya = { WEB_SEARCH: `web-search`, URL_CONTEXT: `url-context` },
+  Xa = { ALL_CHAT_MODELS: `all-chat-models`, MODEL_DEPENDENT: `model-dependent` },
+  J = {
     ADD_WATERMARK: `addWatermark`,
     ASPECT_RATIO: `aspectRatio`,
     BACKGROUND: `background`,
@@ -3047,9 +3046,9 @@ const J = {
     TOP_SCALE: `topScale`,
     UPSCALE_FACTOR: `upscaleFactor`
   },
-  Xa = { TEXT: `text`, IMAGE: `image`, AUDIO: `audio`, VIDEO: `video`, VECTOR: `vector` },
-  Za = { USD: `USD`, CNY: `CNY` },
-  Qa = {
+  Za = { TEXT: `text`, IMAGE: `image`, AUDIO: `audio`, VIDEO: `video`, VECTOR: `vector` },
+  Qa = { USD: `USD`, CNY: `CNY` },
+  $a = {
     NONE: `none`,
     MINIMAL: `minimal`,
     LOW: `low`,
@@ -3057,36 +3056,46 @@ const J = {
     HIGH: `high`,
     XHIGH: `xhigh`,
     MAX: `max`,
+    ULTRA: `ultra`,
     AUTO: `auto`
   }
-function X(e) {
+function Y(e) {
   return Object.values(e)
 }
-const $a = I().min(1),
-  eo = I().min(1),
-  to = I().min(1),
-  no = U({ min: B(), max: B() }).refine((e) => e.min <= e.max, { message: `min must be less than or equal to max` })
-U({ min: I(), max: I() })
-const ro = K(X(Za)).optional(),
-  Z = U({ perMillionTokens: B().nonnegative().nullable(), currency: ro }),
-  io = xa(I(), ua()).optional(),
-  ao = K(X(Xa)),
-  oo = K(X(qa)),
-  so = K(X(Y)),
-  co = U({ min: B().nonnegative().optional(), max: B().positive().optional(), default: B().nonnegative().optional() })
+const eo = P().min(1),
+  to = P().min(1),
+  no = P().min(1),
+  ro = H({ min: R(), max: R() }).refine((e) => e.min <= e.max, { message: `min must be less than or equal to max` })
+H({ min: P(), max: P() })
+const io = G(Y(Qa)).optional(),
+  X = H({ perMillionTokens: R().nonnegative().nullable(), currency: io }),
+  ao = Sa(P(), B()).optional()
+function Z(e, { min: t } = {}) {
+  let n = V(B()).transform((t) =>
+    t.reduce((t, n) => {
+      let r = e.safeParse(n)
+      return r.success && t.push(r.data), t
+    }, [])
+  )
+  return t === void 0 ? n : n.refine((e) => e.length >= t, { message: `expected at least ${t} recognized value(s)` })
+}
+const oo = G(Y(Za)),
+  so = G(Y(Ja)),
+  co = G(Y(J)),
+  lo = H({ min: R().nonnegative().optional(), max: R().positive().optional(), default: R().nonnegative().optional() })
     .refine((e) => (e.min == null) == (e.max == null), { message: `min and max must be both present or both absent` })
     .refine((e) => e.min == null || e.max == null || e.min <= e.max, {
       message: `min must be less than or equal to max`
     }),
-  Q = K(X(Qa)),
-  lo = W(`kind`, [
-    U({ kind: q(`effort`), values: H(Q).min(1), default: Q.optional() }),
-    U({ kind: q(`budget`), min: B().nonnegative(), max: B().positive(), default: B().nonnegative().optional() }),
-    U({ kind: q(`toggle`), default: V().optional() })
+  Q = G(Y($a)),
+  uo = U(`kind`, [
+    H({ kind: K(`effort`), values: Z(Q, { min: 1 }), default: Q.optional() }),
+    H({ kind: K(`budget`), min: R().nonnegative(), max: R().positive(), default: R().nonnegative().optional() }),
+    H({ kind: K(`toggle`), default: z().optional() })
   ]),
-  uo = K([`effort`, `budget`])
-U({
-  pattern: I().refine(
+  fo = G([`effort`, `budget`])
+H({
+  pattern: P().refine(
     (e) => {
       try {
         return new RegExp(e, `i`), !0
@@ -3096,24 +3105,24 @@ U({
     },
     { message: `pattern must be a valid regular expression` }
   ),
-  effort: H(Q).min(1).optional(),
-  toggle: V().optional(),
-  budget: U({ min: B().nonnegative(), max: B().positive() })
+  effort: Z(Q, { min: 1 }).optional(),
+  toggle: z().optional(),
+  budget: H({ min: R().nonnegative(), max: R().positive() })
     .refine((e) => e.min <= e.max, { message: `budget min must be <= max` })
     .optional(),
-  template: q(!0).optional(),
-  wireDialect: uo.optional()
+  template: K(!0).optional(),
+  wireDialect: fo.optional()
 }).refine(
   (e) =>
     e.template !== !0 || e.effort !== void 0 || e.toggle !== void 0 || e.budget !== void 0 || e.wireDialect !== void 0,
   { message: `a template rule with no knobs declares nothing — drop it or make it a profile` }
 )
-const fo = U({
-    controls: H(lo).optional(),
-    thinkingTokenLimits: co.optional(),
-    supportedEfforts: H(Q).optional(),
+const po = H({
+    controls: Z(uo).optional(),
+    thinkingTokenLimits: lo.optional(),
+    supportedEfforts: Z(Q).optional(),
     defaultEffort: Q.optional(),
-    wireDialect: uo.optional()
+    wireDialect: fo.optional()
   }).superRefine((e, t) => {
     let n = (e.controls ?? []).map((e) => e.kind)
     new Set(n).size !== n.length && t.addIssue({ code: `custom`, message: `at most one reasoning control per kind` })
@@ -3126,107 +3135,144 @@ const fo = U({
           (n.min > n.max || (n.default != null && (n.default < n.min || n.default > n.max))) &&
           t.addIssue({ code: `custom`, message: `budget range must satisfy min <= default <= max` })
   }),
-  po = K([`generate`, `edit`, `remix`, `upscale`, `merge`]),
-  mo = U({ type: q(`switch`), default: V().optional() }),
-  ho = U({
-    type: q(`enum`),
-    options: H(I()).min(1),
-    default: I().optional(),
-    render: K([`select`, `chips`]).optional(),
-    columns: B().int().positive().optional()
+  mo = G([`generate`, `edit`, `remix`, `upscale`, `merge`]),
+  ho = H({ type: K(`switch`), default: z().optional() }),
+  go = H({
+    type: K(`enum`),
+    options: V(P()).min(1),
+    default: P().optional(),
+    render: G([`select`, `chips`]).optional(),
+    columns: R().int().positive().optional()
   }),
-  go = U({ type: q(`range`), min: B(), max: B(), default: B().optional(), step: B().optional() }).refine(
+  _o = H({ type: K(`range`), min: R(), max: R(), default: R().optional(), step: R().optional() }).refine(
     (e) => e.min <= e.max,
     { message: `min must be ≤ max` }
   ),
-  _o = U({
-    type: q(`range`),
-    min: B().int(),
-    max: B().int(),
-    default: B().int().optional(),
-    step: B().int().positive().default(1)
+  vo = H({
+    type: K(`range`),
+    min: R().int(),
+    max: R().int(),
+    default: R().int().optional(),
+    step: R().int().positive().default(1)
   }).refine((e) => e.min <= e.max, { message: `min must be ≤ max` }),
-  vo = W(`type`, [
-    mo,
+  yo = U(`type`, [
     ho,
     go,
-    U({ type: q(`size`), minSide: B(), maxSide: B(), pairedEnumKey: I().optional() }),
-    U({ type: q(`text`), multiline: V().optional() })
+    _o,
+    H({ type: K(`size`), minSide: R(), maxSide: R(), pairedEnumKey: P().optional() }),
+    H({ type: K(`text`), multiline: z().optional() })
   ]),
-  yo = [Y.NUM_IMAGES, Y.MAX_IMAGES, Y.NUM_INFERENCE_STEPS, Y.SAFETY_TOLERANCE, Y.OUTPUT_COMPRESSION],
-  bo = U({
-    modes: G(
-      po,
-      U({
-        supports: G(so, vo).transform((e, t) => {
+  bo = [J.NUM_IMAGES, J.MAX_IMAGES, J.NUM_INFERENCE_STEPS, J.SAFETY_TOLERANCE, J.OUTPUT_COMPRESSION],
+  xo = H({
+    modes: W(
+      mo,
+      H({
+        supports: W(co, yo).transform((e, t) => {
           let n = { ...e }
-          for (let r of yo) {
+          for (let r of bo) {
             let i = e[r]
             if (i === void 0) continue
-            let a = _o.safeParse(i)
+            let a = vo.safeParse(i)
             if (a.success) n[r] = a.data
             else for (let e of a.error.issues) t.addIssue({ ...e, path: [r, ...e.path] })
           }
           return n
         }),
-        maxInputImages: B().int().positive().optional(),
-        vendorTransport: U({
-          endpoint: I().regex(/^\/(?!\/)/, `vendor transport endpoint must be a root-relative path, not a URL`),
-          isSync: V().optional()
+        maxInputImages: R().int().positive().optional(),
+        vendorTransport: H({
+          endpoint: P().regex(/^\/(?!\/)/, `vendor transport endpoint must be a root-relative path, not a URL`),
+          isSync: z().optional()
         }).optional(),
-        requirePrompt: V().optional()
+        requirePrompt: z().optional()
       })
     )
   }),
-  xo = U({
-    temperature: U({ supported: V(), range: no.optional() }).default({ supported: !0 }),
-    topP: U({ supported: V(), range: no.optional() }).default({ supported: !0 }),
-    topK: U({ supported: V(), range: no.optional() }).default({ supported: !1 }),
-    frequencyPenalty: V().default(!0),
-    presencePenalty: V().default(!0),
-    maxTokens: V().default(!0),
-    stopSequences: V().default(!0),
-    systemMessage: V().default(!0)
+  So = H({
+    temperature: H({ supported: z(), range: ro.optional() }).default({ supported: !0 }),
+    topP: H({ supported: z(), range: ro.optional() }).default({ supported: !0 }),
+    topK: H({ supported: z(), range: ro.optional() }).default({ supported: !1 }),
+    frequencyPenalty: z().default(!0),
+    presencePenalty: z().default(!0),
+    maxTokens: z().default(!0),
+    stopSequences: z().default(!0),
+    systemMessage: z().default(!0)
   }),
-  So = U({
-    input: Z,
-    output: Z,
-    cacheRead: Z.optional(),
-    cacheWrite: Z.optional(),
-    perImage: U({ price: B(), currency: ro, unit: K([`image`, `pixel`]).optional() }).optional(),
-    perMinute: U({ price: B(), currency: ro }).optional()
-  }),
-  Co = U({
-    version: to,
-    models: H(
-      U({
-        id: $a,
-        name: I(),
-        description: I().optional(),
-        capabilities: H(oo)
+  Co = H({
+    input: X,
+    output: X,
+    cacheRead: X.optional(),
+    cacheWrite: X.optional(),
+    inputTokenTiers: V(
+      H({
+        minInputTokens: R().int().positive().refine(Number.isSafeInteger),
+        input: X,
+        output: X,
+        cacheRead: X.optional(),
+        cacheWrite: X.optional()
+      })
+    ).optional(),
+    perImage: H({ price: R(), currency: io, unit: G([`image`, `pixel`]).optional() }).optional(),
+    perMinute: H({ price: R(), currency: io }).optional()
+  })
+function wo(e, t) {
+  for (let n = 1; n < (e.inputTokenTiers?.length ?? 0); n++)
+    e.inputTokenTiers[n].minInputTokens <= e.inputTokenTiers[n - 1].minInputTokens &&
+      t.addIssue({
+        code: `custom`,
+        path: [`inputTokenTiers`, n, `minInputTokens`],
+        message: `minInputTokens must be strictly increasing`
+      })
+  if (!e.inputTokenTiers?.length) return
+  let n = [
+      ...(e.input ? [{ rate: e.input, path: [`input`] }] : []),
+      ...(e.output ? [{ rate: e.output, path: [`output`] }] : []),
+      ...(e.cacheRead ? [{ rate: e.cacheRead, path: [`cacheRead`] }] : []),
+      ...(e.cacheWrite ? [{ rate: e.cacheWrite, path: [`cacheWrite`] }] : []),
+      ...e.inputTokenTiers.flatMap((e, t) => [
+        { rate: e.input, path: [`inputTokenTiers`, t, `input`] },
+        { rate: e.output, path: [`inputTokenTiers`, t, `output`] },
+        ...(e.cacheRead ? [{ rate: e.cacheRead, path: [`inputTokenTiers`, t, `cacheRead`] }] : []),
+        ...(e.cacheWrite ? [{ rate: e.cacheWrite, path: [`inputTokenTiers`, t, `cacheWrite`] }] : [])
+      ])
+    ],
+    r = n[0]?.rate.currency ?? Qa.USD
+  for (let { rate: e, path: i } of n)
+    (e.currency ?? Qa.USD) !== r &&
+      t.addIssue({ code: `custom`, path: [...i, `currency`], message: `pricing currencies must match` })
+}
+const To = Co.superRefine(wo),
+  Eo = Co.partial().superRefine(wo),
+  Do = H({
+    version: no,
+    models: Z(
+      H({
+        id: eo,
+        name: P(),
+        description: P().optional(),
+        capabilities: Z(so)
           .refine((e) => new Set(e).size === e.length, { message: `Capabilities must be unique` })
           .optional(),
-        inputModalities: H(ao)
+        inputModalities: Z(oo)
           .refine((e) => new Set(e).size === e.length, { message: `Input modalities must be unique` })
           .optional(),
-        outputModalities: H(ao)
+        outputModalities: Z(oo)
           .refine((e) => new Set(e).size === e.length, { message: `Output modalities must be unique` })
           .optional(),
-        contextWindow: B().optional(),
-        maxOutputTokens: B().optional(),
-        maxInputTokens: B().optional(),
-        pricing: So.optional(),
-        reasoning: fo.optional(),
-        parameterSupport: xo.optional(),
-        imageGeneration: bo.optional(),
-        family: I().optional(),
-        ownedBy: I().optional(),
-        openWeights: V().optional(),
-        metadata: io
+        contextWindow: R().optional(),
+        maxOutputTokens: R().optional(),
+        maxInputTokens: R().optional(),
+        pricing: To.optional(),
+        reasoning: po.optional(),
+        parameterSupport: So.optional(),
+        imageGeneration: xo.optional(),
+        family: P().optional(),
+        ownedBy: P().optional(),
+        openWeights: z().optional(),
+        metadata: ao
       })
     )
   }),
-  wo = {
+  Oo = {
     anthropic: /^(?:anthropic\.)?claude/i,
     gemini: /^(?:gemini|palm|veo|imagen|learnlm|lyria)/i,
     gemma: /^gemma(?:[-:\d]|$)/i,
@@ -3246,79 +3292,80 @@ const fo = U({
     zhipu: /^(?:glm|chatglm|cogview|cogvideo|codegeex)/i,
     mistral: /^(?:open-|labs-)?(?:mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral)/i
   },
-  To = K(
+  ko = G(
     `reasoningEffort,reasoningSummary,reasoning_effort,reasoning.effort,reasoning.enabled,reasoning.exclude,reasoning.max_tokens,thinking.type,thinking.budget_tokens,thinking.budgetTokens,thinking.display,effort,sendReasoning,enable_thinking,thinking_budget,incremental_output,disable_reasoning,reasoning_budget,chat_template_kwargs.enable_thinking,chat_template_kwargs.thinking,chat_template_kwargs.thinking_mode,chat_template_kwargs.thinking_budget,extra_body.google.thinking_config.thinking_budget,extra_body.google.thinking_config.include_thoughts,extra_body.thinking.type,extra_body.thinking_budget,extra_body.reasoning_effort,thinkingConfig.includeThoughts,thinkingConfig.thinkingBudget,thinkingConfig.thinkingLevel,reasoningConfig.type,reasoningConfig.budgetTokens,reasoningConfig.maxReasoningEffort,think`.split(
       `,`
     )
   ),
-  Eo = K(X(Qa)),
-  Do = U({
-    target: To,
-    value: W(`source`, [
-      U({ source: q(`literal`), value: ga([I(), B(), V()]) }),
-      U({ source: q(`effort`) }),
-      U({ source: q(`budget`) }),
-      U({ source: q(`assistant-summary`) })
+  Ao = G(Y($a)),
+  jo = H({
+    target: ko,
+    value: U(`source`, [
+      H({ source: K(`literal`), value: _a([P(), R(), z()]) }),
+      H({ source: K(`effort`) }),
+      H({ source: K(`budget`) }),
+      H({ source: K(`assistant-summary`) })
     ])
   }),
-  Oo = U({
-    target: To,
-    value: W(`source`, [
-      U({ source: q(`literal`), value: ga([I(), B(), V()]) }),
-      U({ source: q(`effort`) }),
-      U({ source: q(`assistant-summary`) })
+  Mo = H({
+    target: ko,
+    value: U(`source`, [
+      H({ source: K(`literal`), value: _a([P(), R(), z()]) }),
+      H({ source: K(`effort`) }),
+      H({ source: K(`assistant-summary`) })
     ])
   }),
-  ko = U({
-    min: B().nonnegative().optional(),
-    autoValue: B().optional(),
-    clampToMaxTokens: V().optional(),
-    missing: W(`type`, [
-      U({ type: q(`omit-value`) }),
-      U({ type: q(`omit-mode`) }),
-      U({ type: q(`fallback`), value: B() })
+  No = H({
+    min: R().nonnegative().optional(),
+    autoValue: R().optional(),
+    clampToMaxTokens: z().optional(),
+    missing: U(`type`, [
+      H({ type: K(`omit-value`) }),
+      H({ type: K(`omit-mode`) }),
+      H({ type: K(`fallback`), value: R() })
     ])
   }),
-  Ao = G(Eo, Eo).optional(),
-  jo = ga([
-    U({ operations: H(Oo).min(1), effortMap: Ao }),
-    U({
-      operations: H(Do)
+  Po = W(Ao, Ao).optional(),
+  Fo = _a([
+    H({ operations: V(Mo).min(1), effortMap: Po }),
+    H({
+      operations: V(jo)
         .min(1)
         .refine((e) => e.some((e) => e.value.source === `budget`), {
           message: `reasoning budget mode must contain a budget operation`
         }),
-      effortMap: Ao,
-      budget: ko
+      effortMap: Po,
+      budget: No
     })
   ]),
-  Mo = U({
-    disabled: q(!0).optional(),
-    default: jo.optional(),
-    off: jo.optional(),
-    auto: jo.optional(),
-    effort: jo.optional()
+  Io = H({
+    disabled: K(!0).optional(),
+    default: Fo.optional(),
+    off: Fo.optional(),
+    auto: Fo.optional(),
+    effort: Fo.optional()
   }).refine((e) => e.disabled === !0 || e.default || e.off || e.auto || e.effort, {
     message: `reasoning wire profile must declare a mode or be disabled`
   })
-U({ wire: Mo, budgetWire: Mo.optional() })
-const No = K(X(J)),
-  Po = X(J),
-  Fo = K([`openai-priority`, `claude-code`]),
-  Io = K([`standard`, `auto`, `fast`, `flex`]),
-  Lo = H(Io)
+H({ wire: Io, budgetWire: Io.optional() })
+const Lo = G(Y(q)),
+  Ro = Y(q),
+  zo = G([`global`, `cn`]),
+  Bo = G([`openai-priority`, `claude-code`]),
+  Vo = G([`standard`, `auto`, `fast`, `flex`]),
+  Ho = V(Vo)
     .min(1)
     .refine((e) => new Set(e).size === e.length, { message: `service tier options must be unique` })
     .refine((e) => e.includes(`standard`), { message: `service tier options must include standard` }),
-  Ro = U({
-    default: Io,
-    options: Lo,
-    wire: U({
-      delivery: W(`type`, [
-        U({ type: q(`provider-option`), key: I().min(1) }),
-        U({ type: q(`request-body`), key: I().min(1) })
+  Uo = H({
+    default: Vo,
+    options: Ho,
+    wire: H({
+      delivery: U(`type`, [
+        H({ type: K(`provider-option`), key: P().min(1) }),
+        H({ type: K(`request-body`), key: P().min(1) })
       ]),
-      values: G(Io, I().min(1))
+      values: W(Vo, P().min(1))
     })
   }).superRefine((e, t) => {
     e.options.includes(e.default) ||
@@ -3331,134 +3378,135 @@ const No = K(X(J)),
           path: [`wire`, `values`, n]
         })
   }),
-  zo = U({
-    id: K(X(Ja)),
-    modelScope: K(X(Ya)).default(Ya.MODEL_DEPENDENT),
-    endpointTypes: H(No).optional(),
-    vendors: H(K(Object.keys(wo))).optional()
+  Wo = H({
+    id: G(Y(Ya)),
+    modelScope: G(Y(Xa)).default(Xa.MODEL_DEPENDENT),
+    endpointTypes: Z(Lo).optional(),
+    vendors: Z(G(Object.keys(Oo))).optional()
   }),
-  $ = (e) => U({ type: q(e), wire: Mo.optional() }),
-  Bo = W(`type`, [$(`openai-chat`), $(`openai-responses`), $(`anthropic`), $(`gemini`), $(`ollama`), $(`none`)])
-Bo.options.map((e) => e.shape.type.value)
-const Vo = U({
-    website: U({ official: z().optional(), docs: z().optional(), apiKey: z().optional(), models: z().optional() })
+  $ = (e) => H({ type: K(e), wire: Io.optional() }),
+  Go = U(`type`, [$(`openai-chat`), $(`openai-responses`), $(`anthropic`), $(`gemini`), $(`ollama`), $(`none`)])
+Go.options.map((e) => e.shape.type.value)
+const Ko = H({
+    website: H({ official: L().optional(), docs: L().optional(), apiKey: L().optional(), models: L().optional() })
   }),
-  Ho = U({ streamOptions: V().optional(), developerRole: V().optional(), reasoningSummary: V().optional() }),
-  Uo = U({
-    baseUrl: z().optional(),
-    modelsApiUrls: U({
-      default: z().optional(),
-      embedding: z().optional(),
-      image: z().optional(),
-      reranker: z().optional()
+  qo = H({ streamOptions: z().optional(), developerRole: z().optional(), reasoningSummary: z().optional() }),
+  Jo = H({
+    baseUrl: L().optional(),
+    modelsApiUrls: H({
+      default: L().optional(),
+      embedding: L().optional(),
+      image: L().optional(),
+      reranker: L().optional()
     }).optional(),
-    reasoningFormat: Bo.optional(),
-    adapterFamily: I().optional(),
-    dialect: Ho.optional(),
-    requestControls: U({ serviceTier: Ro.optional() }).optional()
+    reasoningFormat: Go.optional(),
+    adapterFamily: P().optional(),
+    dialect: qo.optional(),
+    requestControls: H({ serviceTier: Uo.optional() }).optional()
   }),
-  Wo = U({
-    version: to,
-    providers: H(
-      U({
-        id: eo,
-        presetProviderId: eo.optional(),
-        name: I(),
-        description: I().optional(),
-        endpointConfigs: xa(
-          I().refine((e) => Po.includes(e), {
-            message: `Invalid endpoint type key, must be one of: ${X(J).join(`, `)}`
+  Yo = H({
+    version: no,
+    providers: Z(
+      H({
+        id: to,
+        presetProviderId: to.optional(),
+        name: P(),
+        availableInEditions: Z(zo, { min: 1 }).optional(),
+        description: P().optional(),
+        endpointConfigs: Sa(
+          P().refine((e) => Ro.includes(e), {
+            message: `Invalid endpoint type key, must be one of: ${Y(q).join(`, `)}`
           }),
-          Uo
+          Jo
         ).optional(),
-        defaultChatEndpoint: No.nullable().default(null),
-        modelListSource: K([`api`, `registry`]).default(`api`),
-        authMethods: H(K([`api-key`, `oauth`, `external-cli`])).optional(),
-        authOptional: V().default(!1),
-        serverTools: H(zo).default([]),
-        reportsActualCost: V().default(!1),
-        reportedCostCurrency: ro,
-        fastMode: U({ transport: Fo, serviceTier: I().optional() }).optional(),
-        metadata: io.and(Vo)
+        defaultChatEndpoint: Lo.nullable().default(null),
+        modelListSource: G([`api`, `registry`]).default(`api`),
+        authMethods: Z(G([`api-key`, `oauth`, `external-cli`])).optional(),
+        authOptional: z().default(!1),
+        serverTools: Z(Wo).default([]),
+        reportsActualCost: z().default(!1),
+        reportedCostCurrency: io,
+        fastMode: H({ transport: Bo, serviceTier: P().optional() }).optional(),
+        metadata: ao.and(Ko)
       }).refine((e) => (e.endpointConfigs && e.defaultChatEndpoint ? e.defaultChatEndpoint in e.endpointConfigs : !0), {
         message: `defaultChatEndpoint must exist as a key in endpointConfigs`
       })
     )
   }),
-  Go = U({ add: H(oo).optional(), remove: H(oo).optional(), force: H(oo).optional() }),
-  Ko = K([
-    J.OPENAI_RESPONSES,
-    J.OPENAI_CHAT_COMPLETIONS,
-    J.ANTHROPIC_MESSAGES,
-    J.GOOGLE_GENERATE_CONTENT,
-    J.OLLAMA_CHAT,
-    J.OLLAMA_GENERATE,
-    J.OPENAI_TEXT_COMPLETIONS
+  Xo = H({ add: Z(so).optional(), remove: Z(so).optional(), force: Z(so).optional() }),
+  Zo = G([
+    q.OPENAI_RESPONSES,
+    q.OPENAI_CHAT_COMPLETIONS,
+    q.ANTHROPIC_MESSAGES,
+    q.GOOGLE_GENERATE_CONTENT,
+    q.OLLAMA_CHAT,
+    q.OLLAMA_GENERATE,
+    q.OPENAI_TEXT_COMPLETIONS
   ]),
-  qo = U({ support: fo.optional(), wire: Mo.optional() }).refine((e) => e.support || e.wire, {
+  Qo = H({ support: po.optional(), wire: Io.optional() }).refine((e) => e.support || e.wire, {
     message: `provider-model reasoning contract must declare support or wire`
   }),
-  Jo = U({
-    version: to,
-    overrides: H(
-      U({
-        providerId: eo,
-        modelId: $a,
-        apiModelId: I().optional(),
-        modelVariants: H(I().min(1)).optional(),
-        capabilities: Go.optional(),
-        limits: U({
-          contextWindow: B().optional(),
-          maxOutputTokens: B().optional(),
-          maxInputTokens: B().optional()
+  $o = H({
+    version: no,
+    overrides: Z(
+      H({
+        providerId: to,
+        modelId: eo,
+        apiModelId: P().optional(),
+        modelVariants: V(P().min(1)).optional(),
+        capabilities: Xo.optional(),
+        limits: H({
+          contextWindow: R().optional(),
+          maxOutputTokens: R().optional(),
+          maxInputTokens: R().optional()
         }).optional(),
-        pricing: So.partial().optional(),
-        reasoningContracts: G(Ko, qo).optional(),
-        supportsFastMode: V().optional(),
-        requestControls: U({ serviceTier: U({ options: Lo }).optional() }).optional(),
-        parameterSupport: xo.partial().optional(),
-        endpointTypes: H(No).optional(),
-        inputModalities: H(ao).optional(),
-        outputModalities: H(ao).optional(),
-        name: I().optional(),
-        description: I().optional(),
-        family: I().optional(),
-        ownedBy: I().optional(),
-        imageGeneration: bo.optional(),
-        disabled: V().optional(),
-        replaceWith: $a.optional(),
-        reason: I().optional()
+        pricing: Eo.optional(),
+        reasoningContracts: W(Zo, Qo).optional(),
+        supportsFastMode: z().optional(),
+        requestControls: H({ serviceTier: H({ options: Ho }).optional() }).optional(),
+        parameterSupport: So.partial().optional(),
+        endpointTypes: Z(Lo).optional(),
+        inputModalities: Z(oo).optional(),
+        outputModalities: Z(oo).optional(),
+        name: P().optional(),
+        description: P().optional(),
+        family: P().optional(),
+        ownedBy: P().optional(),
+        imageGeneration: xo.optional(),
+        disabled: z().optional(),
+        replaceWith: eo.optional(),
+        reason: P().optional()
       })
     )
   }),
-  Yo = `anthropic|amazon|meta|google|mistralai|cohere|openai|ai21|microsoft|nvidia`
-;`${Yo}`, `${Yo}`
-const Xo = [`models.json`, `providers.json`, `provider-models.json`]
-U({
-  minAppVersion: I().min(1),
-  sourceAppVersion: I().min(1),
-  revision: B().int().nonnegative(),
-  schemaVersion: B().int(),
-  files: xa(I(), I())
+  es = `anthropic|amazon|meta|google|mistralai|cohere|openai|ai21|microsoft|nvidia`
+;`${es}`, `${es}`
+const ts = [`models.json`, `providers.json`, `provider-models.json`]
+H({
+  minAppVersion: P().min(1),
+  sourceAppVersion: P().min(1),
+  revision: R().int().nonnegative(),
+  schemaVersion: R().int(),
+  files: Sa(P(), P())
 })
-const Zo = { 'models.json': Co, 'providers.json': Wo, 'provider-models.json': Jo },
-  Qo = 2
-function $o(e) {
+const ns = { 'models.json': Do, 'providers.json': Yo, 'provider-models.json': $o },
+  rs = 2
+function is(e) {
   return e && typeof e == `object` && `issues` in e
     ? JSON.stringify(e.issues)
     : e instanceof Error
       ? e.message
       : String(e)
 }
-function es(e, t) {
-  Zo[e].parse(t)
+function as(e, t) {
+  ns[e].parse(t)
 }
-function ts(n) {
-  for (let r of Xo)
+function os(n) {
+  for (let r of ts)
     try {
-      es(r, JSON.parse(e(t.join(n, r), `utf8`)))
+      as(r, JSON.parse(e(t.join(n, r), `utf8`)))
     } catch (e) {
-      throw Error(`${r} is not compatible with registry schema v2: ${$o(e)}`)
+      throw Error(`${r} is not compatible with registry schema v2: ${is(e)}`)
     }
 }
 if (process.argv[1] && t.resolve(process.argv[1]) === n(import.meta.url)) {
@@ -3466,9 +3514,9 @@ if (process.argv[1] && t.resolve(process.argv[1]) === n(import.meta.url)) {
   if (!e) console.error(`Usage: node vN-validator.mjs <catalog-data-directory>`), (process.exitCode = 1)
   else
     try {
-      ts(t.resolve(e)), console.log(`Catalog is compatible with frozen registry schema v2`)
+      os(t.resolve(e)), console.log(`Catalog is compatible with frozen registry schema v2`)
     } catch (e) {
       console.error(e instanceof Error ? e.message : e), (process.exitCode = 1)
     }
 }
-export { Qo as schemaVersion, ts as validateCatalogDirectory, es as validateCatalogFile }
+export { rs as schemaVersion, os as validateCatalogDirectory, as as validateCatalogFile }

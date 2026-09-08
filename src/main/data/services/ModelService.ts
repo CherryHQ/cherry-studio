@@ -898,6 +898,9 @@ class ModelService {
         if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
           updates.maxOutputTokens = registryModel.maxOutputTokens
         }
+        if (model.parameterSupport === undefined && registryModel?.parameterSupport !== undefined) {
+          updates.parameterSupport = registryModel.parameterSupport
+        }
         if (model.pricing === undefined && registryModel?.pricing !== undefined) {
           updates.pricing = registryModel.pricing
         }

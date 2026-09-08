@@ -14,6 +14,7 @@ import type { ReasoningEffort } from '@cherrystudio/provider-registry'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { type DshApi, mapEndpointToDshApi } from '@shared/ai/dshModelCompatibility'
 import { type Model, MODEL_CAPABILITY, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -57,16 +58,16 @@ export class DshMissingApiKeyError extends Error {
 }
 
 export type DshInputModality = 'text' | 'image'
-export type DshReasoningEffort = Exclude<ReasoningEffort, 'none' | 'auto'> | 'off'
+const DSH_ADJUSTABLE_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
+export type DshReasoningEffort = (typeof DSH_ADJUSTABLE_REASONING_EFFORTS)[number] | 'off'
 export type DshReasoningEfforts = Partial<Record<DshReasoningEffort, string | null>>
-
-const DSH_ADJUSTABLE_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 
 function isDshAdjustableReasoningEffort(
   value: ReasoningEffort | undefined
-): value is Exclude<ReasoningEffort, 'none' | 'auto'> {
+): value is (typeof DSH_ADJUSTABLE_REASONING_EFFORTS)[number] {
   return (
-    value !== undefined && DSH_ADJUSTABLE_REASONING_EFFORTS.includes(value as Exclude<ReasoningEffort, 'none' | 'auto'>)
+    value !== undefined &&
+    DSH_ADJUSTABLE_REASONING_EFFORTS.includes(value as (typeof DSH_ADJUSTABLE_REASONING_EFFORTS)[number])
   )
 }
 
@@ -86,7 +87,7 @@ export function resolveDshReasoningEffort(
   if (!selectable.includes(selection)) return undefined
   if (selection === 'none') return 'off'
   if (selection === 'auto') return resolveDshAutoReasoningEffort(model)
-  return selection
+  return isDshAdjustableReasoningEffort(selection) ? selection : undefined
 }
 
 function buildDshReasoningEfforts(model: Model, selected?: DshReasoningEffort): false | DshReasoningEfforts {
@@ -196,7 +197,7 @@ export function buildDshProviderInjection(
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const headers = toAgentProviderHeaders(provider.settings?.extraHeaders)
+  const headers = toAgentProviderHeaders(getExtraHeaders(provider))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {

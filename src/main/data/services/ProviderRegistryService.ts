@@ -557,6 +557,23 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
             currency: mergedPricing.cacheWrite.currency
           }
         : undefined,
+      inputTokenTiers: mergedPricing.inputTokenTiers?.map((tier) => ({
+        minInputTokens: tier.minInputTokens,
+        input: {
+          perMillionTokens: tier.input.perMillionTokens ?? null,
+          currency: tier.input.currency
+        },
+        output: {
+          perMillionTokens: tier.output.perMillionTokens ?? null,
+          currency: tier.output.currency
+        },
+        cacheRead: tier.cacheRead
+          ? { perMillionTokens: tier.cacheRead.perMillionTokens ?? null, currency: tier.cacheRead.currency }
+          : undefined,
+        cacheWrite: tier.cacheWrite
+          ? { perMillionTokens: tier.cacheWrite.perMillionTokens ?? null, currency: tier.cacheWrite.currency }
+          : undefined
+      })),
       perImage: mergedPricing.perImage
         ? { price: mergedPricing.perImage.price, unit: mergedPricing.perImage.unit }
         : undefined,

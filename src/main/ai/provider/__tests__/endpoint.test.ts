@@ -182,6 +182,27 @@ describe('resolveAiSdkProviderId', () => {
       })
       expect(resolveAiSdkProviderId(provider, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe('openai-compatible')
     })
+
+    it('uses the generic Responses adapter when a custom provider configures Responses without an adapterFamily', () => {
+      const provider = makeProvider({
+        id: 'custom-provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://express-ent-admin.cherryin.net/v1'
+          }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+
+      expect(resolvedEndpoint).toEqual({
+        endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        baseUrl: 'https://express-ent-admin.cherryin.net/v1',
+        providerOptionsKey: undefined
+      })
+      expect(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType)).toBe('open-responses')
+    })
   })
 
   describe('Azure (catalog-driven)', () => {
@@ -540,6 +561,26 @@ describe('resolveEffectiveEndpoint', () => {
     expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
       endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       baseUrl: 'https://relay.example.com/chat'
+    })
+  })
+
+  it('lets a custom provider serve a declared Responses model from its Chat host', () => {
+    const provider = makeProvider({
+      id: 'custom-provider',
+      presetProviderId: undefined,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' }
+      }
+    })
+    const model = {
+      id: 'custom-provider::gpt-6-astra',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    } as never
+
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      baseUrl: 'https://relay.example.com/v1'
     })
   })
 

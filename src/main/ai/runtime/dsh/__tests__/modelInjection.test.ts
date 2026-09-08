@@ -191,6 +191,31 @@ describe('buildDshGatewayInjection', () => {
 })
 
 describe('buildDshProviderInjection', () => {
+  it('routes a model-level Responses hint through a custom provider Chat base URL', () => {
+    const provider = {
+      id: 'custom-provider',
+      name: 'Custom Provider',
+      reportsActualCost: false,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://express-ent-admin.cherryin.net/v1'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({
+      id: 'custom-provider::openai/gpt-6-astra',
+      providerId: 'custom-provider',
+      apiModelId: 'openai/gpt-6-astra',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.baseUrl).toBe('https://express-ent-admin.cherryin.net/v1')
+  })
+
   it('coerces user headers to the strings the dsh route schema accepts', () => {
     const provider = {
       ...nativeProvider,
@@ -201,6 +226,20 @@ describe('buildDshProviderInjection', () => {
     const injection = buildDshProviderInjection(provider, model, 'sk-native')
 
     expect(injection.headers).toEqual({ 'x-trace': 'on', 'x-legacy': '42' })
+  })
+
+  it('adds stable TokenDance app attribution', () => {
+    const provider = {
+      ...nativeProvider,
+      id: 'tokendance',
+      presetProviderId: 'tokendance',
+      settings: { extraHeaders: { 'x-app-url': 'https://wrong.example', 'x-trace': 'on' } }
+    } as unknown as Provider
+    const model = makeModel({ id: 'tokendance::gpt-5', providerId: 'tokendance', apiModelId: 'gpt-5' })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.headers).toEqual({ 'x-trace': 'on', 'X-App-URL': 'app://cherryai.com.cn' })
   })
 })
 

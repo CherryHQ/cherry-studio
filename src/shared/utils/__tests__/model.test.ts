@@ -2,6 +2,7 @@ import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/pr
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
   deriveModelGroupName,
+  getRawModelId,
   isAudioModel,
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -31,6 +32,14 @@ const createModel = (capabilities: Model['capabilities'] = [MODEL_CAPABILITY.TEX
 })
 
 describe('shared model capability helpers', () => {
+  it.each([
+    [undefined, 'gpt-4o'],
+    ['', 'gpt-4o'],
+    ['custom-wire-id', 'custom-wire-id']
+  ])('resolves a usable wire model id for apiModelId %j', (apiModelId, expected) => {
+    expect(getRawModelId({ ...createModel(), apiModelId })).toBe(expected)
+  })
+
   describe('deriveModelGroupName', () => {
     it.each([
       ['openai/gpt-4o', 'openai'],

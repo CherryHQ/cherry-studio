@@ -15,6 +15,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
@@ -174,7 +175,7 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    headers: toPiHeaders(provider.settings?.extraHeaders),
+    headers: toPiHeaders(getExtraHeaders(provider)),
     models: [modelConfig]
   }
 
@@ -376,7 +377,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
 }
 
 /** pi's thinking ladder. `off` is its name for Cherry's `none`; the rest share Cherry's spelling. */
-const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
+const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
 
 /**
  * Project the model's declared efforts onto pi's ladder, marking the rest `null`.

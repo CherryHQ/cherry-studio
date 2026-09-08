@@ -1,7 +1,11 @@
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { TOKEN_DANCE_APP_URL } from '@main/ai/provider/constants'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { matchesPreset } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const ENDPOINT_FALLBACK_ORDER: readonly EndpointType[] = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -51,16 +55,35 @@ export function getBaseUrl(
 
 export function getExtraHeaders(provider: Provider): Record<string, string> {
   const headers = { ...provider.settings?.extraHeaders }
-  if (provider.id !== 'radeon-cloud' && provider.presetProviderId !== 'radeon-cloud') {
-    return headers
-  }
+  const isTokenDance = matchesPreset(provider, SystemProviderIds.tokendance)
+  const isRadeonCloud = matchesPreset(provider, SystemProviderIds['radeon-cloud'])
 
   for (const name of Object.keys(headers)) {
-    if (name.toLowerCase() === 'x-source') {
+    const normalizedName = name.toLowerCase()
+    if ((isTokenDance && normalizedName === 'x-app-url') || (isRadeonCloud && normalizedName === 'x-source')) {
       delete headers[name]
     }
   }
-  return { ...headers, 'X-Source': 'cherry-studio' }
+  return {
+    ...headers,
+    ...(isTokenDance ? { 'X-App-URL': TOKEN_DANCE_APP_URL } : {}),
+    ...(isRadeonCloud ? { 'X-Source': 'cherry-studio' } : {})
+  }
+}
+
+/**
+ * Canonical bundled and managed providers retain Cherry's existing app
+ * attribution. User-created providers can point at arbitrary hosts, where
+ * these browser-style headers may be rejected as CSRF metadata. Keep explicit
+ * user headers separate so a custom provider can still opt in through
+ * `settings.extraHeaders`.
+ */
+export function getProviderAppHeaders(provider: Provider): Record<string, string> {
+  if (!provider.presetProviderId) return {}
+
+  const isCanonicalProvider =
+    provider.id === provider.presetProviderId || providerRegistryService.isRegistryProvider(provider.id)
+  return isCanonicalProvider ? defaultAppHeaders() : {}
 }
 
 /**
@@ -82,7 +105,7 @@ export function isAnthropicOfficialHost(baseUrl: string | undefined): boolean {
 export function defaultHeaders(provider: Provider): Record<string, string> {
   const apiKey = providerService.getRotatedApiKey(provider.id)
   return mergeHeaders(
-    defaultAppHeaders(),
+    getProviderAppHeaders(provider),
     apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : undefined,
     getExtraHeaders(provider)
   )

@@ -76,6 +76,14 @@ export function resolveEffectiveEndpoint(
     endpointType !== undefined &&
     provider.endpointConfigs != null &&
     Object.hasOwn(provider.endpointConfigs, endpointType)
+  // A custom provider has one user-entered `/v1` host; Chat Completions and Responses are two
+  // paths on it, so a model declaring the other OpenAI dialect keeps that host (#20144).
+  const sharesOpenAiHost =
+    !provider.presetProviderId &&
+    ((endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
+      provider.defaultChatEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) ||
+      (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS &&
+        provider.defaultChatEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES))
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return {
@@ -83,7 +91,7 @@ export function resolveEffectiveEndpoint(
     baseUrl: endpointType
       ? getBaseUrl(provider, endpointType, {
           // A configured adapter may reuse the provider's default host; an unserved protocol fails closed.
-          selectedEndpointOnly: endpointRequiresOwnHost && !hasEndpointConfig
+          selectedEndpointOnly: endpointRequiresOwnHost && !hasEndpointConfig && !sharesOpenAiHost
         })
       : '',
     providerOptionsKey
@@ -114,6 +122,9 @@ export function resolveAiSdkProviderId(provider: Provider, endpointType: Endpoin
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   if (adapterFamily && adapterFamily in appProviderIds) {
     return resolveProviderVariant(appProviderIds[adapterFamily], endpointType)
+  }
+  if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+    return appProviderIds['open-responses']
   }
   return appProviderIds['openai-compatible']
 }

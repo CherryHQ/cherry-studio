@@ -1322,6 +1322,45 @@ describe('ModelService.list — registry enrichment', () => {
     })
   })
 
+  it("keeps a sparse GPT-6 Astra row on a custom provider's Chat endpoint", async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('custom-provider', 'Custom Provider'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
+      }
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('custom-provider', 'openai/gpt-6-astra', {
+        presetModelId: 'gpt-6-astra',
+        name: null,
+        capabilities: null,
+        endpointTypes: null,
+        supportsStreaming: null
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-6-astra',
+        name: 'GPT-6 Astra',
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.TEXT_GENERATION],
+        endpointTypes: ['openai-responses']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'custom-provider' })
+
+    expect(model).toMatchObject({
+      apiModelId: 'openai/gpt-6-astra',
+      presetModelId: 'gpt-6-astra',
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.TEXT_GENERATION]
+    })
+    expect(model.endpointTypes).toBeUndefined()
+  })
+
   it('hydrates same-canonical variants through their exact API model ID', async () => {
     const apiModelId = 'deepseek-v4-flash-202605'
     await dbh.db.insert(userProviderTable).values(providerRow('tokenhub', 'TokenHub'))
@@ -1447,7 +1486,11 @@ describe('ModelService.list — registry enrichment', () => {
         inputModalities: ['text', 'image'],
         outputModalities: ['image'],
         endpointTypes: ['openai-responses'],
-        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 }
+        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 },
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } },
+          topP: { supported: false, range: { min: 0, max: 1 } }
+        }
       },
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
@@ -1465,6 +1508,10 @@ describe('ModelService.list — registry enrichment', () => {
       contextWindow: 256_000,
       maxInputTokens: 120_000,
       maxOutputTokens: 4096,
+      parameterSupport: expect.objectContaining({
+        temperature: expect.objectContaining({ supported: false }),
+        topP: expect.objectContaining({ supported: false })
+      }),
       pricing: {
         input: { perMillionTokens: 5 },
         output: { perMillionTokens: 15 }
@@ -1486,7 +1533,13 @@ describe('ModelService.list — registry enrichment', () => {
           capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
           inputModalities: ['audio'],
           outputModalities: ['video'],
-          supportsStreaming: true
+          supportsStreaming: true,
+          parameterSupport: {
+            temperature: { supported: true, range: { min: 0, max: 2 } },
+            maxTokens: true,
+            stopSequences: true,
+            systemMessage: true
+          }
         }
       }
     ])
@@ -1502,7 +1555,10 @@ describe('ModelService.list — registry enrichment', () => {
       },
       registryOverride: {
         inputModalities: ['text', 'image'],
-        outputModalities: ['image']
+        outputModalities: ['image'],
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } }
+        }
       },
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
@@ -1515,7 +1571,10 @@ describe('ModelService.list — registry enrichment', () => {
       name: 'Future Model',
       description: 'Custom description',
       inputModalities: ['audio'],
-      outputModalities: ['video']
+      outputModalities: ['video'],
+      parameterSupport: expect.objectContaining({
+        temperature: { supported: true, range: { min: 0, max: 2 } }
+      })
     })
     expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
   })

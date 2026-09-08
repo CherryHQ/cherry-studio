@@ -130,22 +130,12 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 // Parameter support checks
 // ---------------------------------------------------------------------------
 
-const isKimiFixedSamplingModel = (model: Model): boolean => {
-  const id = getLowerBaseModelName(getRawModelId(model))
-  return /^kimi-k(?:2[.-][5-9]\d*|[3-9]\d*)(?:[-_.]|$)/i.test(id)
-}
-
 /** Check if model supports temperature parameter */
-export const isSupportTemperatureModel = (model: Model): boolean => {
-  if (model.parameterSupport?.temperature) return model.parameterSupport.temperature.supported !== false
-  return !isKimiFixedSamplingModel(model)
-}
+export const isSupportTemperatureModel = (model: Model): boolean =>
+  model.parameterSupport?.temperature?.supported !== false
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => {
-  if (model.parameterSupport?.topP) return model.parameterSupport.topP.supported !== false
-  return !isKimiFixedSamplingModel(model)
-}
+export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
 
 /** Whether temperature and top_p are mutually exclusive for this model */
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {
@@ -461,11 +451,11 @@ export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
 /**
  * The wire id every id-based predicate must key off. `apiModelId` is optional
- * on the runtime Model, so reading it alone silently misidentifies models whose
+ * or empty on the runtime Model, so reading it alone silently misidentifies models whose
  * unique id carries the wire name instead.
  */
 export function getRawModelId(model: Model): string {
-  return model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  return model.apiModelId || parseUniqueModelId(model.id).modelId
 }
 
 // ---------------------------------------------------------------------------

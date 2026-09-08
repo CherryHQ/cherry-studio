@@ -1,7 +1,7 @@
 {
   "providers": [
     {
-      "availableInEditions": ["global"],
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "CherryIN - AI model provider",
       "endpointConfigs": {
@@ -775,50 +775,46 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Jalapeno Cloud - AI model provider",
+      "description": "TokenDance - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "google-generate-content": {
+          "adapterFamily": "google",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.jalapeno-cloud.ai/v1",
-          "reasoningFormat": {
-            "type": "openai-chat",
-            "wire": {
-              "auto": {
-                "operations": [
-                  {
-                    "target": "chat_template_kwargs.thinking",
-                    "value": {
-                      "source": "literal",
-                      "value": true
-                    }
-                  }
-                ]
-              },
-              "off": {
-                "operations": [
-                  {
-                    "target": "chat_template_kwargs.thinking",
-                    "value": {
-                      "source": "literal",
-                      "value": false
-                    }
-                  }
-                ]
-              }
-            }
+          "baseUrl": "https://tokendance.space/gateway",
+          "modelsApiUrls": {
+            "default": "https://tokendance.space/gateway/v1/models"
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://tokendance.space/gateway"
         }
       },
-      "id": "jalapeno-cloud",
+      "id": "tokendance",
       "metadata": {
         "website": {
-          "apiKey": "https://www.jalapeno-cloud.ai/keys/",
-          "docs": "https://www.jalapeno-cloud.ai/docs",
-          "models": "https://www.jalapeno-cloud.ai/models",
-          "official": "https://www.jalapeno-cloud.ai"
+          "apiKey": "https://tokendance.space/keys",
+          "docs": "https://tokendance.space/docs/cherry-studio",
+          "models": "https://tokendance.space/models",
+          "official": "https://tokendance.space"
         }
       },
-      "name": "Jalapeno Cloud"
+      "name": "TokenDance"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -2660,5 +2656,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "c2901f20e45001ef"
+  "version": "3173ebe8008cf4df"
 }

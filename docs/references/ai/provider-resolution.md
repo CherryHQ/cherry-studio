@@ -53,7 +53,9 @@ operation, `resolveEffectiveEndpoint` resolves candidates in this order:
    `/models` happened to list.
 4. The first compatible model-declared endpoint with a configured provider route.
 5. If compatible declarations exist but none is configured, retain the first one and fail closed with
-   an empty URL.
+   an empty URL. One exception: a custom provider has a single user-entered `/v1` host, on which
+   Chat Completions and Responses are two paths, so a model declaring the other OpenAI dialect keeps
+   that host (#20144).
 6. Only for `text-generation`, a registered per-model gateway route or `provider.defaultChatEndpoint`
    — the last-ditch form of step 3, for models that declare no protocol at all.
 7. For other operations, a compatible endpoint explicitly configured by the provider; otherwise the
@@ -136,6 +138,24 @@ A direct caller may omit `resolvedEndpoint` and let the function resolve the
 endpoint itself — in which case it **must** pass `operationCapability`, because
 the default is `text-generation`. An embedding, rerank, image, audio, or video
 request that omits both options resolves a chat endpoint.
+
+`resolveSdkConfig` (`src/main/ai/provider/sdkConfig.ts`) wraps it with the wire
+model id and the `providerOptions` namespace. It is the modality-agnostic
+transport core: `AiService`'s embedding, rerank and image verbs call it
+directly, and the chat pipeline (`buildAgentParams`) layers tools, prompt and
+context on top of it. Compression-model resolution also uses this core,
+including wire model normalization, before binding its owning conversation
+to the summary model.
+
+**Builders never read request context.** A config is a function of the
+provider, the model, the endpoint and the credential. When a provider's
+protocol needs something per request, the builder *declares* it and the chat
+pipeline fulfils it — OpenCode Go/Zen requires `x-opencode-session`, so
+`buildOpenCodeGoConfig` sets `ProviderConfig.conversationHeader` and
+`buildAgentOptions` fills it from `request.conversation.id`. Only chat
+requests (`AiChatRequest`) carry a conversation; embedding, rerank and image
+requests have no such field, so nothing below the caller has to derive or
+default one.
 
 The builder table (`config.ts`, first match wins):
 
