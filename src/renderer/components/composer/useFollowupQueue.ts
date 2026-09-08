@@ -73,8 +73,7 @@ function loadState(scopeKey: string): FollowupQueueState {
     return {
       items: items as unknown as FollowupQueueItem[],
       paused: raw.paused === true,
-      failedItemId:
-        typeof raw.failedItemId === 'string' && raw.failedItemId.length > 0 ? raw.failedItemId : undefined
+      failedItemId: typeof raw.failedItemId === 'string' && raw.failedItemId.length > 0 ? raw.failedItemId : undefined
     }
   } catch {
     return { items: [], paused: false }
@@ -248,12 +247,14 @@ export function useFollowupQueue({
     // If the restored queue is non-empty and completion is already fulfilled, re-arm
     // draining immediately — the isFulfilled effect won't re-fire since its dep hasn't changed.
     if (next.items.length > 0 && !next.paused && !next.failedItemId && isFulfilledRef.current && isWindowFocused()) {
-      const head = next.items[0]
-      if (head) {
-        markSeenRef.current()
-        // Defer to next tick so state has committed before drainHead checks drainingIdRef.
-        queueMicrotask(() => drainHead(head))
-      }
+      markSeenRef.current()
+      // Defer to next tick so state has committed before drainHead checks drainingIdRef.
+      // Re-read head inside the microtask so a rapid second scope switch does not
+      // drain a stale head through the new conversation's completion edge.
+      queueMicrotask(() => {
+        const currentHead = stateRef.current.items[0]
+        if (currentHead) drainHead(currentHead)
+      })
     }
   }, [scopeKey, drainHead])
 

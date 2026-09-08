@@ -1211,7 +1211,14 @@ export class CacheService {
 
               // If local side already holds a tombstone (null), keep it and do not
               // resurrect the entry from a potentially stale incoming snapshot.
+              // Exception: if incoming carries a non-empty queue, treat it as a
+              // fresh enqueue that happened after the tombstone and accept it
+              // rather than dropping the new message.
               if (existingVal === null) {
+                const incomingEntry = incomingVal as { items?: unknown }
+                if (Array.isArray(incomingEntry?.items) && incomingEntry.items.length > 0) {
+                  merged[convKey] = incomingVal
+                }
                 continue
               }
 
@@ -1245,12 +1252,11 @@ export class CacheService {
                       if (it && typeof it.id === 'string' && !byId.has(it.id)) byId.set(it.id, it)
                     }
                     const mergedItems = Array.from(byId.values()) as Array<{ id?: string }>
-                    const mergedFailedId =
-                      mergedItems.some((it) => it.id === existingFailedId)
-                        ? existingFailedId
-                        : mergedItems.some((it) => it.id === incomingFailedId)
-                          ? incomingFailedId
-                          : undefined
+                    const mergedFailedId = mergedItems.some((it) => it.id === existingFailedId)
+                      ? existingFailedId
+                      : mergedItems.some((it) => it.id === incomingFailedId)
+                        ? incomingFailedId
+                        : undefined
                     merged[convKey] = {
                       ...incomingEntry,
                       paused: pausedMerged,
@@ -1259,12 +1265,11 @@ export class CacheService {
                     }
                   } else {
                     // Use incoming items as authoritative; preserve failed id only if it still exists
-                    const failedIdToKeep =
-                      incomingItems.some((it) => it.id === incomingFailedId)
-                        ? incomingFailedId
-                        : incomingItems.some((it) => it.id === existingFailedId)
-                          ? existingFailedId
-                          : undefined
+                    const failedIdToKeep = incomingItems.some((it) => it.id === incomingFailedId)
+                      ? incomingFailedId
+                      : incomingItems.some((it) => it.id === existingFailedId)
+                        ? existingFailedId
+                        : undefined
                     merged[convKey] = {
                       ...incomingEntry,
                       paused: pausedMerged,
