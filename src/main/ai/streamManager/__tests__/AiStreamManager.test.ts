@@ -2951,6 +2951,7 @@ describe('AiStreamManager', () => {
       expect(listener.errorResults[0].error).toEqual({
         name: 'AI_APICallError',
         message: 'no access to this model',
+        providerErrorCategory: 'permission',
         stack: null,
         cause: null,
         url: '',

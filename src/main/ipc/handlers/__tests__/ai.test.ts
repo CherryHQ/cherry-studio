@@ -282,6 +282,7 @@ describe('aiHandlers', () => {
     expect(error.data).toEqual({
       name: 'AI_APICallError',
       message: 'provider access denied',
+      providerErrorCategory: 'permission',
       stack: null,
       cause: null,
       url: '',
