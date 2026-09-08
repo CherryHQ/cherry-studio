@@ -14,7 +14,7 @@ import {
 } from '@shared/types/webviewAnnotation'
 import { EditorContent } from '@tiptap/react'
 import type { WebviewTag } from 'electron'
-import { ArrowUp, Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
+import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -183,19 +183,24 @@ export function WebviewAnnotationControls({
             align="center"
             sideOffset={8}
             collisionPadding={8}
-            className="w-80 rounded-[20px] py-1.5 pr-1.5 pl-3">
-            <div className="flex items-end gap-1">
-              <div className="min-w-0 flex-1">
-                <AnnotationCommentEditor
-                  initialComment={editor.draft}
-                  placeholder={t('webview.annotation.placeholder')}
-                  onChange={setEditorDraft}
-                  onSubmit={() => {
-                    if (!editorUnavailable) void saveEditor()
-                  }}
-                  onCancel={() => void cancelEditor()}
-                />
-              </div>
+            className="flex max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-y-auto rounded-xl border-border-strong p-3 shadow-lg">
+            <div className="min-h-0 min-w-0 overflow-y-auto">
+              <AnnotationCommentEditor
+                initialComment={editor.draft}
+                placeholder={t('webview.annotation.placeholder')}
+                onChange={setEditorDraft}
+                onSubmit={() => {
+                  if (!editorUnavailable) void saveEditor()
+                }}
+                onCancel={() => void cancelEditor()}
+              />
+            </div>
+            {editorUnavailable && (
+              <p role="alert" className="text-error text-xs">
+                {t('webview.annotation.element_unavailable')}
+              </p>
+            )}
+            <div className="flex shrink-0 items-center justify-end gap-2">
               {editor.canDelete && (
                 <Tooltip content={t('webview.annotation.delete')} placement="bottom">
                   <Button
@@ -204,7 +209,7 @@ export function WebviewAnnotationControls({
                     size="icon-sm"
                     onClick={() => void deleteEditor()}
                     aria-label={t('webview.annotation.delete')}
-                    className="shrink-0 rounded-full text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive">
+                    className="me-auto shrink-0 text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive">
                     <Trash2 size={14} />
                   </Button>
                 </Tooltip>
@@ -214,24 +219,19 @@ export function WebviewAnnotationControls({
                 variant="ghost"
                 size="sm"
                 onClick={() => void cancelEditor()}
-                className="shrink-0 rounded-full text-muted-foreground shadow-none hover:text-foreground">
+                className="shrink-0 text-muted-foreground shadow-none hover:text-foreground">
                 {t('webview.annotation.cancel')}
               </Button>
               <Button
                 type="button"
-                size="icon-sm"
+                size="sm"
                 disabled={editorUnavailable || !editor.draft.trim()}
                 onClick={() => void saveEditor()}
                 aria-label={t('webview.annotation.save')}
-                className="shrink-0 rounded-full transition-[transform,background-color,color] active:scale-[0.96]">
-                <ArrowUp size={14} />
+                className="shrink-0">
+                {t('webview.annotation.save')}
               </Button>
             </div>
-            {editorUnavailable && (
-              <p role="alert" className="mt-1 text-error text-xs">
-                {t('webview.annotation.element_unavailable')}
-              </p>
-            )}
           </PopoverContent>
         )}
       </Popover>
@@ -279,9 +279,7 @@ function AnnotationCommentEditor({
     editorProps: {
       attributes: {
         'aria-label': placeholder,
-        // The empty-state placeholder stays on one line; typed text wraps normally.
-        class:
-          'max-h-40 overflow-y-auto py-1 text-sm outline-none [&_p.placeholder]:overflow-hidden [&_p.placeholder]:text-ellipsis [&_p.placeholder]:whitespace-nowrap'
+        class: 'max-h-40 overflow-y-auto text-sm text-foreground outline-none [--editor-min-height:3rem]'
       },
       handleKeyDown: (_view, event) => {
         if (event.key === 'Escape') {
