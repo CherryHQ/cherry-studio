@@ -7,7 +7,8 @@ import type {
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   dataApiGet: vi.fn(),
   dataApiPut: vi.fn(),
   invalidateCache: vi.fn(),
+  refetchContentSearch: vi.fn(),
   eventEmit: vi.fn(),
   emitResourceListReveal: vi.fn(),
   virtualListScrollToIndex: vi.fn(),
@@ -297,11 +299,15 @@ vi.mock('@data/hooks/useCache', () => ({
   ]
 }))
 
-vi.mock('@data/hooks/useDataApi', () => ({
-  useInvalidateCache: () => mocks.invalidateCache,
-  useInfiniteFlatItems: (pages: any[] = []) => pages.flatMap((page) => page.items),
-  useQuery: (...args: unknown[]) => mocks.useQuery(...args)
-}))
+vi.mock('@data/hooks/useDataApi', async () => {
+  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
+  return {
+    ...MockUseDataApi,
+    useInvalidateCache: () => mocks.invalidateCache,
+    useInfiniteFlatItems: (pages: any[] = []) => pages.flatMap((page) => page.items),
+    useQuery: (...args: unknown[]) => mocks.useQuery(...args)
+  }
+})
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => [mocks.preferenceValues[key], vi.fn()],
@@ -556,6 +562,7 @@ afterEach(() => {
 
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
     testOnlyClearRefreshHistory()
     // Conversation tabs open on the conversation's own URL (`/app/chat?topicId=…`), so match the
     // route prefix rather than the bare path.
@@ -650,7 +657,8 @@ describe('GlobalSearchPanel', () => {
             },
             isLoading: false,
             isRefreshing: false,
-            error: undefined
+            error: undefined,
+            refetch: mocks.refetchContentSearch
           }
         }
 
@@ -1485,6 +1493,38 @@ describe('GlobalSearchPanel', () => {
       expect(screen.getByRole('option', { name: /needle topic reply/ })).toBeInTheDocument()
       expect(screen.queryByRole('option', { name: /needle session reply/ })).not.toBeInTheDocument()
       expect(screen.queryByText('Session A')).not.toBeInTheDocument()
+    })
+  })
+
+  it('removes deleted task messages when another window clears their Agent session', async () => {
+    const user = userEvent.setup()
+    mocks.sessionMessageQueryResult = {
+      items: [
+        {
+          messageId: 'session-message-1',
+          sessionId: 'session-1',
+          sessionName: 'Session A',
+          snippet: 'needle session reply',
+          createdAt: '2026-01-01T00:00:01.000Z'
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.type(
+      screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
+      'needle'
+    )
+    expect(await screen.findByRole('option', { name: /needle session reply/ })).toBeInTheDocument()
+
+    mocks.sessionMessageQueryResult = { items: [] }
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/search/contents', entityIds: ['session-message-1'] }])
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('option', { name: /needle session reply/ })).not.toBeInTheDocument()
+      expect(mocks.refetchContentSearch).toHaveBeenCalledOnce()
     })
   })
 

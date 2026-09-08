@@ -1,6 +1,7 @@
-import { useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import type { GroupedVirtualListGroup } from '@renderer/components/VirtualList'
 import type { ContentSearchGroup, ContentSearchSourceType } from '@shared/data/api/schemas/search'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -256,7 +257,8 @@ export function useGlobalSearchPanelData({
     data: contentSearchData,
     isLoading: isContentSearchLoading,
     isRefreshing: isContentSearchRefreshing,
-    error: contentSearchError
+    error: contentSearchError,
+    refetch: refetchContentSearch
   } = useQuery('/search/contents', {
     enabled: hasQuery && contentSearchSources.length > 0,
     query: contentSearchQuery,
@@ -264,6 +266,20 @@ export function useGlobalSearchPanelData({
       keepPreviousData: false
     }
   })
+
+  const handleContentSearchDataChange = useCallback(
+    (effects: DataApiDataChangeEffect[]) => {
+      const changedMessageIds = new Set(effects.flatMap((effect) => effect.entityIds ?? []))
+      setContentSearchState((state) => {
+        if (effects.some((effect) => !effect.entityIds)) return createContentSearchState(state.baseKey)
+        const items = state.items.filter((item) => !changedMessageIds.has(item.messageId))
+        return items.length === state.items.length ? state : { ...state, items }
+      })
+      void refetchContentSearch()
+    },
+    [refetchContentSearch]
+  )
+  useDataChange('/search/contents', handleContentSearchDataChange)
 
   useEffect(() => {
     if (!contentSearchData || contentSearchData.query !== deferredQuery) return

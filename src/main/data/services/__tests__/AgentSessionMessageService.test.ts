@@ -1127,6 +1127,10 @@ describe('AgentSessionMessageService', () => {
         kind: 'membership',
         routeParams: { sessionId: SESSION_ID },
         entityIds: result.deletedIds
+      },
+      {
+        endpoint: '/search/contents',
+        entityIds: result.deletedIds
       }
     ])
   })

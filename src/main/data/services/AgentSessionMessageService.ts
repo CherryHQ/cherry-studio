@@ -646,6 +646,10 @@ export class AgentSessionMessageService {
           kind: 'membership',
           routeParams: { sessionId },
           entityIds: result.deletedIds
+        },
+        {
+          endpoint: '/search/contents',
+          entityIds: result.deletedIds
         }
       ])
     }
