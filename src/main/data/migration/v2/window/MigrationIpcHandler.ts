@@ -5,11 +5,11 @@
 import fs from 'fs/promises'
 import path from 'path'
 
-import type { MigrationPaths } from '@data/migration/v2/core/MigrationPaths'
-import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import * as z from 'zod'
 
+import type { MigrationPaths } from '@data/migration/v2/core/MigrationPaths'
+import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
 import {

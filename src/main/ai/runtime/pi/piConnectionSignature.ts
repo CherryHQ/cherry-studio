@@ -1,12 +1,11 @@
 import { createHash } from 'node:crypto'
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-
-import { application } from '@application'
 import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
   type McpServerSnapshotMap,

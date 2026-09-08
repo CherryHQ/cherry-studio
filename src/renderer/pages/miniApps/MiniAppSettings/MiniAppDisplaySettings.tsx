@@ -1,10 +1,10 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { Undo2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'

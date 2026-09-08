@@ -1,8 +1,8 @@
-import { agentChannelService as channelService } from '@data/services/AgentChannelService'
-import { agentService } from '@data/services/AgentService'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { application } from '@application'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'

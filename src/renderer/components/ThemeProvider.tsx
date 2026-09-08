@@ -1,7 +1,7 @@
-import { usePreference } from '@data/hooks/usePreference'
 import type { PropsWithChildren } from 'react'
 import React, { useEffect, useState } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ThemeContext } from '@renderer/hooks/useTheme'
 import useUserTheme from '@renderer/hooks/useUserTheme'

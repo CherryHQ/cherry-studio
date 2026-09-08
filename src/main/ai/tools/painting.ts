@@ -15,12 +15,12 @@
  * propagates as the cancellation it is rather than a retryable error.
  */
 
-import { modelService } from '@data/services/ModelService'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import * as z from 'zod'
 
 import { application } from '@application'
 import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
+import { modelService } from '@data/services/ModelService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'

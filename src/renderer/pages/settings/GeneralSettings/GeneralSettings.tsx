@@ -1,10 +1,10 @@
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import CopyButton from '@renderer/components/CopyButton'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import Selector from '@renderer/components/Selector'

@@ -1,7 +1,7 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { getOrderedLaunchpadApps, reorderLaunchpadApps } from '@renderer/utils/sidebar'
 

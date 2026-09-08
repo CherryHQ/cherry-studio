@@ -5,9 +5,9 @@
  * conservatively refetch so every window observes the same pin order.
  */
 
-import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { EntityType } from '@shared/data/types/entityType'
 

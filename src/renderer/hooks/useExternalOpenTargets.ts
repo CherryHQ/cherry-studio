@@ -1,7 +1,7 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { useCallback, useMemo } from 'react'
 import useSWRImmutable from 'swr/immutable'
 
+import { usePersistCache } from '@data/hooks/useCache'
 import {
   type ExternalOpenTargetPathKind,
   externalOpenTargetService,

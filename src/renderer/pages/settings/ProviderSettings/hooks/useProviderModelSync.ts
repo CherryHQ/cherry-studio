@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { useCallback } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'

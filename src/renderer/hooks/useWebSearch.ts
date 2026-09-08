@@ -1,8 +1,8 @@
-import { useQuery } from '@data/hooks/useDataApi'
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useQuery } from '@data/hooks/useDataApi'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { splitApiKeyString } from '@renderer/utils/api'

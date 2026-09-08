@@ -1,3 +1,6 @@
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * useDataChange hook tests (real hook implementation).
  *
@@ -8,9 +11,6 @@
  * resubscription behavior, and latest-listener delivery.
  */
 import { dataApiService } from '@data/DataApiService'
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 
 // Tests exercise the real hook; the global renderer setup otherwise replaces

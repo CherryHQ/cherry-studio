@@ -3,10 +3,10 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { decodeTextBufferIfText, isOutsidePath, isPathInside, openReadableFileSnapshot } from '@main/utils/file'

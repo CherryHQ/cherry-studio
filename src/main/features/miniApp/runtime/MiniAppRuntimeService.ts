@@ -8,11 +8,11 @@
 
 import path from 'node:path'
 
-import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { eq } from 'drizzle-orm'
 import { session, webContents } from 'electron'
 
 import { application } from '@application'
+import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase, Signal } from '@main/core/lifecycle'
 import { markSelfHardenedSession } from '@main/core/security/selfHardenedSessions'

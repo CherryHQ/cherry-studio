@@ -5,14 +5,14 @@
 
 import { readFileSync } from 'node:fs'
 
-import { userProviderTable } from '@data/db/schemas/userProvider'
-import { providerService } from '@data/services/ProviderService'
-import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerService } from '@data/services/ProviderService'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'

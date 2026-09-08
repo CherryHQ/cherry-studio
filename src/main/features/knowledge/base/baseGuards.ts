@@ -1,5 +1,4 @@
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 

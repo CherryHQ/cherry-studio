@@ -3,15 +3,15 @@ import { access, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, utimes, w
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { agentSessionService } from '@data/services/AgentSessionService'
-import { messageService } from '@data/services/MessageService'
-import { topicService } from '@data/services/TopicService'
 import { ZipArchive } from 'archiver'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { diagnosticsErrorCodes } from '@shared/ipc/errors/diagnostics'
 
 import type {

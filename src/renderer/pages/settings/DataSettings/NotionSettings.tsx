@@ -1,9 +1,9 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { Client } from '@notionhq/client'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,

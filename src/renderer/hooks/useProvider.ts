@@ -1,9 +1,9 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
-import { useDataChange } from '@data/hooks/useDataChange'
 import { isUndefined, omitBy } from 'es-toolkit/compat'
 import { useCallback } from 'react'
 import type { SWRConfiguration } from 'swr'
 
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange } from '@data/hooks/useDataChange'
 import { loggerService } from '@logger'
 import { getProviderDisplayName } from '@renderer/utils/naming'
 import type {

@@ -1,10 +1,10 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {

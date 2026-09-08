@@ -1,5 +1,4 @@
 import { usePreference } from '@data/hooks/usePreference'
-
 import { isMac } from '@renderer/utils/platform'
 
 function useMacTransparentWindow() {

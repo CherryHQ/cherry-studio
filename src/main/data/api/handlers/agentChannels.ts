@@ -1,6 +1,5 @@
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
-
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
   ActiveAgentChannelConfigSchemasByType,

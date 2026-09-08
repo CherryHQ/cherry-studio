@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +10,7 @@ import {
   InputNumber,
   Switch
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import {

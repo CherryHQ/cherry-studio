@@ -448,11 +448,11 @@ vi.mock('react-i18next', () => ({
   })()
 }))
 
-import { cacheService } from '@data/CacheService'
-import { dataApiService } from '@data/DataApiService'
 import { mockUseInfiniteQuery, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 
+import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { getChatDraftCacheKey, writeChatDraftCache } from '@renderer/components/composer/variants/chat/chatDraftCache'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopic'

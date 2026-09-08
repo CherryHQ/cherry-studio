@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { createContext, use, useCallback } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
 import { ipcApi } from '@renderer/ipc'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'

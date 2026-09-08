@@ -9,7 +9,6 @@
  */
 
 import { mcpServerService } from '@data/services/McpServerService'
-
 import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
 import {
   CreateMcpServerSchema,

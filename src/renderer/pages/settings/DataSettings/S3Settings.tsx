@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
@@ -6,6 +5,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'

@@ -1,9 +1,9 @@
-import { usePersistCache } from '@data/hooks/useCache'
-import { useReorder } from '@data/hooks/useReorder'
 import { Plus } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePersistCache } from '@data/hooks/useCache'
+import { useReorder } from '@data/hooks/useReorder'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'

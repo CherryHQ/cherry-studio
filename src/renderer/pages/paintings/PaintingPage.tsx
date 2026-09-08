@@ -1,7 +1,7 @@
-import { useCache } from '@data/hooks/useCache'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useCache } from '@data/hooks/useCache'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 
 import Artboard from './components/Artboard'

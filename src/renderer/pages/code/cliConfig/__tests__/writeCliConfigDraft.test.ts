@@ -1,7 +1,7 @@
-import { dataApiService } from '@data/DataApiService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
+import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'

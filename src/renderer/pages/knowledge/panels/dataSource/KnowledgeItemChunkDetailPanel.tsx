@@ -1,4 +1,3 @@
-import { useQuery } from '@data/hooks/useDataApi'
 import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -6,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { ipcApi } from '@renderer/ipc'

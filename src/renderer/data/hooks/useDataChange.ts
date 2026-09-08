@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { useEffect, useRef } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
 import type { DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 
 export interface UseDataChangeOptions {

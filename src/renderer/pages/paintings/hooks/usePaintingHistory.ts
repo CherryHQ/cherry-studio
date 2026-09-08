@@ -1,6 +1,6 @@
-import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { useEffect, useRef, useState } from 'react'
 
+import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { Painting } from '@shared/data/types/painting'
 

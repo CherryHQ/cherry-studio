@@ -1,6 +1,6 @@
-import { cacheService } from '@data/CacheService'
 import { useEffect } from 'react'
 
+import { cacheService } from '@data/CacheService'
 import { useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 import type { ActiveTopicSource } from '@renderer/hooks/useTopic'
 

@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { debounce } from 'es-toolkit/compat'
 import {
   BadgeQuestionMark,
@@ -26,6 +25,7 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { FeedbackDialog } from '@renderer/components/feedback/FeedbackDialog'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'

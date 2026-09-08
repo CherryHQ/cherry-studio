@@ -1,7 +1,7 @@
-import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT } from '@shared/data/api/schemas/translate'

@@ -1,8 +1,8 @@
-import { agentSessionService } from '@data/services/AgentSessionService'
-import { topicService } from '@data/services/TopicService'
 import { Notification as ElectronNotification } from 'electron'
 
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import type { ConversationCompletedEvent } from '@main/ai/streamManager'

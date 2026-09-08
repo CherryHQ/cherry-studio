@@ -1,4 +1,3 @@
-import { useQuery } from '@data/hooks/useDataApi'
 import { Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { useQuery } from '@data/hooks/useDataApi'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'

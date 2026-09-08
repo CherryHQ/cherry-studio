@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { CircleHelp } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +14,7 @@ import {
   Switch,
   Textarea
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import { SettingSubtitle } from '@renderer/components/SettingsPrimitives'
 

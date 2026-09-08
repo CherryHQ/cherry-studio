@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import {
   Camera,
   Check,
@@ -33,6 +32,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import CopyIcon from '@renderer/components/icons/CopyIcon'

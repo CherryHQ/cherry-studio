@@ -25,10 +25,9 @@ vi.mock('../runAgentTask', () => ({
   runAgentTask: vi.fn()
 }))
 
+import { application } from '@application'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobService } from '@data/services/JobService'
-
-import { application } from '@application'
 
 import { agentTaskJobHandler } from '../agentTaskJobHandler'
 import { type AgentTaskInput, runAgentTask } from '../runAgentTask'

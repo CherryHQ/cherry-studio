@@ -1,6 +1,6 @@
-import { useMutation } from '@data/hooks/useDataApi'
 import { useCallback } from 'react'
 
+import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useInvalidateSkills, useSkillCatalog } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'

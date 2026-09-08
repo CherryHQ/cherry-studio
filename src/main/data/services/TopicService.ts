@@ -2,6 +2,11 @@
 
 import { randomBytes } from 'node:crypto'
 
+import type { SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
+import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
@@ -9,11 +14,6 @@ import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
-import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'

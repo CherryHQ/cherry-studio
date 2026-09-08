@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import type { WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -7,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'

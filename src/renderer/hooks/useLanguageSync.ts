@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useEffect } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import i18n from '@renderer/i18n/resolver'
 import { defaultLanguage } from '@shared/utils/languages'
 

@@ -1,6 +1,5 @@
-import type { LogoBindInput } from '@data/services/utils/singleFileRef'
-
 import { application } from '@application'
+import type { LogoBindInput } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/utils/image'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'

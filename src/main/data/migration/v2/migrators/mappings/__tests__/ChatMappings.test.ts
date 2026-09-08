@@ -1,9 +1,9 @@
 import type * as FsPromises from 'node:fs/promises'
 
-import { fileEntryTable } from '@data/db/schemas/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
+import { fileEntryTable } from '@data/db/schemas/file'
 import type {
   CherryMessagePart,
   DynamicToolUIPart,

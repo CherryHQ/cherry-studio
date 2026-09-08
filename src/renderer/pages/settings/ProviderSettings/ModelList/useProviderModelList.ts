@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'

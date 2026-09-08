@@ -1,9 +1,9 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'

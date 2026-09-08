@@ -1,6 +1,5 @@
-import { assistantDataService } from '@data/services/AssistantService'
-
 import { application } from '@application'
+import { assistantDataService } from '@data/services/AssistantService'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'

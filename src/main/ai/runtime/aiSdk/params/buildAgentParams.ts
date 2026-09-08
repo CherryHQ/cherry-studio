@@ -1,9 +1,9 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'

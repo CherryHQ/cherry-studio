@@ -5,9 +5,9 @@
 //TODO Data Refactor
 // The code is messy, need to refactor all the backup related code
 
-import { preferenceService } from '@data/PreferenceService'
 import dayjs from 'dayjs'
 
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'

@@ -1,5 +1,4 @@
 import type { InsertPaintingRow } from '@data/db/schemas/painting'
-
 import { createUniqueModelId, isUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { PaintingMode } from '@shared/data/types/painting'
 

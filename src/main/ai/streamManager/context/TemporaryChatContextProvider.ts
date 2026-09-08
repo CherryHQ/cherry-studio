@@ -4,9 +4,9 @@
  * moves out of the in-memory map and the persistent provider takes over.
  */
 
-import { assistantDataService } from '@data/services/AssistantService'
 import { v7 as uuidv7 } from 'uuid'
 
+import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { resolveContextSettings } from '@main/ai/contextBuild/resolveContextSettings'

@@ -1,3 +1,7 @@
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -6,10 +10,6 @@ import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
-
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import type { MigrationContext } from '../../core/MigrationContext'

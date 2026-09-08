@@ -21,9 +21,9 @@
  * Main-side leaks.
  */
 
-import { dataApiService } from '@data/DataApiService'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 

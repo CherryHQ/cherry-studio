@@ -1,10 +1,10 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { omit } from 'es-toolkit/compat'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { AppRouter } from '@renderer/types/router'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'

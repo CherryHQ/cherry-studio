@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -41,6 +40,7 @@ import {
   InputGroupInput,
   SelectDropdown
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
 import {

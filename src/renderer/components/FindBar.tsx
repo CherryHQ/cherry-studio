@@ -1,10 +1,10 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import type { KeyboardEvent, PropsWithChildren, Ref } from 'react'
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { cn } from '@renderer/utils/style'

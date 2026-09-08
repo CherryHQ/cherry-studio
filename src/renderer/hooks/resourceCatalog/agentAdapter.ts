@@ -1,6 +1,6 @@
-import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useCallback, useState } from 'react'
 
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'

@@ -6,11 +6,11 @@
  * scope of the network permission, not a permission of its own (design §7).
  */
 
-import { miniAppGrantTable } from '@data/db/schemas/miniApp'
-import type { DbOrTx } from '@data/db/types'
 import { and, eq } from 'drizzle-orm'
 
 import { application } from '@application'
+import { miniAppGrantTable } from '@data/db/schemas/miniApp'
+import type { DbOrTx } from '@data/db/types'
 import {
   declaredGrantKeys,
   declaredGrants,

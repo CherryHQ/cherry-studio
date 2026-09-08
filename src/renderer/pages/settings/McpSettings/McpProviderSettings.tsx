@@ -1,10 +1,10 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { Check, ExternalLink, Plus } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Input } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingGroup, SettingsContentColumn } from '@renderer/components/SettingsPrimitives'

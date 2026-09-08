@@ -1,9 +1,9 @@
-import { useQuery } from '@data/hooks/useDataApi'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type {
   MessageListActions,

@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { eq, inArray } from 'drizzle-orm'
 
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
 import {
   assertSafeKnowledgeRelativePath,

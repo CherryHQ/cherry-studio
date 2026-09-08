@@ -1,10 +1,10 @@
 import type { ChildProcess } from 'node:child_process'
 
-import { modelService } from '@data/services/ModelService'
-import { providerService } from '@data/services/ProviderService'
 import { Mutex } from 'async-mutex'
 
 import { application } from '@application'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'

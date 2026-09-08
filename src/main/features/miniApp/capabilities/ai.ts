@@ -8,12 +8,12 @@
  * underneath it — without ever learning which model it is.
  */
 
-import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
-import { modelService } from '@data/services/ModelService'
 import { eq } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'

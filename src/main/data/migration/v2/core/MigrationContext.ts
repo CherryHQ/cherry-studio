@@ -4,9 +4,9 @@
 
 import fs from 'fs/promises'
 
-import type { DbType } from '@data/db/types'
 import Store from 'electron-store'
 
+import type { DbType } from '@data/db/types'
 import { type LoggerService, loggerService } from '@logger'
 import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
 

@@ -10,13 +10,13 @@
  * DbService.onInit: real migrations + CUSTOM_SQL_STATEMENTS (FTS5 + triggers).
  */
 
-import { temporaryChatHandlers } from '@data/api/handlers/temporaryChats'
-import { messageTable } from '@data/db/schemas/message'
-import { messageService } from '@data/services/MessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { temporaryChatHandlers } from '@data/api/handlers/temporaryChats'
+import { messageTable } from '@data/db/schemas/message'
+import { messageService } from '@data/services/MessageService'
 import type { PersistTemporaryChatResponse } from '@shared/data/api/schemas/temporaryChats'
 import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'

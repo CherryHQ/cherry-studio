@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
+
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -9,8 +11,6 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER, DEFAULT_TIMEOUT } from '@main/ai/constants'
 import {

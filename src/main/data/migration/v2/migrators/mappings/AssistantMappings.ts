@@ -19,10 +19,10 @@
  * - regularPhrases -> migrated separately by PromptMigrator into the global prompt table
  */
 
-import type { InsertAssistantRow } from '@data/db/schemas/assistant'
-import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import type { ZodType } from 'zod'
 
+import type { InsertAssistantRow } from '@data/db/schemas/assistant'
+import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
 import { legacyChatModelToUniqueId } from '../transformers/ModelTransformers'

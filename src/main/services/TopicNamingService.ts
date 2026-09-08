@@ -1,9 +1,8 @@
+import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { topicService } from '@data/services/TopicService'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
 import type { AiGenerateRequest, AsInProcessChat } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'

@@ -1,12 +1,12 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq, isNull } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,

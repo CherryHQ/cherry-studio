@@ -1,10 +1,10 @@
-import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import dayjs from 'dayjs'
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'

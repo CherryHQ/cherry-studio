@@ -1,6 +1,6 @@
-import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { useTranslation } from 'react-i18next'
 
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'

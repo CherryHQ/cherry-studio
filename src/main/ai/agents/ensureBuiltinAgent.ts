@@ -1,6 +1,5 @@
-import { agentService } from '@data/services/AgentService'
-
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import type { BuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'

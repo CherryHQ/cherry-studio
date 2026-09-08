@@ -1,11 +1,11 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/ProviderRegistryService'
-import { userProviderTable } from '@data/db/schemas/userProvider'
-import { providerService } from '@data/services/ProviderService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerService } from '@data/services/ProviderService'
 import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
 import { ErrorCode } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'

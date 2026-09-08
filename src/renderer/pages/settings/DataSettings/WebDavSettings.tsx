@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
@@ -6,6 +5,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,

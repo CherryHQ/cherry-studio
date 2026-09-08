@@ -1,10 +1,10 @@
-import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'

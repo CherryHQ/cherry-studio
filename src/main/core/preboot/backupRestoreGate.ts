@@ -4,7 +4,6 @@ import {
   markRestoreFailedAfterCrash,
   runRestorePromotion
 } from '@data/db/restore/restorePromotion'
-
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('BackupRestoreGate')

@@ -1,9 +1,9 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { franc } from 'franc-min'
 import i18n from 'i18next'
 import { useCallback, useRef } from 'react'
 import { estimateTokenCount, sliceByTokens } from 'tokenx'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { ipcApi } from '@renderer/ipc'

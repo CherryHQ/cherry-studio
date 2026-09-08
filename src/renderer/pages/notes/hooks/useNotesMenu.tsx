@@ -1,8 +1,8 @@
-import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'

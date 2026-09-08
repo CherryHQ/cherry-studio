@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import {
   ContextKeyRegisterContext,
   ContextKeySnapshotContext,

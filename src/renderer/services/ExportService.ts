@@ -1,4 +1,3 @@
-import { preferenceService } from '@data/PreferenceService'
 import type { Client } from '@notionhq/client'
 import type { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
@@ -9,6 +8,7 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the

@@ -1,5 +1,4 @@
 import { preferenceTable } from '@data/db/schemas/preference'
-
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 import type { DbType, ISeeder } from '../../types'

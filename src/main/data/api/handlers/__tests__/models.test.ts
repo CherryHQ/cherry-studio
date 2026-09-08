@@ -1,6 +1,6 @@
-import type { CreateModelInput } from '@data/services/ModelService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import {
   BulkUpdateModelsSchema,

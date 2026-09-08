@@ -1,7 +1,7 @@
-import { dataApiService } from '@data/DataApiService'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { dataApiService } from '@data/DataApiService'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { toast } from '@renderer/services/toast'

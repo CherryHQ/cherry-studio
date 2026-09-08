@@ -1,9 +1,9 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ThemedToken } from 'shiki/core'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'

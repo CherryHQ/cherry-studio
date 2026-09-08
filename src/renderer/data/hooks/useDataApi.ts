@@ -34,7 +34,6 @@
  * @see {@link https://swr.vercel.app SWR Documentation}
  */
 
-import { dataApiService } from '@data/DataApiService'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
@@ -43,6 +42,7 @@ import useSWRInfinite from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
 
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import { isDev } from '@renderer/utils/platform'

@@ -6,18 +6,18 @@
  * state-aware pause/resume no-ops, and trigger equality filtering.
  */
 
-import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
-import { agentChannelService } from '@data/services/AgentChannelService'
-import { agentService } from '@data/services/AgentService'
-import { agentSessionService } from '@data/services/AgentSessionService'
-import { jobScheduleService } from '@data/services/JobScheduleService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'

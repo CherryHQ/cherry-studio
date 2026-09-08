@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Migration completion status and skipMigration() against a real database.
  *
@@ -10,10 +14,6 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { preferenceTable } from '@data/db/schemas/preference'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { bootConfigService } from '@main/data/bootConfig'
 import type { MigrationStatusValue } from '@shared/data/migration/v2/types'
 

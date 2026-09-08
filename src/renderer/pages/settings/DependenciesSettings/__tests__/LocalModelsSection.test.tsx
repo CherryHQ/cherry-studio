@@ -1,4 +1,3 @@
-import { cacheService } from '@data/CacheService'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
@@ -7,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
 import {
   LOCAL_MODEL_STATUS_CACHE_KEY,
   type LocalModelBundleId,

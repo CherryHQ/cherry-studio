@@ -1,8 +1,7 @@
 import { readFile } from 'node:fs/promises'
 
-import { providerService } from '@data/services/ProviderService'
-
 import { application } from '@application'
+import { providerService } from '@data/services/ProviderService'
 import { atomicWriteFile } from '@main/utils/file'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'

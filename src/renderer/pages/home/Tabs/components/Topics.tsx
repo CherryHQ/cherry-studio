@@ -1,6 +1,3 @@
-import { dataApiService } from '@data/DataApiService'
-import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import dayjs from 'dayjs'
 import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
@@ -8,6 +5,9 @@ import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { useCache, usePersistCache, useSharedCacheSelector } from '@data/hooks/useCache'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'

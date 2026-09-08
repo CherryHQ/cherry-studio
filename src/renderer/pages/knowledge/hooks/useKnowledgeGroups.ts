@@ -1,6 +1,6 @@
-import { useMutation } from '@data/hooks/useDataApi'
 import { useCallback } from 'react'
 
+import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useGroups } from '@renderer/hooks/useGroups'
 import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'

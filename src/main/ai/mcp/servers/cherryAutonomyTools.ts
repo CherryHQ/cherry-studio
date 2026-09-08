@@ -8,17 +8,17 @@
  * `CherryBuiltinToolsServer` is constructed with.
  */
 
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import QRCode from 'qrcode'
+
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
 import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
-import QRCode from 'qrcode'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'

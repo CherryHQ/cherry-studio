@@ -1,3 +1,6 @@
+import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
+
+import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import {
@@ -12,9 +15,6 @@ import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
-
-import { application } from '@application'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSkillUpdateDto } from '@shared/data/api/schemas/agents'
 import {

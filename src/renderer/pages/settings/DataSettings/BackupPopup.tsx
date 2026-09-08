@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { getBackupProgressLabelKey } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'

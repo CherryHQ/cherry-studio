@@ -1,8 +1,8 @@
-import { cacheService } from '@data/CacheService'
-import { usePreference } from '@data/hooks/usePreference'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useCustomCss } from '@renderer/hooks/useCustomCss'

@@ -1,5 +1,9 @@
 import { fileURLToPath } from 'node:url'
 
+import { describe, expect, it } from 'vitest'
+
+import type { ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { applyUserOverlay, type UserModelOverlay } from '@data/services/ModelService'
 import {
   applyCapabilityOverride,
@@ -7,10 +11,6 @@ import {
   mergePresetModel,
   resolveReasoningProfileFromRegistry
 } from '@data/services/ProviderRegistryService'
-import { describe, expect, it } from 'vitest'
-
-import type { ProtoProviderModelOverride } from '@cherrystudio/provider-registry'
-import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 
 // Use string literals matching the actual enum values to avoid
 // importing @cherrystudio/provider-registry just for the constants.

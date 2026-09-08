@@ -1,12 +1,12 @@
+import { and, eq } from 'drizzle-orm'
+
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { preferenceTable } from '@data/db/schemas/preference'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
-import { and, eq } from 'drizzle-orm'
-
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import {
   CHERRY_CLOUD_PROVIDER_ID,

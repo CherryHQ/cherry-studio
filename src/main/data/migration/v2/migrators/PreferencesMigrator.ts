@@ -2,9 +2,9 @@
  * Preferences migrator - migrates preferences from ElectronStore, Redux, and Dexie settings to SQLite
  */
 
-import { preferenceTable } from '@data/db/schemas/preference'
 import { and, eq, sql } from 'drizzle-orm'
 
+import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'

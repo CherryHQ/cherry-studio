@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { buildModelListSyncPreview } from '../buildModelListSyncPreview'

@@ -5,11 +5,11 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 
+import { sql } from 'drizzle-orm'
+
 import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import type { InsertMiniAppRow, MiniAppStatus } from '@data/db/schemas/miniApp'
 import { miniAppTable } from '@data/db/schemas/miniApp'
-import { sql } from 'drizzle-orm'
-
 import { loggerService } from '@logger'
 import { MINI_APP_ID_REGEX } from '@shared/data/api/schemas/miniApps'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'

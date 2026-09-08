@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
 
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
-import { agentSessionService } from '@data/services/AgentSessionService'
 
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'

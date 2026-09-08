@@ -1,4 +1,3 @@
-import { mcpServerService } from '@data/services/McpServerService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -17,6 +16,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'

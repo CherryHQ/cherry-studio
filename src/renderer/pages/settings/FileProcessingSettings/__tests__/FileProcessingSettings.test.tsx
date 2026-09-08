@@ -1,4 +1,3 @@
-import { cacheService } from '@data/CacheService'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -7,6 +6,7 @@ import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'

@@ -1,11 +1,11 @@
-import { cacheService } from '@data/CacheService'
-import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useParams } from '@tanstack/react-router'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
+import { cacheService } from '@data/CacheService'
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'

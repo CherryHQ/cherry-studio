@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { lazy, Suspense, useEffect, useMemo } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'

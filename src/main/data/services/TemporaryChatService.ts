@@ -12,12 +12,12 @@
  * - In-memory lifecycle only (no DB, no FTS5, no pagination).
  */
 
-import { messageTable } from '@data/db/schemas/message'
-import { topicTable } from '@data/db/schemas/topic'
 import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'

@@ -2,10 +2,10 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import path from 'node:path'
 
-import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { stripOkfFrontmatter } from '@main/features/knowledge/pipeline/sources/okfFrontmatter'
 import { hashEmbeddingText } from '@main/features/knowledge/pipeline/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/pipeline/vectorstore/indexStore/KnowledgeIndexStore'

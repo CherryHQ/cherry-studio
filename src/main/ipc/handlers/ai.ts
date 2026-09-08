@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { fileEntryService } from '@data/services/FileEntryService'
-import { messageService } from '@data/services/MessageService'
 import { isToolUIPart } from 'ai'
 
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'

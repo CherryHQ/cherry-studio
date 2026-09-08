@@ -1,6 +1,6 @@
-import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache, useMutation } from '@data/hooks/useDataApi'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useInfiniteFlatItems, useInfiniteQuery, useInvalidateCache, useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { KnowledgeBaseListItem, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'

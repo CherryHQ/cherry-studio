@@ -1,5 +1,4 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { isIndexableKnowledgeItem } from '../items'

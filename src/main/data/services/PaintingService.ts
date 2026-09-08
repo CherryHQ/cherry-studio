@@ -11,15 +11,15 @@
  * cascade from `painting_file_ref.sourceId`.
  */
 
+import type { SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+
+import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertPaintingRow, type PaintingRow, paintingTable } from '@data/db/schemas/painting'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
-import type { SQL } from 'drizzle-orm'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'

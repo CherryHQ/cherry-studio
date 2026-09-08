@@ -104,8 +104,9 @@ vi.mock('../CherryCloudLoopbackCallback', () => ({
   CherryCloudLoopbackCallback: { open: mocks.loopbackOpen }
 }))
 
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { uuid } from 'systeminformation'
+
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 
 import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
 

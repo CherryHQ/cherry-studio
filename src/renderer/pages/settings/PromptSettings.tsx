@@ -1,5 +1,3 @@
-import { useDataChange, useQuery } from '@data/hooks/useDataApi'
-import { useReorder } from '@data/hooks/useReorder'
 import { GripVertical, MoreHorizontal, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +19,8 @@ import {
   Skeleton,
   type SortableDragHandleProps
 } from '@cherrystudio/ui'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
+import { useReorder } from '@data/hooks/useReorder'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'

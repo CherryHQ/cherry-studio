@@ -1,7 +1,7 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { DragDropContext } from '@hello-pangea/dnd'
 import type { FC } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'

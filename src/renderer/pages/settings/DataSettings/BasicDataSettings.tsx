@@ -1,10 +1,10 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,

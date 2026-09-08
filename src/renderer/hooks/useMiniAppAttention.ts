@@ -1,6 +1,6 @@
-import { useSharedCacheSelector, useSharedCacheValue } from '@data/hooks/useCache'
 import { isEqual } from 'es-toolkit/compat'
 
+import { useSharedCacheSelector, useSharedCacheValue } from '@data/hooks/useCache'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 
 /** Module-level, per the `useSharedCacheValue` contract: an inline `[]` is a new identity each render. */

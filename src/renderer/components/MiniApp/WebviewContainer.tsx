@@ -1,8 +1,8 @@
-import { usePreference } from '@data/hooks/usePreference'
 import type { DidNavigateInPageEvent, DidStartNavigationEvent, IpcMessageEvent, WebviewTag } from 'electron'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'

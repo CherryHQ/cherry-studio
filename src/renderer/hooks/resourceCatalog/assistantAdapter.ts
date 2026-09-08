@@ -1,7 +1,7 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
   ASSISTANTS_MAX_LIMIT,
   type CreateAssistantDto,

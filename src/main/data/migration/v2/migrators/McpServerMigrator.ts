@@ -11,9 +11,9 @@
  * - Dexie mcp:provider:*:servers (handled in separate PR)
  */
 
-import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { sql } from 'drizzle-orm'
 
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 

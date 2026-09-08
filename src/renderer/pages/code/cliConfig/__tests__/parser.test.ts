@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'

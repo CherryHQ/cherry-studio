@@ -3,7 +3,6 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-
 import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { toDataApiError } from '@shared/data/api/errors'
 import {

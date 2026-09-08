@@ -1,7 +1,7 @@
-import { cacheService } from '@data/CacheService'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
+import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ErrorDetailContentProps } from '@renderer/components/ErrorDetailModal'
 

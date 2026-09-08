@@ -1,6 +1,6 @@
-import { useCache } from '@data/hooks/useCache'
 import { useCallback } from 'react'
 
+import { useCache } from '@data/hooks/useCache'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 
 export const useAppUpdateState = () => {

@@ -13,11 +13,12 @@
  *     contract the production JSDoc promises.
  */
 
-import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
-import { jobService } from '@data/services/JobService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
+
+import { type InsertJobRow, jobTable } from '@data/db/schemas/job'
+import { jobService } from '@data/services/JobService'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')

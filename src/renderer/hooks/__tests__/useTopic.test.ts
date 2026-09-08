@@ -1,4 +1,3 @@
-import { dataApiService } from '@data/DataApiService'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
   MockUseDataApiUtils,
@@ -11,6 +10,7 @@ import {
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'

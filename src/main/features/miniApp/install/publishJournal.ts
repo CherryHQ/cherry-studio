@@ -19,12 +19,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
-import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { eq } from 'drizzle-orm'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
+import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { shouldSilenceFsyncDirError } from '@main/utils/file'

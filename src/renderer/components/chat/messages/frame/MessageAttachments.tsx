@@ -1,9 +1,9 @@
-import { useQuery } from '@data/hooks/useDataApi'
 import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { useQuery } from '@data/hooks/useDataApi'
 import { popup } from '@renderer/services/popup'
 import { formatFileSize } from '@renderer/utils/file'
 import type { FileHandle } from '@shared/data/types/file'

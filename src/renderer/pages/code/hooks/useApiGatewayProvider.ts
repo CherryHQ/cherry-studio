@@ -1,7 +1,7 @@
-import { preferenceService } from '@data/PreferenceService'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { preferenceService } from '@data/PreferenceService'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'

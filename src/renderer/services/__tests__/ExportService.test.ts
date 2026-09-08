@@ -1,7 +1,7 @@
-import { preferenceService } from '@data/PreferenceService'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
 import { toast } from '@renderer/services/toast'

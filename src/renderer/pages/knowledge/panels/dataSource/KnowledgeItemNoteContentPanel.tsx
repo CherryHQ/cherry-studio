@@ -1,10 +1,10 @@
-import { useQuery } from '@data/hooks/useDataApi'
 import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { useQuery } from '@data/hooks/useDataApi'
 
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 

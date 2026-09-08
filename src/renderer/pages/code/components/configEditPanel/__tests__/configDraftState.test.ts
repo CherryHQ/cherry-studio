@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'

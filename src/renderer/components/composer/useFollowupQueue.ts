@@ -1,6 +1,6 @@
-import { cacheService } from '@data/CacheService'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { cacheService } from '@data/CacheService'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 
 import type { ComposerSerializedDraft } from './tokens'

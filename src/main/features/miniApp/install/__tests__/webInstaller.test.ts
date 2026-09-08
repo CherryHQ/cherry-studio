@@ -3,13 +3,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { miniAppGrantTable, miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { miniAppGrantTable, miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 
 import type * as HttpSourceModule from '../httpSource'
 import type * as InstallerModule from '../installer'

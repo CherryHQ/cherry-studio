@@ -1,7 +1,7 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'

@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useEffect, useState } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import UserAvatar from '@renderer/assets/images/avatar.svg'
 import { ipcApi } from '@renderer/ipc'
 import type { FileEntryId } from '@shared/data/types/file'

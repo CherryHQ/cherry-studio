@@ -13,7 +13,6 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
-import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { isEqual } from 'es-toolkit/compat'
 
 import type {
@@ -50,6 +49,7 @@ import {
   stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
 import { type RegistryFileName, RegistryLoader } from '@cherrystudio/provider-registry/node'
+import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'

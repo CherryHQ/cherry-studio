@@ -1,7 +1,7 @@
-import { useDataChange, useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { useSWRConfig } from 'swr'
 
+import { useDataChange, useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'

@@ -1,7 +1,7 @@
-import { appStateTable } from '@data/db/schemas/appState'
-import type { DbType, ISeeder } from '@data/db/types'
 import { eq, inArray } from 'drizzle-orm'
 
+import { appStateTable } from '@data/db/schemas/appState'
+import type { DbType, ISeeder } from '@data/db/types'
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('SeedRunner')

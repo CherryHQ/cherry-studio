@@ -1,6 +1,6 @@
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { useCallback, useMemo } from 'react'
 
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import type {
   FileProcessorFeature,
   FileProcessorId,

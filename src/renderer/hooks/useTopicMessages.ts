@@ -13,10 +13,10 @@
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'

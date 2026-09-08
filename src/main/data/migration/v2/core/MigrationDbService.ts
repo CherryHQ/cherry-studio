@@ -10,11 +10,11 @@
 import fs from 'fs'
 import path from 'path'
 
-import { applyMigrations } from '@data/db/applyMigrations'
-import type { DbType } from '@data/db/types'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 
+import { applyMigrations } from '@data/db/applyMigrations'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 
 import type { MigrationPaths } from './MigrationPaths'

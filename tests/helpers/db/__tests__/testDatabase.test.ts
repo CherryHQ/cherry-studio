@@ -1,11 +1,11 @@
 import { existsSync } from 'node:fs'
 
-import { messageTable } from '@data/db/schemas/message'
-import { topicTable } from '@data/db/schemas/topic'
 import { eq } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import { application } from '@application'
+import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
 import type { MessageData } from '@shared/data/types/message'
 
 import { truncateAll } from '../internal/truncate'

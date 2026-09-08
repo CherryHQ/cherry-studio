@@ -1,6 +1,6 @@
-import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 // eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
 import {

@@ -1,9 +1,9 @@
-import { usePreference } from '@data/hooks/usePreference'
 import type { ReactNode } from 'react'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   type ResourcePaneConfig,

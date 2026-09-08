@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
@@ -28,6 +27,7 @@ import {
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'

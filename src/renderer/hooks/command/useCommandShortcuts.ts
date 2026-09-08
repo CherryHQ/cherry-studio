@@ -1,7 +1,7 @@
-import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { CommandShortcutPreferenceKey, SupportedPlatform } from '@shared/types/command'

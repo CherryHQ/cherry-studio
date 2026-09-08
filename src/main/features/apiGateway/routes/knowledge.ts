@@ -1,7 +1,7 @@
-import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { Elysia } from 'elysia'
 
 import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api/errors'
 

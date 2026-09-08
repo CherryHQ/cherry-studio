@@ -1,4 +1,3 @@
-import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { ArrowLeft, MoreHorizontal, Trash2, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,6 +17,7 @@ import {
   PageHeader,
   Scrollbar
 } from '@cherrystudio/ui'
+import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'

@@ -1,10 +1,10 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { Wand2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { type CliConfigFileDraft, formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
 import { toast } from '@renderer/services/toast'

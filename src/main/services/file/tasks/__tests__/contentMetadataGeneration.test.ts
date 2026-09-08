@@ -1,10 +1,10 @@
-import { appStateTable } from '@data/db/schemas/appState'
-import { fileEntryTable } from '@data/db/schemas/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { appStateTable } from '@data/db/schemas/appState'
+import { fileEntryTable } from '@data/db/schemas/file'
 import type { FileEntryId } from '@shared/data/types/file'
 
 vi.mock('@application', async () => {

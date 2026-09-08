@@ -1,7 +1,5 @@
 import { basename } from 'node:path'
 
-import { cacheService } from '@data/CacheService'
-import { dataApiService } from '@data/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
@@ -9,6 +7,8 @@ import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'

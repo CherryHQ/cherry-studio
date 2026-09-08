@@ -1,8 +1,8 @@
-import { useMultiplePreferences } from '@data/hooks/usePreference'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Switch } from '@cherrystudio/ui'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,

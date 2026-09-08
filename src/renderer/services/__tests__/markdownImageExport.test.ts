@@ -1,6 +1,6 @@
-import { preferenceService } from '@data/PreferenceService'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'

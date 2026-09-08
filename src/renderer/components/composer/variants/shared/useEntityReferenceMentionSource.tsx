@@ -1,10 +1,10 @@
-import { dataApiService } from '@data/DataApiService'
 import type { Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { MessageSquare, MousePointerClick } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 
 import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../../composerDraft'

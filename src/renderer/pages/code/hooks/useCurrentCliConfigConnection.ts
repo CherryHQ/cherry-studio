@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
 import { useModels } from '@renderer/hooks/useModel'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'

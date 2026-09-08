@@ -1,3 +1,8 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { and, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it } from 'vitest'
+
 import { preferenceTable } from '@data/db/schemas/preference'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -6,11 +11,6 @@ import {
   DEFAULT_MODEL_PREFERENCE_KEYS
 } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { and, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
-
 import {
   CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_API_BASE_URL,

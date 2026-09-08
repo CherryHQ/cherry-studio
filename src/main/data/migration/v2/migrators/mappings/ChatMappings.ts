@@ -42,12 +42,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { fileEntryTable } from '@data/db/schemas/file'
-import type { DbType } from '@data/db/types'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
 
+import { fileEntryTable } from '@data/db/schemas/file'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type {

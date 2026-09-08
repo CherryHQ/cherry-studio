@@ -1,5 +1,6 @@
-import type { MiniAppStatus } from '@data/db/schemas/miniApp'
 import { describe, expect, it } from 'vitest'
+
+import type { MiniAppStatus } from '@data/db/schemas/miniApp'
 
 import { transformMiniApp } from '../MiniAppMappings'
 

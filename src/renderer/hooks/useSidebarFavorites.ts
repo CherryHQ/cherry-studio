@@ -1,7 +1,7 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {

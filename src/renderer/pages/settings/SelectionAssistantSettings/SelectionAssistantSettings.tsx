@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { Link } from '@tanstack/react-router'
 import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
 import type React from 'react'
@@ -7,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import {
   SettingDescription,

@@ -1,6 +1,6 @@
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   type CommandHandler,

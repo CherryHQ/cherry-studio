@@ -1,8 +1,8 @@
-import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { estimateTokenCount } from 'tokenx'
 
 import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { TraceMethod } from '@main/ai/observability'
 import { extractFtsTokens } from '@main/utils/trigramFtsQuery'

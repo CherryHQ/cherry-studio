@@ -11,14 +11,14 @@
  * (all live handlers are `retry`) cannot exercise.
  */
 
-import { jobTable } from '@data/db/schemas/job'
-import type { DbType } from '@data/db/types'
-import { jobService } from '@data/services/JobService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { jobTable } from '@data/db/schemas/job'
+import type { DbType } from '@data/db/types'
+import { jobService } from '@data/services/JobService'
 import { runStartupRecovery } from '@main/core/job/runtime/recovery'
 import type { JobHandler } from '@main/core/job/types'
 

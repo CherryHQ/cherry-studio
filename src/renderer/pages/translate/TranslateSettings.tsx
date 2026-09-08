@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -27,6 +26,7 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'

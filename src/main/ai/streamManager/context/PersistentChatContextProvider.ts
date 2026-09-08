@@ -5,13 +5,13 @@
  * per-execution `PersistenceListener`s.
  */
 
-import { assistantDataService } from '@data/services/AssistantService'
-import { topicService } from '@data/services/TopicService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { assistantDataService } from '@data/services/AssistantService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import {
   COMPACTION_INPUT_SAFETY_RATIO,

@@ -1,5 +1,4 @@
 import { cacheService } from '@data/CacheService'
-
 import type { MessageUiState } from '@renderer/types/message'
 
 type MessageUiStateUpdate = MessageUiState | ((current: MessageUiState) => MessageUiState)

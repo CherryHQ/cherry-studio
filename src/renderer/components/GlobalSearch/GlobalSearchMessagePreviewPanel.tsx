@@ -1,10 +1,10 @@
-import { useInfiniteFlatItems } from '@data/hooks/useDataApi'
 import { defaultRangeExtractor, type Range } from '@tanstack/react-virtual'
 import { ExternalLink, MessageSquare, MousePointerClick, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@cherrystudio/ui'
+import { useInfiniteFlatItems } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'

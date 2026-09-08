@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useMemo } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import type { MessageRenderConfigUpdate } from '@renderer/components/chat/messages/types'
 
 export function useMessageListRenderConfig() {

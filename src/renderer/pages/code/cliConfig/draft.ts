@@ -1,5 +1,4 @@
 import { dataApiService } from '@data/DataApiService'
-
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'

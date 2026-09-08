@@ -3,14 +3,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import Database from 'better-sqlite3'
+import { eq, sql } from 'drizzle-orm'
+
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
-import Database from 'better-sqlite3'
-import { eq, sql } from 'drizzle-orm'
-
 import { loggerService } from '@logger'
 import {
   CHERRY_META_DIR,

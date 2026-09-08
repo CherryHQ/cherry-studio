@@ -1,10 +1,10 @@
+import { inArray, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { userModelTable } from '@data/db/schemas/userModel'
-import { inArray, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 

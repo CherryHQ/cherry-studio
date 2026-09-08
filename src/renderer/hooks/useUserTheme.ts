@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import Color from 'color'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { getForegroundColor } from '@renderer/utils/style'
 
 export default function useUserTheme() {

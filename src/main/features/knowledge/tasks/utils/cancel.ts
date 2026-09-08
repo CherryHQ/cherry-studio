@@ -1,6 +1,5 @@
-import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-
 import { application } from '@application'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { ACTIVE_JOB_STATUSES, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_JOB_TYPES, knowledgeQueueName, toKnowledgeBaseId } from '../../types'

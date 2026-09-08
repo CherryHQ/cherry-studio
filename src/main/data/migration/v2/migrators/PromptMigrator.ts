@@ -16,10 +16,10 @@
  *   Source assistant id   → prompt_binding target (after AssistantMigrator remapping)
  */
 
-import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { PromptVisibility } from '@shared/data/types/prompt'

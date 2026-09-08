@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { groupTable } from '@data/db/schemas/group'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../tests/__mocks__/MainLoggerService'
 import { MigrationEngine } from '../MigrationEngine'

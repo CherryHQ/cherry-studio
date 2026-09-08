@@ -1,4 +1,3 @@
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import dayjs from 'dayjs'
 import React, {
@@ -15,6 +14,7 @@ import React, {
 import { useTranslation } from 'react-i18next'
 
 import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ActionTool } from '@renderer/components/ActionTools'
 import {

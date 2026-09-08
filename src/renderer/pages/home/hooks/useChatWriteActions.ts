@@ -1,3 +1,6 @@
+import type { ChatRequestOptions } from 'ai'
+import { useCallback, useMemo, useRef, useState } from 'react'
+
 /**
  * Build the `ChatWriteActions` bag passed down through context.
  *
@@ -13,9 +16,6 @@
  * `ChatContent.tsx`, not to change behaviour.
  */
 import { dataApiService } from '@data/DataApiService'
-import type { ChatRequestOptions } from 'ai'
-import { useCallback, useMemo, useRef, useState } from 'react'
-
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'

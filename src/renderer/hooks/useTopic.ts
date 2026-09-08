@@ -13,6 +13,9 @@
  * once Phase 2 finishes.
  */
 
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import {
@@ -24,9 +27,6 @@ import {
   useQuery,
   useWriteCache
 } from '@data/hooks/useDataApi'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-
 import { loggerService } from '@logger'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useIpcOn } from '@renderer/ipc'

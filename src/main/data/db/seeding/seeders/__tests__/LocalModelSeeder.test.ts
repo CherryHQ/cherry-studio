@@ -1,10 +1,10 @@
-import { userModelTable } from '@data/db/schemas/userModel'
-import { userProviderTable } from '@data/db/schemas/userProvider'
-import { LocalModelSeeder } from '@data/db/seeding/seeders/LocalModelSeeder'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { LocalModelSeeder } from '@data/db/seeding/seeders/LocalModelSeeder'
 import {
   LOCAL_EMBEDDING_MODEL_ID,
   LOCAL_EMBEDDING_MODEL_NAME,

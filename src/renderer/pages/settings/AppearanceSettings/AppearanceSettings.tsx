@@ -1,4 +1,3 @@
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -22,6 +21,7 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import ResetIcon from '@renderer/components/icons/ResetIcon'

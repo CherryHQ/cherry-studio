@@ -1,10 +1,10 @@
+import { type CreateDirectoryOptions } from 'webdav'
+
 /**
  * @deprecated v2 replacement pending. Like BackupService, this currently uses the retained v1
  * compatibility engine for real archives.
  */
 import { preferenceService } from '@data/PreferenceService'
-import { type CreateDirectoryOptions } from 'webdav'
-
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'

@@ -1,5 +1,4 @@
 import { providerService } from '@data/services/ProviderService'
-
 import type { OAuthAuthConfig } from '@shared/data/types/provider'
 
 import type { OAuthTokenStore, OAuthTokenStoreData } from './types'

@@ -6,6 +6,10 @@
  * - Row to Provider conversion
  */
 
+import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
+import { application } from '@application'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
@@ -23,10 +27,6 @@ import {
   type LogoBindInput,
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
-import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { getAppEdition } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'

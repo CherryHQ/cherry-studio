@@ -4,10 +4,10 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { fileEntryTable } from '@data/db/schemas/file'
-import type { DbOrTx } from '@data/db/types'
 import { inArray, sql } from 'drizzle-orm'
 
+import { fileEntryTable } from '@data/db/schemas/file'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'

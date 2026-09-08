@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useNavigate } from '@tanstack/react-router'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
@@ -22,6 +21,7 @@ import {
   SegmentedControl,
   Switch
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSettingsNavigation } from '@renderer/components/ModelSettingsNavigation'
 import {

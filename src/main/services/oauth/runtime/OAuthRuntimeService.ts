@@ -1,6 +1,6 @@
-import { providerService } from '@data/services/ProviderService'
 import { shell } from 'electron'
 
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'

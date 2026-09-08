@@ -11,14 +11,14 @@
  * lifecycle CRUD.
  */
 
-import { jobScheduleService } from '@data/services/JobScheduleService'
-import { jobService } from '@data/services/JobService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
+import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'

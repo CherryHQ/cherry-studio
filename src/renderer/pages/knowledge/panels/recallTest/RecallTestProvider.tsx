@@ -1,8 +1,8 @@
-import { useCache } from '@data/hooks/useCache'
 import type { ReactNode } from 'react'
 import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'

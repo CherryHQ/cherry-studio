@@ -1,8 +1,9 @@
-import { pinTable } from '@data/db/schemas/pin'
-import { PinService, pinService } from '@data/services/PinService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { pinTable } from '@data/db/schemas/pin'
+import { PinService, pinService } from '@data/services/PinService'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))

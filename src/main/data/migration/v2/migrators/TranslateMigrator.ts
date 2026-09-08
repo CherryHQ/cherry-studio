@@ -13,11 +13,11 @@
  *    - All other fields preserved as-is
  */
 
+import { sql } from 'drizzle-orm'
+
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
-import { sql } from 'drizzle-orm'
-
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 

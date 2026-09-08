@@ -1,5 +1,11 @@
 // Load the sibling so TopicService can purge topic messages through the data-service registry.
 import '@data/services/MessageService'
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { asc, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { groupTable } from '@data/db/schemas/group'
@@ -15,12 +21,6 @@ import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { asc, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { ErrorCode } from '@shared/data/api/errors'
 import {
   type ImportAssistantDto,

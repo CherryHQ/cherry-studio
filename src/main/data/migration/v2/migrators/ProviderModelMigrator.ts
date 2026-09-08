@@ -8,16 +8,6 @@
  * data would be written twice.
  */
 
-import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
-import { pinTable } from '@data/db/schemas/pin'
-import type { InsertUserModelRow } from '@data/db/schemas/userModel'
-import { userModelTable } from '@data/db/schemas/userModel'
-import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
-import { userProviderTable } from '@data/db/schemas/userProvider'
-import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
-import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
-import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
-import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { desc, eq, notInArray, sql } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -29,6 +19,16 @@ import {
   type ProtoProviderConfig
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
+import { pinTable } from '@data/db/schemas/pin'
+import type { InsertUserModelRow } from '@data/db/schemas/userModel'
+import { userModelTable } from '@data/db/schemas/userModel'
+import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
+import { userProviderTable } from '@data/db/schemas/userProvider'
+import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
+import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
+import { matchesModelPricingBaseline, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
+import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { isRetiredProvider } from '@main/data/retiredProviders'

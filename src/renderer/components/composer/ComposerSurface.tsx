@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { CirclePause } from 'lucide-react'
 import {
   type ComponentType,
@@ -11,6 +10,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import SendMessageButton from '@renderer/components/SendMessageButton'

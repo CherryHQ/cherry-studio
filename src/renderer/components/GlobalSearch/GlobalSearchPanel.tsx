@@ -1,8 +1,3 @@
-import { cacheService } from '@data/CacheService'
-import { dataApiService } from '@data/DataApiService'
-import { usePersistCache } from '@data/hooks/useCache'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
-import { usePreference } from '@data/hooks/usePreference'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +14,11 @@ import {
   KbdGroup,
   SegmentedControl
 } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
+import { usePersistCache } from '@data/hooks/useCache'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   ResourceEditDialogHost,

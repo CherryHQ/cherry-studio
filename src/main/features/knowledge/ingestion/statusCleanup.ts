@@ -1,5 +1,4 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
-
 import type { LoggerService } from '@main/core/logger/LoggerService'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 

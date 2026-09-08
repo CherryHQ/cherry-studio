@@ -1,9 +1,9 @@
-import { agentService } from '@data/services/AgentService'
-import { mcpServerService } from '@data/services/McpServerService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 
+import { agentService } from '@data/services/AgentService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { CreateMcpServerSchema } from '@shared/data/api/schemas/mcpServers'
 

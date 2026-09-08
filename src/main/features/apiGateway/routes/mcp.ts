@@ -1,10 +1,10 @@
-import { mcpServerService } from '@data/services/McpServerService'
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { Elysia } from 'elysia'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import { DataApiErrorFactory } from '@shared/data/api/errors'

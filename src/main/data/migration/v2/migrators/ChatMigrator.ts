@@ -61,6 +61,9 @@
  * @since v2.0.0
  */
 
+import { eq, inArray, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -68,9 +71,6 @@ import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbType } from '@data/db/types'
-import { eq, inArray, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { CherryMessagePart } from '@shared/data/types/message'

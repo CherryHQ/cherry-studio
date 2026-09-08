@@ -1,6 +1,5 @@
-import { agentChannelService as channelService } from '@data/services/AgentChannelService'
-
 import { application } from '@application'
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'

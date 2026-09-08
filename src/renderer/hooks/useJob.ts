@@ -1,5 +1,4 @@
 import { useQuery } from '@data/hooks/useDataApi'
-
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 

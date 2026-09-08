@@ -15,9 +15,9 @@
  * when reading a log line that names an effort the popover never showed.
  */
 
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useEffect } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'

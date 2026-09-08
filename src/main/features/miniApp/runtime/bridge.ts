@@ -6,12 +6,12 @@
  * anything the guest sends about its own identity is discarded.
  */
 
-import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { eq } from 'drizzle-orm'
 import { app } from 'electron'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import type { BridgeResult, CherryPublicError } from '@shared/ipc/schemas/miniAppBridge'

@@ -1,5 +1,9 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/MessageService'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { describe, expect, it, type Mock, vi } from 'vitest'
+
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
@@ -8,9 +12,6 @@ import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { TopicService, topicService } from '@data/services/TopicService'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
-import { describe, expect, it, type Mock, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))

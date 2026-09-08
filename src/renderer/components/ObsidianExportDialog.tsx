@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { parse, stringify } from 'yaml'
@@ -24,6 +23,7 @@ import {
   TreeSelect,
   type TreeSelectOption
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'

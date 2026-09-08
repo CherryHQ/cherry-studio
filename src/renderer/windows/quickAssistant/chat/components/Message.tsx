@@ -1,7 +1,7 @@
-import { usePreference } from '@data/hooks/usePreference'
 import type { FC } from 'react'
 import { memo, useRef } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import MessageErrorBoundary from '@renderer/components/chat/messages/frame/MessageErrorBoundary'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'

@@ -5,6 +5,9 @@
 
 import fs from 'fs/promises'
 
+import { eq, sql } from 'drizzle-orm'
+import Store from 'electron-store'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
@@ -47,9 +50,6 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
 import { registerMigrationOriginReader } from '@data/migration/v1MigrationOrigin'
-import { eq, sql } from 'drizzle-orm'
-import Store from 'electron-store'
-
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'

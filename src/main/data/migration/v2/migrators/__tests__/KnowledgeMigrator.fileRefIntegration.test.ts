@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
+
 // Integration tests for `KnowledgeMigrator` reference-integrity guards.
 //
 // Runs FileMigrator → KnowledgeMigrator against a real SQLite DB and then
@@ -15,10 +19,6 @@ import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
-
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import type { FileMetadata } from '@shared/data/types/legacyFile'

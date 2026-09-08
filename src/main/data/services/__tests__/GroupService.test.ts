@@ -1,10 +1,10 @@
-import { assistantTable } from '@data/db/schemas/assistant'
-import { groupTable } from '@data/db/schemas/group'
-import { GroupService, groupService } from '@data/services/GroupService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
+import { assistantTable } from '@data/db/schemas/assistant'
+import { groupTable } from '@data/db/schemas/group'
+import { GroupService, groupService } from '@data/services/GroupService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 

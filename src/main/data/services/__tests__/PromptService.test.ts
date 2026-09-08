@@ -1,11 +1,11 @@
-import { agentTable } from '@data/db/schemas/agent'
-import { assistantTable } from '@data/db/schemas/assistant'
-import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
-import { PromptService, promptService } from '@data/services/PromptService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentTable } from '@data/db/schemas/agent'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
+import { PromptService, promptService } from '@data/services/PromptService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 

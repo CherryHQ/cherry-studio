@@ -1,15 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
 import {
-  type AiUsageCaptureContext,
-  aiUsageRecordService,
-  type MessageRef,
-  type SourceSnapshot
-} from '@data/services/AiUsageRecordService'
-import { assistantDataService } from '@data/services/AssistantService'
-import { jobService } from '@data/services/JobService'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import {
   type EmbeddingModelUsage,
   isToolUIPart,
   type LanguageModelUsage,
@@ -28,6 +19,15 @@ import {
 } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
+import {
+  type AiUsageCaptureContext,
+  aiUsageRecordService,
+  type MessageRef,
+  type SourceSnapshot
+} from '@data/services/AiUsageRecordService'
+import { assistantDataService } from '@data/services/AssistantService'
+import { jobService } from '@data/services/JobService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'

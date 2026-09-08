@@ -4,10 +4,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { mcpServerService } from '@data/services/McpServerService'
 import { app } from 'electron'
 
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isPortable, isWin } from '@main/core/platform'

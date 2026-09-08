@@ -1,9 +1,9 @@
-import { usePreference } from '@data/hooks/usePreference'
 import type React from 'react'
 import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
 import type { BundledThemeInfo } from 'shiki/types'
 
 import { type CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleContext, CodeStyleThemeCatalogContext } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'

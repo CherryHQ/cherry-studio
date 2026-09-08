@@ -1,10 +1,10 @@
 import { useChat } from '@ai-sdk/react'
-import { usePreference } from '@data/hooks/usePreference'
 import { ChevronDown, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'

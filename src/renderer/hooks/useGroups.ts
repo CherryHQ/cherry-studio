@@ -1,6 +1,6 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useCallback, useMemo } from 'react'
 
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { ConcreteApiPaths } from '@shared/data/api/types'

@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type {
   CliProviderConfig,

@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import Droplet from 'lucide-react/dist/esm/icons/droplet'
 import Minus from 'lucide-react/dist/esm/icons/minus'
 import Pin from 'lucide-react/dist/esm/icons/pin'
@@ -8,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Slider, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi } from '@renderer/ipc'

@@ -1,8 +1,8 @@
-import { mcpServerService } from '@data/services/McpServerService'
 import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import * as z from 'zod'
 
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'

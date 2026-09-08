@@ -1,4 +1,3 @@
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +13,7 @@ import {
   Slider,
   Switch
 } from '@cherrystudio/ui'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'

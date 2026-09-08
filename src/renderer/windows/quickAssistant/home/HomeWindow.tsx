@@ -1,11 +1,11 @@
 import { useChat } from '@ai-sdk/react'
-import { usePreference } from '@data/hooks/usePreference'
 import { isEmpty } from 'es-toolkit/compat'
 import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Separator } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useAssistant } from '@renderer/hooks/useAssistant'

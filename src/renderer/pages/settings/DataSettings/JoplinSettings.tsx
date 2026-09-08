@@ -1,8 +1,8 @@
-import { usePreference } from '@data/hooks/usePreference'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,

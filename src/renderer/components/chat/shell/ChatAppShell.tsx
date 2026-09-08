@@ -1,8 +1,8 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { motion } from 'motion/react'
 import type { ReactNode, Ref, RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
+import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { cn } from '@renderer/utils/style'

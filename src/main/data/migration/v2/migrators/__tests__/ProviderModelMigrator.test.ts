@@ -3,6 +3,12 @@ import { existsSync, mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { asc, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
@@ -12,12 +18,6 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { asc, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import {
   CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,

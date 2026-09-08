@@ -1,6 +1,6 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useCallback, useMemo } from 'react'
 
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { normalizePathValue } from '@renderer/services/NotesTreeService'
 import type { NotesTreeNode } from '@renderer/types/note'

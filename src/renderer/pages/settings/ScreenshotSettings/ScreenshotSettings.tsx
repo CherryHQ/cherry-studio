@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { Link } from '@tanstack/react-router'
 import { TriangleAlert } from 'lucide-react'
 import type { FC } from 'react'
@@ -6,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge, Button, DescriptionSwitch, NormalTooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
   SettingDivider,

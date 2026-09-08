@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,6 +18,7 @@ import {
   PopoverTrigger,
   RowFlex
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'

@@ -9,7 +9,6 @@
  * "unknown" — see {@link resolveInputRoom}, which relies on that distinction.
  */
 import { assistantDataService } from '@data/services/AssistantService'
-
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import type { Assistant } from '@shared/data/types/assistant'

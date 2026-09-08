@@ -3,7 +3,6 @@
  */
 
 import { agentGlobalSkillService as skillService } from '@data/services/AgentGlobalSkillService'
-
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { ListSkillsQuerySchema, type SkillSchemas, UpdateSkillSchema } from '@shared/data/api/schemas/skills'
 import type { HandlersFor } from '@shared/data/api/types'

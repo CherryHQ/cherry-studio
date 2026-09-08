@@ -1,6 +1,5 @@
-import { mcpServerService } from '@data/services/McpServerService'
-
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'

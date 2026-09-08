@@ -4,14 +4,14 @@
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
-import type { DbOrTx } from '@data/db/types'
-import { agentService } from '@data/services/AgentService'
-import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { application } from '@application'
+import type { DbOrTx } from '@data/db/types'
+import { agentService } from '@data/services/AgentService'
+import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'

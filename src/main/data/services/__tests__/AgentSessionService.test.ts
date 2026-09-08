@@ -1,6 +1,11 @@
 import '@data/services/AgentSessionMessageService'
 import path from 'path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -11,11 +16,6 @@ import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { pinService } from '@data/services/PinService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
-
-import { application } from '@application'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 

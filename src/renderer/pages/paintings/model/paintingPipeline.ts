@@ -1,5 +1,4 @@
 import { prefetch } from '@data/hooks/useDataApi'
-
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 import { uuid } from '@renderer/utils/uuid'

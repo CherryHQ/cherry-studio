@@ -9,6 +9,9 @@
  * DataApi and the file sweep need one.
  */
 
+import { asc, count, eq, inArray } from 'drizzle-orm'
+
+import { application } from '@application'
 import {
   agentSessionMessageFileRefTable,
   chatMessageFileRefTable,
@@ -25,9 +28,6 @@ import {
   translateHistoryFileRefTable
 } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
-import { asc, count, eq, inArray } from 'drizzle-orm'
-
-import { application } from '@application'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import {
   agentSessionMessageSourceType,

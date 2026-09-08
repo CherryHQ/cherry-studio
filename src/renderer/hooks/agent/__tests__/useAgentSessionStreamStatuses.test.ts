@@ -1,3 +1,6 @@
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Tests for useAgentSessionStreamStatuses after migrating to
  * useSharedCacheSelector: the signature string is replaced by an explicit Map
@@ -6,9 +9,6 @@
  * branch (derived state changes → re-render) must hold.
  */
 import { cacheService } from '@data/CacheService'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 

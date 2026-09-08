@@ -1,6 +1,6 @@
-import { preferenceService } from '@data/PreferenceService'
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type {
   PreferenceUpdateOptions,

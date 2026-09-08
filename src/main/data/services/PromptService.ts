@@ -8,14 +8,14 @@
  *   target-specific order. Callers never touch `orderKey` directly.
  */
 
+import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+
+import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import type { DbType } from '@data/db/types'
-import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'

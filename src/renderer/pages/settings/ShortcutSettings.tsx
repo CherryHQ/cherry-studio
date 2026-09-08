@@ -1,4 +1,3 @@
-import { preferenceService } from '@data/PreferenceService'
 import { getRouteApi } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
@@ -20,6 +19,7 @@ import {
   Switch,
   Tooltip
 } from '@cherrystudio/ui'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'

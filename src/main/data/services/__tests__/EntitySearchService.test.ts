@@ -1,3 +1,6 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
@@ -10,9 +13,6 @@ import { agentService } from '@data/services/AgentService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { EntitySearchService } from '@data/services/EntitySearchService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { setupTestDatabase } from '@test-helpers/db'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
 import { ENTITY_SEARCH_MAX_LIMIT_PER_TYPE, EntitySearchQuerySchema } from '@shared/data/api/schemas/search'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'

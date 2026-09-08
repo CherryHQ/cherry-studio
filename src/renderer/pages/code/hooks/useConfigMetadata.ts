@@ -1,6 +1,6 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback, useMemo } from 'react'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'

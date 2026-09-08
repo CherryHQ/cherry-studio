@@ -1,7 +1,7 @@
-import { type InsertMiniAppRow, miniAppTable } from '@data/db/schemas/miniApp'
-import { generateOrderKeySequence, generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { isNotNull } from 'drizzle-orm'
 
+import { type InsertMiniAppRow, miniAppTable } from '@data/db/schemas/miniApp'
+import { generateOrderKeySequence, generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 
 import type { DbType, ISeeder } from '../../types'

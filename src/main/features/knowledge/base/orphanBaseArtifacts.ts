@@ -2,9 +2,8 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-
 import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import { KnowledgeBaseIdSchema } from '@shared/data/types/knowledge'
 

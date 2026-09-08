@@ -1,10 +1,10 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
-import { useDataChange } from '@data/hooks/useDataChange'
-import { usePreference } from '@data/hooks/usePreference'
 import { isUndefined, omitBy } from 'es-toolkit/compat'
 import { useCallback } from 'react'
 import type { SWRConfiguration } from 'swr'
 
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange } from '@data/hooks/useDataChange'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type {
   BulkUpdateModelsDto,

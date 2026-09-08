@@ -1,8 +1,8 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { CircleArrowUp, Search, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { CommandTooltip } from '@renderer/components/command'
 import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'

@@ -3,14 +3,14 @@
  * See README-AssistantMigrator.md for sources, merge contract, and dropped fields.
  */
 
+import { eq, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
-import { eq, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 

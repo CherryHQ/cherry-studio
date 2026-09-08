@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { GEMINI_GATEWAY_MODEL_SUFFIX } from '@shared/utils/apiGateway'

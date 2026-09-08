@@ -1,6 +1,6 @@
-import { useCache } from '@data/hooks/useCache'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
+import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'

@@ -1,6 +1,6 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useCallback } from 'react'
 
+import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { resolveTemplate } from '@renderer/data/utils/dataApiPath'
 import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { CreatePromptDto, PromptBindingParams, UpdatePromptDto } from '@shared/data/api/schemas/prompts'

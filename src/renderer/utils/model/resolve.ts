@@ -1,6 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
 import { preferenceService } from '@data/PreferenceService'
-
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 
 /**

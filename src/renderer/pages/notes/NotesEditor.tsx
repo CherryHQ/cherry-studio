@@ -1,10 +1,10 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/ActionIconButton'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'

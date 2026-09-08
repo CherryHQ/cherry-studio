@@ -1,10 +1,10 @@
-import { cacheService } from '@data/CacheService'
-import { usePreference } from '@data/hooks/usePreference'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'

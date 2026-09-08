@@ -1,7 +1,7 @@
-import { createInfiniteQueryRetentionMiddleware } from '@data/hooks/createInfiniteQueryRetentionMiddleware'
-import { type ParamsOption, useInfiniteQuery, type UseInfiniteQueryResult } from '@data/hooks/useDataApi'
 import type { SWRInfiniteConfiguration } from 'swr/infinite'
 
+import { createInfiniteQueryRetentionMiddleware } from '@data/hooks/createInfiniteQueryRetentionMiddleware'
+import { type ParamsOption, useInfiniteQuery, type UseInfiniteQueryResult } from '@data/hooks/useDataApi'
 import type { QueryParamsForPath, ResponseForPath } from '@shared/data/api/paths'
 
 const CONVERSATION_HISTORY_RETENTION = {

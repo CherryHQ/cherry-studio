@@ -1,8 +1,8 @@
-import { cacheService } from '@data/CacheService'
-import { usePreference } from '@data/hooks/usePreference'
 import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useMemo, useRef } from 'react'
 
+import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'

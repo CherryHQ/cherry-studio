@@ -1,4 +1,3 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { FolderOpen, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +11,7 @@ import {
   RowFlex,
   Switch
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import {
   SettingDivider,
   SettingGroup,

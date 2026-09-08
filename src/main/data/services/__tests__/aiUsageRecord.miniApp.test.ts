@@ -1,7 +1,7 @@
-import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
+import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { type AiUsageRecordSourceType, AiUsageRecordSourceTypeSchema } from '@shared/data/types/aiUsageRecord'
 
 const A = 'com.example.mygame'

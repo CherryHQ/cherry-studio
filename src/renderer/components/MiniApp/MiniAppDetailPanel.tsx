@@ -1,4 +1,3 @@
-import { useMutation } from '@data/hooks/useDataApi'
 import type { TFunction } from 'i18next'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -20,6 +19,7 @@ import {
   TabsTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'

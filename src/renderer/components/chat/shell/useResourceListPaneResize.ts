@@ -1,7 +1,7 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
+import { usePersistCache } from '@data/hooks/useCache'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 
 import {

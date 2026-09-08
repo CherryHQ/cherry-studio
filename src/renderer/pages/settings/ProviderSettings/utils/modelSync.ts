@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { isEmpty } from 'es-toolkit/compat'
 
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'

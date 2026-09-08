@@ -1,10 +1,10 @@
-import { usePersistCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'

@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { memo, useCallback } from 'react'
 
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useMessageImageCaptureMessages } from '@renderer/components/chat/messages/hooks/useMessageImageCaptureMessages'

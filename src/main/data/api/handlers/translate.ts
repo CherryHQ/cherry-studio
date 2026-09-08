@@ -7,7 +7,6 @@
 
 import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import { translateLanguageService } from '@data/services/TranslateLanguageService'
-
 import type { TranslateSchemas } from '@shared/data/api/schemas/translate'
 import {
   CreateTranslateHistorySchema,

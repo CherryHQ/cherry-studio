@@ -1,7 +1,7 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 

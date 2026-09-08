@@ -1,3 +1,6 @@
+import { and, eq, inArray } from 'drizzle-orm'
+
+import { application } from '@application'
 import {
   type AgentChannelRow as ChannelRow,
   agentChannelSessionTable as channelSessionsTable,
@@ -7,9 +10,6 @@ import {
 } from '@data/db/schemas/agentChannel'
 import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
-import { and, eq, inArray } from 'drizzle-orm'
-
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
