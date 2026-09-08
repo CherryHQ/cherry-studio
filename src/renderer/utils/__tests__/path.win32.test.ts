@@ -27,7 +27,11 @@ describe('isFilesystemRoot on Windows', () => {
     '\\\\?\\UNC\\\\server\\share',
     '\\\\?\\UNC\\/server\\share',
     '//?/UNC//server/share',
-    '//?/UNC/\\server/share'
+    '//?/UNC/\\server/share',
+    '\\\\?\\\\UNC\\server\\share',
+    '\\\\?\\/UNC\\server\\share',
+    '//?//UNC/server/share',
+    '//?/\\UNC/server/share'
   ])('identifies a UNC root: %s', (value) => {
     expect(isFilesystemRoot(p(value))).toBe(true)
   })
@@ -44,5 +48,9 @@ describe('isFilesystemRoot on Windows', () => {
     expect(isFilesystemRoot(p('//?/UNC//server/share/project'))).toBe(false)
     expect(isFilesystemRoot(p('//?/UNC/\\server/share/project'))).toBe(false)
     expect(isFilesystemRoot(p('//?/UNC/server//share/project'))).toBe(false)
+    expect(isFilesystemRoot(p('\\\\?\\\\UNC\\server\\share\\project'))).toBe(false)
+    expect(isFilesystemRoot(p('\\\\?\\/UNC\\server\\share\\project'))).toBe(false)
+    expect(isFilesystemRoot(p('//?//UNC/server/share/project'))).toBe(false)
+    expect(isFilesystemRoot(p('//?/\\UNC/server/share/project'))).toBe(false)
   })
 })
