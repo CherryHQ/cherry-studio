@@ -2135,18 +2135,27 @@ export class AgentSessionRuntimeService extends BaseService {
     const cacheService = application.get('CacheService')
     const orphanKey = 'agent.session.flow_recovery_orphans'
     const orphans = [...(cacheService.getPersist(orphanKey) ?? [])]
+    const now = Date.now()
+    // Every recovery also prunes expired orphans, so a root whose row never appears does not
+    // leave stragglers behind.
+    const expired = new Set(orphans.filter((orphan) => now - orphan.orphannedAt >= FLOW_RECOVERY_ORPHAN_TTL_MS))
+    if (expired.size) {
+      cacheService.setPersist(
+        orphanKey,
+        orphans.filter((orphan) => !expired.has(orphan))
+      )
+    }
     const matching = orphans.find(
-      (orphan) => orphan.sessionId === entry.sessionId && orphan.rootToolCallId === rootToolCallId
+      (orphan) =>
+        orphan.sessionId === entry.sessionId && orphan.rootToolCallId === rootToolCallId && !expired.has(orphan)
     )
-    if (matching) {
+    if (matching?.chunks.length) {
+      // Acknowledge only after the chunks are handed to an accumulator or its hold buffer.
+      replay(matching.chunks)
       cacheService.setPersist(
         orphanKey,
         orphans.filter((orphan) => orphan !== matching)
       )
-      // Expired batches are dropped, not replayed — the row would not have appeared by now.
-      if (Date.now() - matching.orphannedAt < FLOW_RECOVERY_ORPHAN_TTL_MS && matching.chunks.length) {
-        replay(matching.chunks)
-      }
     }
     // Chunks buffered across the transient recovery errors flow into the anchor next; nested
     // tool calls inside them register anchors exactly like the normal chunk path below.
@@ -3401,16 +3410,17 @@ export class AgentSessionRuntimeService extends BaseService {
       // Recovery-buffered chunks get their last host-row lookup; any that land now replay into
       // an accumulator (or the pending buffer) and will be drained by the cascade below.
       for (const rootToolCallId of [...(entry.pendingRecoveryFlowChunks?.keys() ?? [])]) {
-        // The host row never committed (or the final lookup failed): orphan the buffered chunks
-        // to the restart-safe persist tier — a reopened session that later finds the row
-        // delivers them instead of dropping the output.
-        const orphan = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
-        if (orphan?.length) this.persistFlowRecoveryOrphan(entry.sessionId, rootToolCallId, orphan)
         try {
           if (!this.recoverDetachedFlowHost(entry, rootToolCallId)) {
-            // Recovery already consumed or re-buffered the chunks — nothing to keep orphaned.
+            // The host row never committed: orphan the (still-unreplayed) buffered chunks to the
+            // restart-safe persist tier so a reopened session that later finds the row delivers
+            // them instead of dropping the output.
+            const orphan = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
+            if (orphan?.length) this.persistFlowRecoveryOrphan(entry.sessionId, rootToolCallId, orphan)
           }
         } catch (error) {
+          const orphan = entry.pendingRecoveryFlowChunks?.get(rootToolCallId)
+          if (orphan?.length) this.persistFlowRecoveryOrphan(entry.sessionId, rootToolCallId, orphan)
           logger.warn('Detached flow recovery lookup failed at teardown', {
             sessionId: entry.sessionId,
             rootToolCallId,
