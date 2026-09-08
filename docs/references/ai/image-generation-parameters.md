@@ -188,6 +188,17 @@ loads model constraints and returns a synchronous reset function.
 `usePaintingModelSwitch` applies that function to the latest params when committing
 the selected model, populating defaults and resetting unsupported values.
 
+History persists editable prompt, provider, and model metadata alongside file
+references; mode and params remain form state. A generation request freezes its
+own input snapshot. The editor session orders generation preparation (validation,
+input materialization, and initial persistence), navigation saves, and deletion
+of the current record. Provider execution runs outside that handoff and writes
+only generated file references on completion. Navigation saves the latest edits
+after preparation; deletion permits discarding edits only after success. History
+thumbnails may remain visible during hydration, so selection checks record
+existence through DataApi before opening a historical painting.
+
+
 ---
 
 ## Write half — `paramValues` → vendor request

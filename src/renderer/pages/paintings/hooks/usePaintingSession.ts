@@ -2,18 +2,39 @@ import { type SetStateAction, useCallback, useEffect, useRef, useState } from 'r
 
 import type { PaintingData } from '../model/types/paintingData'
 
-/** Owns editor identity and user intent independently of generation record IDs. */
+function createSession(painting: PaintingData) {
+  let pending: Promise<void> | undefined
+  return {
+    painting,
+    deletedId: undefined as string | undefined,
+    // Only persistence handoffs are ordered; the provider run stays in the background.
+    write<T>(operation: () => Promise<T>): Promise<T> {
+      const result = pending ? pending.then(operation) : operation()
+      const settled = result.then(
+        () => {},
+        () => {}
+      )
+      pending = settled
+      void settled.then(() => {
+        if (pending === settled) pending = undefined
+      })
+      return result
+    }
+  }
+}
+
+/** Owns the editor and its persistence handoffs independently of generated record IDs. */
 export function usePaintingSession(initialPainting: () => PaintingData) {
   const [painting, setPainting] = useState(initialPainting)
   const [sessionId, setSessionId] = useState(0)
-  const current = useRef(painting)
-  const identity = useRef({})
+  const current = useRef(createSession(painting))
+  const mounted = useRef(true)
   const revision = useRef(0)
   const action = useRef(0)
 
   const update = useCallback((next: SetStateAction<PaintingData>) => {
-    current.current = typeof next === 'function' ? next(current.current) : next
-    setPainting(current.current)
+    current.current.painting = typeof next === 'function' ? next(current.current.painting) : next
+    setPainting(current.current.painting)
   }, [])
   const touch = useCallback(() => {
     revision.current++
@@ -25,40 +46,58 @@ export function usePaintingSession(initialPainting: () => PaintingData) {
     },
     [touch, update]
   )
-  const replace = useCallback(
-    (next: PaintingData) => {
-      identity.current = {}
-      revision.current++
-      setSessionId((id) => id + 1)
-      update(next)
-    },
-    [update]
-  )
+  const replace = useCallback((next: PaintingData) => {
+    current.current = createSession(next)
+    revision.current++
+    setSessionId((id) => id + 1)
+    setPainting(next)
+  }, [])
+  const capture = useCallback(() => {
+    const owner = current.current
+    return {
+      getPainting: () => owner.painting,
+      isSameSession: () => mounted.current && current.current === owner,
+      isDeleted: () => owner.deletedId === owner.painting.id,
+      markDeleted: (id: string) => {
+        owner.deletedId = id
+      },
+      write: owner.write
+    }
+  }, [])
   const beginTransition = useCallback(() => {
     revision.current++
     const request = ++action.current
-    const owner = identity.current
+    const session = capture()
     const version = revision.current
     return {
-      getPainting: () => current.current,
-      isSameSession: () => identity.current === owner,
-      isCurrent: () => identity.current === owner && revision.current === version,
-      // Typing does not supersede a model request; another request or navigation does.
-      isLatestAction: () => identity.current === owner && action.current === request
+      ...session,
+      isCurrent: () => session.isSameSession() && revision.current === version,
+      isLatestAction: () => session.isSameSession() && action.current === request
     }
-  }, [])
+  }, [capture])
   const bindEdit = useCallback(() => {
     const intent = beginTransition()
     return (patch: Parameters<typeof edit>[0]) => {
       if (intent.isLatestAction()) edit(patch)
     }
   }, [beginTransition, edit])
+  const prepareGeneration = useCallback(
+    <T>(prepare: () => Promise<T>) => {
+      // A new Generate request is user intent; its later progress is not.
+      touch()
+      const owner = current.current
+      return owner.write(async () => {
+        if (owner.deletedId === owner.painting.id) return
+        return prepare()
+      })
+    },
+    [touch]
+  )
   const bindGeneration = useCallback(() => {
-    const owner = identity.current
+    const owner = current.current
     return (next: PaintingData) => {
-      if (identity.current !== owner) return
-      update((prev) => ({
-        ...prev,
+      owner.painting = {
+        ...owner.painting,
         id: next.id,
         persistedAt: next.persistedAt,
         files: next.files,
@@ -67,16 +106,29 @@ export function usePaintingSession(initialPainting: () => PaintingData) {
         generationTaskId: next.generationTaskId,
         generationError: next.generationError,
         generationProgress: next.generationProgress
-      }))
+      }
+      // Detached sessions still complete their pending save, without touching the visible editor.
+      if (mounted.current && current.current === owner) setPainting(owner.painting)
     }
-  }, [update])
+  }, [])
 
-  useEffect(
-    () => () => {
-      identity.current = {}
-    },
-    []
-  )
-
-  return { painting, sessionId, update, touch, edit, replace, beginTransition, bindEdit, bindGeneration }
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  return {
+    painting,
+    sessionId,
+    update,
+    touch,
+    edit,
+    replace,
+    capture,
+    beginTransition,
+    bindEdit,
+    bindGeneration,
+    prepareGeneration
+  }
 }

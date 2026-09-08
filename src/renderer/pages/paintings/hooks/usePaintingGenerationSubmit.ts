@@ -6,12 +6,14 @@ import type { ModelOption } from '../model/types/paintingModel'
 import { presentPaintingGenerationGuardFeedback } from '../utils/presentPaintingGenerationGuardFeedback'
 import { usePaintingGeneration } from './usePaintingGeneration'
 import { usePaintingGenerationGuard } from './usePaintingGenerationGuard'
+import type { usePaintingSession } from './usePaintingSession'
 
 /** Resolves the composer's draft attachments into the entries a request consumes. */
 export type MaterializeInputs = () => Promise<{ entries: FileEntry[]; complete: boolean }>
 
 interface UsePaintingGenerationSubmitInput {
   painting: PaintingData
+  prepareGeneration: ReturnType<typeof usePaintingSession>['prepareGeneration']
   bindGeneration: () => (painting: PaintingData) => void
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
@@ -48,13 +50,14 @@ interface UsePaintingGenerationSubmitInput {
 export function usePaintingGenerationSubmit({
   painting,
   bindGeneration,
+  prepareGeneration,
   ensureCurrentCatalog
 }: UsePaintingGenerationSubmitInput) {
   const { validateBeforeGenerate } = usePaintingGenerationGuard({
     painting,
     ensureCurrentCatalog
   })
-  const { generate, cancel, generating } = usePaintingGeneration({
+  const { prepare, cancel, generating } = usePaintingGeneration({
     painting
   })
 
@@ -71,23 +74,26 @@ export function usePaintingGenerationSubmit({
       setSubmitting(true)
       const applyToSession = bindGeneration()
       try {
-        const guardResult = await validateBeforeGenerate()
-        if (!guardResult.ok) {
-          void presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
-          return
-        }
-        const { entries, complete } = await materialize()
-        // An incomplete set must never reach generation — the composer has already
-        // dropped the failed chip and told the user; generating anyway would spend
-        // the request on a silently smaller input set.
-        if (!complete) return
-        await generate(entries, applyToSession)
+        const run = await prepareGeneration(async () => {
+          const guardResult = await validateBeforeGenerate()
+          if (!guardResult.ok) {
+            void presentPaintingGenerationGuardFeedback(guardResult.reason, guardResult.error, painting.providerId)
+            return
+          }
+          const { entries, complete } = await materialize()
+          // An incomplete set must never reach generation — the composer has already
+          // dropped the failed chip and told the user; generating anyway would spend
+          // the request on a silently smaller input set.
+          if (!complete) return
+          return prepare(entries, applyToSession)
+        })
+        await run?.()
       } finally {
         submittingRef.current = false
         setSubmitting(false)
       }
     },
-    [bindGeneration, generate, generating, painting.providerId, validateBeforeGenerate]
+    [bindGeneration, prepare, prepareGeneration, generating, painting.providerId, validateBeforeGenerate]
   )
 
   return { generating, submitting, submit, cancel }

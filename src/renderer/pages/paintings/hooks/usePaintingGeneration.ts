@@ -40,10 +40,10 @@ export function usePaintingGeneration({ painting }: UsePaintingGenerationInput) 
     return p.generationStatus === 'running'
   }, [])
 
-  const generate = useCallback(
+  const prepare = useCallback(
     async (inputFiles: FileEntry[], applyToSession: (painting: PaintingData) => void) => {
       // The in-memory draft is the source of truth for this whole flow.
-      // DB writes are bookkeeping for the frozen receipt (prompt + file ids);
+      // The request snapshot is frozen; history metadata remains editable.
       // they're not consulted again to rebuild the live painting. That keeps
       // form-only fields — `mode`, `params`, `inputFiles` — intact end to end
       // without re-stitching them after each persist call.
@@ -92,38 +92,40 @@ export function usePaintingGeneration({ painting }: UsePaintingGenerationInput) 
       registerPaintingAbortController(targetPainting.id, controller)
       pushGenerationState(generationState)
 
-      try {
-        const generatedFiles = await paintingGenerate({
-          painting: targetPainting,
-          provider,
-          tab: 'default',
-          abortController: controller
-        })
-        await updatePainting(targetPainting.id, {
-          files: {
-            output: generatedFiles.map((file) => file.id),
-            input: targetPainting.inputFiles?.map((entry) => entry.id) ?? []
+      return async () => {
+        try {
+          const generatedFiles = await paintingGenerate({
+            painting: targetPainting,
+            provider,
+            tab: 'default',
+            abortController: controller
+          })
+          await updatePainting(targetPainting.id, {
+            files: {
+              output: generatedFiles.map((file) => file.id),
+              input: targetPainting.inputFiles?.map((entry) => entry.id) ?? []
+            }
+          })
+          cacheService.set(cacheKey, null)
+          // Merge the freshly-generated output into the in-memory draft; do not
+          // re-read from the DB record (which would drop params / mode again).
+          applyToSession({ ...targetPainting, files: generatedFiles } as PaintingData)
+          await refresh()
+        } catch (error) {
+          const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
+          const failedState: PaintingGenerationState = {
+            ...generationState,
+            generationStatus: isCanceled ? 'canceled' : 'failed',
+            generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
           }
-        })
-        cacheService.set(cacheKey, null)
-        // Merge the freshly-generated output into the in-memory draft; do not
-        // re-read from the DB record (which would drop params / mode again).
-        applyToSession({ ...targetPainting, files: generatedFiles } as PaintingData)
-        await refresh()
-      } catch (error) {
-        const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
-        const failedState: PaintingGenerationState = {
-          ...generationState,
-          generationStatus: isCanceled ? 'canceled' : 'failed',
-          generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
+          cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
+          applyToSession({ ...targetPainting, ...failedState } as PaintingData)
+          if (!isCanceled) {
+            presentPaintingGenerateError(error)
+          }
+        } finally {
+          clearPaintingAbortController(targetPainting.id, controller)
         }
-        cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
-        applyToSession({ ...targetPainting, ...failedState } as PaintingData)
-        if (!isCanceled) {
-          presentPaintingGenerateError(error)
-        }
-      } finally {
-        clearPaintingAbortController(targetPainting.id, controller)
       }
     },
     [createPainting, painting, provider, refresh, updatePainting]
@@ -134,7 +136,7 @@ export function usePaintingGeneration({ painting }: UsePaintingGenerationInput) 
   }, [])
 
   return {
-    generate,
+    prepare,
     cancel,
     generating: isGenerating(painting)
   }

@@ -72,6 +72,7 @@ const PaintingPage: FC = () => {
   } = usePaintingGenerationSubmit({
     painting: composerPainting,
     bindGeneration: session.bindGeneration,
+    prepareGeneration: session.prepareGeneration,
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
 
@@ -95,12 +96,12 @@ const PaintingPage: FC = () => {
   })
 
   const list = usePaintingList({
-    painting: currentPainting,
     setCurrentPainting: session.replace,
     draftDefaults,
     historyItems: history.items,
     cancelGeneration,
-    beginTransition: session.beginTransition
+    beginTransition: session.beginTransition,
+    captureSession: session.capture
   })
 
   const onCancel = useCallback(() => cancelGeneration(currentPainting.id), [cancelGeneration, currentPainting.id])

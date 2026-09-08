@@ -1,3 +1,5 @@
+import { dataApiService } from '@data/DataApiService'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +15,15 @@ const { createPainting, updatePainting, deletePainting, refresh } = vi.hoisted((
 }))
 vi.mock('@renderer/hooks/usePaintings', () => ({
   usePaintings: () => ({ createPainting, updatePainting, deletePainting, refresh })
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    get: vi.fn(async (path: string) => makePainting({ id: decodeURIComponent(path.split('/').at(-1)!) }))
+  }
+}))
+vi.mock('../../model/mappers/recordToPaintingData', () => ({
+  recordToPaintingData: async (record: PaintingData) => record
 }))
 
 function makePainting(overrides: Partial<PaintingData> = {}): PaintingData {
@@ -34,9 +45,9 @@ function renderList(painting = makePainting(), historyItems = [painting]) {
     ...renderHook(() => {
       const session = usePaintingSession(() => painting)
       const list = usePaintingList({
-        painting: session.painting,
         setCurrentPainting: session.replace,
         beginTransition: session.beginTransition,
+        captureSession: session.capture,
         draftDefaults: { providerId: 'openai', modelId: 'dall-e-3' },
         historyItems,
         cancelGeneration
@@ -57,6 +68,45 @@ function delaySave() {
 }
 
 describe('painting editor navigation', () => {
+  it.each(['failed', 'canceled'] as const)(
+    'leaves a deleted editor when its replacement navigation is %s',
+    async (outcome) => {
+      const { result } = renderList()
+      const target = makePainting({ id: 'selected' })
+      let finishDelete!: () => void
+      deletePainting.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishDelete = resolve
+          })
+      )
+      let finishRead!: () => void
+      vi.mocked(dataApiService.get).mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          finishRead = resolve
+        })
+        if (outcome === 'failed') throw new Error('IPC failed')
+        return target as never
+      })
+      let deleting!: Promise<void>
+      let selecting!: Promise<void>
+      await act(async () => {
+        deleting = result.current.remove(result.current.session.painting)
+        selecting = result.current.select(target)
+        finishDelete()
+        await deleting
+      })
+      expect(result.current.session.painting.id).toBe('current')
+      await act(async () => {
+        if (outcome === 'canceled') await result.current.remove(target)
+        finishRead()
+        await selecting
+      })
+      expect(result.current.session.painting.persistedAt).toBeUndefined()
+      expect(updatePainting).not.toHaveBeenCalled()
+    }
+  )
+
   beforeEach(() => {
     vi.clearAllMocks()
     updatePainting.mockReset().mockResolvedValue(undefined)
@@ -148,40 +198,32 @@ describe('painting editor navigation', () => {
     })
     expect(result.current.session.painting.prompt).toBe('')
   })
-  it('allows New when generation materializes inputs and creates a new record during saving', async () => {
+  it('saves the migrated record after generation preparation before New', async () => {
     const { result } = renderList()
-    const applyGeneration = result.current.session.bindGeneration()
-    const finish = delaySave()
-    let pending!: Promise<void>
-    act(() => {
-      pending = result.current.add()
+    const apply = result.current.session.bindGeneration()
+    let finish!: () => void
+    const ready = new Promise<void>((resolve) => {
+      finish = resolve
     })
+    let preparing!: Promise<void>
     act(() => {
-      applyGeneration(
-        makePainting({
-          id: 'generated',
-          prompt: 'Original generation snapshot',
-          inputFiles: [{ id: 'input' } as NonNullable<PaintingData['inputFiles']>[number]],
-          generationStatus: 'running'
-        })
-      )
+      preparing = result.current.session.prepareGeneration(async () => {
+        await ready
+        apply(makePainting({ id: 'generated', prompt: 'Old request' }))
+      })
     })
-    expect(result.current.session.sessionId).toBe(0)
+    let navigating!: Promise<void>
+    act(() => {
+      navigating = result.current.add()
+    })
+    expect(updatePainting).not.toHaveBeenCalled()
     await act(async () => {
       finish()
-      await pending
+      await preparing
+      await navigating
     })
-    const draft = result.current.session.painting
-    expect(draft.prompt).toBe('')
-    expect(updatePainting).toHaveBeenLastCalledWith('generated', {
-      prompt: 'Revised prompt',
-      providerId: 'silicon',
-      modelId: undefined
-    })
-    act(() => {
-      applyGeneration(makePainting({ id: 'generated', files: [{ id: 'output' } as PaintingData['files'][number]] }))
-    })
-    expect(result.current.session.painting).toBe(draft)
+    expect(updatePainting).toHaveBeenLastCalledWith('generated', expect.objectContaining({ prompt: 'Revised prompt' }))
+    expect(result.current.session.painting.persistedAt).toBeUndefined()
   })
   it('generation updates preserve newer prompt and parameter edits in the same session', () => {
     const { result } = renderList()
@@ -199,19 +241,21 @@ describe('painting editor navigation', () => {
       files: [{ id: 'output' }]
     })
   })
-  it('a newer selection supersedes pending New even when the first save completes last', async () => {
+  it('a newer selection supersedes pending New after ordered saves', async () => {
     const { result } = renderList()
     const finish = delaySave()
     let pending!: Promise<void>
     act(() => {
       pending = result.current.add()
     })
-    await act(async () => {
-      await result.current.select(makePainting({ id: 'selected' }))
+    let selecting!: Promise<void>
+    act(() => {
+      selecting = result.current.select(makePainting({ id: 'selected' }))
     })
     await act(async () => {
       finish()
       await pending
+      await selecting
     })
     expect(result.current.session.painting.id).toBe('selected')
   })
@@ -289,6 +333,43 @@ describe('painting editor navigation', () => {
       await pending
     })
     expect(result.current.session.painting.id).toBe('current')
+  })
+
+  it('waits for a failed deletion and saves edits before New', async () => {
+    const { result } = renderList()
+    let fail!: (error: Error) => void
+    deletePainting.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          fail = reject
+        })
+    )
+    let deleting!: Promise<void>
+    let navigating!: Promise<void>
+    await act(async () => {
+      deleting = result.current.remove(result.current.session.painting)
+      navigating = result.current.add()
+    })
+    expect(result.current.session.painting.id).toBe('current')
+    await act(async () => {
+      fail(new Error('SQLITE_BUSY'))
+      await deleting
+      await navigating
+    })
+    expect(updatePainting).toHaveBeenCalledWith('current', expect.objectContaining({ prompt: 'Revised prompt' }))
+    expect(result.current.session.painting.persistedAt).toBeUndefined()
+  })
+
+  it('skips a deleted fallback even while hydrated history still contains it', async () => {
+    const original = makePainting()
+    const stale = makePainting({ id: 'deleted-earlier' })
+    const valid = makePainting({ id: 'valid' })
+    const { result } = renderList(original, [original, stale, valid])
+    vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('Painting', stale.id))
+    await act(async () => {
+      await result.current.remove(original)
+    })
+    expect(result.current.session.painting.id).toBe('valid')
   })
 
   it('retains the session on delete failure and allows retry', async () => {
@@ -457,14 +538,16 @@ describe('painting editor navigation', () => {
     act(() => {
       pending = result.current.remove(result.current.session.painting)
     })
+    let selecting!: Promise<void>
     await act(async () => {
-      await result.current.select(makePainting({ id: 'selected' }))
+      selecting = result.current.select(makePainting({ id: 'selected' }))
     })
-    expect(result.current.session.painting.id).toBe('selected')
+    expect(result.current.session.painting.id).toBe('current')
     expect(updatePainting).not.toHaveBeenCalled()
     await act(async () => {
       finish()
       await pending
+      await selecting
     })
     expect(result.current.session.painting.id).toBe('selected')
   })

@@ -15,7 +15,7 @@ vi.mock('../usePaintingGenerationGuard', () => ({
 
 vi.mock('../usePaintingGeneration', () => ({
   usePaintingGeneration: ({ painting }: { painting: PaintingData }) => ({
-    generate: mockGenerate,
+    prepare: mockGenerate,
     cancel: vi.fn(),
     generating: painting.generationStatus === 'running'
   })
@@ -35,6 +35,7 @@ function renderSubmit(painting: PaintingData = makePainting()) {
     usePaintingGenerationSubmit({
       painting,
       bindGeneration: () => vi.fn(),
+      prepareGeneration: (work) => work(),
       ensureCurrentCatalog: vi.fn(async () => [])
     })
   )
@@ -112,6 +113,7 @@ describe('usePaintingGenerationSubmit', () => {
       const submit = usePaintingGenerationSubmit({
         painting: session.painting,
         bindGeneration: session.bindGeneration,
+        prepareGeneration: session.prepareGeneration,
         ensureCurrentCatalog: vi.fn(async () => [])
       })
       return { session, ...submit }
