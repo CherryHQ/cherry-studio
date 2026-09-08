@@ -714,6 +714,66 @@ describe('AiService', () => {
       expect(mockDownloadImageAsBase64).toHaveBeenCalledTimes(2)
     })
 
+    it('propagates cancellation during direct image URL processing', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      const abortError = new DOMException('Image generation cancelled', 'AbortError')
+      const controller = new AbortController()
+      mockDownloadImageAsBase64.mockImplementation(async () => {
+        controller.abort(abortError)
+        return null
+      })
+      mockGenerateImage.mockImplementation(async (_providerId, _providerSettings, options) => {
+        await options.experimental_download([
+          { url: new URL('https://example.com/a.png'), isUrlSupportedByModel: false }
+        ])
+        throw new NoImageGeneratedError({ responses: [] })
+      })
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {},
+          requestOptions: { signal: controller.signal }
+        })
+      ).rejects.toBe(abortError)
+    })
+
+    it('keeps malformed URL candidates on the provider-error path', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockImplementation(async (_providerId, _providerSettings, options) => {
+        options.onProviderCall?.({
+          modality: 'image',
+          requestId: 'ai-core:image:test',
+          providerId: 'test-provider',
+          modelId: 'test-model',
+          imageCount: 2,
+          metrics: { timeCompletionMs: 10 },
+          completedAt: 100
+        })
+        throw new NoImageGeneratedError({ responses: [] })
+      })
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).rejects.toThrow(/2 image candidate/i)
+      expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
+    })
+
     it('rejects non-empty malformed base64 image data', async () => {
       const service = createService()
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({

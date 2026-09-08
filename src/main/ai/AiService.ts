@@ -912,6 +912,16 @@ export class AiService extends BaseService {
     // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
     // (the WireProfile engine), which the image models read; passing them here is
     // dropped by `generateImage`, so they're omitted.
+    const imageUsageContext = createCaptureContext({
+      provider,
+      model,
+      sdkModelId: sdkConfig.modelId,
+      credentialReceipt,
+      source,
+      messageRef: null
+    })
+    const recordProviderCall = createProviderCallHandler(imageUsageContext)
+    let providerImageCount = 0
     let remoteDownloadCount = 0
     let remoteDownloadFailures = 0
     const imageParams = {
@@ -944,26 +954,30 @@ export class AiService extends BaseService {
       }
     }
 
-    const imageUsageContext = createCaptureContext({
-      provider,
-      model,
-      sdkModelId: sdkConfig.modelId,
-      credentialReceipt,
-      source,
-      messageRef: null
-    })
     let result: Awaited<ReturnType<typeof aiCoreGenerateImage>>
     try {
       result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
         ...imageParams,
-        onProviderCall: createProviderCallHandler(imageUsageContext)
+        onProviderCall: (event) => {
+          if (event.modality === 'image') providerImageCount += event.imageCount
+          recordProviderCall(event)
+        }
       })
     } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
+      }
       if (NoImageGeneratedError.isInstance(error)) {
         if (remoteDownloadCount > 0 && remoteDownloadFailures === remoteDownloadCount) {
           throw new Error(`Image generation produced ${remoteDownloadCount} URL(s) but all downloads failed`, {
             cause: error
           })
+        }
+        if (providerImageCount > 0) {
+          throw new Error(
+            `Image generation produced ${providerImageCount} image candidate(s), but none could be decoded or downloaded`,
+            { cause: error }
+          )
         }
         return { files: [], validation: { receivedCount: 0, rejected: [] } }
       }
