@@ -20,7 +20,7 @@ import {
   resolveDshPluginPath,
   toDshPluginUrl
 } from '../compositionBuilder'
-import { buildDshProviderInjection } from '../modelInjection'
+import { buildDshGatewayInjection, buildDshProviderInjection } from '../modelInjection'
 
 const SECRET_API_KEY = 'sk-cherry-super-secret-key'
 
@@ -381,6 +381,59 @@ describe('buildDshCompositionYaml', () => {
     const route = providerRoute(yaml, 'deepseek')
     expect(route.reasoning).toBe('high')
     expect(route.models[0].reasoningEfforts).toEqual({ low: 'low', high: 'high' })
+  })
+
+  it('preserves Codex Astra Ultra reasoning through the gateway and bundled dsh config', async () => {
+    const provider = {
+      id: 'openai-codex',
+      name: 'OpenAI Codex',
+      authMethods: ['oauth'],
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'openai',
+          baseUrl: 'https://chatgpt.com/backend-api/codex'
+        }
+      }
+    } as unknown as Provider
+    const model = {
+      id: 'openai-codex::gpt-6-astra',
+      providerId: 'openai-codex',
+      apiModelId: 'gpt-6-astra',
+      name: 'GPT-6 Astra',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      contextWindow: 272_000,
+      reasoning: { selectableEfforts: ['low', 'ultra'] }
+    } as unknown as Model
+    const injection = buildDshGatewayInjection(
+      provider,
+      model,
+      { baseUrl: 'http://127.0.0.1:23333', apiKey: SECRET_API_KEY, usageHeaders: {} },
+      'ultra'
+    )
+    const yaml = buildDshCompositionYaml(
+      makeInput({
+        providerName: injection.providerName,
+        api: injection.api,
+        baseUrl: injection.baseUrl,
+        reasoning: injection.reasoning,
+        modelConfig: injection.modelConfig
+      })
+    )
+
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.reasoning).toBe('ultra')
+    expect(injection.modelConfig.reasoningEfforts).toEqual({ low: 'low', ultra: 'ultra' })
+    const llmConfig = entryById(yaml, 'llm').config
+    expect(llmConfig?.providers['openai-codex']).toMatchObject({
+      reasoning: 'ultra',
+      models: [{ reasoningEfforts: { low: 'low', ultra: 'ultra' } }]
+    })
+
+    const pluginUrl = pathToFileURL(resolveDshPluginPath('@deepseek-ai/dsh-llm-pi-ai')).href
+    const { Config } = await import(pluginUrl)
+    expect(Config(llmConfig).providers['openai-codex']).toMatchObject({ reasoning: 'ultra' })
   })
 
   it('preserves provider-default reasoning when Cherry selects Default', () => {

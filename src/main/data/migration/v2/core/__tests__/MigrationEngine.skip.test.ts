@@ -85,12 +85,28 @@ describe('MigrationEngine migration status and skipMigration', () => {
     await expect(engine.needsMigration()).resolves.toBe(false)
 
     expect(readStatus()).toMatchObject({ status: 'completed', migratedFromV1: false })
+    expect(engine.isMigratedFromV1()).toBe(false)
   })
 
   it('records a successful migration as migrated from v1', async () => {
     await expect(engine.run({}, '/tmp/cherry-migration-test')).resolves.toMatchObject({ success: true })
 
     expect(readStatus()).toMatchObject({ status: 'completed', migratedFromV1: true })
+    expect(engine.isMigratedFromV1()).toBe(true)
+  })
+
+  it('restores the v1 migration origin from a completed status', async () => {
+    dbh.db
+      .insert(appStateTable)
+      .values({
+        key: MIGRATION_V2_STATUS,
+        value: { status: 'completed', migratedFromV1: true, version: '2.0.0' } satisfies MigrationStatusValue
+      })
+      .run()
+
+    await expect(engine.needsMigration()).resolves.toBe(false)
+
+    expect(engine.isMigratedFromV1()).toBe(true)
   })
 
   it('does not record a failed migration as migrated from v1', async () => {
@@ -109,6 +125,7 @@ describe('MigrationEngine migration status and skipMigration', () => {
     await expect(engine.run({}, '/tmp/cherry-migration-test')).resolves.toMatchObject({ success: false })
 
     expect(readStatus()).toMatchObject({ status: 'failed', migratedFromV1: false })
+    expect(engine.isMigratedFromV1()).toBe(false)
   })
 
   it('clears migrated rows and agent.task schedules, keeps other schedules, and marks completed', async () => {
@@ -120,6 +137,7 @@ describe('MigrationEngine migration status and skipMigration', () => {
     const schedules = dbh.db.select().from(jobScheduleTable).all()
     expect(schedules.map((s) => s.type)).toEqual(['other.job'])
     expect(readStatus()).toMatchObject({ status: 'completed', migratedFromV1: false, error: null })
+    expect(engine.isMigratedFromV1()).toBe(false)
   })
 
   it('restores hardware acceleration to its default and never touches user_data_path', async () => {
