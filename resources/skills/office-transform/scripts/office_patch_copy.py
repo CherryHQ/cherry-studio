@@ -52,6 +52,11 @@ import os
 import posixpath
 import re
 import sys
+
+# SkillInstaller verifies built-in skills by directory hash; a __pycache__ dir would
+# make that hash mismatch and the skill would be unlinked, so never write bytecode.
+sys.dont_write_bytecode = True
+
 import tempfile
 import unicodedata
 import xml.etree.ElementTree as ET
