@@ -28,7 +28,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { DoctorCheckAccordionItems, DoctorCheckResults } from '../DoctorCheckResults'
+import { DoctorCheckAccordionItems } from '../DoctorCheckResults'
 import { DoctorChecksPanel } from '../DoctorChecksPanel'
 
 type ControllerOverrides = {
@@ -56,6 +56,7 @@ function createController(overrides: ControllerOverrides = {}) {
     cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
     confirmEvidence: vi.fn<DoctorController['confirmEvidence']>(),
     executeAction: vi.fn<DoctorController['executeAction']>(),
+    isAutoRunPending: false,
     isInteracting: false,
     isCloseBlocked: false,
     openLogsPath: vi.fn<DoctorController['openLogsPath']>(),
@@ -230,39 +231,6 @@ function EvidenceFocusHarness() {
 describe('DoctorCheckAccordionItems interactions', () => {
   it('keeps the test controller surface in sync with production', () => {
     expectTypeOf<keyof ReturnType<typeof createController>>().toEqualTypeOf<keyof DoctorController>()
-  })
-
-  it('keeps standalone results grouped while each check remains a disclosure', async () => {
-    const user = userEvent.setup()
-    const controller = createCompletedPanelController()
-    const groupedController = createController({
-      viewModel: {
-        ...controller.viewModel,
-        groups: [{ domain: 'runtime', status: 'warn', rows: controller.viewModel.rows }]
-      }
-    })
-
-    render(<DoctorCheckResults controller={groupedController} />)
-
-    const group = screen.getByRole('button', {
-      name: /settings\.doctor\.domains\.runtime.*settings\.doctor\.status\.warn/
-    })
-    expect(group).toHaveAttribute('aria-expanded', 'true')
-
-    await user.click(group)
-    expect(group).toHaveAttribute('aria-expanded', 'false')
-
-    await user.click(group)
-
-    const check = screen.getByRole('button', {
-      name: /settings\.doctor\.checks\.runtime-claude-login\.title.*settings\.doctor\.status\.warn/
-    })
-    expect(check).toHaveAttribute('aria-expanded', 'true')
-    expect(within(check).getByText('settings.doctor.checks.runtime-claude-login.title')).toHaveClass('text-sm')
-    expect(screen.getByRole('button', { name: 'settings.doctor.actions.open_claude_code' })).toHaveAttribute(
-      'data-variant',
-      'outline'
-    )
   })
 
   it('uses the sectioned surface for Doctor summary panels', () => {

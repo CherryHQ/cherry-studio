@@ -19,14 +19,7 @@ import {
 } from '@cherrystudio/ui'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import {
-  defaultExpandedDoctorDomains,
-  DOCTOR_DOMAIN_LABEL_KEYS,
-  DOCTOR_NAVIGATION_LABEL_KEYS,
-  DOCTOR_STATUS_LABEL_KEYS,
-  isDoctorRowExpandedByDefault,
-  resolveDoctorFixLabel
-} from '@renderer/utils/doctor'
+import { DOCTOR_NAVIGATION_LABEL_KEYS, DOCTOR_STATUS_LABEL_KEYS, resolveDoctorFixLabel } from '@renderer/utils/doctor'
 import { type DoctorAction, type DoctorCheckId, type DoctorCheckResult } from '@shared/types/doctor'
 import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
 import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
@@ -41,61 +34,6 @@ type DoctorStatusIconStatus =
 function useDoctorFixTargetName(): DoctorFixTargetNameResolver {
   const { mcpServers } = useMcpServers()
   return useCallback((target) => mcpServers.find((server) => server.id === target)?.name, [mcpServers])
-}
-
-export function DoctorCheckResults({ controller }: { readonly controller: DoctorController }) {
-  const { t } = useTranslation()
-  const { viewModel } = controller
-  const defaultExpandedDomains = defaultExpandedDoctorDomains(viewModel.groups)
-  const resolveFixTargetName = useDoctorFixTargetName()
-
-  return (
-    <Accordion
-      key={viewModel.report?.runId ?? `${viewModel.status}-${viewModel.tier ?? 'none'}`}
-      type="multiple"
-      defaultValue={[...defaultExpandedDomains]}
-      className="rounded-xl border border-border px-4 [&>[data-slot=accordion-item]:first-child]:border-t-0">
-      {viewModel.groups.map((group) => {
-        const defaultRow = group.rows.find(isDoctorRowExpandedByDefault)
-
-        return (
-          <AccordionItem key={group.domain} value={group.domain}>
-            <AccordionTrigger className="py-3">
-              <span className="flex min-w-0 items-center gap-2">
-                <StatusIcon status={group.status} />
-                <span>{t(DOCTOR_DOMAIN_LABEL_KEYS[group.domain])}</span>
-                <span className="sr-only">
-                  {t(
-                    group.status === 'running'
-                      ? DOCTOR_STATUS_LABEL_KEYS.pending
-                      : group.status === 'neutral'
-                        ? DOCTOR_STATUS_LABEL_KEYS.skip
-                        : DOCTOR_STATUS_LABEL_KEYS[group.status]
-                  )}
-                </span>
-                <Badge variant="outline" className="font-normal text-xs">
-                  {group.rows.length}
-                </Badge>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pb-3">
-              <Accordion
-                type="single"
-                collapsible
-                defaultValue={`doctor-${defaultRow?.id ?? group.rows[0]?.id}`}
-                className="rounded-lg border border-border px-2 [&>[data-slot=accordion-item]:first-child]:border-t-0">
-                <DoctorCheckListItems
-                  controller={controller}
-                  rows={group.rows}
-                  resolveFixTargetName={resolveFixTargetName}
-                />
-              </Accordion>
-            </AccordionContent>
-          </AccordionItem>
-        )
-      })}
-    </Accordion>
-  )
 }
 
 /** Renders check items inside an existing Accordion root owned by the host. */

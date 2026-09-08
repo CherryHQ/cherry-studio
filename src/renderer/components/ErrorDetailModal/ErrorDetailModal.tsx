@@ -544,7 +544,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       ? aiDiagnosisProgress.pending
       : Boolean(error && !cachedDiagnosis)
   const isDoctorPending =
-    doctorController.viewModel.status === 'idle' ||
+    doctorController.isAutoRunPending ||
     doctorController.viewModel.status === 'running' ||
     doctorController.session.interaction.kind === 'run'
   const isDiagnosisPending = isAiDiagnosisPending || isDoctorPending

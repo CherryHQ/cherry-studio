@@ -460,6 +460,29 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
   })
 
+  it('shows a cached diagnosis after an automatic Doctor run fails', async () => {
+    let rejectRun!: (error: Error) => void
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'diagnostics.doctor.run') {
+        return new Promise((_, reject) => {
+          rejectRun = reject
+        })
+      }
+      return Promise.resolve({ status: 'completed' })
+    })
+
+    renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
+
+    expect(screen.getByRole('region', { name: 'Diagnosing' })).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'Diagnostic result' })).not.toBeInTheDocument()
+
+    await act(async () => rejectRun(new Error('Doctor unavailable')))
+
+    expect(await screen.findByRole('region', { name: 'Diagnostic result' })).toHaveTextContent(
+      'AI summary: Provider failed'
+    )
+  })
+
   it('shows only user-fixable rows with local details expanded in Action required', async () => {
     const user = userEvent.setup()
     mocks.doctorState = completedDoctorState([
