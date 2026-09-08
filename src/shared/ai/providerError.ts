@@ -2,6 +2,7 @@ import { AISDKError, APICallError, RetryError } from 'ai'
 
 import type { SerializedError } from '../types/error'
 import type { Serializable } from '../types/serializable'
+import { classifyErrorCategory } from '../utils/errorCategory'
 import { redactSecretText } from '../utils/redaction'
 
 const MAX_PROVIDER_ERROR_MESSAGE_LENGTH = 500
@@ -10,7 +11,7 @@ const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
 const MAX_NESTED_PROVIDER_ERROR_DEPTH = 5
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
 const HTML_DOCUMENT_PATTERN = /(?:<!doctype\s+html\b|<html(?:\s|>))/i
-const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[a-z_$][\w$-]*\s*:)|\[\s*(?:["'{[]|\]|[^\]\r\n]+$)/i
+const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[a-z_$][\w$-]*\s*:)|\[\s*(?:["'{[]|\]|[^\]]+$)/i
 
 interface ProviderErrorSource {
   message?: unknown
@@ -89,6 +90,30 @@ function payloadText(value: unknown, decodeDepth = 0): string {
   )
 }
 
+function providerErrorCodes(value: unknown, decodeDepth = 0): string {
+  if (typeof value === 'string') {
+    if (value.length > MAX_PROVIDER_ERROR_INPUT_LENGTH || decodeDepth >= MAX_PROVIDER_ERROR_DECODE_DEPTH) return ''
+    try {
+      return providerErrorCodes(JSON.parse(value), decodeDepth + 1)
+    } catch {
+      return ''
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
+  const payload = value as Record<string, unknown>
+  const detail =
+    payload.detail && typeof payload.detail === 'object' ? (payload.detail as Record<string, unknown>) : null
+  return [payload, payload.error, detail, detail?.error]
+    .flatMap((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+      const record = entry as Record<string, unknown>
+      return [record.code, record.type].filter(
+        (code): code is string => typeof code === 'string' && code.length <= MAX_PROVIDER_ERROR_MESSAGE_LENGTH
+      )
+    })
+    .join('\n')
+}
+
 export function getSafeProviderErrorMessage(source: ProviderErrorSource): string {
   const text = payloadText(source.responseBody) || payloadText(source.data) || providerPayloadText(source.message)
   return text.length > MAX_PROVIDER_ERROR_MESSAGE_LENGTH ? `${text.slice(0, MAX_PROVIDER_ERROR_MESSAGE_LENGTH)}…` : text
@@ -139,9 +164,14 @@ function serializeNestedAiSdkError(error: AISDKError, depth: number): Serialized
 function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Serializable {
   if (depth >= MAX_NESTED_PROVIDER_ERROR_DEPTH) return null
   if (APICallError.isInstance(value)) {
+    const message = getSafeProviderErrorMessage(value)
     return {
       name: value.name,
-      message: getSafeProviderErrorMessage(value),
+      message,
+      providerErrorCategory: classifyErrorCategory({
+        text: [message, providerErrorCodes(value.responseBody), providerErrorCodes(value.data)].join('\n'),
+        status: value.statusCode
+      }),
       stack: null,
       cause: null,
       url: '',

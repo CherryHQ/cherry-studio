@@ -17,10 +17,41 @@ import {
   serializeError,
   serializeHealthCheckError
 } from '../error'
+import { classifyError } from '../errorClassifier'
 
 vi.mock('i18next', () => ({ t: (key: string) => key }))
 
 describe('error', () => {
+  it.each(['responseBody', 'data'] as const)('preserves quota diagnosis after sanitizing %s', (field) => {
+    for (const signal of [{ type: 'insufficient_quota' }, { code: 'billing_hard_limit_reached' }]) {
+      const payload = { error: signal, prompt: 'private prompt' }
+      const error = new APICallError({
+        message: 'Rate limit exceeded',
+        url: 'https://example.com',
+        requestBodyValues: {},
+        statusCode: 429,
+        [field]: field === 'responseBody' ? JSON.stringify(payload) : payload
+      })
+      const serialized = serializeError(error)
+      expect(classifyError(serialized, 'provider').category).toBe('quota')
+      expect(JSON.stringify(serialized)).not.toContain('private prompt')
+      expect(serialized).toMatchObject({ responseBody: null, data: null })
+      const retry = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [error] })
+      expect(classifyError(serializeError(retry), 'provider').category).toBe('quota')
+    }
+  })
+
+  it('keeps real throttling distinct from unrelated payload text', () => {
+    const error = new APICallError({
+      message: 'Rate limit exceeded',
+      url: 'https://example.com',
+      requestBodyValues: {},
+      statusCode: 429,
+      data: { error: { code: 'rate_limit_exceeded' }, prompt: 'billing quota private prompt' }
+    })
+    expect(classifyError(serializeError(error)).category).toBe('rate_limit')
+  })
+
   it('maps stream admission reasons to renderer i18n without the generic error prefix', () => {
     const error = new IpcError(aiErrorCodes.AI_STREAM_ADMISSION_REJECTED, 'reason-code', {
       reason: aiStreamAdmissionReasons.MODEL_ALREADY_IN_LIVE_GROUP

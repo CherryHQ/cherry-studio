@@ -14,6 +14,18 @@ const PROVIDER_TEXT_FIELDS = [
 ] as const
 
 describe('getSafeProviderErrorMessage', () => {
+  it.each(PROVIDER_TEXT_FIELDS)('rejects multiline truncated arrays in %s', (_field, payloadFor) => {
+    for (const newline of ['\n', '\r\n', '\r']) {
+      const text = `Provider failed: [private prompt,${newline}internal trace`
+      for (const encoded of [text, JSON.stringify(text)]) {
+        expect(
+          getSafeProviderErrorMessage({ message: 'Bad Request', responseBody: JSON.stringify(payloadFor(encoded)) })
+        ).toBe('Bad Request')
+        expect(getSafeProviderErrorMessage({ message: encoded })).toBe('')
+      }
+    }
+  })
+
   it.each(PROVIDER_TEXT_FIELDS)('ignores direct and repeatedly encoded JSON containers in %s', (_field, payloadFor) => {
     const privatePayloads = [
       JSON.stringify({ prompt: 'private user prompt', trace: 'internal trace' }),

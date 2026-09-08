@@ -4,6 +4,21 @@ import { describe, expect, it } from 'vitest'
 import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
+  it('retains quota diagnosis in serialized retry errors without retaining the payload', () => {
+    const error = new APICallError({
+      message: 'Rate limit exceeded',
+      url: 'https://example.com',
+      requestBodyValues: {},
+      statusCode: 429,
+      responseBody: JSON.stringify({ error: { type: 'insufficient_quota' }, prompt: 'private prompt' })
+    })
+    const serialized = serializeError(
+      new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [error] })
+    )
+    expect(serialized.lastError).toMatchObject({ providerErrorCategory: 'quota', responseBody: null, data: null })
+    expect(JSON.stringify(serialized)).not.toContain('private prompt')
+  })
+
   describe('null preservation (FIX error-1)', () => {
     it('serializes an absent cause to real null, not the string "null"', () => {
       const result = serializeError(new Error('boom'))
@@ -104,6 +119,7 @@ describe('serializeError', () => {
       expect(result).toEqual({
         name: 'AI_APICallError',
         message: 'account is not authorized for this model',
+        providerErrorCategory: 'permission',
         stack: null,
         cause: null,
         url: '',
