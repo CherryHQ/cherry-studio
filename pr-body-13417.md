@@ -15,7 +15,7 @@ Closes out the remaining gaps of #13417 (Message Queue for Agent & Chat). The co
 - **`ReorderableList.visibleItems` for collapse**: the UI package already supports rendering a subset while mapping drag positions back into the full list (`reorderVisibleSubset`), so collapsed dragging cannot lose items.
 - The drain effect reads paused/failure state through refs to avoid effect re-runs and stale-state races; `removeId` resolves a failed head atomically inside one state updater.
 
-Tradeoffs: `failedItemId` is per-window state (not persisted), so a failure mid-restart leaves the queue paused with the head intact rather than a stale banner. The expand state is view-local (resets when the queue empties).
+Tradeoffs: `failedItemId` is persisted alongside the queue (survives restart), so a failure banner reappears after reload; if the failed item is removed externally the queue auto-unpauses and resumes. The expand state is view-local (resets when the queue empties).
 
 Alternatives considered: a modal Skip/Retry/Abort dialog (rejected — heavier than needed for a dock-owned failure); persisting `failedItemId` (rejected — a stale failure banner across restarts is worse than a paused queue).
 

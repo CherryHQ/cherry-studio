@@ -472,8 +472,15 @@ export function useFollowupQueue({
             next = { ...next, failedItemId: undefined }
           }
         } else if (!nextFailedId && localFailedId) {
-          // Remote cleared failure
-          setFailedItemId(null)
+          // Remote cleared failure — only accept if the failed item is no longer present
+          // (skip/remove). If the item is still in the incoming queue, the remote snapshot
+          // is stale and hasn't seen the recent failure yet, so keep the local failure.
+          if (!next.items.some((item) => item.id === localFailedId)) {
+            setFailedItemId(null)
+          } else {
+            // Preserve local failure; do not treat stale incoming as authoritative.
+            next = { ...next, failedItemId: localFailedId, paused: true }
+          }
         }
       }
       // If the local failed item was removed externally, clear the failure so drains can resume.
@@ -493,9 +500,10 @@ export function useFollowupQueue({
       }
       stateRef.current = { items: next.items, paused: next.paused }
       setState({ items: next.items, paused: next.paused })
-      if (nextFailedId !== localFailedId) {
-        // Keep ref in sync for the new value (setFailedItemId is async)
-        failedItemIdRef.current = nextFailedId
+      // Keep ref in sync with the reconciled persisted failure (not the stale incoming).
+      const reconciledFailedId = next.failedItemId ?? null
+      if (reconciledFailedId !== localFailedId) {
+        failedItemIdRef.current = reconciledFailedId
       }
       if (didUnpause && isFulfilledRef.current && drainingIdRef.current === null && isWindowFocused()) {
         const head = next.items[0]
