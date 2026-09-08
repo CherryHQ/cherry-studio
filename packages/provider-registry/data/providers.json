@@ -1,7 +1,7 @@
 {
   "providers": [
     {
-      "availableInEditions": ["global"],
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "CherryIN - AI model provider",
       "endpointConfigs": {
@@ -706,51 +706,48 @@
       "name": "AMD GPU Cloud"
     },
     {
-      "availableInEditions": ["global"],
+      "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "QwenCloud - AI model provider",
+      "description": "TokenDance - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
-          "baseUrl": "https://dashscope-intl.aliyuncs.com/apps/anthropic"
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "google-generate-content": {
+          "adapterFamily": "google",
+          "baseUrl": "https://tokendance.space/gateway"
         },
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
-          "reasoningFormat": {
-            "type": "openai-chat"
+          "baseUrl": "https://tokendance.space/gateway",
+          "modelsApiUrls": {
+            "default": "https://tokendance.space/gateway/v1/models"
           }
+        },
+        "openai-embeddings": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://tokendance.space/gateway"
         },
         "openai-responses": {
           "adapterFamily": "openai",
-          "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
-          "reasoningFormat": {
-            "type": "openai-responses"
-          }
+          "baseUrl": "https://tokendance.space/gateway"
         }
       },
-      "id": "qwencloud",
+      "id": "tokendance",
       "metadata": {
         "website": {
-          "apiKey": "https://home.qwencloud.com/api-keys",
-          "docs": "https://docs.qwencloud.com/developer-guides/getting-started/introduction",
-          "models": "https://www.qwencloud.com/models",
-          "official": "https://www.qwencloud.com/"
+          "apiKey": "https://tokendance.space/keys",
+          "docs": "https://tokendance.space/docs/cherry-studio",
+          "models": "https://tokendance.space/models",
+          "official": "https://tokendance.space"
         }
       },
-      "name": "QwenCloud",
-      "serverTools": [
-        {
-          "endpointTypes": ["openai-chat-completions"],
-          "id": "web-search",
-          "modelScope": "model-dependent"
-        },
-        {
-          "endpointTypes": ["openai-responses"],
-          "id": "web-search",
-          "modelScope": "model-dependent"
-        }
-      ]
+      "name": "TokenDance"
     },
     {
       "availableInEditions": ["global", "cn"],
@@ -1569,6 +1566,53 @@
         },
         {
           "id": "url-context",
+          "modelScope": "model-dependent"
+        }
+      ]
+    },
+    {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "QwenCloud - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/apps/anthropic"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/",
+          "reasoningFormat": {
+            "type": "openai-responses"
+          }
+        }
+      },
+      "id": "qwencloud",
+      "metadata": {
+        "website": {
+          "apiKey": "https://home.qwencloud.com/api-keys",
+          "docs": "https://docs.qwencloud.com/developer-guides/getting-started/introduction",
+          "models": "https://www.qwencloud.com/models",
+          "official": "https://www.qwencloud.com/"
+        }
+      },
+      "name": "QwenCloud",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-chat-completions"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "endpointTypes": ["openai-responses"],
+          "id": "web-search",
           "modelScope": "model-dependent"
         }
       ]
@@ -2532,5 +2576,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "59131e948f7383f7"
+  "version": "2ae935b5d779a43b"
 }

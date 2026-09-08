@@ -7270,11 +7270,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.29
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 1.1400000000000001
         }
       }
     },
@@ -7290,11 +7290,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.6500000000000001
+          "perMillionTokens": 0.95
         }
       },
       "reasoning": {
@@ -14191,11 +14191,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5500000000000003
+          "perMillionTokens": 2.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 12.75
+          "perMillionTokens": 14
         }
       }
     },
@@ -16892,6 +16892,7 @@
     {
       "capabilities": ["reasoning", "function-call", "image-recognition", "structured-output", "file-search"],
       "contextWindow": 1050000,
+      "endpointTypes": ["openai-responses"],
       "family": "gpt",
       "id": "gpt-6-astra",
       "inputModalities": ["text", "image"],
@@ -21945,11 +21946,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.07125000000000001
+          "perMillionTokens": 0.075
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.2375
+          "perMillionTokens": 0.25
         }
       }
     },
@@ -21991,11 +21992,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.12
+          "perMillionTokens": 1.113
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.52
+          "perMillionTokens": 3.4979999999999998
         }
       }
     },
@@ -22032,5 +22033,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "de26437ccfc78a10"
+  "version": "926d0ca7e1a69aa5"
 }

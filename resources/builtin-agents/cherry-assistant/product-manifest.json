@@ -449,12 +449,16 @@
     }
   ],
   "providers": {
-    "version": "59131e948f7383f7",
-    "count": 62,
+    "version": "2ae935b5d779a43b",
+    "count": 63,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
+      },
+      {
+        "id": "qwencloud",
+        "name": "QwenCloud"
       },
       {
         "id": "silicon",
@@ -533,8 +537,8 @@
         "name": "AMD GPU Cloud"
       },
       {
-        "id": "qwencloud",
-        "name": "QwenCloud"
+        "id": "tokendance",
+        "name": "TokenDance"
       },
       {
         "id": "new-api",
