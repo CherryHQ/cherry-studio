@@ -315,12 +315,11 @@ for capability selection, result handling and acceptance gates.
 
 ## Follow-ups / open questions
 
-- MiniApp and Browser currently share search, annotations and the annotation CDP engine, but use
-  separate renderer hosts and navigation toolbars. A separate consolidation PR should share common
-  host behavior while preserving MiniApp lifetime/runtime policies. Sharing website MiniApp login
-  data requires its own product decision; infrastructure reuse must not merge partitions. See
+- PR7 consolidates MiniApp and Browser guest hosting and navigation state while preserving
+  MiniApp lifetime/runtime policies and each product's toolbar. Website MiniApp login sharing
+  remains a separate product decision; infrastructure reuse does not merge partitions. See
   [implementation §14](./browser-use-implementation.md#14-miniapp-and-browser-infrastructure-boundary)
-  for the current ownership/storage matrix and proposed acceptance criteria.
+  for the ownership/storage matrix and acceptance criteria.
 - PR1 completed shared session ownership and annotation capture. P3 still needs a concrete
   annotation-target handoff contract before adding document/node identifiers to saved locators.
 - Upload authorization and per-turn retention require trusted context from the MCP runtime first;

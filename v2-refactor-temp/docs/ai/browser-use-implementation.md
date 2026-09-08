@@ -17,7 +17,8 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 | PR1 / A — `browser-use-engine` | `webview-agent-pane-browser` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
 | PR2 / B — `browser-use-mcp` | `browser-use-engine` | Implemented on this branch: MCP migration, snapshot/action tools, dialog/download results |
 | PR3 / C1–C2 — `browser-use-inspection` | PR B | Open in [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139): inspection and same-document ref recovery |
-| Existing Agent browser integration | PR3 | Next planned PR: visible-page control, ordinary browsing, history/import, settings and skill (§12); no PR number assigned |
+| Existing Agent browser integration — `agent-browser-integration` | PR3 | Open in [#20166](https://github.com/CherryHQ/cherry-studio/pull/20166): visible-page control, ordinary browsing, history/import, settings and skill (§12) |
+| PR7 — `webview-shared-host` | `agent-browser-integration` | Shared renderer guest host and navigation state for MiniApp and Browser (§14) |
 | C3–C5 follow-ups | PR3 | WebMCP deferred while Electron stays at 41.8.0; retained-tab freezing and WebContentsView remain independent |
 | D work packages | Integrated browser PR | Import work (§10) now ships with its visible-page consumer and history; no independent PR D |
 
@@ -1184,14 +1185,14 @@ ready, so browser tabs and protocol requests do not remain queued behind an unre
 
 ## 14. MiniApp and Browser infrastructure boundary
 
-As verified on 2026-09-08, MiniApp and Browser share selected capabilities, but do not yet share
-one renderer guest host. The `WebviewHost` name describes its intended reusable scope; MiniApp
-still creates its own `<webview>` through `WebviewContainer`.
+PR7 (`webview-shared-host`, based on `agent-browser-integration`) consolidates the renderer
+guest host and navigation state. Both products compose `WebviewHost`; MiniApp retains a
+`WebviewContainer` adapter for runtime preparation and product callbacks.
 
 | Layer | MiniApp | Browser | Current relationship |
 |---|---|---|---|
-| Guest host | [WebviewContainer](../../../src/renderer/components/MiniApp/WebviewContainer.tsx) | [WebviewHost](../../../src/renderer/components/WebviewHost.tsx), composed by `WebviewBrowser` | Separate element creation, event wiring and preference application |
-| Navigation toolbar | `MinimalToolbar` | `WebviewNavigation` | Separate implementations with overlapping navigation/address state |
+| Guest host | [WebviewContainer](../../../src/renderer/components/MiniApp/WebviewContainer.tsx) | [WebviewHost](../../../src/renderer/components/WebviewHost.tsx), composed by `WebviewBrowser` | Shared element creation, event cleanup, focus/keyboard forwarding and preference application |
+| Navigation toolbar | `MinimalToolbar` | `WebviewNavigation` | Separate product controls; shared `useWebviewNavigation` for guest-bound navigation and address drafts |
 | Page lifetime | `MiniAppTabsPool` owns keep-alive and split-pane placement | Browser tab or Agent pane owns the guest | Separate product ownership |
 | Page search | `WebviewSearch` | `WebviewSearch` | Shared |
 | Annotation controls | Hidden | `WebviewAnnotationControls` in Agent panes only; hidden in standalone tabs | Requires a conversation receiver (`onAnnotationSaved`) |
@@ -1210,14 +1211,35 @@ Browser imports write website data to the ordinary Browser partition. Browser hi
 the import banner also target ordinary Browser pages. They do not automatically apply to MiniApps,
 and importing a login into Browser does not log the user into a MiniApp.
 
-The proposed follow-up is a separate infrastructure-consolidation PR. Share guest mounting, event
-cleanup, keyboard forwarding, common preference application and reusable navigation state while
-preserving MiniApp preparation, keep-alive, split panes and runtime permissions. Improve the shared
-host contract first; `WebviewHost` currently maps fixed profiles and cannot directly express a local
-MiniApp's per-app partition. Do not route local apps through a website profile to make them fit.
+The shared host accepts an explicit partition selected by its consumer. Browser maps its security
+profile at the composition boundary; MiniApp supplies its existing website or per-app partition.
+Main remains the authority for guest attachment, preload and permissions. Omitting
+`openLinksExternal` leaves the runtime popup policy untouched, so local MiniApps never install the
+ordinary website popup handler.
 
-Acceptance must cover both consumers: switching tabs and split layouts preserves the intended guest,
-listeners do not duplicate, navigation/focus fixes work in both surfaces, local apps wait for runtime
-preparation, and profile/permission isolation remains intact. Whether website MiniApps should share
-Browser login data is a separate product decision, not a consequence of sharing host code; do not
-change partitions or migrate cookies/storage as part of the infrastructure refactor.
+Host event subscriptions follow the concrete guest, while React Effect Events read current
+callbacks without replaying readiness on preference or callback changes. The MiniApp adapter waits
+for runtime preparation and remounts that preparation state when app identity changes. Its loaded
+callback timer is cancelled on a new full navigation or eviction. The pool still owns placement,
+keep-alive, visibility reporting and focused-pane context.
+
+`useWebviewNavigation` binds navigation state to the concrete guest and revision. It shares back /
+forward state, main-frame URL tracking and address draft preservation across both toolbars. Guest
+replacement removes listeners and pending updates before subscribing to the new guest; no polling
+is required. URL validation, navigation submission, history suggestions and product actions remain
+with the respective toolbar.
+
+Acceptance covers both consumers: switching tabs and split layouts preserves the intended guest,
+listeners do not duplicate, late events from retired guests cannot overwrite the current toolbar,
+local apps wait for runtime preparation, and profile/permission isolation remains intact. Website
+MiniApp login sharing is a separate product decision; this refactor does not change partitions or
+migrate cookies/storage. Ordered batch actions and a generic Chat/Agent side pane remain outside PR7.
+
+PR7 validation: 91 focused renderer tests cover the host, both toolbars, Browser, MiniApp
+preparation, pool retention/split behavior and guest replacement. An isolated Electron 41.8.0
+component harness exercised real website MiniApp and Browser guests: address navigation/back,
+layout toggles without guest replacement, separate localStorage, preference updates without
+readiness replay, and one trusted keyboard relay. Local packaged-app preparation and popup
+policy preservation are covered by component tests; the native packaged-app path was not rerun.
+The temporary runtime was closed after both guests were released. The full test suite is
+intentionally skipped under the local validation override.

@@ -4,13 +4,14 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
+import type { WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -18,8 +19,6 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('MinimalToolbar')
 
-const NAVIGATION_UPDATE_DELAY_MS = 50
-const NAVIGATION_COMPLETE_DELAY_MS = 100
 const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
 const HOST_PORT_PATTERN = /^(?:\[[^\]]+\]|[^:/?#\s]+):\d+(?:[/?#]|$)/
 const LOCAL_ADDRESS_PATTERN = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)(?::\d+)?(?:[/?#]|$)/i
@@ -78,11 +77,18 @@ const MinimalToolbar: FC<Props> = ({
   const { t } = useTranslation()
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
-  const [canGoBack, setCanGoBack] = useState(false)
-  const [canGoForward, setCanGoForward] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
-  const [currentPageUrl, setCurrentPageUrl] = useState(currentUrl || app.url)
-  const [addressValue, setAddressValue] = useState(currentUrl || app.url)
+  const {
+    canGoBack,
+    canGoForward,
+    currentPageUrl,
+    addressValue,
+    setAddressValue,
+    isAddressEditingRef,
+    restoreCurrentPageUrl,
+    goBack: handleGoBack,
+    goForward: handleGoForward
+  } = useWebviewNavigation({ webview, revision: webviewRevision, targetId: app.appId, url: currentUrl || app.url })
   // While split, the primary pane's control closes the split rather than being
   // a dead "open it again" button.
   const splitLabelKey = splitMode === 'close' || splitActive ? 'miniApp.split.close' : 'miniApp.split.open'
@@ -90,11 +96,7 @@ const MinimalToolbar: FC<Props> = ({
   const isPinned = pinned.some((item) => item.appId === app.appId)
   const canOpenExternalLink = isExternalUrl(currentPageUrl)
 
-  // Ref to track navigation update timeout
-  const navigationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const addressInputRef = useRef<HTMLInputElement | null>(null)
-  const isAddressEditingRef = useRef(false)
-  const previousAppIdRef = useRef(app.appId)
   const addressLoadGenerationRef = useRef(0)
   const addressLoadOwnerRef = useRef({ appId: app.appId, webview, webviewRevision })
   addressLoadOwnerRef.current = { appId: app.appId, webview, webviewRevision }
@@ -105,138 +107,6 @@ const MinimalToolbar: FC<Props> = ({
     },
     []
   )
-
-  useEffect(() => {
-    const appChanged = previousAppIdRef.current !== app.appId
-    previousAppIdRef.current = app.appId
-    const nextUrl = currentUrl || app.url
-
-    setCurrentPageUrl(nextUrl)
-    if (appChanged || !isAddressEditingRef.current) {
-      isAddressEditingRef.current = false
-      setAddressValue(nextUrl)
-    }
-  }, [app.appId, app.url, currentUrl])
-
-  const updateCurrentPageUrl = useCallback((url: string) => {
-    if (!url) return
-    setCurrentPageUrl(url)
-    if (!isAddressEditingRef.current) setAddressValue(url)
-  }, [])
-
-  const restoreCurrentPageUrl = useCallback(() => {
-    let url = currentPageUrl
-    try {
-      url = webview?.getURL() || url
-    } catch {
-      // The WebView may be detaching; keep the last committed URL.
-    }
-    updateCurrentPageUrl(url)
-    setAddressValue(url)
-  }, [currentPageUrl, updateCurrentPageUrl, webview])
-
-  // Update navigation state
-  const updateNavigationState = useCallback(
-    (attachedWebview: WebviewTag | null) => {
-      if (attachedWebview) {
-        try {
-          setCanGoBack(attachedWebview.canGoBack())
-          setCanGoForward(attachedWebview.canGoForward())
-        } catch (error) {
-          logger.debug('WebView not ready for navigation state update', { appId: app.appId })
-          setCanGoBack(false)
-          setCanGoForward(false)
-        }
-      } else {
-        setCanGoBack(false)
-        setCanGoForward(false)
-      }
-    },
-    [app.appId]
-  )
-
-  const clearNavigationUpdate = useCallback(() => {
-    if (navigationUpdateTimeoutRef.current) {
-      clearTimeout(navigationUpdateTimeoutRef.current)
-      navigationUpdateTimeoutRef.current = null
-    }
-  }, [])
-
-  // Schedule navigation state update with debouncing
-  const scheduleNavigationUpdate = useCallback(
-    (attachedWebview: WebviewTag, delay: number) => {
-      clearNavigationUpdate()
-      navigationUpdateTimeoutRef.current = setTimeout(() => {
-        updateNavigationState(attachedWebview)
-        navigationUpdateTimeoutRef.current = null
-      }, delay)
-    },
-    [clearNavigationUpdate, updateNavigationState]
-  )
-
-  // Bind navigation state to the concrete webview identity.
-  useEffect(() => {
-    clearNavigationUpdate()
-    updateNavigationState(webview)
-    if (!webview) return
-
-    try {
-      updateCurrentPageUrl(webview.getURL())
-    } catch {
-      logger.debug('WebView not ready for URL state update', { appId: app.appId })
-    }
-
-    const handleNavigation = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
-      if ('isMainFrame' in event && !event.isMainFrame) return
-      updateCurrentPageUrl(event.url)
-      scheduleNavigationUpdate(webview, NAVIGATION_UPDATE_DELAY_MS)
-    }
-
-    webview.addEventListener('did-navigate', handleNavigation)
-    webview.addEventListener('did-navigate-in-page', handleNavigation)
-
-    return () => {
-      clearNavigationUpdate()
-      webview.removeEventListener('did-navigate', handleNavigation)
-      webview.removeEventListener('did-navigate-in-page', handleNavigation)
-    }
-  }, [
-    app.appId,
-    clearNavigationUpdate,
-    scheduleNavigationUpdate,
-    updateCurrentPageUrl,
-    updateNavigationState,
-    webview,
-    webviewRevision
-  ])
-
-  const handleGoBack = useCallback(() => {
-    if (webview) {
-      try {
-        if (webview.canGoBack()) {
-          webview.goBack()
-          // Delay update to ensure navigation completes
-          scheduleNavigationUpdate(webview, NAVIGATION_COMPLETE_DELAY_MS)
-        }
-      } catch (error) {
-        logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goBack' })
-      }
-    }
-  }, [app.appId, scheduleNavigationUpdate, webview])
-
-  const handleGoForward = useCallback(() => {
-    if (webview) {
-      try {
-        if (webview.canGoForward()) {
-          webview.goForward()
-          // Delay update to ensure navigation completes
-          scheduleNavigationUpdate(webview, NAVIGATION_COMPLETE_DELAY_MS)
-        }
-      } catch (error) {
-        logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goForward' })
-      }
-    }
-  }, [app.appId, scheduleNavigationUpdate, webview])
 
   const handleTogglePin = useCallback(() => {
     const fallbackKey = isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed'
@@ -305,19 +175,32 @@ const MinimalToolbar: FC<Props> = ({
         handleLoadFailure(error)
       }
     },
-    [addressValue, app.appId, restoreCurrentPageUrl, t, webview, webviewRef, webviewRevision]
+    [
+      addressValue,
+      app.appId,
+      isAddressEditingRef,
+      restoreCurrentPageUrl,
+      setAddressValue,
+      t,
+      webview,
+      webviewRef,
+      webviewRevision
+    ]
   )
 
-  const handleAddressFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
-    isAddressEditingRef.current = true
-    event.currentTarget.select()
-  }, [])
+  const handleAddressFocus = useCallback(
+    (event: React.FocusEvent<HTMLInputElement>) => {
+      isAddressEditingRef.current = true
+      event.currentTarget.select()
+    },
+    [isAddressEditingRef]
+  )
 
   const handleAddressBlur = useCallback(() => {
     if (!isAddressEditingRef.current) return
     isAddressEditingRef.current = false
     restoreCurrentPageUrl()
-  }, [restoreCurrentPageUrl])
+  }, [isAddressEditingRef, restoreCurrentPageUrl])
 
   const handleAddressKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -327,7 +210,7 @@ const MinimalToolbar: FC<Props> = ({
       restoreCurrentPageUrl()
       event.currentTarget.blur()
     },
-    [restoreCurrentPageUrl]
+    [isAddressEditingRef, restoreCurrentPageUrl]
   )
 
   return (

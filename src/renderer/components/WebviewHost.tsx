@@ -2,8 +2,6 @@ import { loggerService } from '@logger'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
-import type { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { getWebviewPartition } from '@shared/utils/webviewSecurity'
 import type {
   DidFailLoadEvent,
   DidNavigateEvent,
@@ -15,16 +13,17 @@ import type {
   WebviewTag
 } from 'electron'
 import type { CSSProperties } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('WebviewHost')
 
 interface Props {
   id: string
   src: string
-  securityProfile: WebviewSecurityProfile
+  partition: string
   reloadKey?: number | string
   allowPopups?: boolean
+  /** Omit to preserve a runtime-owned popup policy, such as a local MiniApp sandbox. */
   openLinksExternal?: boolean
   userAgent?: string
   className?: string
@@ -33,6 +32,7 @@ interface Props {
   testId?: string
   elementAttributes?: Readonly<Record<`data-${string}`, string>>
   onWebviewChange?: (webview: WebviewTag | null) => void
+  onFocusChange?: (focused: boolean) => void
   onDomReady?: (webview: WebviewTag) => void
   onDidStartLoading?: () => void
   onDidStartNavigation?: (event: DidStartNavigationEvent) => void
@@ -51,7 +51,7 @@ interface Props {
 export function WebviewHost({
   id,
   src,
-  securityProfile,
+  partition,
   reloadKey,
   allowPopups = false,
   openLinksExternal,
@@ -62,6 +62,7 @@ export function WebviewHost({
   testId,
   elementAttributes,
   onWebviewChange,
+  onFocusChange,
   onDomReady,
   onDidStartLoading,
   onDidStartNavigation,
@@ -121,24 +122,33 @@ export function WebviewHost({
     [enableSpellCheck, id, openLinksExternal]
   )
 
+  const handleDomReady = useEffectEvent((guest: WebviewTag) => {
+    readyWebviewRef.current = guest
+    applyGuestPreferences(guest)
+    onDomReady?.(guest)
+  })
+  const handleStartLoading = useEffectEvent(() => {
+    readyWebviewRef.current = null
+    onDidStartLoading?.()
+  })
+  const handleNavigate = useEffectEvent((event: DidNavigateEvent | DidNavigateInPageEvent) => {
+    if (webview && (!('isMainFrame' in event) || event.isMainFrame)) {
+      committedLocationRef.current = { webview, url: event.url }
+    }
+    onDidNavigate?.(event)
+  })
+  const handleStartNavigation = useEffectEvent((event: DidStartNavigationEvent) => onDidStartNavigation?.(event))
+  const handleFinishLoad = useEffectEvent(() => onDidFinishLoad?.())
+  const handleReadyToShow = useEffectEvent(() => onReadyToShow?.())
+  const handleFailLoad = useEffectEvent((event: DidFailLoadEvent) => onDidFailLoad?.(event))
+  const handleTitleUpdated = useEffectEvent((event: PageTitleUpdatedEvent) => onPageTitleUpdated?.(event))
+  const handleFaviconUpdated = useEffectEvent((event: PageFaviconUpdatedEvent) => onPageFaviconUpdated?.(event))
+  const handleFocus = useEffectEvent(() => onFocusChange?.(true))
+  const handleBlur = useEffectEvent(() => onFocusChange?.(false))
+
   useEffect(() => {
     if (!webview) return
-
-    const handleDomReady = () => {
-      readyWebviewRef.current = webview
-      applyGuestPreferences(webview)
-      onDomReady?.(webview)
-    }
-    const handleStartLoading = () => {
-      if (readyWebviewRef.current === webview) readyWebviewRef.current = null
-      onDidStartLoading?.()
-    }
-    const handleNavigate = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
-      if (!('isMainFrame' in event) || event.isMainFrame) {
-        committedLocationRef.current = { webview, url: event.url }
-      }
-      onDidNavigate?.(event)
-    }
+    const domReady = () => handleDomReady(webview)
 
     // Replay the guest's keydown on the host window so the normal keybinding
     // resolution (find-in-page and friends) sees it; `target` identifies the webview.
@@ -153,52 +163,45 @@ export function WebviewHost({
       window.dispatchEvent(replayed)
     }
 
+    webview.addEventListener('focus', handleFocus)
+    webview.addEventListener('blur', handleBlur)
     webview.addEventListener('ipc-message', handleGuestKeydown)
-    webview.addEventListener('dom-ready', handleDomReady)
+    webview.addEventListener('dom-ready', domReady)
     webview.addEventListener('did-start-loading', handleStartLoading)
-    webview.addEventListener('did-start-navigation', onDidStartNavigation ?? noop)
-    webview.addEventListener('did-finish-load', onDidFinishLoad ?? noop)
-    webview.addEventListener('ready-to-show', onReadyToShow ?? noop)
+    webview.addEventListener('did-start-navigation', handleStartNavigation)
+    webview.addEventListener('did-finish-load', handleFinishLoad)
+    webview.addEventListener('ready-to-show', handleReadyToShow)
     webview.addEventListener('did-navigate', handleNavigate)
     webview.addEventListener('did-navigate-in-page', handleNavigate)
-    webview.addEventListener('did-fail-load', onDidFailLoad ?? noop)
-    webview.addEventListener('page-title-updated', onPageTitleUpdated ?? noop)
-    webview.addEventListener('page-favicon-updated', onPageFaviconUpdated ?? noop)
+    webview.addEventListener('did-fail-load', handleFailLoad)
+    webview.addEventListener('page-title-updated', handleTitleUpdated)
+    webview.addEventListener('page-favicon-updated', handleFaviconUpdated)
 
     try {
       // Activity can resume an already-loaded guest without another dom-ready event.
-      if (webview.getWebContentsId() && !webview.isLoading()) handleDomReady()
+      if (webview.getWebContentsId() && !webview.isLoading()) domReady()
     } catch {
       // New guests report readiness through dom-ready once their native contents exist.
     }
 
     return () => {
+      webview.removeEventListener('focus', handleFocus)
+      webview.removeEventListener('blur', handleBlur)
       webview.removeEventListener('ipc-message', handleGuestKeydown)
-      webview.removeEventListener('dom-ready', handleDomReady)
+      webview.removeEventListener('dom-ready', domReady)
       webview.removeEventListener('did-start-loading', handleStartLoading)
-      webview.removeEventListener('did-start-navigation', onDidStartNavigation ?? noop)
-      webview.removeEventListener('did-finish-load', onDidFinishLoad ?? noop)
-      webview.removeEventListener('ready-to-show', onReadyToShow ?? noop)
+      webview.removeEventListener('did-start-navigation', handleStartNavigation)
+      webview.removeEventListener('did-finish-load', handleFinishLoad)
+      webview.removeEventListener('ready-to-show', handleReadyToShow)
       webview.removeEventListener('did-navigate', handleNavigate)
       webview.removeEventListener('did-navigate-in-page', handleNavigate)
-      webview.removeEventListener('did-fail-load', onDidFailLoad ?? noop)
-      webview.removeEventListener('page-title-updated', onPageTitleUpdated ?? noop)
-      webview.removeEventListener('page-favicon-updated', onPageFaviconUpdated ?? noop)
+      webview.removeEventListener('did-fail-load', handleFailLoad)
+      webview.removeEventListener('page-title-updated', handleTitleUpdated)
+      webview.removeEventListener('page-favicon-updated', handleFaviconUpdated)
       if (readyWebviewRef.current === webview) readyWebviewRef.current = null
     }
-  }, [
-    applyGuestPreferences,
-    onDidFailLoad,
-    onDidFinishLoad,
-    onDidNavigate,
-    onDidStartLoading,
-    onDidStartNavigation,
-    onDomReady,
-    onPageTitleUpdated,
-    onPageFaviconUpdated,
-    onReadyToShow,
-    webview
-  ])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- This lint version does not recognize React 19.2 Effect Events.
+  }, [webview])
 
   useEffect(() => {
     if (!webview) return
@@ -225,10 +228,10 @@ export function WebviewHost({
 
   return (
     <webview
-      key={securityProfile}
+      key={`${id}:${partition}`}
       {...elementAttributes}
       ref={handleRef}
-      partition={getWebviewPartition(securityProfile)}
+      partition={partition}
       useragent={userAgent}
       aria-label={ariaLabel}
       data-testid={testId}
@@ -237,5 +240,3 @@ export function WebviewHost({
     />
   )
 }
-
-function noop() {}

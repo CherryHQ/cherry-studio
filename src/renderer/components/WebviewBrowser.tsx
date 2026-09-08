@@ -1,6 +1,6 @@
 import { useAgentBrowserGuest } from '@renderer/hooks/agent/useAgentBrowserGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type {
   DidFailLoadEvent,
   DidNavigateEvent,
@@ -174,7 +174,8 @@ export function WebviewBrowser({
           key={`${agentSessionId ?? ''}:${guestAuthorizationKey}`}
           id={target.id}
           src={initialUrl}
-          securityProfile={securityProfile}
+          partition={getWebviewPartition(securityProfile)}
+          openLinksExternal
           allowPopups={!!agentSessionId || securityProfile === WebviewSecurityProfile.AgentBrowser}
           reloadKey={reloadKey}
           ariaLabel={target.label}

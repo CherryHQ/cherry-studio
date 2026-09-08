@@ -363,6 +363,33 @@ describe('WebviewContainer partition readiness', () => {
     await act(async () => resolve())
   })
 
+  it('waits for the new app preparation when a mounted container changes identity', async () => {
+    const props = {
+      kind: 'app' as const,
+      onSetRefCallback: vi.fn(),
+      onLoadedCallback: vi.fn(),
+      onNavigateCallback: vi.fn()
+    }
+    const view = render(
+      <WebviewContainer {...props} appid="com.example.a" url="cherry-miniapp://com.example.a/index.html" />
+    )
+    await webviewIn(view.container)
+    let resolve: () => void = () => {}
+    vi.mocked(ipcApi.request).mockImplementation((route) =>
+      route === 'mini_app.runtime.prepare'
+        ? new Promise<void>((done) => {
+            resolve = done
+          })
+        : Promise.resolve(undefined)
+    )
+    view.rerender(<WebviewContainer {...props} appid="com.example.b" url="cherry-miniapp://com.example.b/index.html" />)
+    expect(view.container.querySelector('webview')).toBeNull()
+    await act(async () => resolve())
+    const guest = await webviewIn(view.container)
+    expect(guest).toHaveAttribute('partition', 'persist:miniapp:com.example.b')
+    expect(guest).toHaveAttribute('src', 'cherry-miniapp://com.example.b/index.html')
+  })
+
   it('mounts it once prepare resolves', async () => {
     const container = renderWebview({
       appid: 'com.example.a',
@@ -380,9 +407,7 @@ describe('WebviewContainer partition readiness', () => {
     const wv = await webviewIn(
       renderWebview({ appid: 'com.example.a', url: 'cherry-miniapp://com.example.a/index.html', kind: 'app' })
     )
-    await waitFor(() =>
-      expect((wv as unknown as { src: string }).src).toBe('cherry-miniapp://com.example.a/index.html')
-    )
+    await waitFor(() => expect(wv.getAttribute('src')).toBe('cherry-miniapp://com.example.a/index.html'))
   })
 
   it('mounts a site mini app without asking the main process at all', () => {

@@ -2,10 +2,11 @@ import { Button, Input, Popover, PopoverAnchor, PopoverContent, Tooltip } from '
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useWebviewNavigation } from '@renderer/hooks/useWebviewNavigation'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
+import type { WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, ExternalLink, History, RotateCw } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
@@ -14,11 +15,6 @@ import { useTranslation } from 'react-i18next'
 import { WebviewAnnotationControls, type WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 
 const logger = loggerService.withContext('WebviewNavigation')
-const WEBVIEW_CHECK_INITIAL_MS = 100
-const WEBVIEW_CHECK_MAX_MS = 1_000
-const WEBVIEW_CHECK_MAX_ATTEMPTS = 30
-const NAVIGATION_UPDATE_DELAY_MS = 50
-const NAVIGATION_COMPLETE_DELAY_MS = 100
 const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
 const LOCAL_ADDRESS_PATTERN = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)(?::\d+)?(?:[/?#]|$)/i
 const ALLOWED_PROTOCOLS = new Set(['file:', 'http:', 'https:'])
@@ -91,15 +87,24 @@ export function WebviewNavigation({
   toolbarActions
 }: Props) {
   const { t } = useTranslation()
-  const [canGoBack, setCanGoBack] = useState(false)
-  const [canGoForward, setCanGoForward] = useState(false)
-  const [currentPageUrl, setCurrentPageUrl] = useState(currentUrl || initialUrl)
-  const [addressValue, setAddressValue] = useState(currentUrl || initialUrl)
-  const navigationUpdateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const {
+    canGoBack,
+    canGoForward,
+    currentPageUrl,
+    addressValue,
+    setAddressValue,
+    isAddressEditingRef,
+    restoreCurrentPageUrl,
+    goBack: handleGoBack,
+    goForward: handleGoForward
+  } = useWebviewNavigation({
+    webview: webviewRef.current,
+    revision: webviewRevision,
+    targetId: target.id,
+    url: currentUrl || initialUrl
+  })
   const addressInputRef = useRef<HTMLInputElement | null>(null)
-  const isAddressEditingRef = useRef(false)
   const [isAddressFocused, setIsAddressFocused] = useState(false)
-  const previousTargetIdRef = useRef(target.id)
   const historyListId = useId()
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historySearch, setHistorySearch] = useState('')
@@ -133,139 +138,6 @@ export function WebviewNavigation({
     if (showHistory && activeSuggestion >= 0)
       document.getElementById(`${historyListId}-${activeSuggestion}`)?.scrollIntoView?.({ block: 'nearest' })
   }, [activeSuggestion, historyListId, showHistory])
-
-  useEffect(() => {
-    const targetChanged = previousTargetIdRef.current !== target.id
-    previousTargetIdRef.current = target.id
-    const nextUrl = currentUrl || initialUrl
-
-    setCurrentPageUrl(nextUrl)
-    if (targetChanged || !isAddressEditingRef.current) {
-      isAddressEditingRef.current = false
-      setAddressValue(nextUrl)
-    }
-  }, [currentUrl, initialUrl, target.id])
-
-  const updateCurrentPageUrl = useCallback((url: string) => {
-    if (!url) return
-    setCurrentPageUrl(url)
-    if (!isAddressEditingRef.current) setAddressValue(url)
-  }, [])
-
-  const restoreCurrentPageUrl = useCallback(() => {
-    let url = currentPageUrl
-    try {
-      url = webviewRef.current?.getURL() || url
-    } catch {
-      // The guest may be detaching; the last committed URL remains the best display value.
-    }
-    updateCurrentPageUrl(url)
-    setAddressValue(url)
-  }, [currentPageUrl, updateCurrentPageUrl, webviewRef])
-
-  const updateNavigationState = useCallback(() => {
-    const webview = webviewRef.current
-    if (!webview) {
-      setCanGoBack(false)
-      setCanGoForward(false)
-      return
-    }
-
-    try {
-      setCanGoBack(webview.canGoBack())
-      setCanGoForward(webview.canGoForward())
-    } catch {
-      logger.debug('WebView is not ready for navigation state', { targetId: target.id })
-      setCanGoBack(false)
-      setCanGoForward(false)
-    }
-  }, [target.id, webviewRef])
-
-  const scheduleNavigationUpdate = useCallback(
-    (delay: number) => {
-      if (navigationUpdateTimeoutRef.current) clearTimeout(navigationUpdateTimeoutRef.current)
-      navigationUpdateTimeoutRef.current = setTimeout(() => {
-        updateNavigationState()
-        navigationUpdateTimeoutRef.current = null
-      }, delay)
-    },
-    [updateNavigationState]
-  )
-
-  useEffect(
-    () => () => {
-      if (navigationUpdateTimeoutRef.current) clearTimeout(navigationUpdateTimeoutRef.current)
-    },
-    []
-  )
-
-  useEffect(() => {
-    let checkTimeout: ReturnType<typeof setTimeout> | null = null
-    let detachListeners: (() => void) | null = null
-    let currentInterval = WEBVIEW_CHECK_INITIAL_MS
-    let attemptCount = 0
-
-    const attachListeners = () => {
-      const webview = webviewRef.current
-      if (!webview || detachListeners) return Boolean(detachListeners)
-
-      updateNavigationState()
-      try {
-        updateCurrentPageUrl(webview.getURL())
-      } catch {
-        logger.debug('WebView is not ready for URL state', { targetId: target.id })
-      }
-
-      const handleNavigation = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
-        if ('isMainFrame' in event && !event.isMainFrame) return
-        updateCurrentPageUrl(event.url)
-        scheduleNavigationUpdate(NAVIGATION_UPDATE_DELAY_MS)
-      }
-      webview.addEventListener('did-navigate', handleNavigation)
-      webview.addEventListener('did-navigate-in-page', handleNavigation)
-      detachListeners = () => {
-        webview.removeEventListener('did-navigate', handleNavigation)
-        webview.removeEventListener('did-navigate-in-page', handleNavigation)
-      }
-      return true
-    }
-
-    const scheduleCheck = () => {
-      checkTimeout = setTimeout(() => {
-        attemptCount += 1
-        if (attachListeners() || attemptCount >= WEBVIEW_CHECK_MAX_ATTEMPTS) return
-        currentInterval = Math.min(currentInterval * 2, WEBVIEW_CHECK_MAX_MS)
-        scheduleCheck()
-      }, currentInterval)
-    }
-
-    if (!attachListeners() && isHostActive) scheduleCheck()
-
-    return () => {
-      if (checkTimeout) clearTimeout(checkTimeout)
-      detachListeners?.()
-    }
-  }, [isHostActive, scheduleNavigationUpdate, target.id, updateCurrentPageUrl, updateNavigationState, webviewRef])
-
-  const handleGoBack = useCallback(() => {
-    try {
-      if (!webviewRef.current?.canGoBack()) return
-      webviewRef.current.goBack()
-      scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
-    } catch {
-      logger.debug('WebView is not ready to go back', { targetId: target.id })
-    }
-  }, [scheduleNavigationUpdate, target.id, webviewRef])
-
-  const handleGoForward = useCallback(() => {
-    try {
-      if (!webviewRef.current?.canGoForward()) return
-      webviewRef.current.goForward()
-      scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
-    } catch {
-      logger.debug('WebView is not ready to go forward', { targetId: target.id })
-    }
-  }, [scheduleNavigationUpdate, target.id, webviewRef])
 
   const handleReload = useCallback(() => {
     if (onReload) {
@@ -320,7 +192,7 @@ export function WebviewNavigation({
         toast.error(t('webview.navigation.load_failed'))
       }
     },
-    [onNavigate, restoreCurrentPageUrl, t, target.id, webviewRef]
+    [isAddressEditingRef, onNavigate, restoreCurrentPageUrl, setAddressValue, t, target.id, webviewRef]
   )
 
   useLayoutEffect(() => {
@@ -333,7 +205,7 @@ export function WebviewNavigation({
     setHistoryOpen(true)
     setHistorySearch('')
     setActiveSuggestion(-1)
-  }, [])
+  }, [isAddressEditingRef])
 
   const handleAddressBlur = useCallback(() => {
     setIsAddressFocused(false)
@@ -341,7 +213,7 @@ export function WebviewNavigation({
     if (!isAddressEditingRef.current) return
     isAddressEditingRef.current = false
     restoreCurrentPageUrl()
-  }, [restoreCurrentPageUrl])
+  }, [isAddressEditingRef, restoreCurrentPageUrl])
 
   const handleAddressKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -372,7 +244,7 @@ export function WebviewNavigation({
       restoreCurrentPageUrl()
       event.currentTarget.blur()
     },
-    [navigateToAddress, restoreCurrentPageUrl, selectedSuggestion, showHistory, suggestions.length]
+    [isAddressEditingRef, navigateToAddress, restoreCurrentPageUrl, selectedSuggestion, showHistory, suggestions.length]
   )
 
   const canOpenExternal = isExternalUrl(currentPageUrl)

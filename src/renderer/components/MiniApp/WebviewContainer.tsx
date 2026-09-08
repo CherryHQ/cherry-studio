@@ -1,11 +1,11 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { WebviewHost } from '@renderer/components/WebviewHost'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { MiniAppKind } from '@shared/data/types/miniApp'
-import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
-import type { DidNavigateInPageEvent, DidStartNavigationEvent, IpcMessageEvent, WebviewTag } from 'electron'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import type { DidNavigateEvent, DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
+import { type ComponentProps, memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewContainer')
@@ -52,12 +52,8 @@ function useMiniAppPrepared(appid: string, kind: MiniAppKind): PrepareState {
   return state
 }
 
-/**
- * WebviewContainer is a component that renders a webview element.
- * It is used in the MiniAppPopupContainer component.
- * The webcontent can be remain in memory
- */
-const WebviewContainer = memo(
+/** MiniApp preparation and product callbacks around the shared guest host. */
+const MiniAppWebview = memo(
   ({
     appid,
     url,
@@ -78,138 +74,56 @@ const WebviewContainer = memo(
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const { t } = useTranslation()
-    const [enableSpellCheck] = usePreference('app.spell_check.enabled')
     const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
 
     const handleRef = useCallback(
       (element: WebviewTag | null) => {
         onSetRefCallback(appid, element)
-        if (element) {
-          // React omits unknown boolean attributes; Electron enables popups by attribute presence.
-          // Local apps must never open a window: a new window escapes every policy
-          // installed on this partition.
-          if (kind === 'site') element.setAttribute('allowpopups', 'true')
-          webviewRef.current = element
-        } else {
-          webviewRef.current = null
-        }
+        webviewRef.current = element
       },
-      [appid, kind, onSetRefCallback]
+      [appid, onSetRefCallback]
     )
 
     const prepareState = useMiniAppPrepared(appid, kind)
 
-    useEffect(() => {
-      // Part of the identity of "is there a webview to set up": without it the effect
-      // runs once against a null ref and never again.
-      if (prepareState !== 'ready') return
-      const webview = webviewRef.current
-      if (!webview) return
+    const loadedRef = useRef(false)
+    const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const clearLoadTimer = useCallback(() => {
+      if (loadTimerRef.current === null) return
+      clearTimeout(loadTimerRef.current)
+      loadTimerRef.current = null
+    }, [])
+    useEffect(() => clearLoadTimer, [clearLoadTimer])
 
-      let loadCallbackFired = false
-      let loadCallbackTimer: ReturnType<typeof setTimeout> | null = null
-
-      const clearLoadCallbackTimer = () => {
-        if (loadCallbackTimer === null) return
-        clearTimeout(loadCallbackTimer)
-        loadCallbackTimer = null
-      }
-
-      const handleLoaded = () => {
-        logger.debug(`WebView did-finish-load for app: ${appid}`)
-        // Only fire callback once per load cycle
-        if (!loadCallbackFired) {
-          loadCallbackFired = true
-          // Small delay to ensure content is actually visible
-          loadCallbackTimer = setTimeout(() => {
-            loadCallbackTimer = null
-            logger.debug(`Calling onLoadedCallback for app: ${appid}`)
-            onLoadedCallback(appid)
-          }, 100)
-        }
-      }
-
-      // Additional callback for when page is ready to show
-      const handleReadyToShow = () => {
-        logger.debug(`WebView ready-to-show for app: ${appid}`)
-        if (!loadCallbackFired) {
-          loadCallbackFired = true
-          logger.debug(`Calling onLoadedCallback from ready-to-show for app: ${appid}`)
-          onLoadedCallback(appid)
-        }
-      }
-
-      const handleNavigate = (event: DidNavigateInPageEvent) => {
-        onNavigateCallback(appid, event.url)
-      }
-
-      const handleDomReady = () => {
-        const webviewId = webview.getWebContentsId()
-        if (webviewId) {
-          void ipcApi.request('webview.set_spell_check_enabled', { webviewId, isEnable: enableSpellCheck })
-          // Sites only: a mini app guest keeps its own deny-all popup policy.
-          if (kind === 'site') {
-            void ipcApi.request('webview.set_open_link_external', { webviewId, isExternal: openLinkExternal })
-          }
-        }
-
-        if (!loadCallbackFired) {
-          loadCallbackFired = true
-          logger.debug(`Calling onLoadedCallback from dom-ready for app: ${appid}`)
-          onLoadedCallback(appid)
-        }
-      }
-
-      const handleStartNavigation = (event: DidStartNavigationEvent) => {
+    const handleLoaded = useCallback(() => {
+      if (loadedRef.current) return
+      loadedRef.current = true
+      loadTimerRef.current = setTimeout(() => {
+        loadTimerRef.current = null
+        onLoadedCallback(appid)
+      }, 100)
+    }, [appid, onLoadedCallback])
+    const handleReady = useCallback(() => {
+      if (loadedRef.current) return
+      loadedRef.current = true
+      onLoadedCallback(appid)
+    }, [appid, onLoadedCallback])
+    const handleStartNavigation = useCallback(
+      (event: DidStartNavigationEvent) => {
         if (!event.isMainFrame || event.isInPlace) return
-
-        clearLoadCallbackTimer()
-        // Reset callback flag when starting a new main-frame load.
-        loadCallbackFired = false
-      }
-
-      // Replay the guest's keydown on the host window so the normal keybinding
-      // resolution sees it; `target` identifies which webview it came from.
-      const handleGuestKeydown = (event: IpcMessageEvent) => {
-        if (event.channel !== MINI_APP_KEYDOWN_CHANNEL) return
-
-        const payload = event.args[0] as MiniAppKeyPayload | undefined
-        if (!payload?.isTrusted || document.activeElement !== webview) return
-
-        const replayed = new KeyboardEvent('keydown', { ...payload, cancelable: true })
-        Object.defineProperty(replayed, 'target', { get: () => webview })
-        window.dispatchEvent(replayed)
-      }
-
-      const handleFocus = () => onFocusChange?.(appid, true)
-      const handleBlur = () => onFocusChange?.(appid, false)
-
-      webview.addEventListener('ipc-message', handleGuestKeydown)
-      webview.addEventListener('focus', handleFocus)
-      webview.addEventListener('blur', handleBlur)
-      webview.addEventListener('did-start-navigation', handleStartNavigation)
-      webview.addEventListener('dom-ready', handleDomReady)
-      webview.addEventListener('did-finish-load', handleLoaded)
-      webview.addEventListener('ready-to-show', handleReadyToShow)
-      webview.addEventListener('did-navigate-in-page', handleNavigate)
-
-      // we set the url when the webview is ready
-      webview.src = url
-
-      return () => {
-        clearLoadCallbackTimer()
-        webview.removeEventListener('ipc-message', handleGuestKeydown)
-        webview.removeEventListener('focus', handleFocus)
-        webview.removeEventListener('blur', handleBlur)
-        webview.removeEventListener('did-start-navigation', handleStartNavigation)
-        webview.removeEventListener('dom-ready', handleDomReady)
-        webview.removeEventListener('did-finish-load', handleLoaded)
-        webview.removeEventListener('ready-to-show', handleReadyToShow)
-        webview.removeEventListener('did-navigate-in-page', handleNavigate)
-      }
-      // because the appid and url are enough, no need to add onLoadedCallback
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [appid, url, prepareState])
+        clearLoadTimer()
+        loadedRef.current = false
+      },
+      [clearLoadTimer]
+    )
+    const handleNavigate = useCallback(
+      (event: DidNavigateEvent | DidNavigateInPageEvent) => {
+        if ('isMainFrame' in event && !event.isMainFrame) return
+        onNavigateCallback(appid, event.url)
+      },
+      [appid, onNavigateCallback]
+    )
+    const handleFocusChange = useCallback((focused: boolean) => onFocusChange?.(appid, focused), [appid, onFocusChange])
 
     // Print / save-as-HTML for the guest page. Not renderer commands — they act on
     // this webview, so they key off the replayed event's target instead.
@@ -250,24 +164,6 @@ const WebviewContainer = memo(
       return () => window.removeEventListener('keydown', handleShortcut)
     }, [appid, t])
 
-    // Update webview settings when they change
-    useEffect(() => {
-      if (!webviewRef.current) return
-
-      try {
-        const webviewId = webviewRef.current.getWebContentsId()
-        if (webviewId) {
-          void ipcApi.request('webview.set_spell_check_enabled', { webviewId, isEnable: enableSpellCheck })
-          if (kind === 'site') {
-            void ipcApi.request('webview.set_open_link_external', { webviewId, isExternal: openLinkExternal })
-          }
-        }
-      } catch (error) {
-        // WebView may not be ready yet, settings will be applied in dom-ready event
-        logger.debug(`WebView ${appid} not ready for settings update`)
-      }
-    }, [appid, kind, openLinkExternal, enableSpellCheck])
-
     const WebviewStyle: React.CSSProperties = {
       width: '100%',
       height: '100%',
@@ -285,13 +181,22 @@ const WebviewContainer = memo(
     if (prepareState === 'preparing') return <div style={WebviewStyle} />
 
     return (
-      <webview
-        key={appid}
-        ref={handleRef}
-        data-mini-app-id={appid}
+      <WebviewHost
+        id={appid}
+        src={url}
+        onWebviewChange={handleRef}
+        onDomReady={handleReady}
+        onReadyToShow={handleReady}
+        onDidFinishLoad={handleLoaded}
+        onDidStartNavigation={handleStartNavigation}
+        onDidNavigate={handleNavigate}
+        onFocusChange={handleFocusChange}
+        elementAttributes={{ 'data-mini-app-id': appid }}
+        allowPopups={kind === 'site'}
+        openLinksExternal={kind === 'site' ? openLinkExternal : undefined}
         style={WebviewStyle}
         partition={kind === 'app' ? `persist:miniapp:${appid}` : 'persist:webview'}
-        useragent={
+        userAgent={
           kind === 'site' && appid === 'google'
             ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)  Safari/537.36'
             : undefined
@@ -301,4 +206,6 @@ const WebviewContainer = memo(
   }
 )
 
-export default WebviewContainer
+export default function WebviewContainer(props: ComponentProps<typeof MiniAppWebview>) {
+  return <MiniAppWebview key={`${props.kind}:${props.appid}`} {...props} />
+}
