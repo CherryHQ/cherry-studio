@@ -87,7 +87,9 @@ same credential/data-URL sanitization as page URLs. Same-document navigation pre
 the document identity and refs.
 
 New and imported history URLs retain ordinary anchors and hash-route paths, but discard
-fragment parameters regardless of their names. Reopening history does not restore filters or
+fragment parameters regardless of their names. Fragments whose percent-decoded form contains
+parameter delimiters are discarded, with at most eight decoding passes. Safe encoded anchors
+and paths retain their original encoding. Reopening history does not restore filters or
 search state encoded in those parameters. Query-string redaction remains key-based.
 
 History browsing uses a descending `(visitedAt, id)` cursor and a grouped virtual list, so

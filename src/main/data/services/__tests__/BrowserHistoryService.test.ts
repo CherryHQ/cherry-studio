@@ -41,7 +41,17 @@ describe('Browser history persistence', () => {
     ['#/reports?sig=private&q=hello', '#/reports'],
     ['#custom_field=private', ''],
     ['#?custom_field=private', ''],
-    ['#!/reports?custom_field=private', '#!/reports']
+    ['#!/reports?custom_field=private', '#!/reports'],
+    ['#ticket%3Dprivate', ''],
+    ['#ticket%3dprivate%26view%3dgrid', ''],
+    ['#/reports%3Fticket%3Dprivate', ''],
+    ['#ticket%253Dprivate', ''],
+    ['#ticket%25%33%44private', ''],
+    ['#ticket%3Dprivate%ZZ', ''],
+    ['#ticket%25252525252525253Dprivate', ''],
+    ['#%E7%AB%A0%E8%8A%82', '#%E7%AB%A0%E8%8A%82'],
+    ['#/files/a%2Fb', '#/files/a%2Fb'],
+    ['#progress-100%25', '#progress-100%25']
   ])('sanitizes live and imported fragments while preserving navigation: %s', (fragment, expected) => {
     const url = `https://example.com/${fragment}`
     browserHistoryService.record({ url, title: url, visitedAt: 100 })

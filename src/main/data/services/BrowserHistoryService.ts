@@ -23,6 +23,21 @@ function removeSensitiveParameters(params: URLSearchParams): void {
   }
 }
 
+function sanitizeHistoryFragment(fragment: string): string {
+  const path = fragment.split('?', 1)[0]
+  let decoded = path
+  for (let layer = 0; layer < 8; layer++) {
+    if (/[?=&]/.test(decoded)) return ''
+    if (!/%[\da-f]{2}/i.test(decoded)) return path
+    try {
+      decoded = decodeURIComponent(decoded)
+    } catch {
+      return ''
+    }
+  }
+  return ''
+}
+
 function normalizeVisit(input: BrowserVisitInput) {
   const url = new URL(input.url)
   if (!['http:', 'https:'].includes(url.protocol) || !Number.isSafeInteger(input.visitedAt) || input.visitedAt < 0)
@@ -30,10 +45,7 @@ function normalizeVisit(input: BrowserVisitInput) {
   url.username = ''
   url.password = ''
   removeSensitiveParameters(url.searchParams)
-  const fragment = url.hash.slice(1)
-  const path = fragment.split('?', 1)[0]
-  // Fragment parameters can carry credentials under arbitrary names; retain only navigation anchors/routes.
-  url.hash = path.includes('=') || path.includes('&') ? '' : path
+  url.hash = sanitizeHistoryFragment(url.hash.slice(1))
   if (url.href.length > 16_384) return undefined
   return {
     ...input,

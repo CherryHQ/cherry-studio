@@ -21,16 +21,16 @@ import { Check, ChevronRight, FileUp, LoaderCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const browserNames = {
-  chrome: 'Google Chrome',
-  edge: 'Microsoft Edge',
-  brave: 'Brave',
-  firefox: 'Firefox',
-  dia: 'Dia',
-  comet: 'Comet',
-  vivaldi: 'Vivaldi',
-  opera: 'Opera',
-  chromium: 'Chromium'
+const browserNameKeys = {
+  chrome: 'settings.browser.names.chrome',
+  edge: 'settings.browser.names.edge',
+  brave: 'settings.browser.names.brave',
+  firefox: 'settings.browser.names.firefox',
+  dia: 'settings.browser.names.dia',
+  comet: 'settings.browser.names.comet',
+  vivaldi: 'settings.browser.names.vivaldi',
+  opera: 'settings.browser.names.opera',
+  chromium: 'settings.browser.names.chromium'
 } satisfies Record<BrowserImportSource['browser'], string>
 const reasonKeys = {
   expired: 'settings.browser.cookieExpired',
@@ -202,7 +202,7 @@ export function BrowserImportDialog({ onDone }: { onDone: () => void }) {
                 <SelectContent>
                   {browsers.map((browser) => (
                     <SelectItem key={browser} value={browser}>
-                      {browserNames[browser]}
+                      {t(browserNameKeys[browser])}
                     </SelectItem>
                   ))}
                 </SelectContent>

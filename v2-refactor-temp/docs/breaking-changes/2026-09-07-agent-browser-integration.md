@@ -79,3 +79,7 @@ History now drops fragment parameters regardless of key names to avoid storing c
 credentials. Ordinary anchors and hash-route paths remain; reopening a visit does not restore
 fragment-based search/filter parameters. This applies to new visits and imports; existing rows
 are not rewritten.
+
+History also excludes fragments that expose parameter delimiters after percent-decoding,
+including nested encodings. These encoded fragments are discarded entirely; normal encoded
+anchors and paths keep their original spelling.
