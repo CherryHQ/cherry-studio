@@ -46,7 +46,7 @@ export async function handleHistory(
         const history = await session.send('Page.getNavigationHistory', undefined, options)
         const entry = history.entries[history.currentIndex + direction]
         if (!entry) throw new BrowserSessionError('not_found')
-        sanitizeRemoteUrl(entry.url)
+        if (entry.url !== 'about:blank') sanitizeRemoteUrl(entry.url, undefined, true)
         await session.send('Page.navigateToHistoryEntry', { entryId: entry.id }, options)
       },
       options

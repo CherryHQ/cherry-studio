@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BrowserSessionService } from '../../BrowserSessionService'
 import { CdpBrowserController } from '../../mcp/controller'
 import { handleWaitFor } from '../../mcp/tools/navigate'
+import { handleHistory } from '../../mcp/tools/navigate'
 import { handleReset } from '../../mcp/tools/reset'
 import { createGuest } from '../guestFixture'
 
@@ -127,6 +128,57 @@ const controller = () => {
 }
 
 describe('MCP browser on shared sessions', () => {
+  it.each([undefined, false])('cancels an opening window before completing reset (%s)', async (mode) => {
+    const c = controller()
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    vi.mocked(app.isReady).mockReturnValue(false)
+    vi.mocked(app.whenReady).mockImplementation(async () => {
+      started.resolve()
+      await resume
+      vi.mocked(app.isReady).mockReturnValue(true)
+    })
+    const opening = expect(c.createTab()).rejects.toThrow('debugger_unavailable')
+    await started
+    let finished = false
+    const resetting = c.reset(mode).then(() => {
+      finished = true
+    })
+    await Promise.resolve()
+    expect(finished).toBe(false)
+    resume.resolve()
+    await Promise.all([opening, resetting])
+    expect(await c.listTabs()).toEqual([])
+    expect(windows.size).toBe(0)
+    const replacement = await c.createTab()
+    expect((await c.listTabs())[0].tabId).toBe(replacement.tabId)
+  })
+
+  it('can go back to the initial blank history entry', async () => {
+    const c = controller()
+    const tab = await c.createTab()
+    const guest = tab.view.webContents
+    await guest.loadURL('about:blank')
+    const command = vi.mocked(guest.debugger.sendCommand)
+    const fallback = command.getMockImplementation()!
+    command.mockImplementation(async (method, params) => {
+      if (method === 'Page.getNavigationHistory')
+        return {
+          currentIndex: 1,
+          entries: [
+            { id: 1, url: 'about:blank' },
+            { id: 2, url: 'https://example.com/' }
+          ]
+        }
+      return fallback(method, params)
+    })
+    const result = await handleHistory(c, { tabId: tab.tabId }, -1)
+    expect(JSON.parse((result.content as Array<{ text: string }>)[0].text), JSON.stringify(result)).toMatchObject({
+      ok: true
+    })
+    expect(command).toHaveBeenCalledWith('Page.navigateToHistoryEntry', { entryId: 1 })
+  })
+
   it('does not close unrelated tabs for an incomplete reset target', async () => {
     const c = controller()
     const normal = await c.createTab(false)

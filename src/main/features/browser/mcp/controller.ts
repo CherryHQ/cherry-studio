@@ -27,6 +27,7 @@ export class CdpBrowserController {
   private disposed = false
   private closing?: Promise<void>
   private creatingTabs = 0
+  private readonly windowEpochs = new Map<string, number>()
   private readonly openingWindows = new Map<string, Promise<WindowInfo>>()
   private readonly closingWindows = new Set<WindowInfo>()
   private readonly closingContents = new Set<Electron.WebContents>()
@@ -356,6 +357,7 @@ export class CdpBrowserController {
   private async getOrCreateWindow(privateMode: boolean, showWindow = false): Promise<WindowInfo> {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
     const key = this.getWindowKey(privateMode)
+    const epoch = this.windowEpochs.get(key)
     let pending = this.openingWindows.get(key)
     if (!pending) {
       pending = this.createOrReuseWindow(privateMode, showWindow)
@@ -363,7 +365,7 @@ export class CdpBrowserController {
     }
     try {
       const info = await pending
-      if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+      if (this.disposed || epoch !== this.windowEpochs.get(key)) throw new BrowserSessionError('debugger_unavailable')
       if (showWindow) info.window.show()
       return info
     } finally {
@@ -619,7 +621,7 @@ export class CdpBrowserController {
   public async open(url: string, timeout = 10000, privateMode = false, newTab = false, showWindow = false) {
     // Reject non-http(s) schemes (e.g. file://) and local/private hosts before navigating
     // (covers fetch() too, which routes through open()) to prevent local-file read / SSRF.
-    url = sanitizeRemoteUrl(url)
+    url = sanitizeRemoteUrl(url, undefined, true)
 
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
     const webContents = tab.view.webContents
@@ -692,6 +694,16 @@ export class CdpBrowserController {
       this.closeTabInternal(windowInfo, tabId)
       return
     }
+
+    const keys =
+      privateMode === undefined ? [this.getWindowKey(false), this.getWindowKey(true)] : [this.getWindowKey(privateMode)]
+    for (const key of keys) this.windowEpochs.set(key, (this.windowEpochs.get(key) ?? 0) + 1)
+    await Promise.allSettled(
+      keys.flatMap((key) => {
+        const pending = this.openingWindows.get(key)
+        return pending ? [pending] : []
+      })
+    )
 
     if (privateMode !== undefined) {
       const windowKey = this.getWindowKey(privateMode)
