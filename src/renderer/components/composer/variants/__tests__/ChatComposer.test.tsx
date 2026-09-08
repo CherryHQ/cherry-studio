@@ -40,7 +40,6 @@ const mocks = vi.hoisted(() => ({
   getDraft: vi.fn(),
   getNoteReferenceItems: vi.fn(async (): Promise<ComposerSuggestionItem[]> => []),
   reconcileTokens: vi.fn(),
-  resetNoteReferenceItems: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
   commandOptions: new Map<string, { enabled?: boolean }>(),
   eventListeners: new Map<string, (payload: unknown) => void>(),
@@ -208,8 +207,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
 
 vi.mock('../chat/useNoteReferenceMentionItems', () => ({
   useNoteReferenceMentionItems: () => ({
-    getItems: mocks.getNoteReferenceItems,
-    resetItems: mocks.resetNoteReferenceItems
+    getItems: mocks.getNoteReferenceItems
   })
 }))
 
@@ -725,7 +723,6 @@ describe('ChatComposer', () => {
     mocks.getDraft.mockReturnValue({ text: 'original draft', tokens: [] })
     mocks.getNoteReferenceItems.mockReset()
     mocks.getNoteReferenceItems.mockResolvedValue([])
-    mocks.resetNoteReferenceItems.mockReset()
     mocks.reconcileTokens.mockReset()
     mocks.reconcileTokens.mockImplementation((draftTokens: readonly ComposerSerializedToken[]) => {
       const knowledgeTokenIds = new Set(
@@ -863,9 +860,6 @@ describe('ChatComposer', () => {
     expect(source?.title).toBe('chat.input.reference_panel.title')
     await expect(source?.items({ query: 'daily', editor: {} as never })).resolves.toEqual([noteItem])
     expect(mocks.getNoteReferenceItems).toHaveBeenCalledWith({ query: 'daily', editor: {} })
-
-    source?.onExit?.({} as never)
-    expect(mocks.resetNoteReferenceItems).toHaveBeenCalled()
   })
 
   it('renders context usage after the speed control next to the send action', () => {

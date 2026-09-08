@@ -1249,17 +1249,13 @@ const ChatComposerInner = ({
     [reconcileTokens]
   )
 
-  const { getItems: getNoteReferenceItems, resetItems: resetNoteReferenceItems } = useNoteReferenceMentionItems({
-    files,
-    setFiles
-  })
+  const { getItems: getNoteReferenceItems } = useNoteReferenceMentionItems({ files, setFiles })
   const additionalReferenceItems = useMemo(
     () => ({
       getItems: getNoteReferenceItems,
-      onExit: resetNoteReferenceItems,
       title: t('chat.input.note_reference.title')
     }),
-    [getNoteReferenceItems, resetNoteReferenceItems, t]
+    [getNoteReferenceItems, t]
   )
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
     entityType: 'topic',

@@ -251,10 +251,26 @@ export function useEntityReferenceMentionSource({
   // panel (agent `@`), the raw item list stays empty so the host's empty handling wins.
   const getItemsWithEmptyState = useCallback(
     async (args: { query: string; editor: Editor }): Promise<ComposerSuggestionItem[]> => {
-      const [items, extraItems] = await Promise.all([
-        getItems(args),
-        additionalItems ? additionalItems.getItems(args) : []
-      ])
+      if (!additionalItems) {
+        const items = await getItems(args)
+        if (items.length > 0) return items
+        return [
+          {
+            id: 'entity-reference:no-results',
+            label: getEntityNoResultsLabel(entityType, t),
+            description: getEntityNoResultsDescription(entityType, t),
+            icon: entityType === 'topic' ? <MessageSquare size={16} /> : <MousePointerClick size={16} />,
+            disabled: true,
+            command: () => undefined
+          }
+        ]
+      }
+
+      const [itemsResult, extraItemsResult] = await Promise.allSettled([getItems(args), additionalItems.getItems(args)])
+      if (itemsResult.status === 'rejected' && extraItemsResult.status === 'rejected') throw itemsResult.reason
+
+      const items = itemsResult.status === 'fulfilled' ? itemsResult.value : []
+      const extraItems = extraItemsResult.status === 'fulfilled' ? extraItemsResult.value : []
 
       if (additionalItems && !args.query.trim() && items.length > 0 && extraItems.length > 0) {
         return [
@@ -270,8 +286,7 @@ export function useEntityReferenceMentionSource({
       return [
         {
           id: 'entity-reference:no-results',
-          label: additionalItems ? t('common.no_results') : getEntityNoResultsLabel(entityType, t),
-          description: additionalItems ? undefined : getEntityNoResultsDescription(entityType, t),
+          label: t('common.no_results'),
           icon: entityType === 'topic' ? <MessageSquare size={16} /> : <MousePointerClick size={16} />,
           disabled: true,
           command: () => undefined

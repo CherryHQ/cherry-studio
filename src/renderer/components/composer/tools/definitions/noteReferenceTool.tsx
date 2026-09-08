@@ -8,37 +8,14 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { projectNotesTree, resolveNotesPath } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
-import { FILE_TYPE } from '@renderer/types/file'
-import type { NotesTreeNode } from '@renderer/types/note'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { NotebookPen, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { NOTES_TREE_OPTIONS,noteToComposerAttachment } from './noteReference'
+
 export const NOTE_REFERENCE_LAUNCHER_ID = 'note-reference'
 
-const NOTES_TREE_OPTIONS = {
-  extensions: ['.md'],
-  respectGitignore: false,
-  includeHidden: false
-}
-
 type NoteReferenceToolContext = ToolRenderContext<readonly ['files'], readonly ['setFiles']>
-
-export function noteToComposerAttachment(note: NotesTreeNode): ComposerAttachment {
-  const fileName = note.externalPath.split(/[\\/]/).at(-1) || `${note.name}.md`
-
-  return {
-    fileTokenSourceId: createComposerFileTokenSourceId(),
-    path: AbsoluteFilePathSchema.parse(note.externalPath),
-    name: fileName,
-    origin_name: fileName,
-    ext: '.md',
-    size: 0,
-    type: FILE_TYPE.TEXT
-  }
-}
 
 export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferenceToolContext }) => {
   const { actions, launcher, state, t } = context

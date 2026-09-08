@@ -57,7 +57,8 @@ vi.mock('@renderer/services/NotesService', () => ({
   resolveNotesPath: (...args: unknown[]) => mocks.resolveNotesPath(...args)
 }))
 
-import { NoteReferenceComposerRuntime, noteToComposerAttachment } from '../noteReferenceTool'
+import { noteToComposerAttachment } from '../noteReference'
+import { NoteReferenceComposerRuntime } from '../noteReferenceTool'
 
 const t = ((key: string) => key) as any
 
