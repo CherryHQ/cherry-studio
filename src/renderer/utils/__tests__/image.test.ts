@@ -992,6 +992,62 @@ describe('utils/image', () => {
       }
     })
 
+    it('does not let a same-root capture snapshot temporary state from an earlier capture', async () => {
+      const root = document.createElement('div')
+      const artifact = document.createElement('div')
+      artifact.setAttribute('data-html-artifact', '')
+      root.appendChild(artifact)
+      root.style.overflow = 'auto'
+      root.style.height = '120px'
+      root.style.maxHeight = '240px'
+      root.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, 'before-capture')
+      artifact.style.display = 'inline-block'
+      stubGeometry(root, 800, 600)
+
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      const initial = captureState(root, artifact)
+      const firstNativeEntered = deferred<void>()
+      const firstNative = deferred<{ dataUrl: string }>()
+      let nativeCalls = 0
+      let stateWhenSecondStarted: ReturnType<typeof captureState> | undefined
+      ipcMocks.request.mockImplementation(async () => {
+        nativeCalls += 1
+        if (nativeCalls === 1) {
+          firstNativeEntered.resolve()
+          return firstNative.promise
+        }
+
+        stateWhenSecondStarted = captureState(root, artifact)
+        return { dataUrl: 'data:image/png;base64,c2Vjb25k' }
+      })
+
+      const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        callback(0)
+        return 0
+      })
+
+      try {
+        const firstCapture = captureScrollableAsDataUrl({ current: root })
+        await firstNativeEntered.promise
+
+        const secondCapture = captureScrollableAsDataUrl({ current: root })
+        await flushMicrotasks()
+
+        expect(nativeCalls).toBe(1)
+
+        firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+        await firstCapture
+        await secondCapture
+
+        expect(stateWhenSecondStarted).toEqual(initial)
+        expect(captureState(root, artifact)).toEqual(initial)
+      } finally {
+        firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+        requestAnimationFrameSpy.mockRestore()
+      }
+    })
+
     it('runs the next queued capture after native failure and html-to-image fallback complete', async () => {
       const rootA = document.createElement('div')
       const artifactA = document.createElement('div')
