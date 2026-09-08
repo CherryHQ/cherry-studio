@@ -6,6 +6,7 @@ import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webvi
 import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
 
 import { type AgentBrowserContext, AgentBrowserRegistry } from './AgentBrowserRegistry'
+import { captureBrowserFavicon } from './browserFavicons'
 import type { SessionOwnership } from './browserUse'
 import { listBrowserProfiles } from './import/browserProfiles'
 import { emptyImportResult, importBrowserData } from './import/importBrowserData'
@@ -34,6 +35,7 @@ interface SessionEntry {
 export class BrowserSessionService extends BaseService {
   private readonly shutdown = new AbortController()
   private dataOperation?: Promise<unknown>
+  private readonly faviconTasks = new Set<Promise<void>>()
   readonly agentBrowser = new AgentBrowserRegistry()
   private readonly agentServers = new Set<BrowserServer>()
   private readonly servers = new Set<BrowserServer>()
@@ -65,7 +67,19 @@ export class BrowserSessionService extends BaseService {
         }
         return { action: 'deny' }
       })
-      const release = guest.session === ordinary ? trackBrowserHistory(guest) : () => {}
+      const release =
+        guest.session === ordinary
+          ? trackBrowserHistory(guest, true, (url, candidates, signal) => {
+              const task = captureBrowserFavicon(
+                guest,
+                url,
+                candidates,
+                AbortSignal.any([signal, this.shutdown.signal])
+              )
+              this.faviconTasks.add(task)
+              void task.finally(() => this.faviconTasks.delete(task))
+            })
+          : () => {}
       const dispose = () => {
         if (!guest.isDestroyed()) guest.setWindowOpenHandler(() => ({ action: 'deny' }))
         release()
@@ -265,7 +279,7 @@ export class BrowserSessionService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.shutdown.abort()
-    await Promise.allSettled(this.dataOperation ? [this.dataOperation] : [])
+    await Promise.allSettled([...this.faviconTasks, ...(this.dataOperation ? [this.dataOperation] : [])])
     const results = await Promise.allSettled([...this.servers].map((server) => server.close()))
     this.servers.clear()
     this.agentServers.clear()

@@ -9,6 +9,7 @@ import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webvi
 import { session, WebContentsView } from 'electron'
 
 import { GuestSession } from '../session/GuestSession'
+import { importBrowserFavicons } from './browserFavicons'
 import { listBrowserProfiles } from './browserProfiles'
 import { ChromiumCookieDecryptor } from './ChromiumCookieDecryptor'
 import { CookieImportError } from './CookieImportError'
@@ -161,14 +162,15 @@ export async function importBrowserData(
       if (!profile) throw new Error('Browser profile is no longer available')
       if (options.localStorage) result.localStorage.unsupported = true
       if (options.history) {
+        const iconPages = new Map<string, string>()
         if (!profile.historyFile) result.history.unsupported = true
         else
           try {
             await withBrowserSnapshot(profile.historyFile, signal, async (db) => {
               const statement =
                 profile.browser === 'firefox'
-                  ? "SELECT v.id, p.url, COALESCE(p.title, '') AS title, CAST(v.visit_date / 1000 AS INTEGER) AS visitedAt FROM moz_historyvisits v JOIN moz_places p ON v.place_id = p.id ORDER BY v.id"
-                  : "SELECT v.id, u.url, COALESCE(u.title, '') AS title, CAST(v.visit_time / 1000 - 11644473600000 AS INTEGER) AS visitedAt FROM visits v JOIN urls u ON v.url = u.id ORDER BY v.id"
+                  ? "SELECT v.id, p.url, COALESCE(p.title, '') AS title, CAST(v.visit_date / 1000 AS INTEGER) AS visitedAt FROM moz_historyvisits v JOIN moz_places p ON v.place_id = p.id ORDER BY v.visit_date DESC, v.id DESC"
+                  : "SELECT v.id, u.url, COALESCE(u.title, '') AS title, CAST(v.visit_time / 1000 - 11644473600000 AS INTEGER) AS visitedAt FROM visits v JOIN urls u ON v.url = u.id ORDER BY v.visit_time DESC, v.id DESC"
               let batch: BrowserVisitInput[] = []
               const flush = () => {
                 const imported = browserHistoryService.importVisits(batch)
@@ -190,6 +192,8 @@ export async function importBrowserData(
                     result.history.skipped++
                     continue
                   }
+                  const origin = new URL(row.url).origin
+                  if (iconPages.size < 256 && !iconPages.has(origin)) iconPages.set(origin, row.url)
                   const sourceKey = createHash('sha256')
                     .update(JSON.stringify([profile.directory, row.id, row.url, row.visitedAt]))
                     .digest('hex')
@@ -210,6 +214,7 @@ export async function importBrowserData(
             signal.throwIfAborted()
             result.history.failed++
           }
+        await importBrowserFavicons(profile, [...iconPages.values()], signal)
       }
       if (options.cookies) {
         if (!profile.cookiesFile) result.cookies.unsupported = true

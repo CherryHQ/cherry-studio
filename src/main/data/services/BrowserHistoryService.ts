@@ -3,7 +3,9 @@ import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { browserVisitTable } from '@data/db/schemas/browserVisit'
 import type { BrowserVisit, ListBrowserVisitsQuery } from '@shared/data/api/schemas/browserVisits'
 import { isSensitiveKey } from '@shared/utils/redaction'
-import { desc, eq, or, sql } from 'drizzle-orm'
+import { and, eq, or, sql } from 'drizzle-orm'
+
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 
 export interface BrowserVisitInput {
   url: string
@@ -103,8 +105,10 @@ export class BrowserHistoryService {
     notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership', dimension: 'search' }])
   }
 
-  list(query: ListBrowserVisitsQuery): { items: BrowserVisit[]; hasMore: boolean } {
+  list(query: ListBrowserVisitsQuery): { items: BrowserVisit[]; hasMore: boolean; nextCursor?: string } {
     const needle = query.search?.trim().toLowerCase()
+    const ordering = keysetOrdering(browserVisitTable.visitedAt, browserVisitTable.id, { major: 'desc', tie: 'desc' })
+    const cursor = decodeListCursor(query.cursor, asNumericKey, 'browser-history')
     const rows = application
       .get('DbService')
       .getDb()
@@ -117,18 +121,25 @@ export class BrowserHistoryService {
       })
       .from(browserVisitTable)
       .where(
-        needle
-          ? or(
-              sql`instr(lower(${browserVisitTable.url}), ${needle}) > 0`,
-              sql`instr(lower(${browserVisitTable.title}), ${needle}) > 0`
-            )
-          : undefined
+        and(
+          cursor ? ordering.where(cursor) : undefined,
+          needle
+            ? or(
+                sql`instr(lower(${browserVisitTable.url}), ${needle}) > 0`,
+                sql`instr(lower(${browserVisitTable.title}), ${needle}) > 0`
+              )
+            : undefined
+        )
       )
-      .orderBy(desc(browserVisitTable.visitedAt), desc(browserVisitTable.id))
+      .orderBy(...ordering.orderBy)
       .limit(query.limit + 1)
-      .offset(query.offset)
+      .offset(cursor ? 0 : query.offset)
       .all()
-    return { items: rows.slice(0, query.limit), hasMore: rows.length > query.limit }
+    const icons = application.get('CacheService').getPersist('browser.favicons')
+    const items = rows.slice(0, query.limit).map((row) => ({ ...row, favicon: icons[new URL(row.url).origin] }))
+    const last = items.at(-1)
+    const hasMore = rows.length > query.limit
+    return { items, hasMore, nextCursor: hasMore && last ? encodeCursor(last.visitedAt, last.id) : undefined }
   }
 
   delete(id: string): void {
@@ -136,6 +147,7 @@ export class BrowserHistoryService {
     notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
   }
   clear(): void {
+    application.get('CacheService').deletePersist('browser.favicons')
     application.get('DbService').getDb().delete(browserVisitTable).run()
     notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
   }

@@ -4,7 +4,17 @@ import type { WebContents } from 'electron'
 
 const logger = loggerService.withContext('BrowserHistory')
 
-export function trackBrowserHistory(guest: WebContents, recordInitial = true): () => void {
+export function trackBrowserHistory(
+  guest: WebContents,
+  recordInitial = true,
+  captureFavicon?: (url: string, candidates: string[], signal: AbortSignal) => void
+): () => void {
+  let faviconRequest = new AbortController()
+  const favicon = (_event: Electron.Event, candidates: string[]) => {
+    faviconRequest.abort()
+    faviconRequest = new AbortController()
+    if (!guest.isDestroyed()) captureFavicon?.(guest.getURL(), candidates, faviconRequest.signal)
+  }
   let pending = recordInitial
   let visit: { id: string; url: string } | undefined
   const record = () => {
@@ -19,6 +29,7 @@ export function trackBrowserHistory(guest: WebContents, recordInitial = true): (
     }
   }
   const navigate = () => {
+    faviconRequest.abort()
     pending = true
     visit = undefined
   }
@@ -47,12 +58,15 @@ export function trackBrowserHistory(guest: WebContents, recordInitial = true): (
   guest.on('did-finish-load', record)
   guest.on('did-fail-load', failed)
   guest.on('page-title-updated', title)
+  guest.on('page-favicon-updated', favicon)
   if (!guest.isLoadingMainFrame()) record()
   return () => {
+    faviconRequest.abort()
     guest.removeListener('did-navigate', navigate)
     guest.removeListener('did-navigate-in-page', inPage)
     guest.removeListener('did-finish-load', record)
     guest.removeListener('did-fail-load', failed)
     guest.removeListener('page-title-updated', title)
+    guest.removeListener('page-favicon-updated', favicon)
   }
 }

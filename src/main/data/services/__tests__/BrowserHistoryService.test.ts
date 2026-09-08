@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { browserVisitTable } from '@data/db/schemas/browserVisit'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
@@ -62,6 +63,33 @@ describe('Browser history persistence', () => {
     expect(list('report', 1, 1)).toMatchObject({ items: [{ title: 'First report', visitedAt: 100 }], hasMore: false })
     expect(list('%').items.map((row) => row.title)).toEqual(['First report'])
     expect(list('not found').items).toEqual([])
+  })
+
+  it('continues by timestamp and ID without skipping rows when newer records are inserted or deleted', () => {
+    for (let i = 0; i < 5; i++)
+      browserHistoryService.record({ url: `https://example.com/${i}`, title: String(i), visitedAt: 100 })
+    const expected = list().items.map((item) => item.id)
+    const first = list(undefined, 0, 2)
+    expect(first.items.map((item) => item.id)).toEqual(expected.slice(0, 2))
+    browserHistoryService.delete(first.items[0].id)
+    browserHistoryService.record({ url: 'https://example.com/new', title: 'New visit', visitedAt: 200 })
+    const next = browserHistoryService.list({ cursor: first.nextCursor, offset: 0, limit: 2 })
+    const last = browserHistoryService.list({ cursor: next.nextCursor, offset: 0, limit: 2 })
+    expect([...next.items, ...last.items].map((item) => item.id)).toEqual(expected.slice(2))
+    expect(last.nextCursor).toBeUndefined()
+    expect(last.hasMore).toBe(false)
+  })
+
+  it('shares cached icons across visits to the same site and clears them with history', () => {
+    application
+      .get('CacheService')
+      .setPersist('browser.favicons', { 'https://example.com': 'data:image/png;base64,fixture' })
+    browserHistoryService.record({ url: 'https://example.com/old', title: 'Old page', visitedAt: 100 })
+    browserHistoryService.record({ url: 'https://other.test/', title: 'Other site', visitedAt: 200 })
+    expect(list('Old page').items[0].favicon).toBe('data:image/png;base64,fixture')
+    expect(list('Other site').items[0].favicon).toBeUndefined()
+    browserHistoryService.clear()
+    expect(application.get('CacheService').getPersist('browser.favicons')).toEqual({})
   })
 
   it('skips non-web/invalid visits and updates, deletes and clears stored records', () => {

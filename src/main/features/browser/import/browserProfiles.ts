@@ -9,6 +9,7 @@ import * as z from 'zod'
 export interface BrowserProfile extends BrowserImportSource {
   directory: string
   historyFile?: string
+  faviconsFile?: string
   cookiesFile?: string
 }
 
@@ -82,6 +83,7 @@ async function scanBrowserProfiles(browser: BrowserImportSource['browser']): Pro
       account: profileInfo[name]?.user_name || undefined,
       directory,
       historyFile,
+      faviconsFile: await existingFile(directory, isFirefox ? ['favicons.sqlite'] : ['Favicons']),
       cookiesFile,
       history: !!historyFile,
       cookies: !cookiesFile ? 'unavailable' : isFirefox ? 'supported' : 'requires_authorization'

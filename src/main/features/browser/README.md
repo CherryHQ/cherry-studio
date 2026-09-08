@@ -85,3 +85,13 @@ callers running. Annotation captures reuse their document's isolated context and
 it on navigation, context destruction or detach. Snapshot link destinations use the
 same credential/data-URL sanitization as page URLs. Same-document navigation preserves
 the document identity and refs.
+
+History browsing uses a descending `(visitedAt, id)` cursor and a grouped virtual list, so
+loading older visits preserves date groups and bounds rendered rows. Offset queries remain
+available for address-bar suggestions. Actual page favicons are captured into the main persist
+cache (256 origins; PNG up to 32 px or a bounded ICO), separately from the history database.
+Navigation/disposal aborts captures;
+`BrowserSessionService` also cancels and awaits them on shutdown. Chromium `Favicons` and
+Firefox `favicons.sqlite` imports populate the same cache for up to 256 recent history origins.
+History rendering reads local data URLs, never a third-party favicon service. Clearing history
+also clears these cached images; uncached or failed images fall back to the globe icon.

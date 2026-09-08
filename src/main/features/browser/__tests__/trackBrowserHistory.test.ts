@@ -92,7 +92,26 @@ describe('Browser navigation history', () => {
       events.emit('web-contents-created', {}, next.guest)
       next.mock.emit('did-finish-load')
       expect(visits()).toHaveLength(3)
-      await service._doStop()
+      let finishRequest!: () => void
+      let requestSignal!: AbortSignal
+      Object.assign(next.mock.session, {
+        fetch: vi.fn((_url: string, options: { signal: AbortSignal }) => {
+          requestSignal = options.signal
+          return new Promise((_resolve, reject) => {
+            finishRequest = () => reject(new Error('Request cancelled'))
+          })
+        })
+      })
+      next.mock.emit('page-favicon-updated', {}, ['https://example.com/icon'])
+      let stopped = false
+      const stopping = service._doStop().then(() => {
+        stopped = true
+      })
+      await Promise.resolve()
+      expect(requestSignal.aborted).toBe(true)
+      expect(stopped).toBe(false)
+      finishRequest()
+      await stopping
       next.mock.emit('did-navigate-in-page', {}, next.guest.getURL(), true)
       expect(visits()).toHaveLength(3)
       expect(next.mock.isDestroyed()).toBe(false)

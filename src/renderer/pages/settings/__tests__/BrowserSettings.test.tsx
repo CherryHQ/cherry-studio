@@ -3,16 +3,61 @@ import '@testing-library/jest-dom/vitest'
 
 import en from '@renderer/i18n/locales/en-us.json'
 import { ipcApi } from '@renderer/ipc'
+import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
 import type { BrowserImportReason, BrowserImportResult, BrowserImportSource } from '@shared/ipc/schemas/browserImport'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BrowserSettings } from '../BrowserSettings'
+
+vi.mock('@renderer/components/VirtualList', () => ({
+  GroupedVirtualList: ({
+    groups,
+    renderGroupHeader,
+    renderItem,
+    onScroll,
+    scrollerProps
+  }: {
+    groups: Array<{
+      group: string
+      header: string
+      items: BrowserVisit[]
+    }>
+    renderGroupHeader: (label: string) => React.ReactNode
+    renderItem: (item: BrowserVisit) => React.ReactNode
+    onScroll: React.UIEventHandler<HTMLDivElement>
+    scrollerProps: React.HTMLAttributes<HTMLDivElement>
+  }) => (
+    <div role="list" {...scrollerProps} onScroll={onScroll}>
+      {groups.map((group) => (
+        <div key={group.group}>
+          {renderGroupHeader(group.header)}
+          {group.items.map((item) => (
+            <div key={item.id}>{renderItem(item)}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}))
+const emptyHistoryQuery = () => ({
+  pages: [],
+  isLoading: false,
+  isRefreshing: false,
+  error: undefined,
+  hasNext: false,
+  loadNext: vi.fn(),
+  refresh: vi.fn().mockResolvedValue(undefined),
+  reset: vi.fn(),
+  mutate: vi.fn().mockResolvedValue(undefined)
+})
+const mockHistory = (data: { items: unknown[]; hasMore: boolean }) =>
+  mockUseInfiniteQuery.mockReturnValue({ ...emptyHistoryQuery(), pages: [data], hasNext: data.hasMore })
 
 vi.unmock('@cherrystudio/ui')
 vi.unmock('react-i18next')
@@ -63,7 +108,8 @@ afterEach(cleanup)
 beforeEach(() => {
   openTab.mockReset()
   MockUseDataApiUtils.resetMocks()
-  MockUseDataApiUtils.mockQueryData('/browser-visits', { items: [], hasMore: false })
+  mockUseInfiniteQuery.mockReset()
+  mockHistory({ items: [], hasMore: false })
   vi.mocked(ipcApi.request)
     .mockReset()
     .mockImplementation(async (route) => {
@@ -332,31 +378,49 @@ describe('Browser settings workflows', () => {
     expect(historyDeleted).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the previous history page visible and prevents stale actions while the next page loads', async () => {
+  it('appends visits to the same day while retaining earlier records and stops requesting at the end', async () => {
     const user = userEvent.setup()
-    const previousPage = {
-      items: [
-        { id: 'visit-1', title: 'First page', url: 'https://example.com/first', visitedAt: 1, source: 'local' as const }
-      ],
-      hasMore: true
+    const first = {
+      id: 'visit-1',
+      title: 'First page',
+      url: 'https://example.com/first',
+      visitedAt: 100,
+      source: 'local'
     }
-    MockUseDataApiUtils.mockQueryData('/browser-visits', previousPage)
-    renderSettings()
+    const next = { ...first, id: 'visit-2', title: 'Next batch', visitedAt: 50 }
+    const loadNext = vi.fn()
+    const query = {
+      ...emptyHistoryQuery(),
+      pages: [{ items: [first], nextCursor: '100:visit-1' }],
+      hasNext: true,
+      loadNext
+    }
+    mockUseInfiniteQuery.mockReturnValue(query)
+    const view = renderSettings()
     await user.click(screen.getByRole('button', { name: 'Manage History' }))
-    expect(await screen.findByText('First page')).toBeVisible()
-
-    MockUseDataApiUtils.mockQueryResult('/browser-visits', {
-      data: previousPage,
-      isLoading: true,
-      isRefreshing: true
-    })
-    await user.click(screen.getByRole('button', { name: 'Next' }))
-
-    expect(screen.getByText('First page')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'More' })).toBeDisabled()
+    const list = screen.getByRole('list', { name: 'History' })
+    fireEvent.scroll(list)
+    fireEvent.scroll(list)
+    expect(loadNext).toHaveBeenCalledTimes(1)
+    mockUseInfiniteQuery.mockReturnValue({ ...query, isRefreshing: true })
+    view.rerender(
+      <I18nextProvider i18n={i18n}>
+        <BrowserSettings />
+      </I18nextProvider>
+    )
     expect(screen.getByRole('button', { name: 'First page' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    mockUseInfiniteQuery.mockReturnValue({ ...query, hasNext: false, pages: [...query.pages, { items: [next] }] })
+    view.rerender(
+      <I18nextProvider i18n={i18n}>
+        <BrowserSettings />
+      </I18nextProvider>
+    )
+    expect(screen.getByRole('button', { name: 'First page' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Next batch' })).toBeVisible()
+    expect(within(list).getAllByRole('heading')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
+    fireEvent.scroll(list)
+    expect(loadNext).toHaveBeenCalledTimes(1)
   })
 
   it('groups records by local day and keeps deletion in each record menu', async () => {
@@ -365,7 +429,7 @@ describe('Browser settings workflows', () => {
     today.setHours(10, 30, 0, 0)
     const yesterday = new Date(today)
     yesterday.setDate(today.getDate() - 1)
-    MockUseDataApiUtils.mockQueryData('/browser-visits', {
+    mockHistory({
       items: [
         {
           id: 'today',
@@ -388,13 +452,12 @@ describe('Browser settings workflows', () => {
     MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/browser-visits/:id', remove)
     renderSettings()
     await user.click(screen.getByRole('button', { name: 'Manage History' }))
-    const current = await screen.findByRole('region', { name: 'today' })
-    expect(within(current).getByRole('button', { name: 'Latest report' })).toBeVisible()
-    expect(
-      within(screen.getByRole('region', { name: 'yesterday' })).getByRole('button', { name: 'Older report' })
-    ).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'today' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'yesterday' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Latest report' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Older report' })).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
-    await user.click(within(current).getByRole('button', { name: 'More' }))
+    await user.click(screen.getAllByRole('button', { name: 'More' })[0])
     await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
     expect(remove).toHaveBeenCalledWith({ params: { id: 'today' } })
   })
@@ -404,7 +467,7 @@ describe('Browser settings workflows', () => {
     async (entry) => {
       const user = userEvent.setup()
       const url = 'http://internal.test/dashboard?q=a%26b&lang=zh#section'
-      MockUseDataApiUtils.mockQueryData('/browser-visits', {
+      mockHistory({
         items: [{ id: 'visit-1', title: 'Dashboard', url, visitedAt: Date.now(), source: 'local' }],
         hasMore: false
       })

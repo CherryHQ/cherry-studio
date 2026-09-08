@@ -89,6 +89,65 @@ describe('Foreign browser SQLite import', () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it.each(['chrome', 'firefox'] as const)(
+    'imports %s icons from its local favicon database alongside history',
+    async (browser) => {
+      const png = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aetkAAAAASUVORK5CYII=',
+        'base64'
+      )
+      const directory = path.join(root, browser, 'Default')
+      await mkdir(directory, { recursive: true })
+      const firefox = browser === 'firefox'
+      source = new Database(path.join(directory, firefox ? 'places.sqlite' : 'History'))
+      source.exec(
+        firefox
+          ? 'CREATE TABLE moz_places (id INTEGER PRIMARY KEY, url TEXT, title TEXT); CREATE TABLE moz_historyvisits (id INTEGER PRIMARY KEY, place_id INTEGER, visit_date INTEGER)'
+          : 'CREATE TABLE urls (id INTEGER PRIMARY KEY, url TEXT, title TEXT); CREATE TABLE visits (id INTEGER PRIMARY KEY, url INTEGER, visit_time INTEGER)'
+      )
+      source
+        .prepare(`INSERT INTO ${firefox ? 'moz_places' : 'urls'} VALUES (?, ?, ?)`)
+        .run(1, 'https://example.com/page', 'Page')
+      source
+        .prepare(`INSERT INTO ${firefox ? 'moz_historyvisits' : 'visits'} VALUES (?, ?, ?)`)
+        .run(1, 1, firefox ? 1000000 : 11644473601000000)
+      const icons = new Database(path.join(directory, firefox ? 'favicons.sqlite' : 'Favicons'))
+      try {
+        if (firefox) {
+          icons.exec(
+            'CREATE TABLE moz_pages_w_icons (id INTEGER PRIMARY KEY, page_url TEXT); CREATE TABLE moz_icons_to_pages (page_id INTEGER, icon_id INTEGER); CREATE TABLE moz_icons (id INTEGER PRIMARY KEY, width INTEGER, data BLOB)'
+          )
+          icons.prepare('INSERT INTO moz_pages_w_icons VALUES (?, ?)').run(1, 'https://example.com/page')
+          icons.prepare('INSERT INTO moz_icons_to_pages VALUES (?, ?)').run(1, 1)
+          icons.prepare('INSERT INTO moz_icons VALUES (?, ?, ?)').run(1, 32, png)
+        } else {
+          icons.exec(
+            'CREATE TABLE icon_mapping (page_url TEXT, icon_id INTEGER); CREATE TABLE favicon_bitmaps (icon_id INTEGER, width INTEGER, last_updated INTEGER, image_data BLOB)'
+          )
+          icons.prepare('INSERT INTO icon_mapping VALUES (?, ?)').run('https://example.com/page', 1)
+          icons.prepare('INSERT INTO favicon_bitmaps VALUES (?, ?, ?, ?)').run(1, 32, 1, png)
+        }
+      } finally {
+        icons.close()
+      }
+      const result = await importBrowserData(
+        { sourceId: `${browser}:Default`, history: true, cookies: false, localStorage: false, domains: [] },
+        undefined,
+        new AbortController().signal
+      )
+      expect(result.history).toMatchObject({ imported: 1, failed: 0 })
+      const icon = browserHistoryService.list({ offset: 0, limit: 10 }).items[0].favicon!
+      expect(icon).toMatch(/^data:image\/png;base64,/)
+      const sharp = (await import('sharp')).default
+      expect([
+        ...(await sharp(Buffer.from(icon.split(',')[1], 'base64'))
+          .raw()
+          .toBuffer())
+      ]).toEqual([255, 255, 255, 255])
+      expect(await readdir(path.join(root, 'temp'))).toEqual([])
+    }
+  )
+
   it('discovers Chrome, Dia and Comet independently even when their profile names match', async () => {
     vi.spyOn(os, 'platform').mockReturnValue('darwin')
     for (const browser of ['chrome', 'dia', 'comet']) {

@@ -69,3 +69,8 @@ queries, while preserving ordinary anchors and routes. Existing history entries 
 Browsing history groups visits by date and shows each title, domain and time on one row.
 Hover a title to see the full URL. Select a title or use its row menu to reopen it in a new tab;
 the menu also provides copying and deletion.
+
+Browsing history now loads older visits while scrolling, retaining date groups across batches
+instead of replacing pages. Each row has one hover surface. Website favicons are cached locally
+from browsing and supported browser imports, with a globe fallback when unavailable. Previously
+imported visits can acquire a site icon when that site is revisited or its history is reimported.
