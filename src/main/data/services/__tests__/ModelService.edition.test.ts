@@ -1,4 +1,3 @@
-import { appStateTable } from '@data/db/schemas/appState'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
@@ -17,6 +16,8 @@ const { applicationEdition } = vi.hoisted(() => ({
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => applicationEdition.current
 }))
+
+const isMigratedFromV1Spy = vi.spyOn(providerService, 'isMigratedFromV1')
 
 vi.mock('@cherrystudio/provider-registry/node', () => {
   class RegistryLoader {
@@ -70,7 +71,7 @@ describe('ModelService edition availability', () => {
 
   beforeEach(() => {
     applicationEdition.current = 'cn'
-    ;(providerService as any).migratedFromV1 = undefined
+    isMigratedFromV1Spy.mockReset().mockReturnValue(false)
   })
 
   it('excludes persisted models owned by providers unavailable in the current edition', async () => {
@@ -132,10 +133,7 @@ describe('ModelService edition availability', () => {
   })
 
   it('keeps every persisted model available for users migrated from v1', async () => {
-    await dbh.db.insert(appStateTable).values({
-      key: 'migration_v2_status',
-      value: { status: 'completed', migratedFromV1: true, version: '2.0.0' }
-    })
+    isMigratedFromV1Spy.mockReturnValue(true)
     await dbh.db.insert(userProviderTable).values({
       providerId: 'global-only',
       presetProviderId: 'global-only',
