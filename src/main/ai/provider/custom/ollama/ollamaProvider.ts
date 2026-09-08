@@ -3,6 +3,7 @@ import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { createOllama, type OllamaProvider, type OllamaProviderSettings } from 'ollama-ai-provider-v2'
 
 import { createImageGenerationModel } from '../imageGenerationModel'
+import { resolveOllamaImageFetch } from './ollamaImageFetch'
 import { createOllamaTransport } from './ollamaTransport'
 
 export const OLLAMA_PROVIDER_NAME = 'ollama' as const
@@ -21,10 +22,14 @@ export function createOllamaWithImageModel(settings: OllamaProviderSettings = {}
   const provider = createOllama(settings)
 
   const baseURL = withoutTrailingSlash(settings.baseURL) ?? DEFAULT_OLLAMA_BASE_URL
-  const transport = createOllamaTransport({ baseURL, headers: settings.headers, fetch: settings.fetch })
+  const transport = createOllamaTransport({
+    baseURL,
+    headers: settings.headers,
+    fetch: resolveOllamaImageFetch(settings.fetch)
+  })
 
   provider.imageModel = (modelId: string): ImageModelV3 =>
-    createImageGenerationModel(modelId, { provider: OLLAMA_PROVIDER_NAME, transport })
+    createImageGenerationModel(modelId, { modelDescriptor: undefined, provider: OLLAMA_PROVIDER_NAME, transport })
 
   return provider
 }

@@ -1,8 +1,8 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { loggerService } from '@logger'
 
-import type { WireVendorBag } from '../../utils/imageOptions'
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from './imageTransport'
+import { parseImageVendorParams, type VendorBag } from '../../utils/imageOptions'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport, ImageTransportDescriptor } from './imageTransport'
 import { executeImageTransport } from './imageTransportRuntime'
 
 const logger = loggerService.withContext('imageTransport')
@@ -16,35 +16,11 @@ export type {
 
 export interface CreateImageGenerationModelOptions {
   provider: string
-  /** In-SDK path: `providerOptions[provider]` is the wire-named body, never canonical. */
-  transport: ImageGenerationTransport<WireVendorBag>
+  transport: ImageGenerationTransport<VendorBag>
+  modelDescriptor: ImageTransportDescriptor | undefined
 }
 
-/**
- * The `imageModel` for a registry-declared model that takes the job transport.
- * `AiService.generateImage` resolves `resolveImageTransport` first, while unregistered
- * models stay on the generic SDK provider. `ProviderV3` still requires an image model
- * for the transport branch's config, so reaching this implementation is an invariant
- * violation rather than a second delivery path with different parameter spelling.
- */
-export function transportOnlyImageModel(provider: string, modelId: string): ImageModelV3 {
-  return {
-    specificationVersion: 'v3',
-    provider,
-    modelId,
-    maxImagesPerCall: 1,
-    async doGenerate() {
-      throw new Error(
-        `${provider} images are transport-only: reaching the in-SDK image model means the transport gate was bypassed (model '${modelId}')`
-      )
-    }
-  }
-}
-
-/**
- * The inputs this request carries that the transport has declared it will not read.
- * Empty when the transport declares nothing (unknown ≠ unsupported) or carries none.
- */
+/** Inputs this request carries that the selected protocol does not support. */
 export function unsupportedTransportInputs<P>(
   transport: ImageGenerationTransport<P>,
   input: ImageGenerationSubmitInput<P>
@@ -56,12 +32,7 @@ export function unsupportedTransportInputs<P>(
   return ignored
 }
 
-/**
- * Log the inputs a transport will drop. A dropped reference image is the worst silent
- * failure in the image path: the request succeeds and returns a plausible picture that
- * simply ignored what the user attached, so image-to-image degrades to text-to-image
- * with no error anywhere.
- */
+/** Warn when a protocol cannot consume a reference or mask, even if generation can succeed. */
 export function warnUnsupportedTransportInputs<P>(
   transport: ImageGenerationTransport<P>,
   input: ImageGenerationSubmitInput<P>,
@@ -86,7 +57,7 @@ export function warnUnsupportedTransportInputs<P>(
  */
 export function createImageGenerationModel(
   modelId: string,
-  { provider, transport }: CreateImageGenerationModelOptions
+  { provider, transport, modelDescriptor }: CreateImageGenerationModelOptions
 ): ImageModelV3 {
   return {
     specificationVersion: 'v3',
@@ -96,11 +67,9 @@ export function createImageGenerationModel(
     async doGenerate(options: ImageModelV3CallOptions) {
       const { abortSignal } = options
 
-      // The WireProfile engine's output for this provider — wire-named, JSON-only
-      // (`buildImageRequest` drops anything unserializable), so no callback can ride it.
-      const providerParams: WireVendorBag = options.providerOptions?.[provider] ?? {}
+      const providerParams = parseImageVendorParams(options.providerOptions[provider] ?? {})
 
-      const submitInput: ImageGenerationSubmitInput<WireVendorBag> = {
+      const submitInput: ImageGenerationSubmitInput<VendorBag> = {
         modelId,
         prompt: options.prompt,
         n: options.n,
@@ -109,12 +78,16 @@ export function createImageGenerationModel(
         seed: options.seed,
         files: options.files,
         mask: options.mask,
+        modelDescriptor,
         providerParams,
         headers: options.headers,
         signal: abortSignal
       }
 
-      warnUnsupportedTransportInputs(transport, submitInput, { provider })
+      const warnings = unsupportedTransportInputs(transport, submitInput).map((feature) => ({
+        type: 'unsupported' as const,
+        feature
+      }))
 
       const urls = await executeImageTransport({
         transport,
@@ -126,7 +99,7 @@ export function createImageGenerationModel(
 
       return {
         images: urls,
-        warnings: [],
+        warnings,
         response: {
           timestamp: new Date(),
           modelId,

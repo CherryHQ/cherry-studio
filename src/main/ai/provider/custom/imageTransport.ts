@@ -1,6 +1,6 @@
 import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ImageSizeToken } from '@main/ai/utils/aiSdkNativeBindings'
-import type { VendorBag, WireVendorBag } from '@main/ai/utils/imageOptions'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 export interface ImageTransportDescriptor {
@@ -83,10 +83,7 @@ export interface ImageTransportTaskContext<P, S extends AbortSignal | undefined>
   providerParams: P
 }
 
-/**
- * `P` is the transport's own provider-parameter spelling: {@link VendorBag} for
- * the durable job path and {@link WireVendorBag} for the in-SDK adapter.
- */
+/** Both Job and SDK callers provide canonical parameters. */
 interface ImageGenerationTransportBase<P> {
   supportsInput: (input: ImageGenerationSubmitInput<P>) => ImageTransportInputSupport
 }
@@ -101,11 +98,11 @@ export interface TaskImageGenerationTransport<P> extends ImageGenerationTranspor
   task: Extract<ImageTransportTaskCapability<P>, { kind: 'supported' }>
 }
 
-export type ImageGenerationTransport<P = VendorBag | WireVendorBag> =
+export type ImageGenerationTransport<P = VendorBag> =
   | ImmediateImageGenerationTransport<P>
   | TaskImageGenerationTransport<P>
 
-export interface ImageGenerationSubmitInput<P = VendorBag | WireVendorBag> {
+export interface ImageGenerationSubmitInput<P = VendorBag> {
   modelId: string
   prompt: string | undefined
   n: number

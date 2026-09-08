@@ -1,5 +1,5 @@
 import { APICallError } from '@ai-sdk/provider'
-import type { WireVendorBag } from '@main/ai/utils/imageOptions'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -18,7 +18,7 @@ const TEST_POLICY: ImageTransportPollPolicy = {
   getDelayMs: () => 0
 }
 
-function input(signal = new AbortController().signal): ImageGenerationSubmitInput<WireVendorBag> {
+function input(signal = new AbortController().signal): ImageGenerationSubmitInput<VendorBag> {
   return {
     modelId: 'model',
     prompt: 'cat',
@@ -34,8 +34,8 @@ function input(signal = new AbortController().signal): ImageGenerationSubmitInpu
 }
 
 function asyncTransport(
-  overrides: Partial<Extract<ImageGenerationTransport<WireVendorBag>['task'], { kind: 'supported' }>> = {}
-): ImageGenerationTransport<WireVendorBag> {
+  overrides: Partial<Extract<ImageGenerationTransport<VendorBag>['task'], { kind: 'supported' }>> = {}
+): ImageGenerationTransport<VendorBag> {
   return {
     submit: vi.fn().mockResolvedValue({ kind: 'submitted', taskId: 'task-1' }),
     supportsInput: () => ({ files: false, mask: false }),
@@ -68,7 +68,7 @@ describe('image transport runtime', () => {
   })
 
   it('returns an immediate completion without querying', async () => {
-    const transport: ImageGenerationTransport<WireVendorBag> = {
+    const transport: ImageGenerationTransport<VendorBag> = {
       submit: vi.fn().mockResolvedValue({ kind: 'completed', imageUrls: ['https://img/sync.png'] }),
       supportsInput: () => ({ files: false, mask: false }),
       task: { kind: 'unsupported' }

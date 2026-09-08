@@ -2,9 +2,10 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/provider'
 import { type FetchFunction, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { IMAGE_PARAM_CATALOG_KEYS, imageParamsSchema, wireName } from '@cherrystudio/provider-registry'
+import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
 
 import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'
+import { parseImageVendorParams } from '../../../utils/imageOptions'
 import { unsupportedTransportInputs } from '../imageGenerationModel'
 import { executeImageTransport } from '../imageTransportRuntime'
 import { createAihubmixFluxTransport } from './aihubmixFlux'
@@ -12,7 +13,6 @@ import type { AihubmixImageBinding } from './aihubmixImageBinding'
 import { createAihubmixImageTransport } from './aihubmixImageTransport'
 
 const PROVIDER = 'aihubmix.image'
-const paramsSchema = imageParamsSchema.strict()
 
 export interface CreateAihubmixImageModelOptions {
   baseURL: string
@@ -23,7 +23,7 @@ export interface CreateAihubmixImageModelOptions {
 }
 
 function wireOptions(options: ImageModelV3CallOptions): ImageModelV3CallOptions['providerOptions'] {
-  const params = paramsSchema.parse(options.providerOptions.aihubmix ?? {})
+  const params = parseImageVendorParams(options.providerOptions.aihubmix ?? {})
   const aihubmix: Record<string, JSONValue> = {}
   for (const key of IMAGE_PARAM_CATALOG_KEYS) {
     const value = params[key]
@@ -47,7 +47,7 @@ function googleImageModel(modelId: string, opts: CreateAihubmixImageModelOptions
     modelId,
     maxImagesPerCall: google.maxImagesPerCall,
     async doGenerate(options) {
-      const bag = paramsSchema.parse(options.providerOptions.aihubmix ?? {})
+      const bag = parseImageVendorParams(options.providerOptions.aihubmix ?? {})
       const aspectRatio = options.aspectRatio ?? normalizeAspectRatio(options.size)
       const personGeneration = bag.personGeneration?.toLowerCase()
       const imageSize = bag.imageResolution?.toUpperCase()
@@ -116,7 +116,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         seed: options.seed,
         files: options.files,
         mask: options.mask,
-        providerParams: paramsSchema.parse(options.providerOptions.aihubmix ?? {}),
+        providerParams: parseImageVendorParams(options.providerOptions.aihubmix ?? {}),
         headers: options.headers,
         signal: options.abortSignal
       }

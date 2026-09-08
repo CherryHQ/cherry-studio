@@ -16,15 +16,17 @@ import { resolveDmxapiChatFamily } from '@shared/data/presets/gatewayChatRouting
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
-import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
-import { resolveDmxapiNativeImageFamily } from './dmxapiImageRouting'
-import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
+import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { type DmxapiCustomImageBinding, type DmxapiImageBinding, resolveDmxapiImageBinding } from './dmxapiImageRouting'
+import { createDmxapiTransport } from './dmxapiTransport'
 
 export { dmxapiUsesCustomTransport } from './dmxapiImageRouting'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
 
 export interface DmxapiProviderSettings {
+  /** Chat-only configurations need no image binding. */
+  imageBinding?: DmxapiImageBinding
   apiKey?: string
   /** Base URL selected for this request. When `endpointBaseURLs` is absent, the
    *  factory retains the legacy behavior of deriving every protocol from it. */
@@ -63,12 +65,16 @@ function resolveEmbeddingFamily(modelId: string): DmxapiEmbeddingFamily {
  * by the provider factory and the image-generation job's transport registry so
  * both paths use the same re-resolved provider settings.
  */
-export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport<VendorBag> {
+export function buildDmxapiTransport(
+  settings: DmxapiProviderSettings,
+  binding: DmxapiCustomImageBinding
+): ImageGenerationTransport<VendorBag> {
   const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? settings.baseURL
   if (!chatBaseURL) {
     throw new Error('DMXAPI provider requires a non-empty `baseURL` to build the image transport.')
   }
   return createDmxapiTransport({
+    binding,
     apiKey: settings.apiKey ?? '',
     // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
     // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
@@ -156,13 +162,17 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   }
 
   const createImageModelV3 = (modelId: string): ImageModelV3 => {
-    // Native SDK families win first — `gpt-image-*` / `dall-e-*` via
-    // `@ai-sdk/openai`'s `OpenAIImageModel` (multipart edits, etc.),
-    // `imagen-*` / `gemini-*-image*` via `@ai-sdk/google`'s `provider.image`.
-    // Putting these ahead of `resolveDmxapiFamily` ensures a model that has
-    // a first-party adapter is never accidentally routed to the bespoke
-    // transport just because a family-table matcher overlaps.
-    switch (resolveDmxapiNativeImageFamily(modelId)) {
+    const binding = settings.imageBinding ?? resolveDmxapiImageBinding(modelId)
+    if (binding.kind === 'custom') {
+      if (binding.binding.modelId !== modelId) throw new Error('DMXAPI image binding does not match model')
+      return createImageGenerationModel(modelId, {
+        provider: DMXAPI_PROVIDER_NAME,
+        modelDescriptor: undefined,
+        transport: buildDmxapiTransport({ ...settings, apiKey: resolveApiKey() }, binding.binding)
+      })
+    }
+    if (binding.modelId !== modelId) throw new Error('DMXAPI image binding does not match model')
+    switch (binding.family) {
       case 'openai-native':
         return new OpenAIImageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.openai-image`,
@@ -173,16 +183,6 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       case 'gemini-native':
         return googleImageModel(modelId)
     }
-    // Bespoke families (Doubao Seedream / Wan / async Qwen-image) — no native
-    // AI SDK adapter covers these wire shapes (Responses-API string/messages
-    // body, `extra.output.results[].url` async wrapper), so they go through
-    // the custom transport.
-    if (resolveDmxapiFamily(modelId) !== 'openai-flat') {
-      return transportOnlyImageModel(DMXAPI_PROVIDER_NAME, modelId)
-    }
-    // Fallback for unknown models — OpenAI-compat image model is the safest
-    // assumption since DMXAPI's gateway translates the rest of its catalog
-    // through that wire shape.
     return new OpenAICompatibleImageModel(modelId, {
       provider: `${DMXAPI_PROVIDER_NAME}.image`,
       url: compatUrl,

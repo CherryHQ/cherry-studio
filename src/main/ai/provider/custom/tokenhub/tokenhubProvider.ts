@@ -6,15 +6,17 @@ import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { withoutTrailingApiVersion } from '@shared/utils/api'
 
 import {
+  createImageGenerationModel,
   type ImageGenerationTransport,
-  type ImageTransportDescriptor,
-  transportOnlyImageModel
+  type ImageTransportDescriptor
 } from '../imageGenerationModel'
 import { createTokenhubTransport } from './tokenhubTransport'
 
 export const TOKENHUB_PROVIDER_NAME = 'tokenhub' as const
 
 export interface TokenhubProviderSettings {
+  /** Chat-only configurations need no binding; imageModel requires the prepared descriptor. */
+  imageBinding?: ImageTransportDescriptor
   apiKey?: string
   /** OpenAI-compatible chat / embedding endpoint (`https://tokenhub.tencentmaas.com/v1`). */
   baseURL?: string
@@ -85,7 +87,17 @@ export function createTokenhubProvider(settings: TokenhubProviderSettings = {}):
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) => transportOnlyImageModel(TOKENHUB_PROVIDER_NAME, modelId)
+  provider.imageModel = (modelId: string) => {
+    const descriptor = settings.imageBinding
+    if (!descriptor || descriptor.id !== modelId) {
+      throw new Error(`TOKENHUB imageModel requires its prepared model binding`)
+    }
+    return createImageGenerationModel(modelId, {
+      provider: TOKENHUB_PROVIDER_NAME,
+      modelDescriptor: descriptor,
+      transport: buildTokenhubTransport({ ...settings, apiKey: resolveApiKey() }, descriptor)
+    })
+  }
 
   return provider as TokenhubProvider
 }

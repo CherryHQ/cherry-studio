@@ -1,16 +1,74 @@
 import {
   buildImageRequestParamsSchema,
   imageParamsSchema,
+  type ParamValues,
   resolveLegacyImageCapability
 } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
+import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { imageInputSchema } from '@shared/ai/imageInput'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import type { ImageGenerationSupport } from '@shared/data/types/model'
+import type { ImageGenerationSupport, Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
-import type { AiImageRequest } from '../AiService'
+import type { AiImageRequest, AsInProcess } from '../AiService'
+import { resolveImageExecutionTarget } from '../provider/imageExecutionTarget'
+import type { AiBaseRequest } from '../types'
 
 const logger = loggerService.withContext('prepareImageRequest')
+
+/** Resolve capability and protocol before credentials or other execution side effects. */
+export function prepareImageExecution(request: AsInProcess<AiImageRequest>, provider: Provider, model: Model) {
+  const support = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
+  return bindImageRequest(request, provider, model, support)
+}
+
+function bindImageRequest(
+  request: AsInProcess<AiImageRequest>,
+  provider: Provider,
+  model: Model,
+  support: ImageGenerationSupport | null | undefined
+) {
+  const preparedRequest = { ...request, ...prepareImageRequest(request, support ?? undefined) }
+  const target = resolveImageExecutionTarget(provider, model, request.mode ?? 'generate', support)
+  if (target.kind === 'unavailable') throw new Error(target.message)
+  return { request: preparedRequest, provider, model, target }
+}
+
+/** Health checks are callers too: materialize catalog defaults and required inputs before normal preparation. */
+export function prepareImageProbe(request: AsInProcess<AiBaseRequest>, provider: Provider, model: Model) {
+  const support = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
+  const mode =
+    support == null
+      ? 'generate'
+      : (['generate', 'edit', 'remix', 'upscale', 'merge'] as const).find((mode) => mode in support.modes)
+  if (!mode) throw createPaintingGenerateError('OPERATION_FAILED')
+  const resolution = resolveLegacyImageCapability(support ?? undefined, mode)
+  const paramValues: ParamValues = {}
+  if (resolution.kind === 'supported') {
+    for (const [key, spec] of Object.entries(resolution.capability.supports)) {
+      if (typeof spec === 'object' && spec !== null && 'default' in spec && spec.default !== undefined)
+        paramValues[key] = spec.default
+    }
+  }
+  const inputCount = resolution.kind === 'supported' ? resolution.capability.inputs.images.min : 0
+  return bindImageRequest(
+    {
+      ...request,
+      prompt: 'a red circle',
+      mode,
+      paramValues,
+      inputImages: inputCount > 0 ? Array.from({ length: inputCount }, () => PROBE_IMAGE) : undefined,
+      cleanupPolicy: 'delete_when_unreferenced'
+    },
+    provider,
+    model,
+    support
+  )
+}
+
+// Translation APIs require a public URL, so a probe cannot universally substitute inline bytes.
+const PROBE_IMAGE = 'https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250916/ordhsk/1.webp'
 
 /** Main owns validation for both renderer and in-process tool calls. */
 export function prepareImageRequest(

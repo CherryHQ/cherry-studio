@@ -43,7 +43,7 @@ async function configuration(
   })
   const model = makeModel({ id: `${provider.id}::${modelId}`, providerId: provider.id, apiModelId: modelId })
   const target = resolveImageExecutionTarget(provider, model, 'generate', undefined)
-  if (target.kind !== 'legacy-adapter') throw new Error('Expected a model adapter fixture')
+  if (target.kind !== 'sdk') throw new Error('Expected an SDK delegation fixture')
   return resolveSdkImageConfig(provider, model, target, undefined)
 }
 
@@ -52,6 +52,53 @@ function request(paramValues: ParamValues, overrides: Partial<AiImageRequest> = 
 }
 
 describe('canonical request to actual SDK image model', () => {
+  // https://doc.dmxapi.com/gpt-image.html — retrieved 2026-09-09.
+  it('delivers DMXAPI native GPT options to the OpenAI SDK for edits', async () => {
+    const { sdkConfig } = await configuration('dmxapi', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'gpt-image-1.5')
+    const result = await generateImage<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      buildSdkImageOptions(
+        request({ quality: 'high' }, { inputImages: [`data:image/png;base64,${PNG}`] }),
+        sdkConfig,
+        undefined
+      )
+    )
+    expect(requests[0].url).toBe('https://image.example/v1/images/edits')
+    expect((await requests[0].formData()).get('quality')).toBe('high')
+    expect(result.images[0].base64).toBe(PNG)
+  })
+
+  // https://ai.google.dev/gemini-api/docs/image-generation — retrieved 2026-09-09.
+  it('delivers DMXAPI Google resolution through the Google SDK, independent of chat namespace', async () => {
+    vi.mocked(net.fetch).mockImplementation(async (input, init) => {
+      requests.push(new Request(input, init))
+      return Response.json({
+        candidates: [
+          {
+            content: { role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: PNG } }] },
+            finishReason: 'STOP'
+          }
+        ]
+      })
+    })
+    const { sdkConfig } = await configuration(
+      'dmxapi',
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      'gemini-3.1-flash-image-preview'
+    )
+    const result = await generateImage<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      buildSdkImageOptions(request({ imageResolution: '2K', aspectRatio: '16:9' }), sdkConfig, undefined)
+    )
+    expect(requests[0].url).toBe('https://image.example/v1beta/models/gemini-3.1-flash-image-preview:generateContent')
+    expect(await requests[0].json()).toMatchObject({
+      generationConfig: { imageConfig: { imageSize: '2K', aspectRatio: '16:9' } }
+    })
+    expect(result.images[0].base64).toBe(PNG)
+  })
+
   // Wire contract: https://developers.openai.com/api/reference/resources/images (retrieved 2026-09-09).
   it('uses the compatible image namespace when a provider instance name contains a dot', async () => {
     const { sdkConfig } = await configuration(

@@ -6,9 +6,9 @@ import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import {
+  createImageGenerationModel,
   type ImageGenerationTransport,
-  type ImageTransportDescriptor,
-  transportOnlyImageModel
+  type ImageTransportDescriptor
 } from '../imageGenerationModel'
 import { createDashScopeTransport, DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './dashscopeTransport'
 
@@ -18,6 +18,8 @@ const DASHSCOPE_CHAT_BASE_PATH = '/compatible-mode/v1'
 const DASHSCOPE_RERANK_BASE_PATH = '/compatible-api/v1'
 
 export interface DashScopeProviderSettings {
+  /** Chat-only configurations need no binding; imageModel requires the prepared descriptor. */
+  imageBinding?: ImageTransportDescriptor
   apiKey?: string
   /** Chat / embedding endpoint, e.g. `https://dashscope.aliyuncs.com/compatible-mode/v1/`. */
   baseURL?: string
@@ -117,7 +119,17 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) => transportOnlyImageModel(DASHSCOPE_PROVIDER_NAME, modelId)
+  provider.imageModel = (modelId: string) => {
+    const descriptor = settings.imageBinding
+    if (!descriptor || descriptor.id !== modelId) {
+      throw new Error(`DASHSCOPE imageModel requires its prepared model binding`)
+    }
+    return createImageGenerationModel(modelId, {
+      provider: DASHSCOPE_PROVIDER_NAME,
+      modelDescriptor: descriptor,
+      transport: buildDashScopeTransport({ ...settings, apiKey: resolveApiKey() }, descriptor)
+    })
+  }
   provider.rerankingModel = (modelId: string) =>
     new OpenAICompatibleRerankingModel(modelId, {
       provider: `${DASHSCOPE_PROVIDER_NAME}.rerank`,

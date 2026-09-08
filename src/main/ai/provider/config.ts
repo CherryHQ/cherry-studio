@@ -81,6 +81,7 @@ interface ProviderToAiSdkConfigOptions {
   resolvedEndpoint?: ResolvedEndpoint
   sessionId?: string
   nativeImageTarget?: NativeImageTarget
+  imageProviderId?: 'aihubmix' | 'dmxapi'
 }
 
 export interface ResolvedProviderAiSdkConfig {
@@ -406,6 +407,10 @@ export async function resolveProviderAiSdkConfig(
         }
       }
     })(ctx)
+  } else if (options?.imageProviderId) {
+    resolved = await withSelectedApiKey(options.imageProviderId === 'dmxapi' ? buildDmxapiConfig : buildAiHubMixConfig)(
+      ctx
+    )
   } else if (builder) {
     resolved = await builder.build(ctx)
   } else if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
@@ -415,6 +420,19 @@ export async function resolveProviderAiSdkConfig(
   }
 
   const { config } = resolved
+  const imageTarget = options?.nativeImageTarget
+  if (imageTarget?.providerId === 'ppio' && config.providerId === 'ppio') {
+    config.providerSettings.imageBinding = imageTarget.modelDescriptor
+  }
+  if (imageTarget?.providerId === 'dashscope' && config.providerId === 'dashscope') {
+    config.providerSettings.imageBinding = imageTarget.modelDescriptor
+  }
+  if (imageTarget?.providerId === 'tokenhub' && config.providerId === 'tokenhub') {
+    config.providerSettings.imageBinding = imageTarget.modelDescriptor
+  }
+  if (imageTarget?.providerId === 'dmxapi' && config.providerId === 'dmxapi') {
+    config.providerSettings.imageBinding = { kind: 'custom', binding: imageTarget.binding }
+  }
   // Default every provider to the proxy-aware net.fetch base so the app proxy
   // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose

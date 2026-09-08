@@ -3,6 +3,7 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import type { AiImageRequest } from '../AiService'
+import type { AppProviderId } from '../types'
 import { asSdkImageSize, resolveImageRequestSize } from '../utils/aiSdkNativeBindings'
 import { splitParamValues } from '../utils/imageOptions'
 import { applyHttpTrace } from './applyHttpTrace'
@@ -15,29 +16,52 @@ import type { ImageExecutionTarget } from './imageExecutionTarget'
 export async function resolveSdkImageConfig(
   provider: Provider,
   model: Model,
-  target: Extract<ImageExecutionTarget, { scheduling: 'direct' }>,
+  target: Exclude<ImageExecutionTarget, { kind: 'unavailable' }>,
   apiKeyOverride: AiImageRequest['apiKeyOverride']
 ) {
   const { config: resolvedConfig, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
-    resolvedEndpoint: target.endpoint
+    resolvedEndpoint: target.endpoint,
+    imageProviderId: 'binding' in target ? target.providerId : undefined,
+    nativeImageTarget: target.scheduling === 'job' ? target.protocol : undefined
   })
   let config = resolvedConfig
-  if (target.kind !== 'legacy-adapter') {
+  if ('providerId' in target) {
     if (config.providerId !== target.providerId) throw new Error('Image binding and provider settings do not match')
-    config = { ...config, providerSettings: { ...config.providerSettings, imageBinding: target.binding } }
+    if (target.providerId === 'aihubmix' && config.providerId === 'aihubmix') {
+      config = { ...config, providerSettings: { ...config.providerSettings, imageBinding: target.binding } }
+    }
+    if (target.providerId === 'dmxapi' && config.providerId === 'dmxapi') {
+      config = { ...config, providerSettings: { ...config.providerSettings, imageBinding: target.binding } }
+    }
   }
   applyHttpTrace(config, undefined, model)
   // Both compatible config builders use the instance ID as `name`; image models read its first segment.
-  const actualProviderId =
+  let actualProviderId =
     config.providerId === 'openai-compatible' || config.providerId === 'github-copilot-openai-compatible'
       ? target.providerInstanceId.split('.')[0].trim()
       : target.providerInstanceId
+  let optionsProviderId: AppProviderId = config.providerId
+  if ('providerId' in target && target.providerId === 'dmxapi') {
+    switch (target.binding.family) {
+      case 'openai-native':
+        optionsProviderId = 'openai'
+        break
+      case 'gemini-native':
+        optionsProviderId = 'google'
+        break
+      case 'openai-compat-image':
+        optionsProviderId = 'openai-compatible'
+        actualProviderId = 'dmxapi'
+        break
+    }
+  }
   return {
     sdkConfig: {
       ...config,
       modelId: target.modelId,
-      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
+      imageWireRegistration: resolveWireRegistration(optionsProviderId),
+      providerOptionsKey: resolveProviderOptionsKey(optionsProviderId, {
         actualProviderId
       })
     },
@@ -57,7 +81,7 @@ export function buildSdkImageOptions(
   const providerOptions = buildVendorProviderOptions(
     config.providerOptionsKey,
     request.paramValues,
-    resolveWireRegistration(config.providerId),
+    config.imageWireRegistration,
     vendorBag
   )
   const size = resolveImageRequestSize(structured.size)

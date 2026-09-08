@@ -2,6 +2,15 @@ type DmxapiNativeImageFamily = 'openai-compat-image' | 'openai-native' | 'gemini
 
 export type DmxapiFamily = 'openai-flat' | 'responses-string' | 'responses-messages' | 'openai-flat-async'
 
+export interface DmxapiCustomImageBinding {
+  modelId: string
+  family: Exclude<DmxapiFamily, 'openai-flat'>
+}
+
+export type DmxapiImageBinding =
+  | { kind: 'custom'; binding: DmxapiCustomImageBinding }
+  | { kind: 'sdk'; modelId: string; family: DmxapiNativeImageFamily }
+
 const DMXAPI_FAMILY_TABLE: Array<{
   family: Exclude<DmxapiFamily, 'openai-flat'>
   match: (modelId: string) => boolean
@@ -28,7 +37,13 @@ export function resolveDmxapiFamily(modelId: string): DmxapiFamily {
 }
 
 export function dmxapiUsesCustomTransport(modelId: string): boolean {
-  return (
-    resolveDmxapiNativeImageFamily(modelId) === 'openai-compat-image' && resolveDmxapiFamily(modelId) !== 'openai-flat'
-  )
+  return resolveDmxapiImageBinding(modelId).kind === 'custom'
+}
+
+export function resolveDmxapiImageBinding(modelId: string): DmxapiImageBinding {
+  const nativeFamily = resolveDmxapiNativeImageFamily(modelId)
+  if (nativeFamily !== 'openai-compat-image') return { kind: 'sdk', modelId, family: nativeFamily }
+  const family = resolveDmxapiFamily(modelId)
+  if (family === 'openai-flat') return { kind: 'sdk', modelId, family: nativeFamily }
+  return { kind: 'custom', binding: { modelId, family } }
 }

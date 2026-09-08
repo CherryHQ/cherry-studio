@@ -13,42 +13,22 @@ import {
 } from '../imageTransport'
 import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
-import { resolveDmxapiFamily } from './dmxapiImageRouting'
-
-export { resolveDmxapiFamily } from './dmxapiImageRouting'
+import type { DmxapiCustomImageBinding } from './dmxapiImageRouting'
 
 export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
 
-interface NormalizedInput {
-  modelId: string
+type NormalizedInput = Pick<ImageGenerationSubmitInput<DmxapiProviderParams>, 'modelId' | 'n' | 'size' | 'seed'> & {
   prompt: string
-  n: number
-  size: string | undefined
-  seed: number | undefined
 }
 
-/**
- * Vendor-specific fields forwarded through `providerOptions.dmxapi`. AI SDK native
- * fields (size / n / seed / prompt) source from `input.*` at submit entry; DMXAPI
- * dispatches by `resolveDmxapiFamily(input.modelId)`, so it needs no `modelDescriptor`.
- *
- * The vendor bag as this transport reads it — canonical camelCase, straight from
- * `splitParamValues`.
- *
- * Derived from {@link ParamValues} so every key is CHECKED to be a catalog key. A
- * hand-declared name that isn't one can never arrive: the IPC boundary strips it. That
- * is what `webSearch` was — read here to emit `tools: [{type:'web_search'}]`, never
- * delivered, and declared by no model in the registry either, so the branch was dead
- * on both ends and has been removed.
- *
- * Groups: doubao-seedream multi-image options; wan family extras (DashScope-passthrough).
- */
+/** Canonical vendor parameters consumed by the bound DMXAPI custom protocols. */
 export type DmxapiProviderParams = Pick<
   VendorBag,
   'sequentialImageGeneration' | 'maxImages' | 'outputFormat' | 'addWatermark' | 'promptExtend' | 'negativePrompt'
 >
 
 export interface DmxapiTransportSettings {
+  binding: DmxapiCustomImageBinding
   apiKey: string
   baseURL?: string
   headers?: Record<string, string | undefined>
@@ -97,17 +77,13 @@ const responseOutputSchema = z
 const dmxapiResponsesSchema = z
   .object({ output: z.union([responseOutputSchema, z.array(responseOutputSchema)]) })
   .passthrough()
-const dmxapiOpenAIResultSchema = z
-  .object({
-    data: z.array(z.object({ url: z.string().min(1).optional(), b64_json: z.string().min(1).optional() }).passthrough())
-  })
-  .passthrough()
-
 class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProviderParams> {
   private readonly apiKey: string
   private readonly baseURL: string
   private readonly headers: Record<string, string | undefined> | undefined
   private readonly fetch: FetchFunction | undefined
+
+  private readonly binding: DmxapiCustomImageBinding
 
   readonly task = { kind: 'unsupported' as const }
 
@@ -116,33 +92,36 @@ class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProvide
     this.baseURL = settings.baseURL || DEFAULT_DMXAPI_BASE_URL
     this.headers = settings.headers
     this.fetch = settings.fetch
+    this.binding = { ...settings.binding }
   }
 
-  /** Only the `responses-messages` family (Wan) puts images in its message content;
-   *  Seedream's `responses-string` body is a bare prompt string, and both flat
-   *  families are prompt-only. Mirrors the `resolveDmxapiFamily` dispatch below. */
-  supportsInput(input: ImageGenerationSubmitInput<DmxapiProviderParams>): ImageTransportInputSupport {
-    return { files: resolveDmxapiFamily(input.modelId) === 'responses-messages', mask: false }
+  supportsInput(): ImageTransportInputSupport {
+    return { files: this.binding.family === 'responses-messages', mask: false }
   }
 
   async submit(input: ImageGenerationSubmitInput<DmxapiProviderParams>) {
     const params = input.providerParams
     const normalized: NormalizedInput = {
-      modelId: input.modelId,
+      modelId: this.binding.modelId,
       prompt: input.prompt ?? '',
       n: input.n,
       size: input.size,
       seed: input.seed
     }
-    switch (resolveDmxapiFamily(input.modelId)) {
-      case 'responses-string':
-        return this.submitResponsesStringInput(input, normalized, params)
-      case 'responses-messages':
-        return this.submitResponsesMessages(input, normalized, params)
-      case 'openai-flat-async':
-        return this.submitAsyncOpenAIFlat(input, normalized)
-      default:
-        return this.submitOpenAIFlatFallback(input, normalized)
+    try {
+      switch (this.binding.family) {
+        case 'responses-string':
+          return await this.submitResponsesStringInput(input, normalized, params)
+        case 'responses-messages':
+          return await this.submitResponsesMessages(input, normalized, params)
+        case 'openai-flat-async':
+          return await this.submitAsyncOpenAIFlat(input, normalized)
+      }
+    } catch (error) {
+      if (!APICallError.isInstance(error)) throw error
+      if (error.statusCode === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
+      if (error.statusCode === 403) throw createPaintingGenerateError('REQ_ERROR_NO_BALANCE')
+      throw createPaintingGenerateError('REMOTE_ERROR', { message: error.message || t('paintings.generate_failed') })
     }
   }
 
@@ -153,15 +132,22 @@ class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProvide
     input: ImageGenerationSubmitInput<DmxapiProviderParams>,
     normalized: NormalizedInput
   ) {
-    const body: Record<string, unknown> = {
+    const body = {
       model: normalized.modelId,
       prompt: normalized.prompt,
-      n: normalized.n
+      n: normalized.n,
+      ...(normalized.size !== undefined && { size: normalized.size })
     }
-    if (normalized.size) body.size = normalized.size
-
-    const data = await this.requestJson('/v1/images/generations', body, dmxapiAsyncResultSchema, input)
-    return completedImageTransportSubmission(parseDmxapiAsyncResults(data), 'DMXAPI async image')
+    const response = await postJsonToApi({
+      url: `${this.baseURL}/v1/images/generations`,
+      headers: this.requestHeaders(input.headers),
+      body,
+      abortSignal: input.signal,
+      fetch: this.fetch,
+      failedResponseHandler: createImageTransportErrorResponseHandler(),
+      successfulResponseHandler: createJsonResponseHandler(dmxapiAsyncResultSchema)
+    })
+    return completedImageTransportSubmission(parseDmxapiAsyncResults(response.value), 'DMXAPI async image')
   }
 
   /** Responses API with `input` as a prompt string (doubao-seedream family).
@@ -172,24 +158,29 @@ class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProvide
     normalized: NormalizedInput,
     params: DmxapiProviderParams
   ) {
-    const body: Record<string, unknown> = {
+    const body = {
       model: normalized.modelId,
       input: normalized.prompt,
-      stream: false
+      stream: false,
+      ...(normalized.size !== undefined && { size: normalized.size }),
+      ...(normalized.seed !== undefined && { seed: normalized.seed }),
+      ...(params.sequentialImageGeneration !== undefined && {
+        sequential_image_generation: params.sequentialImageGeneration,
+        ...(params.maxImages !== undefined && { sequential_image_generation_options: { max_images: params.maxImages } })
+      }),
+      ...(params.outputFormat !== undefined && { output_format: params.outputFormat }),
+      ...(params.addWatermark !== undefined && { watermark: params.addWatermark })
     }
-    if (normalized.size) body.size = normalized.size
-    if (typeof normalized.seed === 'number') body.seed = normalized.seed
-    if (params.sequentialImageGeneration) {
-      body.sequential_image_generation = params.sequentialImageGeneration
-      if (typeof params.maxImages === 'number') {
-        body.sequential_image_generation_options = { max_images: params.maxImages }
-      }
-    }
-    if (params.outputFormat) body.output_format = params.outputFormat
-    if (params.addWatermark !== undefined) body.watermark = params.addWatermark
-
-    const data = await this.requestJson('/v1/responses', body, dmxapiResponsesSchema, input)
-    return completedImageTransportSubmission(parseResponsesApiOutput(data), 'DMXAPI responses image')
+    const response = await postJsonToApi({
+      url: `${this.baseURL}/v1/responses`,
+      headers: this.requestHeaders(input.headers),
+      body,
+      abortSignal: input.signal,
+      fetch: this.fetch,
+      failedResponseHandler: createImageTransportErrorResponseHandler(),
+      successfulResponseHandler: createJsonResponseHandler(dmxapiResponsesSchema)
+    })
+    return completedImageTransportSubmission(parseResponsesApiOutput(response.value), 'DMXAPI responses image')
   }
 
   /** Responses API with DashScope-style `input.messages` (alibaba wan family). */
@@ -198,84 +189,47 @@ class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProvide
     normalized: NormalizedInput,
     params: DmxapiProviderParams
   ) {
-    const content: Array<{ text?: string; image?: string }> = []
+    const content: Array<{ text: string } | { image: string }> = []
     if (normalized.prompt) content.push({ text: normalized.prompt })
     for (const file of input.files ?? []) content.push({ image: fileToDataUrl(file) })
 
-    const parameters: Record<string, unknown> = {}
-    if (normalized.size) parameters.size = normalized.size.replace(/x/i, '*')
-    if (normalized.n && normalized.n > 1) parameters.n = normalized.n
-    if (typeof normalized.seed === 'number') parameters.seed = normalized.seed
-    if (params.negativePrompt) parameters.negative_prompt = params.negativePrompt
-    if (params.promptExtend !== undefined) parameters.prompt_extend = params.promptExtend
-    if (params.addWatermark !== undefined) parameters.watermark = params.addWatermark
+    const parameters = {
+      ...(normalized.size !== undefined && { size: normalized.size.replace(/x/i, '*') }),
+      ...(normalized.n > 1 && { n: normalized.n }),
+      ...(normalized.seed !== undefined && { seed: normalized.seed }),
+      ...(params.negativePrompt !== undefined && { negative_prompt: params.negativePrompt }),
+      ...(params.promptExtend !== undefined && { prompt_extend: params.promptExtend }),
+      ...(params.addWatermark !== undefined && { watermark: params.addWatermark })
+    }
 
-    const body: Record<string, unknown> = {
+    const body = {
       model: normalized.modelId,
       input: { messages: [{ role: 'user', content }] },
       ...(Object.keys(parameters).length > 0 && { parameters })
     }
 
-    const data = await this.requestJson('/v1/responses', body, dmxapiResponsesSchema, input)
-    return completedImageTransportSubmission(parseResponsesApiOutput(data), 'DMXAPI responses image')
+    const response = await postJsonToApi({
+      url: `${this.baseURL}/v1/responses`,
+      headers: this.requestHeaders(input.headers),
+      body,
+      abortSignal: input.signal,
+      fetch: this.fetch,
+      failedResponseHandler: createImageTransportErrorResponseHandler(),
+      successfulResponseHandler: createJsonResponseHandler(dmxapiResponsesSchema)
+    })
+    return completedImageTransportSubmission(parseResponsesApiOutput(response.value), 'DMXAPI responses image')
   }
 
-  /** Safety-net OpenAI-flat call for unrecognized models that somehow bypass
-   *  the provider factory's family dispatch. Mirrors the OpenAI-compat body
-   *  shape so DMXAPI's gateway can translate to whatever upstream it routes
-   *  to. Response is parsed as the standard OpenAI `data[].url|b64_json`. */
-  private async submitOpenAIFlatFallback(
-    input: ImageGenerationSubmitInput<DmxapiProviderParams>,
-    normalized: NormalizedInput
-  ) {
-    const body: Record<string, unknown> = {
-      model: normalized.modelId,
-      prompt: normalized.prompt,
-      n: normalized.n,
-      response_format: 'url'
-    }
-    if (normalized.size) body.size = normalized.size
-
-    const data = await this.requestJson('/v1/images/generations', body, dmxapiOpenAIResultSchema, input)
-    return completedImageTransportSubmission(parseOpenAIFlatResults(data), 'DMXAPI image')
-  }
-
-  private async requestJson<T>(
-    path: string,
-    body: Record<string, unknown>,
-    schema: z.ZodType<T>,
-    input: ImageGenerationSubmitInput<DmxapiProviderParams>
-  ): Promise<T> {
-    const url = path.startsWith('http') ? path : `${this.baseURL}${path}`
-    try {
-      const response = await postJsonToApi({
-        url,
-        headers: combineHeaders(
-          {
-            Accept: 'application/json',
-            'User-Agent': 'DMXAPI/1.0.0 (https://www.dmxapi.com)',
-            Authorization: `Bearer ${this.apiKey}`
-          },
-          this.headers,
-          input.headers
-        ),
-        body,
-        abortSignal: input.signal,
-        fetch: this.fetch,
-        failedResponseHandler: createImageTransportErrorResponseHandler(),
-        successfulResponseHandler: createJsonResponseHandler(schema)
-      })
-      return response.value
-    } catch (error) {
-      if (APICallError.isInstance(error)) {
-        if (error.statusCode === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
-        if (error.statusCode === 403) throw createPaintingGenerateError('REQ_ERROR_NO_BALANCE')
-        throw createPaintingGenerateError('REMOTE_ERROR', {
-          message: error.message || t('paintings.generate_failed')
-        })
-      }
-      throw error
-    }
+  private requestHeaders(headers: ImageGenerationSubmitInput<DmxapiProviderParams>['headers']) {
+    return combineHeaders(
+      {
+        Accept: 'application/json',
+        'User-Agent': 'DMXAPI/1.0.0 (https://www.dmxapi.com)',
+        Authorization: `Bearer ${this.apiKey}`
+      },
+      this.headers,
+      headers
+    )
   }
 }
 
@@ -298,16 +252,6 @@ function parseResponsesApiOutput(data: z.infer<typeof dmxapiResponsesSchema>): s
     }
   }
   return urls
-}
-
-function parseOpenAIFlatResults(data: z.infer<typeof dmxapiOpenAIResultSchema>): string[] {
-  return data.data
-    .map((item) => {
-      if (item.url) return item.url
-      if (item.b64_json) return `data:image/png;base64,${item.b64_json}`
-      return ''
-    })
-    .filter((url) => url.length > 0)
 }
 
 export function createDmxapiTransport(settings: DmxapiTransportSettings): DmxapiTransport {

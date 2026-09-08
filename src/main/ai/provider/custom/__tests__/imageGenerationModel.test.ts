@@ -1,4 +1,4 @@
-import type { WireVendorBag } from '@main/ai/utils/imageOptions'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createImageGenerationModel } from '../imageGenerationModel'
@@ -19,15 +19,15 @@ function makeOptions(
     abortSignal: undefined,
     headers: undefined,
     ...overrides
-  } as Parameters<ReturnType<typeof createImageGenerationModel>['doGenerate']>[0]
+  } satisfies Parameters<ReturnType<typeof createImageGenerationModel>['doGenerate']>[0]
 }
 
 function taskTransport(
   query: (taskId: string, context: { signal: AbortSignal }) => Promise<ImageTransportTaskState>,
-  cancel: Extract<ImageGenerationTransport<WireVendorBag>['task'], { kind: 'supported' }>['cancel'] = {
+  cancel: Extract<ImageGenerationTransport<VendorBag>['task'], { kind: 'supported' }>['cancel'] = {
     kind: 'unsupported'
   }
-): ImageGenerationTransport<WireVendorBag> {
+): ImageGenerationTransport<VendorBag> {
   return {
     submit: vi.fn().mockResolvedValue({ kind: 'submitted', taskId: 'task-1' }),
     supportsInput: () => ({ files: false, mask: false }),
@@ -47,13 +47,34 @@ function taskTransport(
 }
 
 describe('createImageGenerationModel.doGenerate', () => {
+  it('returns SDK warnings for ignored image and mask inputs', async () => {
+    const transport = taskTransport(async () => ({ kind: 'completed', imageUrls: ['https://img/result.png'] }))
+    const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'ppio', transport })
+    const image = { type: 'file' as const, mediaType: 'image/png', data: 'AQID' }
+    const result = await model.doGenerate(makeOptions({ files: [image], mask: image }))
+    expect(result.warnings).toEqual([
+      { type: 'unsupported', feature: 'files' },
+      { type: 'unsupported', feature: 'mask' }
+    ])
+  })
+
+  it.each([{ num_inference_steps: 20 }, { seed: 42 }, { invented: true }])(
+    'rejects wire spellings, duplicate native fields and unknown provider options before submission (%j)',
+    async (params) => {
+      const transport = taskTransport(async () => ({ kind: 'completed', imageUrls: ['https://img/result.png'] }))
+      const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'ppio', transport })
+      await expect(model.doGenerate(makeOptions({ providerOptions: { ppio: params } }))).rejects.toThrow()
+      expect(transport.submit).not.toHaveBeenCalled()
+    }
+  )
+
   it('returns urls for an asynchronous task completion', async () => {
     const query = vi.fn().mockResolvedValue({
       kind: 'completed',
       imageUrls: ['https://img/1.png', 'https://img/2.png']
     })
     const transport = taskTransport(query)
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
+    const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'ppio', transport })
 
     const result = await model.doGenerate(makeOptions())
 
@@ -64,12 +85,12 @@ describe('createImageGenerationModel.doGenerate', () => {
   })
 
   it('returns urls directly for an immediate completion', async () => {
-    const transport: ImageGenerationTransport<WireVendorBag> = {
+    const transport: ImageGenerationTransport<VendorBag> = {
       submit: vi.fn().mockResolvedValue({ kind: 'completed', imageUrls: ['https://img/sync.png'] }),
       supportsInput: () => ({ files: false, mask: false }),
       task: { kind: 'unsupported' }
     }
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
+    const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'ppio', transport })
 
     const result = await model.doGenerate(makeOptions())
 
@@ -78,7 +99,11 @@ describe('createImageGenerationModel.doGenerate', () => {
 
   it('rejects a terminal task failure without querying again', async () => {
     const query = vi.fn().mockResolvedValue({ kind: 'failed', message: 'Task failed' })
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport: taskTransport(query) })
+    const model = createImageGenerationModel('m', {
+      modelDescriptor: undefined,
+      provider: 'ppio',
+      transport: taskTransport(query)
+    })
 
     await expect(model.doGenerate(makeOptions())).rejects.toThrow('Task failed')
     expect(query).toHaveBeenCalledTimes(1)
@@ -86,7 +111,7 @@ describe('createImageGenerationModel.doGenerate', () => {
 
   it('throws AbortError before submit when the signal is already aborted', async () => {
     const transport = taskTransport(vi.fn())
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
+    const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'ppio', transport })
     const controller = new AbortController()
     controller.abort()
 
@@ -104,7 +129,7 @@ describe('createImageGenerationModel.doGenerate', () => {
       throw new DOMException('aborted', 'AbortError')
     })
     const transport = taskTransport(query, { kind: 'supported', cancelRemote })
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
+    const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'ppio', transport })
 
     await expect(model.doGenerate(makeOptions({ abortSignal: controller.signal }))).rejects.toMatchObject({
       name: 'AbortError'
@@ -113,20 +138,20 @@ describe('createImageGenerationModel.doGenerate', () => {
     expect(cancelRemote).toHaveBeenCalledWith('task-1', expect.objectContaining({ signal: undefined }))
   })
 
-  it('forwards wire provider params and per-call headers to submit and query', async () => {
+  it('forwards canonical provider params and per-call headers to submit and query', async () => {
     const query = vi.fn().mockResolvedValue({ kind: 'completed', imageUrls: ['https://img/1.png'] })
     const transport = taskTransport(query)
-    const submit = vi.fn(async (input: ImageGenerationSubmitInput<WireVendorBag>) => {
-      expect(input.providerParams).toMatchObject({ num_inference_steps: 20 })
+    const submit = vi.fn(async (input: ImageGenerationSubmitInput<VendorBag>) => {
+      expect(input.providerParams).toMatchObject({ numInferenceSteps: 20 })
       expect(input.headers).toEqual({ 'x-request': 'one' })
       return { kind: 'submitted' as const, taskId: 'task-1' }
     })
     transport.submit = submit
-    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
+    const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'ppio', transport })
 
     const result = await model.doGenerate(
       makeOptions({
-        providerOptions: { ppio: { num_inference_steps: 20 } } as never,
+        providerOptions: { ppio: { numInferenceSteps: 20 } },
         headers: { 'x-request': 'one' }
       })
     )
@@ -136,12 +161,12 @@ describe('createImageGenerationModel.doGenerate', () => {
   })
 
   it('rejects a task submission from a transport without task capability', async () => {
-    const transport: ImageGenerationTransport<WireVendorBag> = {
+    const transport: ImageGenerationTransport<VendorBag> = {
       submit: vi.fn().mockResolvedValue({ kind: 'submitted', taskId: 'task-1' }),
       supportsInput: () => ({ files: false, mask: false }),
       task: { kind: 'unsupported' }
     }
-    const model = createImageGenerationModel('m', { provider: 'sync-provider', transport })
+    const model = createImageGenerationModel('m', { modelDescriptor: undefined, provider: 'sync-provider', transport })
 
     await expect(model.doGenerate(makeOptions())).rejects.toThrow(/does not support task queries/)
   })

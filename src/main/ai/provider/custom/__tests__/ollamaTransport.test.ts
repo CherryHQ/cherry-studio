@@ -15,6 +15,7 @@ const { MockAgent, getConstructedOptions } = vi.hoisted(() => {
 
 vi.mock('undici', () => ({ Agent: MockAgent }))
 
+import { resolveOllamaImageFetch } from '../ollama/ollamaImageFetch'
 import { createOllamaTransport } from '../ollama/ollamaTransport'
 
 /**
@@ -41,7 +42,10 @@ describe('OllamaTransport', () => {
   } as const
 
   it('posts a minimal JSON body to /generate', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
@@ -55,8 +59,11 @@ describe('OllamaTransport', () => {
     expect(result).toEqual({ kind: 'completed', imageUrls: ['QUJD'] })
   })
 
-  it('splits size into width/height, nests seed under options, and forwards providerParams.steps at the top level', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+  it('splits size into width/height, nests seed under options, and forwards providerParams.numInferenceSteps at the top level', async () => {
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
@@ -66,7 +73,7 @@ describe('OllamaTransport', () => {
       prompt: 'a cat',
       size: '768x768',
       seed: 42,
-      providerParams: { steps: 9 }
+      providerParams: { numInferenceSteps: 9 }
     })
 
     const init = fetchMock.mock.calls[0][1] as RequestInit
@@ -82,7 +89,10 @@ describe('OllamaTransport', () => {
   })
 
   it('omits options entirely when seed is unset', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
@@ -95,25 +105,16 @@ describe('OllamaTransport', () => {
     expect(body.seed).toBeUndefined()
   })
 
-  it('ignores a non-numeric providerParams.steps', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
-
-    await transport.submit({ ...baseInput, prompt: 'a cat', providerParams: { steps: 'nine' } })
-
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect(JSON.parse(init.body as string)).toEqual({ model: 'x/z-image-turbo', prompt: 'a cat', stream: false })
-  })
-
   it('constructs an Agent dispatcher with a timeout well past undici defaults, so a cold model load does not trip "fetch failed"', async () => {
     const options = getConstructedOptions() as { headersTimeout: number; bodyTimeout: number }
     // undici default is 300_000ms; cold-loading a multi-GB model routinely exceeds it.
     expect(options.headersTimeout).toBeGreaterThan(300_000)
     expect(options.bodyTimeout).toBeGreaterThan(300_000)
 
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
@@ -138,7 +139,10 @@ describe('OllamaTransport', () => {
   })
 
   it('falls back to global fetch with the long-timeout dispatcher when no fetch is injected', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
@@ -153,7 +157,8 @@ describe('OllamaTransport', () => {
   it('merges custom headers with Content-Type', async () => {
     const transport = createOllamaTransport({
       baseURL: 'http://localhost:11434/api',
-      headers: { Authorization: 'Bearer token' }
+      headers: { Authorization: 'Bearer token' },
+      fetch: resolveOllamaImageFetch(undefined)
     })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -169,7 +174,10 @@ describe('OllamaTransport', () => {
   })
 
   it('does not wrap the base64 image in a data: URI (the patched ai SDK only auto-downloads http(s) URLs; anything else is decoded as raw base64 verbatim)', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ image: 'aGVsbG8=' }), { status: 200 })
     )
@@ -180,14 +188,20 @@ describe('OllamaTransport', () => {
   })
 
   it('rejects a successful response with no image field', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }))
 
     await expect(transport.submit({ ...baseInput, prompt: 'a cat' })).rejects.toThrow('Invalid JSON response')
   })
 
   it('throws the remote error message on a non-ok response', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ error: 'model not found' }), { status: 404 })
     )
@@ -196,7 +210,10 @@ describe('OllamaTransport', () => {
   })
 
   it('forwards the abort signal to fetch', async () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const transport = createOllamaTransport({
+      baseURL: 'http://localhost:11434/api',
+      fetch: resolveOllamaImageFetch(undefined)
+    })
     const controller = new AbortController()
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) => {
       return new Promise((_resolve, reject) => {
@@ -213,10 +230,5 @@ describe('OllamaTransport', () => {
 
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
-  })
-
-  it('does not expose polling for the single-shot path', () => {
-    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
-    expect('poll' in transport).toBe(false)
   })
 })

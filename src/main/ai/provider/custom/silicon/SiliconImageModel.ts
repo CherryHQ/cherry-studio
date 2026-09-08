@@ -1,9 +1,9 @@
 import type { ImageModelV3, ImageModelV3CallOptions, SharedV3Warning } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import type { WireVendorBag } from '@main/ai/utils/imageOptions'
+import { parseImageVendorParams } from '@main/ai/utils/imageOptions'
 
 import { executeImageTransport } from '../imageTransportRuntime'
-import { createSiliconTransport } from './siliconTransport'
+import { createSiliconTransport, siliconImageLimits } from './siliconTransport'
 
 /**
  * SiliconFlow Image Generation model — one class for every SiliconFlow
@@ -27,10 +27,9 @@ export interface SiliconImageModelConfig {
 
 export class SiliconImageModel implements ImageModelV3 {
   readonly specificationVersion = 'v3'
-  // Kolors caps batch at 4; Qwen-family is single-image. We leave the
-  // AI SDK to fan out (callCount = ceil(n / 1)) past 1 — the body's
-  // `batch_size` only honors the value it understands.
-  readonly maxImagesPerCall = 4
+  get maxImagesPerCall(): number {
+    return siliconImageLimits(this.modelId).outputs
+  }
 
   get provider(): string {
     return this.config.provider
@@ -56,8 +55,7 @@ export class SiliconImageModel implements ImageModelV3 {
       warnings.push({ type: 'unsupported', feature: 'mask' })
     }
 
-    // `silicon` is the providerOptions key produced by the WireProfile engine.
-    const providerParams: WireVendorBag = providerOptions?.silicon ?? {}
+    const providerParams = parseImageVendorParams(providerOptions.silicon ?? {})
     const transport = createSiliconTransport(this.config)
     const images = await executeImageTransport({
       transport,

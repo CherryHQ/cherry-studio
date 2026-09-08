@@ -48,13 +48,9 @@ describe('createPpioProvider', () => {
     expect(model.provider).toBe('ppio.embedding')
   })
 
-  // PPIO images ALWAYS take the job transport, so this model exists only to satisfy
-  // `ProviderV3` — reaching it means the transport gate was bypassed, and it says so.
-  it('imageModel refuses rather than delivering under the in-SDK wire spelling', async () => {
+  it('requires a prepared binding before exposing an executable image model', () => {
     const provider = createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
-    const img = provider.imageModel('z-image-turbo')
-    expect(img.provider).toBe('ppio')
-    await expect(img.doGenerate({ prompt: 'a cat', n: 1 } as never)).rejects.toThrow('transport-only')
+    expect(() => provider.imageModel('z-image-turbo')).toThrow('binding')
   })
 
   it.each([undefined, 'https://proxy.example/ppio'])(

@@ -1,5 +1,5 @@
 import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
-import type { WireVendorBag } from '@main/ai/utils/imageOptions'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
 import type { ImageGenerationSubmitInput } from '../imageTransport'
@@ -10,26 +10,7 @@ import {
 } from '../imageTransport'
 import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 
-/**
- * OVMS (OpenVINO Model Server) single-shot transport.
- *
- * POSTs `${apiHost}/images/generations` (no `/v1`, no auth) with body
- * `{model,prompt,size,num_inference_steps,rng_seed}`. OVMS responds
- * synchronously, so this transport only implements `submit()`. `apiHost` is
- * the local OpenVINO host (no pinned default).
- *
- * Field sourcing under the unified-schema flow:
- *   - `size` comes from AI SDK `input.size` (canonicalGenerate's
- *     POSITIONAL_RENAME routes `params.size → aiSdkParams.imageSize → AI SDK
- *     options.size → input.size`).
- *   - `num_inference_steps` comes from the providerOptions bag. OVMS rides the
- *     in-SDK path, so its bag is the WireProfile diffusion profile's snake_case
- *     wire body — the profile wire-names `numInferenceSteps → num_inference_steps`
- *     and `passthroughExtras` strips the camelCase twin, so the bag carries the
- *     snake form only.
- *   - `rng_seed` is OVMS's bespoke wire name for seed; sourced from the native
- *     `input.seed`.
- */
+/** Single-shot OVMS protocol; keep its existing /images/generations endpoint during the execution refactor. */
 
 export const DEFAULT_OVMS_BASE_URL = 'http://localhost:8000'
 
@@ -45,7 +26,7 @@ const ovmsImageResponseSchema = z
   })
   .passthrough()
 
-class OvmsTransport implements ImmediateImageGenerationTransport<WireVendorBag> {
+class OvmsTransport implements ImmediateImageGenerationTransport<VendorBag> {
   private readonly baseURL: string
   private readonly headers: Record<string, string | undefined> | undefined
   private readonly fetch: FetchFunction | undefined
@@ -63,18 +44,15 @@ class OvmsTransport implements ImmediateImageGenerationTransport<WireVendorBag> 
     return { files: false, mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput<WireVendorBag>) {
+  async submit(input: ImageGenerationSubmitInput<VendorBag>) {
     const bag = input.providerParams
 
-    // OVMS is the in-SDK (createImageGenerationModel) path, so its bag is the
-    // WireProfile diffusion profile's snake_case wire body (camelCase twin
-    // stripped by passthroughExtras). Native size/seed come from `input.*`.
     const requestBody = {
       model: input.modelId,
       prompt: input.prompt ?? '',
-      size: input.size ?? '512x512',
-      num_inference_steps: typeof bag.num_inference_steps === 'number' ? bag.num_inference_steps : 4,
-      rng_seed: input.seed ?? 0
+      size: input.size,
+      num_inference_steps: bag.numInferenceSteps,
+      rng_seed: input.seed
     }
 
     const response = await postJsonToApi({

@@ -1,7 +1,7 @@
 import type { ProviderConfig } from '../../types'
 import type { VendorBag } from '../../utils/imageOptions'
 import { resolveDashScopeImageProtocol } from './dashscope/dashscopeImageBinding'
-import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
+import { type DmxapiCustomImageBinding, resolveDmxapiImageBinding } from './dmxapi/dmxapiImageRouting'
 import type { ImageGenerationTransport, ImageTransportDescriptor } from './imageGenerationModel'
 import { resolvePpioImageProtocol } from './ppio/ppioImageBinding'
 import { resolveTokenhubImageProtocol } from './tokenhub/tokenhubImageBinding'
@@ -11,7 +11,7 @@ export type NativeImageTarget =
   | { providerId: 'dashscope'; modelDescriptor: ImageTransportDescriptor }
   | { providerId: 'tokenhub'; modelDescriptor: ImageTransportDescriptor }
   | { providerId: 'modelscope'; modelDescriptor: ImageTransportDescriptor | undefined }
-  | { providerId: 'dmxapi'; modelDescriptor: ImageTransportDescriptor | undefined }
+  | { providerId: 'dmxapi'; binding: DmxapiCustomImageBinding; modelDescriptor: ImageTransportDescriptor | undefined }
 
 export type NativeImageTargetResolution =
   | { kind: 'custom'; target: NativeImageTarget }
@@ -43,8 +43,11 @@ export function resolveNativeImageTarget(
       return { kind: 'custom', target: { providerId, modelDescriptor } }
     case 'modelscope':
       return { kind: 'custom', target: { providerId, modelDescriptor } }
-    case 'dmxapi':
-      if (dmxapiUsesCustomTransport(modelId)) return { kind: 'custom', target: { providerId, modelDescriptor } }
+    case 'dmxapi': {
+      const resolution = resolveDmxapiImageBinding(modelId)
+      if (resolution.kind === 'custom')
+        return { kind: 'custom', target: { providerId, binding: resolution.binding, modelDescriptor } }
+    }
   }
   return { kind: 'adapter' }
 }
@@ -94,7 +97,7 @@ export async function createNativeImageTransport(
     }
     case 'dmxapi': {
       const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
-      return buildDmxapiTransport(target.settings)
+      return buildDmxapiTransport(target.settings, target.binding)
     }
     case 'tokenhub': {
       const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')

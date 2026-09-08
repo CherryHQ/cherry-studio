@@ -73,7 +73,7 @@ export function createOvmsProvider(settings: OvmsProviderSettings = {}): OvmsPro
       fetch: customFetch
     })
   provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: OVMS_PROVIDER_NAME, transport })
+    createImageGenerationModel(modelId, { modelDescriptor: undefined, provider: OVMS_PROVIDER_NAME, transport })
 
   return provider as OvmsProvider
 }

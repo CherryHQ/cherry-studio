@@ -4,12 +4,14 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 
-import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
+import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
 import { createPpioTransport, DEFAULT_PPIO_BASE_URL, type PpioModelDescriptor } from './ppioTransport'
 
 export const PPIO_PROVIDER_NAME = 'ppio' as const
 
 export interface PpioProviderSettings {
+  /** Chat-only configurations need no binding; imageModel requires the prepared descriptor. */
+  imageBinding?: PpioModelDescriptor
   apiKey?: string
   /** Chat / embedding endpoint (e.g. `https://api.ppinfra.com/v3/openai`). */
   baseURL?: string
@@ -90,7 +92,17 @@ export function createPpioProvider(settings: PpioProviderSettings = {}): PpioPro
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) => transportOnlyImageModel(PPIO_PROVIDER_NAME, modelId)
+  provider.imageModel = (modelId: string) => {
+    const descriptor = settings.imageBinding
+    if (!descriptor || descriptor.id !== modelId) {
+      throw new Error(`PPIO imageModel requires its prepared model binding`)
+    }
+    return createImageGenerationModel(modelId, {
+      provider: PPIO_PROVIDER_NAME,
+      modelDescriptor: descriptor,
+      transport: buildPpioTransport({ ...settings, apiKey: resolveApiKey() }, descriptor)
+    })
+  }
 
   return provider as PpioProvider
 }

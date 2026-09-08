@@ -4,7 +4,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 
-import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
+import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
 import { createModelscopeTransport, DEFAULT_MODELSCOPE_BASE_URL } from './modelscopeTransport'
 
 export const MODELSCOPE_PROVIDER_NAME = 'modelscope' as const
@@ -82,7 +82,12 @@ export function createModelscopeProvider(settings: ModelscopeProviderSettings = 
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) => transportOnlyImageModel(MODELSCOPE_PROVIDER_NAME, modelId)
+  provider.imageModel = (modelId: string) =>
+    createImageGenerationModel(modelId, {
+      provider: MODELSCOPE_PROVIDER_NAME,
+      modelDescriptor: undefined,
+      transport: buildModelscopeTransport({ ...settings, apiKey: resolveApiKey() })
+    })
 
   return provider as ModelscopeProvider
 }

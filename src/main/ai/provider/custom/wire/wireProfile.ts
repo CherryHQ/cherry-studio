@@ -67,16 +67,6 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
   forward: ['quality', 'background', 'moderation', 'style']
 }
 
-/**
- * aihubmix aggregator. Reproduces the `aihubmix` emitter: the OpenAI image body
- * PLUS `seed` (aihubmix's backends — Doubao Seedream / Qwen-Image / FLUX / iRAG /
- * Ideogram — mostly accept `seed`, unlike OpenAI's own model). Dual-keyed under
- * `openai` + `aihubmix` by the registry.
- */
-export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
-  forward: [...(OPENAI_WIRE_PROFILE.forward ?? []), 'seed']
-}
-
 /** OpenRouter's native `/images` JSON body. `n`/`size`/`seed`/`aspectRatio` are
  * supplied by the AI SDK's typed image options; these are the remaining model-
  * advertised fields that must ride under `providerOptions.openrouter`. */
@@ -147,19 +137,6 @@ export const GOOGLE_WIRE_PROFILE: WireProfile = {
     // `size`. Both land in `imageConfig.imageSize`. (A model exposes one or the other.)
     imageResolution: imageResolutionImageConfigRule,
     size: { contribute: (v) => ({ imageConfig: { imageSize: v as JSONValue } }) }
-  }
-}
-
-/**
- * Ollama's own experimental image-gen models (`x/z-image-turbo`,
- * `x/flux2-klein`, served through `/api/generate`). Only `numInferenceSteps`
- * needs a rule — its wire name is `steps`, not the catalog's auto snake_case
- * `num_inference_steps` — since `size`/`seed` reach `ollamaTransport` via the
- * native AI SDK call options (`input.size`/`input.seed`), never this profile.
- */
-export const OLLAMA_WIRE_PROFILE: WireProfile = {
-  fields: {
-    numInferenceSteps: { to: 'steps' }
   }
 }
 
@@ -234,22 +211,16 @@ export const WIRE_REGISTRY = {
   google: { profile: GOOGLE_WIRE_PROFILE },
   // Vertex reuses the google body; `resolveProviderOptionsKey` delivers it under `vertex`.
   'google-vertex': { profile: GOOGLE_WIRE_PROFILE },
-  // No `dashscope` row: every DashScope image model resolves a transport
-  // (`imageTransportRegistry`), which takes the canonical bag and builds its own
-  // envelope — a profile here would never be read. See `wireRegistryReachability`.
+  ppio: { profile: {}, passthrough: true },
+  dashscope: { profile: {}, passthrough: true },
+  tokenhub: { profile: {}, passthrough: true },
+  modelscope: { profile: {}, passthrough: true },
   doubao: { profile: DOUBAO_WIRE_PROFILE, passthrough: true },
-  // passthrough: forward the vendor bag (imageResolution / addWatermark /
-  // sequentialImageGeneration / responseFormat …) under the `aihubmix` key, where
-  // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
-  // `openai` mirror stays clean (mapped fields only).
-  aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
-  // No `dmxapi` row: `config.ts` only gives DMXAPI its own SDK id under
-  // `dmxapiUsesCustomTransport`, which is the same predicate that gives it a transport
-  // — so `providerId === 'dmxapi'` always took the job branch, and every other DMXAPI
-  // image model resolves `openai-compatible`. Its profile and `also: google` block were
-  // unreachable from both sides. Reconnecting the gateway's native image adapters is a
-  // routing change in `config.ts`, not a row here. See `wireRegistryReachability`.
-  ollama: { profile: OLLAMA_WIRE_PROFILE },
+  aihubmix: { profile: {}, passthrough: true },
+  dmxapi: { profile: {}, passthrough: true },
+  ollama: { profile: {}, passthrough: true },
+  ovms: { profile: {}, passthrough: true },
+  silicon: { profile: {}, passthrough: true },
   minimax: { profile: MINIMAX_WIRE_PROFILE },
   // The generic adapter every provider without an `adapterFamily` collapses onto.
   // Its body IS the HTTP body (`OpenAICompatibleImageModel` spreads
