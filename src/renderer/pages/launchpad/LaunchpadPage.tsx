@@ -20,7 +20,7 @@ import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
+import { getSidebarMenuPath } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -29,7 +29,6 @@ import { useTranslation } from 'react-i18next'
 const BASE_URL = 'https://www.cherry-ai.com/'
 const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
 
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_TILE_CLASS =
@@ -55,13 +54,27 @@ export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const {
+    pinned,
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    miniAppShow,
+    updateAppStatus,
+    hideMiniApp,
+    removeCustomMiniApp,
+    reorderMiniAppsByStatus
+  } = useMiniApps()
+  const { appFavorites, miniAppFavoriteIds, setAppPinned, toggleMiniApp } = useSidebarFavorites()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
   const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
+  const miniAppFavoriteIdSet = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const openedMiniAppIdSet = useMemo(
+    () => new Set(openedKeepAliveMiniApps.map((app) => app.appId)),
+    [openedKeepAliveMiniApps]
+  )
 
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)
@@ -106,11 +119,14 @@ export default function LaunchpadPage() {
     void navigateToUrl(path)
   }
 
-  const openMiniApp = (app: MiniAppType) => {
-    if (shouldSuppressLaunchClick(app.appId)) return
+  const openMiniApp = useCallback(
+    (appId: string) => {
+      if (shouldSuppressLaunchClick(appId)) return
 
-    void navigateToUrl(`/app/mini-app/${app.appId}`)
-  }
+      void navigateToUrl(`/app/mini-app/${appId}`)
+    },
+    [navigateToUrl, shouldSuppressLaunchClick]
+  )
 
   const openDeepSeekHarness = () => {
     void navigateToUrl(DEEPSEEK_HARNESS_URL)
@@ -126,7 +142,8 @@ export default function LaunchpadPage() {
 
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (!visibleSidebarFavoriteSet.has(favorite) || REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
+      if (!visibleSidebarFavoriteSet.has(favorite)) return
+      if (visibleSidebarFavoriteSet.size <= 1) return
       setAppPinned(favorite, false)
     },
     [setAppPinned, visibleSidebarFavoriteSet]
@@ -135,13 +152,14 @@ export default function LaunchpadPage() {
   const getAppContextMenuItems = useCallback(
     (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
       const isPinned = visibleSidebarFavoriteSet.has(favorite)
+      const isLastPinned = isPinned && visibleSidebarFavoriteSet.size <= 1
 
       return [
         {
           type: 'item',
           id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
           label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-          enabled: !isPinned || !REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite),
+          enabled: !isLastPinned,
           onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
@@ -233,7 +251,20 @@ export default function LaunchpadPage() {
     <div
       key={app.appId}
       className={`${LAUNCHPAD_ITEM_CLASS} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 hover:scale-105 active:scale-95`}>
-      <App app={app} size={56} variant="launchpad" onOpen={openMiniApp} />
+      <App
+        app={app}
+        size={56}
+        variant="launchpad"
+        onOpen={openMiniApp}
+        onUpdateStatus={updateAppStatus}
+        onHide={hideMiniApp}
+        onRemoveCustom={removeCustomMiniApp}
+        onToggleSidebarFavorite={toggleMiniApp}
+        isPinned
+        isSidebarFavorite={miniAppFavoriteIdSet.has(app.appId)}
+        isOpened={openedMiniAppIdSet.has(app.appId)}
+        isActive={miniAppShow && currentMiniAppId === app.appId}
+      />
     </div>
   )
 

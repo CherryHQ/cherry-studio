@@ -4,6 +4,7 @@ import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
 import { stringify as stringifyToml } from 'smol-toml'
+import { type Document, isMap, isScalar } from 'yaml'
 
 import {
   buildClaudeConfig,
@@ -11,6 +12,7 @@ import {
   buildCodexConfig,
   buildGeminiEnvConfig,
   buildGeminiSettingsConfig,
+  buildHermesEnvConfig,
   buildKimiConfig,
   buildOpenCodeConfig,
   buildPiModelsConfig,
@@ -18,11 +20,12 @@ import {
   buildQwenConfig,
   clearCodexApiKeyAuth
 } from './builders'
-import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
+import { CHERRY_PROVIDER_PREFIX, HERMES_ENDPOINTS, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
 import { parseDotenv, renderDotenvFile } from './dotenv'
 import {
   getDraftFile,
   makeDraftFile,
+  parseDraftFileOrThrow,
   readAndParseDraftFile,
   readConfigFilesForDraft,
   readDraftFileText
@@ -30,6 +33,8 @@ import {
 import {
   parseJsonOrThrow,
   parseTomlOrThrow,
+  parseYamlDocumentOrThrow,
+  parseYamlOrThrow,
   readConfigFiles,
   readValidatedJsonOrNull,
   readValidatedTomlOrNull,
@@ -62,11 +67,14 @@ import {
   isOpenCodePermissionMode
 } from './permissionModes'
 import {
+  HERMES_API_MODES,
+  type HermesApiMode,
   modelSupportsReasoningEffort,
   openCodeNpmInfoFromNpmPackage,
   resolveClaudeBaseUrl,
   resolveCodexBaseUrl,
   resolveGeminiBaseUrl,
+  resolveHermesProviderInfo,
   resolveOpenAIBaseUrl,
   resolveOpenCodeNpmInfo,
   resolvePiProviderInfo
@@ -143,6 +151,8 @@ export interface CliConfigAdapter {
 }
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
+const HERMES_API_KEY_ENV = 'CHERRY_HERMES_API_KEY'
+const HERMES_API_KEY_ENV_REFERENCE = '${CHERRY_HERMES_API_KEY}'
 
 function replaceDraftContent(
   files: CliConfigFileDraft[],
@@ -169,6 +179,41 @@ function providerNameFromKey(providerKey: string | undefined, label: string): st
 
 function cherryProviderKeyFrom(providers: Record<string, any>): string {
   return requireDraftValue(findCherryProviderKey(providers), 'OpenCode provider')
+}
+
+function isHermesApiMode(value: unknown): value is HermesApiMode {
+  return HERMES_API_MODES.some((apiMode) => apiMode === value)
+}
+
+const HERMES_MANAGED_MODEL_KEYS = ['provider', 'default', 'base_url', 'api_key', 'api_mode'] as const
+
+function writeHermesConfig(
+  document: Document,
+  resolved: { apiKeyEnv: string; apiMode: HermesApiMode; baseUrl: string; model: string }
+): string {
+  const existingModel = document.get('model', true)
+  // A bare `model:` parses to a null scalar node, not a missing key — an empty
+  // section is a valid starting point, not a malformed mapping.
+  if (existingModel == null || (isScalar(existingModel) && existingModel.value == null)) {
+    document.set('model', document.createNode({}))
+  } else if (!isMap(existingModel)) {
+    throw new Error('invalid Hermes model config: expected an object')
+  }
+  document.setIn(['model', 'provider'], 'custom')
+  document.setIn(['model', 'default'], resolved.model)
+  document.setIn(['model', 'base_url'], normalizeUrl(resolved.baseUrl))
+  document.setIn(['model', 'api_key'], resolved.apiKeyEnv)
+  document.setIn(['model', 'api_mode'], resolved.apiMode)
+  return document.toString()
+}
+
+function clearHermesConfig(content: string): string | null {
+  const document = parseYamlDocumentOrThrow(content)
+  if (document.getIn(['model', 'api_key']) !== HERMES_API_KEY_ENV_REFERENCE) return null
+  for (const key of HERMES_MANAGED_MODEL_KEYS) document.deleteIn(['model', key])
+  const model = document.get('model', true)
+  if (isMap(model) && model.items.length === 0) document.delete('model')
+  return document.toString()
 }
 
 const claudeAdapter: CliConfigAdapter = {
@@ -794,6 +839,99 @@ const kimiAdapter: CliConfigAdapter = {
   }
 }
 
+const hermesAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets(CodeCli.HERMES),
+  providerBaseUrls: (provider) =>
+    HERMES_ENDPOINTS.flatMap((endpoint) => {
+      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
+      const baseUrl = normalizeUrl(resolveHermesProviderInfo(provider, [endpoint]).baseUrl)
+      return baseUrl ? [baseUrl] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, context) {
+    const { apiKey, model, modelRecord, provider } = context
+    const providerInfo = resolveHermesProviderInfo(provider, modelRecord?.endpointTypes)
+    const read = await readConfigFilesForDraft(this.targets, args.files)
+    const document = readAndParseDraftFile('hermes-config', parseYamlDocumentOrThrow, args.files, read)
+    const envText = readDraftFileText('hermes-env', args.files, read)
+    return [
+      makeDraftFile(
+        'hermes-config',
+        writeHermesConfig(document, {
+          apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
+          apiMode: providerInfo.apiMode,
+          baseUrl: providerInfo.baseUrl,
+          model
+        }),
+        read
+      ),
+      makeDraftFile('hermes-env', renderDotenvFile(buildHermesEnvConfig(parseDotenv(envText), apiKey), envText), read)
+    ]
+  },
+  assertCredentials(context) {
+    const { baseUrl } = resolveHermesProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    if (!context.apiKey || !baseUrl) throw new Error('Hermes config is missing required fields (apiKey/baseUrl)')
+  },
+  updateDraftConfig(files, connection) {
+    const document = parseDraftFileOrThrow('hermes-config', files, parseYamlDocumentOrThrow)
+    const envText = getDraftFile(files, 'hermes-env')?.content ?? ''
+    const existingApiMode = document.getIn(['model', 'api_mode'])
+    const apiMode = isHermesApiMode(existingApiMode) ? existingApiMode : 'chat_completions'
+    return replaceDraftContent(
+      replaceDraftContent(
+        files,
+        'hermes-config',
+        writeHermesConfig(document, {
+          apiKeyEnv: HERMES_API_KEY_ENV_REFERENCE,
+          apiMode,
+          baseUrl: requireDraftValue(connection.baseUrl, 'Hermes base URL'),
+          model: requireDraftValue(connection.model, 'Hermes model')
+        })
+      ),
+      'hermes-env',
+      connection.apiKey
+        ? renderDotenvFile(buildHermesEnvConfig(parseDotenv(envText), connection.apiKey), envText)
+        : envText
+    )
+  },
+  async buildClearFiles() {
+    const read = await readConfigFiles(this.targets)
+    const files: CliConfigWriteFile[] = []
+    const config = requireReadFile('hermes-config', read)
+    if (config.content !== null) {
+      try {
+        const content = clearHermesConfig(config.content)
+        if (content !== null) files.push({ target: 'hermes-config', content })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`Failed to parse Hermes config at ${config.path}: ${message}`)
+      }
+    }
+
+    const env = requireReadFile('hermes-env', read)
+    if (env.content !== null) {
+      const envMap = parseDotenv(env.content)
+      envMap.delete(HERMES_API_KEY_ENV)
+      files.push({ target: 'hermes-env', content: renderDotenvFile(envMap, env.content) })
+    }
+    return files
+  },
+  extractConnection(files) {
+    const config = parseYamlOrThrow(getDraftFile(files, 'hermes-config')?.content ?? '')
+    const model = asRecord(config.model)
+    if (model.api_key !== HERMES_API_KEY_ENV_REFERENCE) return null
+    const env = parseDotenv(getDraftFile(files, 'hermes-env')?.content ?? '')
+    return {
+      baseUrl: stringValue(model.base_url),
+      apiKey: stringValue(env.get(HERMES_API_KEY_ENV)),
+      model: stringValue(model.default)
+    }
+  },
+  extractConfig() {
+    return {}
+  }
+}
+
 const piAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.PI),
   providerBaseUrls: (provider) =>
@@ -903,7 +1041,8 @@ export const CLI_CONFIG_ADAPTERS: Record<FileConfiguredCli, CliConfigAdapter> = 
   [CodeCli.GEMINI_CLI]: geminiAdapter,
   [CodeCli.QWEN_CODE]: qwenAdapter,
   [CodeCli.KIMI_CODE]: kimiAdapter,
-  [CodeCli.PI]: piAdapter
+  [CodeCli.PI]: piAdapter,
+  [CodeCli.HERMES]: hermesAdapter
 }
 
 export function getAdapter(cliTool: string): CliConfigAdapter | undefined {

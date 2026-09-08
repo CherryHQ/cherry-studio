@@ -303,6 +303,7 @@ const HistoryRow: FC<{
       tabIndex={0}
       onClick={() => onSelect(item.id)}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
           onSelect(item.id)

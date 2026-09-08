@@ -25,7 +25,7 @@ each other. The current code patches each contradiction window individually
 | A | in-memory stream `exec.awaitingApproval` | stream + 30 s grace | `AiStreamManager.onChunk` (`tool-approval-request` → true; `tool-output-*` → false) |
 | B | status cache `topic.stream.statuses.<topicId>.awaitingApprovalAnchors` | broadcast at **terminal**, **lingers after grace eviction, lost on restart** | `ChatStreamLifecycle.onTerminal` |
 | C | **DB** `message.data.parts[].state` (`approval-requested`/`approval-responded` + decision) | **durable — the only one that survives grace/restart** | terminal persistence + `Ai_ToolApproval_Respond` write + `prepareContinueDispatch` re-write |
-| D | renderer card | render window | approval **state** derives from **C** — the `ToolUIPart` `approval-requested` state in the message parts (`useToolApproval`, `ToolBlockGroup` "sole source of truth"); **B** is read only by `useIsActiveTurnTarget` as the *active-turn* indicator + composer-override binding, **not** as the approval-state authority |
+| D | renderer card | render window | approval **state** derives from **C** — the `ToolUIPart` `approval-requested` state in the message parts (`useToolApproval`, `ToolBlockGroup` "sole source of truth"); **B** is read only by `KeyedMessageActivityStore` as the *active-turn* indicator + composer-override binding, **not** as the approval-state authority |
 
 So the renderer side is already largely consolidated on **C**. The remaining
 split-brain is on the **write side in main**: the same decision is applied in
@@ -151,7 +151,7 @@ landable steps; each keeps the suite green.
 - Clear B on grace eviction (broadcast a terminal-cleared status, or have the
   renderer treat a missing live entry as "not the active target") so the stale-B
   window after eviction/restart closes. C remains the durable truth either way.
-- **Files:** `ChatStreamLifecycle.ts`, `useIsActiveTurnTarget.ts` (renderer).
+- **Files:** `ChatStreamLifecycle.ts`, `useMessageActivityState.ts` (renderer).
 
 ### Invariants (all phases)
 

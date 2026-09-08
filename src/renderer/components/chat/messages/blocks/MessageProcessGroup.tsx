@@ -69,13 +69,21 @@ const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessCont
 
 const ActiveProcessHeader = React.memo(function ActiveProcessHeader({
   createdAt,
+  startedAtMs,
   toolItems
 }: {
   createdAt: string
+  startedAtMs?: number
   toolItems: ToolRenderItem[]
 }) {
   const { t } = useTranslation()
-  const elapsedMs = usePlaceholderElapsedMs(true, createdAt, 1000)
+  const effectiveCreatedAt = useMemo(() => {
+    if (startedAtMs !== undefined && Number.isFinite(startedAtMs)) {
+      return new Date(startedAtMs).toISOString()
+    }
+    return createdAt
+  }, [createdAt, startedAtMs])
+  const elapsedMs = usePlaceholderElapsedMs(true, effectiveCreatedAt, 1000)
   const elapsedText = formatPlaceholderElapsed(elapsedMs, t)
   const summary = t('message.processing').replace(/(?:\.{3}|…)\s*$/u, '')
 
@@ -111,7 +119,11 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
           data-testid="live-tool-group-header"
           className="flex min-h-7 w-full select-none items-center py-0.5 text-left">
           <div className="min-w-0 flex-1 overflow-hidden">
-            <ActiveProcessHeader createdAt={message.createdAt} toolItems={toolItems} />
+            <ActiveProcessHeader
+              createdAt={message.createdAt}
+              startedAtMs={runtimeTiming?.startedAt}
+              toolItems={toolItems}
+            />
           </div>
         </div>
         <div data-testid="live-tool-group-content" className={`${PROCESS_CONTENT_CLASS_NAME} pt-2`}>

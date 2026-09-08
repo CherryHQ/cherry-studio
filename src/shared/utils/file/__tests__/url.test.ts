@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from '../url'
+import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl, tryFileUrlToPath } from '../url'
 
 describe('normalizeExt', () => {
   it('normalizes dotted, cased, and boundary-padded extensions', () => {
@@ -221,5 +221,20 @@ describe('toSafeFileUrl', () => {
     // `<img src>` can hand to OS file associations.
     expect(toSafeFileUrl('/payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///')
     expect(toSafeFileUrl('C:\\payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///C:/')
+  })
+})
+
+describe('tryFileUrlToPath', () => {
+  it('decodes percent-encoded segments the naive scheme strip would leave behind', () => {
+    expect(tryFileUrlToPath('file:///Users/a/Application%20Support/note.md')).toBe(
+      '/Users/a/Application Support/note.md'
+    )
+  })
+
+  it('returns undefined instead of throwing on inputs fileUrlToPath rejects', () => {
+    // `new URL()` accepts the dangling `%`; decodeURIComponent throws URIError on it.
+    expect(tryFileUrlToPath('file:///tmp/100%.png')).toBeUndefined()
+    expect(tryFileUrlToPath('https://example.com/a.png')).toBeUndefined()
+    expect(tryFileUrlToPath('not a url')).toBeUndefined()
   })
 })

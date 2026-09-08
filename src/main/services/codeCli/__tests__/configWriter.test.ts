@@ -23,6 +23,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
+const hermesHomeMock = vi.hoisted(() => ({ getHermesHome: vi.fn() }))
+
+vi.mock('../hermesHome', () => hermesHomeMock)
+
 // Real fs behavior against a real tmpdir, wrapped in vi.fn so individual tests
 // can inject write/restore failures at exact call positions.
 vi.mock('@main/utils/file/fs', async (importOriginal) => {
@@ -59,6 +63,7 @@ describe('writeCliConfigFiles', () => {
   const claudeSettings = () => path.join(home, '.claude', 'settings.json')
   const codexConfig = () => path.join(home, '.codex', 'config.toml')
   const codexAuth = () => path.join(home, '.codex', 'auth.json')
+  const hermesHome = () => path.join(home, 'custom-hermes')
 
   beforeEach(async () => {
     home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
@@ -66,6 +71,7 @@ describe('writeCliConfigFiles', () => {
       if (key === 'sys.home') return home
       throw new Error(`Unexpected getPath(${key})`)
     })
+    hermesHomeMock.getHermesHome.mockImplementation(async () => hermesHome())
   })
 
   afterEach(async () => {
@@ -86,6 +92,16 @@ describe('writeCliConfigFiles', () => {
       expect((await stat(codexConfig())).mode & 0o777).toBe(0o600)
       expect((await stat(codexAuth())).mode & 0o777).toBe(0o600)
     }
+  })
+
+  it('writes Hermes files under the pinned Hermes home', async () => {
+    await writeCliConfigFiles(CodeCli.HERMES, [
+      { target: 'hermes-config', content: 'model: {}\n' },
+      { target: 'hermes-env', content: 'OPENAI_API_KEY=secret\n' }
+    ])
+
+    expect(await readFile(path.join(hermesHome(), 'config.yaml'), 'utf-8')).toBe('model: {}\n')
+    expect(await readFile(path.join(hermesHome(), '.env'), 'utf-8')).toBe('OPENAI_API_KEY=secret\n')
   })
 
   it('deletes a requested config file', async () => {
@@ -204,6 +220,7 @@ describe('readCliConfigFiles', () => {
   const claudeSettings = () => path.join(home, '.claude', 'settings.json')
   const codexConfig = () => path.join(home, '.codex', 'config.toml')
   const codexAuth = () => path.join(home, '.codex', 'auth.json')
+  const hermesHome = () => path.join(home, 'custom-hermes')
 
   beforeEach(async () => {
     home = await mkdtemp(path.join(tmpdir(), 'cherry-cli-config-'))
@@ -211,6 +228,7 @@ describe('readCliConfigFiles', () => {
       if (key === 'sys.home') return home
       throw new Error(`Unexpected getPath(${key})`)
     })
+    hermesHomeMock.getHermesHome.mockImplementation(async () => hermesHome())
   })
 
   afterEach(async () => {
@@ -237,7 +255,7 @@ describe('readCliConfigFiles', () => {
 
     const reading = readCliConfigFiles(['codex-config', 'codex-auth'])
 
-    expect(read).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2))
     resolveAuth('{"auth_mode":"apikey"}\n')
     resolveConfig('model = "gpt-5"\n')
 
@@ -253,6 +271,16 @@ describe('readCliConfigFiles', () => {
 
     await expect(readCliConfigFiles(['claude-settings'])).resolves.toEqual([
       { target: 'claude-settings', path: claudeSettings(), content: '{"env":{}}\n' }
+    ])
+  })
+
+  it('reads Hermes files from the pinned Hermes home', async () => {
+    const configPath = path.join(hermesHome(), 'config.yaml')
+    await mkdir(hermesHome(), { recursive: true })
+    await writeFile(configPath, 'model: {}\n')
+
+    await expect(readCliConfigFiles(['hermes-config'])).resolves.toEqual([
+      { target: 'hermes-config', path: configPath, content: 'model: {}\n' }
     ])
   })
 

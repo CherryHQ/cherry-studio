@@ -2,8 +2,9 @@ import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/servi
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getImageGenerationSupport, loggerWarn } = vi.hoisted(() => ({
+const { getImageGenerationSupport, getModelByKey, loggerWarn } = vi.hoisted(() => ({
   getImageGenerationSupport: vi.fn(),
+  getModelByKey: vi.fn(),
   loggerWarn: vi.fn()
 }))
 
@@ -21,6 +22,10 @@ const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
 const fileRead = vi.fn()
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: getModelByKey }
+}))
+
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: { getImageGenerationSupport }
 }))
@@ -127,6 +132,8 @@ describe('cherryBuiltinTools', () => {
     generateImage.mockReset()
     fileRead.mockReset()
     getImageGenerationSupport.mockReset()
+    getModelByKey.mockReset()
+    getModelByKey.mockReturnValue({})
     getImageGenerationSupport.mockReturnValue(null)
     loggerWarn.mockReset()
   })
@@ -468,7 +475,7 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toMatch(/no items/i)
   })
 
-  it('runs kb_manage add within the bound scope, building the add input from an absolute file path', async () => {
+  it('runs kb_manage add within the bound scope, storing the full path as source (REGRESSION #19954)', async () => {
     kbAddItems.mockResolvedValue({ status: 'added' })
 
     const result = await callCherryBuiltinTool(
@@ -478,10 +485,10 @@ describe('cherryBuiltinTools', () => {
     )
 
     expect(kbAddItems).toHaveBeenCalledWith('b1', [
-      { type: 'file', data: { source: 'report.pdf', path: '/Users/me/docs/report.pdf' } }
+      { type: 'file', data: { source: '/Users/me/docs/report.pdf', path: '/Users/me/docs/report.pdf' } }
     ])
     expect(result.isError).toBeFalsy()
-    expect(JSON.parse(textOf(result))).toEqual({ action: 'add', added: ['report.pdf'] })
+    expect(JSON.parse(textOf(result))).toEqual({ action: 'add', added: ['/Users/me/docs/report.pdf'] })
   })
 
   it('runs kb_manage delete within the bound scope, forwarding conceptIds and the applied/notFound split', async () => {
@@ -735,6 +742,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     sessionId: 'session-1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
+    trustedNotifyChannels: [{ id: 'channel-1', type: 'telegram' as const }],
     getKnowledgeBaseIds: () => KB_SCOPE
   }
 

@@ -12,6 +12,7 @@ import {
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
+  hasPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
@@ -560,9 +561,12 @@ export function buildAgentRightPaneStatus(
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
       // The plan has two writers — the incremental task ledger and full-list todo snapshots —
       // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
-      if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
-      const todoSnapshot = getTodoSnapshot(part)
-      if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      // Both writers are main-agent-only: spawned-run parts are parented under their Task call.
+      if (!hasPartParentToolCallId(part)) {
+        if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
+        const todoSnapshot = getTodoSnapshot(part)
+        if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      }
 
       if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))

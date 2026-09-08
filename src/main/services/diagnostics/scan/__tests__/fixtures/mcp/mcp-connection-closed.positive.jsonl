@@ -1,0 +1,2 @@
+{"level":"error","message":"Error activating server mcp-auto-install: MCP error -32000: Connection closed","module":"McpRuntimeService","process":"main","timestamp":"2026-08-20 10:00:00"}
+{"level":"error","message":"MCP error -32000: Connection closed","stack":"Error: MCP error -32000: Connection closed\n    at StdioClientTransport","timestamp":"2026-08-19 10:00:00"}

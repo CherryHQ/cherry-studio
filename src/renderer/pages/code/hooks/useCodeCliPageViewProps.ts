@@ -10,7 +10,7 @@ import {
   isApiGatewayProviderId,
   LOGIN_CAPABLE_CLI_TOOLS
 } from '@shared/types/codeCli'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { clearCliConfig, resolveCliConfigApplyContext } from '../cliConfig'
@@ -25,6 +25,7 @@ import { useConfigMetadata } from './useConfigMetadata'
 import { useConfigPanelController } from './useConfigPanelController'
 import { useCurrentCliConfigConnection } from './useCurrentCliConfigConnection'
 import { useDeepSeekHarnessController } from './useDeepSeekHarnessController'
+import { useHermesDashboardController } from './useHermesDashboardController'
 import { useLaunchDialogController } from './useLaunchDialogController'
 import { useOpenClawGatewayController } from './useOpenClawGatewayController'
 import { useRemoveCliToolDialog } from './useRemoveCliToolDialog'
@@ -35,6 +36,11 @@ const logger = loggerService.withContext('CodeCliPage')
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
+
+// A broken managed install reports installed:false (inactive entries, no shim), and hiding it
+// would strip the only surface offering the Retry/Remove that repair or undo it.
+const isGeminiVisible = (status?: VersionStatus): boolean =>
+  status?.installed === true || status?.applicationStatus === 'broken'
 
 export function useCodeCliPageViewProps(
   initialTool?: CodeCli,
@@ -77,6 +83,7 @@ export function useCodeCliPageViewProps(
     resolveProviderMeta,
     resolveProviderMetaForTool,
     gatewayModelsById,
+    modelById,
     defaultGatewayModelId,
     isGatewayModelsLoading
   } = useConfigMetadata(selectedCliTool, providers, isProvidersLoading)
@@ -154,27 +161,42 @@ export function useCodeCliPageViewProps(
   )
   const enabledProvider = selectedProvider ?? defaultGatewayProvider
   const enabledProviderConfig = selectedProvider ? currentProviderConfig : defaultGatewayConfig
-  const [currentCliConfigConnection, setCurrentCliConfigConnection] = useCurrentCliConfigConnection({
+  const {
+    connection: currentCliConfigConnection,
+    setConnection: setCurrentCliConfigConnection,
+    reload: reloadCliConfigConnection
+  } = useCurrentCliConfigConnection({
     enabledProvider,
     selectedCliTool,
     currentProviderConfig: enabledProviderConfig,
     apiGatewayProvider: apiGatewayBundle
   })
 
-  const activeTool = useMemo<CliToolOption | undefined>(
-    () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
-    [selectedCliTool]
+  const { statuses, resolved: statusesResolved } = useCliVersionStatuses(CLI_TOOL_IDS)
+  const visibleTools = useMemo(
+    () =>
+      CLI_TOOLS.filter((tool) => tool.value !== CodeCli.GEMINI_CLI || isGeminiVisible(statuses[CodeCli.GEMINI_CLI])),
+    [statuses]
   )
+  const activeTool = useMemo<CliToolOption | undefined>(
+    () => visibleTools.find((tool) => tool.value === selectedCliTool),
+    [selectedCliTool, visibleTools]
+  )
+  useEffect(() => {
+    // Gate on `resolved`, not on the status being absent: a failed read leaves the map
+    // empty forever, which would hide Gemini while never redirecting off it.
+    if (selectedCliTool !== CodeCli.GEMINI_CLI || !statusesResolved) return
+    if (isGeminiVisible(statuses[CodeCli.GEMINI_CLI])) return
+    const fallback = visibleTools[0]
+    if (fallback) selectTool(fallback.value)
+  }, [selectedCliTool, selectTool, statuses, statusesResolved, visibleTools])
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
   const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
-  const canLaunch =
-    (isProviderlessTool || isOwnLoginSelected || !!enabledProvider) &&
-    (!isDeepSeekHarnessTool || !!enabledProviderConfig?.modelId)
+  const isHermesDashboardTool = selectedCliTool === CodeCli.HERMES
   const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
-  const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
   // Local busy Sets give instant feedback; snapshot operations cover mutations
   // initiated in another window or before this page mounted.
   const mergedInstallingTools = useMemo(() => {
@@ -190,6 +212,10 @@ export function useCodeCliPageViewProps(
     source: 'none',
     canUpgrade: false
   }
+  const canLaunch = isHermesDashboardTool
+    ? versionStatus.installed
+    : (isProviderlessTool || isOwnLoginSelected || !!enabledProvider) &&
+      (!isDeepSeekHarnessTool || !!enabledProviderConfig?.modelId)
   // Only surface install failures here — the dialog is labeled "install error"
   // and offers a retry-install action. Remove failures are reported by their own
   // toast in useBinaryActions, so gating on the action avoids mislabeling a
@@ -233,6 +259,8 @@ export function useCodeCliPageViewProps(
     selectedTerminal,
     apiGatewayProvider: apiGatewayBundle,
     gatewayModelsById,
+    modelById,
+    isModelsLoading: isGatewayModelsLoading,
     upsertProviderConfig,
     setCurrentProvider,
     setTerminal,
@@ -252,11 +280,18 @@ export function useCodeCliPageViewProps(
     upsertProviderConfig,
     setCurrentProvider
   })
+  const hermesDashboard = useHermesDashboardController(selectedCliTool, {
+    onConfigMayHaveChanged: reloadCliConfigConnection
+  })
   const deepSeekHarnessActionsDisabled =
     isDeepSeekHarnessTool && (deepSeekHarness.running || deepSeekHarness.starting || deepSeekHarness.stopping)
+  const hermesDashboardActionsDisabled =
+    isHermesDashboardTool && (hermesDashboard.running || hermesDashboard.starting || hermesDashboard.stopping)
+  const providerActionsDisabled = deepSeekHarnessActionsDisabled || hermesDashboardActionsDisabled
   const handleRemove = useCallback(
     async (toolId: CodeCli) => {
       if (toolId === CodeCli.DEEPSEEK_HARNESS && !(await deepSeekHarness.onStop())) return
+      if (toolId === CodeCli.HERMES && !(await hermesDashboard.onStop())) return
       const success = await remove(toolId)
       if (success && currentProviderId) {
         if (toolId !== CodeCli.DEEPSEEK_HARNESS) {
@@ -271,13 +306,13 @@ export function useCodeCliPageViewProps(
         setCurrentCliConfigConnection(null)
       }
     },
-    [deepSeekHarness, remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection, t]
+    [deepSeekHarness, hermesDashboard, remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection, t]
   )
   const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
 
   return {
     sidebarProps: {
-      tools: CLI_TOOLS,
+      tools: visibleTools,
       selectedCliTool,
       onSelectTool: selectTool,
       toMeta,
@@ -299,10 +334,12 @@ export function useCodeCliPageViewProps(
               openClawGateway.launching ||
               openClawGateway.starting ||
               deepSeekHarness.launching ||
-              deepSeekHarness.starting,
-            running: openClawGateway.running || deepSeekHarness.running,
-            stopping: openClawGateway.stopping || deepSeekHarness.stopping,
-            upgradeDisabled: deepSeekHarnessActionsDisabled
+              deepSeekHarness.starting ||
+              hermesDashboard.launching ||
+              hermesDashboard.starting,
+            running: openClawGateway.running || deepSeekHarness.running || hermesDashboard.running,
+            stopping: openClawGateway.stopping || deepSeekHarness.stopping || hermesDashboard.stopping,
+            upgradeDisabled: providerActionsDisabled
           },
           installingTools: mergedInstallingTools,
           upgradingTools,
@@ -315,7 +352,7 @@ export function useCodeCliPageViewProps(
           providerConfigs,
           currentProviderId,
           currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
-          providerActionsDisabled: deepSeekHarnessActionsDisabled,
+          providerActionsDisabled,
           resolveProviderMeta,
           // A failed update carries its target so Retry repeats the same targeted
           // install; a name-only retry would hit the applied no-op and clear the
@@ -333,16 +370,27 @@ export function useCodeCliPageViewProps(
               ? () => removeDialog.requestRemove(selectedCliTool)
               : undefined,
           onLaunch: () =>
-            defaultGatewayProvider && !defaultGatewayConfig
-              ? configPanel.onToggleCurrent(defaultGatewayProvider)
-              : isOpenClawTool
-                ? void openClawGateway.onLaunch()
-                : isDeepSeekHarnessTool
-                  ? void deepSeekHarness.onLaunch()
-                  : launchDialog.openLaunchDialog(),
-          onStop: () => (isDeepSeekHarnessTool ? void deepSeekHarness.onStop() : void openClawGateway.onStop()),
+            isHermesDashboardTool
+              ? void hermesDashboard.onLaunch()
+              : defaultGatewayProvider && !defaultGatewayConfig
+                ? configPanel.onToggleCurrent(defaultGatewayProvider)
+                : isOpenClawTool
+                  ? void openClawGateway.onLaunch()
+                  : isDeepSeekHarnessTool
+                    ? void deepSeekHarness.onLaunch()
+                    : launchDialog.openLaunchDialog(),
+          onStop: () =>
+            isDeepSeekHarnessTool
+              ? void deepSeekHarness.onStop()
+              : isHermesDashboardTool
+                ? void hermesDashboard.onStop()
+                : void openClawGateway.onStop(),
           onOpenDashboard: () =>
-            isDeepSeekHarnessTool ? void deepSeekHarness.onOpenWebUi() : void openClawGateway.onOpenDashboard(),
+            isDeepSeekHarnessTool
+              ? void deepSeekHarness.onOpenWebUi()
+              : isHermesDashboardTool
+                ? void hermesDashboard.onOpenDashboard()
+                : void openClawGateway.onOpenDashboard(),
           onConfigure: configPanel.openConfigurePanel,
           onToggleCurrent: configPanel.onToggleCurrent,
           onReorder: handleReorder
@@ -352,7 +400,7 @@ export function useCodeCliPageViewProps(
     launchDialogProps: launchDialog.launchDialogProps,
     removeDialogProps: removeDialog.removeDialogProps,
     configPanelKey: configPanel.configPanelKey,
-    configPanelProps: deepSeekHarnessActionsDisabled ? undefined : configPanel.configPanelProps,
+    configPanelProps: providerActionsDisabled ? undefined : configPanel.configPanelProps,
     ownLoginConfigPanelProps: configPanel.ownLoginConfigPanelProps
   }
 }
