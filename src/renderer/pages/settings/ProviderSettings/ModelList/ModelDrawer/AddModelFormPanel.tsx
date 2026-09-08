@@ -2,6 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderPreset } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
+import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import { createUniqueModelId, type EndpointType, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { getModelPreferredEndpoint } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -85,7 +86,7 @@ export default function AddModelFormPanel({
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { models } = useModels({ providerId })
-  const { createModel } = useModelMutations()
+  const { createModel, createModels } = useModelMutations()
   const [formState, setFormState] = useState<ModelBasicFormState>(() => getInitialAddModelFormState(null))
   const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
@@ -184,8 +185,8 @@ export default function AddModelFormPanel({
     [provider]
   )
 
-  const addSingleModel = useCallback(
-    async (values: ModelBasicFormState) => {
+  const buildCreateModelDto = useCallback(
+    (values: ModelBasicFormState): CreateModelDto | null => {
       if (!provider) {
         return null
       }
@@ -209,7 +210,7 @@ export default function AddModelFormPanel({
       // submitting that overrides the catalog's own modalities for every hand-added registry model.
       const shouldSubmitInputModalities = inputModalitiesTouched || prefill?.model?.inputModalities !== undefined
 
-      await createModel({
+      return {
         providerId,
         modelId,
         ...(nameTouched || !inheritsFromRegistry ? { name: values.name ? values.name : modelId.toUpperCase() } : {}),
@@ -223,14 +224,11 @@ export default function AddModelFormPanel({
         ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
         ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
         ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {})
-      })
-
-      return createUniqueModelId(providerId, modelId)
+      }
     },
     [
       classification,
       classificationTouched,
-      createModel,
       endpointTypesTouched,
       hasInitialEndpointDeclaration,
       groupTouched,
@@ -264,9 +262,9 @@ export default function AddModelFormPanel({
 
     try {
       if (normalizedId.includes(',')) {
-        const addedModelIds: UniqueModelId[] = []
+        const dtos: CreateModelDto[] = []
         for (const singleId of splitModelIds(normalizedId)) {
-          const addedModelId = await addSingleModel({
+          const dto = buildCreateModelDto({
             modelId: singleId,
             name: singleId,
             group: '',
@@ -276,24 +274,25 @@ export default function AddModelFormPanel({
             endpointTypes: effectiveEndpointTypes
           })
 
-          if (addedModelId) {
-            addedModelIds.push(addedModelId)
-          }
+          if (!dto) return
+          dtos.push(dto)
         }
 
-        if (addedModelIds.length > 0) {
-          onSuccess(addedModelIds)
+        if (dtos.length > 0) {
+          await createModels(dtos)
+          onSuccess(dtos.map((dto) => createUniqueModelId(dto.providerId, dto.modelId)))
         }
         return
       }
 
-      const addedModelId = await addSingleModel({
+      const dto = buildCreateModelDto({
         ...formState,
         modelId: normalizedId,
         endpointTypes: effectiveEndpointTypes
       })
-      if (addedModelId) {
-        onSuccess([addedModelId])
+      if (dto) {
+        await createModel(dto)
+        onSuccess([createUniqueModelId(dto.providerId, dto.modelId)])
       }
     } catch {
       setSubmitError(t('settings.models.manage.operation_failed'))
@@ -301,7 +300,7 @@ export default function AddModelFormPanel({
       submitInFlightRef.current = false
       setIsSubmitting(false)
     }
-  }, [addSingleModel, effectiveEndpointTypes, formState, onSuccess, t])
+  }, [buildCreateModelDto, createModel, createModels, effectiveEndpointTypes, formState, onSuccess, t])
 
   const handleOperationCapabilityToggle = useCallback(
     (operationCapability: EditableModelOperationCapability) => {

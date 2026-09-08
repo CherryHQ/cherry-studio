@@ -10,6 +10,7 @@ const useProviderMock = vi.fn()
 const useProviderPresetMock = vi.fn()
 const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
+const createModelsMock = vi.fn()
 const updateModelMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
@@ -107,6 +108,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModel: (...args: any[]) => createModelMock(...args),
+    createModels: (...args: any[]) => createModelsMock(...args),
     updateModel: (...args: any[]) => updateModelMock(...args)
   })
 }))
@@ -482,15 +484,54 @@ describe('Model drawers', () => {
 
     await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
 
-    expect(createModelMock).toHaveBeenCalledTimes(2)
-    for (const [payload] of createModelMock.mock.calls) {
-      expect(payload).toEqual(
-        expect.objectContaining({
-          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
-          preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
-        })
-      )
-    }
+    expect(createModelsMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        modelId: 'chat-only-preset',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      }),
+      expect.objectContaining({
+        modelId: 'custom-model',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+    ])
+  })
+
+  it('rejects a batch containing an existing model before persisting any new model', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+    useModelsMock.mockReturnValue({ models: [{ id: 'openai::existing' }] })
+    const onClose = vi.fn()
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={onClose} />)
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'new-model,existing')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('error.model.exists')
+    expect(createModelMock).not.toHaveBeenCalled()
+    expect(createModelsMock).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('keeps the whole batch available for retry when the atomic create is rejected', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+    createModelsMock.mockRejectedValueOnce(new Error('second model rejected'))
+    const onClose = vi.fn()
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={onClose} />)
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'first,second')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.models.manage.operation_failed')
+    expect(screen.getByLabelText('settings.models.add.model_id.label')).toHaveValue('first,second')
+    expect(createModelsMock).toHaveBeenCalledWith([
+      expect.objectContaining({ modelId: 'first' }),
+      expect.objectContaining({ modelId: 'second' })
+    ])
+    expect(createModelMock).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('offers no route pin when the provider serves a single chat endpoint', () => {

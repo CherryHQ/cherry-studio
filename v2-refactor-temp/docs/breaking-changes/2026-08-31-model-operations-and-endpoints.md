@@ -10,6 +10,8 @@ date: 2026-08-31
 
 Custom models now select one or more operations—text generation, image generation, embedding, and rerank—instead of one model type. Endpoint choices are limited to protocols configured by the provider and compatible with at least one selected operation.
 
+Adding comma-separated model IDs is atomic: if any model fails validation or creation, none of the models in that submission are added. The form keeps the full input available for correction and retry.
+
 ## Why this matters to the user
 
 A single model can now be used for multiple supported operations without losing capabilities when edited. Removing an operation also removes incompatible endpoint selections and a preference pinned to one of those endpoints.

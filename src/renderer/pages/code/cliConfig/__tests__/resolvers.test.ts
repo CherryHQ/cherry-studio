@@ -1,3 +1,4 @@
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
@@ -99,6 +100,32 @@ describe('resolveGeminiBaseUrl', () => {
 })
 
 describe('resolveHermesProviderInfo', () => {
+  it.each<Pick<Model, 'endpointTypes' | 'preferredEndpointType'>>([
+    {
+      endpointTypes: ['google-generate-content', 'openai-chat-completions'],
+      preferredEndpointType: 'google-generate-content'
+    },
+    { endpointTypes: ['openai-responses', 'openai-chat-completions'], preferredEndpointType: 'openai-responses' },
+    { endpointTypes: ['openai-chat-completions'], preferredEndpointType: 'anthropic-messages' }
+  ])('ignores an unsupported, unserved, or undeclared pin: $preferredEndpointType', (model) => {
+    expect(
+      resolveHermesProviderInfo(
+        provider({
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://chat.example' },
+            'anthropic-messages': { baseUrl: 'https://anthropic.example' },
+            'google-generate-content': { baseUrl: 'https://google.example' }
+          }
+        }),
+        model
+      )
+    ).toEqual({
+      apiMode: 'chat_completions',
+      baseUrl: 'https://chat.example/v1',
+      endpointType: 'openai-chat-completions'
+    })
+  })
+
   // anthropic-messages is configured AND first in HERMES_ENDPOINTS, so a catalog-order
   // fallback would pick it; the model supports only openai-responses (a later catalog
   // entry), so selecting it proves model preference beats catalog order rather than
@@ -113,7 +140,7 @@ describe('resolveHermesProviderInfo', () => {
             'openai-responses': { baseUrl: 'https://openai.example' }
           }
         }),
-        ['openai-responses']
+        { endpointTypes: ['openai-responses'] }
       )
     ).toEqual({
       apiMode: 'codex_responses',
@@ -126,7 +153,7 @@ describe('resolveHermesProviderInfo', () => {
     expect(
       resolveHermesProviderInfo(
         provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example/v1' } } }),
-        ['anthropic-messages']
+        { endpointTypes: ['anthropic-messages'] }
       )
     ).toEqual({
       apiMode: 'anthropic_messages',
@@ -159,7 +186,7 @@ describe('resolvePiProviderInfo', () => {
             'openai-responses': { baseUrl: 'https://openai.example' }
           }
         }),
-        ['openai-responses']
+        { endpointTypes: ['openai-responses'] }
       )
     ).toEqual({
       api: 'openai-responses',

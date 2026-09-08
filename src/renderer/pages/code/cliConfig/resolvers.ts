@@ -71,9 +71,11 @@ function toOpenCodeNpmInfo(endpointType: EndpointType): OpenCodeNpmInfo {
   }
 }
 
+type ModelEndpointSelection = Pick<Model, 'endpointTypes' | 'preferredEndpointType'>
+
 function resolveSupportedEndpointType(
   provider: Provider,
-  modelEndpointTypes: EndpointType[] | undefined,
+  model: ModelEndpointSelection | null | undefined,
   supportedEndpoints: readonly EndpointType[],
   fallbackEndpoint: EndpointType
 ): EndpointType {
@@ -81,8 +83,17 @@ function resolveSupportedEndpointType(
   const isSupported = (type: EndpointType | undefined): type is EndpointType =>
     Boolean(type && supportedEndpoints.includes(type))
 
+  const preferredEndpoint = model?.preferredEndpointType
+  if (
+    isSupported(preferredEndpoint) &&
+    hasEndpoint(preferredEndpoint) &&
+    (!model?.endpointTypes?.length || model.endpointTypes.includes(preferredEndpoint))
+  ) {
+    return preferredEndpoint
+  }
+
   return (
-    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
+    model?.endpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
     (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
       ? provider.defaultChatEndpoint
       : undefined) ??
@@ -101,19 +112,14 @@ export function openCodeNpmInfoFromNpmPackage(npm: string): OpenCodeNpmInfo {
   }
 }
 
-export function resolveOpenCodeNpmInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): OpenCodeNpmInfo {
+export function resolveOpenCodeNpmInfo(provider: Provider, model?: ModelEndpointSelection | null): OpenCodeNpmInfo {
   return toOpenCodeNpmInfo(
-    resolveSupportedEndpointType(provider, modelEndpointTypes, OPEN_CODE_ENDPOINTS, 'openai-chat-completions')
+    resolveSupportedEndpointType(provider, model, OPEN_CODE_ENDPOINTS, 'openai-chat-completions')
   )
 }
 
-export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): PiProviderInfo {
-  const endpointType = resolveSupportedEndpointType(
-    provider,
-    modelEndpointTypes,
-    PI_ENDPOINTS,
-    'openai-chat-completions'
-  )
+export function resolvePiProviderInfo(provider: Provider, model?: ModelEndpointSelection | null): PiProviderInfo {
+  const endpointType = resolveSupportedEndpointType(provider, model, PI_ENDPOINTS, 'openai-chat-completions')
   const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
   const apiByEndpoint: Partial<Record<EndpointType, PiApi>> = {
     'anthropic-messages': 'anthropic-messages',
@@ -131,13 +137,11 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
   return { api: apiByEndpoint[endpointType]!, baseUrl, endpointType }
 }
 
-export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): HermesProviderInfo {
-  const endpointType = resolveSupportedEndpointType(
-    provider,
-    modelEndpointTypes,
-    HERMES_ENDPOINTS,
-    'openai-chat-completions'
-  )
+export function resolveHermesProviderInfo(
+  provider: Provider,
+  model?: ModelEndpointSelection | null
+): HermesProviderInfo {
+  const endpointType = resolveSupportedEndpointType(provider, model, HERMES_ENDPOINTS, 'openai-chat-completions')
   const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
   const apiMode: HermesApiMode =
     endpointType === 'anthropic-messages'

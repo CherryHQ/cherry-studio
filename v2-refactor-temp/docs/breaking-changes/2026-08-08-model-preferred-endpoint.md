@@ -14,6 +14,8 @@ The edit drawer now has two separate controls. **Endpoint Type** still edits the
 
 Routing resolves as `preferredEndpointType` → the provider's default chat endpoint when the model declares it → the first supported endpoint the provider still serves → the gateway route → the provider default. Refreshing a provider's model list updates which endpoints a model supports without overwriting a choice the user made. The full order lives in `docs/references/ai/provider-resolution.md`.
 
+Generated OpenCode, Pi, and Hermes configurations also honor a preferred endpoint when the CLI supports it and the provider serves it. Changing or clearing a preference invalidates the model's previous health-check result, so the newly selected route must be checked again.
+
 Existing models are untouched by the new column: it starts empty for every stored model, and nothing is backfilled — an upgrade must not invent a preference the user never expressed. Their route can still change, because the provider default now outranks the declared order (see the separate entry for that).
 
 Migrating from v1 now carries the model's v1 `endpoint_type` across as the preferred endpoint. Previously it was merged into the supported-endpoint list, where a model whose v1 route was not first in `supported_endpoint_types` silently moved to a different protocol on upgrade. This applies to new v1 → v2 migrations and to an explicit migration rerun from retained v1 sources in Settings → Data. A rerun discards the current v2 data, so create a full backup and follow the confirmation flow first. Users who do not rerun keep today's behavior and can set the endpoint by hand in the model drawer.
