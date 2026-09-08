@@ -280,7 +280,7 @@ describe('shared artifact acquisition', () => {
       await vi.runAllTimersAsync()
 
       await failure
-      expect(removeMock).toHaveBeenCalledTimes(3)
+      expect(removeMock).toHaveBeenCalledTimes(5)
     })
 
     it('does not retry transient removal errors off Windows', async () => {
