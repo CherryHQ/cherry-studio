@@ -188,6 +188,22 @@ describe('resolveCanonicalEndpoint', () => {
     })
   })
 
+  it('does not let a gateway route override an unconfigured explicit model endpoint', () => {
+    const gateway = provider({
+      id: 'aihubmix',
+      presetProviderId: 'aihubmix',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://aihubmix.example/anthropic' }
+      }
+    })
+    const claudeWithStaleEndpoint = model({
+      apiModelId: 'claude-opus-4-6',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    expect(resolveCanonicalEndpoint(gateway, claudeWithStaleEndpoint).endpointType).toBeUndefined()
+  })
+
   it('uses managed Cherry Cloud model endpoints without local endpoint configs', () => {
     const cloud = provider({
       id: CHERRY_CLOUD_PROVIDER_ID,

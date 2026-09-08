@@ -109,7 +109,11 @@ export function resolveCanonicalEndpoint(
   const gatewayRoute = nonChat ? undefined : resolveGatewayChatRoute(provider, model)
   const fallback =
     !nonChat && !model.endpointTypes?.length && hasEndpointConfig(defaultEndpoint) ? defaultEndpoint : undefined
-  const gatewayEndpoint = isAllowed(gatewayRoute?.endpointType) ? gatewayRoute?.endpointType : undefined
+  // An explicit model endpoint declaration is a hard capability boundary. If that
+  // declaration is stale or unconfigured, do not silently reroute through a
+  // gateway-derived protocol that the model did not advertise.
+  const gatewayEndpoint =
+    !model.endpointTypes?.length && isAllowed(gatewayRoute?.endpointType) ? gatewayRoute?.endpointType : undefined
   const endpointType = preferred ?? supportedProviderDefault ?? modelEndpoint ?? gatewayEndpoint ?? fallback
 
   return {
