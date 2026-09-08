@@ -5,7 +5,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
 import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemConflict, KnowledgeAddItemInput, KnowledgeItemType } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { knowledgeIndexableFileExtSet, knowledgeSupportedFileExts } from '@shared/utils/file'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,12 +33,15 @@ interface AddKnowledgeItemDialogProps {
 // picker directly and submits the selection. Only `note` / `url` still render the dialog panel.
 const isDirectPickSource = (source: KnowledgeItemType) => source === 'file' || source === 'directory'
 
-const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
-// Electron's open-dialog `filters` want bare extensions (no leading dot); the set above keeps the
-// dots for the post-pick safety filter.
-const knowledgeFilePickerExtensions = knowledgeSupportedFileExts.map((ext) => ext.replace(/^\./, ''))
+// Electron's open-dialog `filters` want bare extensions (no leading dot). Two groups: the curated
+// document formats as the default, and every indexable text extension so a user can deliberately
+// pick plaintext (YAML, source, SVG, …). The group is only a view — the post-pick guard below is
+// what actually enforces what gets added.
+const toBareExts = (exts: Iterable<string>) => Array.from(exts, (ext) => ext.replace(/^\./, ''))
+const knowledgeDocumentPickerExtensions = toBareExts(knowledgeSupportedFileExts)
+const knowledgeTextPickerExtensions = toBareExts(knowledgeIndexableFileExtSet)
 
-const isSupportedKnowledgeFile = (fileName: string) => knowledgeSupportedFileExtSet.has(getFileExtension(fileName))
+const isSupportedKnowledgeFile = (fileName: string) => knowledgeIndexableFileExtSet.has(getFileExtension(fileName))
 
 const resolveFileEntryDataFromFile = (file: File) => {
   const filePath = window.api.file.getPathForFile(file)
@@ -224,7 +227,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     const selected = await window.api.file.select({
       properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Knowledge', extensions: knowledgeFilePickerExtensions }]
+      filters: [
+        { name: t('knowledge.data_source.add_dialog.picker.documents'), extensions: knowledgeDocumentPickerExtensions },
+        { name: t('knowledge.data_source.add_dialog.picker.all_text_files'), extensions: knowledgeTextPickerExtensions }
+      ]
     })
 
     if (!selected) {
