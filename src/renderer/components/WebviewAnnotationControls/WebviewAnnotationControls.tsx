@@ -76,8 +76,7 @@ export function WebviewAnnotationControls({
 
   const handleCopy = async () => {
     try {
-      await copy()
-      toast.success(t('webview.annotation.copied'))
+      if (await copy()) toast.success(t('webview.annotation.copied'))
     } catch (error) {
       logger.error('Failed to copy webview annotations', error as Error, { targetId: target.id })
       toast.error(t('webview.annotation.copy_failed'))
