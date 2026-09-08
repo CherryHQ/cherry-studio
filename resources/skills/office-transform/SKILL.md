@@ -74,9 +74,12 @@ location. Two cases need care because the two sides are not directly comparable 
   that is what the user pointed at (`1,234.50`, `45.67%`), while extraction writes the stored
   value (`1234.5`, `0.4567`). Neither side is wrong, so a formatted cell never matches
   literally. Compare those cells by value, and leave them out of the joined strings so the
-  containment test runs on the text cells alone. A difference that is only the number format is
-  not a moved anchor, and stopping on one sends the user back to re-select a selection that
-  never moved.
+  containment test runs on the text cells alone. Dates, times and durations are the same
+  asymmetry seen from the other side: extraction writes one fixed shape (`2024-01-03`,
+  `2024-01-03 15:04:05`, `26:30:00`) rather than the cell's format, so treat a cell that differs
+  only in date or time presentation as a format difference too. A difference that is only the
+  number format is not a moved anchor, and stopping on one sends the user back to re-select a
+  selection that never moved.
 - **docx with `charRange`**: the slice is only part of what patch-copy compares and replaces —
   it rewrites the **whole paragraph**. Extract the paragraph *without* `charRange` as well, and
   read "Edit docx" below before writing.
