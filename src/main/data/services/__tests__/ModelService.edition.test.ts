@@ -1,6 +1,8 @@
+import { appStateTable } from '@data/db/schemas/appState'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { AppEdition } from '@shared/types/appEdition'
@@ -8,17 +10,12 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' as AppEdition },
-  migrationOrigin: { current: false }
+const { applicationEdition } = vi.hoisted(() => ({
+  applicationEdition: { current: 'cn' as AppEdition }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => applicationEdition.current
-}))
-
-vi.mock('@data/migration/v2', () => ({
-  migrationEngine: { isMigratedFromV1: () => migrationOrigin.current }
 }))
 
 vi.mock('@cherrystudio/provider-registry/node', () => {
@@ -73,7 +70,7 @@ describe('ModelService edition availability', () => {
 
   beforeEach(() => {
     applicationEdition.current = 'cn'
-    migrationOrigin.current = false
+    ;(providerService as any).migratedFromV1 = undefined
   })
 
   it('excludes persisted models owned by providers unavailable in the current edition', async () => {
@@ -135,7 +132,10 @@ describe('ModelService edition availability', () => {
   })
 
   it('keeps every persisted model available for users migrated from v1', async () => {
-    migrationOrigin.current = true
+    await dbh.db.insert(appStateTable).values({
+      key: 'migration_v2_status',
+      value: { status: 'completed', migratedFromV1: true, version: '2.0.0' }
+    })
     await dbh.db.insert(userProviderTable).values({
       providerId: 'global-only',
       presetProviderId: 'global-only',
