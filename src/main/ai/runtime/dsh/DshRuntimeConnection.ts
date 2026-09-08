@@ -27,7 +27,7 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getBinaryExecutionEnv, getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { getBinaryExecutionEnv, getBinarySearchDirs, getBinaryShimsDir, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
 import { getPathFromEnvironment, getRawShellEnv, hasMiseInPath } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -460,12 +460,18 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Cherry-managed shims remain reachable as PATH tails; Cherry's
       // MISE vars are added only where the user has no mise of their own
       // (vars OR PATH-embedded shims like ~/.local/share/mise/shims).
-      const rawMiseEnv = Object.fromEntries(Object.entries(rawShellEnv).filter(([key]) => key.startsWith('MISE_')))
+      const rawMiseEnv = Object.fromEntries(
+        Object.entries(rawShellEnv).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+      )
       const hasUserMiseInPath = hasMiseInPath(loginPath)
       const hasUserMise = Object.keys(rawMiseEnv).length > 0 || hasUserMiseInPath
       const cherryToolDirs = getBinarySearchDirs()
+      const managedShimsDir = getBinaryShimsDir()
+      const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)
       const bundledGitDir = getBundledGitDir()
-      const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
+      const tailDirs = hasUserMise
+        ? bundledGitDir ? [...standaloneDirs, bundledGitDir] : standaloneDirs
+        : bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
       const binaryExecutionEnv = mergePathSuffixes(loginPath !== undefined ? { PATH: loginPath } : {}, tailDirs)
       const cherryMiseEnv = getBinaryExecutionEnv()
       const miseEnv = hasUserMise ? rawMiseEnv : cherryMiseEnv
