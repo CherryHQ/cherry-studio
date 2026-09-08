@@ -251,7 +251,12 @@ export function useFollowupQueue({
       // Defer to next tick so state has committed before drainHead checks drainingIdRef.
       // Re-read head inside the microtask so a rapid second scope switch does not
       // drain a stale head through the new conversation's completion edge.
+      const targetScope = scopeKey
       queueMicrotask(() => {
+        if (scopeKeyRef.current !== targetScope) return
+        if (!isFulfilledRef.current) return
+        if (failedItemIdRef.current || drainingIdRef.current !== null) return
+        if (stateRef.current.paused) return
         const currentHead = stateRef.current.items[0]
         if (currentHead) drainHead(currentHead)
       })
@@ -291,6 +296,33 @@ export function useFollowupQueue({
         }
         return next as typeof prev
       })
+      // Durability: try to flush to localStorage immediately. If quota is hit,
+      // roll back the optimistic write and report failure so the caller keeps
+      // the draft instead of losing it after restart.
+      try {
+        cacheService.flushPersistCache()
+      } catch {
+        cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
+          const next = { ...(prev as Record<string, unknown>) } as Record<string, unknown>
+          const raw = next[scopeKeyRef.current]
+          if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+            const entry = raw as { items?: unknown[]; paused?: unknown; failedItemId?: unknown }
+            if (Array.isArray(entry.items)) {
+              const filtered = (entry.items as Array<{ id?: unknown }>).filter((it) => it?.id !== newItem.id)
+              if (filtered.length === 0 && entry.paused !== true) {
+                next[scopeKeyRef.current] = null as unknown as FollowupQueueState
+              } else {
+                next[scopeKeyRef.current] = { ...entry, items: filtered } as unknown as FollowupQueueState
+              }
+            }
+          }
+          return next as typeof prev
+        })
+        try {
+          cacheService.flushPersistCache()
+        } catch {}
+        return false
+      }
     } catch {
       // Fall through to local failure return.
     }
@@ -356,9 +388,23 @@ export function useFollowupQueue({
         stateRef.current = next
         return next
       })
-      if (wasFailed) setFailedItemId(null)
+      if (wasFailed) {
+        setFailedItemId(null)
+        if (
+          isFulfilledRef.current &&
+          drainingIdRef.current === null &&
+          isWindowFocused() &&
+          stateRef.current.items.length > 0
+        ) {
+          const head = stateRef.current.items[0]
+          if (head) {
+            markSeenRef.current()
+            drainHead(head)
+          }
+        }
+      }
     },
-    [persist]
+    [persist, drainHead]
   )
   removeIdRef.current = removeId
 
@@ -486,11 +532,18 @@ export function useFollowupQueue({
       // If the local failed item was removed externally, clear the failure so drains can resume.
       let didUnpause = false
       if (failedItemIdRef.current && !next.items.some((item) => item.id === failedItemIdRef.current)) {
-        setFailedItemId(null)
-        if (next.paused) {
-          next = { ...next, paused: false, failedItemId: undefined }
-          persistState(scopeKeyRef.current, next.items, next.paused, null)
-          didUnpause = true
+        const hasIncomingFailed =
+          typeof next.failedItemId === 'string' && next.items.some((item) => item.id === next.failedItemId)
+        if (!hasIncomingFailed) {
+          setFailedItemId(null)
+          if (next.paused) {
+            next = { ...next, paused: false, failedItemId: undefined }
+            persistState(scopeKeyRef.current, next.items, next.paused, null)
+            didUnpause = true
+          }
+        } else {
+          // Incoming has a different failed head — keep its failure and do not auto-drain
+          setFailedItemId(next.failedItemId ?? null)
         }
       }
       // If the draining item disappeared externally, invalidate its resolution.

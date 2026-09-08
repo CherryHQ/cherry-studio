@@ -38,6 +38,8 @@ import type {
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
 
+import { mergeFollowupQueues } from './followupQueueMerge'
+
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
 const logger = loggerService.withContext('CacheService')
@@ -1054,34 +1056,53 @@ export class CacheService {
       this.persistCache.set(key as RendererPersistCacheKey, defaultValue)
     }
 
+    let parsed: Record<string, unknown> | null = null
     try {
       const stored = localStorage.getItem(STORAGE_PERSIST_KEY)
       if (!stored) {
-        // No stored data, save defaults to localStorage
-        this.savePersistCache()
+        try {
+          this.savePersistCache()
+        } catch (error) {
+          logger.error('Failed to save initial persist cache:', error as Error)
+        }
         logger.debug('Initialized persist cache with default values')
         return
       }
 
-      const data = JSON.parse(stored)
+      parsed = JSON.parse(stored) as Record<string, unknown>
 
       // Only load keys that exist in schema, overriding defaults
       const schemaKeys = Object.keys(DefaultRendererPersistCache) as RendererPersistCacheKey[]
       for (const key of schemaKeys) {
-        if (key in data) {
-          this.persistCache.set(key, data[key])
+        if (key in parsed) {
+          this.persistCache.set(key, parsed[key] as never)
         }
       }
-
-      // Clean up localStorage (remove invalid keys and save merged data)
-      this.savePersistCache()
-      logger.debug('Loaded persist cache from localStorage with defaults')
     } catch (error) {
       logger.error('Failed to load persist cache:', error as Error)
       localStorage.removeItem(STORAGE_PERSIST_KEY)
       // Fallback to defaults only
       logger.debug('Fallback to default persist cache values')
+      return
     }
+
+    // Clean up localStorage (remove invalid keys and save merged data).
+    // Keep outside the parse try/catch so a save failure (e.g. quota)
+    // does not delete the just-loaded valid blob.
+    try {
+      this.savePersistCache()
+    } catch (error) {
+      logger.error('Failed to save persist cache after load:', error as Error)
+    }
+    logger.debug('Loaded persist cache from localStorage with defaults')
+  }
+
+  /**
+   * Flush persist cache to localStorage synchronously. Throws on quota or
+   * serialization failure so callers that require durability can roll back.
+   */
+  public flushPersistCache(): void {
+    this.savePersistCache()
   }
 
   /**
@@ -1206,129 +1227,7 @@ export class CacheService {
           const existing = this.persistCache.get(persistKey) as Record<string, unknown>
           if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
             const incoming = message.value as Record<string, unknown>
-            const merged: Record<string, unknown> = { ...existing }
-            for (const [convKey, incomingVal] of Object.entries(incoming)) {
-              // Incoming null is a tombstone: ensure it deletes the entry.
-              if (incomingVal === null) {
-                delete merged[convKey]
-                continue
-              }
-
-              const existingVal = merged[convKey]
-
-              // If local side already holds a tombstone (null), keep it and do not
-              // resurrect the entry from a potentially stale incoming snapshot.
-              // Exception: if incoming carries a non-empty queue, treat it as a
-              // fresh enqueue that happened after the tombstone and accept it
-              // rather than dropping the new message.
-              if (existingVal === null) {
-                const incomingEntry = incomingVal as { items?: unknown }
-                if (Array.isArray(incomingEntry?.items) && incomingEntry.items.length > 0) {
-                  merged[convKey] = incomingVal
-                }
-                continue
-              }
-
-              if (
-                existingVal &&
-                typeof existingVal === 'object' &&
-                !Array.isArray(existingVal) &&
-                incomingVal &&
-                typeof incomingVal === 'object' &&
-                !Array.isArray(incomingVal)
-              ) {
-                const existingEntry = existingVal as { items?: unknown; paused?: unknown; failedItemId?: unknown }
-                const incomingEntry = incomingVal as { items?: unknown; paused?: unknown; failedItemId?: unknown }
-                if (Array.isArray(existingEntry.items) && Array.isArray(incomingEntry.items)) {
-                  // Preserve pause intent from either window; do not let an idle window clear a failure pause.
-                  const pausedMerged = existingEntry.paused === true || incomingEntry.paused === true
-                  const existingFailedId =
-                    typeof existingEntry.failedItemId === 'string' ? existingEntry.failedItemId : undefined
-                  const incomingFailedId =
-                    typeof incomingEntry.failedItemId === 'string' ? incomingEntry.failedItemId : undefined
-                  const existingItems = existingEntry.items as Array<{ id?: string }>
-                  const incomingItems = incomingEntry.items as Array<{ id?: string }>
-                  const existingIds = new Set(
-                    existingItems
-                      .filter((it): it is { id: string } => !!it && typeof it.id === 'string')
-                      .map((it) => it.id)
-                  )
-                  const incomingIds = new Set(
-                    incomingItems
-                      .filter((it): it is { id: string } => !!it && typeof it.id === 'string')
-                      .map((it) => it.id)
-                  )
-                  const newIdsInIncoming = [...incomingIds].filter((id) => !existingIds.has(id))
-                  const missingIds = [...existingIds].filter((id) => !incomingIds.has(id))
-                  const hasNewEnqueue = newIdsInIncoming.length > 0
-                  const hasDeletion = missingIds.length > 0
-                  // Concurrent enqueues (new ids in incoming not in existing) must not be lost.
-                  // Pure deletions (incoming missing ids with no new ids) must propagate.
-                  // When both happen concurrently, preserve the new enqueue and treat the
-                  // deletion as already applied to the remaining set (union) rather than
-                  // dropping the new message or resurrecting the deleted one on the next hop.
-                  if (hasNewEnqueue) {
-                    const byId = new Map<string, unknown>()
-                    for (const it of existingItems) {
-                      if (it && typeof it.id === 'string') byId.set(it.id, it)
-                    }
-                    for (const it of incomingItems) {
-                      if (it && typeof it.id === 'string' && !byId.has(it.id)) byId.set(it.id, it)
-                    }
-                    // If there was also a deletion, drop the deleted ids from the union so
-                    // a stale snapshot does not resurrect an item another window just removed.
-                    if (hasDeletion) {
-                      for (const delId of missingIds) {
-                        // Keep the deletion only if the incoming side did not also re-introduce it
-                        // (newIds check above already excluded incoming ids, so missing means deleted).
-                        byId.delete(delId)
-                      }
-                    }
-                    const mergedItems = Array.from(byId.values()) as Array<{ id?: string }>
-                    const mergedFailedId = mergedItems.some((it) => it.id === existingFailedId)
-                      ? existingFailedId
-                      : mergedItems.some((it) => it.id === incomingFailedId)
-                        ? incomingFailedId
-                        : undefined
-                    merged[convKey] = {
-                      ...incomingEntry,
-                      paused: pausedMerged,
-                      items: mergedItems,
-                      ...(mergedFailedId ? { failedItemId: mergedFailedId } : {})
-                    }
-                  } else if (hasDeletion) {
-                    // Pure deletion — incoming is authoritative
-                    const failedIdToKeep = incomingItems.some((it) => it.id === incomingFailedId)
-                      ? incomingFailedId
-                      : incomingItems.some((it) => it.id === existingFailedId)
-                        ? existingFailedId
-                        : undefined
-                    merged[convKey] = {
-                      ...incomingEntry,
-                      paused: pausedMerged,
-                      items: incomingItems,
-                      ...(failedIdToKeep ? { failedItemId: failedIdToKeep } : {})
-                    }
-                  } else {
-                    // Same ids — take incoming as authoritative (order/edits) but keep merged pause/failed
-                    const failedIdToKeep = incomingItems.some((it) => it.id === incomingFailedId)
-                      ? incomingFailedId
-                      : incomingItems.some((it) => it.id === existingFailedId)
-                        ? existingFailedId
-                        : undefined
-                    merged[convKey] = {
-                      ...incomingEntry,
-                      paused: pausedMerged,
-                      items: incomingItems,
-                      ...(failedIdToKeep ? { failedItemId: failedIdToKeep } : {})
-                    }
-                  }
-                  continue
-                }
-              }
-
-              merged[convKey] = incomingVal
-            }
+            const merged = mergeFollowupQueues(existing, incoming)
             this.persistCache.set(persistKey, merged as never)
             this.notifySubscribers(message.key)
             return
