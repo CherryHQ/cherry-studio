@@ -851,7 +851,7 @@ describe('utils/image', () => {
       el.getBoundingClientRect = () => rect(10, 20, width, height)
     }
 
-    const deferred = <T,>() => {
+    const deferred = <T>() => {
       let resolve!: (value: T | PromiseLike<T>) => void
       let reject!: (reason?: unknown) => void
       const promise = new Promise<T>((resolvePromise, rejectPromise) => {

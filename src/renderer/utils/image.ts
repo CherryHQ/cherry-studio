@@ -450,9 +450,7 @@ async function captureNativeDataUrl(el: HTMLElement): Promise<string | undefined
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> PNG data URL，失败返回 undefined
  */
-export const captureScrollableImage = async (
-  elRef: React.RefObject<HTMLElement | null>
-): Promise<string | undefined> =>
+export const captureScrollableImage = async (elRef: React.RefObject<HTMLElement | null>): Promise<string | undefined> =>
   enqueueImageCapture(async () => {
     const el = elRef.current
     if (!el) return undefined
