@@ -1,8 +1,10 @@
+import { APICallError } from '@ai-sdk/provider'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
-import { createPpioTransport, PpioApiError, PpioTaskFailedError } from '../ppio/ppioTransport'
+import type { PpioBag } from '../ppio/ppioTransport'
+import { createPpioTransport } from '../ppio/ppioTransport'
 
 /**
  * Ported from the legacy `providers/ppio/__tests__/PpioService.test.ts` plus
@@ -18,91 +20,88 @@ describe('PpioTransport', () => {
     vi.restoreAllMocks()
   })
 
-  it('stops polling immediately when the request is aborted', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
-    const controller = new AbortController()
-    const getTaskResultSpy = vi.spyOn(transport, 'getTaskResult').mockResolvedValue({
-      task: { task_id: 'task-1', status: 'TASK_STATUS_PROCESSING', task_type: 'image' },
-      images: []
-    })
+  it('normalizes one documented task response without owning the poll loop', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          task: { status: 'TASK_STATUS_PROCESSING', progress_percent: 45 }
+        }),
+        { status: 200 }
+      )
+    )
+    const transport = createPpioTransport({ apiKey: 'token', fetch })
+    if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
-    const pollingPromise = transport.pollTaskResult('task-1', { signal: controller.signal })
-
-    await Promise.resolve()
-    controller.abort()
-
-    await expect(pollingPromise).rejects.toMatchObject({ name: 'AbortError', message: 'Task polling aborted' })
-
-    await vi.advanceTimersByTimeAsync(15000)
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
+    // Contract source: https://ppio.com/docs/models/reference-get-async-task-result
+    // Retrieved 2026-07-27.
+    await expect(
+      transport.task.query('task-1', {
+        signal: new AbortController().signal,
+        modelDescriptor: undefined,
+        headers: undefined,
+        providerParams: {}
+      })
+    ).resolves.toEqual({ kind: 'pending', progress: 45 })
   })
 
-  it('rejects on TASK_STATUS_FAILED with PpioTaskFailedError (no reason → "Task failed" fallback)', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
-    vi.spyOn(transport, 'getTaskResult').mockResolvedValue({
-      task: { task_id: 'task-1', status: 'TASK_STATUS_FAILED', task_type: 'image' }
-    })
+  it('normalizes a terminal task failure with the vendor reason', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ task: { status: 'TASK_STATUS_FAILED', reason: 'Insufficient credits' } }), {
+        status: 200
+      })
+    )
+    const transport = createPpioTransport({ apiKey: 'token', fetch })
+    if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
-    await expect(transport.pollTaskResult('task-1')).rejects.toBeInstanceOf(PpioTaskFailedError)
-    await expect(transport.pollTaskResult('task-1')).rejects.toThrow('Task failed')
+    await expect(
+      transport.task.query('task-1', {
+        signal: new AbortController().signal,
+        modelDescriptor: undefined,
+        headers: undefined,
+        providerParams: {}
+      })
+    ).resolves.toEqual({ kind: 'failed', message: 'Insufficient credits' })
   })
 
-  it('surfaces vendor reason verbatim instead of silently retrying it as transient', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
-    const getTaskResultSpy = vi.spyOn(transport, 'getTaskResult').mockResolvedValue({
-      task: { task_id: 'task-1', status: 'TASK_STATUS_FAILED', reason: 'Insufficient credits', task_type: 'image' }
-    })
+  it('rejects a missing or unknown task status instead of assuming pending', async () => {
+    for (const task of [{}, { status: 'TASK_STATUS_NEW' }]) {
+      const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ task }), { status: 200 }))
+      const transport = createPpioTransport({ apiKey: 'token', fetch })
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
-    const promise = transport.pollTaskResult('task-1').catch((e) => e)
-    const error = await promise
-
-    expect(error).toBeInstanceOf(PpioTaskFailedError)
-    expect((error as Error).message).toBe('Insufficient credits')
-    // Terminal failure → exactly one call; no transient-retry storm.
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
+      await expect(
+        transport.task.query('task-1', {
+          signal: new AbortController().signal,
+          modelDescriptor: undefined,
+          headers: undefined,
+          providerParams: {}
+        })
+      ).rejects.toThrow('Invalid JSON response')
+    }
   })
 
-  it('gives up after the transient-retry cap (10)', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
-    const getTaskResultSpy = vi.spyOn(transport, 'getTaskResult').mockRejectedValue(new Error('network glitch'))
+  it.each([
+    { status: 503, retryable: true },
+    { status: 400, retryable: false }
+  ])('classifies HTTP $status through APICallError retryability', async ({ status, retryable }) => {
+    const fetch = vi.fn().mockResolvedValue(new Response('vendor error', { status }))
+    const transport = createPpioTransport({ apiKey: 'token', fetch })
+    if (transport.task.kind !== 'supported') throw new Error('expected task transport')
 
-    const promise = transport.pollTaskResult('task-1').catch((e) => e)
-    await vi.advanceTimersByTimeAsync(60000)
-    const error = await promise
+    const error = await transport.task
+      .query('task-1', {
+        signal: new AbortController().signal,
+        modelDescriptor: undefined,
+        headers: undefined,
+        providerParams: {}
+      })
+      .catch((cause) => cause)
 
-    expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe('network glitch')
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(10)
+    expect(APICallError.isInstance(error)).toBe(true)
+    expect((error as APICallError).isRetryable).toBe(retryable)
   })
 
-  it('retries a transient 5xx poll response up to the cap instead of failing fast', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
-    const getTaskResultSpy = vi
-      .spyOn(transport, 'getTaskResult')
-      .mockRejectedValue(new PpioApiError('PPIO API error: 503', 503))
-
-    const promise = transport.pollTaskResult('task-1').catch((e) => e)
-    await vi.advanceTimersByTimeAsync(60000)
-    const error = await promise
-
-    expect(error).toBeInstanceOf(PpioApiError)
-    // 503 is transient → retried to the cap, not thrown on the first hit.
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(10)
-  })
-
-  it('treats a 4xx poll response as terminal (single call, no retry storm)', async () => {
-    const transport = createPpioTransport({ apiKey: 'token' })
-    const getTaskResultSpy = vi
-      .spyOn(transport, 'getTaskResult')
-      .mockRejectedValue(new PpioApiError('PPIO API error: 400', 400))
-
-    const error = await transport.pollTaskResult('task-1').catch((e) => e)
-
-    expect(error).toBeInstanceOf(PpioApiError)
-    expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
-  })
-
-  it('builds jimeng params with width/height from size and seed default', async () => {
+  it('builds jimeng params without overriding an omitted prompt-enhancement setting', async () => {
     const transport = createPpioTransport({ apiKey: 'token' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -112,27 +111,27 @@ describe('PpioTransport', () => {
       modelId: 'jimeng-txt2img-v3.1',
       prompt: 'a fox',
       n: 1,
-      size: undefined,
+      size: '1328x1328',
       seed: undefined,
       files: undefined,
       mask: undefined,
       modelDescriptor: { id: 'jimeng-txt2img-v3.1', endpoint: '/v3/async/jimeng-txt2img-v3.1' },
       providerParams: {
-        model: 'jimeng-txt2img-v3.1',
-        size: '1328x1328',
         addWatermark: true
       }
     })
 
+    // Contract source: https://ppio.com/docs/models/reference-jimeng-txt2img-v3.1
+    // Retrieved 2026-09-07. The server owns the documented default when the optional field is omitted.
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(body).toMatchObject({
       prompt: 'a fox',
-      use_pre_llm: true,
       seed: -1,
       width: 1328,
       height: 1328,
       logo_info: { add_logo: true }
     })
+    expect(body).not.toHaveProperty('use_pre_llm')
   })
 
   it('uses the sync path (imageUrls) for isSync models', async () => {
@@ -150,12 +149,10 @@ describe('PpioTransport', () => {
       files: undefined,
       mask: undefined,
       modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true },
-      providerParams: {
-        model: 'seedream-4.5-draw'
-      }
+      providerParams: {}
     })
 
-    expect(result).toEqual({ imageUrls: ['https://img/a.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img/a.png'] })
   })
 
   it('uses the default request timeout for isSync models', async () => {
@@ -182,9 +179,7 @@ describe('PpioTransport', () => {
         files: undefined,
         mask: undefined,
         modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true },
-        providerParams: {
-          model: 'seedream-4.5-draw'
-        }
+        providerParams: {}
       })
       .catch((error) => error)
 
@@ -192,7 +187,7 @@ describe('PpioTransport', () => {
 
     const error = await promise
     expect(error).toBeInstanceOf(Error)
-    expect((error as Error).message).toBe(`PPIO API request timeout after ${DEFAULT_TIMEOUT / 1000}s`)
+    expect((error as Error).message).toBe(`Image transport request timed out after ${DEFAULT_TIMEOUT / 1000}s`)
   })
 
   it('supports official Seedream 5.0 Lite sync endpoint and object image results', async () => {
@@ -207,7 +202,7 @@ describe('PpioTransport', () => {
       modelId: 'seedream-5.0-lite',
       prompt: 'a fox',
       n: 1,
-      size: undefined,
+      size: '2K',
       seed: undefined,
       files: undefined,
       mask: undefined,
@@ -218,8 +213,6 @@ describe('PpioTransport', () => {
         mode: 'generate'
       },
       providerParams: {
-        model: 'seedream-5.0-lite',
-        size: '2K',
         addWatermark: false
       }
     })
@@ -232,7 +225,7 @@ describe('PpioTransport', () => {
       watermark: false,
       sequential_image_generation: 'disabled'
     })
-    expect(result).toEqual({ imageUrls: ['https://img/a.png', 'https://img/b.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img/a.png', 'https://img/b.png'] })
   })
 
   it('uses Seedream 4.0 plural images field for edit requests', async () => {
@@ -245,11 +238,11 @@ describe('PpioTransport', () => {
       modelId: 'seedream-4.0',
       prompt: 'edit it',
       n: 1,
-      size: undefined,
+      size: '2048x2048',
       seed: undefined,
       // Attached edit image flows through the canonical `input.files` path
       // (inputImages → options.files), not a providerOptions bag key.
-      files: [{ mediaType: 'image/png', data: 'abc' }] as ImageGenerationSubmitInput['files'],
+      files: [{ mediaType: 'image/png', data: 'abc' }] as ImageGenerationSubmitInput<PpioBag>['files'],
       mask: undefined,
       modelDescriptor: {
         id: 'seedream-4.0',
@@ -257,10 +250,7 @@ describe('PpioTransport', () => {
         isSync: true,
         mode: 'edit'
       },
-      providerParams: {
-        model: 'seedream-4.0',
-        size: '2048x2048'
-      }
+      providerParams: {}
     })
 
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
@@ -278,14 +268,12 @@ describe('PpioTransport', () => {
       modelId: 'glm-image',
       prompt: 'a fox',
       n: 1,
-      size: undefined,
+      size: '1568x1056',
       seed: undefined,
       files: undefined,
       mask: undefined,
       modelDescriptor: { id: 'glm-image', endpoint: '/v3/async/glm-image', mode: 'generate' },
       providerParams: {
-        model: 'glm-image',
-        size: '1568x1056',
         addWatermark: false
       }
     })
@@ -298,6 +286,6 @@ describe('PpioTransport', () => {
       quality: 'hd',
       watermark_enabled: false
     })
-    expect(result).toEqual({ taskId: 't-glm' })
+    expect(result).toEqual({ kind: 'submitted', taskId: 't-glm' })
   })
 })

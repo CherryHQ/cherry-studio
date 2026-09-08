@@ -52,11 +52,16 @@ import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { resolveProviderAiSdkConfig } from './provider/config'
-import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
+import { type ImageTransportDescriptor, imageTransportDescriptorFor } from './provider/custom/imageTransport'
+import {
+  hasImageTransport,
+  isImageTransportConfig,
+  resolveImageTransport
+} from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
-import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
+import { resolveWireRegistration } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
@@ -80,6 +85,7 @@ import type {
   InProcessUsageContext,
   ListModelsRequest
 } from './types'
+import { asSdkImageSize } from './utils/aiSdkNativeBindings'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 import { createAiUsageCaptureContext } from './utils/usageCapture'
@@ -877,9 +883,9 @@ export class AiService extends BaseService {
     const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
 
-    // Async custom-provider transports (ppio / dashscope / modelscope /
-    // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart. Decide this before `buildAgentParamsFor` selects a serving key:
+    // Custom-provider transports (ppio / dashscope / modelscope /
+    // dmxapi-bespoke / tokenhub) run through the job system. Decide this before
+    // `buildAgentParamsFor` selects a serving key:
     // the job handler is the single selection owner for this path. A transport
     // builds its own request envelope per model, so it receives the canonical
     // camelCase `vendorBag` directly (native n/size/seed travel via the job
@@ -887,8 +893,12 @@ export class AiService extends BaseService {
     // not `provider.id`: a user-added instance carries a UUID id and would fall
     // through to the direct image model, which never passes `modelDescriptor`.
     const transportProviderId = provider.presetProviderId ?? provider.id
-    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
-      return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
+    const transportModelId = model.apiModelId ?? model.id
+    const transportMode = request.mode ?? 'generate'
+    const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, transportModelId)
+    const modelDescriptor = imageTransportDescriptorFor(transportModelId, transportMode, imageSupport)
+    if (request.uniqueModelId && hasImageTransport(transportProviderId, transportModelId, modelDescriptor)) {
+      return await this.generateImageViaJob(request, structured, vendorBag, signal, source, modelDescriptor)
     }
 
     const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
@@ -896,12 +906,23 @@ export class AiService extends BaseService {
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
-    // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
+    // Vendor body (`providerOptions[providerOptionsKey]`): the WireProfile engine maps the
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
-    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
+    const registration = resolveWireRegistration(sdkConfig.providerId)
+    const imageProviderOptions = buildVendorProviderOptions(
+      sdkConfig.providerOptionsKey,
+      params,
+      registration,
+      vendorBag
+    )
+    if (
+      sdkConfig.providerId === 'aihubmix' &&
+      (request.mode === 'edit' || request.mode === 'remix' || request.mode === 'upscale')
+    ) {
+      imageProviderOptions.aihubmix = { ...imageProviderOptions.aihubmix, mode: request.mode }
+    }
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).
@@ -917,7 +938,7 @@ export class AiService extends BaseService {
       prompt: promptParam,
       n: structured.n ?? 1,
       maxRetries: request.requestOptions?.maxRetries ?? 0,
-      ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
+      ...(requestSize !== undefined && { size: asSdkImageSize(requestSize) }),
       ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
       ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
@@ -981,8 +1002,9 @@ export class AiService extends BaseService {
   }
 
   /**
-   * Run an async custom-provider image generation through the job system. The
-   * handler owns submit/poll/download/persist; here we enqueue, bridge the
+   * Run a custom-provider image generation through the job system. The shared
+   * transport runtime owns submit/poll/cancel and the handler owns input/output
+   * persistence; here we enqueue, bridge the
    * existing IPC abort signal to job cancellation, and await the terminal
    * snapshot. Input images / mask are persisted as FileEntries up front and
    * referenced by id so the payload stays small.
@@ -995,9 +1017,10 @@ export class AiService extends BaseService {
   private async generateImageViaJob(
     request: AsInProcess<AiImageRequest>,
     structured: SplitImageParams['structured'],
-    providerParams: Record<string, unknown>,
+    providerParams: SplitImageParams['vendorBag'],
     signal: AbortSignal | undefined,
-    source: SourceSnapshot | undefined
+    source: SourceSnapshot | undefined,
+    modelDescriptor: ImageTransportDescriptor | undefined
   ): Promise<AiImageResult> {
     const uniqueModelId = request.uniqueModelId
     if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
@@ -1022,17 +1045,6 @@ export class AiService extends BaseService {
       const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
       const requestSize = resolveImageRequestSize(structured.size)
-
-      // Per-model transport routing, derived from the registry (main hosts it) —
-      // NOT laundered through paramValues. Carried in the payload so the handler
-      // reaches the right endpoint / response family without re-resolving it.
-      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-      const mode = request.mode ?? 'generate'
-      const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
-      const vendorTransport = support?.modes?.[mode]?.vendorTransport
-      const modelDescriptor = vendorTransport?.endpoint
-        ? { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
-        : undefined
 
       const payload: ImageGenerationJobPayload = {
         uniqueModelId,
@@ -1298,20 +1310,24 @@ export class AiService extends BaseService {
         }
       }
       const transportProviderId = provider.presetProviderId ?? provider.id
-      if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+      const transportModelId = model.apiModelId ?? model.id
+      const modelDescriptor = imageTransportDescriptorFor(transportModelId, probeMode, imageSupport)
+      if (request.uniqueModelId && hasImageTransport(transportProviderId, transportModelId, modelDescriptor)) {
         // Transport models run their submit/poll loop on the job system, whose
         // handler re-selects a serving key — dropping the health check's
         // `apiKeyOverride` and possibly probing a different rotated credential
         // than the one being reported. A check needs no restart survival, so
         // probe inline: one submit (accepted = credential + endpoint + model OK)
         // with the caller's key, no job row, no result download.
-        const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
         probe = (async () => {
           const { config } = await resolveProviderAiSdkConfig(provider, model, {
             apiKeyOverride: request.apiKeyOverride
           })
           const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
-          const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
+          if (!isImageTransportConfig(config, wireModelId, modelDescriptor)) {
+            throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
+          }
+          const transport = await resolveImageTransport(config, wireModelId, modelDescriptor)
           if (!transport) {
             throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
           }
@@ -1323,9 +1339,7 @@ export class AiService extends BaseService {
             seed: undefined,
             files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
             mask: undefined,
-            modelDescriptor: vendorTransport
-              ? { id: wireModelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode: probeMode }
-              : undefined,
+            modelDescriptor,
             providerParams: probeParams,
             signal: controller.signal
           })

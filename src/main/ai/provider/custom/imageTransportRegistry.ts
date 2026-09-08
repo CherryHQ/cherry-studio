@@ -1,86 +1,73 @@
+import type { ProviderConfig } from '../../types'
+import type { VendorBag } from '../../utils/imageOptions'
 import { dmxapiUsesCustomTransport } from './dmxapi/dmxapiImageRouting'
-import type { ImageGenerationTransport } from './imageGenerationModel'
+import type { ImageGenerationTransport, ImageTransportDescriptor } from './imageGenerationModel'
 
-interface TransportRegistration {
-  supports: (modelId: string) => boolean
-  load: (providerSettings: unknown) => Promise<ImageGenerationTransport>
-  poll?: boolean
-  cancel?: boolean
+const TRANSPORT_SUPPORT = {
+  ppio: { requiresDescriptor: true, supports: () => true },
+  dashscope: { requiresDescriptor: true, supports: () => true },
+  modelscope: { requiresDescriptor: false, supports: () => true },
+  dmxapi: { requiresDescriptor: false, supports: dmxapiUsesCustomTransport },
+  tokenhub: { requiresDescriptor: true, supports: () => true }
 }
 
-function createLazyTransport(registration: TransportRegistration, providerSettings: unknown): ImageGenerationTransport {
-  let transportPromise: Promise<ImageGenerationTransport> | undefined
-  const load = () => (transportPromise ??= registration.load(providerSettings))
+export type ImageTransportProviderId = keyof typeof TRANSPORT_SUPPORT
 
-  return {
-    submit: async (input) => (await load()).submit(input),
-    ...(registration.poll && {
-      poll: async (...args: Parameters<NonNullable<ImageGenerationTransport['poll']>>) => {
-        const transport = await load()
-        if (!transport.poll) throw new Error('Image transport does not implement polling')
-        return transport.poll(...args)
-      }
-    }),
-    ...(registration.cancel && {
-      cancel: async (taskId: string) => {
-        await (await load()).cancel?.(taskId)
-      }
-    })
-  }
+const TRANSPORT_PROVIDER_IDS: ReadonlySet<string> = new Set(Object.keys(TRANSPORT_SUPPORT))
+
+function isImageTransportProviderId(providerId: string): providerId is ImageTransportProviderId {
+  return TRANSPORT_PROVIDER_IDS.has(providerId)
 }
 
-const TRANSPORTS: Record<string, TransportRegistration> = {
-  ppio: {
-    supports: () => true,
-    poll: true,
-    load: async (settings) => {
-      const { buildPpioTransport } = await import('./ppio/ppioProvider')
-      return buildPpioTransport(settings as Parameters<typeof buildPpioTransport>[0])
-    }
-  },
-  dashscope: {
-    supports: () => true,
-    poll: true,
-    cancel: true,
-    load: async (settings) => {
-      const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
-      return buildDashScopeTransport(settings as Parameters<typeof buildDashScopeTransport>[0])
-    }
-  },
-  modelscope: {
-    supports: () => true,
-    poll: true,
-    load: async (settings) => {
-      const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
-      return buildModelscopeTransport(settings as Parameters<typeof buildModelscopeTransport>[0])
-    }
-  },
-  dmxapi: {
-    supports: dmxapiUsesCustomTransport,
-    load: async (settings) => {
-      const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
-      return buildDmxapiTransport(settings as Parameters<typeof buildDmxapiTransport>[0])
-    }
-  },
-  tokenhub: {
-    supports: () => true,
-    poll: true,
-    load: async (settings) => {
-      const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
-      return buildTokenhubTransport(settings as Parameters<typeof buildTokenhubTransport>[0])
-    }
-  }
+export function requiresImageTransportDescriptor(providerId: string): boolean {
+  return isImageTransportProviderId(providerId) && TRANSPORT_SUPPORT[providerId].requiresDescriptor
 }
 
-export function hasImageTransport(providerId: string, modelId: string): boolean {
-  return TRANSPORTS[providerId]?.supports(modelId) ?? false
-}
-
-export function resolveImageTransport(
-  aiSdkProviderId: string,
+export function hasImageTransport(
+  providerId: string,
   modelId: string,
-  providerSettings: unknown
-): ImageGenerationTransport | null {
-  const registration = TRANSPORTS[aiSdkProviderId]
-  return registration?.supports(modelId) ? createLazyTransport(registration, providerSettings) : null
+  modelDescriptor?: ImageTransportDescriptor
+): providerId is ImageTransportProviderId {
+  if (!isImageTransportProviderId(providerId)) return false
+  const support = TRANSPORT_SUPPORT[providerId]
+  return support.supports(modelId) && (!support.requiresDescriptor || modelDescriptor !== undefined)
+}
+
+export function isImageTransportConfig(
+  config: ProviderConfig,
+  modelId: string,
+  modelDescriptor?: ImageTransportDescriptor
+): config is ProviderConfig<ImageTransportProviderId> {
+  return hasImageTransport(config.providerId, modelId, modelDescriptor)
+}
+
+export async function resolveImageTransport(
+  config: ProviderConfig<ImageTransportProviderId>,
+  modelId: string,
+  modelDescriptor?: ImageTransportDescriptor
+): Promise<ImageGenerationTransport<VendorBag> | null> {
+  if (!hasImageTransport(config.providerId, modelId, modelDescriptor)) return null
+
+  switch (config.providerId) {
+    case 'ppio': {
+      const { buildPpioTransport } = await import('./ppio/ppioProvider')
+      return buildPpioTransport(config.providerSettings)
+    }
+    case 'dashscope': {
+      const { buildDashScopeTransport } = await import('./dashscope/dashscopeProvider')
+      return buildDashScopeTransport(config.providerSettings)
+    }
+    case 'modelscope': {
+      const { buildModelscopeTransport } = await import('./modelscope/modelscopeProvider')
+      return buildModelscopeTransport(config.providerSettings)
+    }
+    case 'dmxapi': {
+      const { buildDmxapiTransport } = await import('./dmxapi/dmxapiProvider')
+      return buildDmxapiTransport(config.providerSettings)
+    }
+    case 'tokenhub': {
+      const { buildTokenhubTransport } = await import('./tokenhub/tokenhubProvider')
+      return buildTokenhubTransport(config.providerSettings)
+    }
+  }
 }

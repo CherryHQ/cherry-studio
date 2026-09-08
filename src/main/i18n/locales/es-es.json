@@ -109,7 +109,6 @@
   "openclaw.errors.more_issues": "y {{count}} problema(s) más",
   "openclaw.errors.preflight_failed": "Cherry Studio no pudo validar la configuración de OpenClaw.",
   "paintings.generate_failed": "Error al generar la imagen",
-  "paintings.image_mix_failed": "Error al mezclar imágenes",
   "selection.name": "Asistente de selección de palabras",
   "settings.mcp.oauth.callback.message": "Puede cerrar esta página y volver a Cherry Studio",
   "settings.mcp.oauth.callback.title": "Autenticación Exitosa",

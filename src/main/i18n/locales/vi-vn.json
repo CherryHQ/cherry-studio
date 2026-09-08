@@ -109,7 +109,6 @@
   "openclaw.errors.more_issues": "và {{count}} vấn đề khác",
   "openclaw.errors.preflight_failed": "Cherry Studio không thể xác thực cấu hình OpenClaw.",
   "paintings.generate_failed": "Không thể tạo hình ảnh",
-  "paintings.image_mix_failed": "Không thể trộn các hình ảnh",
   "selection.name": "Trợ lý lựa chọn",
   "settings.mcp.oauth.callback.message": "Bạn có thể đóng trang này và quay lại Cherry Studio",
   "settings.mcp.oauth.callback.title": "Xác thực thành công",

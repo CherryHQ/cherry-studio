@@ -29,7 +29,7 @@ vi.mock('../ppio/ppioTransport', () => ({
   DEFAULT_PPIO_BASE_URL: 'https://api.ppio.com'
 }))
 
-import { createPpioProvider } from '../ppio/ppioProvider'
+import { buildPpioTransport, createPpioProvider } from '../ppio/ppioProvider'
 
 describe('createPpioProvider', () => {
   afterEach(() => {
@@ -57,15 +57,19 @@ describe('createPpioProvider', () => {
     expect(model.provider).toBe('ppio.embedding')
   })
 
-  it('imageModel still returns an ImageGenerationModel with provider="ppio" (painting regression guard)', () => {
+  // PPIO images ALWAYS take the job transport, so this model exists only to satisfy
+  // `ProviderV3` — reaching it means the transport gate was bypassed, and it says so.
+  it('imageModel refuses rather than delivering under the in-SDK wire spelling', async () => {
     const provider = createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
     const img = provider.imageModel('z-image-turbo')
     expect(img.provider).toBe('ppio')
-    expect(img.specificationVersion).toBe('v3')
+    await expect(img.doGenerate({ prompt: 'a cat', n: 1 } as never)).rejects.toThrow('transport-only')
   })
 
+  // The factory no longer builds a transport — `resolveImageTransport` owns that, and
+  // `buildPpioTransport` is the shared constructor both it and a restart-resume use.
   it('image transport is built from imageBaseURL, NOT chat baseURL', () => {
-    createPpioProvider({
+    buildPpioTransport({
       apiKey: 'sk-test',
       baseURL: 'https://api.ppinfra.com/v3/openai',
       imageBaseURL: 'https://api.ppio.com'
@@ -74,7 +78,7 @@ describe('createPpioProvider', () => {
   })
 
   it('image transport falls back to DEFAULT_PPIO_BASE_URL when imageBaseURL is omitted', () => {
-    createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
+    buildPpioTransport({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk-test', baseURL: 'https://api.ppio.com' })
   })
 })

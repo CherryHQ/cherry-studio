@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import { createDashScopeProvider } from '../../dashscope/dashscopeProvider'
+import type { DashScopeProviderParams } from '../../dashscope/dashscopeTransport'
 import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { captureImageRequest } from './captureRequest'
@@ -14,8 +15,9 @@ import { captureImageRequest } from './captureRequest'
  * wanx2.1-imageedit (function + base_image_url). size is converted `x`→`*`.
  */
 const host = 'https://dashscope.aliyuncs.com'
-const file = (bytes: number[]) =>
-  [{ mediaType: 'image/png', data: new Uint8Array(bytes) }] as ImageGenerationSubmitInput['files']
+const file = (bytes: number[]): NonNullable<ImageGenerationSubmitInput<DashScopeProviderParams>['files']> => [
+  { type: 'file', mediaType: 'image/png', data: new Uint8Array(bytes) }
+]
 
 const base = {
   n: 1,
@@ -23,7 +25,7 @@ const base = {
   seed: undefined,
   files: undefined,
   mask: undefined
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<DashScopeProviderParams>>
 
 const descriptor = (id: string, mode: ImageGenerationMode) => ({
   id,
@@ -36,7 +38,7 @@ const messagePart = z.union([z.strictObject({ text: z.string() }), z.strictObjec
 
 interface Case {
   name: string
-  input: ImageGenerationSubmitInput
+  input: ImageGenerationSubmitInput<DashScopeProviderParams>
   schema: z.ZodTypeAny
 }
 
@@ -51,7 +53,7 @@ const CASES: Case[] = [
       seed: 42,
       modelDescriptor: descriptor('qwen-image', 'generate'),
       providerParams: {}
-    } as ImageGenerationSubmitInput,
+    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string() }),
@@ -67,7 +69,7 @@ const CASES: Case[] = [
       files: file([1, 2, 3]),
       modelDescriptor: descriptor('qwen-image-edit', 'edit'),
       providerParams: {}
-    } as ImageGenerationSubmitInput,
+    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({
@@ -85,7 +87,7 @@ const CASES: Case[] = [
       size: '1328x1328',
       modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
       providerParams: { addWatermark: false, negativePrompt: 'blurry', promptExtend: true }
-    } as ImageGenerationSubmitInput,
+    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({
@@ -115,7 +117,7 @@ const CASES: Case[] = [
         refStrength: 0.5,
         refMode: 'repaint'
       }
-    } as ImageGenerationSubmitInput,
+    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string(), ref_image: z.string() }),
@@ -136,12 +138,12 @@ const CASES: Case[] = [
       prompt: 'a fox',
       size: '1024x1024',
       files: [
-        { mediaType: 'image/png', data: new Uint8Array([1]) },
-        { mediaType: 'image/jpeg', data: new Uint8Array([2]) }
-      ] as ImageGenerationSubmitInput['files'],
+        { type: 'file', mediaType: 'image/png', data: new Uint8Array([1]) },
+        { type: 'file', mediaType: 'image/jpeg', data: new Uint8Array([2]) }
+      ],
       modelDescriptor: descriptor('wan2.5-i2i-preview', 'edit'),
       providerParams: {}
-    } as ImageGenerationSubmitInput,
+    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ prompt: z.string(), images: z.array(z.string()) }),
@@ -157,7 +159,7 @@ const CASES: Case[] = [
       files: file([4, 5, 6]),
       modelDescriptor: descriptor('qwen-mt-image', 'generate'),
       providerParams: { sourceLang: 'auto', targetLang: 'en' }
-    } as ImageGenerationSubmitInput,
+    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ image_url: z.string(), source_lang: z.string(), target_lang: z.string() })
@@ -177,7 +179,7 @@ const CASES: Case[] = [
         upscaleFactor: 2,
         addWatermark: true
       }
-    } as ImageGenerationSubmitInput,
+    } as ImageGenerationSubmitInput<DashScopeProviderParams>,
     schema: z.strictObject({
       model: z.string(),
       input: z.strictObject({ function: z.string(), prompt: z.string(), base_image_url: z.string() }),
@@ -197,6 +199,45 @@ describe('DashScope request boundary', () => {
       expect(req.body).toMatchSnapshot()
     })
   }
+
+  it('uses the injected fetch and gives X-DashScope-Async final precedence', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ output: { task_id: 'task-1' } }), {
+        status: 200
+      })
+    )
+    const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
+    const injectedTransport = createDashScopeTransport({
+      apiKey: 'ds-key',
+      imageBaseURL: host,
+      headers: {
+        Authorization: 'Bearer provider',
+        'X-DashScope-Async': 'disabled',
+        'x-provider': 'one'
+      },
+      fetch
+    })
+
+    await injectedTransport.submit({
+      ...CASES[0].input,
+      headers: {
+        Authorization: 'Bearer request',
+        'X-DashScope-Async': 'disabled',
+        'x-request': 'two'
+      }
+    })
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(globalFetch).not.toHaveBeenCalled()
+    const requestHeaders = Object.fromEntries(new Headers(fetch.mock.calls[0][1]?.headers).entries())
+    expect(requestHeaders).toMatchObject({
+      authorization: 'Bearer request',
+      'x-dashscope-async': 'enable',
+      'x-provider': 'one',
+      'x-request': 'two'
+    })
+    globalFetch.mockRestore()
+  })
 
   it.each([
     {
@@ -252,34 +293,85 @@ describe('DashScope poll resume (restart-safe response family)', () => {
   const succeeded = (output: Record<string, unknown>) =>
     new Response(JSON.stringify({ output: { task_status: 'SUCCEEDED', ...output } }), { status: 200 })
 
-  it('uses the persisted modelDescriptor to pick the response family when pendingDescriptors is empty', async () => {
-    // A fresh transport == post-restart: the submit-time pendingDescriptors entry is gone.
+  it('uses the persisted modelDescriptor to pick the response family after restart', async () => {
     const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(succeeded({ image_url: 'https://img.example/x.png' }))
     try {
-      // qwen-mt-image → 'image_url' family. Without the descriptor it would fall back
-      // to 'results' and return [] even though the remote task succeeded.
-      const urls = await transport.poll('task-resumed', {
-        modelDescriptor: descriptor('qwen-mt-image', 'generate')
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+      const state = await transport.task.query('task-resumed', {
+        signal: new AbortController().signal,
+        modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+        headers: undefined,
+        providerParams: {}
       })
-      expect(urls).toEqual(['https://img.example/x.png'])
+      expect(state).toEqual({ kind: 'completed', imageUrls: ['https://img.example/x.png'] })
     } finally {
       fetchSpy.mockRestore()
     }
   })
 
-  it('defaults to the results family when no descriptor is available', async () => {
+  it('fails loudly when the persisted descriptor is unavailable', async () => {
     const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(succeeded({ results: [{ url: 'https://img.example/r.png' }] }))
-    try {
-      const urls = await transport.poll('task-resumed', {})
-      expect(urls).toEqual(['https://img.example/r.png'])
-    } finally {
-      fetchSpy.mockRestore()
+    if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+    await expect(
+      transport.task.query('task-resumed', {
+        signal: new AbortController().signal,
+        modelDescriptor: undefined,
+        headers: undefined,
+        providerParams: {}
+      })
+    ).rejects.toThrow(/persisted modelDescriptor/)
+  })
+
+  it('rejects a missing or unknown task status instead of assuming pending', async () => {
+    for (const output of [{}, { task_status: 'UNKNOWN' }]) {
+      const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output }), { status: 200 }))
+      const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host, fetch })
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+
+      await expect(
+        transport.task.query('task-resumed', {
+          signal: new AbortController().signal,
+          modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+          headers: undefined,
+          providerParams: {}
+        })
+      ).rejects.toThrow('Invalid JSON response')
     }
+  })
+
+  it('POSTs the documented remote cancel endpoint with resolved headers', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('', { status: 200 }))
+    const transport = createDashScopeTransport({
+      apiKey: 'ds-key',
+      imageBaseURL: host,
+      headers: { 'x-provider': 'one' },
+      fetch
+    })
+    if (transport.task.kind !== 'supported' || transport.task.cancel.kind !== 'supported') {
+      throw new Error('expected cancellable task transport')
+    }
+
+    // Contract source: https://help.aliyun.com/en/model-studio/manage-asynchronous-tasks
+    // Retrieved 2026-07-27. Only PENDING tasks can be cancelled.
+    await transport.task.cancel.cancelRemote('task-1', {
+      signal: undefined,
+      modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+      headers: { 'x-request': 'two' },
+      providerParams: {}
+    })
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${host}/api/v1/tasks/task-1/cancel`,
+      expect.objectContaining({ method: 'POST' })
+    )
+    const init = fetch.mock.calls[0][1] as RequestInit
+    expect(Object.fromEntries(new Headers(init.headers).entries())).toMatchObject({
+      authorization: 'Bearer ds-key',
+      'x-provider': 'one',
+      'x-request': 'two'
+    })
   })
 })

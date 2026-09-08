@@ -2,8 +2,9 @@ import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import type { JobContext, JobHandler } from '@main/core/job/types'
+import type { JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
@@ -13,17 +14,18 @@ import type { Base64String } from '@shared/types/file'
 
 import { resolveProviderAiSdkConfig } from '../../config'
 import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { resolveImageTransport } from '../imageTransportRegistry'
-import { createAbortError } from '../transportUtils'
+import { warnUnsupportedTransportInputs } from '../imageGenerationModel'
+import type { ImageGenerationSubmitInput } from '../imageTransport'
+import { isImageTransportConfig, resolveImageTransport } from '../imageTransportRegistry'
+import { executeImageTransport } from '../imageTransportRuntime'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
 
 const logger = loggerService.withContext('ImageGenerationJobHandler')
 
 /**
- * Async image-generation handler for custom-provider submit/poll transports
- * (ppio / dashscope / modelscope / dmxapi-bespoke). Mirrors
- * `imageGenerationModel.doGenerate` but owns the submit/poll loop.
+ * Image-generation job handler for custom-provider transports. It resolves
+ * durable inputs and persists outputs; `executeImageTransport` owns submit,
+ * task-id persistence ordering, polling and remote cancellation.
  *
  * Secrets are never persisted — the apiKey is re-read from provider config on
  * every attempt via `resolveProviderAiSdkConfig`. Input images / mask are
@@ -88,26 +90,27 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     })
     const usageStartedAt = Date.now()
 
-    const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+    if (!isImageTransportConfig(sdkConfig, sdkConfig.modelId, input.modelDescriptor)) {
+      throw new Error(`Image generation job: no transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`)
+    }
+    const transport = await resolveImageTransport(sdkConfig, sdkConfig.modelId, input.modelDescriptor)
     if (!transport) {
       throw new Error(
         `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
       )
     }
 
-    // No persisted-task resume branch: `recovery: 'abandon'` means a job never
-    // outlives the process that enqueued it, so every execution starts at submit.
-    let urls: string[]
-    const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
-    if (submit.imageUrls) {
-      urls = submit.imageUrls
-    } else if (submit.taskId) {
-      urls = await pollUntilDone(transport, submit.taskId, ctx)
-    } else {
-      // A malformed submit response (neither URLs nor a task id) must fail the
-      // job rather than silently complete with zero files (a paid no-op).
-      throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
-    }
+    const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
+    warnUnsupportedTransportInputs(transport, submitInput, { jobId: ctx.jobId, uniqueModelId: input.uniqueModelId })
+    const urls = await executeImageTransport({
+      transport,
+      input: submitInput,
+      // The handler does not resume abandoned jobs, but persisting the id before
+      // the first query still leaves an accurate audit trail for cancellation.
+      onTaskSubmitted: (taskId) => ctx.patchMetadata({ taskId }),
+      onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
+      logContext: { jobId: ctx.jobId, uniqueModelId: input.uniqueModelId }
+    })
 
     // Record before local download: the provider invocation completed even if file
     // persistence fails. Polling is part of this invocation, not another billable
@@ -124,15 +127,6 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       })
     }
 
-    // An empty URL list from a *successful* submit/poll (e.g. content moderation
-    // or a degraded vendor response that still charged) must fail rather than
-    // complete as a silent zero-image "success". Covers both submit.imageUrls === []
-    // and poll() === []; the malformed-submit (neither field) case threw above.
-    // Recorded above with imageCount=0 because the provider invocation did complete.
-    if (urls.length === 0) {
-      throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
-    }
-
     const files = await downloadAndPersistImageUrls(urls, ctx.signal, input.cleanupPolicy)
     ctx.reportProgress(100, { stage: 'done' })
     return { files } satisfies ImageGenerationJobOutput
@@ -143,15 +137,15 @@ async function buildSubmitInput(
   input: ImageGenerationJobPayload,
   modelId: string,
   signal: AbortSignal
-): Promise<ImageGenerationSubmitInput> {
+): Promise<ImageGenerationSubmitInput<VendorBag>> {
   const files = input.inputFileIds?.length ? await Promise.all(input.inputFileIds.map(readImageFile)) : undefined
   const mask = input.maskFileId ? await readImageFile(input.maskFileId) : undefined
   return {
     modelId,
     prompt: input.prompt,
     n: input.n,
-    size: input.size as `${number}x${number}` | undefined,
-    aspectRatio: input.aspectRatio as `${number}:${number}` | undefined,
+    size: input.size,
+    aspectRatio: input.aspectRatio,
     seed: input.seed,
     files,
     mask,
@@ -164,39 +158,6 @@ async function buildSubmitInput(
 async function readImageFile(fileId: string): Promise<ImageModelV3File> {
   const { content, mime } = await application.get('FileManager').read(fileId, { encoding: 'base64' })
   return { type: 'file', mediaType: mime, data: content }
-}
-
-/**
- * Run the transport's poll loop, cancelling the remote task on job abort.
- * Mirrors the abort handling in `imageGenerationModel.doGenerate`.
- */
-async function pollUntilDone(
-  transport: ImageGenerationTransport,
-  taskId: string,
-  ctx: JobContext<ImageGenerationJobPayload>
-): Promise<string[]> {
-  if (!transport.poll) {
-    throw new Error('Image transport returned a task id but does not implement polling')
-  }
-  const cancelRemote = transport.cancel ? () => void transport.cancel?.(taskId).catch(() => {}) : undefined
-  if (cancelRemote) {
-    if (ctx.signal.aborted) {
-      cancelRemote()
-      throw createAbortError('Image generation aborted')
-    }
-    ctx.signal.addEventListener('abort', cancelRemote, { once: true })
-  }
-  try {
-    return await transport.poll(taskId, {
-      signal: ctx.signal,
-      onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
-      // Carry the descriptor so the poll rebuilds per-task state on a transport
-      // instance that did not run the submit (DashScope's response family).
-      modelDescriptor: ctx.input.modelDescriptor
-    })
-  } finally {
-    if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)
-  }
 }
 
 /** Resolve a transport result to a base64 data URL: inline `data:` results (from
@@ -217,7 +178,7 @@ async function downloadAndPersistImageUrls(
   const fileManager = application.get('FileManager')
   const files: FileEntry[] = []
   for (const url of urls) {
-    if (signal.aborted) throw createAbortError('Image generation aborted')
+    if (signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
     const data = await resolveImageDataUrl(url)
     if (!data) continue
     files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))

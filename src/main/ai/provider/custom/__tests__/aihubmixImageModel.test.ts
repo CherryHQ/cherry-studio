@@ -18,12 +18,14 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
+import { createAihubmixImageTransport } from '../aihubmix/aihubmixImageTransport'
 
 /**
  * Covers the relocated AiHubMix special branches (Google native image models,
- * Ideogram V_3 FormData, Ideogram V_1/V_2 JSON/FormData), response parsing,
+ * Ideogram V3 FormData, Ideogram V_1/V_2 JSON/FormData), response parsing,
  * abort, error handling, and the byte-identical default delegate to the inner
  * `OpenAICompatibleImageModel`.
+ * Wire oracle: https://docs.aihubmix.com/cn/api/IdeogramAI (retrieved 2026-07-27).
  */
 describe('AihubmixImageModel', () => {
   afterEach(() => {
@@ -80,9 +82,16 @@ describe('AihubmixImageModel', () => {
       vi.stubGlobal('fetch', fetchMock)
 
       const model = make('gemini-3-pro-image-preview')
+      // Exactly what production delivers: `aspectRatio` is a native binding, so it
+      // arrives as the SDK call option, never in the bag; the bag carries the CANONICAL
+      // `imageResolution`. The previous fixture used `{ mode, aspectRatio, imageSize }`
+      // — the v1 painting shape — which the IPC boundary strips (none is a catalog key
+      // except `aspectRatio`, and that one is routed away from the bag), so it pinned a
+      // spelling-probe path that could not occur.
       const result = await model.doGenerate(
         callOptions({
-          providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize: '2k' } } as any
+          aspectRatio: '16:9',
+          providerOptions: { aihubmix: { imageResolution: '2k' } } as never
         })
       )
 
@@ -118,21 +127,48 @@ describe('AihubmixImageModel', () => {
     })
   })
 
-  describe('Ideogram V_3', () => {
+  describe('Ideogram V3', () => {
+    it('declares reference-image support for remix and upscale', () => {
+      const transport = createAihubmixImageTransport({
+        apiRoot: 'https://aihubmix.com',
+        baseURL,
+        apiKey: 'sk-test',
+        headers: {}
+      })
+      const input = {
+        modelId: 'ideogram/V3',
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined
+      }
+
+      expect(transport.supportsInput({ ...input, providerParams: { mode: 'remix' } })).toEqual({
+        files: true,
+        mask: false
+      })
+      expect(transport.supportsInput({ ...input, providerParams: { mode: 'upscale' } })).toEqual({
+        files: true,
+        mask: false
+      })
+    })
+
     it('generate → FormData to /ideogram/v1/ideogram-v3/generate with Api-Key', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/a.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const result = await make('V_3').doGenerate(
+      const result = await make('ideogram/V3').doGenerate(
         callOptions({
           n: 2,
+          seed: 0,
           providerOptions: {
             aihubmix: {
               mode: 'generate',
               aspectRatio: 'ASPECT_16_9',
               renderingSpeed: 'TURBO',
               styleType: 'AUTO',
-              seed: '42',
               negativePrompt: 'blur',
               magicPromptOption: true
             }
@@ -142,7 +178,7 @@ describe('AihubmixImageModel', () => {
 
       const [url, init] = fetchMock.mock.calls[0]
       expect(url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/generate')
-      expect((init.headers as Record<string, string>)['Api-Key']).toBe('sk-test')
+      expect(new Headers(init.headers).get('Api-Key')).toBe('sk-test')
       const form = init.body as FormData
       expect(form).toBeInstanceOf(FormData)
       expect(form.get('prompt')).toBe('a fox')
@@ -150,7 +186,7 @@ describe('AihubmixImageModel', () => {
       expect(form.get('num_images')).toBe('2')
       expect(form.get('aspect_ratio')).toBe('16x9')
       expect(form.get('style_type')).toBe('AUTO')
-      expect(form.get('seed')).toBe('42')
+      expect(form.get('seed')).toBe('0')
       expect(form.get('negative_prompt')).toBe('blur')
       expect(form.get('magic_prompt')).toBe('ON')
       expect(result.images).toEqual(['https://img/a.png'])
@@ -160,13 +196,13 @@ describe('AihubmixImageModel', () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/r.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const result = await make('V_3').doGenerate(
+      const result = await make('ideogram/V3').doGenerate(
         callOptions({
+          files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2]) }],
           providerOptions: {
             aihubmix: {
               mode: 'remix',
-              imageWeight: 55,
-              imageFiles: [{ mediaType: 'image/png', data: new Uint8Array([1, 2]), name: 'src.png' }]
+              imageWeight: 55
             }
           } as any
         })
@@ -176,52 +212,88 @@ describe('AihubmixImageModel', () => {
       expect(url).toBe('https://aihubmix.com/ideogram/v1/ideogram-v3/remix')
       const form = init.body as FormData
       expect(form.get('image_weight')).toBe('55')
-      expect(form.get('image')).toBeInstanceOf(Blob)
+      const image = form.get('image')
+      expect(image).toBeInstanceOf(Blob)
+      if (!(image instanceof Blob)) throw new Error('expected image blob')
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([1, 2]))
       expect(result.images).toEqual(['https://img/r.png'])
     })
 
-    it('upscale → image_request JSON + image_file blob to /ideogram/aihubmix_image_upscale', async () => {
+    it('upscale → image_request JSON + image_file blob to /ideogram/upscale', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/u.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      await make('V_3').doGenerate(
+      await make('ideogram/V3').doGenerate(
         callOptions({
           prompt: '',
+          files: [{ type: 'file', mediaType: 'image/png', data: new Uint8Array([9]) }],
           providerOptions: {
             aihubmix: {
               mode: 'upscale',
               resemblance: 60,
               detail: 80,
-              numImages: 1,
-              imageFiles: [{ mediaType: 'image/png', data: new Uint8Array([9]), name: 'in.png' }]
+              numImages: 1
             }
           } as any
         })
       )
 
       const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_upscale')
+      expect(url).toBe('https://aihubmix.com/ideogram/upscale')
       const form = init.body as FormData
       const imageRequest = JSON.parse(form.get('image_request') as string)
       expect(imageRequest).toMatchObject({ resemblance: 60, detail: 80, num_images: 1, magic_prompt_option: 'OFF' })
       expect(form.get('image_file')).toBeInstanceOf(Blob)
     })
+
+    it.each([
+      {
+        mode: 'remix' as const,
+        endpoint: 'https://aihubmix.com/ideogram/v1/ideogram-v3/remix',
+        formField: 'image'
+      },
+      { mode: 'upscale' as const, endpoint: 'https://aihubmix.com/ideogram/upscale', formField: 'image_file' }
+    ])('downloads an HTTP URL before uploading it for $mode', async ({ mode, endpoint, formField }) => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(new Uint8Array([7, 8]), { status: 200, headers: { 'Content-Type': 'image/png' } })
+        )
+        .mockResolvedValueOnce(okJson({ data: [{ url: 'https://img/result.png' }] }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await make('ideogram/V3').doGenerate(
+        callOptions({
+          prompt: '',
+          files: [{ type: 'url', url: 'https://cdn.example.com/reference.png' }],
+          providerOptions: { aihubmix: { mode } }
+        })
+      )
+
+      expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/reference.png')
+      const [url, init] = fetchMock.mock.calls[1]
+      expect(url).toBe(endpoint)
+      const image = (init.body as FormData).get(formField)
+      expect(image).toBeInstanceOf(Blob)
+      if (!(image instanceof Blob)) throw new Error('expected image blob')
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([7, 8]))
+    })
   })
 
   describe('Ideogram V_1/V_2', () => {
-    it('generate → JSON {image_request} to /ideogram/aihubmix_image_generate', async () => {
+    it('generate → JSON {image_request} to /ideogram/generate', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/v1.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
       const result = await make('V_2').doGenerate(
         callOptions({
           n: 3,
+          seed: 0,
           providerOptions: {
             aihubmix: {
               mode: 'generate',
               aspectRatio: 'ASPECT_1_1',
               styleType: 'REALISTIC',
-              seed: '7',
               negativePrompt: 'noise',
               magicPromptOption: false
             }
@@ -230,9 +302,9 @@ describe('AihubmixImageModel', () => {
       )
 
       const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_generate')
-      expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
-      expect((init.headers as Record<string, string>)['Api-Key']).toBe('sk-test')
+      expect(url).toBe('https://aihubmix.com/ideogram/generate')
+      expect(new Headers(init.headers).get('Content-Type')).toBe('application/json')
+      expect(new Headers(init.headers).get('Api-Key')).toBe('sk-test')
       const body = JSON.parse(init.body as string)
       expect(body.image_request).toMatchObject({
         prompt: 'a fox',
@@ -240,36 +312,90 @@ describe('AihubmixImageModel', () => {
         aspect_ratio: 'ASPECT_1_1',
         num_images: 3,
         style_type: 'REALISTIC',
-        seed: 7,
+        seed: 0,
         negative_prompt: 'noise',
         magic_prompt_option: 'OFF'
       })
       expect(result.images).toEqual(['https://img/v1.png'])
     })
 
-    it('remix → FormData (image_request JSON + image_file) to /ideogram/aihubmix_image_remix', async () => {
+    it('remix → FormData (image_request JSON + image_file) to /ideogram/remix', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ b64_json: 'QUJD' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
       const result = await make('V_2').doGenerate(
         callOptions({
+          files: [{ type: 'file', mediaType: 'image/jpeg', data: 'data:image/jpeg;base64,Aw==' }],
           providerOptions: {
             aihubmix: {
               mode: 'remix',
-              imageWeight: 30,
-              imageFiles: [{ mediaType: 'image/jpeg', data: new Uint8Array([3]), name: 'r.jpg' }]
+              imageWeight: 30
             }
           } as any
         })
       )
 
       const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_remix')
+      expect(url).toBe('https://aihubmix.com/ideogram/remix')
       const form = init.body as FormData
       const imageRequest = JSON.parse(form.get('image_request') as string)
       expect(imageRequest.image_weight).toBe(30)
-      expect(form.get('image_file')).toBeInstanceOf(Blob)
+      const image = form.get('image_file')
+      expect(image).toBeInstanceOf(Blob)
+      if (!(image instanceof Blob)) throw new Error('expected image blob')
+      expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([3]))
       expect(result.images).toEqual(['data:image/png;base64,QUJD'])
+    })
+  })
+
+  describe('registry-declared edit models', () => {
+    it('posts zimage input to the declared qwen-image-edit prediction endpoint', async () => {
+      // Contract: https://docs.aihubmix.com/cn/api/Image-Gen (retrieved 2026-09-07).
+      // The zimage protocol wraps prompt/images/n/seed/watermark in `input`, and
+      // qwen-image-edit is served at the registry-declared qianfan prediction path.
+      const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/edit.png' }] }))
+      const model = createAihubmixImageModel('qwen-image-edit', {
+        baseURL,
+        resolveApiKey,
+        headers,
+        fetch: fetchMock,
+        imageTransportDescriptors: {
+          edit: {
+            id: 'qwen-image-edit',
+            endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
+            mode: 'edit'
+          }
+        }
+      })
+
+      const result = await model.doGenerate(
+        callOptions({
+          prompt: 'replace the sky',
+          n: 1,
+          seed: 7,
+          files: [
+            { type: 'file', mediaType: 'image/png', data: new Uint8Array([1, 2]) },
+            { type: 'file', mediaType: 'image/jpeg', data: 'AwQ=' }
+          ],
+          headers: { 'X-Request': 'edit' },
+          providerOptions: { aihubmix: { mode: 'edit', addWatermark: false } }
+        })
+      )
+
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe('https://aihubmix.com/v1/models/qianfan/qwen-image-edit/predictions')
+      expect(new Headers(init.headers).get('Authorization')).toBe('Bearer sk-test')
+      expect(new Headers(init.headers).get('X-Request')).toBe('edit')
+      expect(JSON.parse(init.body as string)).toEqual({
+        input: {
+          prompt: 'replace the sky',
+          images: ['data:image/png;base64,AQI=', 'data:image/jpeg;base64,AwQ='],
+          n: 1,
+          seed: 7,
+          watermark: false
+        }
+      })
+      expect(result.images).toEqual(['https://img/edit.png'])
     })
   })
 
@@ -348,7 +474,7 @@ describe('AihubmixImageModel', () => {
     }
 
     it('does NOT delegate non-default ids (V_2) to the inner model', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [] })))
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/v2.png' }] })))
       await make('V_2').doGenerate(callOptions())
       expect(innerDoGenerate).not.toHaveBeenCalled()
     })

@@ -109,7 +109,6 @@
   "openclaw.errors.more_issues": "și alte {{count}} probleme",
   "openclaw.errors.preflight_failed": "Cherry Studio nu a putut valida configurația OpenClaw.",
   "paintings.generate_failed": "Nu s-a putut genera imaginea",
-  "paintings.image_mix_failed": "Nu s-au putut combina imaginile",
   "selection.name": "Asistent de selecție",
   "settings.mcp.oauth.callback.message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
   "settings.mcp.oauth.callback.title": "Autentificare reușită",

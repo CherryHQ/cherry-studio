@@ -109,7 +109,6 @@
   "openclaw.errors.more_issues": "另有 {{count}} 個問題",
   "openclaw.errors.preflight_failed": "Cherry Studio 無法驗證 OpenClaw 設定。",
   "paintings.generate_failed": "無法產生圖片",
-  "paintings.image_mix_failed": "無法混合圖片",
   "selection.name": "選取文字助理",
   "settings.mcp.oauth.callback.message": "關閉此頁面後即可回到 Cherry Studio",
   "settings.mcp.oauth.callback.title": "認證成功",

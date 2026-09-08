@@ -1,7 +1,12 @@
 export type { ApprovalRequestedEvent } from './approval'
-export type { AppProviderId, AppProviderSettingsMap, AppRuntimeConfig } from './merged'
+export type { AppProviderId, AppProviderSettingsMap, AppRuntimeConfig, KnownAppProviderId } from './merged'
 export { appProviderIds, getAllProviderIds, isRegisteredProviderId } from './merged'
-export type { CompletionsResult, ProviderCapabilities, ProviderConfig } from './providerConfig'
+export type {
+  CompletionsResult,
+  ProviderCapabilities,
+  ProviderConfig,
+  ProviderOptionsKey
+} from './providerConfig'
 export type {
   AiBaseRequest,
   AiStreamRequest,

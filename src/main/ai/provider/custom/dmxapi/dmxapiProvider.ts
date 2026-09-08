@@ -11,11 +11,12 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { resolveDmxapiChatFamily } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
-import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
 import { resolveDmxapiNativeImageFamily } from './dmxapiImageRouting'
 import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
 
@@ -60,10 +61,9 @@ function resolveEmbeddingFamily(modelId: string): DmxapiEmbeddingFamily {
 /**
  * Build the DMXAPI submit/poll image transport from provider settings. Shared
  * by the provider factory and the image-generation job's transport registry so
- * the job handler can rebuild the same transport after a restart from the
- * re-resolved provider settings.
+ * both paths use the same re-resolved provider settings.
  */
-export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport {
+export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport<VendorBag> {
   const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? settings.baseURL
   if (!chatBaseURL) {
     throw new Error('DMXAPI provider requires a non-empty `baseURL` to build the image transport.')
@@ -72,7 +72,9 @@ export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGen
     apiKey: settings.apiKey ?? '',
     // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
     // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
-    baseURL: withoutTrailingApiVersion(chatBaseURL)
+    baseURL: withoutTrailingApiVersion(chatBaseURL),
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 }
 
@@ -120,8 +122,6 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       headers: settings.headers,
       fetch: customFetch
     }).chat(modelId)
-
-  const transport = buildDmxapiTransport(settings)
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
     switch (resolveDmxapiChatFamily(modelId)) {
@@ -178,7 +178,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     // body, `extra.output.results[].url` async wrapper), so they go through
     // the custom transport.
     if (resolveDmxapiFamily(modelId) !== 'openai-flat') {
-      return createImageGenerationModel(modelId, { provider: DMXAPI_PROVIDER_NAME, transport })
+      return transportOnlyImageModel(DMXAPI_PROVIDER_NAME, modelId)
     }
     // Fallback for unknown models — OpenAI-compat image model is the safest
     // assumption since DMXAPI's gateway translates the rest of its catalog

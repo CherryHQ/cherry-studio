@@ -43,7 +43,7 @@ for SDK delivery vs. a bespoke envelope the transport builds).
 │        structured = { n, size, seed, aspectRatio, … }   (typed ParamValues & {n})│
 │        vendorBag  = { the non-native canonical params, camelCase }              │
 │                                                                                 │
-│   resolveImageTransport(provider, model)?                                       │
+│   resolveImageTransport(config, modelId)?                                       │
 │     ├─ NO  → SDK delivery                  ├─ YES → transport delivery           │
 │     ▼                                       ▼                                    │
 │   buildVendorProviderOptions               getImageGenerationSupport(provider,   │
@@ -73,6 +73,18 @@ The contract between them is the **catalog** (the canonical key set + each key's
 value type and wire name). The form, the validation, the partition, and
 the static types all project from it.
 
+> **The two delivery adapters take the bag in different spellings — by design.**
+> The SDK adapter's body *is* the HTTP body, so it is **wire-named** (`negative_prompt`).
+> A transport builds its own per-model envelope with field names the catalog can't
+> predict (nested `parameters.*`, `messages[]`), so it takes the bag **canonical**
+> (`negativePrompt`) and names each field itself. `AiService.generateImage` picks the
+> branch *before* building a body, so the two never both run.
+>
+> Consequence — **a transport-only provider must not have a `WIRE_REGISTRY` row**: it
+> would never be read, while reading like a live declaration. `dashscope` was exactly
+> that dead row (its profile said `negative_prompt`, its transport read
+> `negativePrompt`); `wireRegistryReachability.test.ts` now fails on the next one.
+
 ---
 
 ## The single sources — each fact declared once
@@ -83,7 +95,10 @@ the static types all project from it.
 | per-model: which params + constraints (options/range/default) | registry `supports` | form + `buildParamsSchema` |
 | canonical → AI-SDK-native (`numImages→n`, `aspectRatio` normalize, …) | `AI_SDK_NATIVE_BINDINGS` | `splitParamValues` |
 | canonical → vendor wire name (`negativePrompt→negative_prompt`) | `wireName()` (catalog `wire` or auto snake_case) | WireProfiles + aihubmix DEFAULT |
-| per-provider delivery (dual-key / passthrough / sibling key / envelope) | `WIRE_REGISTRY` + each transport | the two adapters |
+| which delivery adapter a request takes | `imageTransportRegistry` (transport ⇒ job path; else SDK) | `AiService.generateImage` |
+| whether a transport reads `files` / `mask` for a model | `ImageGenerationTransport.supportsInput` | the warning at both submit call sites |
+| per-provider SDK delivery (dual-key / passthrough / sibling key) | `WIRE_REGISTRY` (SDK id; the openai-compatible fallback wire-names its passthrough) — **SDK branch only** | the SDK adapter |
+| providerOptions namespace the SDK model reads | `sdkConfig.providerOptionsKey` (`resolveProviderOptionsKey`, attached by `providerToAiSdkConfig`) | SDK delivery + chat options |
 | per-model endpoint routing (endpoint / sync / response family) | registry `vendorTransport` → `modelDescriptor` | the transports |
 
 Nothing in this list is repeated. A canonical param is **one** catalog row; a
@@ -211,26 +226,54 @@ For SDK-delivered providers, `buildVendorProviderOptions` ([`src/main/ai/provide
 interface WireProfile  { fields: Partial<Record<CanonicalParamKey, WireRule>> } // forward / map / contribute
 interface WireRegistration {
   profile: WireProfile
-  dualOpenAI?: boolean   // mirror the clean body under `openai` too (gpt-image family)
-  passthrough?: boolean  // forward vendor-bag fields the profile doesn't name (silicon cfg, …)
-  also?: { key; profile }[] // a sibling provider key (dmxapi → google.imageConfig)
+  dualOpenAI?: boolean            // mirror the clean body under `openai` too (gpt-image family)
+                                  // (no delivery-key field — that is `sdkConfig.providerOptionsKey`)
+  passthrough?: boolean | 'wire'  // forward unmapped vendor-bag fields: raw camelCase (custom
+                                  // models read them) or wire-named ('wire' — the body IS the HTTP body)
+  also?: { key; profile }[]       // a sibling provider key (multi-backend gateways);
+                                  // no live consumer since the dmxapi row was deleted
 }
 ```
 
 A profile declares **which** canonical params ride in the body; the **name**
 comes from `wireName`. Delivery (which key(s), passthrough, sibling, nesting) is
-the registration's job — not the profile's, and never a repeated rename. Providers
-absent from `WIRE_REGISTRY` fall back to `DEFAULT_DIFFUSION_REGISTRATION` (the
-OpenAI-compatible diffusion family). The result is `providerOptions[id]`, which
-the AI SDK image model spreads into the request body; `structured` becomes the
-typed call options (`imageParams`).
+the registration's job — not the profile's, and never a repeated rename.
+
+The registration is looked up by `resolveWireRegistration(sdkId)`: providers
+with their own SDK adapter resolve via `WIRE_REGISTRY[sdkId]` (falling back to
+`DEFAULT_DIFFUSION_REGISTRATION`); the **generic `openai-compatible` adapter**
+gets `OPENAI_COMPAT_FALLBACK_REGISTRATION` — the diffusion profile with a
+**wire-named** passthrough, since `@ai-sdk/openai-compatible` spreads the bag
+into the HTTP body verbatim. A provider on that path needing a bespoke body
+shape is routed to its own provider id instead (config.ts builders — doubao →
+`WIRE_REGISTRY.doubao` / `@ai-sdk/bytedance` is the precedent).
+
+The result is delivered under **`sdkConfig.providerOptionsKey`** — the `providerOptions`
+namespace the SDK image model actually reads, resolved by
+`resolveProviderOptionsKey` ([`src/main/ai/provider/endpoint.ts`](../../../src/main/ai/provider/endpoint.ts)), the
+single source for that fact across chat and image: the concrete provider id for
+the openai-compatible family, the upstream family for an aggregator on an
+anthropic/google/responses endpoint, a table entry for the ids whose SDK package
+names its own namespace (`google-vertex → vertex`, `doubao → bytedance`,
+`cherryin-chat → cherryin`, the openai/anthropic/xai variants), else the SDK id.
+The AI SDK image model spreads that body into the request; `structured` becomes
+the typed call options (`imageParams`).
+
+A registry `supports` entry that has **no** route to the wire — not native, not
+in the provider's profile, not carried by its passthrough or a transport — is a
+control that renders and does nothing (#17394). `imageParamDeliverability.test.ts`
+([`src/main/ai/provider/__tests__/`](../../../src/main/ai/provider/__tests__/imageParamDeliverability.test.ts))
+walks every declared (provider, model, mode) through the real resolution path and
+fails on one. It catches the *dropped* class only: `passthrough` and transport
+providers satisfy it for the whole provider at once, so a key with the wrong
+vendor field name still passes — that layer is the boundary snapshots' job.
 
 The SDK image model is one of: a custom `ImageModelV3` (e.g.
 [`silicon/SiliconImageModel.ts`](../../../src/main/ai/provider/custom/silicon/SiliconImageModel.ts), [`aihubmix/aihubmixImageModel.ts`](../../../src/main/ai/provider/custom/aihubmix/aihubmixImageModel.ts)), `@ai-sdk/openai-compatible`, or `@ai-sdk/google`. It **reads** the wire body — it does not re-rename it.
 
 ### 4. Transport delivery (async / bespoke wire shape)
 
-When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation.
+When `resolveImageTransport(config, modelId)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / DMXAPI-custom / TokenHub families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`). The shared transport runtime owns submit, task-id persistence before the first query, polling and remote cancellation; the handler owns queueing, durable input references, progress bridging and output persistence.
 
 The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
 
@@ -274,7 +317,7 @@ descriptor is a pure derivation, not a param.
 
 ### Add a vendor
 
-- OpenAI-compatible → nothing custom: the `DEFAULT_DIFFUSION_REGISTRATION` engine + `@ai-sdk/openai-compatible` cover it.
+- OpenAI-compatible → nothing custom: `OPENAI_COMPAT_FALLBACK_REGISTRATION` (wire-named passthrough) + `@ai-sdk/openai-compatible` cover it. An irregular body shape means routing the provider to its own id (config.ts builders) with a `WIRE_REGISTRY` row, like doubao.
 - Native SDK (OpenAI/Google) → register a `WireProfile` with the right delivery flags (`dualOpenAI` / `also` / `passthrough`).
 - Bespoke / async wire shape → implement an `ImageGenerationTransport`, register it on the provider's `imageModel(...)`, and read canonical camelCase params + `input.modelDescriptor`.
 

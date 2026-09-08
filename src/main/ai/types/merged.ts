@@ -21,7 +21,13 @@ const allExtensions = [...coreExtensions, ...extensions] as const
 
 type AllExtensionConfigs = (typeof allExtensions)[number]['config']
 
-type KnownAppProviderId = ExtractProviderIds<AllExtensionConfigs>
+/**
+ * The provider ids the bundled extensions actually register — the CLOSED half of
+ * {@link AppProviderId}. Exported because `Record<AppProviderId, X>` degenerates to a
+ * bare string index signature (the `(string & {})` arm absorbs everything), so any
+ * table that wants its keys checked must be keyed by this instead.
+ */
+export type KnownAppProviderId = ExtractProviderIds<AllExtensionConfigs>
 export type AppProviderId = KnownAppProviderId | (string & {})
 
 export type AppProviderSettingsMap = UnionToIntersection<ExtensionToSettingsMap<(typeof allExtensions)[number]>>

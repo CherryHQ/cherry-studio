@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
+import type { ModelscopeProviderParams } from '../../modelscope/modelscopeTransport'
 import { createModelscopeTransport } from '../../modelscope/modelscopeTransport'
 import { captureImageRequest } from './captureRequest'
 
@@ -17,7 +18,7 @@ const base = {
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<ModelscopeProviderParams>>
 
 const url = 'https://api-inference.modelscope.cn/v1/images/generations'
 
@@ -48,7 +49,7 @@ describe('ModelScope request boundary', () => {
       size: '1024x1024',
       seed: 7,
       providerParams: { numInferenceSteps: 30, guidanceScale: 4, negativePrompt: 'blur' }
-    } as ImageGenerationSubmitInput)
+    } as ImageGenerationSubmitInput<ModelscopeProviderParams>)
 
     expect(req.url).toBe(url)
     txt2imgBody.parse(req.body)
@@ -60,11 +61,70 @@ describe('ModelScope request boundary', () => {
       ...base,
       modelId: 'Qwen/Qwen-Image-Edit',
       prompt: 'make it night',
-      files: [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as ImageGenerationSubmitInput['files']
-    } as ImageGenerationSubmitInput)
+      files: [
+        { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }
+      ] as ImageGenerationSubmitInput<ModelscopeProviderParams>['files']
+    } as ImageGenerationSubmitInput<ModelscopeProviderParams>)
 
     expect(req.url).toBe(url)
     editBody.parse(req.body)
     expect(req.body).toMatchSnapshot()
+  })
+
+  it('uses the injected fetch and gives the required async header final precedence', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ task_id: 'task-1' }), { status: 200 }))
+    const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
+    const injectedTransport = createModelscopeTransport({
+      apiKey: 'ms-key',
+      baseURL: 'https://api-inference.modelscope.cn',
+      headers: {
+        Authorization: 'Bearer provider',
+        'X-ModelScope-Async-Mode': 'false',
+        'x-provider': 'one'
+      },
+      fetch
+    })
+
+    // Contract source: https://modelscope.cn/docs/model-service/API-Inference/intro
+    // Retrieved 2026-07-27.
+    await injectedTransport.submit({
+      ...base,
+      modelId: 'MusePublic/489_ckpt_FLUX_1',
+      prompt: 'a fox',
+      providerParams: {},
+      headers: {
+        Authorization: 'Bearer request',
+        'X-ModelScope-Async-Mode': 'false',
+        'x-request': 'two'
+      }
+    } as ImageGenerationSubmitInput<ModelscopeProviderParams>)
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(globalFetch).not.toHaveBeenCalled()
+    const requestHeaders = Object.fromEntries(new Headers(fetch.mock.calls[0][1]?.headers).entries())
+    expect(requestHeaders).toMatchObject({
+      authorization: 'Bearer request',
+      'x-modelscope-async-mode': 'true',
+      'x-provider': 'one',
+      'x-request': 'two'
+    })
+    globalFetch.mockRestore()
+  })
+
+  it('rejects a missing or unknown query status instead of assuming pending', async () => {
+    for (const response of [{}, { task_status: 'UNKNOWN' }]) {
+      const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+      const strictTransport = createModelscopeTransport({ apiKey: 'ms-key', fetch })
+      if (strictTransport.task.kind !== 'supported') throw new Error('expected task transport')
+
+      await expect(
+        strictTransport.task.query('task-1', {
+          signal: new AbortController().signal,
+          modelDescriptor: undefined,
+          headers: undefined,
+          providerParams: {}
+        })
+      ).rejects.toThrow('Invalid JSON response')
+    }
   })
 })

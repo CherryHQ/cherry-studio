@@ -6,7 +6,7 @@ exports[`AiHubMix response boundary (Ideogram branches) > V_2 generate → outpu
 ]
 `;
 
-exports[`AiHubMix response boundary (Ideogram branches) > V_3 generate → data[].url 1`] = `
+exports[`AiHubMix response boundary (Ideogram branches) > ideogram/V3 generate → data[].url 1`] = `
 [
   "https://img/v3a.png",
   "https://img/v3b.png",

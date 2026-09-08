@@ -1,15 +1,15 @@
 /**
  * Unit tests for imageGenerationJobHandler.
  *
- * Covers: the job contract, the async path (submit → poll → download/persist)
+ * Covers: the job contract, the async path (submit → persist task id → query → download/persist)
  * with its usage record, synchronous submit (imageUrls, no poll), progress
  * reporting, and abort (remote cancel + AbortError). The provider / transport
  * resolution is mocked so the test exercises handler control flow, not vendor
  * wiring.
  *
  * There is deliberately no cross-restart resume coverage: `recovery: 'abandon'`
- * means a job never outlives its process, so `patchMetadata` is asserted absent
- * rather than exercised.
+ * means a job never outlives its process. The task id is still persisted before
+ * the first query so cancellation metadata is accurate.
  */
 import type { JobContext } from '@main/core/job/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,7 +23,7 @@ const {
   permanentDeleteMock,
   resolveImageTransportMock,
   submitMock,
-  pollMock,
+  queryMock,
   cancelMock,
   downloadMock,
   getByProviderIdMock,
@@ -38,7 +38,7 @@ const {
   permanentDeleteMock: vi.fn(),
   resolveImageTransportMock: vi.fn(),
   submitMock: vi.fn(),
-  pollMock: vi.fn(),
+  queryMock: vi.fn(),
   cancelMock: vi.fn(),
   downloadMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
@@ -49,7 +49,10 @@ const {
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('../../imageTransportRegistry', () => ({ resolveImageTransport: resolveImageTransportMock }))
+vi.mock('../../imageTransportRegistry', () => ({
+  isImageTransportConfig: () => true,
+  resolveImageTransport: resolveImageTransportMock
+}))
 vi.mock('../../../config', () => ({ resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock }))
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: getByProviderIdMock, getApiKeys: getApiKeysMock }
@@ -124,7 +127,22 @@ beforeEach(() => {
   recordRequestMock.mockReturnValue(undefined)
   cancelMock.mockResolvedValue(undefined)
   permanentDeleteMock.mockResolvedValue(undefined)
-  resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
+  resolveImageTransportMock.mockReturnValue({
+    submit: submitMock,
+    supportsInput: () => ({ files: false, mask: false }),
+    task: {
+      kind: 'supported',
+      pollPolicy: {
+        initialDelayMs: 0,
+        maxAttempts: 5,
+        maxElapsedMs: null,
+        maxConsecutiveErrors: 2,
+        getDelayMs: () => 0
+      },
+      query: queryMock,
+      cancel: { kind: 'supported', cancelRemote: cancelMock }
+    }
+  })
   downloadMock.mockResolvedValue({ data: 'AAAA', media_type: 'image/png' })
   createInternalEntryMock.mockImplementation(async () => ({ id: 'file-1' }))
 })
@@ -154,7 +172,7 @@ describe('imageGenerationJobHandler contract', () => {
 })
 
 describe('imageGenerationJobHandler.execute', () => {
-  it('async: submit(taskId) → poll → download/persist, recording usage', async () => {
+  it('async: submit(taskId) → persist → query → download/persist, recording usage', async () => {
     const credentialReceipt = {
       attribution: 'explicit',
       id: 'key-a',
@@ -166,22 +184,18 @@ describe('imageGenerationJobHandler.execute', () => {
       config: { providerId: 'ppio', providerSettings: { apiKey: 'k' } },
       credentialReceipt
     })
-    submitMock.mockResolvedValue({ taskId: 'task-xyz' })
-    pollMock.mockImplementation(async (_taskId: string, opts: { onProgress?: (p: number) => void }) => {
-      opts.onProgress?.(50)
-      return ['https://cdn.example.com/a.png']
-    })
+    submitMock.mockResolvedValue({ kind: 'submitted', taskId: 'task-xyz' })
+    queryMock
+      .mockResolvedValueOnce({ kind: 'pending', progress: 50 })
+      .mockResolvedValueOnce({ kind: 'completed', imageUrls: ['https://cdn.example.com/a.png'] })
 
     const ctx = createCtx()
     ctx.input.source = source
     const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
 
     expect(result.files).toEqual([{ id: 'file-1' }])
-    // The task id is never persisted: nothing resumes a job of this type, so
-    // writing it would be metadata with no reader — and a resume that did read it
-    // would re-poll a task whose result reaches nobody.
-    expect(ctx.patchMetadata).not.toHaveBeenCalled()
-    expect(pollMock).toHaveBeenCalledWith(
+    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz' })
+    expect(queryMock).toHaveBeenCalledWith(
       'task-xyz',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
     )
@@ -212,7 +226,7 @@ describe('imageGenerationJobHandler.execute', () => {
     // `AiService` only sets the field when the registry resolved a vendorTransport
     // endpoint, so an absent descriptor is a normal payload — the transport must
     // receive `undefined` rather than the handler throwing on the way there.
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/none.png'] })
+    submitMock.mockResolvedValue({ kind: 'completed', imageUrls: ['https://cdn.example.com/none.png'] })
 
     const ctx = createCtx({
       input: {
@@ -229,14 +243,33 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(submitArg.modelDescriptor).toBeUndefined()
   })
 
-  it('sync: submit(imageUrls) → no poll, and no metadata is persisted', async () => {
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/sync.png'] })
+  it('does not issue the first query until async task metadata is durably patched', async () => {
+    const events: string[] = []
+    submitMock.mockResolvedValue({ kind: 'submitted', taskId: 'task-ordered' })
+    queryMock.mockImplementation(async () => {
+      events.push('query')
+      return { kind: 'completed', imageUrls: ['https://cdn.example.com/a.png'] }
+    })
+    const ctx = createCtx({
+      patchMetadata: vi.fn(async () => {
+        await Promise.resolve()
+        events.push('persist')
+      })
+    })
+
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(events).toEqual(['persist', 'query'])
+  })
+
+  it('sync: submit(imageUrls) → no poll, no patchMetadata', async () => {
+    submitMock.mockResolvedValue({ kind: 'completed', imageUrls: ['https://cdn.example.com/sync.png'] })
 
     const ctx = createCtx()
     const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
 
     expect(result.files).toEqual([{ id: 'file-1' }])
-    expect(pollMock).not.toHaveBeenCalled()
+    expect(queryMock).not.toHaveBeenCalled()
     // The capture context is built per execution and held in memory. Upstream
     // persisted it so a resumed run could still attribute cost; with `abandon`
     // there is no resumed run, so persisting it would be a write nobody reads.
@@ -245,19 +278,20 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('abort: cancels the remote task and throws AbortError', async () => {
-    submitMock.mockResolvedValue({ taskId: 'task-to-cancel' })
+    submitMock.mockResolvedValue({ kind: 'submitted', taskId: 'task-to-cancel' })
     const controller = new AbortController()
     controller.abort()
     const ctx = createCtx({ signal: controller.signal })
 
     await expect(imageGenerationJobHandler.execute(ctx)).rejects.toThrow(/abort/i)
-    expect(cancelMock).toHaveBeenCalledWith('task-to-cancel')
-    expect(pollMock).not.toHaveBeenCalled()
+    expect(submitMock).not.toHaveBeenCalled()
+    expect(cancelMock).not.toHaveBeenCalled()
+    expect(queryMock).not.toHaveBeenCalled()
   })
 
   it('reads input images by FileEntry id for image-edit submit', async () => {
     readMock.mockResolvedValue({ content: 'BBBB', mime: 'image/jpeg' })
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/edit.png'] })
+    submitMock.mockResolvedValue({ kind: 'completed', imageUrls: ['https://cdn.example.com/edit.png'] })
 
     const ctx = createCtx({
       input: {
@@ -298,11 +332,14 @@ describe('imageGenerationJobHandler.execute', () => {
 
   it('fails (not silently completes) when submit returns neither imageUrls nor a taskId', async () => {
     submitMock.mockResolvedValue({})
-    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/neither imageUrls nor a taskId/i)
+    await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/invalid submission/i)
   })
 
   it('fails when the remote returned URLs but every download fails (paid no-op guard)', async () => {
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
+    submitMock.mockResolvedValue({
+      kind: 'completed',
+      imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png']
+    })
     downloadMock.mockResolvedValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/all downloads failed/i)
     // The vendor generated (and charged for) both images before the download step,
@@ -313,7 +350,10 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('returns the subset (does not throw) when only some downloads fail', async () => {
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
+    submitMock.mockResolvedValue({
+      kind: 'completed',
+      imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png']
+    })
     downloadMock.mockImplementation(async (url: string) =>
       url.endsWith('a.png') ? { data: 'AAAA', media_type: 'image/png' } : null
     )
@@ -329,7 +369,7 @@ describe('imageGenerationJobHandler.execute', () => {
 
   it('persists inline data: URL results without downloading (b64_json-style sync responses)', async () => {
     const inline = 'data:image/jpeg;base64,/9j/4AAQ'
-    submitMock.mockResolvedValue({ imageUrls: [inline, 'https://cdn.example.com/b.png'] })
+    submitMock.mockResolvedValue({ kind: 'completed', imageUrls: [inline, 'https://cdn.example.com/b.png'] })
     createInternalEntryMock.mockResolvedValueOnce({ id: 'file-inline' }).mockResolvedValueOnce({ id: 'file-b' })
 
     const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
@@ -343,33 +383,36 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('fails when submit returns an empty imageUrls array (paid no-op guard)', async () => {
-    submitMock.mockResolvedValue({ imageUrls: [] })
+    submitMock.mockResolvedValue({ kind: 'completed', imageUrls: [] })
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
-    expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
+    expect(recordRequestMock).not.toHaveBeenCalled()
   })
 
   it('fails when poll returns an empty array (paid no-op guard)', async () => {
-    submitMock.mockResolvedValue({ taskId: 'task-empty' })
-    pollMock.mockResolvedValue([])
+    submitMock.mockResolvedValue({ kind: 'submitted', taskId: 'task-empty' })
+    queryMock.mockResolvedValue({ kind: 'completed', imageUrls: [] })
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/returned no image URLs/i)
-    expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
+    expect(recordRequestMock).not.toHaveBeenCalled()
   })
 
   it('cancels the remote task when the signal aborts mid-poll', async () => {
     const controller = new AbortController()
-    submitMock.mockResolvedValue({ taskId: 'task-mid' })
+    submitMock.mockResolvedValue({ kind: 'submitted', taskId: 'task-mid' })
     // Abort while transport.poll is in flight → the abort listener registered in
     // pollUntilDone fires cancelRemote (the realistic mid-poll path, distinct from
     // the pre-aborted early-return). The post-poll download then sees the aborted
     // signal and throws, so execute rejects.
-    pollMock.mockImplementation(async () => {
+    queryMock.mockImplementation(async () => {
       controller.abort()
-      return ['https://cdn.example.com/a.png']
+      throw new DOMException('aborted', 'AbortError')
     })
 
     await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
-    expect(pollMock).toHaveBeenCalled()
-    expect(cancelMock).toHaveBeenCalledWith('task-mid')
+    expect(queryMock).toHaveBeenCalled()
+    expect(cancelMock).toHaveBeenCalledWith(
+      'task-mid',
+      expect.objectContaining({ signal: undefined, modelDescriptor: expect.any(Object) })
+    )
   })
 
   it('throws when transport resolution yields nothing', async () => {

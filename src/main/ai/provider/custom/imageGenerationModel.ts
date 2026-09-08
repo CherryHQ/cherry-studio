@@ -1,69 +1,79 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
-import type { ImageGenerationMode } from '@shared/data/types/model'
+import { loggerService } from '@logger'
 
-import { createAbortError } from './transportUtils'
+import type { WireVendorBag } from '../../utils/imageOptions'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport } from './imageTransport'
+import { executeImageTransport } from './imageTransportRuntime'
 
-/**
- * Per-model transport routing — which endpoint to POST, whether to poll, and
- * which response family to parse. Derived in main from the registry's
- * `modes[mode].vendorTransport` (NOT a user param), so it travels on its own
- * typed channel (the job payload / submit input), not the `providerParams` bag.
- */
-export interface ImageTransportDescriptor {
-  id: string
-  endpoint: string
-  isSync?: boolean
-  mode?: ImageGenerationMode
-}
+const logger = loggerService.withContext('imageTransport')
 
-export interface ImageGenerationTransport {
-  submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
-  /**
-   * `modelDescriptor` is carried so a poll on a fresh transport
-   * instance can rebuild per-task state (e.g. DashScope's response family).
-   */
-  poll?(
-    taskId: string,
-    options: {
-      signal?: AbortSignal
-      onProgress?: (progress: number) => void
-      modelDescriptor?: ImageTransportDescriptor
-    }
-  ): Promise<string[]>
-  cancel?(taskId: string): Promise<void>
-}
-
-/**
- * Provider-agnostic submit payload derived from the AI SDK call options.
- *
- * `providerParams` carries the provider-specific options bag
- * (`options.providerOptions[provider]`) by reference, so a non-JSON
- * `onProgress` callback nested in it survives to the transport.
- */
-export interface ImageGenerationSubmitInput {
-  modelId: string
-  prompt: string | undefined
-  n: number
-  size: `${number}x${number}` | undefined
-  aspectRatio?: `${number}:${number}`
-  seed: number | undefined
-  files: ImageModelV3CallOptions['files']
-  mask: ImageModelV3CallOptions['mask']
-  /** Per-model routing, derived in main from the registry (not a user param). */
-  modelDescriptor?: ImageTransportDescriptor
-  providerParams: Record<string, unknown>
-  /**
-   * Abort signal forwarded from `options.abortSignal`. Async providers
-   * (ppio) ignore it (they abort during `poll()`); single-shot
-   * providers (dmxapi/ovms) use it to make their one `submit()` fetch
-   * cancellable, since `poll()` is never reached.
-   */
-  signal?: AbortSignal
-}
+export type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportDescriptor,
+  ImageTransportInputSupport
+} from './imageTransport'
 
 export interface CreateImageGenerationModelOptions {
   provider: string
-  transport: ImageGenerationTransport
+  /** In-SDK path: `providerOptions[provider]` is the wire-named body, never canonical. */
+  transport: ImageGenerationTransport<WireVendorBag>
+}
+
+/**
+ * The `imageModel` for a registry-declared model that takes the job transport.
+ * `AiService.generateImage` resolves `resolveImageTransport` first, while unregistered
+ * models stay on the generic SDK provider. `ProviderV3` still requires an image model
+ * for the transport branch's config, so reaching this implementation is an invariant
+ * violation rather than a second delivery path with different parameter spelling.
+ */
+export function transportOnlyImageModel(provider: string, modelId: string): ImageModelV3 {
+  return {
+    specificationVersion: 'v3',
+    provider,
+    modelId,
+    maxImagesPerCall: 1,
+    async doGenerate() {
+      throw new Error(
+        `${provider} images are transport-only: reaching the in-SDK image model means the transport gate was bypassed (model '${modelId}')`
+      )
+    }
+  }
+}
+
+/**
+ * The inputs this request carries that the transport has declared it will not read.
+ * Empty when the transport declares nothing (unknown ≠ unsupported) or carries none.
+ */
+export function unsupportedTransportInputs<P>(
+  transport: ImageGenerationTransport<P>,
+  input: ImageGenerationSubmitInput<P>
+): string[] {
+  const support = transport.supportsInput(input)
+  const ignored: string[] = []
+  if (input.files && input.files.length > 0 && !support.files) ignored.push('files')
+  if (input.mask && !support.mask) ignored.push('mask')
+  return ignored
+}
+
+/**
+ * Log the inputs a transport will drop. A dropped reference image is the worst silent
+ * failure in the image path: the request succeeds and returns a plausible picture that
+ * simply ignored what the user attached, so image-to-image degrades to text-to-image
+ * with no error anywhere.
+ */
+export function warnUnsupportedTransportInputs<P>(
+  transport: ImageGenerationTransport<P>,
+  input: ImageGenerationSubmitInput<P>,
+  context: Record<string, unknown>
+): void {
+  const ignored = unsupportedTransportInputs(transport, input)
+  if (ignored.length === 0) return
+  logger.warn('Transport ignores request inputs it has no wire slot for', {
+    ...context,
+    modelId: input.modelId,
+    ignored
+  })
 }
 
 /**
@@ -72,9 +82,7 @@ export interface CreateImageGenerationModelOptions {
  * the patched `ai` SDK auto-downloads them (default download function) into a
  * `GeneratedFile` so no AiProvider/convertImageResult change is needed.
  *
- * Progress is surfaced through `options.providerOptions[provider].onProgress`
- * (typed loosely / cast — the function survives by reference through the
- * plugin chain). Abort is propagated via `options.abortSignal`.
+ * Abort is propagated via `options.abortSignal`.
  */
 export function createImageGenerationModel(
   modelId: string,
@@ -88,18 +96,11 @@ export function createImageGenerationModel(
     async doGenerate(options: ImageModelV3CallOptions) {
       const { abortSignal } = options
 
-      if (abortSignal?.aborted) {
-        throw createAbortError('Image generation aborted')
-      }
+      // The WireProfile engine's output for this provider — wire-named, JSON-only
+      // (`buildImageRequest` drops anything unserializable), so no callback can ride it.
+      const providerParams: WireVendorBag = options.providerOptions?.[provider] ?? {}
 
-      const providerParams = (options.providerOptions?.[provider] as Record<string, unknown> | undefined) ?? {}
-
-      const onProgress =
-        typeof providerParams.onProgress === 'function'
-          ? (providerParams.onProgress as (progress: number) => void)
-          : undefined
-
-      const submitResult = await transport.submit({
+      const submitInput: ImageGenerationSubmitInput<WireVendorBag> = {
         modelId,
         prompt: options.prompt,
         n: options.n,
@@ -109,38 +110,19 @@ export function createImageGenerationModel(
         files: options.files,
         mask: options.mask,
         providerParams,
+        headers: options.headers,
         signal: abortSignal
-      })
-
-      let urls: string[]
-      if (submitResult.imageUrls) {
-        urls = submitResult.imageUrls
-      } else if (submitResult.taskId) {
-        if (!transport.poll) {
-          throw new Error(`${provider} returned a task id but does not implement polling`)
-        }
-
-        let cancelRequested = false
-        const cancelRemoteTask = () => {
-          if (cancelRequested) return
-          cancelRequested = true
-          void transport.cancel?.(submitResult.taskId as string).catch(() => {})
-        }
-
-        if (abortSignal?.aborted) {
-          cancelRemoteTask()
-          throw createAbortError('Image generation aborted')
-        }
-
-        abortSignal?.addEventListener('abort', cancelRemoteTask, { once: true })
-        try {
-          urls = await transport.poll(submitResult.taskId, { signal: abortSignal, onProgress })
-        } finally {
-          abortSignal?.removeEventListener('abort', cancelRemoteTask)
-        }
-      } else {
-        urls = []
       }
+
+      warnUnsupportedTransportInputs(transport, submitInput, { provider })
+
+      const urls = await executeImageTransport({
+        transport,
+        input: submitInput,
+        onTaskSubmitted: async () => {},
+        onProgress: () => {},
+        logContext: { provider, modelId }
+      })
 
       return {
         images: urls,

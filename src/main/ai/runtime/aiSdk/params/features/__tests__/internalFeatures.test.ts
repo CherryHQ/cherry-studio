@@ -12,6 +12,8 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
+import { resolveProviderOptionsKey } from '../../../../../provider/endpoint'
+
 vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
   providerToolPlugin: vi.fn((kind: string) => ({ name: `provider-tool-${kind}` }))
 }))
@@ -44,7 +46,7 @@ function makeScope(overrides: {
     webToolRoutes: overrides.webToolRoutes,
     sdkConfig: {
       providerId: 'openai' as never,
-      providerOptionsKey: 'openai',
+      providerOptionsKey: resolveProviderOptionsKey('openai'),
       providerSettings: {} as never,
       modelId: 'm1'
     },

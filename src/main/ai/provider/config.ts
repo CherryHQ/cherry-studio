@@ -14,8 +14,8 @@ import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/pr
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import type { EndpointType, Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { EndpointType, ImageGenerationMode, Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, ImageGenerationModeSchema } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   formatApiHost,
@@ -48,6 +48,8 @@ import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
 import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
+import { type ImageTransportDescriptor, imageTransportDescriptorFor } from './custom/imageTransport'
+import { requiresImageTransportDescriptor } from './custom/imageTransportRegistry'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { transformLmStudioRequestBody } from './lmstudio'
@@ -198,6 +200,8 @@ export async function resolveProviderAiSdkConfig(
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
   const imageExtensionPreset = IMAGE_EXTENSION_PRESETS.find((preset) => matchesPreset(provider, preset))
+  const imageTransportDescriptors = buildImageTransportDescriptors(model)
+  const hasDeclaredImageTransport = imageTransportDescriptors !== undefined
 
   const ctx: BuilderContext = {
     actualProvider: provider,
@@ -244,7 +248,10 @@ export async function resolveProviderAiSdkConfig(
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
     // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
     {
-      match: (p, id) => matchesPreset(p, SystemProviderIds.dashscope) && id === 'openai-compatible',
+      match: (p, id) =>
+        matchesPreset(p, SystemProviderIds.dashscope) &&
+        id === 'openai-compatible' &&
+        (!isGenerateImageModel(model) || hasDeclaredImageTransport),
       build: withSelectedApiKey(buildDashScopeConfig)
     },
     // Zhipu chat is OpenAI-compatible, but BigModel's built-in web search rides the
@@ -337,6 +344,7 @@ export async function resolveProviderAiSdkConfig(
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
         imageExtensionPreset !== undefined &&
+        (!requiresImageTransportDescriptor(imageExtensionPreset) || hasDeclaredImageTransport) &&
         (imageExtensionPreset !== SystemProviderIds.dmxapi || dmxapiUsesCustomTransport(model.apiModelId ?? model.id)),
       build: withSelectedApiKey((ctx) => ({
         // Non-null by the match above.
@@ -722,9 +730,7 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
   const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
 
   const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
-
-  return {
-    providerId: ctx.aiSdkProviderId,
+  const config = {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
@@ -733,6 +739,17 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
       geminiBaseURL,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
+  }
+
+  switch (ctx.aiSdkProviderId) {
+    case 'cherryin':
+      return { providerId: 'cherryin', ...config }
+    case 'cherryin-chat':
+      return { providerId: 'cherryin-chat', ...config }
+    case 'openai-compatible':
+      return buildOpenAICompatibleConfig(ctx)
+    default:
+      throw new Error(`CherryIn config resolved with unsupported provider id: ${ctx.aiSdkProviderId}`)
   }
 }
 
@@ -832,11 +849,12 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
 function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
   const commonOptions = buildCommonOptions(ctx)
 
+  // The registered extension selected this provider id and owns the corresponding settings factory.
   return {
     providerId: ctx.aiSdkProviderId,
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions }
-  }
+  } as ProviderConfig
 }
 
 /**
@@ -873,15 +891,29 @@ function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType,
 }
 
 function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
+  const imageTransportDescriptors = buildImageTransportDescriptors(ctx.model)
   return {
     providerId: 'aihubmix',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
+      ...(imageTransportDescriptors && { imageTransportDescriptors }),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
+}
+
+function buildImageTransportDescriptors(
+  model: Pick<Model, 'id' | 'apiModelId' | 'imageGeneration'>
+): Partial<Record<ImageGenerationMode, ImageTransportDescriptor>> | undefined {
+  const modelId = model.apiModelId ?? model.id
+  const descriptors: Partial<Record<ImageGenerationMode, ImageTransportDescriptor>> = {}
+  for (const mode of ImageGenerationModeSchema.options) {
+    const descriptor = imageTransportDescriptorFor(modelId, mode, model.imageGeneration)
+    if (descriptor) descriptors[mode] = descriptor
+  }
+  return Object.keys(descriptors).length > 0 ? descriptors : undefined
 }
 
 function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {

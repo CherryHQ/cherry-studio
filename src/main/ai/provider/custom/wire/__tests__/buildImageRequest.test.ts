@@ -1,18 +1,33 @@
-import { describe, expect, it } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
+import type { AppProviderId } from '../../../../types'
 import { splitParamValues } from '../../../../utils/imageOptions'
+import { resolveProviderOptionsKey } from '../../../endpoint'
 import { buildImageRequest, buildVendorProviderOptions } from '../buildImageRequest'
-import { DEFAULT_DIFFUSION_REGISTRATION, DIFFUSION_WIRE_PROFILE, WIRE_REGISTRY } from '../wireProfile'
+import {
+  DEFAULT_DIFFUSION_REGISTRATION,
+  DIFFUSION_WIRE_PROFILE,
+  OPENAI_COMPAT_FALLBACK_REGISTRATION,
+  resolveWireRegistration,
+  WIRE_REGISTRY
+} from '../wireProfile'
 
 // The engine is the single source of truth for the vendor wire; each case asserts
 // the literal expected `providerOptions` bag. (These literals were locked against
 // the legacy buildImageProviderOptions emitter while it still existed.)
 
-/** Run a provider's registration (WIRE_REGISTRY, else the diffusion default). */
-function engine(providerId: string, paramValues: Record<string, unknown>): Record<string, Record<string, unknown>> {
+/** Run a provider's registration (WIRE_REGISTRY, else the diffusion default) and
+ *  deliver under `sdkConfig.providerOptionsKey`, exactly as `AiService.generateImage` does —
+ *  so the ids whose SDK package reads its own namespace (google-vertex → `vertex`,
+ *  doubao → `bytedance`, cherryin-chat → `cherryin`) are asserted end to end. */
+function engine(
+  providerId: AppProviderId,
+  paramValues: Record<string, unknown>
+): Record<string, Record<string, unknown>> {
   const { vendorBag } = splitParamValues(paramValues)
   const registration = WIRE_REGISTRY[providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-  return buildVendorProviderOptions(providerId, paramValues, registration, vendorBag)
+  return buildVendorProviderOptions(resolveProviderOptionsKey(providerId), paramValues, registration, vendorBag)
 }
 
 describe('buildVendorProviderOptions — OpenRouter image API', () => {
@@ -90,7 +105,17 @@ describe('buildVendorProviderOptions — diffusion family (passthrough)', () => 
 })
 
 describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () => {
-  const OPENAI_FAMILY = ['openai', 'openai-chat', 'azure', 'azure-responses', 'huggingface', 'cherryin', 'newapi']
+  // The `-chat`/azure/huggingface variants all read `providerOptions.openai`, so their
+  // primary body collapses onto the mirror; only the ids that own a namespace get two keys.
+  const OPENAI_FAMILY: AppProviderId[] = [
+    'openai',
+    'openai-chat',
+    'azure',
+    'azure-responses',
+    'huggingface',
+    'cherryin',
+    'newapi'
+  ]
 
   it.each(OPENAI_FAMILY)('dual-keys the openai body under openai + %s, dropping seed', (providerId) => {
     const paramValues = {
@@ -102,9 +127,10 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
       moderation: 'low',
       style: 'vivid'
     }
+    const body = { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' }
     expect(engine(providerId, paramValues)).toEqual({
-      openai: { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' },
-      [providerId]: { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' }
+      openai: body,
+      [resolveProviderOptionsKey(providerId)]: body
     })
   })
 
@@ -234,26 +260,6 @@ describe('buildVendorProviderOptions — aihubmix (openai body + seed, bag forwa
   })
 })
 
-describe('buildVendorProviderOptions — dmxapi (cross-key: dmxapi body + google.imageConfig via `also`)', () => {
-  it('dual-keys snake_case under dmxapi + imageResolution/aspectRatio into google.imageConfig', () => {
-    const paramValues = {
-      negativePrompt: 'no blur',
-      seed: 7,
-      aspectRatio: 'ASPECT_1_1',
-      imageResolution: '4K',
-      numImages: 1
-    }
-    expect(engine('dmxapi', paramValues)).toEqual({
-      dmxapi: { negative_prompt: 'no blur', seed: 7 },
-      google: { imageConfig: { aspectRatio: '1:1', imageSize: '4K' } }
-    })
-  })
-
-  it('omits the google sibling key when no aspectRatio / imageResolution is set', () => {
-    expect(engine('dmxapi', { negativePrompt: 'x', numImages: 1 })).toEqual({ dmxapi: { negative_prompt: 'x' } })
-  })
-})
-
 describe('buildVendorProviderOptions — Ollama (numInferenceSteps → steps; size/seed are native, not profile fields)', () => {
   it('maps numInferenceSteps to steps and omits everything else', () => {
     const paramValues = { numInferenceSteps: 9, seed: 42, negativePrompt: 'no blur', quality: 'hd' }
@@ -262,6 +268,78 @@ describe('buildVendorProviderOptions — Ollama (numInferenceSteps → steps; si
 
   it('returns {} when numInferenceSteps is unset', () => {
     expect(engine('ollama', {})).toEqual({})
+  })
+})
+
+/** Run a concrete provider through the generic openai-compatible path: the
+ *  wire-naming fallback registration, delivered under the concrete id — the
+ *  namespace `createOpenAICompatible({ name })`'s image model reads. */
+function compatEngine(
+  concreteId: string,
+  paramValues: Record<string, unknown>
+): Record<string, Record<string, unknown>> {
+  const { vendorBag } = splitParamValues(paramValues)
+  const registration = resolveWireRegistration('openai-compatible')
+  return buildVendorProviderOptions(
+    resolveProviderOptionsKey('openai-compatible', { actualProviderId: concreteId }),
+    paramValues,
+    registration,
+    vendorBag
+  )
+}
+
+describe('resolveWireRegistration', () => {
+  it('gives the generic openai-compatible path the wire-naming fallback', () => {
+    expect(resolveWireRegistration('openai-compatible')).toBe(OPENAI_COMPAT_FALLBACK_REGISTRATION)
+  })
+
+  it('keys every other path by the SDK provider id', () => {
+    expect(resolveWireRegistration('openai')).toBe(WIRE_REGISTRY.openai)
+    expect(resolveWireRegistration('some-unlisted-sdk')).toBe(DEFAULT_DIFFUSION_REGISTRATION)
+  })
+})
+
+describe('buildVendorProviderOptions — openai-compatible fallback (wire-named passthrough)', () => {
+  it('delivers under the concrete provider id with catalog wire renames (zhipu: addWatermark → watermark)', () => {
+    const paramValues = { addWatermark: true, quality: 'hd', seed: 3, numImages: 1, size: '1024x1024' }
+    expect(compatEngine('zhipu', paramValues)).toEqual({
+      zhipu: { watermark: true, quality: 'hd', seed: 3 }
+    })
+  })
+
+  it('renames imageResolution → size and keeps non-catalog bag keys as-is', () => {
+    const paramValues = { imageResolution: '2K', someVendorField: 1 }
+    expect(compatEngine('tokenhub', paramValues)).toEqual({
+      tokenhub: { size: '2K', someVendorField: 1 }
+    })
+  })
+})
+
+describe('buildVendorProviderOptions — a dropped vendor bag is observable', () => {
+  beforeEach(() => {
+    mockMainLoggerService.warn.mockClear()
+  })
+
+  it('warns with the dropped keys when the profile maps none and passthrough is off', () => {
+    // google's profile has no rule for `negativePrompt` and the registration has no
+    // passthrough, so the key vanishes. Before this warning that was indistinguishable
+    // from a param that reached the vendor — the #17394 failure mode.
+    expect(engine('google', { negativePrompt: 'no blur', personGeneration: 'ALLOW_ALL' })).toEqual({
+      google: { personGeneration: 'allow_all' }
+    })
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      expect.stringContaining('dropped'),
+      expect.objectContaining({ providerOptionsKey: 'google', dropped: ['negativePrompt'] })
+    )
+  })
+
+  it('stays quiet for a passthrough registration, which forwards the leftovers', () => {
+    expect(engine('aihubmix', { seed: 9, imageResolution: '2K' })).toEqual({
+      openai: { seed: 9 },
+      aihubmix: { seed: 9, imageResolution: '2K' }
+    })
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
   })
 })
 

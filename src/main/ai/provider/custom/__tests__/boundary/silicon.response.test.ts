@@ -5,7 +5,11 @@ import * as z from 'zod'
 import { SiliconImageModel } from '../../silicon/SiliconImageModel'
 import { runWithResponse } from './captureRequest'
 
-/** Inbound (response) boundary for SiliconFlow — `images|data[].url|b64_json`. */
+/**
+ * Inbound response boundary for SiliconFlow — `images|data[].url|b64_json`.
+ * Contract source: https://api-docs.siliconflow.cn/docs/api/images-generations-post
+ * Retrieved 2026-07-27.
+ */
 function opts(): ImageModelV3CallOptions {
   return {
     prompt: 'a fox',

@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
+import type { PpioBag } from '../../ppio/ppioTransport'
 import { createPpioTransport } from '../../ppio/ppioTransport'
 import { captureImageRequest } from './captureRequest'
 
@@ -19,7 +20,7 @@ const base = {
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<PpioBag>>
 
 const host = 'https://api.ppio.com'
 
@@ -27,7 +28,7 @@ interface Case {
   name: string
   endpoint: string
   mode: string
-  input: ImageGenerationSubmitInput
+  input: ImageGenerationSubmitInput<PpioBag>
   schema: z.ZodTypeAny
 }
 
@@ -38,7 +39,7 @@ function fixture(opts: {
   mode?: string
   size?: string
   seed?: number
-  files?: ImageGenerationSubmitInput['files']
+  files?: ImageGenerationSubmitInput<PpioBag>['files']
   params?: Record<string, unknown>
   schema: z.ZodTypeAny
 }): Case {
@@ -57,14 +58,16 @@ function fixture(opts: {
       files: opts.files,
       modelDescriptor: { id: opts.id, endpoint: opts.endpoint, isSync: false, mode },
       providerParams: { ...opts.params }
-    } as ImageGenerationSubmitInput
+    } as ImageGenerationSubmitInput<PpioBag>
   }
 }
 
 // `[1, 2, 3]` base64-encodes to `AQID`, so `fileToDataUrl` yields
 // `data:image/png;base64,AQID` — the canonical attached-image path the
 // painting pipeline feeds edit models via `inputImages` → `options.files`.
-const editFiles = [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as ImageGenerationSubmitInput['files']
+const editFiles = [
+  { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }
+] as ImageGenerationSubmitInput<PpioBag>['files']
 
 const CASES: Case[] = [
   fixture({
@@ -73,7 +76,11 @@ const CASES: Case[] = [
     endpoint: '/v3/async/jimeng-txt2img-v3.1',
     size: '1024x1024',
     seed: 42,
-    params: { usePreLlm: true, addWatermark: true },
+    // `promptEnhancement` is the canonical key the registry declares and the only
+    // spelling that survives the IPC boundary; the bag used to be read as `usePreLlm`,
+    // which never arrived. Asserted as `false` on purpose — reading the wrong key
+    // falls back to the `true` default, so this fixture would pass either way at `true`.
+    params: { promptEnhancement: false, addWatermark: true },
     schema: z.strictObject({
       prompt: z.string(),
       use_pre_llm: z.boolean(),
@@ -203,4 +210,32 @@ describe('PPIO request boundary', () => {
       expect(req.body).toMatchSnapshot()
     })
   }
+
+  it('uses the injected fetch and merges provider then request headers', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ task_id: 'task-1' }), { status: 200 }))
+    const globalFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('global fetch used'))
+    const injectedTransport = createPpioTransport({
+      apiKey: 'ppio-key',
+      baseURL: host,
+      headers: { Authorization: 'Bearer provider', 'x-provider': 'one' },
+      fetch
+    })
+
+    // Contract source: https://ppio.com/docs/models/reference-create-async-task
+    // Retrieved 2026-07-27.
+    await injectedTransport.submit({
+      ...CASES[0].input,
+      headers: { Authorization: 'Bearer request', 'x-request': 'two' }
+    })
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(globalFetch).not.toHaveBeenCalled()
+    const requestHeaders = Object.fromEntries(new Headers(fetch.mock.calls[0][1]?.headers).entries())
+    expect(requestHeaders).toMatchObject({
+      authorization: 'Bearer request',
+      'x-provider': 'one',
+      'x-request': 'two'
+    })
+    globalFetch.mockRestore()
+  })
 })

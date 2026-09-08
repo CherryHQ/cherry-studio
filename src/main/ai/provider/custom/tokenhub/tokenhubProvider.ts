@@ -2,9 +2,10 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { withoutTrailingApiVersion } from '@shared/utils/api'
 
-import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
 import { createTokenhubTransport } from './tokenhubTransport'
 
 export const TOKENHUB_PROVIDER_NAME = 'tokenhub' as const
@@ -27,9 +28,9 @@ export interface TokenhubProvider extends ProviderV3 {
 /**
  * Build the TokenHub image transport from provider settings. Shared by the
  * provider factory and the image-generation job's transport registry so the
- * job handler can rebuild the same transport from re-resolved settings.
+ * job path uses re-resolved settings.
  */
-export function buildTokenhubTransport(settings: TokenhubProviderSettings): ImageGenerationTransport {
+export function buildTokenhubTransport(settings: TokenhubProviderSettings): ImageGenerationTransport<VendorBag> {
   if (!settings.baseURL) {
     throw new Error('TokenHub provider requires a non-empty `baseURL` to build the image transport.')
   }
@@ -66,8 +67,6 @@ export function createTokenhubProvider(settings: TokenhubProviderSettings = {}):
       fetch: customFetch
     })
 
-  const transport = buildTokenhubTransport(settings)
-
   const provider = (modelId: string) => createChatModel(modelId)
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
@@ -78,8 +77,7 @@ export function createTokenhubProvider(settings: TokenhubProviderSettings = {}):
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: TOKENHUB_PROVIDER_NAME, transport })
+  provider.imageModel = (modelId: string) => transportOnlyImageModel(TOKENHUB_PROVIDER_NAME, modelId)
 
   return provider as TokenhubProvider
 }

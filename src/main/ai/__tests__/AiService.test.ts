@@ -4,6 +4,7 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
+import { resolveProviderOptionsKey } from '../provider/endpoint'
 import type * as ListModelsModule from '../provider/listModels'
 import { makeProvider } from './fixtures/provider'
 
@@ -439,6 +440,7 @@ describe('AiService', () => {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
+        providerOptionsKey: resolveProviderOptionsKey('test-provider'),
         providerSettings: {},
         modelId: 'test-model'
       },
@@ -566,6 +568,41 @@ describe('AiService', () => {
     expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 3 }))
   })
 
+  it.each(['remix', 'edit'] as const)(
+    'delivers AiHubMix %s mode with its input image to the ImageModel adapter',
+    async (mode) => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: {
+          providerId: 'aihubmix',
+          providerOptionsKey: 'aihubmix',
+          providerSettings: {},
+          modelId: 'V_3'
+        }
+      } as never)
+      mockProviderGetByProviderId.mockReturnValue({ id: 'aihubmix', presetProviderId: 'aihubmix' })
+      mockModelGetByKey.mockReturnValue({ id: 'aihubmix::V_3', providerId: 'aihubmix', apiModelId: 'V_3' })
+      mockGenerateImage.mockResolvedValue({ images: [] })
+
+      const inputImage = 'data:image/png;base64,AQI='
+      await service.generateImage({
+        uniqueModelId: 'aihubmix::V_3',
+        cleanupPolicy: 'delete_when_unreferenced',
+        prompt: `${mode} this`,
+        mode,
+        inputImages: [inputImage],
+        paramValues: {}
+      })
+
+      expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({
+          prompt: { text: `${mode} this`, images: [inputImage] },
+          providerOptions: { aihubmix: { mode } }
+        })
+      )
+    }
+  )
+
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -603,7 +640,12 @@ describe('AiService', () => {
   it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
+      sdkConfig: {
+        providerId: 'silicon',
+        providerOptionsKey: resolveProviderOptionsKey('silicon'),
+        providerSettings: {},
+        modelId: 'Kwai-Kolors/Kolors'
+      }
     } as never)
 
     mockGenerateImage.mockResolvedValue({ images: [] })
@@ -1917,6 +1959,14 @@ describe('AiService tool approval', () => {
   // inline instead, resolving the config WITH the caller's key.
   it('probes transport image models inline with the caller API-key override', async () => {
     const service = createService()
+    const imageGeneration = {
+      modes: {
+        edit: {
+          supports: { sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' as const } },
+          vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+        }
+      }
+    }
     mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
     mockModelGetByKey.mockReturnValue({
       id: 'ppio::qwen-image-edit',
@@ -1926,16 +1976,10 @@ describe('AiService tool approval', () => {
       capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
       supportsStreaming: false,
       isEnabled: true,
-      isHidden: false
+      isHidden: false,
+      imageGeneration
     })
-    mockGetImageGenerationSupport.mockReturnValueOnce({
-      modes: {
-        edit: {
-          supports: { sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' } },
-          vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
-        }
-      }
-    })
+    mockGetImageGenerationSupport.mockReturnValueOnce(imageGeneration)
     const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/img.png'] })
     mockResolveImageTransport.mockReturnValueOnce({ submit })
 
@@ -1945,7 +1989,19 @@ describe('AiService tool approval', () => {
     })
 
     expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
-    expect(mockResolveImageTransport).toHaveBeenCalledWith('ppio', 'qwen-image-edit', expect.anything())
+    expect(mockResolveImageTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'ppio',
+        providerSettings: expect.objectContaining({ apiKey: 'sk-selected' })
+      }),
+      'qwen-image-edit',
+      {
+        id: 'qwen-image-edit',
+        endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+        isSync: true,
+        mode: 'edit'
+      }
+    )
     expect(submit).toHaveBeenCalledTimes(1)
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -2172,10 +2228,41 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       name: 'Image Assistant',
       emoji: '🎨'
     })
+    mockGetImageGenerationSupport.mockReturnValue({
+      modes: { generate: { vendorTransport: { endpoint: '/v3/async/qwen-image' } } }
+    })
     return vi
       .spyOn(service as never, 'buildAgentParamsFor')
       .mockRejectedValue(new Error('job path must not select a serving key before execution'))
   }
+
+  it('keeps an unregistered ppio image model on the direct SDK path', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValue({ id: 'ppio' })
+    mockModelGetByKey.mockReturnValue({ id: 'ppio::custom-image', providerId: 'ppio', apiModelId: 'custom-image' })
+    mockGetImageGenerationSupport.mockReturnValueOnce(null)
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'openai-compatible',
+        providerOptionsKey: 'openai',
+        providerSettings: {},
+        modelId: 'custom-image'
+      }
+    } as never)
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::custom-image',
+      cleanupPolicy: 'delete_when_unreferenced',
+      prompt: 'a cat',
+      paramValues: {}
+    })
+
+    expect(mockGenerateImage).toHaveBeenCalledOnce()
+  })
 
   it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {
     // Regression guard: negativePrompt / numInferenceSteps / guidanceScale are NOT

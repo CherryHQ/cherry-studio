@@ -9,7 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { getRawModelId } from '@shared/utils/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-import { type AppProviderId, appProviderIds } from '../types'
+import { type AppProviderId, appProviderIds, type ProviderOptionsKey } from '../types'
 import { getBaseUrl } from '../utils/provider'
 import { resolveGatewayRoute } from './gatewayRouting'
 
@@ -100,7 +100,8 @@ export function resolveAiSdkProviderId(provider: Provider, endpointType: Endpoin
 
 /**
  * Maps the registered runtime provider id to the namespace its AI SDK model
- * reads from `providerOptions`.
+ * reads from `providerOptions`. The branded result prevents callers from
+ * accidentally substituting a provider id at delivery boundaries.
  */
 export function resolveProviderOptionsKey(
   providerId: AppProviderId,
@@ -109,8 +110,10 @@ export function resolveProviderOptionsKey(
     endpointType?: EndpointType
     gatewayProviderOptionsKey?: string
   }
-): string {
-  if (context?.gatewayProviderOptionsKey) return context.gatewayProviderOptionsKey
+): ProviderOptionsKey {
+  const brand = (key: string) => key as ProviderOptionsKey
+
+  if (context?.gatewayProviderOptionsKey) return brand(context.gatewayProviderOptionsKey)
 
   switch (providerId) {
     // open-responses included: `createOpenResponses({ name: 'openai' })` keeps
@@ -121,38 +124,44 @@ export function resolveProviderOptionsKey(
     case 'azure-responses':
     case 'huggingface':
     case 'open-responses':
-      return 'openai'
+      return brand('openai')
     case 'anthropic':
     case 'azure-anthropic':
-      return 'anthropic'
+      return brand('anthropic')
     case 'google':
-      return 'google'
+      return brand('google')
     case 'google-vertex':
     case 'google-vertex-anthropic':
     case 'google-vertex-maas':
-      return 'vertex'
+      return brand('vertex')
     case 'xai':
     case 'xai-responses':
-      return 'xai'
+      return brand('xai')
     case 'bedrock':
-      return 'bedrock'
+      return brand('bedrock')
     case SystemProviderIds.ollama:
-      return 'ollama'
+      return brand('ollama')
     case 'github-copilot-openai-compatible':
     case 'openai-compatible':
-      return context?.actualProviderId ?? providerId
+      return brand(context?.actualProviderId ?? providerId)
     case 'cherryin':
     case 'cherryin-chat':
+      if (context?.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return brand('anthropic')
+      if (context?.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return brand('google')
+      if (context?.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) return brand('openai')
+      return brand('cherryin')
+    case SystemProviderIds.doubao:
+      return brand('bytedance')
     case 'newapi':
     case 'aihubmix':
     case SystemProviderIds.dmxapi:
     case SystemProviderIds.gateway:
-      if (context?.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return 'anthropic'
-      if (context?.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return 'google'
-      if (context?.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) return 'openai'
-      return providerId
+      if (context?.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return brand('anthropic')
+      if (context?.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return brand('google')
+      if (context?.endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) return brand('openai')
+      return brand(providerId)
     default:
-      return providerId
+      return brand(providerId)
   }
 }
 
@@ -163,7 +172,10 @@ export function resolveProviderOptionsKey(
  * composing the two calls themselves so reasoning options and other
  * provider-option writers can never disagree on the namespace.
  */
-export function resolveEndpointProviderOptionsKey(provider: Provider, resolvedEndpoint: ResolvedEndpoint): string {
+export function resolveEndpointProviderOptionsKey(
+  provider: Provider,
+  resolvedEndpoint: ResolvedEndpoint
+): ProviderOptionsKey {
   return resolveProviderOptionsKey(resolveAiSdkProviderId(provider, resolvedEndpoint.endpointType), {
     actualProviderId: provider.id,
     endpointType: resolvedEndpoint.endpointType,

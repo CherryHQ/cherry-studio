@@ -2,6 +2,7 @@ import type { ImageModelV3CallOptions, LanguageModelV3 } from '@ai-sdk/provider'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { splitParamValues } from '../../../utils/imageOptions'
+import { resolveProviderOptionsKey } from '../../endpoint'
 import { buildVendorProviderOptions } from '../wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION } from '../wire/wireProfile'
 
@@ -39,7 +40,12 @@ const fakeLanguageModel = (doGenerate: ReturnType<typeof vi.fn>): LanguageModelV
 
 const gatewayProviderOptions = (paramValues: Record<string, unknown>) => {
   const { vendorBag } = splitParamValues(paramValues)
-  return buildVendorProviderOptions('gateway', paramValues, DEFAULT_DIFFUSION_REGISTRATION, vendorBag)
+  return buildVendorProviderOptions(
+    resolveProviderOptionsKey('gateway'),
+    paramValues,
+    DEFAULT_DIFFUSION_REGISTRATION,
+    vendorBag
+  )
 }
 
 describe('isGatewayGeminiImageModel', () => {

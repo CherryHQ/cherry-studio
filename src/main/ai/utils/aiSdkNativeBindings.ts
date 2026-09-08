@@ -13,13 +13,35 @@
  * the others are diffusion / OpenAI-image knobs that migrate into per-provider
  * WireProfiles in PR4+.
  */
-import type { CanonicalParamKey } from '@shared/data/types/model'
+import type { CanonicalParamKey, ParamValue } from '@cherrystudio/provider-registry'
 
-interface NativeBinding {
-  /** The structured field name (the `ParamValues` key, `numImages → n`). */
-  readonly option: string
-  /** Optional wire normalization applied once during the split. */
-  readonly map?: (value: unknown) => unknown
+/** A registry-declared `size`: `WxH` pixels, or a vendor shorthand (`1K`/`2K`/`4K`)
+ *  that only that vendor's body understands. */
+export type ImageSizeToken = `${number}x${number}` | (string & {})
+
+/**
+ * The four genuine `ImageModelV3CallOptions` image params. The anchor of the split:
+ * the binding table is checked against it, `VendorBag` is its complement.
+ */
+export interface NativeImageParams {
+  n?: number
+  /** Wider than the SDK's `${number}x${number}` on purpose — see {@link ImageSizeToken}. */
+  size?: ImageSizeToken
+  seed?: number
+  aspectRatio?: string
+}
+
+type NativeOptionName = keyof NativeImageParams
+
+/** Correlated per key: `option` must name a real native field, and `map` must take
+ *  K's catalog value and return that field's type. */
+type NativeBindingTable = {
+  readonly [K in CanonicalParamKey]?: {
+    readonly [O in NativeOptionName]: {
+      readonly option: O
+      readonly map?: (value: NonNullable<ParamValue<K>>) => NativeImageParams[O]
+    }
+  }[NativeOptionName]
 }
 
 /**
@@ -34,24 +56,26 @@ export function normalizeAspectRatio(value: string | undefined): string | undefi
   return /^\d+(?:\.\d+)?:\d+(?:\.\d+)?$/.test(stripped) ? stripped : undefined
 }
 
-// The genuine AI SDK `ImageModelV3CallOptions` image params (`@ai-sdk/provider`):
-// `n` / `size` / `aspectRatio` / `seed` (+ `files`/`mask`, handled separately via
-// `request.inputImages`/`mask`). EVERYTHING ELSE — negativePrompt, numInferenceSteps,
-// guidanceScale, quality, background, moderation, style, personGeneration, … — is
-// NOT a typed SDK option; the SDK's only channel for it is `providerOptions` (the
-// vendor body). So those flow through `vendorBag` → the WireProfile engine (SDK
-// delivery) / the transports (job delivery), never this table.
+/** `numImages → n` is the only rename; `aspectRatio` normalizes once here. */
 export const AI_SDK_NATIVE_BINDINGS = {
   numImages: { option: 'n' },
   size: { option: 'size' },
   seed: { option: 'seed' },
-  aspectRatio: {
-    option: 'aspectRatio',
-    map: (v: unknown) => normalizeAspectRatio(typeof v === 'string' ? v : undefined)
-  }
-} as const satisfies Partial<Record<CanonicalParamKey, NativeBinding>>
+  aspectRatio: { option: 'aspectRatio', map: normalizeAspectRatio }
+} as const satisfies NativeBindingTable
+
+/** The catalog keys routed to {@link NativeImageParams} rather than the vendor bag. */
+export type NativeParamKey = keyof typeof AI_SDK_NATIVE_BINDINGS
 
 /** The binding entry for a canonical `key`, or `undefined` for vendor-bag params. */
-export function nativeBindingFor(key: string): NativeBinding | undefined {
-  return (AI_SDK_NATIVE_BINDINGS as Record<string, NativeBinding | undefined>)[key]
+export function nativeBindingFor(key: CanonicalParamKey): NativeBindingTable[CanonicalParamKey] {
+  return AI_SDK_NATIVE_BINDINGS[key as NativeParamKey]
+}
+
+/**
+ * The one admitted widening in the image path: the SDK types `size` as `WxH`, but
+ * Seedream's declared `1K`/`2K`/`4K` are forwarded verbatim. Named so it can't spread.
+ */
+export function asSdkImageSize(size: ImageSizeToken): `${number}x${number}` {
+  return size as `${number}x${number}`
 }

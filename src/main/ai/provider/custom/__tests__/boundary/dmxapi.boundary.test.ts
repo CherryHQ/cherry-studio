@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import type { DmxapiProviderParams } from '../../dmxapi/dmxapiTransport'
 import { createDmxapiTransport } from '../../dmxapi/dmxapiTransport'
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { captureImageRequest } from './captureRequest'
@@ -24,7 +25,7 @@ const base = {
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<DmxapiProviderParams>>
 
 const openAiFlatBody = z.strictObject({
   model: z.string(),
@@ -59,7 +60,7 @@ const responsesMessagesBody = z.strictObject({
 
 interface BoundaryCase {
   name: string
-  input: ImageGenerationSubmitInput
+  input: ImageGenerationSubmitInput<DmxapiProviderParams>
   url: string
   schema: z.ZodTypeAny
 }
@@ -89,7 +90,9 @@ const CASES: BoundaryCase[] = [
       ...base,
       modelId: 'wan2.5',
       prompt: 'a fox',
-      files: [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as ImageGenerationSubmitInput['files']
+      files: [
+        { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }
+      ] as ImageGenerationSubmitInput<DmxapiProviderParams>['files']
     },
     url: 'https://www.dmxapi.com/v1/responses',
     schema: responsesMessagesBody

@@ -43,11 +43,13 @@ describe('DmxapiTransport', () => {
     const call = fetchMock.mock.calls[0]
     expect(call[0]).toBe('https://www.dmxapi.com/v1/images/generations')
     const init = call[1] as RequestInit
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer token')
-    expect((init.headers as Record<string, string>)['User-Agent']).toBe('DMXAPI/1.0.0 (https://www.dmxapi.com)')
+    const requestHeaders = new Headers(init.headers)
+    expect(requestHeaders.get('Authorization')).toBe('Bearer token')
+    expect(requestHeaders.get('User-Agent')).toContain('DMXAPI/1.0.0 (https://www.dmxapi.com)')
+    expect(requestHeaders.get('User-Agent')).toContain('ai-sdk/provider-utils/')
     const body = JSON.parse(init.body as string)
     expect(body).toEqual({ model: 'flux-1', prompt: 'a fox', n: 2, response_format: 'url', size: '1328x1328' })
-    expect(result).toEqual({ imageUrls: ['https://img/a.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img/a.png'] })
   })
 
   it('builds a doubao-seedream /v1/responses request carrying size and seed', async () => {
@@ -71,13 +73,12 @@ describe('DmxapiTransport', () => {
     expect(call[0]).toBe('https://www.dmxapi.com/v1/responses')
     const body = JSON.parse((call[1] as RequestInit).body as string)
     expect(body).toMatchObject({
-      model: 'doubao-seedream-3-0',
       input: 'a fox',
       stream: false,
       size: '1024x1024',
       seed: 42
     })
-    expect(result).toEqual({ imageUrls: ['https://img/seed.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img/seed.png'] })
   })
 
   it('inlines uploaded files as data URLs in the wan /v1/responses messages body', async () => {
@@ -104,7 +105,7 @@ describe('DmxapiTransport', () => {
       { text: 'a fox' },
       { image: `data:image/png;base64,${btoa(String.fromCharCode(1, 2, 3))}` }
     ])
-    expect(result).toEqual({ imageUrls: ['https://img/w.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img/w.png'] })
   })
 
   it('parses the async qwen-image extra.output.results wrapper from /v1/images/generations', async () => {
@@ -130,20 +131,20 @@ describe('DmxapiTransport', () => {
     expect(call[0]).toBe('https://www.dmxapi.com/v1/images/generations')
     const body = JSON.parse((call[1] as RequestInit).body as string)
     expect(body).toEqual({ model: 'qwen-image', prompt: 'a fox', n: 1, size: '1024x1024' })
-    expect(result).toEqual({ imageUrls: ['https://img/q1.png', 'https://img/q2.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img/q1.png', 'https://img/q2.png'] })
   })
 
   it('keeps the seededit-3.0 model on V1 even in edit mode', async () => {
     const transport = createDmxapiTransport({ apiKey: 'token', baseURL: 'https://x.test' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
+      .mockResolvedValue(new Response(JSON.stringify({ data: [{ url: 'https://img/seededit.png' }] }), { status: 200 }))
 
     await transport.submit({
       ...baseInput,
       modelId: 'seededit-3.0',
       prompt: 'p',
-      providerParams: { model: 'seededit-3.0', n: 1, mode: 'edit' }
+      providerParams: {}
     })
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://x.test/v1/images/generations')
@@ -159,10 +160,13 @@ describe('DmxapiTransport', () => {
       ...baseInput,
       modelId: 'm',
       prompt: 'p',
-      providerParams: { model: 'm', n: 1, mode: 'generation' }
+      providerParams: {}
     })
 
-    expect(result).toEqual({ imageUrls: ['data:image/png;base64,QUJD', 'https://img/c.png'] })
+    expect(result).toEqual({
+      kind: 'completed',
+      imageUrls: ['data:image/png;base64,QUJD', 'https://img/c.png']
+    })
   })
 
   it('throws typed REQ_ERROR_TOKEN on 401 and REQ_ERROR_NO_BALANCE on 403', async () => {
@@ -173,7 +177,7 @@ describe('DmxapiTransport', () => {
         ...baseInput,
         modelId: 'm',
         prompt: 'p',
-        providerParams: { model: 'm', n: 1, mode: 'generation' }
+        providerParams: {}
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_TOKEN' })
 
@@ -183,7 +187,7 @@ describe('DmxapiTransport', () => {
         ...baseInput,
         modelId: 'm',
         prompt: 'p',
-        providerParams: { model: 'm', n: 1, mode: 'generation' }
+        providerParams: {}
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_NO_BALANCE' })
   })
@@ -198,7 +202,7 @@ describe('DmxapiTransport', () => {
         ...baseInput,
         modelId: 'm',
         prompt: 'p',
-        providerParams: { model: 'm', n: 1, mode: 'generation' }
+        providerParams: {}
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REMOTE_ERROR', message: 'rate limited' })
   })
@@ -220,7 +224,7 @@ describe('DmxapiTransport', () => {
       ...baseInput,
       modelId: 'm',
       prompt: 'p',
-      providerParams: { model: 'm', n: 1, mode: 'generation' },
+      providerParams: {},
       signal: controller.signal
     })
     controller.abort()

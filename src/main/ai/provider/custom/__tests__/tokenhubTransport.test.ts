@@ -1,10 +1,8 @@
-import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+import { APICallError } from '@ai-sdk/provider'
+import { afterEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
-import { createTokenhubTransport, TokenhubApiError, TokenhubTaskFailedError } from '../tokenhub/tokenhubTransport'
-
-vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
+import { createTokenhubTransport } from '../tokenhub/tokenhubTransport'
 
 const HUNYUAN = { id: 'hy-image-v3', endpoint: '/v1/wand/hunyuan-image/v3-generation', isSync: true }
 const SEEDREAM = { id: 'seedream-image-v5.0-lite', endpoint: '/v1/wand/si-image/generation', isSync: true }
@@ -53,7 +51,7 @@ describe('TokenhubTransport', () => {
 
     const { url, init, body } = lastRequest(fetchMock)
     expect(url).toBe('https://tokenhub.tencentmaas.com/v1/wand/hunyuan-image/v3-generation')
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer token')
+    expect(new Headers(init.headers).get('authorization')).toBe('Bearer token')
     expect(body).toEqual({
       model: 'hy-image-v3',
       prompt: 'a fox',
@@ -62,7 +60,7 @@ describe('TokenhubTransport', () => {
       seed: 42,
       revise: true
     })
-    expect(result).toEqual({ imageUrls: ['https://img/hy.png'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img/hy.png'] })
   })
 
   it('maps seedream imageResolution to size and only sends max_images under sequential auto', async () => {
@@ -131,7 +129,7 @@ describe('TokenhubTransport', () => {
       resolution: '2K',
       seed: 7
     })
-    expect(result).toEqual({ taskId: 'task-1' })
+    expect(result).toEqual({ kind: 'submitted', taskId: 'task-1' })
   })
 
   it('routes requests through the provider fetch and merges provider headers under the bearer auth', async () => {
@@ -140,18 +138,22 @@ describe('TokenhubTransport', () => {
     const transport = createTokenhubTransport({
       apiKey: 'token',
       fetch: providerFetch,
-      headers: { 'X-App': 'cherry', Authorization: 'Bearer stale' }
+      headers: { 'X-App': 'cherry' }
     })
 
-    await transport.submit({ ...baseInput, modelId: 'hy-image-v3', modelDescriptor: HUNYUAN, prompt: 'x' })
+    await transport.submit({
+      ...baseInput,
+      modelId: 'hy-image-v3',
+      modelDescriptor: HUNYUAN,
+      prompt: 'x',
+      headers: { 'X-Request': 'once' }
+    })
 
     expect(globalFetch).not.toHaveBeenCalled()
-    const headers = lastRequest(providerFetch as unknown as MockInstance<typeof fetch>).init.headers as Record<
-      string,
-      string
-    >
-    expect(headers['X-App']).toBe('cherry')
-    expect(headers.Authorization).toBe('Bearer token')
+    const headers = new Headers(lastRequest(providerFetch as unknown as MockInstance<typeof fetch>).init.headers)
+    expect(headers.get('x-app')).toBe('cherry')
+    expect(headers.get('x-request')).toBe('once')
+    expect(headers.get('authorization')).toBe('Bearer token')
   })
 
   it('rejects a vidu submit that returns no task_id instead of completing empty', async () => {
@@ -160,10 +162,10 @@ describe('TokenhubTransport', () => {
 
     await expect(
       transport.submit({ ...baseInput, modelId: 'vidu-image-q2', modelDescriptor: VIDU, prompt: 'x' })
-    ).rejects.toBeInstanceOf(TokenhubApiError)
+    ).rejects.toThrow(/Invalid JSON response/)
   })
 
-  it('surfaces a 4xx as a PaintingGenerateError carrying the API message; 401 as REQ_ERROR_TOKEN', async () => {
+  it('surfaces structured 4xx responses as APICallError with the vendor message', async () => {
     const transport = createTokenhubTransport({ apiKey: 'token' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -173,81 +175,56 @@ describe('TokenhubTransport', () => {
     const blocked = await transport
       .submit({ ...baseInput, modelId: 'hy-image-v3', modelDescriptor: HUNYUAN, prompt: 'x' })
       .catch((e) => e)
-    expect(blocked).toBeInstanceOf(PaintingGenerateError)
-    expect(blocked).toMatchObject({ code: 'REMOTE_ERROR', message: 'content blocked' })
+    expect(blocked).toBeInstanceOf(APICallError)
+    expect(blocked.message).toContain('content blocked')
 
     const unauthorized = await transport
       .submit({ ...baseInput, modelId: 'hy-image-v3', modelDescriptor: HUNYUAN, prompt: 'x' })
       .catch((e) => e)
-    expect(unauthorized).toMatchObject({ code: 'REQ_ERROR_TOKEN' })
+    expect(unauthorized).toBeInstanceOf(APICallError)
+    expect(unauthorized).toMatchObject({ statusCode: 401 })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  describe('poll', () => {
-    beforeEach(() => {
-      vi.useFakeTimers()
-    })
-
-    afterEach(() => {
-      vi.useRealTimers()
-    })
-
-    it('GETs the vidu task until success and returns creations[].url', async () => {
+  describe('task query', () => {
+    it('GETs the Vidu task and normalizes success', async () => {
       const transport = createTokenhubTransport({ apiKey: 'token' })
       const fetchMock = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(jsonResponse({ state: 'queueing' }))
-        .mockResolvedValueOnce(jsonResponse({ state: 'processing' }))
-        .mockResolvedValueOnce(jsonResponse({ state: 'success', creations: [{ url: 'https://img/v.png' }, {}] }))
+        .mockResolvedValue(jsonResponse({ state: 'success', creations: [{ url: 'https://img/v.png' }] }))
 
-      const promise = transport.poll('task/1', {})
-      await vi.advanceTimersByTimeAsync(10000)
-
-      await expect(promise).resolves.toEqual(['https://img/v.png'])
-      expect(fetchMock).toHaveBeenCalledTimes(3)
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+      await expect(
+        transport.task.query('task/1', {
+          signal: new AbortController().signal,
+          modelDescriptor: VIDU,
+          headers: undefined,
+          providerParams: {}
+        })
+      ).resolves.toEqual({ kind: 'completed', imageUrls: ['https://img/v.png'] })
       expect(lastRequest(fetchMock).url).toBe('https://tokenhub.tencentmaas.com/v1/wand/vidu-image/tasks/task%2F1')
       expect(lastRequest(fetchMock).init.method).toBe('GET')
     })
 
-    it('fails fast on state=failed with the vendor reason', async () => {
+    it('normalizes pending and failed states without owning the polling loop', async () => {
       const transport = createTokenhubTransport({ apiKey: 'token' })
       const fetchMock = vi
         .spyOn(globalThis, 'fetch')
-        .mockResolvedValue(jsonResponse({ state: 'failed', err_msg: 'moderation rejected' }))
+        .mockResolvedValueOnce(jsonResponse({ state: 'processing' }))
+        .mockResolvedValueOnce(jsonResponse({ state: 'failed', err_msg: 'moderation rejected' }))
 
-      const error = await transport.poll('task-1', {}).catch((e) => e)
-      expect(error).toBeInstanceOf(TokenhubTaskFailedError)
-      expect(error.message).toBe('moderation rejected')
-      expect(fetchMock).toHaveBeenCalledTimes(1)
-    })
-
-    it('stops polling when the signal aborts', async () => {
-      const transport = createTokenhubTransport({ apiKey: 'token' })
-      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ state: 'processing' }))
-      const controller = new AbortController()
-
-      const promise = transport.poll('task-1', { signal: controller.signal })
-      await Promise.resolve()
-      controller.abort()
-
-      await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
-      await vi.advanceTimersByTimeAsync(15000)
-      expect(fetchMock).toHaveBeenCalledTimes(1)
-    })
-
-    it('retries a 5xx poll response as transient but ends on a 4xx', async () => {
-      const transport = createTokenhubTransport({ apiKey: 'token' })
-      const fetchMock = vi
-        .spyOn(globalThis, 'fetch')
-        .mockResolvedValueOnce(jsonResponse({}, 503))
-        .mockResolvedValueOnce(jsonResponse({ error: { message: 'no such task' } }, 404))
-
-      const promise = transport.poll('task-1', {}).catch((e) => e)
-      await vi.advanceTimersByTimeAsync(5000)
-      const error = await promise
-
-      expect(error).toBeInstanceOf(PaintingGenerateError)
-      expect(error.message).toBe('no such task')
+      if (transport.task.kind !== 'supported') throw new Error('expected task transport')
+      const context = {
+        signal: new AbortController().signal,
+        modelDescriptor: VIDU,
+        headers: undefined,
+        providerParams: {}
+      }
+      await expect(transport.task.query('task-1', context)).resolves.toEqual({ kind: 'pending' })
+      await expect(transport.task.query('task-1', context)).resolves.toEqual({
+        kind: 'failed',
+        message: 'moderation rejected'
+      })
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })
   })

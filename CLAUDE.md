@@ -30,6 +30,45 @@ How to approach any coding task in this repo.
 - Remove imports / variables / functions that **your** changes orphaned. Leave pre-existing dead code alone unless asked.
 - Every changed line must trace directly to the user's request.
 
+#### Never Widen a Boundary to Make Code Work
+
+The most expensive defects in this repo were not wrong logic — they were checks that got
+switched off where two subsystems meet, so a broken request looked exactly like a
+working one (#17394: a whole family of UI controls that reached no vendor, CI green).
+Every instance was one of the four moves below. They are individually reasonable and
+collectively fatal, so treat each as **banned unless justified in a comment**:
+
+- **`a ?? b ?? c` over spellings of one value.** A probe chain means "I did not trace
+  the producer". Find the one spelling that arrives and read it once. The chain can
+  never fail loudly, so it is never corrected.
+- **`as T` / `Record<string, unknown>` / `?:` at a subsystem edge.** Widening silences
+  the compiler exactly where it was about to tell the truth. If a field is always
+  supplied, type it required; if a shape is known, derive it.
+- **Restating a vocabulary instead of deriving it.** Hand-listing keys that another
+  module owns *will* drift. `Pick<TheirType, 'a' | 'b'>` makes drift a compile error;
+  a hand-written interface makes it a silent runtime miss.
+- **Defaulting on absence** (`?? true`, silently dropping an unmapped field). A value
+  that never arrived then reads as a value the user chose. Log it, or fail.
+
+Before writing any of them, answer: **"who writes this field, and can I name the line?"**
+If not, it is suspect — that single question is what unmasked every one of these.
+
+**Tests do not protect against this — most of them cannot.** A test whose expected value
+was read off the implementation has **no oracle**: it detects change, never error, and
+when the code is wrong it is wrong in exactly the same way. Five separate tests in this
+repo pinned a bug as expected behaviour, including a boundary test asserting a URL that
+404s. So:
+
+- An assertion that encodes an **external** contract (a vendor URL, a wire field name, a
+  protocol shape) must **cite its source in the test** — doc link + retrieval date.
+  Uncited, it is an echo of the code and a reviewer cannot tell the difference.
+- Prefer fixtures derived from the **producer's real data** (walk the registry, the
+  schema, the DB) over hand-authored literals, which inherit the author's misconception.
+- A snapshot of a payload you wrote yourself asserts nothing. Use it only as
+  change-detection, and don't describe it as verifying a contract.
+- **Never trust a test you have not seen fail**: break the code on purpose once, confirm
+  it goes red, put it back.
+
 #### Goal-Driven Execution
 
 - Convert tasks into verifiable goals before coding:

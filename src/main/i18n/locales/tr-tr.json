@@ -109,7 +109,6 @@
   "openclaw.errors.more_issues": "ve {{count}} sorun daha",
   "openclaw.errors.preflight_failed": "Cherry Studio, OpenClaw yapılandırmasını doğrulayamadı.",
   "paintings.generate_failed": "Görüntü oluşturulamadı",
-  "paintings.image_mix_failed": "Görüntüler harmanlanamadı",
   "selection.name": "Seçim Asistanı",
   "settings.mcp.oauth.callback.message": "Bu sayfayı kapatıp Cherry Studio'ya dönebilirsiniz",
   "settings.mcp.oauth.callback.title": "Kimlik Doğrulama Başarılı",

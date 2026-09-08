@@ -20,7 +20,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AiBaseRequest, AppProviderId, AppProviderSettingsMap } from '../../../types'
+import type { AiBaseRequest, AppProviderId, AppProviderSettingsMap, ProviderOptionsKey } from '../../../types'
 import type { ResolvedReasoningInvocation } from '../../../utils/reasoningSerializers'
 import type { ResolvedCapabilities } from './capabilities'
 
@@ -28,12 +28,14 @@ export type { ToolApplyScope }
 
 export type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
-export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
-  readonly providerId: T
-  readonly providerOptionsKey: string
-  readonly providerSettings: AppProviderSettingsMap[T]
-  readonly modelId: string
-}
+export type SdkConfig<T extends AppProviderKey = AppProviderKey> = T extends AppProviderKey
+  ? {
+      readonly providerId: T
+      readonly providerOptionsKey: ProviderOptionsKey
+      readonly providerSettings: AppProviderSettingsMap[T]
+      readonly modelId: string
+    }
+  : never
 
 export interface RequestScope extends ToolApplyScope {
   readonly request: AiBaseRequest & { chatId?: string }

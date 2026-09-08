@@ -22,6 +22,8 @@ import { createOllamaTransport } from '../ollama/ollamaTransport'
  * body, optional width/height/seed/steps, the bare-base64 `image` passthrough
  * (no `data:` URI wrapping — see the transport for why), custom headers, abort,
  * and the sync-only transport shape. Mirrors `ovmsTransport.test.ts`.
+ * Ollama does not publish this image extension contract; these are current
+ * behavior characterization tests, retrieved from the existing path 2026-07-27.
  */
 describe('OllamaTransport', () => {
   afterEach(() => {
@@ -50,7 +52,7 @@ describe('OllamaTransport', () => {
     expect(call[0]).toBe('http://localhost:11434/api/generate')
     const init = call[1] as RequestInit
     expect(JSON.parse(init.body as string)).toEqual({ model: 'x/z-image-turbo', prompt: 'a cat', stream: false })
-    expect(result).toEqual({ imageUrls: ['QUJD'] })
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['QUJD'] })
   })
 
   it('splits size into width/height, nests seed under options, and forwards providerParams.steps at the top level', async () => {
@@ -160,7 +162,10 @@ describe('OllamaTransport', () => {
     await transport.submit({ ...baseInput, prompt: 'a cat' })
 
     const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect(init.headers).toEqual({ 'Content-Type': 'application/json', Authorization: 'Bearer token' })
+    const requestHeaders = new Headers(init.headers)
+    expect(requestHeaders.get('Content-Type')).toBe('application/json')
+    expect(requestHeaders.get('Authorization')).toBe('Bearer token')
+    expect(requestHeaders.get('User-Agent')).toContain('ai-sdk/provider-utils/')
   })
 
   it('does not wrap the base64 image in a data: URI (the patched ai SDK only auto-downloads http(s) URLs; anything else is decoded as raw base64 verbatim)', async () => {
@@ -170,16 +175,15 @@ describe('OllamaTransport', () => {
     )
 
     const result = await transport.submit({ ...baseInput, prompt: 'a cat' })
-    expect(result.imageUrls?.[0]).not.toMatch(/^data:/)
-    expect(result).toEqual({ imageUrls: ['aGVsbG8='] })
+    expect(result.imageUrls[0]).not.toMatch(/^data:/)
+    expect(result).toEqual({ kind: 'completed', imageUrls: ['aGVsbG8='] })
   })
 
-  it('returns no images when the response has no image field', async () => {
+  it('rejects a successful response with no image field', async () => {
     const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }))
 
-    const result = await transport.submit({ ...baseInput, prompt: 'a cat' })
-    expect(result).toEqual({ imageUrls: [] })
+    await expect(transport.submit({ ...baseInput, prompt: 'a cat' })).rejects.toThrow('Invalid JSON response')
   })
 
   it('throws the remote error message on a non-ok response', async () => {

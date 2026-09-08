@@ -109,7 +109,6 @@
   "openclaw.errors.more_issues": "και {{count}} ακόμη ζητήματα",
   "openclaw.errors.preflight_failed": "Το Cherry Studio δεν μπόρεσε να επικυρώσει τη διαμόρφωση του OpenClaw.",
   "paintings.generate_failed": "Αποτυχία δημιουργίας εικόνας",
-  "paintings.image_mix_failed": "Αποτυχία ανάμειξης εικόνων",
   "selection.name": "Βοηθός Επιλογής Λέξεων",
   "settings.mcp.oauth.callback.message": "Μπορείτε να κλείσετε αυτήν τη σελίδα και να επιστρέψετε στο Cherry Studio",
   "settings.mcp.oauth.callback.title": "Επιτυχής Ταυτοποίηση",

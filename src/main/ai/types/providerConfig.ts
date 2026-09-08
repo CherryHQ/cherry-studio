@@ -6,17 +6,21 @@ import type { AppProviderSettingsMap, AppRuntimeConfig } from './merged'
  * Provider 配置
  * 基于 RuntimeConfig，用于构建 provider 实例的基础配置
  */
-export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> = Omit<
-  AppRuntimeConfig<T>,
-  'plugins' | 'provider'
-> & {
-  /**
-   * API endpoint path extracted from baseURL
-   * Used for identifying image generation endpoints and other special cases
-   * @example 'chat/completions', 'images/generations', 'predict'
-   */
-  endpoint?: string
-}
+export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> =
+  T extends StringKeys<AppProviderSettingsMap>
+    ? Omit<AppRuntimeConfig<T>, 'plugins' | 'provider'> & {
+        /**
+         * API endpoint path extracted from baseURL
+         * Used for identifying image generation endpoints and other special cases
+         * @example 'chat/completions', 'images/generations', 'predict'
+         */
+        endpoint?: string
+      }
+    : never
+
+/** The `providerOptions` namespace an AI SDK model reads — a different key space from
+ *  the provider id. Produced only by `resolveProviderOptionsKey`. */
+export type ProviderOptionsKey = string & { readonly __providerOptionsKey: unique symbol }
 
 /**
  * Model capability flags computed from model properties and assistant settings.

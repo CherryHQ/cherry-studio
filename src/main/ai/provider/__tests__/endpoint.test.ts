@@ -63,6 +63,11 @@ describe('resolveProviderOptionsKey', () => {
     expect(resolveProviderOptionsKey('openai')).toBe('openai')
   })
 
+  it('maps wrapper provider ids to the fixed namespaces their SDK models read', () => {
+    expect(resolveProviderOptionsKey('cherryin-chat')).toBe('cherryin')
+    expect(resolveProviderOptionsKey('doubao')).toBe('bytedance')
+  })
+
   it('uses the resolved gateway route instead of re-detecting the model in the encoder', () => {
     expect(
       resolveProviderOptionsKey('aihubmix', {
