@@ -13,7 +13,8 @@ import {
   defaultOperationCapability,
   getModelEndpointContractIssues,
   getModelOperationCapabilities,
-  inferReasoningOwnedBy
+  inferReasoningOwnedBy,
+  isEndpointCompatibleWithOperation
 } from '@cherrystudio/provider-registry'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
@@ -306,10 +307,10 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     providerId: dto.providerId,
     modelId: dto.modelId,
     presetModelId: null,
-    name: dto.name ?? dto.modelId,
+    name: dto.name ?? null,
     description: dto.description ?? null,
     group: dto.group ?? null,
-    capabilities: (dto.capabilities ?? []) as ModelCapability[],
+    capabilities: (dto.capabilities ?? null) as ModelCapability[] | null,
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
@@ -317,7 +318,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     contextWindow: dto.contextWindow ?? null,
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
-    supportsStreaming: dto.supportsStreaming ?? true,
+    supportsStreaming: dto.supportsStreaming ?? null,
     reasoning: null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
@@ -378,6 +379,19 @@ function presetDeltaToNewUserModel(
     isEnabled: true,
     isHidden: false
   }
+}
+
+/**
+ * An inherited endpoint list is narrowed to the row's own operations: dropping an operation
+ * must not turn the registry's list into an override just to keep the contract satisfied.
+ */
+function narrowInheritedEndpoints(model: Model, row: UserModelRow): Model {
+  if (row.endpointTypes !== null || row.capabilities === null || !model.endpointTypes) return model
+  const operations = getModelOperationCapabilities(model.capabilities)
+  const endpointTypes = model.endpointTypes.filter((endpointType) =>
+    operations.some((operation) => isEndpointCompatibleWithOperation(endpointType, operation))
+  )
+  return endpointTypes.length === model.endpointTypes.length ? model : { ...model, endpointTypes }
 }
 
 function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
@@ -571,7 +585,15 @@ class ModelService {
       return presetDeltaToNewUserModel(dto, presetModel.id, overriddenFields)
     }
 
-    // No preset: a custom model. When the id/capabilities say the model reasons,
+    // No preset: a custom model owns every field `user_model_custom_config_check` requires.
+    const missing = (['name', 'capabilities', 'supportsStreaming'] as const).filter((key) => dto[key] == null)
+    if (missing.length > 0) {
+      throw DataApiErrorFactory.validation(
+        Object.fromEntries(missing.map((key) => [key, ['A custom model must own this field']]))
+      )
+    }
+
+    // When the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
     // descriptor-driven like catalog rows (#16598).
     if (dtoValues.reasoning == null) {
@@ -811,7 +833,10 @@ class ModelService {
             reasoningProfile.support,
             serviceTierControl
           )
-          const resolved = ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline)
+          const resolved = narrowInheritedEndpoints(
+            ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline),
+            row
+          )
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
           return applyStoredModelState(
             { ...(imageGeneration ? { ...resolved, imageGeneration } : resolved), overrides: readOverrides(row) },

@@ -94,6 +94,8 @@ export default function AddModelFormPanel({
   const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | undefined>(undefined)
   const [classificationTouched, setClassificationTouched] = useState(false)
   const [inputModalitiesTouched, setInputModalitiesTouched] = useState(false)
+  const [nameTouched, setNameTouched] = useState(false)
+  const [groupTouched, setGroupTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -156,6 +158,8 @@ export default function AddModelFormPanel({
     setPreferredEndpointType(undefined)
     setClassificationTouched(false)
     setInputModalitiesTouched(false)
+    setNameTouched(false)
+    setGroupTouched(false)
     setShowMoreSettings(false)
     setSubmitError(null)
   }, [prefill, providerId])
@@ -197,7 +201,9 @@ export default function AddModelFormPanel({
       const classifiedInputModalities = buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification)
       const submittedInputModalities = classifiedInputModalities
       const isRegistryModel = providerPreset?.models?.some((model) => getModelApiId(model) === modelId) ?? false
-      const shouldSubmitCapabilities = prefill?.model != null || classificationTouched || !isRegistryModel
+      // A registry-backed row inherits what the form only displays; a custom row owns all of it.
+      const inheritsFromRegistry = isRegistryModel || Boolean(prefill?.model?.presetModelId)
+      const shouldSubmitCapabilities = classificationTouched || !inheritsFromRegistry
       const shouldSubmitEndpointTypes = endpointTypesTouched || hasInitialEndpointDeclaration
       // A non-empty default is not intent: the helper always emits `text` for a chat model, and
       // submitting that overrides the catalog's own modalities for every hand-added registry model.
@@ -206,13 +212,14 @@ export default function AddModelFormPanel({
       await createModel({
         providerId,
         modelId,
-        name: values.name ? values.name : modelId.toUpperCase(),
-        group: values.group || getDefaultGroupName(modelId),
+        ...(nameTouched || !inheritsFromRegistry ? { name: values.name ? values.name : modelId.toUpperCase() } : {}),
+        ...(groupTouched || !inheritsFromRegistry ? { group: values.group || getDefaultGroupName(modelId) } : {}),
+        ...(inheritsFromRegistry ? {} : { supportsStreaming: prefill?.model?.supportsStreaming ?? true }),
         endpointTypes: shouldSubmitEndpointTypes ? [...(values.endpointTypes ?? [])] : undefined,
         ...(pinnedPreferredEndpoint ? { preferredEndpointType: pinnedPreferredEndpoint } : {}),
         ...(shouldSubmitCapabilities ? { capabilities: classifiedCapabilities } : {}),
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
-        outputModalities: prefill?.model?.outputModalities,
+        ...(inheritsFromRegistry ? {} : { outputModalities: prefill?.model?.outputModalities }),
         ...(values.contextWindow !== null ? { contextWindow: values.contextWindow } : {}),
         ...(values.maxInputTokens !== null ? { maxInputTokens: values.maxInputTokens } : {}),
         ...(values.maxOutputTokens !== null ? { maxOutputTokens: values.maxOutputTokens } : {})
@@ -226,7 +233,9 @@ export default function AddModelFormPanel({
       createModel,
       endpointTypesTouched,
       hasInitialEndpointDeclaration,
+      groupTouched,
       models,
+      nameTouched,
       pinnedPreferredEndpoint,
       inputModalitiesTouched,
       prefill?.model,
@@ -417,8 +426,14 @@ export default function AddModelFormPanel({
               modelIdTouched && !formState.modelId.trim() ? t('settings.models.add.model_id.required') : undefined
             }
             onModelIdChange={handleModelIdChange}
-            onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
-            onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
+            onNameChange={(value) => {
+              setNameTouched(true)
+              setFormState((current) => ({ ...current, name: value }))
+            }}
+            onGroupChange={(value) => {
+              setGroupTouched(true)
+              setFormState((current) => ({ ...current, group: value }))
+            }}
             onEndpointTypesChange={(next) => {
               setEndpointTypesTouched(true)
               setPreferredEndpointType((current) => (current && next.includes(current) ? current : undefined))

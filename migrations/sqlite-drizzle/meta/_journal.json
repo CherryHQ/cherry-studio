@@ -161,6 +161,13 @@
       "when": 1788860180008,
       "tag": "0022_normalize_legacy_input_modalities",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1788863987324,
+      "tag": "0023_drop_input_modalities_explicit",
+      "breakpoints": true
     }
   ],
   "version": "7"

@@ -363,8 +363,7 @@ describe('ModelService.update', () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(
       modelRow('openai', 'legacy-custom', {
-        inputModalities: [],
-        inputModalitiesExplicit: false
+        inputModalities: []
       })
     )
 
@@ -491,6 +490,43 @@ describe('ModelService.update', () => {
     const model = modelService.getByKey('openai', 'gpt-4o')
     expect(model.name).toBe('GPT-4o (2026)')
     expect(model.overrides?.name).toBeUndefined()
+  })
+
+  it('narrows an inherited endpoint list to the operations the row keeps', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db
+      .insert(userModelTable)
+      .values(modelRow('openai', 'text-embedding-3', { presetModelId: 'text-embedding-3', isEnabled: true }))
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'text-embedding-3',
+        name: 'Embedding',
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING]
+      },
+      registryOverride: {
+        providerId: 'openai',
+        modelId: 'text-embedding-3',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    // Dropping the embedding operation must not force the registry's list into the row.
+    const updated = modelService.update('openai', 'text-embedding-3', {
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    })
+
+    expect(updated.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+    expect(updated.overrides).toMatchObject({ capabilities: true })
+    expect(updated.overrides?.endpointTypes).toBeUndefined()
+    const [row] = await dbh.db.select().from(userModelTable)
+    expect(row.endpointTypes).toBeNull()
+
+    modelService.update('openai', 'text-embedding-3', { capabilities: null })
+    expect(modelService.getByKey('openai', 'text-embedding-3').endpointTypes).toEqual([
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+    ])
   })
 
   it('refuses to hand back a field a custom row must own', async () => {
@@ -746,7 +782,9 @@ describe('ModelService.create', () => {
           modelId: 'manual-model',
           capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
           endpointTypes: ['openai-responses'],
-          preferredEndpointType: 'openai-responses'
+          preferredEndpointType: 'openai-responses',
+          supportsStreaming: true,
+          name: 'manual-model'
         }
       }
     ])
@@ -843,6 +881,22 @@ describe('ModelService.create', () => {
     expect(row.supportsStreaming).toBeNull()
   })
 
+  it('refuses a custom model that does not own its required fields', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('relay', 'Relay'))
+
+    expect(() =>
+      modelService.create([
+        { dto: { providerId: 'relay', modelId: 'custom', name: 'Custom', supportsStreaming: true } }
+      ])
+    ).toThrow()
+    expect(() =>
+      modelService.create([
+        { dto: { providerId: 'relay', modelId: 'custom', capabilities: [MODEL_CAPABILITY.TEXT_GENERATION] } }
+      ])
+    ).toThrow()
+    expect(await dbh.db.select().from(userModelTable)).toEqual([])
+  })
+
   it('stores every field the create flow sends as an override', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
 
@@ -886,7 +940,8 @@ describe('ModelService.create', () => {
           modelId: 'custom-gpt',
           presetModelId: 'preset-from-dto',
           name: 'Custom GPT',
-          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+          supportsStreaming: true
         }
       }
     ])
@@ -916,7 +971,8 @@ describe('ModelService.create', () => {
             providerId: 'openai',
             modelId: 'gpt-4o',
             name: 'Duplicate GPT-4o',
-            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            supportsStreaming: true
           }
         }
       ])
@@ -986,7 +1042,8 @@ describe('ModelService.create', () => {
           modelId: 'my-model',
           name: 'My Model',
           capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
-          endpointTypes: ['openai-chat-completions']
+          endpointTypes: ['openai-chat-completions'],
+          supportsStreaming: true
         }
       }
     ]
@@ -1062,7 +1119,8 @@ describe('ModelService.create', () => {
             providerId: 'openai',
             modelId: 'gpt-new',
             name: 'New Model',
-            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            supportsStreaming: true
           }
         },
         {
@@ -1070,7 +1128,8 @@ describe('ModelService.create', () => {
             providerId: 'openai',
             modelId: 'gpt-4o',
             name: 'Duplicate GPT-4o',
-            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            supportsStreaming: true
           }
         }
       ])
@@ -1356,7 +1415,8 @@ describe('ModelService.list — registry enrichment', () => {
           modelId: 'future-model',
           name: 'Future Model',
           capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
-          maxOutputTokens: 4096
+          maxOutputTokens: 4096,
+          supportsStreaming: true
         }
       }
     ])
@@ -1364,7 +1424,6 @@ describe('ModelService.list — registry enrichment', () => {
     expect(storedBeforeRegistryUpdate).toMatchObject({
       description: null,
       inputModalities: null,
-      inputModalitiesExplicit: false,
       outputModalities: null
     })
 
@@ -1426,7 +1485,8 @@ describe('ModelService.list — registry enrichment', () => {
           description: 'Custom description',
           capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
           inputModalities: ['audio'],
-          outputModalities: ['video']
+          outputModalities: ['video'],
+          supportsStreaming: true
         }
       }
     ])
@@ -1490,7 +1550,9 @@ describe('ModelService.list — registry enrichment', () => {
           providerId: 'openai',
           modelId: 'explicit-empty-model',
           capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
-          inputModalities: []
+          inputModalities: [],
+          supportsStreaming: true,
+          name: 'explicit-empty-model'
         }
       }
     ])
@@ -2005,7 +2067,9 @@ describe('ModelService — reasoning descriptor enrichment', () => {
         dto: {
           providerId: 'my-compat',
           modelId: 'glm-4.6',
-          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.TEXT_GENERATION]
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.TEXT_GENERATION],
+          supportsStreaming: true,
+          name: 'glm-4.6'
         }
       }
     ])
@@ -2033,7 +2097,9 @@ describe('ModelService — reasoning descriptor enrichment', () => {
         dto: {
           providerId: 'ollama',
           modelId: 'acme-thinker:latest',
-          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.TEXT_GENERATION]
+          name: 'acme-thinker:latest',
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.TEXT_GENERATION],
+          supportsStreaming: true
         },
         registryData
       }
@@ -2714,7 +2780,8 @@ describe('ModelService.reconcileForProvider', () => {
         providerId: 'openai',
         modelId: `bulk-model-${index}`,
         name: `Bulk Model ${index}`,
-        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+        supportsStreaming: true
       },
       registryData: undefined
     }))

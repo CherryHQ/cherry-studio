@@ -365,6 +365,22 @@ describe('toCreateModelDto', () => {
     } as Model)
 
     expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(dto.supportsStreaming).toBe(true)
+  })
+
+  it('states an empty capability list for a custom model instead of leaving it to the server', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::acme:latest' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'acme:latest',
+      name: 'acme:latest',
+      capabilities: [],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto).toMatchObject({ capabilities: [], supportsStreaming: false })
   })
 
   it('persists a discovered context window so the runtime can send num_ctx', () => {

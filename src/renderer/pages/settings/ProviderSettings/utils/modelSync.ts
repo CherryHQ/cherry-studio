@@ -57,13 +57,18 @@ export function toCreateModelDto(
   // A preset-backed row inherits name/group/window from the registry; sending the overlaid
   // values back would store the registry's own baseline as user overrides.
   const isPreset = Boolean(model.presetModelId)
-  const capabilities = !isPreset && model.capabilities?.length ? model.capabilities : undefined
 
   return {
     providerId,
     modelId,
-    ...(isPreset ? {} : { name: model.name, group: model.group }),
-    ...(capabilities ? { capabilities: [...capabilities] } : {}),
+    ...(isPreset
+      ? {}
+      : {
+          name: model.name,
+          group: model.group,
+          capabilities: [...(model.capabilities ?? [])],
+          supportsStreaming: model.supportsStreaming
+        }),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
     // Discovered for local providers (Ollama `/api/show`); without it no `num_ctx` is ever sent.
     ...(!isPreset && model.contextWindow ? { contextWindow: model.contextWindow } : {})

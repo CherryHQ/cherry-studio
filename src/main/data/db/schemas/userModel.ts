@@ -63,10 +63,6 @@ export const userModelTable = sqliteTable(
     /** Supported input modalities (e.g., TEXT, VISION, AUDIO, VIDEO) */
     inputModalities: text({ mode: 'json' }).$type<Modality[]>(),
 
-    /** Legacy provenance bit; `0022_normalize_legacy_input_modalities` made the column itself
-     *  carry the three states, so this is write-only until it is dropped. */
-    inputModalitiesExplicit: integer({ mode: 'boolean' }).notNull().default(false),
-
     /** Supported output modalities (e.g., TEXT, VISION, AUDIO, VIDEO, VECTOR) */
     outputModalities: text({ mode: 'json' }).$type<Modality[]>(),
 

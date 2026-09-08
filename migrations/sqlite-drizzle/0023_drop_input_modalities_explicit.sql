@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` DROP COLUMN `input_modalities_explicit`;

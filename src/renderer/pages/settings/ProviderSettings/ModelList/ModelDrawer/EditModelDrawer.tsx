@@ -115,11 +115,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const autoSaveRunningRef = useRef(false)
 
   const endpointTypeOptions = resolveEndpointTypeOptions(provider, classification.operationCapabilities)
-  const preferredEndpointOptions = resolvePreferredEndpointOptions(
-    provider,
-    endpointTypes,
-    classification.operationCapabilities
-  )
+  // A pin must name a declared endpoint; offering the provider's list to an undeclared model would
+  // need that list written into the row first. Declare endpoints, then pin.
+  const preferredEndpointOptions = endpointTypes.length
+    ? resolvePreferredEndpointOptions(provider, endpointTypes, classification.operationCapabilities)
+    : []
   // State holds this session's choice only; everything else derives from the model, so the picker
   // still shows the right chip when the provider resolves after the first render.
   const storedPreferredEndpoint =
@@ -283,13 +283,17 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       setClassification(nextClassification)
       setEndpointTypes(nextEndpointTypes)
       if (shouldClearPreference) setPreferredEndpointType(null)
+      // An inherited list narrows itself on read; only a list the row owns is rewritten.
+      const ownsEndpointTypes = !model?.presetModelId || Boolean(model.overrides?.endpointTypes)
       autoSave({
         classification: nextClassification,
-        ...(nextEndpointTypes.length !== endpointTypes.length ? { endpointTypes: nextEndpointTypes } : {}),
+        ...(ownsEndpointTypes && nextEndpointTypes.length !== endpointTypes.length
+          ? { endpointTypes: nextEndpointTypes }
+          : {}),
         ...(shouldClearPreference ? { preferredEndpointType: null } : {})
       })
     },
-    [autoSave, classification, endpointTypes, provider, storedPreferredEndpoint]
+    [autoSave, classification, endpointTypes, model, provider, storedPreferredEndpoint]
   )
 
   const handleToggleCapability = useCallback(

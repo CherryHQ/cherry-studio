@@ -241,6 +241,8 @@ describe('applyMigrations over a populated database', () => {
       ['set', '["text","image"]'],
       ['unset', null]
     ])
+    const columns = (sqlite.pragma('table_info(user_model)') as Array<{ name: string }>).map((column) => column.name)
+    expect(columns).not.toContain('input_modalities_explicit')
   })
 
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {

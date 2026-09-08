@@ -16,6 +16,8 @@ An upgrade migration turns the old add form's "no modality chosen" marker back i
 
 The drawer's "Overrides" card lists the fields a catalog model overrides; removing one makes that field follow the catalog again.
 
+Two smaller consequences. Turning an operation off on a catalog model no longer copies the catalog's endpoint list into the model; the list narrows itself while it stays inherited. And the Preferred Endpoint picker only appears once a model declares endpoints, since pinning an undeclared endpoint used to silently write the provider's whole endpoint list into the model.
+
 ## Why this matters to the user
 
 Catalog updates reach models that were opened in the drawer but not actually changed, and a reordered capability list no longer pins a model to a stale catalog entry.

@@ -828,10 +828,11 @@ describe('Model drawers', () => {
       'custom-provider',
       'image-model',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
         capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION]
       })
     )
+    // Nothing was dropped from the declared list, so it is not rewritten.
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('endpointTypes')
   })
 
   it('does not overwrite the saved chat endpoint when opening the edit drawer', async () => {
@@ -1289,47 +1290,7 @@ describe('Model drawers', () => {
     ).toEqual(['inherit', ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
 
-  it('falls back to configured chat routes when a model reports no endpoints', () => {
-    useProviderMock.mockReturnValue({
-      provider: {
-        id: 'new-api',
-        name: 'New API',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://new-api.example.com' },
-          [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://new-api.example.com' }
-        }
-      }
-    })
-
-    render(
-      <EditModelDrawer
-        providerId="new-api"
-        open
-        onClose={vi.fn()}
-        model={
-          {
-            id: 'new-api::unclassified-model',
-            providerId: 'new-api',
-            name: 'Unclassified Model',
-            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
-            endpointTypes: [],
-            supportsStreaming: true
-          } as any
-        }
-      />
-    )
-
-    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
-    expect(
-      within(preferredField)
-        .getAllByRole('radio')
-        .map((radio) => radio.getAttribute('value'))
-    ).toEqual(['inherit', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
-  })
-
-  it('materializes compatible endpoints when editing an undeclared model preference', async () => {
-    const user = userEvent.setup()
+  it('offers no preference for a model that declares no endpoints', () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'doubao',
@@ -1360,20 +1321,53 @@ describe('Model drawers', () => {
       />
     )
 
-    await user.click(
-      within(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).getByRole('radio', {
-        name: 'endpoint_type.openai-response'
-      })
+    // A pin would have to write the provider's endpoints into the row to be valid; declare first.
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).toBeNull()
+    expect(updateModelMock).not.toHaveBeenCalled()
+  })
+
+  it('narrows an inherited endpoint list without writing it when an operation is dropped', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'openai',
+        name: 'OpenAI',
+        presetProviderId: 'openai',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' },
+          [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://api.openai.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::text-embedding-3',
+            providerId: 'openai',
+            presetModelId: 'text-embedding-3',
+            name: 'Embedding',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+            supportsStreaming: true
+          } as any
+        }
+      />
     )
 
-    expect(updateModelMock).toHaveBeenCalledWith(
-      'doubao',
-      'custom-model',
-      expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
-        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
-      })
-    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'models.type.embedding' }))
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    const patch = updateModelMock.mock.calls[0][2]
+    expect(patch.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
+    // The list is inherited: the read path narrows it, so the row must not start owning it.
+    expect(patch).not.toHaveProperty('endpointTypes')
   })
 
   it('hands routing back to the inherited order when the pin is cleared', async () => {
