@@ -18,18 +18,17 @@ interface UsePaintingListInput {
 }
 
 /**
- * Owns the painting list-item write-side lifecycle: add / remove.
+ * Owns the painting list-item write-side lifecycle: add / select / remove.
  *
- * - `add()` seeds a fresh in-memory draft from the configured defaults. It is NOT
+ * - `add()` saves the current record before seeding a fresh draft. The draft is NOT
  *   persisted — like the page's mount-time draft, it only reaches DataApi when
  *   the user generates (`usePaintingGeneration` creates the row for an unsaved
  *   draft). This keeps blank paintings from piling up in the strip on every click.
  * - `remove(painting)` cancels any in-flight generation, deletes attached files,
  *   removes the DB record, and (if the deleted item is the current one) selects
- *   the next available painting or falls back to a fresh draft via `add()`.
+ *   the next available painting or falls back to a fresh draft.
  *
- * Selection (`setCurrentPainting`) is a trivial setter passthrough and is wired
- * directly at the call site instead of being re-exposed here.
+ * Selection saves the current record before switching to the target.
  */
 export function usePaintingList({
   painting,
@@ -69,9 +68,12 @@ export function usePaintingList({
     [saveCurrent, setCurrentPainting]
   )
 
-  const add = useCallback(() => {
+  const add = useCallback(async () => {
+    const current = paintingRef.current
+    if (!(await saveCurrent())) return
+    if (paintingRef.current !== current) return
     setCurrentPainting(createDefaultPainting(draftDefaults))
-  }, [draftDefaults, setCurrentPainting])
+  }, [draftDefaults, saveCurrent, setCurrentPainting])
 
   const selectNextAfterDelete = useCallback(
     async (deletedId: string) => {
@@ -88,9 +90,9 @@ export function usePaintingList({
         setCurrentPainting(nextPainting)
         return
       }
-      add()
+      setCurrentPainting(createDefaultPainting(draftDefaults))
     },
-    [add, refresh, setCurrentPainting]
+    [draftDefaults, refresh, setCurrentPainting]
   )
 
   const remove = useCallback(
