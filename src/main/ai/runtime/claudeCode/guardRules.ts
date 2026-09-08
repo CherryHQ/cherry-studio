@@ -29,12 +29,7 @@ import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolReg
 import { imageExts } from '@shared/utils/file'
 
 import { BASH_NO_PROGRESS_HARD_THRESHOLD } from './bashNoProgress'
-import {
-  EXPLORER_CAP_HARD_THRESHOLD,
-  EXPLORER_IDENTICAL_HARD_THRESHOLD,
-  EXPLORER_SAME_FILE_CAP,
-  EXPLORER_TOOLS
-} from './explorerLoop'
+import { EXPLORER_CAP_HARD_THRESHOLD, EXPLORER_IDENTICAL_HARD_THRESHOLD, EXPLORER_TOOLS } from './explorerLoop'
 import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
@@ -138,24 +133,6 @@ const explorerRepeatIdentical = (ctx: ToolGuardContext): GuardHit | null => {
     : null
 }
 
-const explorerTraversalCycle = (ctx: ToolGuardContext): GuardHit | null => {
-  if (ctx.toolName !== 'Read') return null
-  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
-  if (!status || !status.isCycle) return null
-  return {
-    evidence: `${status.filePath ?? 'file'}:${status.lastOffset ?? 0}:${status.rangeStart ?? 1}-${status.rangeEnd ?? 2000}`
-  }
-}
-
-const explorerDuplicateChunk = (ctx: ToolGuardContext): GuardHit | null => {
-  if (ctx.toolName !== 'Read') return null
-  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
-  if (!status || !status.isDuplicateChunk) return null
-  return {
-    evidence: `${status.filePath ?? 'file'}:${status.rangeStart ?? 1}-${status.rangeEnd ?? 2000}`
-  }
-}
-
 const explorerSameFileCap = (ctx: ToolGuardContext): GuardHit | null => {
   if (ctx.toolName !== 'Read') return null
   const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
@@ -234,24 +211,8 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     bypassBehavior: 'enforce',
     match: { when: explorerRepeatIdentical },
     effect: 'deny',
-    reason: (hit, ctx) =>
-      `You have called ${ctx.toolName} ${hit.evidence} times consecutively with identical arguments without making progress. Stop repeating this call and proceed directly to Edit/Write or summarize your findings.`
-  },
-  {
-    id: 'explorer-traversal-cycle',
-    bypassBehavior: 'enforce',
-    match: { tool: 'Read', when: explorerTraversalCycle },
-    effect: 'deny',
-    reason: (hit) =>
-      `Traversal cycle detected (${hit.evidence}): you previously read forward in this file and are now re-reading earlier lines. Restarting traversal or repeating read cycles is strictly prohibited. Synthesize your answer from existing context or proceed with modifications/summary.`
-  },
-  {
-    id: 'explorer-duplicate-chunk',
-    bypassBehavior: 'enforce',
-    match: { tool: 'Read', when: explorerDuplicateChunk },
-    effect: 'deny',
-    reason: (hit) =>
-      `Duplicate chunk rejected (${hit.evidence}): these lines were already retrieved in earlier turns. Refer to earlier tool results in your conversation context instead of re-reading.`
+    reason: () =>
+      `Call blocked: 5/5 identical calls reached (user constraint). Modify code with Edit/Write or report to user.`
   },
   {
     id: 'explorer-same-file-cap',
@@ -259,7 +220,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { tool: 'Read', when: explorerSameFileCap },
     effect: 'deny',
     reason: (hit) =>
-      `Same-file read limit reached for '${hit.evidence}' (${EXPLORER_SAME_FILE_CAP} slice reads without code modifications). Further reading on this file is locked until a workspace modification is made. Apply code changes using Edit/Write or summarize your conclusions now.`
+      `File locked: 10/10 reads reached on '${hit.evidence}' (user constraint). Edit/Write or report to user to unlock.`
   },
   {
     id: 'explorer-consecutive-cap',
@@ -267,7 +228,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: explorerConsecutiveCap },
     effect: 'deny',
     reason: (hit) =>
-      `Exploration budget reached (${hit.evidence} consecutive read/search operations without code changes). Further exploration is locked. You must apply code changes using Edit/Write or summarize your conclusions now.`
+      `Exploration limit reached: ${hit.evidence}/30 operations (user constraint). All reading tools are permanently frozen. Proceed to Edit/Write or report to user.`
   },
   {
     id: 'headless-config-mutation',

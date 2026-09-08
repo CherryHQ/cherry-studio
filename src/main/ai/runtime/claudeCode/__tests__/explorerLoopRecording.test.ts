@@ -25,7 +25,6 @@ vi.mock('../guardRules', () => ({ CLAUDE_TOOL_GUARD_RULES: [] }))
 vi.mock('../skillDependencies', () => ({ SKILL_TOOL_NAME: 'Skill', checkSkillRuntimeDependencies: vi.fn() }))
 
 import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
-import { EXPLORER_CAP_THRESHOLD, EXPLORER_IDENTICAL_THRESHOLD } from '../explorerLoop'
 import { buildClaudeCodeHooks } from '../hooks'
 
 const SESSION = 'session-explorer-1'
@@ -95,60 +94,39 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
     expect(status?.consecutiveReads).toBe(2)
   })
 
-  it('tracks covered intervals and flags duplicate chunks on repeat', async () => {
-    await firePostToolUse('Read', { file_path: 'src/app.ts', offset: 1, limit: 500 })
-    const subsetStatus = svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/app.ts', offset: 50, limit: 100 })
-    expect(subsetStatus?.isDuplicateChunk).toBe(true)
-  })
-
-  it('tracks traversal backward jump cycles', async () => {
-    await firePostToolUse('Read', { file_path: 'src/cycle.ts', offset: 1, limit: 200 })
-    await firePostToolUse('Read', { file_path: 'src/cycle.ts', offset: 500, limit: 200 })
-    const backStatus = svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/cycle.ts', offset: 1, limit: 100 })
-    expect(backStatus?.isCycle).toBe(true)
-  })
-
-  it('resets explorer loop state with per-file scope and interval preservation when Edit completes', async () => {
-    for (let i = 0; i < 4; i++) {
+  it('resets explorer loop state with per-file scope when Edit completes', async () => {
+    for (let i = 0; i < 10; i++) {
       await firePostToolUse('Read', { file_path: 'src/index.ts', offset: i * 50, limit: 50 })
     }
-    // Reading 5th time on index.ts hits same-file cap
-    const capStatus = svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/index.ts', offset: 200, limit: 50 })
+    // Reading 11th time on index.ts hits same-file cap
+    const capStatus = svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/index.ts', offset: 500, limit: 50 })
     expect(capStatus?.sameFileCapReached).toBe(true)
 
     // Edit an unrelated file: index.ts cap MUST remain locked
     await firePostToolUse('Edit', { file_path: 'src/unrelated.ts' })
     const stillLockedStatus = svc.getExplorerLoopStatus(SESSION, 'Read', {
       file_path: 'src/index.ts',
-      offset: 200,
+      offset: 500,
       limit: 50
     })
     expect(stillLockedStatus?.sameFileCapReached).toBe(true)
 
-    // Edit index.ts: index.ts readCount is cleared so new lines (501-550) can be read
+    // Edit index.ts: index.ts readCount is cleared so reading can proceed
     await firePostToolUse('Edit', { file_path: 'src/index.ts' })
     const unlockedStatus = svc.getExplorerLoopStatus(SESSION, 'Read', {
       file_path: 'src/index.ts',
-      offset: 501,
+      offset: 500,
       limit: 50
     })
     expect(unlockedStatus?.sameFileCapReached).toBeFalsy()
-
-    // BUT previously covered lines (e.g. lines 0-49) must still be rejected as duplicate chunks / cycles (Interval Preservation)
-    const duplicateStatus = svc.getExplorerLoopStatus(SESSION, 'Read', {
-      file_path: 'src/index.ts',
-      offset: 10,
-      limit: 30
-    })
-    expect(duplicateStatus?.isDuplicateChunk || duplicateStatus?.isCycle).toBe(true)
   })
 
   it('resets all explorer state when a new user turn starts via UserPromptSubmit', async () => {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 10; i++) {
       await firePostToolUse('Read', { file_path: 'src/index.ts', offset: i * 50, limit: 50 })
     }
     expect(
-      svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/index.ts', offset: 200, limit: 50 })
+      svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/index.ts', offset: 500, limit: 50 })
         ?.sameFileCapReached
     ).toBe(true)
 
@@ -165,17 +143,15 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
       )
     }
 
-    // State is completely reset for new user turn: same-file cap and previous chunks are cleared
     const newTurnStatus = svc.getExplorerLoopStatus(SESSION, 'Read', {
       file_path: 'src/index.ts',
       offset: 0,
       limit: 50
     })
     expect(newTurnStatus?.sameFileCapReached).toBeFalsy()
-    expect(newTurnStatus?.isDuplicateChunk).toBeFalsy()
   })
 
-  it('delivers soft warning at identical threshold 3', async () => {
+  it('delivers ladder warnings for identical calls (3, 4)', async () => {
     const preToolUse = () =>
       toolGuardHook(
         {
@@ -191,32 +167,69 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
     await firePostToolUse('Read', { file_path: 'src/app.ts' })
     await firePostToolUse('Read', { file_path: 'src/app.ts' })
 
-    const result = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
-    expect(result.hookSpecificOutput?.additionalContext).toContain(
-      `identical parameters ${EXPLORER_IDENTICAL_THRESHOLD} times`
+    const res3 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(res3.hookSpecificOutput?.additionalContext).toContain(
+      'Identical call limit (user constraint): 3/5. Edit/Write or report to user to reset.'
+    )
+
+    await firePostToolUse('Read', { file_path: 'src/app.ts' })
+    const res4 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(res4.hookSpecificOutput?.additionalContext).toContain(
+      'CRITICAL: identical call limit (user constraint) 4/5 (1 attempt left).'
     )
   })
 
-  it('delivers soft warning at consecutive read cap 10', async () => {
-    for (let i = 1; i <= 9; i++) {
-      await firePostToolUse('Read', { file_path: `file_${i}.ts` })
-    }
-
+  it('delivers ladder warnings for file reads (7, 8, 9)', async () => {
     const preToolUse = () =>
       toolGuardHook(
         {
           hook_event_name: 'PreToolUse',
           tool_name: 'Read',
-          tool_input: { file_path: 'file_10.ts' },
+          tool_input: { file_path: 'src/file.ts' },
+          tool_use_id: 'tu-file'
+        } as never,
+        undefined,
+        {} as never
+      )
+
+    for (let i = 1; i <= 6; i++) {
+      await firePostToolUse('Read', { file_path: 'src/file.ts', offset: i * 10 })
+    }
+
+    const res7 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(res7.hookSpecificOutput?.additionalContext).toContain(
+      "File read limit (user constraint): 7/10 on 'src/file.ts'. Tip: request larger line limits."
+    )
+
+    await firePostToolUse('Read', { file_path: 'src/file.ts', offset: 70 })
+    const res8 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(res8.hookSpecificOutput?.additionalContext).toContain(
+      "File read limit (user constraint): 8/10 on 'src/file.ts' (2 left)."
+    )
+  })
+
+  it('delivers ladder warnings for exploration budget and injects steer on cap', async () => {
+    const preToolUse = (file: string) =>
+      toolGuardHook(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Read',
+          tool_input: { file_path: file },
           tool_use_id: 'tu-cap'
         } as never,
         undefined,
         {} as never
       )
 
-    const result = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
-    expect(result.hookSpecificOutput?.additionalContext).toContain(`consecutive file reads/searches`)
-    expect(result.hookSpecificOutput?.additionalContext).toContain(String(EXPLORER_CAP_THRESHOLD))
+    for (let i = 1; i <= 9; i++) {
+      await firePostToolUse('Read', { file_path: `file_${i}.ts` })
+    }
+
+    const res10 = (await preToolUse('file_10.ts')) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(res10.hookSpecificOutput?.additionalContext).toContain(
+      'Exploration limit (user constraint): 10/30 reads used.'
+    )
+    expect(res10.hookSpecificOutput?.additionalContext).toContain('Reaching 30 will FORCIBLY ABORT the session.')
   })
 
   it('scopes subagents independently and cleans up on SubagentStop', async () => {

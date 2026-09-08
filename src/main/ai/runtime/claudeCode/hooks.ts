@@ -24,13 +24,7 @@ import { rtkRewrite } from '@main/utils/rtk'
 import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
-import {
-  EXPLORER_CAP_HARD_THRESHOLD,
-  EXPLORER_CAP_THRESHOLD,
-  EXPLORER_IDENTICAL_HARD_THRESHOLD,
-  EXPLORER_IDENTICAL_THRESHOLD,
-  EXPLORER_TOOLS
-} from './explorerLoop'
+import { EXPLORER_TOOLS } from './explorerLoop'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
@@ -131,23 +125,65 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
         }
       }
 
-      // Soft tier for explorer tools: warnings at thresholds 3 (identical call) and 10 (consecutive reads).
+      // Ladder warnings for explorer tools (Identical 3/4, File read 7/8/9, Exploration 10/15/20/25/28/29).
       if (EXPLORER_TOOLS.has(toolName)) {
         const status = sessionState().getExplorerLoopStatus(sessionId, toolName, toolInput, input.agent_id)
         if (status) {
-          if (status.identicalRun === EXPLORER_IDENTICAL_THRESHOLD) {
+          // Identical call ladder warnings (3, 4)
+          if (status.identicalRun === 3) {
             return {
               hookSpecificOutput: {
                 hookEventName: 'PreToolUse',
-                additionalContext: `Loop warning: you have called ${toolName} with identical parameters ${status.identicalRun} times consecutively. If this attempt does not produce the expected insight, switch to a different tool, vary your parameters, or proceed directly to code modification before reaching the hard denial threshold (${EXPLORER_IDENTICAL_HARD_THRESHOLD}).`
+                additionalContext: `Identical call limit (user constraint): 3/5. Edit/Write or report to user to reset.`
               }
             }
           }
-          if (status.consecutiveReads === EXPLORER_CAP_THRESHOLD) {
+          if (status.identicalRun === 4) {
             return {
               hookSpecificOutput: {
                 hookEventName: 'PreToolUse',
-                additionalContext: `Exploration checkpoint: you have made ${status.consecutiveReads} consecutive file reads/searches without modifying code. Consider whether you have enough context to begin implementing. Once consecutive exploration reaches ${EXPLORER_CAP_HARD_THRESHOLD}, file reading will be locked to force code execution.`
+                additionalContext: `CRITICAL: identical call limit (user constraint) 4/5 (1 attempt left). Modify code or report to user immediately.`
+              }
+            }
+          }
+
+          // Same-file slice read ladder warnings (7, 8, 9)
+          const fileReadCount = status.fileReadCount
+          const targetFile = status.filePath ?? 'file'
+          if (toolName === 'Read' && fileReadCount !== undefined) {
+            if (fileReadCount === 7) {
+              return {
+                hookSpecificOutput: {
+                  hookEventName: 'PreToolUse',
+                  additionalContext: `File read limit (user constraint): 7/10 on '${targetFile}'. Tip: request larger line limits. Edit/Write or report to user to unlock.`
+                }
+              }
+            }
+            if (fileReadCount === 8 || fileReadCount === 9) {
+              return {
+                hookSpecificOutput: {
+                  hookEventName: 'PreToolUse',
+                  additionalContext: `File read limit (user constraint): ${fileReadCount}/10 on '${targetFile}' (${10 - fileReadCount} left). Edit/Write or report to user to avoid lock.`
+                }
+              }
+            }
+          }
+
+          // Exploration ladder warnings (10, 15, 20, 25, 28, 29)
+          const consecutive = status.consecutiveReads
+          if (consecutive === 10 || consecutive === 15 || consecutive === 20) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                additionalContext: `Exploration limit (user constraint): ${consecutive}/30 reads used. Tip: request larger line limits. Reaching 30 will FORCIBLY ABORT the session. Edit/Write or report to user resets this.`
+              }
+            }
+          }
+          if (consecutive === 25 || consecutive === 28 || consecutive === 29) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                additionalContext: `DANGER: exploration limit (user constraint) ${consecutive}/30 (${30 - consecutive} left before FORCED ABORT). Use larger line limits! Call Edit/Write or report to user now!`
               }
             }
           }
@@ -157,6 +193,25 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     }
     if (decision.effect === 'deny') {
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
+      if (decision.ruleId === 'explorer-consecutive-cap') {
+        try {
+          const holder = sessionState().getSteerHolder(sessionId)
+          holder.pending.push({
+            message: {
+              data: {
+                parts: [
+                  {
+                    type: 'text',
+                    text: '打破了只读代码循环，继续工作。'
+                  }
+                ]
+              }
+            } as never
+          })
+        } catch {
+          // ignore
+        }
+      }
     }
     return {
       hookSpecificOutput: {
