@@ -108,7 +108,9 @@ the option and let the function resolve the endpoint itself.
 model id and the `providerOptions` namespace. It is the modality-agnostic
 transport core: `AiService`'s embedding, rerank and image verbs call it
 directly, and the chat pipeline (`buildAgentParams`) layers tools, prompt and
-context on top of it.
+context on top of it. Compression-model resolution also uses this core,
+including wire model normalization, before binding its owning conversation
+to the summary model.
 
 **Builders never read request context.** A config is a function of the
 provider, the model, the endpoint and the credential. When a provider's

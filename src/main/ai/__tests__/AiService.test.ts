@@ -6,10 +6,11 @@ import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { defaultServiceInstances } from '@test-mocks/main/application'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
+import type { AiStreamRequest } from '../types/requests'
 import type * as CustomFetchModule from '../utils/customFetch'
 import { makeProvider } from './fixtures/provider'
 
@@ -328,6 +329,11 @@ describe('AiService', () => {
     }
   )
 
+  it('requires one stream topic while allowing a distinct conversation identity', () => {
+    expectTypeOf<AiStreamRequest['conversation']>().toExtend<{ id: string; topicId: string }>()
+    expectTypeOf<AiStreamRequest>().not.toHaveProperty('chatId')
+  })
+
   it('routes agent-session runtime requests directly to the runtime service', async () => {
     const service = createService()
     const stream = new ReadableStream()
@@ -336,11 +342,11 @@ describe('AiService', () => {
 
     await expect(
       service.streamText({
-        chatId: 'agent-session:session-1',
+        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
         trigger: 'submit-message',
         runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
         requestOptions: { signal: new AbortController().signal }
-      } as any)
+      })
     ).resolves.toBe(stream)
 
     expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
@@ -357,10 +363,10 @@ describe('AiService', () => {
 
     await expect(
       service.streamText({
-        chatId: 'agent-session:session-1',
+        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
         trigger: 'submit-message',
         requestOptions: { signal: new AbortController().signal }
-      } as any)
+      })
     ).rejects.toThrow('requires an agent-session runtime request')
 
     expect(buildAgentParamsFor).not.toHaveBeenCalled()
@@ -1414,11 +1420,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { maxRetries: 0, signal: new AbortController().signal }
-    } as never)
+    })
 
     // Explicit per-request maxRetries:0 → no ai-retry wrapper / no fallback build.
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
@@ -1452,11 +1458,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { signal: new AbortController().signal }
-    } as never)
+    })
 
     expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1499,11 +1505,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { maxRetries: 0.5, signal: new AbortController().signal }
-    } as never)
+    })
     await service.generateText({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'hello',
@@ -1626,11 +1632,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { signal: new AbortController().signal }
-    } as never)
+    })
 
     expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(1)
     expect(mockBuildFallbackModels).toHaveBeenCalledWith(

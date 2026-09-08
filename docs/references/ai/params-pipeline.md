@@ -35,6 +35,10 @@ in-loop compaction and steer-yield gates, and the header a provider declared
 via `ProviderConfig.conversationHeader`. Embedding, rerank and image requests
 never enter this pipeline; they use `resolveSdkConfig` directly.
 
+`AiStreamRequest` requires `conversation.topicId` as its sole stream-topic
+field. `conversation.id` may instead identify the longer-lived agent session;
+non-streaming requests such as probes may omit `topicId`.
+
 Callers (chat, agent session, translate, prompt-only) shape their own
 `AiChatRequest` and hand it in. The pipeline refines the request-local
 `sdkConfig.providerSettings.fetch` when HTTP tracing or custom-parameter body

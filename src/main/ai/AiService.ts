@@ -545,7 +545,7 @@ export class AiService extends BaseService {
     request: AsInProcessChat<AiStreamRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<ReadableStream<UIMessageChunk>> {
-    logger.info('streamText started', { chatId: request.chatId })
+    logger.info('streamText started', { chatId: request.conversation.topicId })
     const signal = request.requestOptions?.signal
     if (!signal) {
       throw new Error('streamText requires requestOptions.signal — no AbortController was attached by the caller')
@@ -559,8 +559,8 @@ export class AiService extends BaseService {
       })
     }
 
-    if (isAgentSessionTopic(request.chatId)) {
-      throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
+    if (isAgentSessionTopic(request.conversation.topicId)) {
+      throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
@@ -653,7 +653,11 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
-        diagnosticContext: { chatId: request.chatId, messageId: request.messageId, assistantId: request.assistantId },
+        diagnosticContext: {
+          chatId: request.conversation.topicId,
+          messageId: request.messageId,
+          assistantId: request.assistantId
+        },
         fallbacks: buildFallbackModels({
           request,
           assistant,

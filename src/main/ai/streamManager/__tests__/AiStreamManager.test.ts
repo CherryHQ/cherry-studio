@@ -218,8 +218,8 @@ function error(msg: string): SerializedError {
   return { name: 'Error', message: msg, stack: null }
 }
 
-function req(topicId: string) {
-  return { chatId: topicId, trigger: 'submit-message', messages: [] } as any
+function req(topicId: string): AiStreamRequest {
+  return { conversation: { id: topicId, topicId }, trigger: 'submit-message', messages: [] }
 }
 
 /**
@@ -291,7 +291,10 @@ describe('AiStreamManager', () => {
       })
 
       expect(mockStreamText).toHaveBeenCalledWith(
-        expect.objectContaining({ chatId: 'gateway-request-1', contextOwner: 'caller' })
+        expect.objectContaining({
+          conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' },
+          contextOwner: 'caller'
+        })
       )
     })
 
@@ -325,7 +328,6 @@ describe('AiStreamManager', () => {
 
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
-          chatId: 'gateway-request-1',
           conversation: { id: 'session-1', topicId: 'gateway-request-1' },
           tokenUsageSource: 'agent'
         })

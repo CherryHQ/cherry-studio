@@ -8,12 +8,17 @@
  */
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { MockLanguageModelV3 } from 'ai/test'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { makeProvider } from '../../../__tests__/fixtures'
 import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
+import type { RequestScope } from '../../../runtime/aiSdk/params/scope'
+import { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 
 // vi.hoisted() ensures these vi.fn() instances are available when vi.mock factories run
 // (vi.mock calls are hoisted to the top of the file by Vitest's transform).
@@ -1114,15 +1119,24 @@ const estimateModelMessages = (messages: Array<{ content: unknown }>) =>
   messages.reduce((sum, m) => sum + estimateMessageTokens(m), 0)
 
 /** A scope shaped like the real RequestScope, sized to the turn-start window. */
-function inLoopScope(contextWindow: number) {
+function inLoopScope(contextWindow: number): RequestScope {
   return {
     request: { conversation: { id: 'topic-1', topicId: 'topic-1' } },
-    model: { id: 'openai::gpt-4o', contextWindow },
-    // Read only to pick the per-dialect media cost table (`resolveModelTokenDialect`).
-    provider: { id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} },
-    contextSettings: { enabled: true, compress: { enabled: true, thresholdPercent: 80 } },
-    compressionModel: { languageModel: { modelId: 'compression-model' }, contextWindow }
-  } as any
+    model: makeModel(DEFAULT_MODEL_ID, contextWindow),
+    provider: makeProvider({ id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} }),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: { languageModel: new MockLanguageModelV3({ modelId: 'compression-model' }), contextWindow },
+    signal: undefined,
+    registry: new ToolRegistry(),
+    mcpToolIds: new Set(),
+    capabilities: undefined,
+    sdkConfig: { providerId: 'openai', providerOptionsKey: 'openai', providerSettings: {}, modelId: 'gpt-4o' },
+    endpointType: 'openai-chat-completions',
+    aiSdkProviderId: 'openai',
+    reasoningProfile: { format: 'none', wire: { disabled: true } },
+    reasoning: { kind: 'omit', selection: 'default', emissions: [] },
+    requestContext: { requestId: 'request-1' }
+  }
 }
 
 describe('in-loop vs turn-start compaction — no double-compact', () => {

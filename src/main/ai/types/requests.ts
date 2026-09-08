@@ -113,10 +113,9 @@ export interface ListModelsRequest {
 
 export type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
 
-/** Streaming chat request — serialisable across IPC. */
+/** Main-internal streaming chat request with a required stream topic. */
 export interface AiStreamRequest extends AiChatRequest {
-  /** `topicId` in the AiStreamManager path. */
-  chatId: string
+  conversation: ConversationRef & { topicId: string }
   trigger: ChatTrigger
   messageId?: string
   messages?: UIMessage[]

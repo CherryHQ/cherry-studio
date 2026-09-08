@@ -898,7 +898,6 @@ export class AiStreamManager extends BaseService {
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
     const request: ManagedAiStreamRequest = {
-      chatId: input.streamId,
       // A trusted Agent SDK call belongs to its agent session; anything else is its own conversation.
       conversation: {
         id: input.usageContext ? input.usageContext.agentSessionId : input.streamId,
