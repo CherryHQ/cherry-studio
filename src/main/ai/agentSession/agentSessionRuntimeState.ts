@@ -1,4 +1,5 @@
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { UIMessageChunk } from 'ai'
 
 import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
@@ -75,6 +76,8 @@ export type AgentSessionRuntimeExecution<TTurn, TReservation> =
     }
   | {
       kind: 'autonomous-turn'
+      /** Why the runtime opened this turn; persisted on the receive-only assistant message. */
+      origin: AutonomousTurnOrigin
       turn?: TTurn
       contextTurn?: TTurn
       deferredTurn?: TTurn
@@ -110,10 +113,12 @@ export type AgentSessionRuntimeStateEvent<TTurn, TPendingTurn, TReservation> =
   | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[]; headless: boolean }
   | {
       type: 'autonomous-turn-state'
-      state: 'started' | 'finished'
+      state: 'started'
+      origin: AutonomousTurnOrigin
       deferCurrentTurn?: boolean
       contextTurn?: TTurn
     }
+  | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'autonomous-turn-abandoned' }
   | { type: 'autonomous-turn-created'; turn: TTurn }
   | { type: 'continuation-turn-created'; turn: TTurn }
@@ -301,6 +306,7 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
             ...state,
             execution: {
               kind: 'autonomous-turn',
+              origin: event.origin,
               ...(event.contextTurn ? { contextTurn: event.contextTurn } : {}),
               ...(deferredTurn ? { deferredTurn } : {}),
               ownership: 'active',

@@ -102,10 +102,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     onTurnEnd: (reason) => this.handleTurnEnd(reason),
     onCompaction: (event) => this.eventQueue.push(event),
     onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
-    onAutonomousTurnState: (state) => {
+    onAutonomousTurnState: (event) => {
       // Reconcile treats a goal round like any live turn: policy swaps wait for idle.
-      if (state === 'started') this.markTurnActive()
-      this.eventQueue.push({ type: 'autonomous-turn-state', state })
+      if (event.state === 'started') this.markTurnActive()
+      this.eventQueue.push({ type: 'autonomous-turn-state', ...event })
     },
     onPlanMode: (active) => this.handlePlanModeFold(active)
   })

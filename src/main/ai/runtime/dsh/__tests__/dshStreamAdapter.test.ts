@@ -41,7 +41,9 @@ function makeAdapter() {
   const onTurnEnd = vi.fn(() => order.push('turn-end'))
   const onCompaction = vi.fn()
   const onApiRetry = vi.fn()
-  const onAutonomousTurnState = vi.fn((state: 'started' | 'finished') => order.push(`autonomous:${state}`))
+  const onAutonomousTurnState = vi.fn((event: { state: 'started' | 'finished' }) =>
+    order.push(`autonomous:${event.state}`)
+  )
   const onPlanMode = vi.fn()
   const adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
@@ -117,7 +119,7 @@ describe('DshStreamAdapter', () => {
 
     // `started` precedes the first chunk; `finished` precedes the terminal onTurnEnd.
     expect(order).toEqual(['autonomous:started', 'text-start', 'text-delta', 'autonomous:finished', 'turn-end'])
-    expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual(['started', 'finished'])
+    expect(onAutonomousTurnState.mock.calls.map((call) => call[0].state)).toEqual(['started', 'finished'])
     expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
   })
 
@@ -130,6 +132,116 @@ describe('DshStreamAdapter', () => {
     expect(chunks).toHaveLength(0)
     expect(onTurnEnd).not.toHaveBeenCalled()
     expect(onAutonomousTurnState).not.toHaveBeenCalled()
+  })
+
+  describe('turn provenance from the entering user/message batch', () => {
+    /** dsh appends the entering batch inside step 1, before the model call. */
+    const entering = (turn: number, step: number, ...sources: unknown[]) => [
+      envelope('step/start', { turn, step }),
+      ...sources.map((source, index) =>
+        rawEvent('user/message', { id: `um-${turn}-${index}`, role: 'user', content: [], source })
+      )
+    ]
+    const hostPrompt = { kind: 'user' }
+    const goalRound = (round: number) => ({ kind: 'goal', goalId: 'g-1', revision: 1, round })
+    const injectedContext = { kind: 'plugin', plugin: 'agent-instructions' }
+    const text = (turn: number, step: number, value: string) => [
+      chunkEnvelope(turn, step, { type: 'block-start', index: 0, blockType: 'text' }),
+      chunkEnvelope(turn, step, { type: 'text-delta', index: 0, text: value })
+    ]
+    const deltas = (chunks: CherryUIMessageChunk[]) =>
+      chunks.filter((chunk) => chunk.type === 'text-delta').map((chunk) => (chunk as { delta: string }).delta)
+
+    const hostTurn = (adapter: DshStreamAdapter, turn: number, value: string) => {
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn }))
+      for (const event of [...entering(turn, 1, hostPrompt), ...text(turn, 1, value)]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn, reason: { kind: 'completed' } }))
+    }
+
+    it('opens a goal round after the host turn as an autonomous turn tagged with its round', () => {
+      // #18755: the round followed no prompt, so the transcript must say why it exists — and must
+      // still carry its content, since the round really ran.
+      const { adapter, chunks, order, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+      order.length = 0
+
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of [...entering(2, 1, goalRound(1)), ...text(2, 1, 'goal work')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState).toHaveBeenCalledWith({ state: 'started', origin: { kind: 'goal-round', round: 1 } })
+      expect(order).toEqual(['autonomous:started', 'text-start', 'text-delta', 'autonomous:finished', 'turn-end'])
+      expect(deltas(chunks)).toEqual(['answer', 'goal work'])
+      expect(onTurnEnd).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps a goal round that races a fresh host prompt out of that prompt’s turn', () => {
+      // The host opens its stream at beginTurn(), but dsh may run a queued goal round first. That
+      // round must open its own receive-only turn; the prompt's content lands in the prompt's turn.
+      const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+      onTurnEnd.mockClear()
+
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of [...entering(2, 1, goalRound(1)), ...text(2, 1, 'goal work')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+      adapter.handleEvent(envelope('turn/start', { turn: 3 }))
+      for (const event of [...entering(3, 1, hostPrompt), ...text(3, 1, 'reply')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 3, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual([
+        { state: 'started', origin: { kind: 'goal-round', round: 1 } },
+        { state: 'finished' }
+      ])
+      expect(deltas(chunks)).toEqual(['answer', 'goal work', 'reply'])
+      expect(onTurnEnd).toHaveBeenCalledTimes(2)
+    })
+
+    it('tags autonomous turns that are not goal rounds as background work', () => {
+      const { adapter, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of [...entering(2, 1, injectedContext), ...text(2, 1, 'notice')]) adapter.handleEvent(event)
+
+      expect(onAutonomousTurnState).toHaveBeenCalledWith({ state: 'started', origin: { kind: 'background-work' } })
+    })
+
+    it('classifies a host turn whose batch also carries injected context', () => {
+      // claim() returns [injected context…, the claimed prompt]: the prompt is not the first entry.
+      const { adapter, chunks, onTurnEnd, onAutonomousTurnState } = makeAdapter()
+      adapter.beginTurn()
+      adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+      for (const event of [...entering(1, 1, injectedContext, hostPrompt), ...text(1, 1, 'answer')]) {
+        adapter.handleEvent(event)
+      }
+      adapter.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState).not.toHaveBeenCalled()
+      expect(deltas(chunks)).toEqual(['answer'])
+      expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+    })
+
+    it('does not let mid-turn input reclassify an open goal round as the host turn', () => {
+      // Only the entering batch classifies. A later step's `user` input flipping the round to a host
+      // turn would skip `finished` and leave the host's queued prompt unowned.
+      const { adapter, onAutonomousTurnState } = makeAdapter()
+      hostTurn(adapter, 1, 'answer')
+      adapter.beginTurn()
+
+      adapter.handleEvent(envelope('turn/start', { turn: 2 }))
+      for (const event of [...entering(2, 1, goalRound(1)), ...text(2, 1, 'goal work')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('step/end', { turn: 2, step: 1 }))
+      for (const event of [...entering(2, 2, hostPrompt), ...text(2, 2, 'more')]) adapter.handleEvent(event)
+      adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+
+      expect(onAutonomousTurnState.mock.calls.map((call) => call[0])).toEqual([
+        { state: 'started', origin: { kind: 'goal-round', round: 1 } },
+        { state: 'finished' }
+      ])
+    })
   })
 
   it('maps reasoning blocks to reasoning chunks', () => {

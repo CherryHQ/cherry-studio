@@ -2588,7 +2588,11 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
       const receiveOnlyTurn = entry.currentTurn
@@ -2635,6 +2639,35 @@ describe('AgentSessionRuntimeService', () => {
       void service.closeSession('session-1')
     })
 
+    it('publishes the runtime’s origin for the receive-only assistant message', async () => {
+      // The turn has no user message; the origin is the transcript's only explanation for it.
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      entry.connection = {
+        send: vi.fn(),
+        close: vi.fn(),
+        events: [],
+        reconcile: vi.fn().mockResolvedValue('current'),
+        refreshTraceContext: vi.fn()
+      }
+      service.markTurnTerminal('session-1', 'success')
+      mocks.cacheSetShared.mockClear()
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'goal-round', round: 2 }
+      })
+      await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalled())
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+        `agent.session.turn_origin.session-1.${entry.currentTurn.assistantMessageId}`,
+        { kind: 'goal-round', round: 2 }
+      )
+      void service.closeSession('session-1')
+    })
+
     it('keeps a receive-only wake interactive when the background work started from an interactive turn', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1', ['kb-1']) })
@@ -2652,7 +2685,11 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
       // Chunks stream while the wake turn's stream is not open yet — buffered, not dropped.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'chunk',
@@ -2696,7 +2733,11 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
       service.markTurnTerminal('session-1', 'success')
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
       expect(entry.currentTurn).toMatchObject({ headless: true })
@@ -2719,7 +2760,11 @@ describe('AgentSessionRuntimeService', () => {
       mocks.suspendUnadmittedRuntimeTurn.mockReturnValueOnce(suspended.promise)
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'chunk',
         chunk: { type: 'text-delta', id: 'wake-early', delta: 'finished before projection' }
@@ -2775,7 +2820,11 @@ describe('AgentSessionRuntimeService', () => {
       })
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
 
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
       expect(entry.runtimeState.execution).toMatchObject({
@@ -2809,7 +2858,11 @@ describe('AgentSessionRuntimeService', () => {
       entry.connection = connection
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' }, connection)
+      ;(service as any).handleRuntimeEvent(
+        entry,
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        connection
+      )
       await vi.waitFor(() =>
         expect(entry.runtimeState.execution).toMatchObject({ kind: 'autonomous-turn', turn: expect.anything() })
       )
@@ -2836,7 +2889,11 @@ describe('AgentSessionRuntimeService', () => {
       }
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
 
       const receiveOnlyTurn = entry.currentTurn
@@ -2886,7 +2943,11 @@ describe('AgentSessionRuntimeService', () => {
       entry.connection = connection
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' }, connection)
+      ;(service as any).handleRuntimeEvent(
+        entry,
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        connection
+      )
       ;(service as any).handleRuntimeEvent(
         entry,
         { type: 'chunk', chunk: { type: 'text-delta', id: 'wake-1', delta: 'background finished' } },
@@ -2957,7 +3018,11 @@ describe('AgentSessionRuntimeService', () => {
       markEntryTurnAdmitted(entry)
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
 
       expect(entry.runtimeState.execution.kind).toBe('turn')
       expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
@@ -2987,7 +3052,11 @@ describe('AgentSessionRuntimeService', () => {
       await expect(originalReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.reconcile).toHaveBeenCalledTimes(1))
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' }, connection)
+      ;(service as any).handleRuntimeEvent(
+        entry,
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
+        connection
+      )
       ;(service as any).handleRuntimeEvent(
         entry,
         { type: 'chunk', chunk: { type: 'text-delta', id: 'wake-1', delta: 'background finished' } },
@@ -3055,7 +3124,11 @@ describe('AgentSessionRuntimeService', () => {
       }
       mocks.startRuntimeTurn.mockClear()
 
-      ;(service as any).handleRuntimeEvent(entry, { type: 'autonomous-turn-state', state: 'started' })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
       await vi.waitFor(() => expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1))
       const receiveOnlyTurn = entry.currentTurn
 

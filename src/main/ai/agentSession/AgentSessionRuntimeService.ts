@@ -40,6 +40,7 @@ import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -1779,6 +1780,7 @@ export class AgentSessionRuntimeService extends BaseService {
         this.applyRuntimeStateEvent(entry, {
           type: 'autonomous-turn-state',
           state: 'started',
+          origin: event.origin,
           deferCurrentTurn: turnLive,
           contextTurn: turn
         })
@@ -2787,6 +2789,7 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
+    const { origin } = entry.runtimeState.execution
     const { modelId, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = this.connectionTarget(entry)
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
@@ -2814,6 +2817,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const assistantMessageId = assistantMessage.id
+    // No user message explains this turn; the badge reads the origin off the live session cache.
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, assistantMessageId), origin)
     const turnId = crypto.randomUUID()
     const receiveOnlyTurn: AgentSessionTurn = {
       turnId,

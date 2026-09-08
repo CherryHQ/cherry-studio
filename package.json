@@ -201,6 +201,7 @@
     "@codemirror/view": "6.39.16",
     "@dagrejs/dagre": "^3.0.0",
     "@deepseek-ai/dsh-compaction-basic": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-goal": "0.1.0-rc.7",
     "@deepseek-ai/dsh-llm": "0.1.0-rc.7",
     "@deepseek-ai/dsh-llm-retry": "0.1.0-rc.7",
     "@deepseek-ai/dsh-plan-mode": "0.1.0-rc.7",

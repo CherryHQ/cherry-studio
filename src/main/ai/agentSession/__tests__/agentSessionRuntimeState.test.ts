@@ -210,7 +210,8 @@ describe('agentSessionRuntimeState', () => {
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
-      state: 'started'
+      state: 'started',
+      origin: { kind: 'background-work' }
     }).state
     state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
     state = transitionAgentSessionRuntime(state, {
@@ -248,6 +249,7 @@ describe('agentSessionRuntimeState', () => {
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
       state: 'started',
+      origin: { kind: 'background-work' },
       deferCurrentTurn: true
     }).state
     state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
@@ -281,6 +283,7 @@ describe('agentSessionRuntimeState', () => {
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
       state: 'started',
+      origin: { kind: 'background-work' },
       deferCurrentTurn: true
     }).state
     state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
@@ -331,11 +334,13 @@ describe('agentSessionRuntimeState', () => {
     }).state
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
-      state: 'started'
+      state: 'started',
+      origin: { kind: 'background-work' }
     }).state
     const duplicateAutonomous = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
-      state: 'started'
+      state: 'started',
+      origin: { kind: 'background-work' }
     })
     state = transitionAgentSessionRuntime(state, {
       type: 'connection-occupancy',
@@ -458,12 +463,24 @@ describe('agentSessionRuntimeState', () => {
     expect(result.effects[0]).toMatchObject({ type: 'log-invalid-transition' })
   })
 
+  it('carries the runtime’s origin into the autonomous execution state', () => {
+    // startReceiveOnlyTurn reads it off the execution; dropping it here would persist no origin.
+    const state = transitionAgentSessionRuntime(createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(), {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'goal-round', round: 3 }
+    }).state
+
+    expect(state.execution).toMatchObject({ kind: 'autonomous-turn', origin: { kind: 'goal-round', round: 3 } })
+  })
+
   it('derives current turn and autonomous ownership from the execution union', () => {
     const receiveOnly = turn('wake')
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
-      state: 'started'
+      state: 'started',
+      origin: { kind: 'background-work' }
     }).state
     state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
 
@@ -476,7 +493,8 @@ describe('agentSessionRuntimeState', () => {
     let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>()
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
-      state: 'started'
+      state: 'started',
+      origin: { kind: 'background-work' }
     }).state
     state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
     state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: receiveOnly }).state
@@ -504,6 +522,7 @@ describe('agentSessionRuntimeState', () => {
     state = transitionAgentSessionRuntime(state, {
       type: 'autonomous-turn-state',
       state: 'started',
+      origin: { kind: 'background-work' },
       deferCurrentTurn: true
     }).state
     state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
