@@ -28,7 +28,7 @@ import {
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { ListOptions } from '@shared/data/api/types'
+import type { DataApiDataChangeEffect, ListOptions } from '@shared/data/api/types'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 
@@ -131,22 +131,27 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
   return 'active'
 }
 
+function taskReadModelEffects(entityIds: string[]): DataApiDataChangeEffect[] {
+  return [
+    { endpoint: '/agent-tasks', kind: 'projection', entityIds },
+    { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
+    { endpoint: '/agent-tasks/:taskId', entityIds },
+    { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
+  ]
+}
+
 export class AgentTaskService {
   /** Publish every DataApi projection backed by the composed task read model. */
   notifyReadModelChange(taskIds: readonly string[]): void {
     const entityIds = [...new Set(taskIds)]
     if (entityIds.length === 0) return
-    notifyDataApiDataChange([
-      { endpoint: '/agent-tasks', kind: 'projection', entityIds },
-      { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds },
-      { endpoint: '/agent-tasks/:taskId', entityIds },
-      { endpoint: '/agents/:agentId/tasks/:taskId', entityIds }
-    ])
+    notifyDataApiDataChange(taskReadModelEffects(entityIds))
   }
 
-  /** Publish one run-log row change: `membership` when the row first becomes visible, `projection` when it settles. */
-  notifyRunLogChange(taskId: string, jobId: string, kind: 'membership' | 'projection'): void {
+  /** Publish task and run-log projections together: membership on enqueue, projection on state changes. */
+  notifyRunChange(taskId: string, jobId: string, kind: 'membership' | 'projection'): void {
     notifyDataApiDataChange([
+      ...taskReadModelEffects([taskId]),
       { endpoint: '/agents/:agentId/tasks/:taskId/logs', kind, routeParams: { taskId }, entityIds: [jobId] }
     ])
   }

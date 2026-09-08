@@ -16,8 +16,7 @@ vi.mock('@data/services/JobService', () => ({
 
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
-    notifyReadModelChange: vi.fn(),
-    notifyRunLogChange: vi.fn()
+    notifyRunChange: vi.fn()
   }
 }))
 
@@ -95,8 +94,7 @@ describe('AgentTaskJobHandler', () => {
     pauseSpy.mockResolvedValue(true)
     vi.mocked(jobService.listRecentTerminalByScheduleId).mockReset()
     vi.mocked(jobService.getById).mockReset()
-    vi.mocked(agentTaskService.notifyReadModelChange).mockReset()
-    vi.mocked(agentTaskService.notifyRunLogChange).mockReset()
+    vi.mocked(agentTaskService.notifyRunChange).mockReset()
     vi.mocked(runAgentTask).mockReset()
   })
 
@@ -126,6 +124,20 @@ describe('AgentTaskJobHandler', () => {
     })
   })
 
+  describe('onEnqueued', () => {
+    it('announces log membership while a scheduled job is still pending', () => {
+      agentTaskJobHandler.onEnqueued?.({ ...makeTerminal('completed', 'j1'), status: 'pending', startedAt: null })
+
+      expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'j1', 'membership']])
+    })
+
+    it('does not announce task logs for an ad-hoc job', () => {
+      agentTaskJobHandler.onEnqueued?.({ ...makeTerminal('completed', 'j1'), status: 'pending', scheduleId: null })
+
+      expect(agentTaskService.notifyRunChange).not.toHaveBeenCalled()
+    })
+  })
+
   describe('execute', () => {
     it('delegates to runAgentTask with the JobContext', async () => {
       vi.mocked(runAgentTask).mockResolvedValueOnce({ result: 'ok' })
@@ -143,14 +155,13 @@ describe('AgentTaskJobHandler', () => {
     it('publishes the run-state change before running so open task lists leave the previous state', async () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed', 'j1'))
       vi.mocked(runAgentTask).mockImplementationOnce(async () => {
-        expect(agentTaskService.notifyReadModelChange).toHaveBeenCalledWith(['s1'])
-        expect(agentTaskService.notifyRunLogChange).toHaveBeenCalledWith('s1', 'j1', 'membership')
+        expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'j1', 'projection']])
         return { result: 'ok' }
       })
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
 
-      expect.assertions(2)
+      expect.assertions(1)
     })
 
     it('does not publish for an ad-hoc job with no schedule', async () => {
@@ -158,8 +169,7 @@ describe('AgentTaskJobHandler', () => {
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)
 
-      expect(agentTaskService.notifyReadModelChange).not.toHaveBeenCalled()
-      expect(agentTaskService.notifyRunLogChange).not.toHaveBeenCalled()
+      expect(agentTaskService.notifyRunChange).not.toHaveBeenCalled()
     })
   })
 
@@ -208,15 +218,11 @@ describe('AgentTaskJobHandler', () => {
       expect(pauseSpy).not.toHaveBeenCalled()
     })
 
-    it('publishes the run-state change on every terminal status, not just failures', async () => {
-      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'completed' }))
-      await agentTaskJobHandler.onSettled?.(makeSettled({ status: 'cancelled' }))
+    it.each(['completed', 'failed', 'cancelled'] as const)('publishes one run-state change on %s', async (status) => {
+      vi.mocked(jobService.listRecentTerminalByScheduleId).mockReturnValueOnce([])
+      await agentTaskJobHandler.onSettled?.(makeSettled({ status }))
 
-      expect(vi.mocked(agentTaskService.notifyReadModelChange).mock.calls).toEqual([[['s1']], [['s1']]])
-      expect(vi.mocked(agentTaskService.notifyRunLogChange).mock.calls).toEqual([
-        ['s1', 'job-1', 'projection'],
-        ['s1', 'job-1', 'projection']
-      ])
+      expect(vi.mocked(agentTaskService.notifyRunChange).mock.calls).toEqual([['s1', 'job-1', 'projection']])
     })
 
     it('does not act when the failed job has no scheduleId (ad-hoc enqueue)', async () => {
@@ -224,7 +230,7 @@ describe('AgentTaskJobHandler', () => {
 
       expect(jobService.listRecentTerminalByScheduleId).not.toHaveBeenCalled()
       expect(pauseSpy).not.toHaveBeenCalled()
-      expect(agentTaskService.notifyRunLogChange).not.toHaveBeenCalled()
+      expect(agentTaskService.notifyRunChange).not.toHaveBeenCalled()
     })
 
     it('swallows pauseJobScheduleById errors so onSettled cannot throw', async () => {

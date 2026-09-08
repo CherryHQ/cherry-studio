@@ -133,18 +133,27 @@ describe('AgentTaskService (read side)', () => {
     ])
   })
 
-  it('publishes a run-log change scoped to its task and carrying the job id', () => {
-    agentTaskService.notifyRunLogChange(TASK_ID, 'job-1', 'projection')
+  it.each(['membership', 'projection'] as const)(
+    'publishes task and run-log effects in one %s notification',
+    (kind) => {
+      agentTaskService.notifyRunChange(TASK_ID, 'job-1', kind)
 
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-      {
-        endpoint: '/agents/:agentId/tasks/:taskId/logs',
-        kind: 'projection',
-        routeParams: { taskId: TASK_ID },
-        entityIds: ['job-1']
-      }
-    ])
-  })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [TASK_ID] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [TASK_ID] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [TASK_ID] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [TASK_ID] },
+        {
+          endpoint: '/agents/:agentId/tasks/:taskId/logs',
+          kind,
+          routeParams: { taskId: TASK_ID },
+          entityIds: ['job-1']
+        }
+      ])
+    }
+  )
 
   describe('getTask', () => {
     it('returns a task by id without requiring the owning agent id', () => {
