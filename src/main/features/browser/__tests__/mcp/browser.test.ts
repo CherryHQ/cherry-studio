@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BrowserSessionService } from '../../BrowserSessionService'
 import { CdpBrowserController } from '../../mcp/controller'
+import { handleConsoleMessages, handleNetworkRequests } from '../../mcp/tools/inspect'
 import { handleWaitFor } from '../../mcp/tools/navigate'
 import { handleHistory } from '../../mcp/tools/navigate'
 import { handleReset } from '../../mcp/tools/reset'
@@ -137,6 +138,34 @@ const controller = () => {
 }
 
 describe('MCP browser on shared sessions', () => {
+  it.each(['console', 'network'])('starts inspection when %s is the first tool on a fresh page', async (kind) => {
+    const c = controller()
+    const { tabId, session } = await c.getSession()
+    const command = vi.mocked(session.guest.debugger.sendCommand)
+    const fallback = command.getMockImplementation()!
+    command.mockImplementation(async (method, params) => {
+      if (method === 'Runtime.enable')
+        session.guest.debugger.emit('message', {}, 'Runtime.consoleAPICalled', {
+          type: 'log',
+          args: [{ type: 'string', value: 'Fresh page output' }],
+          timestamp: 1,
+          executionContextId: 1
+        })
+      if (method === 'Network.enable')
+        session.guest.debugger.emit('message', {}, 'Network.requestWillBeSent', {
+          requestId: 'fresh',
+          type: 'Fetch',
+          request: { method: 'GET', url: 'https://example.com/data' }
+        })
+      return fallback(method, params)
+    })
+    const result = await (kind === 'console' ? handleConsoleMessages : handleNetworkRequests)(c, { tabId })
+    const data = JSON.parse((result.content as Array<{ text: string }>)[0].text)
+    expect(data, JSON.stringify(data)).toMatchObject({ ok: true })
+    if (kind === 'console') expect(data.messages).toContainEqual(expect.objectContaining({ text: 'Fresh page output' }))
+    else expect(data.requests).toContainEqual(expect.objectContaining({ url: 'https://example.com/data' }))
+  })
+
   it.each([undefined, false])('cancels an opening window before completing reset (%s)', async (mode) => {
     const c = controller()
     const started = new Signal<void>()
