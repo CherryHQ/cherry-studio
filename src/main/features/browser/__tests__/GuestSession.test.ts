@@ -163,6 +163,39 @@ describe('GuestSession annotation context lifetime', () => {
     element: { selector: '#submit', tagName: 'button', text: 'Submit', ariaLabel: null, role: 'button' }
   }
 
+  it('ignores destruction of an unrelated context while creating the annotation world', async () => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    const world = Promise.withResolvers<object>()
+    const started = Promise.withResolvers<void>()
+    mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Page.createIsolatedWorld') {
+        started.resolve()
+        return world.promise
+      }
+      if (method === 'Runtime.evaluate') return { result: { objectId: 'submit' } }
+      if (method === 'DOM.describeNode') return { node: { backendNodeId: 1 } }
+      if (method === 'Accessibility.getAXNodeAndAncestors')
+        return {
+          nodes: [
+            {
+              nodeId: 'submit',
+              backendDOMNodeId: 1,
+              ignored: false,
+              role: { value: 'button' },
+              name: { value: 'Submit' }
+            }
+          ]
+        }
+      return fallback(method, params)
+    })
+    const capture = session.describeElement(annotation, { remaining: 100 })
+    await started.promise
+    mock.debugger.emit('message', {}, 'Runtime.executionContextDestroyed', { executionContextId: 999 })
+    world.resolve({ executionContextId: 73 })
+    await expect(capture).resolves.toMatchObject({ status: 'available', tree: { name: 'Submit' } })
+  })
+
   it.each([
     ['Runtime.executionContextsCleared', 'creation'],
     ['Runtime.executionContextDestroyed', 'creation'],

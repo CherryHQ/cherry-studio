@@ -200,7 +200,8 @@ describe('browser snapshots', () => {
       navigationType: 'fragment'
     })
     const next = await session.snapshot({ full: true })
-    expect(next.snapshot.documentId).toBe(previous.snapshot.documentId)
+    expect(previous.snapshot.documentId).toBe('document-1')
+    expect(next.snapshot.documentId).toBe('document-1')
     expect(session.resolveRef('e1')).toBe(2)
   })
 

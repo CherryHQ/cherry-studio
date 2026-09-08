@@ -109,10 +109,8 @@ export class GuestSession {
       this.clearDialog()
     } else if (
       method === 'Runtime.executionContextsCleared' ||
-      (method === 'Runtime.executionContextDestroyed' &&
-        (this.annotationContextId === undefined || params.executionContextId === this.annotationContextId))
+      (method === 'Runtime.executionContextDestroyed' && params.executionContextId === this.annotationContextId)
     ) {
-      // During isolated-world creation, its context ID is not yet known.
       this.invalidateAnnotationContext()
     } else if (method === 'Page.javascriptDialogOpening') {
       this.pendingDialog = { type: params.type, message: params.message }
@@ -306,18 +304,37 @@ export class GuestSession {
       const epoch = this.epoch
       const contextEpoch = this.annotationContextEpoch
       if (this.annotationContextId === undefined) {
-        const world = await this.send<{ executionContextId: number }>(
-          'Page.createIsolatedWorld',
-          {
-            frameId: this.mainFrameId,
-            worldName: 'cherry-webview-annotation-accessibility',
-            grantUniveralAccess: false
-          },
-          options
-        )
-        if (epoch !== this.epoch || contextEpoch !== this.annotationContextEpoch)
-          throw new BrowserSessionError('stale_ref')
-        this.annotationContextId = world.executionContextId
+        const destroyedContexts = new Set<number>()
+        const onContextDestroyed = (
+          _event: Electron.Event,
+          method: string,
+          params: { executionContextId: number },
+          sessionId?: string
+        ) => {
+          if (!sessionId && method === 'Runtime.executionContextDestroyed')
+            destroyedContexts.add(params.executionContextId)
+        }
+        this.guest.debugger.on('message', onContextDestroyed)
+        try {
+          const world = await this.send<{ executionContextId: number }>(
+            'Page.createIsolatedWorld',
+            {
+              frameId: this.mainFrameId,
+              worldName: 'cherry-webview-annotation-accessibility',
+              grantUniveralAccess: false
+            },
+            options
+          )
+          if (
+            epoch !== this.epoch ||
+            contextEpoch !== this.annotationContextEpoch ||
+            destroyedContexts.has(world.executionContextId)
+          )
+            throw new BrowserSessionError('stale_ref')
+          this.annotationContextId = world.executionContextId
+        } finally {
+          this.guest.debugger.removeListener('message', onContextDestroyed)
+        }
       }
       const result = await describeElement(
         this,
