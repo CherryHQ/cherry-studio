@@ -26,8 +26,10 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
-  captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataUrl: vi.fn(),
+  exportService: {
+    captureScrollableAsBlob: vi.fn(),
+    captureScrollableAsDataUrl: vi.fn()
+  },
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))

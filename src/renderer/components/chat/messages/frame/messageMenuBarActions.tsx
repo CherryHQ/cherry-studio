@@ -229,8 +229,8 @@ registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }
 })
 
 registerCommand('message.copyImage', async ({ actions, messageContainerRef }) => {
-  const { captureScrollableAsBlob } = await import('@renderer/services/ExportService')
-  await captureScrollableAsBlob(messageContainerRef, async (blob) => {
+  const { exportService } = await import('@renderer/services/ExportService')
+  await exportService.captureScrollableAsBlob(messageContainerRef, async (blob) => {
     if (blob) {
       await actions.copyImage?.(blob)
     }
@@ -238,8 +238,8 @@ registerCommand('message.copyImage', async ({ actions, messageContainerRef }) =>
 })
 
 registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
-  const { captureScrollableAsDataUrl, getMessageTitle } = await import('@renderer/services/ExportService')
-  const imageData = await captureScrollableAsDataUrl(messageContainerRef)
+  const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
+  const imageData = await exportService.captureScrollableAsDataUrl(messageContainerRef)
   const title = await getMessageTitle(messageForExport)
   if (!title || !imageData || !actions.saveImage) {
     actions.notifyError?.(t('message.error.unknown'))

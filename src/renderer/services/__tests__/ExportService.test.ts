@@ -164,10 +164,10 @@ import { markdownToPlainText } from '@renderer/utils/markdown'
 import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 
 import {
-  captureScrollableAsDataUrl,
   exportMarkdownToObsidian,
   exportMessagesToNotion,
   exportMessageToNotion,
+  ExportService,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -1332,6 +1332,8 @@ describe('Notion export alert callout wiring', () => {
 })
 
 describe('ExportService image capture serialization', () => {
+  let captureService: ExportService
+
   const rect = (left: number, top: number, width: number, height: number) =>
     ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect
 
@@ -1368,6 +1370,7 @@ describe('ExportService image capture serialization', () => {
   const originalDocumentElementRect = document.documentElement.getBoundingClientRect.bind(document.documentElement)
 
   beforeEach(() => {
+    captureService = new ExportService()
     vi.mocked(htmlToImage.toCanvas).mockReset()
     vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
       Promise.resolve({
@@ -1429,10 +1432,10 @@ describe('ExportService image capture serialization', () => {
     })
 
     try {
-      const firstCapture = captureScrollableAsDataUrl({ current: rootA })
+      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
       await firstNativeEntered.promise
 
-      const secondCapture = captureScrollableAsDataUrl({ current: rootB })
+      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
       await flushMicrotasks()
 
       expect(nativeCalls).toBe(1)
@@ -1484,10 +1487,10 @@ describe('ExportService image capture serialization', () => {
     })
 
     try {
-      const firstCapture = captureScrollableAsDataUrl({ current: root })
+      const firstCapture = captureService.captureScrollableAsDataUrl({ current: root })
       await firstNativeEntered.promise
 
-      const secondCapture = captureScrollableAsDataUrl({ current: root })
+      const secondCapture = captureService.captureScrollableAsDataUrl({ current: root })
       await flushMicrotasks()
 
       expect(nativeCalls).toBe(1)
@@ -1547,10 +1550,10 @@ describe('ExportService image capture serialization', () => {
     })
 
     try {
-      const firstCapture = captureScrollableAsDataUrl({ current: rootA })
+      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
       await fallbackStarted.promise
 
-      const secondCapture = captureScrollableAsDataUrl({ current: rootB })
+      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
       await flushMicrotasks()
 
       expect(nativeCalls).toBe(1)
@@ -1596,9 +1599,9 @@ describe('ExportService image capture serialization', () => {
     })
 
     try {
-      const firstCapture = captureScrollableAsDataUrl({ current: rootA })
+      const firstCapture = captureService.captureScrollableAsDataUrl({ current: rootA })
       await firstNativeEntered.promise
-      const secondCapture = captureScrollableAsDataUrl({ current: rootB })
+      const secondCapture = captureService.captureScrollableAsDataUrl({ current: rootB })
       await flushMicrotasks()
 
       expect(nativeCalls).toBe(1)

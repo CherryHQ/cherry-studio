@@ -1,4 +1,4 @@
-import { captureScrollableAsDataUrl } from '@renderer/services/ExportService'
+import { exportService } from '@renderer/services/ExportService'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
@@ -95,7 +95,9 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
-  captureScrollableAsDataUrl: vi.fn()
+  exportService: {
+    captureScrollableAsDataUrl: vi.fn()
+  }
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -350,7 +352,7 @@ describe('MessageList', () => {
     scrollToKey.mockReset()
     scrollToElement.mockClear()
     scrollToRange.mockClear()
-    vi.mocked(captureScrollableAsDataUrl).mockReset()
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
     messageVirtualListMocks.navigationBaseKey = null
     messageVirtualListMocks.renderItemLimit = undefined
@@ -803,7 +805,7 @@ describe('MessageList', () => {
 
   it('exports topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
@@ -851,7 +853,7 @@ describe('MessageList', () => {
 
   it('copies topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const copyImage = vi.fn().mockResolvedValue(undefined)
     const imageBlob = new Blob(['topic'], { type: 'image/png' })
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ blob: async () => imageBlob } as Response)
@@ -902,7 +904,7 @@ describe('MessageList', () => {
 
   it('exports a pending topic image after the loading list scroll container is ready', async () => {
     messageVirtualListMocks.renderItemLimit = 0
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -965,7 +967,7 @@ describe('MessageList', () => {
   })
 
   it('rejects a pending topic image export when the loading list unmounts before it is ready', async () => {
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     captureScrollableAsDataUrlMock.mockClear()
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
@@ -1012,7 +1014,7 @@ describe('MessageList', () => {
   it('exports a pending topic image when the scroll container becomes ready after runtime binding', async () => {
     messageVirtualListMocks.deferScrollContainerReady = true
     messageVirtualListMocks.scrollElement = null
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -1060,7 +1062,7 @@ describe('MessageList', () => {
   })
 
   it('rejects topic image export when capture does not produce image data', async () => {
-    vi.mocked(captureScrollableAsDataUrl).mockResolvedValue(undefined)
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockResolvedValue(undefined)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {

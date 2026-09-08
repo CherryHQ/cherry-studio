@@ -503,10 +503,10 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
-      const { captureScrollableAsDataUrl } = await import('@renderer/services/ExportService')
+      const { exportService } = await import('@renderer/services/ExportService')
 
       if (action === 'copy') {
-        const imageData = await captureScrollableAsDataUrl(captureRef)
+        const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
         const blob = imageData ? await fetch(imageData).then((response) => response.blob()) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
@@ -519,7 +519,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await captureScrollableAsDataUrl(captureRef)
+      const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }

@@ -99,27 +99,33 @@ const setExportingState = (isExporting: boolean) => {
   exportState = isExporting
 }
 
-// Image captures temporarily mutate renderer DOM and share the native capture
-// lifecycle, so their coordination belongs with the export runtime owner.
-let imageCaptureQueue = Promise.resolve()
-
-function enqueueImageCapture<T>(capture: () => Promise<T>): Promise<T> {
-  const queuedCapture = imageCaptureQueue.then(capture)
-  imageCaptureQueue = queuedCapture.then(
-    () => undefined,
-    () => undefined
-  )
-  return queuedCapture
-}
-
 type ScrollableCaptureRef = Parameters<typeof captureScrollableAsDataUrlUtil>[0]
 type ScrollableBlobCallback = Parameters<typeof captureScrollableAsBlobUtil>[1]
 
-export const captureScrollableAsDataUrl = (elRef: ScrollableCaptureRef) =>
-  enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef))
+// Image captures temporarily mutate renderer DOM and share the native capture
+// lifecycle, so their coordination belongs with the export runtime owner.
+export class ExportService {
+  private imageCaptureQueue = Promise.resolve()
 
-export const captureScrollableAsBlob = (elRef: ScrollableCaptureRef, func: ScrollableBlobCallback) =>
-  enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func))
+  private enqueueImageCapture<T>(capture: () => Promise<T>): Promise<T> {
+    const queuedCapture = this.imageCaptureQueue.then(capture)
+    this.imageCaptureQueue = queuedCapture.then(
+      () => undefined,
+      () => undefined
+    )
+    return queuedCapture
+  }
+
+  public captureScrollableAsDataUrl(elRef: ScrollableCaptureRef) {
+    return this.enqueueImageCapture(() => captureScrollableAsDataUrlUtil(elRef))
+  }
+
+  public captureScrollableAsBlob(elRef: ScrollableCaptureRef, func: ScrollableBlobCallback) {
+    return this.enqueueImageCapture(() => captureScrollableAsBlobUtil(elRef, func))
+  }
+}
+
+export const exportService = new ExportService()
 
 /**
  * 安全地处理思维链内容，保留安全的 HTML 标签如 <br>，移除危险内容
@@ -1564,7 +1570,7 @@ const exportNoteAsImageToClipboard = async (): Promise<void> => {
   const scrollableRef = getScrollableRef()
   if (!scrollableRef) return
 
-  await captureScrollableAsBlob(scrollableRef, async (blob) => {
+  await exportService.captureScrollableAsBlob(scrollableRef, async (blob) => {
     if (blob) {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       toast.success(i18n.t('common.copied'))
@@ -1576,7 +1582,7 @@ const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
   const scrollableRef = getScrollableRef()
   if (!scrollableRef) return
 
-  const dataUrl = await captureScrollableAsDataUrl(scrollableRef)
+  const dataUrl = await exportService.captureScrollableAsDataUrl(scrollableRef)
   if (dataUrl) {
     const fileName = removeSpecialCharactersForFileName(noteName)
     await window.api.file.saveImage(fileName, dataUrl)
