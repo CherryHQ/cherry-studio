@@ -1,4 +1,5 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { preferenceService } from '@data/PreferenceService'
@@ -10,7 +11,6 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { IMAGE_CAPTURE_ATTRIBUTE } from '@renderer/utils/image'
 import type * as MessageFind from '@renderer/utils/message/find'
-import * as htmlToImage from 'html-to-image'
 
 // --- Mocks Setup ---
 

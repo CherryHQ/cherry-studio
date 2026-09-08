@@ -975,12 +975,59 @@ describe('messageMenuBarActions', () => {
         ...defaultMessageMenuConfig,
         exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
       }
-    } as any)
+    })
 
     await expect(executeMessageMenuBarAction('export.copy-image', context)).resolves.toBe(true)
 
     expect(acquireLease).toHaveBeenCalledWith(context.message.id)
     expect(copyImage).toHaveBeenCalledWith(imageBlob)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a queued copy-as-image failure when a topic switch removes its source', async () => {
+    const currentElement = document.createElement('div')
+    let renderedElement: HTMLElement | null = currentElement
+    const copyImage = vi.fn()
+    const notifyError = vi.fn()
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const getRenderedMessageElement = vi.fn(() => renderedElement)
+    let captureQueued!: () => void
+    let startQueuedCapture!: () => void
+    const captureQueuedPromise = new Promise<void>((resolve) => {
+      captureQueued = resolve
+    })
+    const startQueuedCapturePromise = new Promise<void>((resolve) => {
+      startQueuedCapture = resolve
+    })
+    const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
+    captureScrollableAsBlobMock.mockImplementation(async (ref) => {
+      captureQueued()
+      await startQueuedCapturePromise
+      void ref.current
+    })
+
+    const context = createActionContext({
+      actions: { copyImage, notifyError } as MessageListActions,
+      acquireMessageCaptureLease: acquireLease,
+      getRenderedMessageElement,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    })
+
+    const actionPromise = executeMessageMenuBarAction('export.copy-image', context)
+    await captureQueuedPromise
+
+    renderedElement = null
+    startQueuedCapture()
+
+    await expect(actionPromise).resolves.toBe(false)
+
+    expect(getRenderedMessageElement).toHaveBeenCalledWith(context.message.id)
+    expect(copyImage).not.toHaveBeenCalled()
+    expect(notifyError).toHaveBeenCalledWith(expect.stringContaining('Message is no longer available'))
     expect(releaseLease).toHaveBeenCalledTimes(1)
   })
 
@@ -998,7 +1045,7 @@ describe('messageMenuBarActions', () => {
         ...defaultMessageMenuConfig,
         exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
       }
-    } as any)
+    })
 
     await expect(executeMessageMenuBarAction('export.image', context)).resolves.toBe(false)
 

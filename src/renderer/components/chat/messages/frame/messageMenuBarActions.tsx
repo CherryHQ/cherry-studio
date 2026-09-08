@@ -163,7 +163,11 @@ function getMessageCaptureRef(context: MessageMenuBarActionContext): RefObject<H
 
   return {
     get current() {
-      return getRenderedMessageElement(context.message.id)
+      const element = getRenderedMessageElement(context.message.id)
+      if (!element) {
+        throw new Error('Message is no longer available for image capture')
+      }
+      return element
     }
   }
 }
