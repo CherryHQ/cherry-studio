@@ -6,6 +6,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -379,10 +380,8 @@ vi.mock('../components/TranslateLanguageBar', () => ({
   default: (props: {
     isBidirectional: boolean
     showSourceControls: boolean
-    couldExchange: boolean
     onSourceChange: (language: string) => void
     onTargetChange: (language: string) => void
-    onExchange: () => void
   }) => {
     languageBarMock(props)
     return (
@@ -393,12 +392,6 @@ vi.mock('../components/TranslateLanguageBar', () => ({
               type="button"
               aria-label="translate.source_language"
               onClick={() => props.onSourceChange('zh-cn')}
-            />
-            <button
-              type="button"
-              aria-label="translate.exchange.label"
-              disabled={!props.couldExchange}
-              onClick={props.onExchange}
             />
           </>
         )}
@@ -1795,6 +1788,59 @@ describe('TranslatePage', () => {
       emit?.('partial text continued', false)
     })
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
+  })
+
+  it('clears queued text when opening PDF history and keeps it cleared after closing the PDF', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    const abortError = new Error('aborted')
+    let signal: AbortSignal | undefined
+    let emit: ((text: string, isComplete: boolean) => void) | undefined
+    translateCoreMock.translateText.mockImplementationOnce(
+      (
+        _text: string,
+        _targetLanguage: string,
+        onResponse?: (text: string, isComplete: boolean) => void,
+        abortSignal?: AbortSignal
+      ) => {
+        signal = abortSignal
+        emit = onResponse
+        onResponse?.('partial text', false)
+
+        return new Promise<string>((_resolve, reject) => {
+          abortSignal?.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+      }
+    )
+    translateCoreMock.isAbortError.mockImplementation((error: unknown) => error === abortError)
+
+    const { rerender } = render(<TranslatePage />)
+    await user.type(screen.getByLabelText('translate.input.placeholder'), 'source A')
+    rerender(<TranslatePage />)
+    await user.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
+
+    await user.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    await user.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+
+    expect(signal?.aborted).toBe(true)
+    await screen.findByRole('button', { name: 'translate.pdf.action.close' })
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    act(() => smoothStreamMock.replay())
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+
+    await user.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
+    await act(async () => {
+      emit?.('partial text continued', false)
+      smoothStreamMock.replay()
+    })
+    expect(screen.getByTestId('translate-output-content')).toBeEmptyDOMElement()
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
     expect(toast.success).not.toHaveBeenCalled()
     expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
   })

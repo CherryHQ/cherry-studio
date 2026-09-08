@@ -5149,7 +5149,6 @@
   "translate.error.failed": "Dịch thất bại",
   "translate.error.languages_load_failed": "Không tải được ngôn ngữ dịch. Một số tính năng có thể không khả dụng.",
   "translate.error.not_configured": "Mô hình dịch chưa được cấu hình",
-  "translate.exchange.label": "Hoán đổi ngôn ngữ nguồn và ngôn ngữ đích",
   "translate.files.drag_text": "Thả vào đây",
   "translate.files.error.check_type": "Đã xảy ra lỗi khi kiểm tra loại tệp",
   "translate.files.error.multiple": "Không được tải lên nhiều tệp.",

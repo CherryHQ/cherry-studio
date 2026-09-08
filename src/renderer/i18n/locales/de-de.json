@@ -5149,7 +5149,6 @@
   "translate.error.failed": "Übersetzung fehlgeschlagen",
   "translate.error.languages_load_failed": "Fehler beim Laden der Übersetzungssprachen. Einige Funktionen sind möglicherweise nicht verfügbar.",
   "translate.error.not_configured": "Übersetzungsmodell nicht konfiguriert",
-  "translate.exchange.label": "Quell- und Zielsprache tauschen",
   "translate.files.drag_text": "Hierher ziehen und ablegen",
   "translate.files.error.check_type": "Fehler beim Überprüfen des Dateityps",
   "translate.files.error.multiple": "Mehrfach-Upload nicht erlaubt",

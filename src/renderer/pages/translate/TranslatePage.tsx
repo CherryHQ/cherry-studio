@@ -571,27 +571,6 @@ const TranslatePage: FC = () => {
     toast.info(t('translate.info.aborted'))
   }, [cancel, isTranslating, pdfStatus.running, t])
 
-  const handleExchange = useCallback(() => {
-    if (pdfFile || sourceLanguage === 'auto' || isTranslating || isDetecting) return
-    void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
-    void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
-    setTranslateInput(translateOutput)
-    smoothReset(translateInput)
-  }, [
-    isDetecting,
-    safePersist,
-    setSourceLanguage,
-    setTargetLanguage,
-    setTranslateInput,
-    smoothReset,
-    sourceLanguage,
-    targetLanguage,
-    translateInput,
-    translateOutput,
-    isTranslating,
-    pdfFile
-  ])
-
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory, files?: TranslationFiles) => {
       const nextTargetLanguage =
@@ -611,6 +590,7 @@ const TranslatePage: FC = () => {
         }
         resetPdfMode()
         if (isTranslating) cancel()
+        smoothReset('')
         setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
         setPdfFile({ name: history.sourceText, path: files.source.path })
       } else {
@@ -899,14 +879,6 @@ const TranslatePage: FC = () => {
       !isTranslating &&
       !isProcessing
     : !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing && !isOcrRunning
-  const couldExchange =
-    !isPdfMode &&
-    sourceLanguage !== 'auto' &&
-    sourceLanguage !== targetLanguage &&
-    !isTranslating &&
-    !isDetecting &&
-    !isProcessing &&
-    !isOcrRunning
 
   return (
     <div
@@ -933,8 +905,6 @@ const TranslatePage: FC = () => {
             isBidirectional={isPdfMode ? false : isBidirectional}
             showSourceControls={isPdfMode}
             bidirectionalPair={bidirectionalPair}
-            couldExchange={couldExchange}
-            onExchange={handleExchange}
           />
           {isTranslationRunning ? (
             <button

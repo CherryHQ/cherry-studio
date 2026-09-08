@@ -5149,7 +5149,6 @@
   "translate.error.failed": "Перевод не удалось",
   "translate.error.languages_load_failed": "Не удалось загрузить языки перевода. Некоторые функции могут быть недоступны.",
   "translate.error.not_configured": "Модель перевода не настроена",
-  "translate.exchange.label": "Поменяйте исходный и целевой языки местами",
   "translate.files.drag_text": "Перетащите сюда",
   "translate.files.error.check_type": "Ошибка при проверке типа файла",
   "translate.files.error.multiple": "Не разрешается загружать несколько файлов",
