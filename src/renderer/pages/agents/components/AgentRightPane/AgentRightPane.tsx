@@ -11,7 +11,6 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { buildAgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -800,7 +799,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   )
 
   return (
-    <MessageListProvider value={flowProviderValue} buildLaunchIndex={buildAgentLaunchIndex}>
+    <MessageListProvider value={flowProviderValue}>
       <div className="h-full min-h-0 bg-muted/15 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
         <MessageList />
       </div>
