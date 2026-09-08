@@ -54,9 +54,16 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
 
       tx.run(sql`
       WITH migrated_file_ref AS (
-        SELECT file_entry_id FROM ${agentSessionMessageFileRefTable}
-        WHERE created_at <= ${completedAt}
-          AND updated_at <= ${completedAt}
+        SELECT ref.file_entry_id
+        FROM ${agentSessionMessageFileRefTable} AS ref
+        JOIN ${agentSessionMessageTable} AS message ON message.id = ref.source_id
+        JOIN ${fileEntryTable} AS file ON file.id = ref.file_entry_id
+        WHERE ref.created_at <= ${completedAt}
+          AND ref.updated_at <= ${completedAt}
+          AND message.created_at <= ${completedAt}
+          AND message.updated_at <= ${completedAt}
+          AND file.created_at <= ${completedAt}
+          AND file.updated_at <= ${completedAt}
         UNION
         SELECT file_entry_id FROM ${chatMessageFileRefTable}
         WHERE created_at <= ${completedAt}

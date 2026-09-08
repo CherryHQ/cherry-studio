@@ -734,6 +734,64 @@ describe('applyMigrations over a populated database', () => {
     })
   })
 
+  it('does not classify an existing agent ref as legacy when its message was created after migration', () => {
+    applyMigrations(db, resolveMigrationsPath())
+    const completedAt = Date.now() + 1
+    const fileEntryId = '78787878-7878-4787-8787-787878787878'
+    const messageId = '89898989-8989-4898-8989-898989898989'
+    const refId = '9a9a9a9a-9a9a-49a9-89a9-9a9a9a9a9a9a'
+
+    sqlite
+      .prepare(
+        `INSERT INTO file_entry
+          (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
+         VALUES (?, 'internal', 'post-boundary-agent', 'pdf', 12, NULL, 'manual', ?, ?, NULL)`
+      )
+      .run(fileEntryId, completedAt - 1, completedAt - 1)
+    sqlite
+      .prepare(
+        `INSERT INTO app_state (key, value, description, created_at, updated_at)
+         VALUES ('migration_v2_status', ?, NULL, ?, ?)`
+      )
+      .run(
+        JSON.stringify({ status: 'completed', completedAt, version: '2.0.0', error: null }),
+        completedAt,
+        completedAt
+      )
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-agent-existing-ref', 'Workspace', '/tmp/agent-existing-ref', 'user', 'a0', ?, ?)`
+      )
+      .run(completedAt + 10, completedAt + 10)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-agent-existing-ref', 'Session', 'workspace-agent-existing-ref', 'a0', ?, ?, ?)`
+      )
+      .run(completedAt + 10, completedAt + 10, completedAt + 10)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message
+          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-agent-existing-ref', 'user', ?, '', 'success', ?, ?)`
+      )
+      .run(messageId, JSON.stringify({ parts: [] }), completedAt + 10, completedAt + 10)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message_file_ref
+          (id, file_entry_id, source_id, role, created_at, updated_at)
+         VALUES (?, ?, ?, 'attachment', ?, ?)`
+      )
+      .run(refId, fileEntryId, messageId, completedAt - 1, completedAt - 1)
+
+    new LegacyFileCleanupPolicySeeder().run(db)
+
+    expect(sqlite.prepare(`SELECT cleanup_policy FROM file_entry WHERE id = ?`).get(fileEntryId)).toEqual({
+      cleanup_policy: 'manual'
+    })
+  })
+
   it('rolls back the agent reference backfill when the coupled cleanup-policy update fails', () => {
     applyMigrations(db, resolveMigrationsPath())
     const now = Date.now()
