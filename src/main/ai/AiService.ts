@@ -1257,7 +1257,7 @@ export class AiService extends BaseService {
       const target = resolveImageExecutionTarget(provider, model, probeMode, imageSupport)
       if (target.kind === 'unavailable') {
         probe = Promise.reject(new Error(target.message))
-      } else if (target.kind === 'custom') {
+      } else if (target.scheduling === 'job') {
         // Transport models run their submit/poll loop on the job system, whose
         // handler re-selects a serving key — dropping the health check's
         // `apiKeyOverride` and possibly probing a different rotated credential

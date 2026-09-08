@@ -51,14 +51,17 @@ const config = {
 describe('AiHubMix image-model boundary (Ideogram branches)', () => {
   it('ideogram/V3 generate → FormData to /ideogram/v1/ideogram-v3/generate', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmixImageModel('ideogram/V3', { ...config, fetch }).doGenerate(
+      createAihubmixImageModel('ideogram/V3', {
+        ...config,
+        fetch,
+        binding: { kind: 'ideogram-v3', operation: 'generate' }
+      }).doGenerate(
         opts({
           n: 2,
           aspectRatio: '16:9',
           seed: 0,
           providerOptions: {
             aihubmix: {
-              mode: 'generate',
               renderingSpeed: 'TURBO',
               styleType: 'GENERAL',
               negativePrompt: 'blur',
@@ -80,12 +83,25 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
       negative_prompt: z.string(),
       magic_prompt: z.string()
     }).parse(req.body)
-    expect(req.body).toMatchSnapshot()
+    expect(req.body).toEqual({
+      prompt: 'a fox',
+      rendering_speed: 'TURBO',
+      num_images: '2',
+      aspect_ratio: '16x9',
+      style_type: 'GENERAL',
+      seed: '0',
+      negative_prompt: 'blur',
+      magic_prompt: 'ON'
+    })
   })
 
   it('V_2 generate → { image_request } JSON to /ideogram/generate', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmixImageModel('V_2', { ...config, fetch }).doGenerate(
+      createAihubmixImageModel('V_2', {
+        ...config,
+        fetch,
+        binding: { kind: 'ideogram-v1-v2', operation: 'generate' }
+      }).doGenerate(
         opts({
           n: 3,
           aspectRatio: '1:1',
@@ -116,12 +132,27 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
         magic_prompt_option: z.string()
       })
     }).parse(req.body)
-    expect(req.body).toMatchSnapshot()
+    expect(req.body).toEqual({
+      image_request: {
+        prompt: 'a fox',
+        model: 'V_2',
+        aspect_ratio: 'ASPECT_1_1',
+        num_images: 3,
+        style_type: 'REALISTIC',
+        seed: 0,
+        negative_prompt: 'noise',
+        magic_prompt_option: 'OFF'
+      }
+    })
   })
 
   it('doubao-seedream → JSON to /v1/images/generations with response_format + sequential', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmixImageModel('doubao-seedream-5.0-lite', { ...config, fetch }).doGenerate(
+      createAihubmixImageModel('doubao-seedream-5.0-lite', {
+        ...config,
+        fetch,
+        binding: { kind: 'doubao' }
+      }).doGenerate(
         opts({
           n: 3,
           seed: 42,

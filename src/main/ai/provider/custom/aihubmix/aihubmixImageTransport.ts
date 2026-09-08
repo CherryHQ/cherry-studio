@@ -22,13 +22,10 @@ import {
 } from '../imageTransport'
 import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
-
-export type AihubmixMode = 'generate' | 'edit' | 'remix' | 'upscale'
+import type { AihubmixCustomImageBinding } from './aihubmixImageBinding'
 
 export type AihubmixImageOptions = Pick<
   ParamValues,
-  | 'aspectRatio'
-  | 'numImages'
   | 'styleType'
   | 'renderingSpeed'
   | 'negativePrompt'
@@ -41,9 +38,7 @@ export type AihubmixImageOptions = Pick<
   | 'addWatermark'
   | 'sequentialImageGeneration'
   | 'maxImages'
-> & {
-  mode?: AihubmixMode
-}
+>
 
 export interface AihubmixImageTransportSettings {
   apiRoot: string
@@ -51,9 +46,10 @@ export interface AihubmixImageTransportSettings {
   apiKey: string
   headers: Record<string, string | undefined>
   fetch?: FetchFunction
+  binding: Exclude<AihubmixCustomImageBinding, { kind: 'flux' }>
 }
 
-type IdeogramMode = Exclude<AihubmixMode, 'edit'>
+type IdeogramMode = Extract<AihubmixCustomImageBinding, { kind: 'ideogram-v1-v2' }>['operation']
 
 const modeEndpoint: Record<IdeogramMode, string> = {
   generate: 'generate',
@@ -95,40 +91,41 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
 
   constructor(private readonly settings: AihubmixImageTransportSettings) {}
 
-  supportsInput(input: ImageGenerationSubmitInput<AihubmixImageOptions>): ImageTransportInputSupport {
-    const mode = input.providerParams.mode ?? 'generate'
+  supportsInput(): ImageTransportInputSupport {
+    const binding = this.settings.binding
     return {
-      files: isDoubaoSeedreamModel(input.modelId) || mode === 'edit' || mode === 'remix' || mode === 'upscale',
+      files:
+        binding.kind === 'doubao' ||
+        (binding.kind === 'qianfan' ? binding.requiresImages : binding.operation !== 'generate'),
       mask: false
     }
   }
 
   async submit(input: ImageGenerationSubmitInput<AihubmixImageOptions>) {
-    const mode = input.providerParams.mode ?? 'generate'
-    if (mode === 'edit') {
-      return this.submitRegistryEdit(input)
+    const binding = this.settings.binding
+    switch (binding.kind) {
+      case 'qianfan':
+        return this.submitPrediction(input, binding)
+      case 'ideogram-v3':
+        return this.submitIdeogramV3(input, binding.operation)
+      case 'doubao':
+        return this.submitDoubao(input)
+      case 'ideogram-v1-v2':
+        return this.submitIdeogramV1V2(input, binding.operation)
     }
-    if (input.modelId === 'ideogram/V3' && mode !== 'upscale') {
-      return this.submitIdeogramV3(input, mode)
-    }
-    if (mode === 'generate' && isDoubaoSeedreamModel(input.modelId)) {
-      return this.submitDoubao(input)
-    }
-    return this.submitIdeogramV1V2(input, mode)
   }
 
-  private async submitRegistryEdit(input: ImageGenerationSubmitInput<AihubmixImageOptions>) {
-    const descriptor = input.modelDescriptor
-    if (!descriptor || descriptor.mode !== 'edit') {
-      throw new Error(`AiHubMix edit model '${input.modelId}' is missing its registry transport descriptor`)
-    }
+  private async submitPrediction(
+    input: ImageGenerationSubmitInput<AihubmixImageOptions>,
+    binding: Extract<AihubmixCustomImageBinding, { kind: 'qianfan' }>
+  ) {
     const images = (input.files ?? []).map(fileToDataUrl)
-    if (images.length === 0) throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
+    if (binding.requiresImages && images.length === 0) throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
 
     const bag = input.providerParams
     const body: Record<string, unknown> = {
       prompt: input.prompt ?? '',
-      images,
+      ...(images.length > 0 && { images }),
       n: input.n
     }
     if (input.size !== undefined) body.size = input.size
@@ -137,12 +134,12 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
     if (bag.addWatermark !== undefined) body.watermark = bag.addWatermark
 
     const response = await this.postJson(
-      `${this.settings.apiRoot}${descriptor.endpoint}`,
+      `${this.settings.apiRoot}${binding.descriptor.endpoint}`,
       { input: body },
       openAIImageResponseSchema,
       input
     )
-    return completedImageTransportSubmission(parseOpenAIImageResults(response), 'AiHubMix registry edit')
+    return completedImageTransportSubmission(parseOpenAIImageResults(response), 'AiHubMix prediction')
   }
 
   private async submitIdeogramV3(
@@ -152,20 +149,19 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
     const bag = input.providerParams
     const formData = new FormData()
     formData.append('prompt', input.prompt ?? '')
-    formData.append('rendering_speed', bag.renderingSpeed || 'DEFAULT')
+    if (bag.renderingSpeed !== undefined) formData.append('rendering_speed', bag.renderingSpeed)
     formData.append('num_images', String(input.n))
 
     const aspectRatio = aspectRatioToIdeogramV3(input.aspectRatio)
     if (aspectRatio) formData.append('aspect_ratio', aspectRatio)
     if (bag.styleType) formData.append('style_type', bag.styleType)
-    else formData.append('style_type', 'AUTO')
     if (input.seed !== undefined) formData.append('seed', String(input.seed))
     if (bag.negativePrompt) formData.append('negative_prompt', bag.negativePrompt)
     if (bag.magicPromptOption !== undefined) {
       formData.append('magic_prompt', bag.magicPromptOption ? 'ON' : 'OFF')
     }
     if (mode === 'remix') {
-      if (bag.imageWeight) formData.append('image_weight', String(bag.imageWeight))
+      if (bag.imageWeight !== undefined) formData.append('image_weight', String(bag.imageWeight))
       formData.append('image', await toBlob(requireImage(input), input.signal))
     }
 
@@ -197,7 +193,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
             style_type: bag.styleType,
             seed: input.seed,
             negative_prompt: bag.negativePrompt || undefined,
-            magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
+            ...(bag.magicPromptOption !== undefined && { magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF' })
           }
         },
         ideogramResponseSchema,
@@ -219,7 +215,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
             num_images: input.n,
             seed: input.seed,
             negative_prompt: bag.negativePrompt || undefined,
-            magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
+            ...(bag.magicPromptOption !== undefined && { magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF' })
           }
         : {
             prompt: input.prompt ?? '',
@@ -227,7 +223,7 @@ class AihubmixImageTransport implements ImmediateImageGenerationTransport<Aihubm
             detail: bag.detail,
             num_images: input.n,
             seed: input.seed,
-            magic_prompt_option: bag.magicPromptOption ? 'AUTO' : 'OFF'
+            ...(bag.magicPromptOption !== undefined && { magic_prompt_option: bag.magicPromptOption ? 'AUTO' : 'OFF' })
           }
     const formData = new FormData()
     formData.append('image_request', JSON.stringify(imageRequest))
@@ -344,10 +340,6 @@ function aspectRatioToIdeogramV1V2(value: string | undefined): string | undefine
   if (/^ASPECT_/i.test(value)) return value
   if (/^\d+:\d+$/.test(value)) return `ASPECT_${value.replace(':', '_')}`
   return value
-}
-
-function isDoubaoSeedreamModel(modelId: string): boolean {
-  return modelId.startsWith('doubao-seedream')
 }
 
 function requireImage(input: ImageGenerationSubmitInput<AihubmixImageOptions>): ImageModelV3File {

@@ -891,14 +891,12 @@ function buildEndpointBaseURLs(provider: Provider): Partial<Record<EndpointType,
 }
 
 function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
-  const imageTransportDescriptors = buildImageTransportDescriptors(ctx.model)
   return {
     providerId: 'aihubmix',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      ...(imageTransportDescriptors && { imageTransportDescriptors }),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
   }

@@ -17,9 +17,9 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import { resolveAihubmixChatFamily } from '@shared/data/presets/gatewayChatRouting'
-import { ENDPOINT_TYPE, type EndpointType, type ImageGenerationMode } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
-import type { ImageTransportDescriptor } from '../imageTransport'
+import { type AihubmixImageBinding, resolveAihubmixImageBinding } from './aihubmixImageBinding'
 import { createAihubmixImageModel } from './aihubmixImageModel'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
@@ -29,7 +29,8 @@ export interface AihubmixProviderSettings {
   apiKey?: string
   baseURL?: string
   endpointBaseURLs?: Partial<Record<EndpointType, string>>
-  imageTransportDescriptors?: Partial<Record<ImageGenerationMode, ImageTransportDescriptor>>
+  /** Chat-only providers need no image binding; Main binds one before image execution. */
+  imageBinding?: AihubmixImageBinding
   headers?: Record<string, string>
   fetch?: FetchFunction
 }
@@ -151,14 +152,19 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       fetch: customFetch
     })
 
-  provider.imageModel = (modelId: string) =>
-    createAihubmixImageModel(modelId, {
+  provider.imageModel = (modelId: string) => {
+    const resolution = options.imageBinding
+      ? { kind: 'bound' as const, binding: options.imageBinding }
+      : resolveAihubmixImageBinding(modelId, 'generate', undefined)
+    if (resolution.kind === 'unavailable') throw new Error(resolution.message)
+    return createAihubmixImageModel(modelId, {
       baseURL: chatBaseURL,
       resolveApiKey,
       headers: authHeaders,
       fetch: customFetch,
-      imageTransportDescriptors: options.imageTransportDescriptors
+      binding: resolution.binding
     })
+  }
 
   provider.speechModel = (modelId: string) =>
     new OpenAISpeechModel(modelId, {

@@ -15,13 +15,18 @@ import type { ImageExecutionTarget } from './imageExecutionTarget'
 export async function resolveSdkImageConfig(
   provider: Provider,
   model: Model,
-  target: Extract<ImageExecutionTarget, { kind: 'legacy-adapter' }>,
+  target: Extract<ImageExecutionTarget, { scheduling: 'direct' }>,
   apiKeyOverride: AiImageRequest['apiKeyOverride']
 ) {
-  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
+  const { config: resolvedConfig, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
     resolvedEndpoint: target.endpoint
   })
+  let config = resolvedConfig
+  if (target.kind !== 'legacy-adapter') {
+    if (config.providerId !== target.providerId) throw new Error('Image binding and provider settings do not match')
+    config = { ...config, providerSettings: { ...config.providerSettings, imageBinding: target.binding } }
+  }
   applyHttpTrace(config, undefined, model)
   // Both compatible config builders use the instance ID as `name`; image models read its first segment.
   const actualProviderId =
@@ -44,7 +49,7 @@ type ImageSdkConfig = Awaited<ReturnType<typeof resolveSdkImageConfig>>['sdkConf
 
 /** Encode canonical parameters only at the SDK boundary. The SDK owns batch splitting. */
 export function buildSdkImageOptions(
-  request: Pick<AiImageRequest, 'prompt' | 'inputImages' | 'mask' | 'mode' | 'paramValues' | 'requestOptions'>,
+  request: Pick<AiImageRequest, 'prompt' | 'inputImages' | 'mask' | 'paramValues' | 'requestOptions'>,
   config: ImageSdkConfig,
   signal: AbortSignal | undefined
 ) {
@@ -55,12 +60,6 @@ export function buildSdkImageOptions(
     resolveWireRegistration(config.providerId),
     vendorBag
   )
-  if (
-    config.providerId === 'aihubmix' &&
-    (request.mode === 'edit' || request.mode === 'remix' || request.mode === 'upscale')
-  ) {
-    providerOptions.aihubmix = { ...providerOptions.aihubmix, mode: request.mode }
-  }
   const size = resolveImageRequestSize(structured.size)
   return {
     model: config.modelId,

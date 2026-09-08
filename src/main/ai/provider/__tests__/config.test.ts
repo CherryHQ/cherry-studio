@@ -1468,46 +1468,6 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
     })
 
-    it('passes AiHubMix registry transport descriptors to its image adapter', async () => {
-      // Endpoint contract: https://docs.aihubmix.com/cn/api/Image-Gen (retrieved 2026-09-07).
-      const provider = makeProvider({
-        id: 'aihubmix',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-            baseUrl: 'https://aihubmix.com/v1',
-            adapterFamily: 'aihubmix'
-          }
-        }
-      })
-      const model = makeModel({
-        id: 'aihubmix::qwen-image-edit',
-        providerId: 'aihubmix',
-        apiModelId: 'qwen-image-edit',
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-        imageGeneration: {
-          modes: {
-            edit: {
-              supports: {},
-              vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image-edit/predictions' }
-            }
-          }
-        }
-      })
-
-      const config = await providerToAiSdkConfig(provider, model)
-
-      expect(config.providerId).toBe('aihubmix')
-      if (config.providerId !== 'aihubmix') throw new Error('expected AiHubMix config')
-      expect(config.providerSettings.imageTransportDescriptors).toEqual({
-        edit: {
-          id: 'qwen-image-edit',
-          endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
-          mode: 'edit'
-        }
-      })
-    })
-
     it.each(['ppio', 'dashscope', 'tokenhub'] as const)(
       'keeps chat configuration usable when an unregistered %s model also advertises images',
       async (presetProviderId) => {
