@@ -1557,19 +1557,18 @@ const getScrollableElement = (): HTMLElement | null => {
   return null
 }
 
-const getScrollableRef = (): { current: HTMLElement } | null => {
-  const element = getScrollableElement()
-  if (!element) {
-    toast.warning(i18n.t('notes.no_content_to_copy'))
-    return null
+const getScrollableRef = (): ScrollableCaptureRef => ({
+  get current() {
+    const element = getScrollableElement()
+    if (!element) {
+      toast.warning(i18n.t('notes.no_content_to_copy'))
+    }
+    return element
   }
-  return { current: element }
-}
+})
 
 const exportNoteAsImageToClipboard = async (): Promise<void> => {
   const scrollableRef = getScrollableRef()
-  if (!scrollableRef) return
-
   await exportService.captureScrollableAsBlob(scrollableRef, async (blob) => {
     if (blob) {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
@@ -1580,8 +1579,6 @@ const exportNoteAsImageToClipboard = async (): Promise<void> => {
 
 const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
   const scrollableRef = getScrollableRef()
-  if (!scrollableRef) return
-
   const dataUrl = await exportService.captureScrollableAsDataUrl(scrollableRef)
   if (dataUrl) {
     const fileName = removeSpecialCharactersForFileName(noteName)

@@ -167,7 +167,9 @@ import {
   exportMarkdownToObsidian,
   exportMessagesToNotion,
   exportMessageToNotion,
+  exportNote,
   ExportService,
+  exportService,
   exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
@@ -1612,6 +1614,86 @@ describe('ExportService image capture serialization', () => {
       expect(nativeCalls).toBe(2)
     } finally {
       firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      requestAnimationFrameSpy.mockRestore()
+    }
+  })
+
+  it('resolves a queued note surface after it is replaced', async () => {
+    const blocker = document.createElement('div')
+    stubGeometry(blocker, 800, 600)
+    document.body.appendChild(blocker)
+
+    const notesPage = document.createElement('div')
+    notesPage.id = 'notes-page'
+    const originalSurface = document.createElement('div')
+    originalSurface.style.overflowY = 'auto'
+    originalSurface.appendChild(Object.assign(document.createElement('div'), { className: 'ProseMirror' }))
+    notesPage.appendChild(originalSurface)
+    document.body.appendChild(notesPage)
+
+    document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+    const readExternal = vi.fn().mockResolvedValue('')
+    const saveImage = vi.fn().mockResolvedValue(true)
+    Object.defineProperty(window, 'api', {
+      value: {
+        ...window.api,
+        file: { ...window.api.file, readExternal, saveImage }
+      },
+      configurable: true
+    })
+
+    const firstNativeEntered = deferred<void>()
+    const firstNative = deferred<{ dataUrl: string }>()
+    let nativeCalls = 0
+    let capturedNoteSurface: HTMLElement | undefined
+    imageCaptureMocks.request.mockImplementation(async () => {
+      nativeCalls += 1
+      if (nativeCalls === 1) {
+        firstNativeEntered.resolve()
+        return firstNative.promise
+      }
+      throw new Error('CDP attach failed')
+    })
+    vi.mocked(htmlToImage.toCanvas).mockImplementation(async (element) => {
+      capturedNoteSurface = element as HTMLElement
+      return { toDataURL: vi.fn(() => 'data:image/png;base64,note') } as unknown as HTMLCanvasElement
+    })
+
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0)
+      return 0
+    })
+
+    try {
+      const firstCapture = exportService.captureScrollableAsDataUrl({ current: blocker })
+      await firstNativeEntered.promise
+
+      const noteCapture = exportNote({
+        node: { name: 'Note', externalPath: '/notes/note.md' },
+        platform: 'exportImage'
+      })
+      await flushMicrotasks()
+
+      expect(nativeCalls).toBe(1)
+
+      const replacementSurface = document.createElement('div')
+      replacementSurface.style.overflowY = 'auto'
+      replacementSurface.appendChild(Object.assign(document.createElement('div'), { className: 'ProseMirror' }))
+      originalSurface.remove()
+      notesPage.appendChild(replacementSurface)
+
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      await firstCapture
+      await noteCapture
+
+      expect(capturedNoteSurface).toBe(replacementSurface)
+      expect(capturedNoteSurface).not.toBe(originalSurface)
+      expect(saveImage).toHaveBeenCalledWith('Note', 'data:image/png;base64,note')
+    } finally {
+      firstNative.resolve({ dataUrl: 'data:image/png;base64,Zmlyc3Q=' })
+      blocker.remove()
+      notesPage.remove()
       requestAnimationFrameSpy.mockRestore()
     }
   })
