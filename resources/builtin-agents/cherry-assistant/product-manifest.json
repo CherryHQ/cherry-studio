@@ -462,7 +462,7 @@
     }
   ],
   "providers": {
-    "version": "163ee2b18de62d57",
+    "version": "12c26d9885c0546c",
     "count": 63,
     "entries": [
       {
@@ -546,8 +546,8 @@
         "name": "AMD GPU Cloud"
       },
       {
-        "id": "jalapeno-cloud",
-        "name": "Jalapeno Cloud"
+        "id": "tokendance",
+        "name": "TokenDance"
       },
       {
         "id": "tokensmarket",

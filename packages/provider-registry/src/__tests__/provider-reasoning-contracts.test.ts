@@ -275,17 +275,6 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'extra_body.thinking_budget', value: { source: 'budget' } }])
   })
 
-  it('encodes Jalapeno Cloud thinking as chat_template_kwargs.thinking', () => {
-    const wire = provider('jalapeno-cloud').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
-    expect(wire?.off?.operations).toEqual([
-      { target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: false } }
-    ])
-    expect(wire?.auto?.operations).toEqual([
-      { target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: true } }
-    ])
-    expect(wire?.effort).toBeUndefined()
-  })
-
   it('encodes Token Market thinking through enable_thinking', () => {
     const wire = provider('tokensmarket').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
     expect(wire?.off?.operations).toEqual([{ target: 'enable_thinking', value: { source: 'literal', value: false } }])

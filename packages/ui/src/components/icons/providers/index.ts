@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-09-08T08:50:01.727Z
+ * Generated at: 2026-09-08T09:27:19.638Z
  * Total icons: 161
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -78,7 +78,6 @@ export { InfiniIcon as Infini } from './infini'
 export { InflectionIcon as Inflection } from './inflection'
 export { IntelIcon as Intel } from './intel'
 export { InternlmIcon as Internlm } from './internlm'
-export { JalapenoCloudIcon as JalapenoCloud } from './jalapeno-cloud'
 export { JimengIcon as Jimeng } from './jimeng'
 export { JinaIcon as Jina } from './jina'
 export { KlingIcon as Kling } from './kling'
@@ -148,6 +147,7 @@ export { TesseractJsIcon as TesseractJs } from './tesseract-js'
 export { ThinkAnyIcon as ThinkAny } from './think-any'
 export { TngIcon as Tng } from './tng'
 export { TogetherIcon as Together } from './together'
+export { TokendanceIcon as Tokendance } from './tokendance'
 export { TokensmarketIcon as Tokensmarket } from './tokensmarket'
 export { TwitterIcon as Twitter } from './twitter'
 export { UpstageIcon as Upstage } from './upstage'
