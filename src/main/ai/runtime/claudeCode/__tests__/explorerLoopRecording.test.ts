@@ -134,13 +134,13 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
     })
     expect(unlockedStatus?.sameFileCapReached).toBeFalsy()
 
-    // BUT previously covered lines (e.g. lines 0-49) must still be rejected as duplicate chunks (Interval Preservation)
+    // BUT previously covered lines (e.g. lines 0-49) must still be rejected as duplicate chunks / cycles (Interval Preservation)
     const duplicateStatus = svc.getExplorerLoopStatus(SESSION, 'Read', {
       file_path: 'src/index.ts',
       offset: 10,
       limit: 30
     })
-    expect(duplicateStatus?.isDuplicateChunk || duplicateStatus?.isCycle).toBeTruthy()
+    expect(duplicateStatus?.isDuplicateChunk || duplicateStatus?.isCycle).toBe(true)
   })
 
   it('resets all explorer state when a new user turn starts via UserPromptSubmit', async () => {

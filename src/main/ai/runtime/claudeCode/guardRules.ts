@@ -259,7 +259,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { tool: 'Read', when: explorerSameFileCap },
     effect: 'deny',
     reason: (hit) =>
-      `Same-file read limit reached for '${hit.evidence}' (${EXPLORER_SAME_FILE_CAP} slice reads without code modifications). Further reading on this file is locked. Use larger line limits or proceed to Edit/Write or summarize.`
+      `Same-file read limit reached for '${hit.evidence}' (${EXPLORER_SAME_FILE_CAP} slice reads without code modifications). Further reading on this file is locked until a workspace modification is made. Apply code changes using Edit/Write or summarize your conclusions now.`
   },
   {
     id: 'explorer-consecutive-cap',

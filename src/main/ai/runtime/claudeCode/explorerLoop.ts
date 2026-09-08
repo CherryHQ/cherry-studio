@@ -13,7 +13,8 @@
  *    through mutating tools (Edit, Write, MultiEdit, NotebookEdit).
  *    Soft warning at `EXPLORER_CAP_THRESHOLD` (10), hard denial at `EXPLORER_CAP_HARD_THRESHOLD` (15).
  *
- * Any completed workspace mutation clears runs and resets the explorer state.
+ * A completed workspace mutation resets consecutive run counters and clears the slice read count
+ * for the mutated file, while preserving covered line intervals to prevent cycle re-reading.
  */
 
 /** Exploration tools monitored for stuck loops and consecutive read budgets. */
@@ -167,11 +168,11 @@ export function evaluateIncomingExplorerCall(
       evalResult.rangeStart = offset
       evalResult.rangeEnd = rangeEnd
 
-      // Duplicate chunk / complete subset check (tested before backward cycle to prioritize subset rejection)
-      if (overlap >= 0.95 && fileRecord.intervals.length > 0) {
-        evalResult.isDuplicateChunk = true
-      } else if (offset < fileRecord.lastOffset && overlap >= 0.5) {
+      // Traversal cycle / backward jump check (triggers if reading backward into previously covered lines)
+      if (offset < fileRecord.lastOffset && overlap >= 0.5) {
         evalResult.isCycle = true
+      } else if (overlap >= 0.95 && fileRecord.intervals.length > 0) {
+        evalResult.isDuplicateChunk = true
       }
 
       if (fileRecord.readCount >= EXPLORER_SAME_FILE_CAP) {
