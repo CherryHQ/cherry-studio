@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
+import { exportService, getMessageTitle } from '@renderer/services/ExportService'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
@@ -947,6 +948,63 @@ describe('messageMenuBarActions', () => {
     await executeMessageMenuBarAction('save.file', context)
 
     expect(saveTextFile).toHaveBeenCalledWith(expect.stringMatching(/\.md$/), 'hello')
+  })
+
+  it('keeps copy-as-image source ownership through a queued capture', async () => {
+    const currentElement = document.createElement('div')
+    const imageBlob = new Blob(['image'], { type: 'image/png' })
+    const copyImage = vi.fn()
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const captureRef = {
+      get current() {
+        return currentElement
+      }
+    }
+    const captureScrollableAsBlobMock = vi.mocked(exportService.captureScrollableAsBlob)
+    captureScrollableAsBlobMock.mockImplementation(async (ref, callback) => {
+      expect(ref.current).toBe(currentElement)
+      await callback(imageBlob)
+    })
+
+    const context = createActionContext({
+      actions: { copyImage } as MessageListActions,
+      messageContainerRef: captureRef as any,
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    } as any)
+
+    await expect(executeMessageMenuBarAction('export.copy-image', context)).resolves.toBe(true)
+
+    expect(acquireLease).toHaveBeenCalledWith(context.message.id)
+    expect(copyImage).toHaveBeenCalledWith(imageBlob)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps save-as-image source ownership through capture failure cleanup', async () => {
+    const releaseLease = vi.fn()
+    const acquireLease = vi.fn(() => releaseLease)
+    const notifyError = vi.fn()
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockRejectedValue(new Error('capture failed'))
+
+    const context = createActionContext({
+      actions: { notifyError, saveImage: vi.fn() } as MessageListActions,
+      acquireMessageCaptureLease: acquireLease,
+      menuConfig: {
+        ...defaultMessageMenuConfig,
+        exportMenuOptions: { ...defaultMessageMenuConfig.exportMenuOptions, image: true }
+      }
+    } as any)
+
+    await expect(executeMessageMenuBarAction('export.image', context)).resolves.toBe(false)
+
+    expect(acquireLease).toHaveBeenCalledWith(context.message.id)
+    expect(releaseLease).toHaveBeenCalledTimes(1)
+    expect(getMessageTitle).not.toHaveBeenCalled()
   })
 
   it('copies user composer tokens through rich clipboard when available', async () => {
