@@ -8,6 +8,7 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -16,6 +17,7 @@ import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
+import type { ComposerSuggestionItem } from '../../quickPanel'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
@@ -36,7 +38,9 @@ const mocks = vi.hoisted(() => ({
   replaceDraft: vi.fn(),
   toggleExpanded: vi.fn(),
   getDraft: vi.fn(),
+  getNoteReferenceItems: vi.fn(async (): Promise<ComposerSuggestionItem[]> => []),
   reconcileTokens: vi.fn(),
+  resetNoteReferenceItems: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
   commandOptions: new Map<string, { enabled?: boolean }>(),
   eventListeners: new Map<string, (payload: unknown) => void>(),
@@ -201,6 +205,13 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
     default: MockComposerSurface
   }
 })
+
+vi.mock('../chat/useNoteReferenceMentionItems', () => ({
+  useNoteReferenceMentionItems: () => ({
+    getItems: mocks.getNoteReferenceItems,
+    resetItems: mocks.resetNoteReferenceItems
+  })
+}))
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
@@ -712,6 +723,9 @@ describe('ChatComposer', () => {
     mocks.toggleExpanded.mockReset()
     mocks.getDraft.mockReset()
     mocks.getDraft.mockReturnValue({ text: 'original draft', tokens: [] })
+    mocks.getNoteReferenceItems.mockReset()
+    mocks.getNoteReferenceItems.mockResolvedValue([])
+    mocks.resetNoteReferenceItems.mockReset()
     mocks.reconcileTokens.mockReset()
     mocks.reconcileTokens.mockImplementation((draftTokens: readonly ComposerSerializedToken[]) => {
       const knowledgeTokenIds = new Set(
@@ -790,6 +804,7 @@ describe('ChatComposer', () => {
       return () => mocks.ipcListeners.delete(channel)
     })
     MockUseCacheUtils.resetMocks()
+    MockDataApiUtils.resetMocks()
     Object.defineProperty(window, 'electron', {
       configurable: true,
       value: {
@@ -831,6 +846,26 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('includes Notes results in the chat @ reference source', async () => {
+    const noteItem: ComposerSuggestionItem = {
+      id: 'note-reference:/notes/Daily.md',
+      label: 'Daily',
+      command: vi.fn()
+    }
+    mocks.getNoteReferenceItems.mockResolvedValue([noteItem])
+    MockDataApiUtils.setCustomResponse('/search/entities', 'GET', { groups: [] })
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const source = mocks.surfaceProps?.suggestionSources?.find((candidate) => candidate.char === '@')
+    expect(source?.title).toBe('chat.input.reference_panel.title')
+    await expect(source?.items({ query: 'daily', editor: {} as never })).resolves.toEqual([noteItem])
+    expect(mocks.getNoteReferenceItems).toHaveBeenCalledWith({ query: 'daily', editor: {} })
+
+    source?.onExit?.({} as never)
+    expect(mocks.resetNoteReferenceItems).toHaveBeenCalled()
   })
 
   it('renders context usage after the speed control next to the send action', () => {

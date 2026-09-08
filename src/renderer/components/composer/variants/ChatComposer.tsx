@@ -80,6 +80,7 @@ import { ChatConversationControls, type ChatConversationControlsProps } from './
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
+import { useNoteReferenceMentionItems } from './chat/useNoteReferenceMentionItems'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -1248,9 +1249,22 @@ const ChatComposerInner = ({
     [reconcileTokens]
   )
 
+  const { getItems: getNoteReferenceItems, resetItems: resetNoteReferenceItems } = useNoteReferenceMentionItems({
+    files,
+    setFiles
+  })
+  const additionalReferenceItems = useMemo(
+    () => ({
+      getItems: getNoteReferenceItems,
+      onExit: resetNoteReferenceItems,
+      title: t('chat.input.note_reference.title')
+    }),
+    [getNoteReferenceItems, resetNoteReferenceItems, t]
+  )
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
     entityType: 'topic',
-    excludeId: topicId
+    excludeId: topicId,
+    additionalItems: additionalReferenceItems
   })
 
   const onPause = useCallback(() => {
