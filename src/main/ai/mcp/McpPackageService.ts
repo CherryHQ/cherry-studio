@@ -4,8 +4,12 @@ import { pipeline } from 'node:stream/promises'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { assertTrustedSender } from '@main/core/security/guardedIpc'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
+import { IpcChannel } from '@shared/IpcChannel'
 import { MAX_MCP_PACKAGE_BYTES } from '@shared/types/mcp'
+import type { IpcMainInvokeEvent } from 'electron'
+import { ipcMain } from 'electron'
 import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
@@ -373,6 +377,23 @@ export interface ResolvedMcpConfig {
 @Injectable('McpPackageService')
 @ServicePhase(Phase.WhenReady)
 export class McpPackageService extends BaseService {
+  protected onInit(): void {
+    // These are the only per-action native file-capability exceptions. Keep the
+    // handlers on the lifecycle service so registration is explicit, source-gated,
+    // and disposed together with the service rather than living in the legacy IPC
+    // bootstrap function.
+    const registerUpload = (channel: IpcChannel, upload: (filePath: string) => Promise<McpPackageUploadResult>) => {
+      ipcMain.handle(channel, (event: IpcMainInvokeEvent, filePath: string) => {
+        assertTrustedSender(event, channel)
+        return upload(filePath)
+      })
+      this.registerDisposable(() => ipcMain.removeHandler(channel))
+    }
+
+    registerUpload(IpcChannel.Mcp_UploadDxt, this.uploadDxt.bind(this))
+    registerUpload(IpcChannel.Mcp_UploadMcpb, this.uploadMcpb.bind(this))
+  }
+
   private get tempDir(): string {
     return application.getPath('feature.dxt.uploads.temp')
   }

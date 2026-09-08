@@ -127,7 +127,7 @@ Does this R→M channel go through IpcApi?
 
 **Two hard conditions for a carve-out** (or it is a hole, not an exception):
 
-- **Still gated** — register with native `ipcMain.on` + `registerDisposable` + an explicit `validateSender` call (mirroring the explicit gates in DataApi's `IpcAdapter` and the Preference/Cache handlers). Do **not** use the `this.ipcOn` sugar (slated for removal, see above).
+- **Still gated** — register with native `ipcMain.on` (or `ipcMain.handle` when the preload uses `invoke`) + `registerDisposable` + an explicit `validateSender`/`assertTrustedSender` call (mirroring the explicit gates in DataApi's `IpcAdapter` and the Preference/Cache handlers). Do **not** use the `this.ipcOn`/`this.ipcHandle` sugar (slated for removal, see above).
 - **Still documented** — list it in [Not In Scope](#not-in-scope-for-ipcapi) below. A documented carve-out (like `Cache_Sync`) keeps the one-list exposure audit honest; an undocumented omission breaks it.
 
 **Scope discipline** — an exception is per channel, not per feature:
