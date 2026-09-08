@@ -574,6 +574,7 @@ const ChatComposerInner = ({
   const [isSending, setIsSending] = useState(false)
   const [isDirectSending, setIsDirectSending] = useState(false)
   const directSendInFlightRef = useRef(false)
+  const steeringIdsRef = useRef<Set<string>>(new Set())
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
@@ -1932,12 +1933,18 @@ const ChatComposerInner = ({
                 paused={followupPaused}
                 onTogglePause={() => setFollowupPaused(!followupPaused)}
                 onSteer={async (id) => {
+                  if (steeringIdsRef.current.has(id)) return
                   const item = queuedFollowups.find((entry) => entry.id === id)
                   if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
+                  steeringIdsRef.current.add(id)
+                  try {
+                    // Only drop the item once the send actually succeeds; a failed manual
+                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                    const sent = await sendQueuedPayload(item.payload)
+                    if (sent) removeFollowup(id)
+                  } finally {
+                    steeringIdsRef.current.delete(id)
+                  }
                 }}
                 onEdit={(id) => {
                   const item = queuedFollowups.find((entry) => entry.id === id)
