@@ -11,7 +11,7 @@ import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@ren
 import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
-import { AISDKError, type NoSuchToolError } from 'ai'
+import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import { type AxiosError, isAxiosError } from 'axios'
 import { t } from 'i18next'
@@ -151,6 +151,8 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
 }
 
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
+  if (APICallError.isInstance(error as unknown)) return serializeNestedProviderError(error) as SerializedError
+
   // 统一所有可能的错误字段
   const serializedError: SerializedError = {
     name: error.name ?? null,
@@ -305,9 +307,13 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
     if (error.statusCode) {
       text += `${t('error.statusCode')}: ${error.statusCode}\n`
     }
-    text += `${t('error.requestUrl')}: ${error.url}\n`
-    const requestBodyValues = safeToString(error.requestBodyValues)
-    text += `${t('error.requestBodyValues')}: ${requestBodyValues}\n`
+    if (error.url) {
+      text += `${t('error.requestUrl')}: ${error.url}\n`
+    }
+    if (error.requestBodyValues !== null) {
+      const requestBodyValues = safeToString(error.requestBodyValues)
+      text += `${t('error.requestBodyValues')}: ${requestBodyValues}\n`
+    }
     if (error.responseHeaders) {
       text += `${t('error.responseHeaders')}: ${JSON.stringify(error.responseHeaders, null, 2)}\n`
     }

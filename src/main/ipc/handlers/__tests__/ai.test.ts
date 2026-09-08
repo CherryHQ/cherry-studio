@@ -284,8 +284,13 @@ describe('aiHandlers', () => {
       message: 'provider access denied',
       stack: null,
       cause: null,
+      url: '',
+      requestBodyValues: null,
       statusCode: 403,
-      isRetryable: false
+      responseHeaders: null,
+      responseBody: null,
+      isRetryable: false,
+      data: null
     })
     expect(JSON.stringify(error)).not.toMatch(
       /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/

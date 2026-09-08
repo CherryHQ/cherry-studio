@@ -10,8 +10,7 @@ const MAX_PROVIDER_ERROR_DECODE_DEPTH = 3
 const MAX_NESTED_PROVIDER_ERROR_DEPTH = 5
 const NON_ACTIONABLE_PROVIDER_TEXT = new Set(['null', 'undefined', '[object object]', '{}', '[]'])
 const HTML_DOCUMENT_PATTERN = /(?:<!doctype\s+html\b|<html(?:\s|>))/i
-const JSON_CONTAINER_PATTERN =
-  /\{\s*(?:["'{[]|\}|[a-z_$][\w$-]*\s*:)|\[\s*(?:["'{[]|\]|[^,\]\r\n]+,\s*(?=[^\]\r\n]*$))/i
+const JSON_CONTAINER_PATTERN = /\{\s*(?:["'{[]|\}|[a-z_$][\w$-]*\s*:)|\[\s*(?:["'{[]|\]|[^\]\r\n]+$)/i
 
 interface ProviderErrorSource {
   message?: unknown
@@ -145,8 +144,13 @@ function serializeNestedProviderErrorAtDepth(value: unknown, depth: number): Ser
       message: getSafeProviderErrorMessage(value),
       stack: null,
       cause: null,
+      url: '',
+      requestBodyValues: null,
       statusCode: value.statusCode ?? null,
-      isRetryable: value.isRetryable
+      responseHeaders: null,
+      responseBody: null,
+      isRetryable: value.isRetryable,
+      data: null
     }
   }
   if (AISDKError.isInstance(value)) return serializeNestedAiSdkError(value, depth)

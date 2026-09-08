@@ -2953,8 +2953,13 @@ describe('AiStreamManager', () => {
         message: 'no access to this model',
         stack: null,
         cause: null,
+        url: '',
+        requestBodyValues: null,
         statusCode: 403,
-        isRetryable: false
+        responseHeaders: null,
+        responseBody: null,
+        isRetryable: false,
+        data: null
       })
     })
   })

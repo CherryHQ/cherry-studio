@@ -100,7 +100,8 @@ describe('getSafeProviderErrorMessage', () => {
     for (const privatePayload of [
       'Provider failed: {prompt:"private user prompt",trace:"internal trace"',
       'Provider failed: [400, "private user prompt"',
-      'Provider failed: [private user prompt, internal trace'
+      'Provider failed: [private user prompt, internal trace',
+      'Provider failed: [private user prompt'
     ]) {
       const message = getSafeProviderErrorMessage({
         message: 'Bad Request',

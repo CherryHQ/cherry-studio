@@ -1,3 +1,4 @@
+import { isSerializedAiSdkErrorUnion } from '@renderer/types/error'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -5,6 +6,7 @@ import { APICallError, NoSuchToolError, RetryError } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  formatAiSdkError,
   formatErrorMessage,
   formatErrorMessageWithPrefix,
   getErrorDetails,
@@ -205,6 +207,31 @@ describe('error', () => {
       expect(JSON.stringify(result)).not.toMatch(/private user prompt|internal trace/)
     })
 
+    it('keeps safe direct provider diagnostics recognizable without exposing request payloads', () => {
+      const error = new APICallError({
+        message: 'Forbidden',
+        url: 'https://api.example.com/chat?token=url-secret',
+        requestBodyValues: { prompt: 'private user prompt' },
+        statusCode: 403,
+        responseHeaders: { 'set-cookie': 'session=header-secret' },
+        responseBody: JSON.stringify({ error: { message: 'model access denied' }, trace: 'response-secret' }),
+        data: { apiKey: 'data-secret' },
+        isRetryable: false
+      })
+
+      const result = serializeHealthCheckError(error)
+
+      expect(isSerializedAiSdkErrorUnion(result)).toBe(true)
+      if (!isSerializedAiSdkErrorUnion(result)) return
+      expect(formatAiSdkError(result)).toContain('error.statusCode: 403')
+      expect(formatAiSdkError(result)).toContain('model access denied')
+      expect(formatAiSdkError(result)).not.toContain('error.requestUrl')
+      expect(formatAiSdkError(result)).not.toContain('error.requestBodyValues')
+      expect(JSON.stringify(result)).not.toMatch(
+        /url-secret|private user prompt|header-secret|response-secret|data-secret/
+      )
+    })
+
     it('falls through to message for an IpcError with a different code (does not leak its data)', () => {
       const err = new IpcError('VALIDATION_FAILED', 'bad input', { issues: ['x'] })
 
@@ -354,14 +381,14 @@ describe('error', () => {
       expect(serialized.lastError).toMatchObject({
         name: 'AI_APICallError',
         message: 'account is not authorized for this model',
+        url: '',
+        requestBodyValues: null,
         statusCode: 403,
-        isRetryable: true
+        responseHeaders: null,
+        responseBody: null,
+        isRetryable: true,
+        data: null
       })
-      expect(serialized.lastError).not.toHaveProperty('url')
-      expect(serialized.lastError).not.toHaveProperty('requestBodyValues')
-      expect(serialized.lastError).not.toHaveProperty('responseHeaders')
-      expect(serialized.lastError).not.toHaveProperty('responseBody')
-      expect(serialized.lastError).not.toHaveProperty('data')
       expect(JSON.stringify(serialized)).not.toMatch(
         /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
       )

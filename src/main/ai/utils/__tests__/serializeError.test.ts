@@ -106,8 +106,13 @@ describe('serializeError', () => {
         message: 'account is not authorized for this model',
         stack: null,
         cause: null,
+        url: '',
+        requestBodyValues: null,
         statusCode: 403,
-        isRetryable: false
+        responseHeaders: null,
+        responseBody: null,
+        isRetryable: false,
+        data: null
       })
       expect(JSON.stringify(result)).not.toMatch(
         /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
@@ -141,14 +146,14 @@ describe('serializeError', () => {
       expect(result.lastError).toMatchObject({
         name: 'AI_APICallError',
         message: 'provider concurrency limit reached',
+        url: '',
+        requestBodyValues: null,
         statusCode: 429,
-        isRetryable: true
+        responseHeaders: null,
+        responseBody: null,
+        isRetryable: true,
+        data: null
       })
-      expect(result.lastError).not.toHaveProperty('url')
-      expect(result.lastError).not.toHaveProperty('requestBodyValues')
-      expect(result.lastError).not.toHaveProperty('responseHeaders')
-      expect(result.lastError).not.toHaveProperty('responseBody')
-      expect(result.lastError).not.toHaveProperty('data')
       expect(result.errors).toEqual([result.lastError])
       expect(JSON.stringify(result)).not.toMatch(
         /url-secret|private user prompt|header-secret|response-secret|data-secret|cause-secret/
