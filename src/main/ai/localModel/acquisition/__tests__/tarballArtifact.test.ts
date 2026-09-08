@@ -250,6 +250,26 @@ describe('shared artifact acquisition', () => {
       expect(removeMock).toHaveBeenCalledTimes(2)
     })
 
+    it('retries through a longer Windows DLL release window', async () => {
+      const transientError = Object.assign(new Error('still releasing'), { code: 'EPERM' })
+      removeMock
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockRejectedValueOnce(transientError)
+        .mockResolvedValue(undefined)
+      vi.useFakeTimers()
+
+      const removal = removeArtifact(FIXTURE_ARTIFACT)
+      const completion = expect(removal).resolves.toBeUndefined()
+
+      await vi.advanceTimersByTimeAsync(349)
+      expect(removeMock).toHaveBeenCalledTimes(3)
+
+      await vi.advanceTimersByTimeAsync(1)
+      await completion
+      expect(removeMock).toHaveBeenCalledTimes(4)
+    })
+
     it('propagates the transient error after the retry budget is exhausted', async () => {
       const transientError = Object.assign(new Error('still busy'), { code: 'EBUSY' })
       removeMock.mockRejectedValue(transientError)
