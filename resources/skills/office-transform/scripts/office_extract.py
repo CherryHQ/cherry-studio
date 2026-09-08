@@ -247,10 +247,19 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
         fail(f"worksheet not found: {sheet_name!r} (has: {workbook.sheetnames})")
     worksheet = workbook[sheet_name]
 
-    values = [
-        [cell.value for cell in row]
-        for row in worksheet.iter_rows(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)
-    ]
+    values = []
+    # Derived-sheet coordinates of the cells that really hold an error value (`#N/A`). Under data_only
+    # an error and the text "#N/A" read back as the same string; only the cell's data_type still says
+    # which it was, and the xlsx output below needs to know.
+    error_cells = set()
+    rows = worksheet.iter_rows(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)
+    for row_offset, row in enumerate(rows):
+        values.append([cell.value for cell in row])
+        error_cells.update(
+            (row_offset + 1, column_offset + 1)
+            for column_offset, cell in enumerate(row)
+            if cell.data_type == "e"
+        )
     # read_only mode does not mask merge followers: it hands back the master's value for every cell in
     # the range, so a range covering a merge reads as if the text were repeated. Excel shows it once,
     # at the top-left. Mask the followers so what we extract matches what the user sees — the skill's
@@ -268,6 +277,20 @@ def extract_xlsx(src: Path, anchor: dict, out_path: Path, out_format: str) -> No
         derived_sheet.title = sheet_name[:31]
         for row in values:
             derived_sheet.append(row)
+        # append() re-infers each cell's type from its value: a string starting with "=" becomes a
+        # formula and one of Excel's error codes (`#N/A`) becomes an error, so text the source merely
+        # displayed comes back as something the spreadsheet runs or reports — and the formula has no
+        # cached value, so re-extracting it reads nothing. Put such a cell back to a string, with
+        # quotePrefix so Excel keeps treating it as text after someone edits it. A cell that held a
+        # real error keeps it; error_cells is what tells the two apart.
+        for row in derived_sheet.iter_rows():
+            for cell in row:
+                if cell.data_type not in ("f", "e"):
+                    continue
+                if cell.data_type == "e" and (cell.row, cell.column) in error_cells:
+                    continue
+                cell.data_type = "s"
+                cell.quotePrefix = True
         derived.save(out_path)
     elif out_format == "csv":
         with out_path.open("w", newline="", encoding="utf-8") as handle:

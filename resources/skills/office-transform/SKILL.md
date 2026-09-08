@@ -393,4 +393,11 @@ If verification fails, say so and show the error — do not present an unverifie
   with more than 10,000 entries, an entry over 256 MiB uncompressed, or over 1 GiB
   total uncompressed — ask the user for a smaller selection or file instead of
   retrying.
+- csv and md carry cell text verbatim, formula-looking text included (`=SUM(A1)`, `+1`,
+  `-`); a spreadsheet opening the csv would evaluate it, which matters only for a source
+  the user does not trust — say so if they mean to open the csv in one. In the derived
+  xlsx, text that openpyxl would re-type — a leading `=` into a live formula, an error code
+  such as `#N/A` into an error value — is written back as quote-prefixed text; `+1` and `-`
+  are already stored as text and stay that way, and a cell that really holds an error stays
+  an error.
 - Scanned/image-only PDFs yield no text (no OCR here).
