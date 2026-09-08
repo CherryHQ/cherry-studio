@@ -54,13 +54,27 @@ export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const {
+    pinned,
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    miniAppShow,
+    updateAppStatus,
+    hideMiniApp,
+    removeCustomMiniApp,
+    reorderMiniAppsByStatus
+  } = useMiniApps()
+  const { appFavorites, miniAppFavoriteIds, setAppPinned, toggleMiniApp } = useSidebarFavorites()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
   const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
+  const miniAppFavoriteIdSet = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const openedMiniAppIdSet = useMemo(
+    () => new Set(openedKeepAliveMiniApps.map((app) => app.appId)),
+    [openedKeepAliveMiniApps]
+  )
 
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)
@@ -105,11 +119,14 @@ export default function LaunchpadPage() {
     void navigateToUrl(path)
   }
 
-  const openMiniApp = (app: MiniAppType) => {
-    if (shouldSuppressLaunchClick(app.appId)) return
+  const openMiniApp = useCallback(
+    (appId: string) => {
+      if (shouldSuppressLaunchClick(appId)) return
 
-    void navigateToUrl(`/app/mini-app/${app.appId}`)
-  }
+      void navigateToUrl(`/app/mini-app/${appId}`)
+    },
+    [navigateToUrl, shouldSuppressLaunchClick]
+  )
 
   const openDeepSeekHarness = () => {
     void navigateToUrl(DEEPSEEK_HARNESS_URL)
@@ -234,7 +251,20 @@ export default function LaunchpadPage() {
     <div
       key={app.appId}
       className={`${LAUNCHPAD_ITEM_CLASS} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 hover:scale-105 active:scale-95`}>
-      <App app={app} size={56} variant="launchpad" onOpen={openMiniApp} />
+      <App
+        app={app}
+        size={56}
+        variant="launchpad"
+        onOpen={openMiniApp}
+        onUpdateStatus={updateAppStatus}
+        onHide={hideMiniApp}
+        onRemoveCustom={removeCustomMiniApp}
+        onToggleSidebarFavorite={toggleMiniApp}
+        isPinned
+        isSidebarFavorite={miniAppFavoriteIdSet.has(app.appId)}
+        isOpened={openedMiniAppIdSet.has(app.appId)}
+        isActive={miniAppShow && currentMiniAppId === app.appId}
+      />
     </div>
   )
 

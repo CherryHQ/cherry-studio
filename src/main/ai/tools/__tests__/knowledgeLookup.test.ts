@@ -4,13 +4,14 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { knowledgeSearchMock } = vi.hoisted(() => ({
-  knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>()
+const { knowledgeSearchMock, addItemsMock } = vi.hoisted(() => ({
+  knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>(),
+  addItemsMock: vi.fn<() => Promise<unknown>>()
 }))
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeService') return { search: knowledgeSearchMock }
+      if (name === 'KnowledgeService') return { search: knowledgeSearchMock, addItems: addItemsMock }
       throw new Error(`Unexpected application.get(${name})`)
     }
   }
@@ -21,6 +22,7 @@ import {
   knowledgeListModelOutput,
   knowledgeManageModelOutput,
   knowledgeReadModelOutput,
+  manageKnowledge,
   searchKnowledge
 } from '../knowledgeLookup'
 
@@ -107,5 +109,30 @@ describe('model output formatters on unreadable stored output', () => {
       type: 'text',
       value: KNOWLEDGE_UNREADABLE_OUTPUT_NOTE
     })
+  })
+})
+
+// kb_manage add with `type: file` stores the absolute path as the row's source
+// identifier, not the basename — reindex re-acquires from source, so a
+// basename-only source silently breaks every refresh (issue #19954).
+describe('manageKnowledge add for file type', () => {
+  it('persists the absolute path as source so kb_manage refresh can find it (REGRESSION #19954)', async () => {
+    addItemsMock.mockResolvedValueOnce({ status: 'added' })
+
+    const result = await manageKnowledge(
+      { action: 'add', baseId: 'base-1', type: 'file', path: 'D:\\AI_Model_tmp\\test.md' },
+      []
+    )
+
+    expect(result).toEqual({ action: 'add', added: ['D:\\AI_Model_tmp\\test.md'] })
+    expect(addItemsMock).toHaveBeenCalledWith('base-1', [
+      expect.objectContaining({
+        type: 'file',
+        data: expect.objectContaining({
+          source: 'D:\\AI_Model_tmp\\test.md',
+          path: 'D:\\AI_Model_tmp\\test.md'
+        })
+      })
+    ])
   })
 })

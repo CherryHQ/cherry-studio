@@ -1306,6 +1306,27 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('clearIndexedRelativePath', () => {
+    it('removes the key instead of storing a sentinel, so the item indexes its own bytes again', async () => {
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_A_ID)
+      })
+      service.updateIndexedRelativePath(FILE_A_ID, 'processed.md')
+
+      const result = service.clearIndexedRelativePath(FILE_A_ID)
+
+      // `toMaterialRelativePath` resolves the material with `indexedRelativePath ?? relativePath`,
+      // so anything left under the key — including null — would keep pointing at the stale artifact.
+      expect('indexedRelativePath' in result.data).toBe(false)
+      expect(service.getById(FILE_A_ID).data).toEqual({
+        source: `/docs/${FILE_A_ID.slice(0, 8)}.md`,
+        relativePath: `${FILE_A_ID.slice(0, 8)}.md`
+      })
+    })
+  })
+
   describe('updateSnapshotRelativePath', () => {
     it('stores the captured snapshot path on url item data, preserving source/url', async () => {
       await seedItem({

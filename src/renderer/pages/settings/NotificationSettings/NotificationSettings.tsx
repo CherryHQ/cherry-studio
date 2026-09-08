@@ -34,7 +34,7 @@ const NotificationSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.notification.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-notifications-assistant-notification" className="scroll-mt-6">
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.notification.assistant')}</span>
             <InfoTooltip
@@ -49,7 +49,7 @@ const NotificationSettings: FC = () => {
           />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-notifications-backup-notification" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
           <Switch
             checked={notificationSettings.backup}
@@ -57,7 +57,7 @@ const NotificationSettings: FC = () => {
           />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-notifications-knowledge-embed-notification" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
           <Switch
             checked={notificationSettings.knowledge}
@@ -65,7 +65,7 @@ const NotificationSettings: FC = () => {
           />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-notifications-update-notification" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.update')}</SettingRowTitle>
           <Switch
             aria-label={t('settings.notification.update')}
@@ -74,7 +74,7 @@ const NotificationSettings: FC = () => {
           />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-notifications-mini-app-notification" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.mini_app')}</SettingRowTitle>
           <Switch
             aria-label={t('settings.notification.mini_app')}

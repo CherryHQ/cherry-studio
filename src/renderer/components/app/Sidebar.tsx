@@ -15,7 +15,6 @@ import {
   getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
-  isMessageOnlyConversationUrl,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
@@ -38,7 +37,13 @@ import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVarian
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const {
@@ -109,15 +114,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [avatar, t, userName]
   )
   const sidebarLogo = useMemo(
-    () => (
-      <button
-        type="button"
-        aria-label={sidebarUser.name}
-        onClick={sidebarUser.onClick}
-        className="flex h-full w-full items-center justify-center rounded-full [-webkit-app-region:no-drag]">
-        <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />
-      </button>
-    ),
+    () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
     [sidebarUser]
   )
 
@@ -162,6 +159,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
+      // Keep a Mini App's owning tab intact when leaving it so the global
+      // WebView pool can preserve the guest instead of treating it as closed.
+      if (miniAppIdFromTabUrl(activeTab?.url)) {
+        openTab(path, { title, icon: options?.icon })
+        return
+      }
+
       if (activeTab) {
         updateTab(activeTab.id, {
           url: path,
@@ -187,13 +191,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!options?.inNewTab) {
         // Conversation apps: any owned tab is already "there" — its URL carries its own
         // conversation, and re-entering through the route interceptor would just rebind
-        // it. Message-only viewers are not an app entry, so they navigate like any
-        // foreign tab. Apps without sub-instances keep exact-URL matching.
+        // it. Apps without sub-instances keep exact-URL matching.
         const isActiveTarget =
-          !!activeTab &&
-          (app.conversationRoute
-            ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-            : activeTab.url === path)
+          !!activeTab && (app.conversationRoute ? tabBelongsToApp(app, activeTab.url) : activeTab.url === path)
         if (isActiveTarget) return
       }
 
@@ -357,10 +357,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
+    isFullscreen,
     entries,
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
+    onHeaderClick: sidebarUser.onClick,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <SidebarShellActions
         layout={footerLayout}

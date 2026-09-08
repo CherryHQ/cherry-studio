@@ -87,7 +87,7 @@ const NotionSettings: FC = () => {
         />
       </SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-notion-database-id" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
         <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
           <Input
@@ -113,7 +113,7 @@ const NotionSettings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-notion-api-key" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
         <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
           <RowFlex className="w-full min-w-0 items-center gap-1.25">

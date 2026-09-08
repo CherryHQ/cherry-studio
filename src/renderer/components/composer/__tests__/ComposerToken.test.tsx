@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
+import postcss from 'postcss'
 import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -488,6 +492,72 @@ describe('ComposerToken', () => {
     await user.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
     expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders read-only image thumbnails through the generic composer token entry', () => {
+    const { container } = render(
+      <ComposerToken
+        imageIconPreview
+        readOnly
+        readOnlyFilePreview={{ url: 'file:///tmp/sent-image.png', mediaType: 'image/png' }}
+        token={{ id: 'file:sent-image', kind: 'file', label: 'sent-image.png' }}
+      />
+    )
+
+    const token = getRenderedFileToken(container)
+    expect(token).toHaveTextContent('sent-image.png')
+    expect(token.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'file:///tmp/sent-image.png')
+  })
+
+  it('keeps sent image thumbnails isolated from Markdown image presentation', () => {
+    const markdownCss = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/markdown.css'), 'utf8')
+    const richTextCss = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/richtext.css'), 'utf8')
+    const markdownImageRule = postcss
+      .parse(markdownCss)
+      .nodes.find((node) => node.type === 'rule' && node.selector.startsWith('.markdown img'))
+    const richTextImageRule = postcss
+      .parse(richTextCss)
+      .nodes.find((node) => node.type === 'rule' && node.selector.startsWith('.tiptap img'))
+    expect(markdownImageRule).toBeDefined()
+    expect(richTextImageRule).toBeDefined()
+
+    const markdownStyles = document.createElement('style')
+    markdownStyles.textContent = `${richTextImageRule!.toString()}\n${markdownImageRule!.toString()}`
+    document.head.append(markdownStyles)
+
+    const { container } = render(
+      <>
+        <div className="tiptap" data-testid="composer-context">
+          <ComposerToken
+            imageIconPreview
+            readOnly
+            readOnlyFilePreview={{ url: 'file:///tmp/draft-image.png', mediaType: 'image/png' }}
+            token={{ id: 'file:draft-image', kind: 'file', label: 'image.png' }}
+          />
+        </div>
+        <div className="markdown" data-testid="message-context">
+          <ComposerToken
+            imageIconPreview
+            readOnly
+            readOnlyFilePreview={{ url: 'file:///tmp/sent-image.png', mediaType: 'image/png' }}
+            token={{ id: 'file:sent-image', kind: 'file', label: 'image.png' }}
+          />
+        </div>
+      </>
+    )
+
+    const draftThumbnail = screen.getByTestId('composer-context').querySelector('[data-file-token-icon-thumbnail]')!
+    const sentThumbnail = screen.getByTestId('message-context').querySelector('[data-file-token-icon-thumbnail]')!
+    const comparedProperties = ['objectFit', 'margin', 'maxWidth', 'border', 'borderRadius', 'background'] as const
+
+    for (const property of comparedProperties) {
+      expect(getComputedStyle(sentThumbnail)[property]).toBe(getComputedStyle(draftThumbnail)[property])
+    }
+
+    // The compact token owns its line box instead of inheriting the surrounding Markdown paragraph.
+    expect(container.querySelectorAll('[data-composer-token-kind="file"]')[0]).toHaveClass('leading-[1.4]')
+    expect(container.querySelectorAll('[data-composer-token-kind="file"]')[1]).toHaveClass('leading-[1.4]')
+    markdownStyles.remove()
   })
 
   it('keeps the default image icon for SVG input files', () => {

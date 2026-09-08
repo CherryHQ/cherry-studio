@@ -79,6 +79,7 @@ export function buildPathRegistry() {
     'app.root.resources': appRootResources,
     'app.root.resources.scripts': path.join(appRootResources, 'scripts'),
     'app.root.resources.binaries': path.join(appRootResources, 'binaries'),
+    'app.utility_process': path.join(app.getAppPath(), 'out', 'utility-process'), // utility-process entry bundles
     'app.exe_file': app.getPath('exe'),
     'app.install': path.dirname(app.getPath('exe')), // directory containing the executable
     'app.logs': LOGS_DIR,
@@ -111,7 +112,7 @@ export function buildPathRegistry() {
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
     // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
-    // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
+    // use of local embedding or local OCR — see ai/localModel's shared artifacts.
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BabelDOC runtime cache (layout model, fonts, CMap/tiktoken assets)
@@ -159,6 +160,9 @@ export function buildPathRegistry() {
 
     // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
+
+    // Cherry Cloud account credentials (device identity is retained when the session is cleared)
+    'feature.cherry_account.credentials_file': path.join(appUserData, 'Credentials', 'cherry-account.json'),
 
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),
@@ -310,6 +314,7 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  'app.utility_process',
   'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',

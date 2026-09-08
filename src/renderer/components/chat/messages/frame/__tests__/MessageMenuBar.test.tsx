@@ -113,7 +113,9 @@ function renderWithProvider(children: ReactNode, renderConfig: Partial<typeof de
       getMessageActivityState: () => ({
         isProcessing: false,
         isStreamTarget: false,
-        isApprovalAnchor: false
+        isApprovalAnchor: false,
+        isActiveTurnProcessing: false,
+        isStreamLive: false
       }),
       translationLanguages: []
     },

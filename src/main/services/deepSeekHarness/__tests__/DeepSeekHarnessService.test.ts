@@ -25,7 +25,8 @@ const mocks = vi.hoisted(() => ({
   gatewayStart: vi.fn(),
   gatewayEnsureKey: vi.fn(),
   gatewayGetConfig: vi.fn(),
-  broadcast: vi.fn()
+  broadcast: vi.fn(),
+  loggerWarn: vi.fn()
 }))
 
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -56,7 +57,7 @@ vi.mock('@main/utils/shellEnv', () => ({
   refreshShellEnv: vi.fn(async () => ({ PATH: '/managed/bin' }))
 }))
 vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
+  loggerService: { withContext: () => ({ info: vi.fn(), warn: mocks.loggerWarn, error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('../config', async () => {
   const actual = await vi.importActual<typeof DeepSeekHarnessConfigModule>('../config')
@@ -220,6 +221,80 @@ describe('DeepSeekHarnessService', () => {
     expect(mocks.spawn.mock.calls[0][2].env).toHaveProperty('DSH_PERMISSION_MODE', 'workspace-write')
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:43123/', expect.anything())
     await service.stop()
+  })
+
+  it('probes and returns the complete authenticated URL printed by dsh 0.1.2-rc.1', async () => {
+    vi.useFakeTimers()
+    const token = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ'
+    const readyUrl = `http://127.0.0.1:43123/?token=${token}`
+    vi.mocked(fetch).mockResolvedValueOnce({
+      status: 303,
+      headers: new Headers({ location: '/' }),
+      body: { cancel: vi.fn(async () => undefined) }
+    } as unknown as Response)
+    spawnChild((child) => {
+      child.stdout.write('dsh web: http://127.0.0.1:43123/?token=abcdefghijklmnop')
+      child.stdout.write('qrstuvwxyzABCDEFGHIJKLMNOPQ\n')
+    })
+    const service = new DeepSeekHarnessService()
+    const start = service.start(startInput)
+
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    await expect(start).resolves.toEqual({ success: true, url: readyUrl })
+    expect(fetch).toHaveBeenCalledWith(readyUrl, expect.objectContaining({ redirect: 'manual' }))
+    await service.stop()
+  })
+
+  it.each([
+    'https://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
+    'http://localhost:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
+    'http://2130706433:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
+    'http://127.0.0.1:0/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
+    'http://127.0.0.1:65536/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
+    'http://127.0.0.1:43123/admin?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ',
+    'http://127.0.0.1:43123/?token=',
+    'http://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ&token=duplicate',
+    'http://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ&debug=true',
+    'http://127.0.0.1:43123/?token=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ#fragment'
+  ])('rejects an unsafe ready URL: %s', async (readyUrl) => {
+    spawnChild((child) => {
+      child.stdout.write(`dsh web: ${readyUrl}\n`)
+      queueMicrotask(() => child.close(1, null))
+    })
+
+    await expect(new DeepSeekHarnessService().start(startInput)).resolves.toMatchObject({ success: false })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('does not accept an unauthenticated 401 response as readiness', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      status: 401,
+      body: { cancel: vi.fn(async () => undefined) }
+    } as unknown as Response)
+    spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
+
+    const result = await new DeepSeekHarnessService().start(startInput)
+
+    expect(result).toEqual({
+      success: false,
+      message: expect.stringContaining('Web UI returned HTTP 401')
+    })
+  })
+
+  it('redacts the launch token from startup diagnostics and process-error logs', async () => {
+    const token = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ'
+    const readyUrl = `http://127.0.0.1:43123/?token=${token}`
+    vi.mocked(fetch).mockRejectedValueOnce(new Error(`request failed for ${readyUrl}`))
+    const child = spawnChild((process) => process.stdout.write(`dsh web: ${readyUrl}\n`))
+    const result = await new DeepSeekHarnessService().start(startInput)
+    child.emit('error', new Error(`socket failed for ${readyUrl}`))
+
+    expect(result).toEqual({ success: false, message: expect.stringContaining('<redacted>') })
+    expect(JSON.stringify(result)).not.toContain(token)
+    const logged = JSON.stringify(mocks.loggerWarn.mock.calls)
+    expect(logged).toContain('<redacted>')
+    expect(logged).not.toContain(token)
   })
 
   it('restarts only the managed child when its launch permission changes', async () => {

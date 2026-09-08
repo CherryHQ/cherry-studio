@@ -11,6 +11,7 @@ import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
@@ -131,8 +132,13 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { mergePresetModel, projectRuntimeReasoning, providerRegistryService, resolveReasoningProfileFromRegistry } =
-  await import('../ProviderRegistryService')
+const {
+  createCustomModel,
+  mergePresetModel,
+  projectRuntimeReasoning,
+  providerRegistryService,
+  resolveReasoningProfileFromRegistry
+} = await import('../ProviderRegistryService')
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -193,6 +199,16 @@ describe('ProviderRegistryService', () => {
     vi.clearAllMocks()
     clearServiceCache()
     MockMainDbServiceUtils.setDb(dbh.db)
+  })
+
+  describe('createCustomModel', () => {
+    it('does not infer image capability from an unknown model id', () => {
+      const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')
+
+      expect(model.capabilities).toEqual([])
+      expect(model.inputModalities).toBeUndefined()
+      expect(model.outputModalities).toBeUndefined()
+    })
   })
 
   describe('getProviderPreset', () => {
@@ -258,6 +274,12 @@ describe('ProviderRegistryService', () => {
   describe('cache reuse', () => {
     it('should only read models.json once across multiple calls', async () => {
       setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'openai',
+        presetProviderId: 'openai',
+        name: 'OpenAI',
+        orderKey: 'a0'
+      })
 
       providerRegistryService.resolveModels('openai', ['gpt-4o'])
       providerRegistryService.resolveModels('openai', ['gpt-4o'])
@@ -267,6 +289,16 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('resolveModels', () => {
+    beforeEach(async () => {
+      await dbh.db.insert(userProviderTable).values([
+        { providerId: 'openai', presetProviderId: 'openai', name: 'OpenAI', orderKey: 'a0' },
+        { providerId: 'tokenhub', presetProviderId: 'tokenhub', name: 'TokenHub', orderKey: 'a1' },
+        { providerId: 'dashscope', presetProviderId: 'dashscope', name: 'DashScope', orderKey: 'a2' },
+        { providerId: 'aws-bedrock', presetProviderId: 'aws-bedrock', name: 'AWS Bedrock', orderKey: 'a3' },
+        { providerId: 'ovms', presetProviderId: 'ovms', name: 'OVMS', orderKey: 'a4' }
+      ])
+    })
+
     it('should merge raw models with registry data including capabilities and limits', async () => {
       setupRegistryData()
 
@@ -363,6 +395,7 @@ describe('ProviderRegistryService', () => {
 
     it('does not apply provider-specific registry data when a custom row collides with a registry id', async () => {
       setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
       await dbh.db.insert(userProviderTable).values({
         providerId: 'openai',
         presetProviderId: null,
@@ -444,6 +477,7 @@ describe('ProviderRegistryService', () => {
 
     it('should fall back to registry defaults when provider is not found in the DB', async () => {
       setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
@@ -931,6 +965,7 @@ describe('ProviderRegistryService', () => {
 
     it('should ignore a legacy persisted reasoningFormatType field', async () => {
       setupRegistryData()
+      await dbh.db.delete(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
       await dbh.db.insert(userProviderTable).values({
         providerId: 'openai',
         presetProviderId: 'openai',
