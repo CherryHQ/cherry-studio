@@ -309,10 +309,9 @@ export class AgentTaskService {
   }
 
   private toTaskRunLogEntity(job: JobSnapshot): TaskRunLogEntity {
-    const output = job.output as { result?: string } | null
-    // runAgentTask writes the link via patchMetadata before the run starts, so
-    // failed/cancelled rows (which never get an output) keep it.
-    const sessionId = job.metadata.sessionId
+    const output = job.output as { result?: string; sessionId?: string } | null
+    // New runs persist the link before execution; older v2 job rows only have it in output.
+    const sessionId = job.metadata.sessionId ?? output?.sessionId
     const startedAt = job.startedAt ?? job.scheduledAt
     // A cancel-requested row's fate is sealed (live cancel and startup recovery
     // both end it as cancelled) — show the outcome before the row settles.

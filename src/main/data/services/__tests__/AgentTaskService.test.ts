@@ -339,6 +339,22 @@ describe('AgentTaskService (read side)', () => {
       expect(result.logs[0]).toHaveProperty('startedAt')
     })
 
+    it('preserves pre-metadata session links while preferring the current metadata link', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({ id: 'old', metadata: {}, output: { result: 'ok', sessionId: 'old-session' } }),
+        makeJobSnapshot({
+          id: 'rebound',
+          metadata: { sessionId: 'replacement-session' },
+          output: { result: 'ok', sessionId: 'old-session' }
+        })
+      ])
+
+      expect(agentTaskService.getTaskLogs(TASK_ID).logs).toEqual([
+        expect.objectContaining({ id: 'old', sessionId: 'old-session', result: 'ok' }),
+        expect.objectContaining({ id: 'rebound', sessionId: 'replacement-session', result: 'ok' })
+      ])
+    })
+
     it('links a failed run to its session from metadata when no output was persisted', () => {
       vi.mocked(jobService.list).mockReturnValueOnce([
         makeJobSnapshot({
