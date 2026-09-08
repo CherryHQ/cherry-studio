@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as PaintingPipeline from '../../model/paintingPipeline'
 import type { PaintingData } from '../../model/types/paintingData'
 import { usePaintingGenerationSubmit } from '../usePaintingGenerationSubmit'
 import { usePaintingList } from '../usePaintingList'
@@ -26,7 +27,7 @@ vi.mock('../usePaintingGenerationGuard', () => ({
 }))
 vi.mock('../usePaintingProviderRuntime', () => ({ usePaintingProviderRuntime: () => ({ provider: { id: 'openai' } }) }))
 vi.mock('../../model/paintingPipeline', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../model/paintingPipeline')>()),
+  ...(await importOriginal<typeof PaintingPipeline>()),
   paintingGenerate: mocks.generate
 }))
 
