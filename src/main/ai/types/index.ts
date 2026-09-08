@@ -11,6 +11,7 @@ export type {
   ContextOwner,
   ConversationRef,
   InProcessUsageContext,
-  ListModelsRequest
+  ListModelsRequest,
+  ModelUsageFeature
 } from './requests'
 export type { SamplingSettings } from './sampling'
