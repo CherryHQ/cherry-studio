@@ -15,7 +15,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq } from 'drizzle-orm'
@@ -98,6 +98,20 @@ describe('CherryAiDefaultModelSeeder', () => {
       value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
     })
     expect(await readPreferenceValue('topic.naming.model_id')).toBeUndefined()
+  })
+
+  it('seeds the default model as a chat model so every picker can list it', async () => {
+    // Seeders run after migrations, so a row created here never sees the operation backfill: the
+    // capability has to be declared at creation or the default model vanishes from the selector.
+    new CherryAiDefaultModelSeeder().run(dbh.db)
+
+    const [model] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
+      .limit(1)
+
+    expect(model.capabilities).toContain(MODEL_CAPABILITY.TEXT_GENERATION)
   })
 
   it('does not overwrite existing non-empty default model preferences', async () => {

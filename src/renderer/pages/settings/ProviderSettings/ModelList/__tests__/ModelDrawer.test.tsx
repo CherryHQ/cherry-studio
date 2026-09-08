@@ -172,7 +172,8 @@ describe('Model drawers', () => {
         endpointTypes: undefined
       })
     )
-    expect(createModelMock.mock.calls[0][0]).toMatchObject({ inputModalities: [MODALITY.TEXT] })
+    // Untouched modalities are the catalog's to decide, not an override the form invents.
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('inputModalities')
     expect(onSuccess).toHaveBeenCalledWith(['openai::alpha-model'])
     expect(onClose).toHaveBeenCalledTimes(1)
   })
@@ -666,6 +667,7 @@ describe('Model drawers', () => {
       fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
     })
 
+    // Toggling audio on and off again is still an edit, so the resulting set is submitted as-is.
     expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ inputModalities: [MODALITY.TEXT] }))
   })
 

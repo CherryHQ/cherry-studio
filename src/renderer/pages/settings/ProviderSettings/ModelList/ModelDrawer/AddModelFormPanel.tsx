@@ -199,10 +199,9 @@ export default function AddModelFormPanel({
       const isRegistryModel = providerPreset?.models?.some((model) => getModelApiId(model) === modelId) ?? false
       const shouldSubmitCapabilities = prefill?.model != null || classificationTouched || !isRegistryModel
       const shouldSubmitEndpointTypes = endpointTypesTouched || hasInitialEndpointDeclaration
-      const shouldSubmitInputModalities =
-        inputModalitiesTouched ||
-        prefill?.model?.inputModalities !== undefined ||
-        (submittedInputModalities?.length ?? 0) > 0
+      // A non-empty default is not intent: the helper always emits `text` for a chat model, and
+      // submitting that overrides the catalog's own modalities for every hand-added registry model.
+      const shouldSubmitInputModalities = inputModalitiesTouched || prefill?.model?.inputModalities !== undefined
 
       await createModel({
         providerId,
