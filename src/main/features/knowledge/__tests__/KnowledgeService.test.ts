@@ -17,6 +17,7 @@ import type * as PathStorage from '../pathStorage'
 const {
   cancelManyMock,
   cancelMock,
+  loggerErrorMock,
   getIndexStoreMock,
   deleteStoreMock,
   enqueueMock,
@@ -60,6 +61,7 @@ const {
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
+  loggerErrorMock: vi.fn(),
   getIndexStoreMock: vi.fn(),
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
@@ -131,7 +133,7 @@ vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       debug: vi.fn(),
-      error: vi.fn(),
+      error: loggerErrorMock,
       info: vi.fn(),
       warn: vi.fn()
     })
@@ -337,6 +339,7 @@ describe('KnowledgeService', () => {
     createdItemBaseIds.clear()
     knowledgeBaseCreateMock.mockReturnValue(createBase())
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
+    deleteStoreMock.mockResolvedValue(undefined)
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
     knowledgeBaseListAllIdsMock.mockReturnValue(new Set())
     knowledgeBaseListForDiscoveryMock.mockReturnValue({ items: [], total: 0 })
@@ -620,10 +623,13 @@ describe('KnowledgeService', () => {
     expect(getIndexStoreMock).toHaveBeenCalledWith(base)
   })
 
-  it('deletes base jobs before vector artifacts and SQLite base', async () => {
+  it('deletes the SQLite base without waiting for slow artifact cleanup', async () => {
     const service = new KnowledgeService()
+    const cleanup = createDeferred()
+    deleteStoreMock.mockReturnValueOnce(cleanup.promise)
 
-    await service.deleteBase('kb-1')
+    const deletion = service.deleteBase('kb-1')
+    await flushMicrotasks()
 
     expect(listMock).toHaveBeenCalledWith({
       queue: 'base.kb-1',
@@ -640,9 +646,24 @@ describe('KnowledgeService', () => {
     expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
     expect(listMock.mock.invocationCallOrder[0]).toBeLessThan(deleteStoreMock.mock.invocationCallOrder[0])
-    expect(deleteStoreMock.mock.invocationCallOrder[0]).toBeLessThan(
-      knowledgeBaseDeleteMock.mock.invocationCallOrder[0]
-    )
+    await expect(deletion).resolves.toBeUndefined()
+
+    cleanup.resolve()
+    await cleanup.promise
+  })
+
+  it('keeps a logically deleted base removed when background artifact cleanup fails', async () => {
+    const service = new KnowledgeService()
+    const cleanupError = new Error('directory busy')
+    deleteStoreMock.mockRejectedValueOnce(cleanupError)
+
+    await expect(service.deleteBase('kb-1')).resolves.toBeUndefined()
+    await flushMicrotasks()
+
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to delete knowledge base vector artifacts', cleanupError, {
+      baseId: 'kb-1'
+    })
   })
 
   it('cancels file-processing jobs linked by active knowledge checks before deleting a base', async () => {
@@ -668,48 +689,6 @@ describe('KnowledgeService', () => {
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'delete-base')
     expect(cancelMock.mock.invocationCallOrder[0]).toBeLessThan(deleteStoreMock.mock.invocationCallOrder[0])
     expect(cancelMock.mock.invocationCallOrder[1]).toBeLessThan(deleteStoreMock.mock.invocationCallOrder[0])
-  })
-
-  it('serializes concurrent deleteBase cleanup for the same base', async () => {
-    const service = new KnowledgeService()
-    const firstDeleteStoreEntered = createDeferred()
-    const releaseFirstDeleteStore = createDeferred()
-    const cleanupEvents: string[] = []
-    let deleteStoreCallCount = 0
-    deleteStoreMock.mockImplementation(async (baseId: string) => {
-      deleteStoreCallCount += 1
-      const callNumber = deleteStoreCallCount
-      cleanupEvents.push(`delete-store-${callNumber}-start:${baseId}`)
-      if (callNumber === 1) {
-        firstDeleteStoreEntered.resolve()
-        await releaseFirstDeleteStore.promise
-      }
-      cleanupEvents.push(`delete-store-${callNumber}-end:${baseId}`)
-    })
-    knowledgeBaseDeleteMock.mockImplementation((baseId: string) => {
-      cleanupEvents.push(`sqlite-${cleanupEvents.filter((event) => event.startsWith('sqlite-')).length + 1}:${baseId}`)
-    })
-
-    const firstDelete = service.deleteBase('kb-1')
-    await firstDeleteStoreEntered.promise
-    const secondDelete = service.deleteBase('kb-1')
-    await flushMicrotasks()
-
-    expect(deleteStoreMock).toHaveBeenCalledTimes(1)
-    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
-    expect(cleanupEvents).toEqual(['delete-store-1-start:kb-1'])
-
-    releaseFirstDeleteStore.resolve()
-    await Promise.all([firstDelete, secondDelete])
-
-    expect(cleanupEvents).toEqual([
-      'delete-store-1-start:kb-1',
-      'delete-store-1-end:kb-1',
-      'sqlite-1:kb-1',
-      'delete-store-2-start:kb-1',
-      'delete-store-2-end:kb-1',
-      'sqlite-2:kb-1'
-    ])
   })
 
   it('restores a failed base by creating a new base and enqueueing restored root items', async () => {
@@ -906,7 +885,7 @@ describe('KnowledgeService', () => {
     )
   })
 
-  it('surfaces restored base id when restore item failure cleanup also fails', async () => {
+  it('removes a failed restored base even when background artifact cleanup also fails', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
     const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
@@ -925,8 +904,14 @@ describe('KnowledgeService', () => {
         embeddingModelId: 'provider::embed',
         dimensions: 3
       })
-    ).rejects.toThrow(
-      "Restored knowledge base 'restored-kb' could not be cleaned up automatically: delete store failed"
+    ).rejects.toThrow('Failed to restore knowledge items: enqueue failed')
+
+    await flushMicrotasks()
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('restored-kb')
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to delete knowledge base vector artifacts',
+      expect.objectContaining({ message: 'delete store failed' }),
+      { baseId: 'restored-kb' }
     )
   })
 

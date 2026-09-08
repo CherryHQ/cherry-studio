@@ -83,16 +83,18 @@ export class KnowledgeVectorStoreService extends BaseService {
    * (`feature.knowledgebase.data/{baseId}`) — source files, processed artifacts
    * and `index.sqlite` alike. Only safe when deleting the whole base.
    */
-  async deleteStore(baseId: string): Promise<void> {
+  deleteStore(baseId: string): Promise<void> {
     const store = this.instanceCache.get(baseId)
 
     try {
       this.closeStoreInstance(store)
-      await deleteKnowledgeBaseDir(baseId)
-      logger.info('Deleted knowledge index store', { baseId, hadCachedStore: Boolean(store) })
     } finally {
       this.instanceCache.delete(baseId)
     }
+
+    return deleteKnowledgeBaseDir(baseId).then(() => {
+      logger.info('Deleted knowledge index store', { baseId, hadCachedStore: Boolean(store) })
+    })
   }
 
   protected async onStop(): Promise<void> {
