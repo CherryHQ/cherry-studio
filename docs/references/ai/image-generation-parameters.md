@@ -181,23 +181,9 @@ registryOverride.imageGeneration  ??  presetModel.imageGeneration  ??  null   //
 
 3. **Label** — `KEY_LABELS` (same file) maps each `CanonicalParamKey` → i18n title/tooltip (exhaustive over the key set).
 
-Form edits write into **`painting.params`** — a flat canonical-keyed bag.
-`loadModelFieldReset`
-([`.../utils/loadModelFieldReset.ts`](../../../src/renderer/pages/paintings/utils/loadModelFieldReset.ts))
-loads model constraints and returns a synchronous reset function.
-`usePaintingModelSwitch` applies that function to the latest params when committing
-the selected model, populating defaults and resetting unsupported values.
-
-History persists editable prompt, provider, and model metadata alongside file
-references; mode and params remain form state. A generation request freezes its
-own input snapshot. The editor session orders generation preparation (validation,
-input materialization, and initial persistence), navigation saves, and deletion
-of the current record. Provider execution runs outside that handoff and writes
-only generated file references on completion. Navigation saves the latest edits
-after preparation; deletion permits discarding edits only after success. History
-thumbnails may remain visible during hydration, so selection checks record
-existence through DataApi before opening a historical painting.
-
+Form edits write into **`painting.params`** — a flat canonical-keyed bag. Defaults
+are committed when the model is selected by `computeModelFieldReset`
+([`.../utils/computeModelFieldReset.ts`](../../../src/renderer/pages/paintings/utils/computeModelFieldReset.ts)).
 
 ---
 
@@ -305,7 +291,7 @@ descriptor is a pure derivation, not a param.
 | Resolver (override ?? base) | `src/main/data/services/ProviderRegistryService.ts` |
 | Support fetch hook | `src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts` |
 | Registry → form fields + `KEY_LABELS` | `src/renderer/pages/paintings/form/imageGenerationToFields.ts` |
-| Default population on switch | `src/renderer/pages/paintings/utils/loadModelFieldReset.ts` |
+| Default population on switch | `src/renderer/pages/paintings/utils/computeModelFieldReset.ts` |
 | Validate + build the IPC `paramValues` bag | `src/renderer/pages/paintings/model/canonicalGenerate.ts` |
 | Transport routing hint (→ backend, see §5) | `src/renderer/pages/paintings/model/paintingPipeline.ts` |
 | IPC payload schema | `src/shared/ipc/schemas/ai.ts` |

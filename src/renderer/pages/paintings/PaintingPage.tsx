@@ -1,6 +1,6 @@
 import { useCache } from '@data/hooks/useCache'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { type FC, useCallback, useEffect, useMemo, useRef } from 'react'
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Artboard from './components/Artboard'
@@ -16,7 +16,6 @@ import { usePaintingModelCatalog } from './hooks/usePaintingModelCatalog'
 import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
 import { usePaintingResultSync } from './hooks/usePaintingResultSync'
-import { usePaintingSession } from './hooks/usePaintingSession'
 import { usePaintingTemplateCatalog } from './hooks/usePaintingTemplateCatalog'
 import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
@@ -29,8 +28,11 @@ const PaintingPage: FC = () => {
   const providerOptions = usePaintingProviderOptions()
   const draftDefaults = usePaintingDraftDefaults(providerOptions)
 
-  const session = usePaintingSession(() => createDefaultPainting(draftDefaults))
-  const { painting: currentPainting, update: setCurrentPainting, edit: patchPainting } = session
+  const [currentPainting, setCurrentPainting] = useState<PaintingData>(() => createDefaultPainting(draftDefaults))
+
+  const patchPainting = useCallback((updates: Partial<PaintingData>) => {
+    setCurrentPainting((current) => ({ ...current, ...updates }) as PaintingData)
+  }, [])
 
   const history = usePaintingHistory()
 
@@ -71,8 +73,7 @@ const PaintingPage: FC = () => {
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
     painting: composerPainting,
-    bindGeneration: session.bindGeneration,
-    prepareGeneration: session.prepareGeneration,
+    onPaintingChange: setCurrentPainting,
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
 
@@ -91,17 +92,16 @@ const PaintingPage: FC = () => {
 
   const switchModel = usePaintingModelSwitch({
     painting: currentPainting,
-    bindPaintingChange: session.bindEdit,
+    onPaintingChange: patchPainting,
     ensureProviderCatalog: modelCatalog.ensureProviderCatalog
   })
 
   const list = usePaintingList({
-    setCurrentPainting: session.replace,
+    painting: currentPainting,
+    setCurrentPainting,
     draftDefaults,
     historyItems: history.items,
-    cancelGeneration,
-    beginTransition: session.beginTransition,
-    captureSession: session.capture
+    cancelGeneration
   })
 
   const onCancel = useCallback(() => cancelGeneration(currentPainting.id), [cancelGeneration, currentPainting.id])
@@ -167,8 +167,6 @@ const PaintingPage: FC = () => {
                   <div className="mx-auto w-full max-w-5xl">
                     <QuickPanelProvider>
                       <PaintingComposer
-                        sessionId={session.sessionId}
-                        onDraftFilesChange={session.touch}
                         painting={composerPainting}
                         generating={generating}
                         submitting={submitting}

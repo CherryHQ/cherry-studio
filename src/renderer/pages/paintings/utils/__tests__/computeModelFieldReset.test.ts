@@ -1,13 +1,7 @@
 import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { loadModelFieldReset } from '../loadModelFieldReset'
-
-async function applyModelFieldReset(
-  input: Parameters<typeof loadModelFieldReset>[0] & { currentValues?: Record<string, unknown> }
-) {
-  return (await loadModelFieldReset(input))(input.currentValues ?? {})
-}
+import { computeModelFieldReset } from '../computeModelFieldReset'
 
 const prefetchMock = vi.fn<(path: string, options?: unknown) => Promise<ImageGenerationSupport | null>>()
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -29,24 +23,9 @@ const generateSupport = (supports: ImageModeDef['supports']): ImageGenerationSup
   modes: { generate: { supports } }
 })
 
-describe('loadModelFieldReset', () => {
+describe('computeModelFieldReset', () => {
   beforeEach(() => {
     prefetchMock.mockReset()
-  })
-
-  it('applies loaded constraints to the values supplied at commit time', async () => {
-    mockSupportPerModel({
-      next: generateSupport({ quality: { type: 'enum', options: ['auto', 'high'], default: 'auto' } })
-    })
-    const reset = await loadModelFieldReset({
-      providerId: 'openai',
-      oldModelId: 'old',
-      newModelId: 'next',
-      mode: 'generate'
-    })
-    expect(reset({})).toEqual({ quality: 'auto' })
-    expect(reset({ quality: 'high' })).toEqual({})
-    expect(reset({ quality: 'unsupported' })).toEqual({ quality: 'auto' })
   })
 
   it('populates the new model defaults on first model selection (oldModelId undefined)', async () => {
@@ -57,7 +36,7 @@ describe('loadModelFieldReset', () => {
         promptExtend: { type: 'switch', default: true }
       })
     })
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'dashscope',
       oldModelId: undefined,
       newModelId: 'qwen-image',
@@ -71,7 +50,7 @@ describe('loadModelFieldReset', () => {
   })
 
   it('returns {} when switching to the same model', async () => {
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'aihubmix',
       oldModelId: 'gpt-image-1',
       newModelId: 'gpt-image-1',
@@ -89,7 +68,7 @@ describe('loadModelFieldReset', () => {
         quality: { type: 'enum', options: ['auto'] }
       })
     })
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'aihubmix',
       oldModelId: 'unknown-custom-id',
       newModelId: 'gpt-image-1',
@@ -121,7 +100,7 @@ describe('loadModelFieldReset', () => {
       })
     })
 
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'aihubmix',
       oldModelId: 'V_3',
       newModelId: 'gpt-image-1',
@@ -158,7 +137,7 @@ describe('loadModelFieldReset', () => {
       })
     })
 
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'aihubmix',
       oldModelId: 'gpt-image-1',
       newModelId: 'dall-e-3',
@@ -184,7 +163,7 @@ describe('loadModelFieldReset', () => {
       })
     })
 
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'ppio',
       oldModelId: 'jimeng-txt2img-v3.1',
       newModelId: 'seedream-5.0-lite',
@@ -205,7 +184,7 @@ describe('loadModelFieldReset', () => {
       })
     })
 
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'modelscope',
       oldModelId: 'Qwen/Qwen-Image',
       newModelId: 'Z-Image-Turbo',
@@ -227,7 +206,7 @@ describe('loadModelFieldReset', () => {
       })
     })
 
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'modelscope',
       oldModelId: 'Qwen/Qwen-Image',
       newModelId: 'Z-Image-Turbo',
@@ -245,7 +224,7 @@ describe('loadModelFieldReset', () => {
       modelB: generateSupport({ numImages: { type: 'range', min: 1, max: 10, default: 1 } })
     })
 
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'aihubmix',
       oldModelId: 'modelA',
       newModelId: 'modelB',
@@ -262,7 +241,7 @@ describe('loadModelFieldReset', () => {
       modelB: generateSupport({ style: { type: 'enum', options: ['<auto>', '<photography>'] } })
     })
 
-    const patch = await applyModelFieldReset({
+    const patch = await computeModelFieldReset({
       providerId: 'aihubmix',
       oldModelId: 'modelA',
       newModelId: 'modelB',

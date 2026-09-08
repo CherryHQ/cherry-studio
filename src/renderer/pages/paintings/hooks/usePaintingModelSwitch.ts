@@ -7,15 +7,14 @@ import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { createDefaultPainting } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import { loadModelFieldReset } from '../utils/loadModelFieldReset'
+import { computeModelFieldReset } from '../utils/computeModelFieldReset'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
-import type { usePaintingSession } from './usePaintingSession'
 
 const logger = loggerService.withContext('paintings/usePaintingModelSwitch')
 
 interface UsePaintingModelSwitchInput {
   painting: PaintingData
-  bindPaintingChange: ReturnType<typeof usePaintingSession>['bindEdit']
+  onPaintingChange: (updates: Partial<PaintingData>) => void
   ensureProviderCatalog: (providerId: string) => Promise<ModelOption[]>
 }
 
@@ -23,7 +22,7 @@ export type PaintingModelSelection = { providerId: string; modelId: string }
 
 export function usePaintingModelSwitch({
   painting,
-  bindPaintingChange,
+  onPaintingChange,
   ensureProviderCatalog
 }: UsePaintingModelSwitchInput) {
   const currentProviderId = painting.providerId
@@ -31,7 +30,6 @@ export function usePaintingModelSwitch({
 
   return useCallback(
     async ({ providerId, modelId }: PaintingModelSelection) => {
-      const onPaintingChange = bindPaintingChange()
       if (providerId === currentProviderId) {
         // Reset stale fields the old model wrote but the new one doesn't
         // accept — the form writes into `painting.params`, so the reset
@@ -39,11 +37,12 @@ export function usePaintingModelSwitch({
         // registry block; this brings the underlying values in sync.
         // Returns `{}` when either model is unknown to the registry, so
         // custom-id paintings stay untouched.
-        const resetFields = await loadModelFieldReset({
+        const resetPatch = await computeModelFieldReset({
           providerId: currentProviderId,
           oldModelId: painting.model,
           newModelId: modelId,
-          mode: tabToImageGenerationMode(painting.mode)
+          mode: tabToImageGenerationMode(painting.mode),
+          currentValues: painting.params ?? {}
         })
         // Drop attached input images when the target model can't accept them:
         // the prompt-bar upload UI is gated on `isEditImageModel`, so a hidden
@@ -52,11 +51,11 @@ export function usePaintingModelSwitch({
         // clear must be explicit.
         const nextModel = models.find((model) => model.apiModelId === modelId)
         const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
-        onPaintingChange((current) => ({
-          params: { ...current.params, ...resetFields(current.params ?? {}) },
+        onPaintingChange({
+          params: { ...painting.params, ...resetPatch },
           model: modelId,
           ...(keepInputFiles ? {} : { inputFiles: [] })
-        }))
+        } as Partial<PaintingData>)
         return
       }
 
@@ -72,7 +71,10 @@ export function usePaintingModelSwitch({
       const targetPainting = createDefaultPainting({ providerId })
 
       onPaintingChange({
-        params: targetPainting.params,
+        ...targetPainting,
+        id: painting.id,
+        files: painting.files,
+        prompt: painting.prompt,
         providerId,
         mode: 'generate',
         model: modelId,
@@ -81,6 +83,6 @@ export function usePaintingModelSwitch({
         inputFiles: []
       } as Partial<PaintingData>)
     },
-    [bindPaintingChange, currentProviderId, ensureProviderCatalog, models, painting]
+    [currentProviderId, ensureProviderCatalog, models, onPaintingChange, painting]
   )
 }

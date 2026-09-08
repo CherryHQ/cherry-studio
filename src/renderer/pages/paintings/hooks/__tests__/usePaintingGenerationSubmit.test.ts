@@ -3,7 +3,6 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
-import { usePaintingSession } from '../usePaintingSession'
 
 const mockValidateBeforeGenerate = vi.hoisted(() => vi.fn())
 const mockGenerate = vi.hoisted(() => vi.fn())
@@ -15,7 +14,7 @@ vi.mock('../usePaintingGenerationGuard', () => ({
 
 vi.mock('../usePaintingGeneration', () => ({
   usePaintingGeneration: ({ painting }: { painting: PaintingData }) => ({
-    prepare: mockGenerate,
+    generate: mockGenerate,
     cancel: vi.fn(),
     generating: painting.generationStatus === 'running'
   })
@@ -34,8 +33,7 @@ function renderSubmit(painting: PaintingData = makePainting()) {
   return renderHook(() =>
     usePaintingGenerationSubmit({
       painting,
-      bindGeneration: () => vi.fn(),
-      prepareGeneration: (work) => work(),
+      onPaintingChange: vi.fn(),
       ensureCurrentCatalog: vi.fn(async () => [])
     })
   )
@@ -77,7 +75,7 @@ describe('usePaintingGenerationSubmit', () => {
     })
 
     expect(materialize).toHaveBeenCalledTimes(1)
-    expect(mockGenerate).toHaveBeenCalledWith(entries, expect.any(Function))
+    expect(mockGenerate).toHaveBeenCalledWith(entries)
   })
 
   it('aborts without generating when the input set is incomplete', async () => {
@@ -92,49 +90,6 @@ describe('usePaintingGenerationSubmit', () => {
 
     expect(materialize).toHaveBeenCalledTimes(1)
     expect(mockGenerate).not.toHaveBeenCalled()
-  })
-
-  it.each(['validation', 'materialization'])('binds generation to its session before delayed %s', async (stage) => {
-    let release!: () => void
-    const delayed = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    if (stage === 'validation')
-      mockValidateBeforeGenerate.mockImplementationOnce(async () => {
-        await delayed
-        return { ok: true }
-      })
-    const materialize = async () => {
-      if (stage === 'materialization') await delayed
-      return { entries: [], complete: true }
-    }
-    const { result } = renderHook(() => {
-      const session = usePaintingSession(() => makePainting({ prompt: 'Original', files: [] }))
-      const submit = usePaintingGenerationSubmit({
-        painting: session.painting,
-        bindGeneration: session.bindGeneration,
-        prepareGeneration: session.prepareGeneration,
-        ensureCurrentCatalog: vi.fn(async () => [])
-      })
-      return { session, ...submit }
-    })
-    mockGenerate.mockImplementationOnce(async (_entries, apply) => {
-      apply(makePainting({ id: 'generated', files: [] }))
-    })
-    let pending!: Promise<void>
-    await act(async () => {
-      pending = result.current.submit(materialize)
-    })
-    act(() => {
-      result.current.session.replace(makePainting({ id: 'new-draft', prompt: '', files: [] }))
-    })
-    await act(async () => {
-      release()
-      await pending
-    })
-    expect(mockGenerate).toHaveBeenCalledTimes(1)
-    expect(result.current.session.painting.id).toBe('new-draft')
-    expect(result.current.session.painting.prompt).toBe('')
   })
 
   it('ignores a second submit while one is in flight (synchronous re-entrancy guard)', async () => {

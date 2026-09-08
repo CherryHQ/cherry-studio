@@ -126,8 +126,6 @@ function paramsSummary(
 }
 
 export interface PaintingComposerProps {
-  sessionId: number
-  onDraftFilesChange: () => void
   painting: PaintingData
   /** Data-derived: a generation is running for this painting (possibly resumed). */
   generating: boolean
@@ -198,8 +196,6 @@ interface PaintingComposerInnerProps extends PaintingComposerProps {
 }
 
 const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
-  sessionId,
-  onDraftFilesChange,
   painting,
   generating,
   submitting,
@@ -251,13 +247,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const inputCapability: InputCapability = !model ? 'unknown' : couldAddImageFile ? 'accept' : 'reject'
 
   const { materializeInputs } = usePaintingComposerInputFiles({
-    sessionId,
+    paintingId: painting.id,
     inputFiles: painting.inputFiles ?? [],
     files,
     setFiles,
     inputCapability,
-    providerId: painting.providerId,
-    onDraftChange: onDraftFilesChange
+    providerId: painting.providerId
   })
 
   // Edit-image models: images live in the top reference-image tray (reads `files` from
@@ -352,10 +347,14 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
   const couldAddImageFile = model ? isEditImageModel(model) : false
 
   return (
-    // Only user navigation resets attachments; generation may change the record ID
-    // within the same editing session.
+    // Key the provider (which owns `files`) by painting id only: a different painting
+    // is a different editing session and must reset + re-seed the draft. A model
+    // switch must NOT remount — that would wipe an in-progress draft — so the
+    // `switchModel` `inputFiles: []` clear is reconciled reactively instead (see
+    // usePaintingComposerInputFiles CLEAR). Keying on the model here used to work only
+    // because the removed writeback kept `painting.inputFiles === files`.
     <ComposerToolRuntimeProvider
-      key={props.sessionId}
+      key={painting.id}
       initialState={{ files: [], couldAddImageFile, extensions: PAINTING_IMAGE_EXTS }}
       actions={{ addNewTopic: () => {}, onTextChange: () => {} }}>
       <PaintingComposerInner {...props} model={model} couldAddImageFile={couldAddImageFile} />
