@@ -1,23 +1,30 @@
 import {
   Button,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
-  Label
+  Tooltip
 } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useDataChange } from '@data/hooks/useDataChange'
 import { useTabs } from '@renderer/hooks/tab'
-import { LoaderCircle } from 'lucide-react'
-import { useState } from 'react'
+import { toast } from '@renderer/services/toast'
+import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
+import { Copy, Globe, LoaderCircle, MoreHorizontal, Search, Trash2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [search, setSearch] = useState('')
   const [offset, setOffset] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -33,6 +40,31 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
   const { trigger: deleteVisit } = useMutation('DELETE', '/browser-visits/:id')
   useDataChange('/browser-visits', () => void refetch())
 
+  const locale = i18n.resolvedLanguage ?? i18n.language
+  const timeFormat = useMemo(() => new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }), [locale])
+  const groups = useMemo(() => {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+    const dateFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'long' })
+    const grouped = new Map<string, { label: string; visits: BrowserVisit[] }>()
+    for (const visit of data?.items ?? []) {
+      const date = new Date(visit.visitedAt)
+      const day = date.toDateString()
+      const label =
+        day === today.toDateString()
+          ? relative.format(0, 'day')
+          : day === yesterday.toDateString()
+            ? relative.format(-1, 'day')
+            : dateFormat.format(date)
+      const group = grouped.get(day)
+      if (group) group.visits.push(visit)
+      else grouped.set(day, { label, visits: [visit] })
+    }
+    return [...grouped.entries()]
+  }, [data?.items, locale])
+
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true)
     setError(false)
@@ -46,23 +78,34 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
   }
 
   return (
-    <DialogContent size="xl" closeLabel={t('common.close')} className="flex max-h-[85dvh] flex-col">
-      <DialogHeader className="shrink-0 text-start">
+    <DialogContent
+      size="xl"
+      closeLabel={t('common.close')}
+      className="flex h-[min(40rem,85dvh)] flex-col gap-0 overflow-hidden border border-border bg-popover p-0 text-popover-foreground">
+      <DialogHeader className="shrink-0 px-6 pt-6 pb-4 text-start">
         <DialogTitle>{t('settings.browser.history')}</DialogTitle>
-        <DialogDescription>{t('settings.browser.historyHelp')}</DialogDescription>
+        <DialogDescription className="sr-only">{t('settings.browser.historyHelp')}</DialogDescription>
       </DialogHeader>
-      <div className="shrink-0 space-y-3">
-        <Label htmlFor="browser-history-search">{t('settings.browser.search')}</Label>
-        <Input
-          id="browser-history-search"
-          type="search"
-          maxLength={500}
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value)
-            setOffset(0)
-          }}
-        />
+      <div className="shrink-0 space-y-3 px-6 pb-4">
+        <div className="relative">
+          <Search
+            aria-hidden="true"
+            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground"
+          />
+          <Input
+            id="browser-history-search"
+            type="search"
+            aria-label={t('common.search')}
+            placeholder={t('settings.browser.search')}
+            className="ps-9"
+            maxLength={500}
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setOffset(0)
+            }}
+          />
+        </div>
         {(error || historyError) && (
           <p role="alert" className="text-error text-sm">
             {t('settings.browser.error')}
@@ -72,7 +115,7 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
           </p>
         )}
       </div>
-      <div className="min-h-0 overflow-y-auto overscroll-contain" aria-busy={isRefreshing}>
+      <div className="@container min-h-0 flex-1 overflow-y-auto overscroll-contain px-4" aria-busy={isRefreshing}>
         {isLoading && !data ? (
           <p role="status" className="flex items-center justify-center gap-2 py-10 text-muted-foreground text-sm">
             <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" />
@@ -98,58 +141,111 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
             )}
           </div>
         ) : (
-          <ul className="divide-y divide-border-subtle">
-            {data?.items.map((visit) => (
-              <li key={visit.id} className="flex items-center gap-2 py-3">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="truncate text-sm" title={visit.title || visit.url}>
-                    {visit.title || visit.url}
-                  </p>
-                  <p className="truncate text-muted-foreground text-xs" dir="auto" title={visit.url}>
-                    {visit.url}
-                  </p>
-                  <time
-                    dateTime={new Date(visit.visitedAt).toISOString()}
-                    className="block text-muted-foreground text-xs tabular-nums">
-                    {new Date(visit.visitedAt).toLocaleString()}
-                  </time>
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy || isRefreshing}
-                    onClick={() =>
-                      void run(async () => {
-                        openTab(`/app/browser?${new URLSearchParams({ url: visit.url })}`, {
-                          title: visit.title || visit.url,
-                          forceNew: true
-                        })
-                        onOpenPage()
-                      })
-                    }>
-                    {t('common.open_in_new_tab')}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy || isRefreshing}
-                    onClick={() =>
-                      void run(async () => {
-                        await deleteVisit({ params: { id: visit.id } })
-                        if (data?.items.length === 1 && offset > 0) setOffset(Math.max(0, offset - 25))
-                        else await refetch()
-                      })
-                    }>
-                    {t('common.delete')}
-                  </Button>
-                </div>
-              </li>
+          <div className="space-y-5 pb-4">
+            {groups.map(([day, group]) => (
+              <section key={day} aria-label={group.label}>
+                <h3 className="px-2 pb-2 font-medium text-muted-foreground text-xs capitalize">{group.label}</h3>
+                <ul>
+                  {group.visits.map((visit) => {
+                    const title = visit.title || visit.url
+                    const host = new URL(visit.url).host.replace(/^www\./, '')
+                    return (
+                      <li
+                        key={visit.id}
+                        className="group flex min-w-0 items-center gap-2 rounded-lg pe-1 focus-within:bg-accent/50 hover:bg-accent/50">
+                        <Tooltip
+                          asChild
+                          content={
+                            <div className="max-w-sm space-y-1">
+                              <p>{title}</p>
+                              <p className="break-all text-xs">{visit.url}</p>
+                            </div>
+                          }>
+                          <Button
+                            variant="ghost"
+                            className="h-10 min-w-0 flex-1 justify-start gap-3 px-2 text-start font-normal"
+                            aria-label={title}
+                            aria-description={t('common.open_in_new_tab')}
+                            disabled={busy || isRefreshing}
+                            onClick={() =>
+                              void run(async () => {
+                                openTab(`/app/browser?${new URLSearchParams({ url: visit.url })}`, {
+                                  title,
+                                  forceNew: true
+                                })
+                                onOpenPage()
+                              })
+                            }>
+                            <Globe aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                            <span
+                              id={`browser-history-title-${visit.id}`}
+                              className="min-w-0 truncate text-foreground text-sm">
+                              {title}
+                            </span>
+                            <span
+                              className="@sm:inline hidden max-w-[30%] shrink-0 truncate text-muted-foreground text-xs"
+                              dir="ltr"
+                              aria-hidden="true">
+                              {host}
+                            </span>
+                          </Button>
+                        </Tooltip>
+                        <time
+                          dateTime={new Date(visit.visitedAt).toISOString()}
+                          className="shrink-0 text-muted-foreground text-xs tabular-nums">
+                          {timeFormat.format(visit.visitedAt)}
+                        </time>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={t('common.more')}
+                              aria-describedby={`browser-history-title-${visit.id}`}
+                              disabled={busy || isRefreshing}
+                              className="shrink-0 text-muted-foreground">
+                              <MoreHorizontal aria-hidden="true" className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="max-w-[min(20rem,calc(100vw-2rem))]">
+                            <DropdownMenuLabel className="break-all font-normal text-muted-foreground text-xs">
+                              {visit.url}
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                void run(async () => {
+                                  await navigator.clipboard.writeText(visit.url)
+                                  toast.success(t('common.copied'))
+                                })
+                              }>
+                              <Copy aria-hidden="true" />
+                              {t('common.copy')}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={() =>
+                                void run(async () => {
+                                  await deleteVisit({ params: { id: visit.id } })
+                                  if (data?.items.length === 1 && offset > 0) setOffset(Math.max(0, offset - 25))
+                                  else await refetch()
+                                })
+                              }>
+                              <Trash2 aria-hidden="true" />
+                              {t('common.delete')}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </div>
-      <DialogFooter className="shrink-0 sm:justify-between">
+      <DialogFooter className="shrink-0 border-border-subtle border-t px-6 py-3 sm:justify-end">
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -164,9 +260,6 @@ export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void })
             {t('common.next')}
           </Button>
         </div>
-        <DialogClose asChild>
-          <Button variant="outline">{t('common.close')}</Button>
-        </DialogClose>
       </DialogFooter>
     </DialogContent>
   )

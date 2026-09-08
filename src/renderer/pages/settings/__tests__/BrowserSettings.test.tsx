@@ -353,10 +353,50 @@ describe('Browser settings workflows', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(screen.getByText('First page')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Open in new tab' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'More' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'First page' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+  })
+
+  it('groups records by local day and keeps deletion in each record menu', async () => {
+    const user = userEvent.setup()
+    const today = new Date()
+    today.setHours(10, 30, 0, 0)
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+    MockUseDataApiUtils.mockQueryData('/browser-visits', {
+      items: [
+        {
+          id: 'today',
+          title: 'Latest report',
+          url: 'https://example.com/latest',
+          visitedAt: today.getTime(),
+          source: 'local'
+        },
+        {
+          id: 'yesterday',
+          title: 'Older report',
+          url: 'https://example.com/older',
+          visitedAt: yesterday.getTime(),
+          source: 'local'
+        }
+      ],
+      hasMore: false
+    })
+    const remove = vi.fn().mockResolvedValue({ success: true })
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/browser-visits/:id', remove)
+    renderSettings()
+    await user.click(screen.getByRole('button', { name: 'Manage History' }))
+    const current = await screen.findByRole('region', { name: 'today' })
+    expect(within(current).getByRole('button', { name: 'Latest report' })).toBeVisible()
+    expect(
+      within(screen.getByRole('region', { name: 'yesterday' })).getByRole('button', { name: 'Older report' })
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+    await user.click(within(current).getByRole('button', { name: 'More' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    expect(remove).toHaveBeenCalledWith({ params: { id: 'today' } })
   })
 
   it('opens history in a new browser tab without an Agent pane, preserving the complete URL', async () => {
@@ -368,9 +408,12 @@ describe('Browser settings workflows', () => {
     })
     renderSettings()
     await user.click(screen.getByRole('button', { name: 'Manage History' }))
-    const open = await screen.findByRole('button', { name: 'Open in new tab' })
+    const open = await screen.findByRole('button', { name: 'Dashboard' })
     await waitFor(() => expect(open).toBeEnabled())
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Copy' }))
+    expect(await navigator.clipboard.readText()).toBe(url)
     await user.click(open)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(openTab).toHaveBeenCalledWith(

@@ -65,3 +65,6 @@ Standalone Browser tabs restore their last committed URL after hibernation. Expl
 MiniApp links keep opening in the system browser even when automatic links use the built-in browser.
 New and imported history entries remove sensitive parameters from URL fragments, including hash-route
 queries, while preserving ordinary anchors and routes. Existing history entries are unchanged.
+
+Browsing history groups visits by date and shows each title, domain and time on one row.
+Select a title to reopen it in a new tab; the row menu exposes the full URL, copying and deletion.
