@@ -2,7 +2,7 @@
 title: Remaining replies inherit context when the selected reply is deleted
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#20233'
 date: 2026-09-08
 ---
 

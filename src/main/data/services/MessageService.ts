@@ -1965,6 +1965,7 @@ export class MessageService {
       const descendantIds = cascade ? this.getDescendantIdsTx(tx, id) : []
       let deletedIds: string[]
       let reparentedIds: string[] | undefined
+      let contextChangedIds: string[] = []
       let newActiveNodeId: string | null | undefined
 
       // The virtual root is structural and never a valid active node.
@@ -2017,7 +2018,10 @@ export class MessageService {
         // Match the displayed chronological order: next, or previous at the end.
         const contextIndex = group.findIndex((member) => member.id === id)
         const successor = contextIndex < 0 ? undefined : (group[contextIndex + 1] ?? group[contextIndex - 1])
-        if (isContextReply) this.clearContextAnchorsTx(tx, this.getDescendantIdsTx(tx, id))
+        if (isContextReply) {
+          contextChangedIds = this.getDescendantIdsTx(tx, id)
+          this.clearContextAnchorsTx(tx, contextChangedIds)
+        }
         reparentedIds = this.reparentChildrenTx(tx, [message], successor?.id)
 
         deletedIds = [id]
@@ -2053,12 +2057,13 @@ export class MessageService {
       return {
         topicId: message.topicId,
         deletedIds,
+        contextChangedIds,
         reparentedIds: reparentedIds?.length ? reparentedIds : undefined,
         newActiveNodeId
       }
     })
-    const { topicId, ...response } = result
-    const changedIds = [...response.deletedIds, ...(response.reparentedIds ?? [])]
+    const { topicId, contextChangedIds, ...response } = result
+    const changedIds = [...new Set([...response.deletedIds, ...(response.reparentedIds ?? []), ...contextChangedIds])]
     notifyDataApiDataChange([
       {
         endpoint: '/topics/:topicId/messages',
@@ -2067,7 +2072,7 @@ export class MessageService {
         entityIds: changedIds
       },
       { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: changedIds },
-      { endpoint: '/messages/:id', entityIds: response.deletedIds },
+      { endpoint: '/messages/:id', entityIds: changedIds },
       ...(response.newActiveNodeId !== undefined
         ? ([
             { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },

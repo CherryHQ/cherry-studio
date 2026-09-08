@@ -750,6 +750,34 @@ describe('MessageService', () => {
       ])
     })
 
+    it('publishes by-ID changes for all descendants whose context was cleared', async () => {
+      await seedMultiModelTree()
+      dbh.db
+        .insert(messageTable)
+        .values({
+          id: 'm-deep',
+          topicId: 'topic-1',
+          parentId: 'm-follow',
+          role: 'assistant',
+          data: mainText('deep reply'),
+          status: 'success',
+          siblingsGroupId: 0,
+          compactionSummary: 'obsolete',
+          stats: { contextTokens: 42 }
+        })
+        .run()
+      notifyDataApiDataChangeMock.mockClear()
+
+      messageService.delete('m-a2', false)
+
+      expect(messageService.getById('m-deep').compactionSummary).toBeNull()
+      expect(messageService.getById('m-deep').stats).not.toHaveProperty('contextTokens')
+      const effects = notifyDataApiDataChangeMock.mock.calls.flatMap(([batch]) => batch)
+      expect(effects.find((effect) => effect.endpoint === '/messages/:id')?.entityIds).toEqual(
+        expect.arrayContaining(['m-a2', 'm-follow', 'm-deep'])
+      )
+    })
+
     it('clears descendant context when deleting the final inherited reply', async () => {
       await seedMultiModelTree()
       messageService.delete('m-a2', false)
