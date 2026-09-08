@@ -2006,10 +2006,10 @@ describe('TranslatePage', () => {
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('ja-jp')
+      expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
+      expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
     })
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('auto')
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
-    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
   })
 
   it('does not reset the shared source preference when text history has no source language', async () => {
@@ -2021,6 +2021,48 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
 
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
+  })
+
+  it('keeps the current translation when history language persistence fails', async () => {
+    const persistError = new Error('write failed')
+    const persistLanguages = vi.fn(async (values: { sourceLanguage?: string; targetLanguage?: string }) => {
+      if (values.sourceLanguage && values.targetLanguage) throw persistError
+      if (values.sourceLanguage) {
+        MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.source_language', values.sourceLanguage)
+      }
+      if (values.targetLanguage) throw persistError
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'current output')
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [
+            alias,
+            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
+          ])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.save_failed'))
+      }
+    )
+
+    expect(persistLanguages).toHaveBeenCalledTimes(1)
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('en-us')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('zh-cn')
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('current input')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('current output')
   })
 
   it('falls back to a concrete target language when reusing history with a null target and current unknown target', async () => {

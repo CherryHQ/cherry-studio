@@ -44,7 +44,7 @@ import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
@@ -641,48 +641,48 @@ const TranslatePage: FC = () => {
   ])
 
   const onHistoryItemClick = useCallback(
-    (history: TranslateHistory, files?: TranslationFiles) => {
+    async (history: TranslateHistory, files?: TranslationFiles) => {
       if (exchangePendingRef.current) return
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
+      const nextSourceLanguage =
+        history.kind === 'file' || history.sourceLanguage ? (history.sourceLanguage ?? 'auto') : undefined
 
       // Only reachable from the detail panel's preview action, which `isPdfTranslation`
       // already gated — a future non-PDF file translation has no viewer to restore into
       // and never offers the button.
+      let filePaths: { source: AbsoluteFilePath; target: AbsoluteFilePath } | undefined
       if (history.kind === 'file') {
-        // A moved-away source still resolves (external entries keep their recorded path,
-        // and the left pane renders its own unavailable state); a null path means the
-        // entry itself is gone, which leaves nothing to show side by side.
         if (!files?.source?.path || !files.target?.path) {
           toast.error(t('translate.history.file.unavailable'))
           return
         }
+        filePaths = { source: files.source.path, target: files.target.path }
+      }
+
+      const persisted = await safePersist(
+        setTranslateLanguages({
+          ...(nextSourceLanguage ? { sourceLanguage: nextSourceLanguage } : {}),
+          targetLanguage: nextTargetLanguage
+        }),
+        'translate history languages'
+      )
+      if (!persisted || !isMountedRef.current) return
+
+      if (filePaths) {
         resetPdfMode()
-        setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
-        setPdfFile({ name: history.sourceText, path: files.source.path })
+        setRestoredPdf({ output: { outputPath: filePaths.target, fileName: history.targetText }, key: history.id })
+        setPdfFile({ name: history.sourceText, path: filePaths.source })
       } else {
         resetPdfMode()
         setTranslateInput(history.sourceText)
         setTranslateOutput(history.targetText)
       }
 
-      if (history.kind === 'file' || history.sourceLanguage) {
-        void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
-      }
-      void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
     },
-    [
-      resetPdfMode,
-      safePersist,
-      setSourceLanguage,
-      setTargetLanguage,
-      setTranslateInput,
-      setTranslateOutput,
-      t,
-      targetLanguage
-    ]
+    [resetPdfMode, safePersist, setTranslateLanguages, setTranslateInput, setTranslateOutput, t, targetLanguage]
   )
 
   const inputScrollHandler = useMemo(
