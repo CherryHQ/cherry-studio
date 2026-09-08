@@ -922,8 +922,8 @@ export class AiService extends BaseService {
     })
     const recordProviderCall = createProviderCallHandler(imageUsageContext)
     let providerImageCount = 0
-    let remoteDownloadCount = 0
-    let remoteDownloadFailures = 0
+    const remoteDownloadOutcomes = new Map<number, boolean>()
+    let nextRemoteDownloadFallbackIndex = 0
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
@@ -935,19 +935,26 @@ export class AiService extends BaseService {
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {
-        remoteDownloadCount += downloads.length
         return Promise.all(
-          downloads.map(async ({ url }) => {
+          downloads.map(async ({ url, originalIndex }) => {
+            const candidateIndex = originalIndex ?? nextRemoteDownloadFallbackIndex
+            nextRemoteDownloadFallbackIndex = Math.max(nextRemoteDownloadFallbackIndex, candidateIndex + 1)
             if (signal?.aborted) return null
-            const downloaded = await downloadImageAsBase64(url.toString())
-            if (signal?.aborted) return null
-            if (!downloaded) {
-              remoteDownloadFailures += 1
+            try {
+              const downloaded = await downloadImageAsBase64(url.toString())
+              if (signal?.aborted) return null
+              if (!downloaded) {
+                remoteDownloadOutcomes.set(candidateIndex, true)
+                return null
+              }
+              remoteDownloadOutcomes.set(candidateIndex, false)
+              return {
+                data: Buffer.from(downloaded.data, 'base64'),
+                mediaType: downloaded.media_type
+              }
+            } catch {
+              remoteDownloadOutcomes.set(candidateIndex, true)
               return null
-            }
-            return {
-              data: Buffer.from(downloaded.data, 'base64'),
-              mediaType: downloaded.media_type
             }
           })
         )
@@ -968,8 +975,9 @@ export class AiService extends BaseService {
         throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
       }
       if (NoImageGeneratedError.isInstance(error)) {
-        if (remoteDownloadCount > 0 && remoteDownloadFailures === remoteDownloadCount) {
-          throw new Error(`Image generation produced ${remoteDownloadCount} URL(s) but all downloads failed`, {
+        const remoteDownloadFailures = [...remoteDownloadOutcomes.values()].filter(Boolean).length
+        if (remoteDownloadOutcomes.size > 0 && remoteDownloadFailures === remoteDownloadOutcomes.size) {
+          throw new Error(`Image generation produced ${remoteDownloadOutcomes.size} URL(s) but all downloads failed`, {
             cause: error
           })
         }
@@ -983,18 +991,39 @@ export class AiService extends BaseService {
       }
       throw error
     }
+    if (signal?.aborted) {
+      throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
+    }
 
     const images = result.images ?? []
     const dataUrls: Base64String[] = []
     const rejected: NonNullable<AiImageResult['validation']>['rejected'] = []
+    const failedDownloadIndexes = [...remoteDownloadOutcomes.entries()]
+      .filter(([, failed]) => failed)
+      .map(([index]) => index)
+      .sort((a, b) => a - b)
+    const failedDownloadIndexSet = new Set(failedDownloadIndexes)
+    const droppedImageCount = Math.max(failedDownloadIndexes.length, providerImageCount - images.length)
+    const highestDownloadIndex = Math.max(-1, ...remoteDownloadOutcomes.keys())
+    const receivedCount = Math.max(images.length + droppedImageCount, highestDownloadIndex + 1)
+    const imageIndexes = Array.from({ length: receivedCount }, (_, index) => index)
+      .filter((index) => !failedDownloadIndexSet.has(index))
+      .slice(0, images.length)
     for (const [index, image] of images.entries()) {
       const validated = await validateGeneratedImage(image)
-      if (validated.reason) rejected.push({ index, reason: validated.reason })
+      if (validated.reason) rejected.push({ index: imageIndexes[index] ?? index, reason: validated.reason })
       else dataUrls.push(validated.data)
     }
 
-    const validation =
-      images.length === 0 || rejected.length > 0 ? { receivedCount: images.length, rejected } : undefined
+    rejected.push(...failedDownloadIndexes.map((index) => ({ index, reason: 'download_failed' as const })))
+    const assignedIndexes = new Set([...imageIndexes, ...failedDownloadIndexes])
+    const unknownDroppedIndexes = Array.from({ length: receivedCount }, (_, index) => index)
+      .filter((index) => !assignedIndexes.has(index))
+      .slice(0, droppedImageCount - failedDownloadIndexes.length)
+    rejected.push(...unknownDroppedIndexes.map((index) => ({ index, reason: 'invalid_image_data' as const })))
+    rejected.sort((a, b) => a.index - b.index)
+
+    const validation = receivedCount === 0 || rejected.length > 0 ? { receivedCount, rejected } : undefined
     if (validation) {
       logger.warn('Filtered invalid generated images', {
         uniqueModelId: request.uniqueModelId,

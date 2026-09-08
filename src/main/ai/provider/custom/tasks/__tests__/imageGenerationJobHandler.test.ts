@@ -403,6 +403,18 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(cancelMock).toHaveBeenCalledWith('task-mid')
   })
 
+  it('does not persist an image when cancellation happens during download', async () => {
+    const controller = new AbortController()
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    downloadMock.mockImplementation(async () => {
+      controller.abort()
+      return { data: TINY_PNG_BASE64, media_type: 'image/png' }
+    })
+
+    await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
   it('throws when transport resolution yields nothing', async () => {
     resolveImageTransportMock.mockReturnValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/no async transport/i)

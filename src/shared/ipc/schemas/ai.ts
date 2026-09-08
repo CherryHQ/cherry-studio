@@ -1,5 +1,5 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
-import { generatedImageRejectionReasons } from '@shared/ai/paintingGenerateError'
+import { GeneratedImageValidationSchema } from '@shared/ai/paintingGenerateError'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -185,14 +185,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({ requestId: z.string().min(1), payload: aiImagePayloadSchema }),
     output: z.object({
       files: z.array(FileEntrySchema),
-      validation: z
-        .object({
-          receivedCount: z.number().int().nonnegative(),
-          rejected: z.array(
-            z.object({ index: z.number().int().nonnegative(), reason: z.enum(generatedImageRejectionReasons) })
-          )
-        })
-        .optional()
+      validation: GeneratedImageValidationSchema.optional()
     })
   }),
   'ai.image.abort': defineRoute({

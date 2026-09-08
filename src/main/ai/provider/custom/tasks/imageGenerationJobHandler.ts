@@ -223,6 +223,7 @@ async function downloadAndPersistImageUrls(
   for (const [index, url] of urls.entries()) {
     if (signal.aborted) throw createAbortError('Image generation aborted')
     const validated = await resolveImageDataUrl(url)
+    if (signal.aborted) throw createAbortError('Image generation aborted')
     if ('downloadFailed' in validated) {
       downloadFailures += 1
       continue

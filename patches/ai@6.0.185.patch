@@ -1,8 +1,16 @@
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index 23c5e35..3a73d98 100644
+index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa66514e2b1607 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
-@@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
+@@ -586,6 +586,7 @@ type TelemetrySettings = {
+ type DownloadFunction = (options: Array<{
+     url: URL;
+     isUrlSupportedByModel: boolean;
++    originalIndex?: number;
+ }>) => PromiseLike<Array<{
+     data: Uint8Array;
+     mediaType: string | undefined;
+@@ -5041,7 +5042,7 @@ type GenerateImagePrompt = string | {
   *
   * @returns A result object that contains the generated images.
   */
@@ -11,7 +19,7 @@ index 23c5e35..3a73d98 100644
      /**
       * The image model to use.
       */
-@@ -5100,6 +5100,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+@@ -5100,6 +5101,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
       * Only applicable for HTTP-based providers.
       */
      headers?: Record<string, string>;
@@ -25,10 +33,18 @@ index 23c5e35..3a73d98 100644
  
  /**
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 23c5e35..3a73d98 100644
+index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa66514e2b1607 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
+@@ -586,6 +586,7 @@ type TelemetrySettings = {
+ type DownloadFunction = (options: Array<{
+     url: URL;
+     isUrlSupportedByModel: boolean;
++    originalIndex?: number;
+ }>) => PromiseLike<Array<{
+     data: Uint8Array;
+     mediaType: string | undefined;
+@@ -5041,7 +5042,7 @@ type GenerateImagePrompt = string | {
   *
   * @returns A result object that contains the generated images.
   */
@@ -37,7 +53,7 @@ index 23c5e35..3a73d98 100644
      /**
       * The image model to use.
       */
-@@ -5100,6 +5100,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+@@ -5100,6 +5101,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
       * Only applicable for HTTP-based providers.
       */
      headers?: Record<string, string>;
@@ -51,7 +67,7 @@ index 23c5e35..3a73d98 100644
  
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 5774837..a06b785 100644
+index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c13574934522 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -8468,6 +8468,16 @@ function createUIMessageStream({
@@ -105,18 +121,21 @@ index 5774837..a06b785 100644
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9696,11 +9715,36 @@ async function generateImage({
+@@ -9696,11 +9715,43 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
 +  const downloadFn = download2 != null ? download2 : createDefaultDownloadFunction();
++  let processedImageCount = 0;
    for (const result of results) {
 -    images.push(
 -      ...result.images.map(
 -        (image) => {
 -          var _a22;
++    const originalIndexOffset = processedImageCount;
++    processedImageCount += result.images.length;
 +    const processedImages = await Promise.all(
-+      result.images.map(async (image) => {
++      result.images.map(async (image, index) => {
 +        var _a22;
 +        if (typeof image === "string" && image.startsWith("data:")) {
 +          const { mediaType, base64Content } = splitDataUrl(image);
@@ -128,7 +147,11 @@ index 5774837..a06b785 100644
 +        if (imageUrl != null) {
 +          let downloadedData = null;
 +          try {
-+            downloadedData = (await downloadFn([{ url: imageUrl, isUrlSupportedByModel: false }]))[0];
++            downloadedData = (await downloadFn([{
++              url: imageUrl,
++              isUrlSupportedByModel: false,
++              originalIndex: originalIndexOffset + index
++            }]))[0];
 +          } catch (downloadError) {
 +            downloadedData = null;
 +          }
@@ -146,7 +169,7 @@ index 5774837..a06b785 100644
            return new DefaultGeneratedFile({
              data: image,
              mediaType: (_a22 = detectMediaType({
-@@ -9708,9 +9752,22 @@ async function generateImage({
+@@ -9708,9 +9759,22 @@ async function generateImage({
                signatures: imageMediaTypeSignatures
              })) != null ? _a22 : "image/png"
            });
@@ -171,7 +194,7 @@ index 5774837..a06b785 100644
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6862f01..ccdb020 100644
+index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24de8367e26 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -8392,6 +8392,16 @@ function createUIMessageStream({
@@ -225,18 +248,21 @@ index 6862f01..ccdb020 100644
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9635,11 +9654,36 @@ async function generateImage({
+@@ -9635,11 +9654,43 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
 +  const downloadFn = download2 != null ? download2 : createDefaultDownloadFunction();
++  let processedImageCount = 0;
    for (const result of results) {
 -    images.push(
 -      ...result.images.map(
 -        (image) => {
 -          var _a22;
++    const originalIndexOffset = processedImageCount;
++    processedImageCount += result.images.length;
 +    const processedImages = await Promise.all(
-+      result.images.map(async (image) => {
++      result.images.map(async (image, index) => {
 +        var _a22;
 +        if (typeof image === "string" && image.startsWith("data:")) {
 +          const { mediaType, base64Content } = splitDataUrl(image);
@@ -248,7 +274,11 @@ index 6862f01..ccdb020 100644
 +        if (imageUrl != null) {
 +          let downloadedData = null;
 +          try {
-+            downloadedData = (await downloadFn([{ url: imageUrl, isUrlSupportedByModel: false }]))[0];
++            downloadedData = (await downloadFn([{
++              url: imageUrl,
++              isUrlSupportedByModel: false,
++              originalIndex: originalIndexOffset + index
++            }]))[0];
 +          } catch (downloadError) {
 +            downloadedData = null;
 +          }
@@ -266,7 +296,7 @@ index 6862f01..ccdb020 100644
            return new DefaultGeneratedFile({
              data: image,
              mediaType: (_a22 = detectMediaType({
-@@ -9647,9 +9691,22 @@ async function generateImage({
+@@ -9647,9 +9698,22 @@ async function generateImage({
                signatures: imageMediaTypeSignatures
              })) != null ? _a22 : "image/png"
            });

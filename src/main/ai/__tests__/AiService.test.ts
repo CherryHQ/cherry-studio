@@ -1020,6 +1020,82 @@ describe('AiService', () => {
       })
       expect(mockGenerateImage).toHaveBeenCalledOnce()
     })
+
+    it('reports a failed URL download when another direct image succeeds', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockDownloadImageAsBase64.mockImplementation(async (url: string) =>
+        url.endsWith('b.png') ? { data: TINY_PNG_BASE64, media_type: 'image/png' } : null
+      )
+      mockGenerateImage.mockImplementation(async (_providerId, _providerSettings, options) => {
+        await options.experimental_download([
+          { url: new URL('https://example.com/a.png'), isUrlSupportedByModel: false, originalIndex: 0 },
+          { url: new URL('https://example.com/b.png'), isUrlSupportedByModel: false, originalIndex: 1 }
+        ])
+        await options.experimental_download([
+          { url: new URL('https://example.com/a.png'), isUrlSupportedByModel: false, originalIndex: 0 }
+        ])
+        return { images: [{ base64: TINY_PNG_BASE64, mediaType: 'image/png' }] }
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'png', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file],
+        validation: {
+          receivedCount: 2,
+          rejected: [{ index: 0, reason: 'download_failed' }]
+        }
+      })
+    })
+
+    it('preserves a failed URL index after a base64 candidate', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockDownloadImageAsBase64.mockResolvedValue(null)
+      mockGenerateImage.mockImplementation(async (_providerId, _providerSettings, options) => {
+        await options.experimental_download([
+          { url: new URL('https://example.com/a.png'), isUrlSupportedByModel: false, originalIndex: 1 }
+        ])
+        return { images: [{ base64: TINY_PNG_BASE64, mediaType: 'image/png' }] }
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'png', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file],
+        validation: {
+          receivedCount: 2,
+          rejected: [{ index: 1, reason: 'download_failed' }]
+        }
+      })
+    })
   })
 
   // The direct (non-job) image path observes the actual ImageModel doGenerate

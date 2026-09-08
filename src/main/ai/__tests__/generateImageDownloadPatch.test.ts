@@ -22,16 +22,20 @@ describe('patched ai generateImage url download', () => {
   const bytes = new Uint8Array([1, 2, 3])
 
   it('drops an image whose download failed instead of keeping the url as data', async () => {
+    const originalIndexes: Array<number | undefined> = []
     const result = await generateImage({
       model: imageModel(['https://img/gone.png', 'https://img/ok.png']),
       prompt: 'a fox',
       n: 2,
-      experimental_download: async (downloads) =>
-        downloads.map(({ url }) => (url.href.includes('gone') ? null : { data: bytes, mediaType: 'image/png' }))
+      experimental_download: async (downloads) => {
+        originalIndexes.push(...downloads.map(({ originalIndex }) => originalIndex))
+        return downloads.map(({ url }) => (url.href.includes('gone') ? null : { data: bytes, mediaType: 'image/png' }))
+      }
     })
 
     expect(result.images).toHaveLength(1)
     expect(result.images[0].uint8Array).toEqual(bytes)
+    expect(originalIndexes).toEqual([0, 1])
     expect(result.warnings).toContainEqual({
       type: 'other',
       message: '1 of 2 generated images could not be downloaded and were dropped'
@@ -84,5 +88,22 @@ describe('patched ai generateImage url download', () => {
     })
 
     expect(result.images[0].base64).toBe('QUJD')
+  })
+
+  it('keeps the provider index when a URL follows base64 image data', async () => {
+    const originalIndexes: Array<number | undefined> = []
+    const result = await generateImage({
+      model: imageModel(['QUJD', 'https://img/gone.png']),
+      prompt: 'a fox',
+      n: 2,
+      experimental_download: async (downloads) => {
+        originalIndexes.push(...downloads.map(({ originalIndex }) => originalIndex))
+        return downloads.map(() => null)
+      }
+    })
+
+    expect(result.images).toHaveLength(1)
+    expect(result.images[0].base64).toBe('QUJD')
+    expect(originalIndexes).toEqual([1])
   })
 })
