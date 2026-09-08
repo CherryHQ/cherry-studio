@@ -57,6 +57,7 @@ overrides:
   '@napi-rs/system-ocr-darwin-x64': 1.0.2
   '@ai-sdk/provider': 3.0.15
   '@ai-sdk/provider-utils': 4.0.50
+  '@ai-sdk/openai': 3.0.109
   '@ai-sdk/anthropic': 3.0.103
   ai: 6.0.185
 
@@ -65,10 +66,10 @@ patchedDependencies:
   '@ai-sdk/google@3.0.113': 8cbaff63516ef35b2a638a683af4799855611da4a40b71ff896798ba90e30874
   '@ai-sdk/open-responses@1.0.34': 7a7a5a05a06775293425dfb63c279d62fded2d6ac0667ba64664cc43bfef0648
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
-  '@ai-sdk/openai@3.0.109': 350f48bc773a9ecb47ff0d16ecce61ccc0a38be7e93e49c45489270ffada9a06
+  '@ai-sdk/openai@3.0.109': 06ca4fc04539f60d23f2a9f6e04e48ce0fc8460402f6535703bf315bf25132c4
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
-  '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7': 9c4deb543997ef0b40cf4a39f177e8edbb42c486c74e756bfdd451b0620c28ed
-  '@earendil-works/pi-ai@0.80.6': ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206
+  '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7': f86a171ce4900f53dd830525528b5f669b8f4a582c852365cc0415ccfdfaee2f
+  '@earendil-works/pi-ai@0.80.6': 8ae915ecde8054da94741cecb272baf207ce5b7e596758c87ecdad572489e24d
   '@earendil-works/pi-coding-agent@0.80.3': 1717b3290d2aaa3819537bd040f531534184c38f2e8c0e6d6b52fdb1ed02b564
   '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
@@ -77,7 +78,7 @@ patchedDependencies:
   '@tiptap/extension-drag-handle@3.26.1': 2f5c32153f059725f94906803079b90be2a4cf602befe45cd4f2e96652099096
   '@tiptap/markdown@3.26.1': 4b825bfd4fccf96d565836b1e72fdd2526302248d66c68f43d9f6edf42b85540
   ai@6.0.185: 61fc175c652267f39ec01df738fc61d1639faa19b980441005f7e9cd645d1711
-  app-builder-lib@26.15.6: 02eea486cdfb1f860d3908d1b9b14b1e4ba0c67da37751fb2b76db4cffb51ac4
+  app-builder-lib@26.15.6: 0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
@@ -106,7 +107,7 @@ importers:
         version: 0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-llm@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-attachment@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-brand@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1))(@deepseek-ai/dsh-timeout@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1))))(@deepseek-ai/dsh-session@0.1.0-rc.7(1dcde9bfc9fa0140c66648fbcb67b346))(@deepseek-ai/dsh-subagent@0.1.0-rc.7(1b6079401dbb31e84cdd730e8138699a))
       '@earendil-works/pi-ai':
         specifier: 0.80.6
-        version: 0.80.6(patch_hash=ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
+        version: 0.80.6(patch_hash=8ae915ecde8054da94741cecb272baf207ce5b7e596758c87ecdad572489e24d)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
       '@earendil-works/pi-coding-agent':
         specifier: 0.80.3
         version: 0.80.3(patch_hash=1717b3290d2aaa3819537bd040f531534184c38f2e8c0e6d6b52fdb1ed02b564)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
@@ -203,6 +204,9 @@ importers:
       sqlite-vec:
         specifier: npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2
         version: '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'
+      systeminformation:
+        specifier: 5.33.8
+        version: 5.33.8
       tar:
         specifier: 7.5.19
         version: 7.5.19
@@ -262,8 +266,8 @@ importers:
         specifier: 1.0.34
         version: 1.0.34(patch_hash=7a7a5a05a06775293425dfb63c279d62fded2d6ac0667ba64664cc43bfef0648)(zod@4.3.4)
       '@ai-sdk/openai':
-        specifier: ^3.0.109
-        version: 3.0.109(patch_hash=350f48bc773a9ecb47ff0d16ecce61ccc0a38be7e93e49c45489270ffada9a06)(zod@4.3.4)
+        specifier: 3.0.109
+        version: 3.0.109(patch_hash=06ca4fc04539f60d23f2a9f6e04e48ce0fc8460402f6535703bf315bf25132c4)(zod@4.3.4)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.3.4)
@@ -1445,8 +1449,8 @@ importers:
         specifier: ^3.0.113
         version: 3.0.113(patch_hash=8cbaff63516ef35b2a638a683af4799855611da4a40b71ff896798ba90e30874)(zod@4.4.3)
       '@ai-sdk/openai':
-        specifier: ^3.0.109
-        version: 3.0.109(patch_hash=350f48bc773a9ecb47ff0d16ecce61ccc0a38be7e93e49c45489270ffada9a06)(zod@4.4.3)
+        specifier: 3.0.109
+        version: 3.0.109(patch_hash=06ca4fc04539f60d23f2a9f6e04e48ce0fc8460402f6535703bf315bf25132c4)(zod@4.4.3)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.4.3)
@@ -1482,8 +1486,8 @@ importers:
         specifier: ^3.0.113
         version: 3.0.113(patch_hash=8cbaff63516ef35b2a638a683af4799855611da4a40b71ff896798ba90e30874)(zod@4.3.4)
       '@ai-sdk/openai':
-        specifier: ^3.0.109
-        version: 3.0.109(patch_hash=350f48bc773a9ecb47ff0d16ecce61ccc0a38be7e93e49c45489270ffada9a06)(zod@4.3.4)
+        specifier: 3.0.109
+        version: 3.0.109(patch_hash=06ca4fc04539f60d23f2a9f6e04e48ce0fc8460402f6535703bf315bf25132c4)(zod@4.3.4)
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.72
         version: 2.0.72(patch_hash=e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480)(zod@4.3.4)
@@ -1637,7 +1641,7 @@ importers:
         version: 0.1.0-rc.7(1b165c0b687652478be7b7375cfce4e5)
       '@deepseek-ai/dsh-llm-pi-ai':
         specifier: 0.1.0-rc.7
-        version: 0.1.0-rc.7(patch_hash=9c4deb543997ef0b40cf4a39f177e8edbb42c486c74e756bfdd451b0620c28ed)(284c2d357a47f7362b3cfd8c90b5bc37)
+        version: 0.1.0-rc.7(patch_hash=f86a171ce4900f53dd830525528b5f669b8f4a582c852365cc0415ccfdfaee2f)(284c2d357a47f7362b3cfd8c90b5bc37)
       '@deepseek-ai/dsh-llm-retry':
         specifier: 0.1.0-rc.7
         version: 0.1.0-rc.7(f6ee553b5544017c93f5bcbec0012ce3)
@@ -14925,6 +14929,12 @@ packages:
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
 
+  systeminformation@5.33.8:
+    resolution: {integrity: sha512-v4F6OGYGh7wDvV68YmjOmZwGixV9A/GQ7d2b84t0UF4CaOy9jipNWIJDkHqYDYiTPuiojqlwVQd0hfUKOUN7tQ==}
+    engines: {node: '>=10.0.0'}
+    os: [darwin, linux, win32, freebsd, openbsd, netbsd, sunos, android]
+    hasBin: true
+
   tagged-tag@1.0.0:
     resolution: {integrity: sha512-yEFYrVhod+hdNyx7g5Bnkkb0G6si8HJurOoOEgC8B/O0uXLHlaey/65KRv6cuWBNhBgHKAROVpc7QyYqE5gFng==}
     engines: {node: '>=20'}
@@ -16044,7 +16054,7 @@ snapshots:
   '@ai-sdk/azure@3.0.116(zod@4.3.4)':
     dependencies:
       '@ai-sdk/deepseek': 2.0.62(zod@4.3.4)
-      '@ai-sdk/openai': 3.0.109(patch_hash=350f48bc773a9ecb47ff0d16ecce61ccc0a38be7e93e49c45489270ffada9a06)(zod@4.3.4)
+      '@ai-sdk/openai': 3.0.109(patch_hash=06ca4fc04539f60d23f2a9f6e04e48ce0fc8460402f6535703bf315bf25132c4)(zod@4.3.4)
       '@ai-sdk/provider': 3.0.15
       '@ai-sdk/provider-utils': 4.0.50(zod@4.3.4)
       zod: 4.3.4
@@ -16161,13 +16171,13 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.50(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/openai@3.0.109(patch_hash=350f48bc773a9ecb47ff0d16ecce61ccc0a38be7e93e49c45489270ffada9a06)(zod@4.3.4)':
+  '@ai-sdk/openai@3.0.109(patch_hash=06ca4fc04539f60d23f2a9f6e04e48ce0fc8460402f6535703bf315bf25132c4)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.15
       '@ai-sdk/provider-utils': 4.0.50(zod@4.3.4)
       zod: 4.3.4
 
-  '@ai-sdk/openai@3.0.109(patch_hash=350f48bc773a9ecb47ff0d16ecce61ccc0a38be7e93e49c45489270ffada9a06)(zod@4.4.3)':
+  '@ai-sdk/openai@3.0.109(patch_hash=06ca4fc04539f60d23f2a9f6e04e48ce0fc8460402f6535703bf315bf25132c4)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 3.0.15
       '@ai-sdk/provider-utils': 4.0.50(zod@4.4.3)
@@ -17998,7 +18008,7 @@ snapshots:
       '@deepseek-ai/schemastery': 3.18.1
       eventsource-parser: 3.1.1
 
-  '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7(patch_hash=9c4deb543997ef0b40cf4a39f177e8edbb42c486c74e756bfdd451b0620c28ed)(284c2d357a47f7362b3cfd8c90b5bc37)':
+  '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7(patch_hash=f86a171ce4900f53dd830525528b5f669b8f4a582c852365cc0415ccfdfaee2f)(284c2d357a47f7362b3cfd8c90b5bc37)':
     dependencies:
       '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-attachment': 0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1))
@@ -18582,7 +18592,7 @@ snapshots:
       - ws
       - zod
 
-  '@earendil-works/pi-ai@0.80.6(patch_hash=ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)':
+  '@earendil-works/pi-ai@0.80.6(patch_hash=8ae915ecde8054da94741cecb272baf207ce5b7e596758c87ecdad572489e24d)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)':
     dependencies:
       '@anthropic-ai/sdk': 0.91.1(zod@4.3.4)
       '@aws-sdk/client-bedrock-runtime': 3.1048.0
@@ -18627,7 +18637,7 @@ snapshots:
   '@earendil-works/pi-coding-agent@0.80.3(patch_hash=1717b3290d2aaa3819537bd040f531534184c38f2e8c0e6d6b52fdb1ed02b564)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)':
     dependencies:
       '@earendil-works/pi-agent-core': 0.80.10(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
-      '@earendil-works/pi-ai': 0.80.6(patch_hash=ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
+      '@earendil-works/pi-ai': 0.80.6(patch_hash=8ae915ecde8054da94741cecb272baf207ce5b7e596758c87ecdad572489e24d)(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(ws@8.21.0)(zod@4.3.4)
       '@earendil-works/pi-tui': 0.80.10
       '@silvia-odwyer/photon-node': 0.3.4
       chalk: 5.6.2
@@ -24182,7 +24192,7 @@ snapshots:
 
   anynum@1.0.1: {}
 
-  app-builder-lib@26.15.6(patch_hash=02eea486cdfb1f860d3908d1b9b14b1e4ba0c67da37751fb2b76db4cffb51ac4)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6):
+  app-builder-lib@26.15.6(patch_hash=0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6):
     dependencies:
       '@electron/asar': 3.4.1
       '@electron/fuses': 1.8.0
@@ -25472,7 +25482,7 @@ snapshots:
 
   dmg-builder@26.15.6(electron-builder-squirrel-windows@26.15.6):
     dependencies:
-      app-builder-lib: 26.15.6(patch_hash=02eea486cdfb1f860d3908d1b9b14b1e4ba0c67da37751fb2b76db4cffb51ac4)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
+      app-builder-lib: 26.15.6(patch_hash=0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
       builder-util: 26.15.3
       fs-extra: 10.1.0
       js-yaml: 4.3.0
@@ -25614,7 +25624,7 @@ snapshots:
 
   electron-builder-squirrel-windows@26.15.6(dmg-builder@26.15.6):
     dependencies:
-      app-builder-lib: 26.15.6(patch_hash=02eea486cdfb1f860d3908d1b9b14b1e4ba0c67da37751fb2b76db4cffb51ac4)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
+      app-builder-lib: 26.15.6(patch_hash=0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
       builder-util: 26.15.3
       electron-winstaller: 5.4.0
     transitivePeerDependencies:
@@ -25623,7 +25633,7 @@ snapshots:
 
   electron-builder@26.15.6(electron-builder-squirrel-windows@26.15.6):
     dependencies:
-      app-builder-lib: 26.15.6(patch_hash=02eea486cdfb1f860d3908d1b9b14b1e4ba0c67da37751fb2b76db4cffb51ac4)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
+      app-builder-lib: 26.15.6(patch_hash=0c97462468a75262cf0a035c308cc8fdf186541f4dfc637e87952fb2a2850181)(dmg-builder@26.15.6)(electron-builder-squirrel-windows@26.15.6)
       builder-util: 26.15.3
       builder-util-runtime: 9.7.0
       chalk: 4.1.2
@@ -30895,6 +30905,8 @@ snapshots:
       use-sync-external-store: 1.6.0(react@19.2.3)
 
   symbol-tree@3.2.4: {}
+
+  systeminformation@5.33.8: {}
 
   tagged-tag@1.0.0: {}
 

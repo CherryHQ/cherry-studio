@@ -394,14 +394,19 @@ describe('catalog invariants (data/*.json)', () => {
     expect(pricing('deepseek-v4-flash-latest')).toBeUndefined()
   })
 
-  it('models.json conforms to ModelListSchema', () => {
+  // The list schemas drop entries they cannot parse (forward compatibility), so conformance
+  // means BOTH "parses" and "nothing was silently dropped" — otherwise a broken bundled entry
+  // would vanish from the shipped catalog without failing anything.
+  it('models.json conforms to ModelListSchema with no entry dropped', () => {
     const r = ModelListSchema.safeParse(modelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+    expect(r.success && r.data.models.length).toBe(modelsRaw.models.length)
   })
 
-  it('provider-models.json conforms to ProviderModelListSchema', () => {
+  it('provider-models.json conforms to ProviderModelListSchema with no entry dropped', () => {
     const r = ProviderModelListSchema.safeParse(providerModelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+    expect(r.success && r.data.overrides.length).toBe(providerModelsRaw.overrides.length)
   })
 
   it('Fast transports belong only to Codex, Claude Code, and Ark', () => {

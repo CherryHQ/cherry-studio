@@ -13,3 +13,9 @@ pnpm --filter @cherrystudio/provider-registry compat:baseline
 
 Never edit, regenerate, or delete an existing validator. A schema refactor that leaves the emitted
 catalog compatible does not require a version bump.
+
+Since v2 the baselines are *forward compatible* (`src/schemas/forwardCompat.ts`): an unknown enum
+member is dropped from its list, an unrecognizable entry is dropped from its catalog, and the
+document still validates. So new vocabulary — a modality, a capability, a reasoning effort — is no
+longer a wire break and must not bump the version. What still breaks a vN client is structural:
+a renamed or retyped field, a removed required field.

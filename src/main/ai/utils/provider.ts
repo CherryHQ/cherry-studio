@@ -1,3 +1,4 @@
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { TOKEN_DANCE_APP_URL } from '@main/ai/provider/constants'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
@@ -63,10 +64,25 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
   }
 }
 
+/**
+ * Canonical bundled and managed providers retain Cherry's existing app
+ * attribution. User-created providers can point at arbitrary hosts, where
+ * these browser-style headers may be rejected as CSRF metadata. Keep explicit
+ * user headers separate so a custom provider can still opt in through
+ * `settings.extraHeaders`.
+ */
+export function getProviderAppHeaders(provider: Provider): Record<string, string> {
+  if (!provider.presetProviderId) return {}
+
+  const isCanonicalProvider =
+    provider.id === provider.presetProviderId || providerRegistryService.isRegistryProvider(provider.id)
+  return isCanonicalProvider ? defaultAppHeaders() : {}
+}
+
 export function defaultHeaders(provider: Provider): Record<string, string> {
   const apiKey = providerService.getRotatedApiKey(provider.id)
   return mergeHeaders(
-    defaultAppHeaders(),
+    getProviderAppHeaders(provider),
     apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : undefined,
     getExtraHeaders(provider)
   )

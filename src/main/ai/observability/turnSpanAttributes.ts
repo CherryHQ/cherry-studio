@@ -20,8 +20,16 @@ const logger = loggerService.withContext('turnSpanAttributes')
  * Both helpers are best-effort — a malformed message must never break streaming.
  */
 
-/** Cap for captured prompt/answer text — debug content, gated on the dev-only trace store. */
-const MAX_CONTENT_CHARS = 8 * KB
+/** Cap for captured prompt text — debug content, gated on the dev-only trace store. */
+export const MAX_TURN_INPUT_CHARS = 8 * KB
+
+/**
+ * Cap for the captured final answer.
+ * Aligned with the HTTP trace body cap (`512KB`) so long streaming responses
+ * (e.g. ~8k chars, see issue #19564) are preserved in full, while a pathological
+ * single turn still cannot blow the trace store / IPC payload on its own.
+ */
+export const MAX_TURN_OUTPUT_CHARS = 512 * KB
 
 export interface TurnInputInfo {
   modelId: UniqueModelId
@@ -39,7 +47,7 @@ export function applyTurnInputAttributes(span: Span, info: TurnInputInfo): void 
     span.setAttribute('gen_ai.conversation.id', info.topicId)
     if (info.agentName) span.setAttribute('gen_ai.agent.name', info.agentName)
     const prompt = lastUserText(info.messages)
-    if (prompt) span.setAttribute('inputs', truncate(prompt, MAX_CONTENT_CHARS))
+    if (prompt) span.setAttribute('inputs', truncate(prompt, MAX_TURN_INPUT_CHARS))
     // Parse model id AFTER unconditional attributes — a malformed model id
     // must not wipe the attributes already set.
     const { providerId, modelId } = parseUniqueModelId(info.modelId)
@@ -53,7 +61,7 @@ export function applyTurnInputAttributes(span: Span, info: TurnInputInfo): void 
 export function applyTurnOutputAttributes(span: Span, finalMessage: CherryUIMessage): void {
   try {
     const text = partsText(finalMessage.parts)
-    if (text) span.setAttribute('outputs', truncate(text, MAX_CONTENT_CHARS))
+    if (text) span.setAttribute('outputs', truncate(text, MAX_TURN_OUTPUT_CHARS))
     const toolCalls = countToolParts(finalMessage.parts)
     if (toolCalls > 0) span.setAttribute('cs.tool_calls', toolCalls)
   } catch (error) {

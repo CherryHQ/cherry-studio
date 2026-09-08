@@ -61,6 +61,8 @@ overrides:
   # across every provider package; 3.0.15 / 4.0.50 is what the current provider set declares.
   '@ai-sdk/provider': '3.0.15'
   '@ai-sdk/provider-utils': '4.0.50'
+  # Keep every OpenAI consumer on the single patched build, including Azure's transitive copy.
+  '@ai-sdk/openai': '3.0.109'
   # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
   # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and
   # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.103 includes
@@ -234,7 +236,7 @@ minimumReleaseAgeExclude:
   - '@ai-sdk/huggingface@1.0.74'
   - '@ai-sdk/togetherai@2.0.78'
   - '@ai-sdk/xai@3.0.126'
-  - '@ai-sdk/provider-utils@4.0.48'
+  - '@ai-sdk/provider-utils@4.0.50'
   - '@cherrystudio/analytics-client@1.3.1'
   - '@ai-sdk/openai@3.0.109'
   - '@ai-sdk/azure@3.0.116'
