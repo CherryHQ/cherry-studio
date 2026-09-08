@@ -3,3 +3,6 @@
 
 # Oxfmt repository-wide formatting migration
 edc1935ebfa78660a6f1d9c5efe749f9b5501a5b
+
+# Oxfmt formatting for upstream changes included by the rebase
+98d9460c63851b43c8bd31bd76b19907141ea0a9
