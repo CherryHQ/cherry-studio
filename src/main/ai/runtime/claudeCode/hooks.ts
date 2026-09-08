@@ -24,6 +24,13 @@ import { rtkRewrite } from '@main/utils/rtk'
 import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
 import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
+import {
+  EXPLORER_CAP_HARD_THRESHOLD,
+  EXPLORER_CAP_THRESHOLD,
+  EXPLORER_IDENTICAL_HARD_THRESHOLD,
+  EXPLORER_IDENTICAL_THRESHOLD,
+  EXPLORER_TOOLS
+} from './explorerLoop'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
@@ -104,7 +111,9 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       supportsImages: ctx.supportsImages,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
-      bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
+      bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id),
+      explorerLoopStatus: (name, toolIn) =>
+        sessionState().getExplorerLoopStatus(sessionId, name, toolIn, input.agent_id)
     })
     if (!decision) {
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
@@ -117,6 +126,29 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
             hookSpecificOutput: {
               hookEventName: 'PreToolUse',
               additionalContext: `Loop warning: this exact Bash command has already run ${run} times in a row with byte-identical output, and is denied outright once the run reaches ${BASH_NO_PROGRESS_HARD_THRESHOLD}. If you are waiting for a change, make the edit first; if you are stuck, diagnose the cause or report the blocker instead of retrying.`
+            }
+          }
+        }
+      }
+
+      // Soft tier for explorer tools: warnings at thresholds 3 (identical call) and 10 (consecutive reads).
+      if (EXPLORER_TOOLS.has(toolName)) {
+        const status = sessionState().getExplorerLoopStatus(sessionId, toolName, toolInput, input.agent_id)
+        if (status) {
+          if (status.identicalRun === EXPLORER_IDENTICAL_THRESHOLD) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                additionalContext: `Loop warning: you have called ${toolName} with identical parameters ${status.identicalRun} times consecutively. If this attempt does not produce the expected insight, switch to a different tool, vary your parameters, or proceed directly to code modification before reaching the hard denial threshold (${EXPLORER_IDENTICAL_HARD_THRESHOLD}).`
+              }
+            }
+          }
+          if (status.consecutiveReads === EXPLORER_CAP_THRESHOLD) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                additionalContext: `Exploration checkpoint: you have made ${status.consecutiveReads} consecutive file reads/searches without modifying code. Consider whether you have enough context to begin implementing. Once consecutive exploration reaches ${EXPLORER_CAP_HARD_THRESHOLD}, file reading will be locked to force code execution.`
+              }
             }
           }
         }
@@ -220,11 +252,12 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
 
-  // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
+  // Subagent history is scoped per agent_id; when the subagent stops, its scope is dropped so
   // long-lived sessions don't retain every completed child's history until whole-session disposal.
   const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'SubagentStop') return {}
     sessionState().disposeBashScope(sessionId, input.agent_id)
+    sessionState().disposeExplorerScope(sessionId, input.agent_id)
     return {}
   }
 
@@ -247,6 +280,20 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       // an agent alternating Bash with Read is still looping.
       if (input.hook_event_name === 'PostToolUse' && RUN_BREAK_TOOLS.has(input.tool_name)) {
         sessionState().recordBashRunBreak(sessionId, agentId)
+        const mutatedPath =
+          typeof input.tool_input === 'object' && input.tool_input !== null
+            ? (((input.tool_input as Record<string, unknown>).file_path as string | undefined) ??
+              ((input.tool_input as Record<string, unknown>).path as string | undefined) ??
+              ((input.tool_input as Record<string, unknown>).notebook_path as string | undefined))
+            : undefined
+        sessionState().recordExplorerRunBreak(sessionId, mutatedPath, agentId)
+      } else if (input.hook_event_name === 'PostToolUse' && EXPLORER_TOOLS.has(input.tool_name)) {
+        sessionState().recordExplorerOutcome(
+          sessionId,
+          input.tool_name,
+          input.tool_input as Record<string, unknown> | undefined,
+          agentId
+        )
       }
       return {}
     }
@@ -302,7 +349,14 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     return {}
   }
 
+  const userPromptSubmitHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'UserPromptSubmit') return {}
+    sessionState().resetExplorerSessionTurn(sessionId)
+    return {}
+  }
+
   return {
+    UserPromptSubmit: [{ hooks: [userPromptSubmitHook] }],
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
     PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],

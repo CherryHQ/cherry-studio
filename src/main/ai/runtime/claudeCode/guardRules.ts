@@ -29,6 +29,12 @@ import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolReg
 import { imageExts } from '@shared/utils/file'
 
 import { BASH_NO_PROGRESS_HARD_THRESHOLD } from './bashNoProgress'
+import {
+  EXPLORER_CAP_HARD_THRESHOLD,
+  EXPLORER_IDENTICAL_HARD_THRESHOLD,
+  EXPLORER_SAME_FILE_CAP,
+  EXPLORER_TOOLS
+} from './explorerLoop'
 import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
@@ -124,6 +130,47 @@ const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
   return run !== undefined && run >= BASH_NO_PROGRESS_HARD_THRESHOLD ? { evidence: String(run) } : null
 }
 
+const explorerRepeatIdentical = (ctx: ToolGuardContext): GuardHit | null => {
+  if (!EXPLORER_TOOLS.has(ctx.toolName)) return null
+  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
+  return status && status.identicalRun >= EXPLORER_IDENTICAL_HARD_THRESHOLD
+    ? { evidence: String(status.identicalRun) }
+    : null
+}
+
+const explorerTraversalCycle = (ctx: ToolGuardContext): GuardHit | null => {
+  if (ctx.toolName !== 'Read') return null
+  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
+  if (!status || !status.isCycle) return null
+  return {
+    evidence: `${status.filePath ?? 'file'}:${status.lastOffset ?? 0}:${status.rangeStart ?? 1}-${status.rangeEnd ?? 2000}`
+  }
+}
+
+const explorerDuplicateChunk = (ctx: ToolGuardContext): GuardHit | null => {
+  if (ctx.toolName !== 'Read') return null
+  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
+  if (!status || !status.isDuplicateChunk) return null
+  return {
+    evidence: `${status.filePath ?? 'file'}:${status.rangeStart ?? 1}-${status.rangeEnd ?? 2000}`
+  }
+}
+
+const explorerSameFileCap = (ctx: ToolGuardContext): GuardHit | null => {
+  if (ctx.toolName !== 'Read') return null
+  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
+  if (!status || !status.sameFileCapReached) return null
+  return { evidence: status.filePath ?? 'file' }
+}
+
+const explorerConsecutiveCap = (ctx: ToolGuardContext): GuardHit | null => {
+  if (!EXPLORER_TOOLS.has(ctx.toolName)) return null
+  const status = ctx.explorerLoopStatus?.(ctx.toolName, ctx.input)
+  return status && status.consecutiveReads >= EXPLORER_CAP_HARD_THRESHOLD
+    ? { evidence: String(status.consecutiveReads) }
+    : null
+}
+
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {
   const policy = findBuiltinToolPolicy(ctx.toolName, ctx.mountedServers)
   return policy?.approval === 'required' && policy.bypassApproval === bypassApproval ? {} : null
@@ -181,6 +228,46 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     effect: 'deny',
     reason: (hit) =>
       `This exact Bash command already ran ${hit.evidence} times in a row with byte-identical output — repeating it yields no new information. Diagnose why the output is not changing, vary the command, or report the blocker instead of retrying.`
+  },
+  {
+    id: 'explorer-repeat-identical',
+    bypassBehavior: 'enforce',
+    match: { when: explorerRepeatIdentical },
+    effect: 'deny',
+    reason: (hit, ctx) =>
+      `You have called ${ctx.toolName} ${hit.evidence} times consecutively with identical arguments without making progress. Stop repeating this call and proceed directly to Edit/Write or summarize your findings.`
+  },
+  {
+    id: 'explorer-traversal-cycle',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: explorerTraversalCycle },
+    effect: 'deny',
+    reason: (hit) =>
+      `Traversal cycle detected (${hit.evidence}): you previously read forward in this file and are now re-reading earlier lines. Restarting traversal or repeating read cycles is strictly prohibited. Synthesize your answer from existing context or proceed with modifications/summary.`
+  },
+  {
+    id: 'explorer-duplicate-chunk',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: explorerDuplicateChunk },
+    effect: 'deny',
+    reason: (hit) =>
+      `Duplicate chunk rejected (${hit.evidence}): these lines were already retrieved in earlier turns. Refer to earlier tool results in your conversation context instead of re-reading.`
+  },
+  {
+    id: 'explorer-same-file-cap',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: explorerSameFileCap },
+    effect: 'deny',
+    reason: (hit) =>
+      `Same-file read limit reached for '${hit.evidence}' (${EXPLORER_SAME_FILE_CAP} slice reads without code modifications). Further reading on this file is locked. Use larger line limits or proceed to Edit/Write or summarize.`
+  },
+  {
+    id: 'explorer-consecutive-cap',
+    bypassBehavior: 'enforce',
+    match: { when: explorerConsecutiveCap },
+    effect: 'deny',
+    reason: (hit) =>
+      `Exploration budget reached (${hit.evidence} consecutive read/search operations without code changes). Further exploration is locked. You must apply code changes using Edit/Write or summarize your conclusions now.`
   },
   {
     id: 'headless-config-mutation',

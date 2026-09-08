@@ -29,6 +29,15 @@ import {
   fingerprintBashOutput,
   normalizeBashCommand
 } from './bashNoProgress'
+import {
+  createInitialExplorerState,
+  evaluateIncomingExplorerCall,
+  type ExplorerLoopEvaluation,
+  type ExplorerState,
+  recordExplorerCallState,
+  recordExplorerMutationState,
+  resetExplorerTurnState
+} from './explorerLoop'
 import { buildMcpToolMetadata } from './mcpCatalog'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
@@ -53,6 +62,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
   private readonly bashOutcomes = new Map<string, BashOutcome[]>()
   private readonly bashRewriteOrigins = new Map<string, Map<string, string>>()
+  private readonly explorerLoopStates = new Map<string, ExplorerState>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -163,6 +173,65 @@ export class ClaudeCodeSessionStateService extends BaseService {
   }
 
   /**
+   * Explorer loop state tracking for Read, Grep, and Glob tools.
+   */
+  private explorerScopeKey(sessionId: string, agentId?: string): string {
+    return agentId ? `${sessionId} ${agentId}` : sessionId
+  }
+
+  recordExplorerOutcome(
+    sessionId: string,
+    toolName: string,
+    input: Readonly<Record<string, unknown>> | undefined,
+    agentId?: string
+  ): void {
+    const key = this.explorerScopeKey(sessionId, agentId)
+    const state = this.explorerLoopStates.get(key) ?? createInitialExplorerState()
+    recordExplorerCallState(state, toolName, input)
+    this.explorerLoopStates.set(key, state)
+  }
+
+  getExplorerLoopStatus(
+    sessionId: string,
+    toolName: string,
+    input: Readonly<Record<string, unknown>> | undefined,
+    agentId?: string
+  ): ExplorerLoopEvaluation | undefined {
+    const key = this.explorerScopeKey(sessionId, agentId)
+    const state = this.explorerLoopStates.get(key)
+    if (!state) return undefined
+    return evaluateIncomingExplorerCall(state, toolName, input)
+  }
+
+  /**
+   * Resets the explorer loop state when a mutating tool modifies the workspace.
+   * If `mutatedFilePath` is provided, ONLY that file's readCount is cleared (per-file scoped reset);
+   * previously covered intervals are preserved to prevent dummy-edit cycle re-reading.
+   */
+  recordExplorerRunBreak(sessionId: string, mutatedFilePath?: string, agentId?: string): void {
+    const key = this.explorerScopeKey(sessionId, agentId)
+    const state = this.explorerLoopStates.get(key)
+    if (state) {
+      recordExplorerMutationState(state, mutatedFilePath)
+    }
+  }
+
+  /**
+   * Resets all explorer state for all agents within the session at the start of a new user turn.
+   */
+  resetExplorerSessionTurn(sessionId: string): void {
+    for (const [key, state] of this.explorerLoopStates.entries()) {
+      if (key === sessionId || key.startsWith(`${sessionId} `)) {
+        resetExplorerTurnState(state)
+      }
+    }
+  }
+
+  disposeExplorerScope(sessionId: string, agentId: string): void {
+    this.explorerLoopStates.delete(this.explorerScopeKey(sessionId, agentId))
+  }
+
+  /**
    * An rtk-rewritten Bash call reaches PostToolUse carrying the rewritten command while the guard
    * evaluated the original. Keyed by tool_use_id so the recorder files the outcome under the
    * command the guard will see on the next retry.
@@ -190,6 +259,9 @@ export class ClaudeCodeSessionStateService extends BaseService {
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
     for (const key of [...this.bashOutcomes.keys()]) {
       if (key === sessionId || key.startsWith(`${sessionId} `)) this.bashOutcomes.delete(key)
+    }
+    for (const key of [...this.explorerLoopStates.keys()]) {
+      if (key === sessionId || key.startsWith(`${sessionId} `)) this.explorerLoopStates.delete(key)
     }
     this.bashRewriteOrigins.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
@@ -269,6 +341,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     this.toolPolicySnapshots.clear()
     this.bashOutcomes.clear()
     this.bashRewriteOrigins.clear()
+    this.explorerLoopStates.clear()
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }

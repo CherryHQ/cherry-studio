@@ -47,6 +47,25 @@ export interface ToolGuardContext {
    * is looping without progress, undefined when no history is bound or the run has not formed.
    */
   readonly bashNoProgressRun?: (command: string) => number | undefined
+  /**
+   * Live loop and exploration-cap status for explorer tools (Read, Grep, Glob).
+   */
+  readonly explorerLoopStatus?: (
+    toolName: string,
+    input: Readonly<Record<string, unknown>> | undefined
+  ) =>
+    | {
+        identicalRun: number
+        consecutiveReads: number
+        isCycle?: boolean
+        isDuplicateChunk?: boolean
+        sameFileCapReached?: boolean
+        filePath?: string
+        lastOffset?: number
+        rangeStart?: number
+        rangeEnd?: number
+      }
+    | undefined
 }
 
 /** A condition match; `evidence` carries detector output for dynamic reasons. */

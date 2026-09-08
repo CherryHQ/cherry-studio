@@ -2631,7 +2631,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    expect(settings.hooks?.UserPromptSubmit).toBeUndefined()
+    // Only the explorer turn-reset hook is wired; assistant contracts are not injected per prompt
+    expect(settings.hooks?.UserPromptSubmit?.[0]?.hooks).toHaveLength(1)
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
