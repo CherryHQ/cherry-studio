@@ -155,25 +155,20 @@ function agentTaskNotFound(taskId: string): IpcError {
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
   'ai.text.generate': ({ requestId, ...request }) =>
-    requestId
-      ? application.get('TextGenerationRequestService').run(requestId, (signal) =>
-          exposeAiError('ai.text.generate', () =>
-            application.get('AiService').generateText({
-              ...request,
-              requestOptions: { ...request.requestOptions, signal }
-            })
-          )
-        )
-      : exposeAiError('ai.text.generate', () => application.get('AiService').generateText(request)),
+    exposeAiError('ai.text.generate', () =>
+      requestId
+        ? application.get('AiService').runTextRequest(requestId, request)
+        : application.get('AiService').generateText(request)
+    ),
   'ai.text.abort': async ({ requestId }) => {
-    application.get('TextGenerationRequestService').abort(requestId)
+    application.get('AiService').abortRequest(requestId)
   },
   'ai.embedding.embed_many': (request) =>
     exposeAiError('ai.embedding.embed_many', () => application.get('AiService').embedMany(request)),
   'ai.image.generate': ({ requestId, payload }) =>
     exposeAiError('ai.image.generate', () => application.get('AiService').runImageRequest(requestId, payload)),
   'ai.image.abort': async ({ requestId }) => {
-    application.get('AiService').abortImage(requestId)
+    application.get('AiService').abortRequest(requestId)
   },
 
   // ── Provider model catalog & reachability probe. ──

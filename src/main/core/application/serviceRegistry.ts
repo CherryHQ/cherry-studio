@@ -20,7 +20,6 @@ import {
   ClaudeCodeWarmQueryManager
 } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
-import { TextGenerationRequestService } from '@main/ai/TextGenerationRequestService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -151,7 +150,6 @@ export const services = {
   AgentJobsService,
   ChannelManager,
   AiService,
-  TextGenerationRequestService,
   ClaudeCodeWarmQueryManager,
   ClaudeCodeSessionStateService,
   AiStreamManager,

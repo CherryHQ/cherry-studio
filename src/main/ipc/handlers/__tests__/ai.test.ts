@@ -32,8 +32,9 @@ const aiService = {
   generateText: vi.fn(),
   checkModel: vi.fn(),
   embedMany: vi.fn(),
+  runTextRequest: vi.fn(),
   runImageRequest: vi.fn(),
-  abortImage: vi.fn(),
+  abortRequest: vi.fn(),
   listModels: vi.fn(),
   respondToolApproval: vi.fn()
 }
@@ -196,6 +197,20 @@ describe('aiHandlers', () => {
     expect(result).toBe(out)
   })
 
+  it('generate_text routes a requestId through runTextRequest without leaking it into the request', async () => {
+    const out = { text: 'hello' }
+    aiService.runTextRequest.mockResolvedValue(out)
+
+    const result = await aiHandlers['ai.text.generate'](
+      { requestId: 'r1', uniqueModelId: 'openai::gpt-4o', prompt: 'hi' },
+      ctx
+    )
+
+    expect(aiService.runTextRequest).toHaveBeenCalledWith('r1', { uniqueModelId: 'openai::gpt-4o', prompt: 'hi' })
+    expect(aiService.generateText).not.toHaveBeenCalled()
+    expect(result).toBe(out)
+  })
+
   it('check_model forwards the request and returns latency', async () => {
     aiService.checkModel.mockResolvedValue({ latency: 42 })
     const request = { uniqueModelId: 'openai::gpt-4o', apiKeyOverride: 'sk-selected', timeout: 5000 } as const
@@ -228,9 +243,15 @@ describe('aiHandlers', () => {
     expect(result).toBe(out)
   })
 
-  it('abort_image delegates to AiService.abortImage and resolves void', async () => {
+  it('abort_image delegates to AiService.abortRequest and resolves void', async () => {
     const result = await aiHandlers['ai.image.abort']({ requestId: 'r1' }, ctx)
-    expect(aiService.abortImage).toHaveBeenCalledWith('r1')
+    expect(aiService.abortRequest).toHaveBeenCalledWith('r1')
+    expect(result).toBeUndefined()
+  })
+
+  it('abort_text delegates to AiService.abortRequest and resolves void', async () => {
+    const result = await aiHandlers['ai.text.abort']({ requestId: 'r1' }, ctx)
+    expect(aiService.abortRequest).toHaveBeenCalledWith('r1')
     expect(result).toBeUndefined()
   })
 
