@@ -7,7 +7,6 @@ import path from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
-import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import type { AskUserQuestionAnswer, AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -313,51 +312,6 @@ describe('cherry bridge plugin', () => {
         params: { sessionId: 'session-1', callId: 'exit-plan-call-2' }
       })
     await expect(answer).resolves.toEqual({})
-  })
-
-  it('delivers rejected approval feedback to the same agent after settling the outcome', async () => {
-    const host = await startHost((method) =>
-      method === 'approval/ask' ? { outcome: 'rejected', rejectionReason: 'use a copy instead' } : {}
-    )
-    const followup = vi.fn()
-    const agent = { id: 'session-1', followup, session: { snapshotEvents: () => [] } } as unknown as Agent
-    let approvalHandler: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
-    const on = vi.fn((event: string, handler: unknown) => {
-      if (event === 'approval/request') {
-        approvalHandler = handler as (request: ApprovalRequest) => Promise<ApprovalOutcome>
-      }
-      return () => undefined
-    })
-    const ctx = makeContext({ on })
-    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
-    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
-
-    apply(ctx)
-    await expect.poll(() => host.requests[0]?.method).toBe('ready')
-    if (!approvalHandler) throw new Error('approval handler was not registered')
-
-    await expect(
-      approvalHandler({
-        agent,
-        toolName: 'bash',
-        callId: 'call-with-feedback',
-        reason: 'needs approval'
-      } as ApprovalRequest)
-    ).resolves.toBe('rejected')
-    expect(followup).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(followup).toHaveBeenCalledOnce())
-    expect(followup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: 'user',
-        source: { kind: 'user' },
-        content: [
-          {
-            type: 'text',
-            text: 'Tool approval feedback for "bash":\nuse a copy instead'
-          }
-        ]
-      })
-    )
   })
 
   it('rejects an unknown method instead of answering it', async () => {

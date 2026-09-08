@@ -423,19 +423,14 @@ export function apply(ctx: Context): void {
         },
         req.signal
       )
+      if (req.signal?.aborted) return 'cancelled'
       if (outcome === 'rejected' && rejectionReason) {
-        setImmediate(() => {
-          try {
-            req.agent.followup(
-              createUserMessage({
-                content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
-                source: { kind: 'user' }
-              })
-            )
-          } catch (error) {
-            console.error('[cherry-bridge] failed to deliver tool rejection feedback:', error)
-          }
-        })
+        req.agent.inject(
+          createUserMessage({
+            content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
+            source: { kind: 'user' }
+          })
+        )
       }
       return outcome
     } catch {
