@@ -2,7 +2,7 @@
 title: Cloud sessions are bound to the current computer
 category: changed
 severity: breaking
-introduced_in_pr: TBD
+introduced_in_pr: '#20222'
 date: 2026-09-08
 ---
 
