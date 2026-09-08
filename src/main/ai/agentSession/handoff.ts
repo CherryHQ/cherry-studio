@@ -198,7 +198,7 @@ export async function startHandoff(input: HandoffStart, listener: StreamListener
       if (!manager.isWriteQuiesced) {
         agentSessionMessageService.markAssistantMessageTerminalError(input.handoffId, pair.assistant.id)
       }
-      return { sessionId: input.handoffId, state: created ? 'created' : 'existing', error: serializeError(error) }
+      return { sessionId: input.handoffId, state: 'existing', error: serializeError(error) }
     }
 
     // Recheck ownership after async validation, in the same transaction that claims execution.
@@ -223,7 +223,7 @@ export async function startHandoff(input: HandoffStart, listener: StreamListener
       }
       return {
         sessionId: input.handoffId,
-        state: created ? 'created' : 'existing',
+        state: 'existing',
         error: serializeError(
           new Error('Target Session or Agent changed, or writes paused while preparing the handoff')
         )
@@ -265,7 +265,7 @@ export async function startHandoff(input: HandoffStart, listener: StreamListener
         logger.warn('Unable to close failed handoff runtime', { error: serializeError(closeError) })
       }
       agentSessionMessageService.markAssistantMessageTerminalError(input.handoffId, pair.assistant.id)
-      return { sessionId: input.handoffId, state: created ? 'created' : 'existing', error: serializeError(error) }
+      return { sessionId: input.handoffId, state: 'existing', error: serializeError(error) }
     }
   })
 }

@@ -232,7 +232,7 @@ describe('startHandoff', () => {
     const failed = await startHandoff(input(handoffId), listener)
     expect(failed).toMatchObject({
       sessionId: handoffId,
-      state: 'created',
+      state: 'existing',
       error: { message: 'workspace unavailable' }
     })
     expect(
@@ -253,7 +253,7 @@ describe('startHandoff', () => {
     })
     const handoffId = randomUUID()
     const failed = await startHandoff(input(handoffId), listener)
-    expect(failed).toMatchObject({ state: 'created', error: { message: 'activation failed' } })
+    expect(failed).toMatchObject({ state: 'existing', error: { message: 'activation failed' } })
     expect(
       agentSessionMessageService.listSessionMessages(handoffId).items.find((message) => message.role === 'assistant')
         ?.status
@@ -302,7 +302,7 @@ describe('startHandoff', () => {
     })
     const handoffId = randomUUID()
     const result = await startHandoff(input(handoffId), listener)
-    expect(result).toMatchObject({ state: 'created', error: { message: 'send failed before handoff' } })
+    expect(result).toMatchObject({ state: 'existing', error: { message: 'send failed before handoff' } })
     expect(
       agentSessionMessageService.listSessionMessages(handoffId).items.find((message) => message.role === 'assistant')
         ?.status
@@ -348,7 +348,7 @@ describe('startHandoff', () => {
       return validated
     })
     await expect(startHandoff(input(), listener)).resolves.toMatchObject({
-      state: 'created',
+      state: 'existing',
       error: { message: expect.stringContaining('Target Session') }
     })
     expect(mocks.send).not.toHaveBeenCalled()
@@ -371,7 +371,7 @@ describe('startHandoff', () => {
     })
     const handoffId = randomUUID()
     const result = await startHandoff(input(handoffId), listener)
-    expect(result).toMatchObject({ state: 'created', error: { message: expect.stringContaining('changed') } })
+    expect(result).toMatchObject({ state: 'existing', error: { message: expect.stringContaining('changed') } })
     expect(
       agentSessionMessageService.listSessionMessages(handoffId).items.find((message) => message.role === 'assistant')
         ?.status

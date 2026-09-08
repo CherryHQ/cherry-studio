@@ -103,7 +103,6 @@ export const HandoffDraftOpenSchema = z.strictObject({
   task: z.string().trim().min(1),
   targetAgentId: z.string().min(1),
   summaryModelId: UniqueModelIdSchema.optional(),
-  nodeId: z.string().min(1).optional(),
   /** Renderer-generated identity lets it subscribe before preparation finishes. */
   streamId: HandoffDraftStreamIdSchema
 })
@@ -142,7 +141,7 @@ export type HandoffStart = z.infer<typeof HandoffStartSchema>
 
 export const HandoffStartResponseSchema = z.strictObject({
   sessionId: z.uuid(),
-  state: z.enum(['started', 'existing', 'created']),
+  state: z.enum(['started', 'existing']),
   error: z.custom<unknown>().optional()
 })
 export type HandoffStartResponse = z.infer<typeof HandoffStartResponseSchema>

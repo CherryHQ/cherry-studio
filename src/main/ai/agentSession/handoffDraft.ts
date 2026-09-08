@@ -57,7 +57,7 @@ export function openHandoffDraft(input: HandoffDraftOpen, listener: StreamListen
   if (!target) throw new HandoffDraftError('INVALID_INPUT', 'The target Agent is no longer available')
   let source: ReturnType<typeof readAllConversationMessages>
   try {
-    source = readAllConversationMessages({ sessionId: input.sourceSessionId, nodeId: input.nodeId })
+    source = readAllConversationMessages({ sessionId: input.sourceSessionId })
   } catch (error) {
     if (error instanceof ConversationReadError && error.code === 'NOT_FOUND') {
       throw new HandoffDraftError('SOURCE_NOT_FOUND', error.message)

@@ -180,6 +180,7 @@ describe('ai.agent.handoff.draft.open IPC schema', () => {
   it('requires a namespaced stream id and target identity, rejecting renderer-supplied target details', () => {
     const base = { sourceSessionId: 'source-1', task: 'continue', targetAgentId: 'agent-1' }
     expect(openDraft.safeParse({ ...base, streamId }).success).toBe(true)
+    expect(openDraft.safeParse({ ...base, streamId, nodeId: 'other-branch' }).success).toBe(false)
     expect(openDraft.safeParse(base).success).toBe(false)
     expect(openDraft.safeParse({ ...base, streamId: 'topic-1' }).success).toBe(false)
     expect(openDraft.safeParse({ ...base, streamId, target: { agentId: 'agent-1', name: 'Forged' } }).success).toBe(

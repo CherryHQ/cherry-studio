@@ -297,7 +297,7 @@ describe('useAgentHandoff', () => {
       route === 'ai.agent.handoff.draft.open'
         ? Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
         : route === 'ai.agent.handoff.start'
-          ? Promise.resolve({ sessionId: 'session-1', state: 'created', error: { message: 'delivery failed' } })
+          ? Promise.resolve({ sessionId: 'session-1', state: 'existing', error: { message: 'delivery failed' } })
           : Promise.resolve(undefined)
     )
     render(<Harness />)
@@ -310,6 +310,21 @@ describe('useAgentHandoff', () => {
     expect(openAgent).toBeTruthy()
     fireEvent.click(openAgent)
     expect(mocks.openConversation).toHaveBeenCalledWith('session-1', 'Reviewer')
+  })
+
+  it('opens a started session even when its response also reports an error', async () => {
+    mocks.request.mockImplementation((route: string) =>
+      route === 'ai.agent.handoff.start'
+        ? Promise.resolve({ sessionId: 'live-session', state: 'started', error: { message: 'listener failed' } })
+        : Promise.resolve({ modelId: 'm', messageCount: 0, attachments: [] })
+    )
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'open' }))
+    const streamId = mocks.request.mock.calls[0][1].streamId
+    await act(async () => mocks.listeners.get('ai.stream.done')?.({ topicId: streamId, status: 'success' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Start Agent session' })))
+    expect(mocks.openConversation).toHaveBeenCalledWith('live-session', 'Reviewer')
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('shows generation status and preserves reviewed edits when switching between preview and editing', async () => {
