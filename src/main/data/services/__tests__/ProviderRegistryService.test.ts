@@ -188,6 +188,42 @@ function setupRegistryData() {
   } as ReturnType<typeof readProviderRegistry>)
 }
 
+function setupMoonshotRegistryData() {
+  mockReadModels.mockReturnValue({
+    version: '1.0',
+    models: [{ id: 'kimi-k2-7-code', name: 'Kimi K2.7 Code', capabilities: ['reasoning'] }]
+  } as ReturnType<typeof readModelRegistry>)
+
+  mockReadProviderModels.mockReturnValue({
+    version: '1.0',
+    overrides: [
+      {
+        providerId: 'moonshot',
+        modelId: 'kimi-k2-7-code',
+        apiModelId: 'kimi-k2.7-code',
+        parameterSupport: {
+          temperature: { supported: false },
+          topP: { supported: false }
+        }
+      }
+    ]
+  } as ReturnType<typeof readProviderModelRegistry>)
+
+  mockReadProviders.mockReturnValue({
+    version: '1.0',
+    providers: [
+      {
+        id: 'moonshot',
+        name: 'Moonshot AI',
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://api.moonshot.cn/v1' }
+        },
+        defaultChatEndpoint: 'openai-chat-completions'
+      }
+    ]
+  } as ReturnType<typeof readProviderRegistry>)
+}
+
 function clearServiceCache() {
   providerRegistryService.clearCache()
 }
@@ -268,6 +304,35 @@ describe('ProviderRegistryService', () => {
       })
 
       expect(() => providerRegistryService.lookupModel('openai', 'gpt-4o')).toThrow('ENOENT')
+    })
+  })
+
+  describe('provider-model ownership', () => {
+    it('applies Moonshot sampling constraints only through a persisted Moonshot preset identity', async () => {
+      setupMoonshotRegistryData()
+      await dbh.db.insert(userProviderTable).values([
+        {
+          providerId: 'moonshot-clone',
+          presetProviderId: 'moonshot',
+          name: 'Moonshot Clone',
+          orderKey: 'a0'
+        },
+        {
+          providerId: 'generic-relay',
+          presetProviderId: null,
+          name: 'Generic Relay',
+          orderKey: 'a1'
+        }
+      ])
+
+      const linked = providerRegistryService.lookupModel('moonshot-clone', 'kimi-k2.7-code')
+      const unrelated = providerRegistryService.lookupModel('generic-relay', 'kimi-k2.7-code')
+
+      expect(linked.registryOverride?.parameterSupport).toMatchObject({
+        temperature: { supported: false },
+        topP: { supported: false }
+      })
+      expect(unrelated.registryOverride).toBeNull()
     })
   })
 
