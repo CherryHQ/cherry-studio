@@ -1,15 +1,17 @@
 import { preferenceService } from '@data/PreferenceService'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
+import { loggerService } from '@renderer/services/LoggerService'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
 import type { ApiGatewayRuntimeAddress } from '@shared/types/apiGateway'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_GATEWAY_HOST = '127.0.0.1'
 const DEFAULT_GATEWAY_PORT = 23333
+const logger = loggerService.withContext('useApiGatewayProvider')
 
 /**
  * The synthetic "Cherry Gateway" entry for the code-CLI provider list, plus the
@@ -42,10 +44,28 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const port = apiGatewayConfig.port || DEFAULT_GATEWAY_PORT
   const apiKey = apiGatewayConfig.apiKey
   const [runtimeAddress, setRuntimeAddress] = useState<ApiGatewayRuntimeAddress | null>(null)
+  const wasGatewayRunning = useRef(apiGatewayRunning)
 
   useEffect(() => {
-    if (!apiGatewayRunning) setRuntimeAddress(null)
-  }, [apiGatewayRunning])
+    const startedExternally = apiGatewayRunning && !wasGatewayRunning.current
+    wasGatewayRunning.current = apiGatewayRunning
+
+    if (!apiGatewayRunning) {
+      setRuntimeAddress(null)
+      return
+    }
+    if (!startedExternally) return
+
+    let cancelled = false
+    getApiGatewayRuntimeAddress()
+      .then((address) => {
+        if (!cancelled) setRuntimeAddress(address)
+      })
+      .catch((error) => logger.warn('Failed to synchronize API gateway runtime address', { error }))
+    return () => {
+      cancelled = true
+    }
+  }, [apiGatewayRunning, getApiGatewayRuntimeAddress])
 
   const provider = useMemo(
     () =>

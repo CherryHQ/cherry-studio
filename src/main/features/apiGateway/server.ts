@@ -78,37 +78,37 @@ export class ApiGateway {
 
     try {
       const boundPort = await this.listen(host, port)
-      const currentHost = preferenceService.get('feature.api_gateway.host')
-      const currentPort = preferenceService.get('feature.api_gateway.port')
-      if (currentHost !== host || currentPort !== port) {
-        logger.info('API gateway config changed during startup; retrying with the latest address', {
-          host: currentHost,
-          port: currentPort
-        })
-        await this.resetForRetry()
-        return this.startInternal()
-      }
+      const retryAddress = await this.retryWithCurrentConfigIfChanged({ host, port }, 'startup')
+      if (retryAddress) return retryAddress
       return this.setRuntimeAddress(host, boundPort)
     } catch (error) {
       if (!this.isAddressInUseError(error) || port === 0) throw error
 
       logger.warn('Configured API gateway port is occupied; selecting an available port', { host, port })
       const fallbackPort = await this.listen(host, 0)
-      const currentHost = preferenceService.get('feature.api_gateway.host')
-      const currentPort = preferenceService.get('feature.api_gateway.port')
-      if (currentHost !== host || currentPort !== port) {
-        logger.info('API gateway config changed during fallback; retrying with the latest address', {
-          host: currentHost,
-          port: currentPort
-        })
-        await this.resetForRetry()
-        return this.startInternal()
-      }
+      const retryAddress = await this.retryWithCurrentConfigIfChanged({ host, port }, 'fallback')
+      if (retryAddress) return retryAddress
 
       await preferenceService.set('feature.api_gateway.port', fallbackPort)
       logger.info('API gateway port updated after conflict', { host, previousPort: port, port: fallbackPort })
       return this.setRuntimeAddress(host, fallbackPort)
     }
+  }
+
+  private async retryWithCurrentConfigIfChanged(
+    previousAddress: ApiGatewayRuntimeAddress,
+    phase: 'startup' | 'fallback'
+  ): Promise<ApiGatewayRuntimeAddress | null> {
+    const preferenceService = application.get('PreferenceService')
+    const currentAddress = {
+      host: preferenceService.get('feature.api_gateway.host'),
+      port: preferenceService.get('feature.api_gateway.port')
+    }
+    if (currentAddress.host === previousAddress.host && currentAddress.port === previousAddress.port) return null
+
+    logger.info(`API gateway config changed during ${phase}; retrying with the latest address`, currentAddress)
+    await this.resetForRetry()
+    return this.startInternal()
   }
 
   private setRuntimeAddress(host: string, port: number): ApiGatewayRuntimeAddress {

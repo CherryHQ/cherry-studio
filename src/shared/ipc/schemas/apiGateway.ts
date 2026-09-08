@@ -1,4 +1,4 @@
-import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
+import type { ApiGatewayRuntimeAddress, ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -8,7 +8,10 @@ import { defineRoute } from '../define'
  * whether shutdown completed or is deferred by a lease. Handlers turn service throws into
  * `{ success: false, error }`; running state and config remain on their data-layer channels.
  */
-const runtimeAddressSchema = z.object({ host: z.string(), port: z.number().int().min(0).max(65535) })
+const runtimeAddressSchema: z.ZodType<ApiGatewayRuntimeAddress> = z.object({
+  host: z.string(),
+  port: z.number().int().min(0).max(65535)
+})
 
 const statusResultSchema: z.ZodType<ApiGatewayStatusResult> = z.union([
   z.object({
