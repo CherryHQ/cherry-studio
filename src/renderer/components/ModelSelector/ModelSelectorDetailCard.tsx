@@ -31,6 +31,7 @@ const REASONING_EFFORT_LABEL_KEYS: Record<string, string> = {
   medium: 'assistants.settings.reasoning_effort.medium',
   minimal: 'assistants.settings.reasoning_effort.minimal',
   none: 'assistants.settings.reasoning_effort.off',
+  ultra: 'assistants.settings.reasoning_effort.ultra',
   xhigh: 'assistants.settings.reasoning_effort.xhigh'
 }
 

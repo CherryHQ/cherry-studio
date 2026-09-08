@@ -1,4 +1,18 @@
+diff --git a/dist/api/openai-codex-responses.d.ts b/dist/api/openai-codex-responses.d.ts
+index a250d87fff31a6819b0e734c06ca007facb81346..45fe37f491451bbdc87ae4ac4e1aea91f931eb7b 100644
+--- a/dist/api/openai-codex-responses.d.ts
++++ b/dist/api/openai-codex-responses.d.ts
+@@ -1,7 +1,7 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAICodexResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "concise" | "detailed" | "off" | "on" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+     textVerbosity?: "low" | "medium" | "high";
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
+index d764beb5583673bbe9f3ad35b751be79857fef4b..eedbd1e1857e027b8fef733801c1fe2ec21b3e10 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
 @@ -102,7 +102,7 @@ export const stream = (model, context, options) => {
@@ -27,11 +41,24 @@ diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
      });
  }
  function buildParams(model, context, options, compat = getCompat(model), cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env)) {
+diff --git a/dist/api/openai-responses.d.ts b/dist/api/openai-responses.d.ts
+index c353ade51b51b3e7f35fd0ea0c707f05cf98fe25..efcf187d28c1c88bb369786904ea3ae72b2b84db 100644
+--- a/dist/api/openai-responses.d.ts
++++ b/dist/api/openai-responses.d.ts
+@@ -1,7 +1,7 @@
+ import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
+ import type { SimpleStreamOptions, StreamFunction, StreamOptions } from "../types.ts";
+ export interface OpenAIResponsesOptions extends StreamOptions {
+-    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++    reasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+     reasoningSummary?: "auto" | "detailed" | "concise" | null;
+     serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+ }
 diff --git a/dist/api/openai-responses.js b/dist/api/openai-responses.js
-index ee60ef392d61fde5d942e10c720113f7b2390cdc..52dae3876d6225d7e2bae8d8108a411291cd1c58 100644
+index b1a536bb85a579faf6f3c2d2fdc15036e161929d..f4a8e51498ab1735c989d8bee48c886c2c97537d 100644
 --- a/dist/api/openai-responses.js
 +++ b/dist/api/openai-responses.js
-@@ -81,7 +81,7 @@ export const stream = (model, context, options) => {
+@@ -83,7 +83,7 @@ export const stream = (model, context, options) => {
              const apiKey = getClientApiKey(model.provider, options?.apiKey, options?.headers);
              const cacheRetention = resolveCacheRetention(options?.cacheRetention, options?.env);
              const cacheSessionId = cacheRetention === "none" ? undefined : options?.sessionId;
@@ -40,7 +67,7 @@ index ee60ef392d61fde5d942e10c720113f7b2390cdc..52dae3876d6225d7e2bae8d8108a4112
              let params = buildParams(model, context, options);
              const nextParams = await options?.onPayload?.(params, model);
              if (nextParams !== undefined) {
-@@ -132,7 +132,7 @@ export const streamSimple = (model, context, options) => {
+@@ -134,7 +134,7 @@ export const streamSimple = (model, context, options) => {
          reasoningEffort,
      });
  };
@@ -49,7 +76,7 @@ index ee60ef392d61fde5d942e10c720113f7b2390cdc..52dae3876d6225d7e2bae8d8108a4112
      const compat = getCompat(model);
      const headers = { ...model.headers };
      if (model.provider === "github-copilot") {
-@@ -158,6 +158,7 @@ function createClient(model, context, apiKey, optionsHeaders, sessionId) {
+@@ -160,6 +160,7 @@ function createClient(model, context, apiKey, optionsHeaders, sessionId) {
          baseURL: model.baseUrl,
          dangerouslyAllowBrowser: true,
          defaultHeaders: headers,
@@ -58,7 +85,7 @@ index ee60ef392d61fde5d942e10c720113f7b2390cdc..52dae3876d6225d7e2bae8d8108a4112
  }
  function buildParams(model, context, options) {
 diff --git a/dist/api/simple-options.js b/dist/api/simple-options.js
-index cc1c66f5086e5e9cf6393a599a03f0bb67ba2264..699166a88f3457c6d9e918944b92ae017cbe6124 100644
+index 7b082452c72a6adc8ef154a3bdba664f9727bfe8..d1ec6a3a543fabc140c820bf0e8ae55d33aa0b1a 100644
 --- a/dist/api/simple-options.js
 +++ b/dist/api/simple-options.js
 @@ -13,6 +13,7 @@ export function buildBaseOptions(model, context, options, apiKey) {
@@ -69,10 +96,41 @@ index cc1c66f5086e5e9cf6393a599a03f0bb67ba2264..699166a88f3457c6d9e918944b92ae01
          transport: options?.transport,
          cacheRetention: options?.cacheRetention,
          sessionId: options?.sessionId,
+diff --git a/dist/models.js b/dist/models.js
+index 8f87b656f4c0c9e37198bc216b846e9afaf24b93..0c93ce505eb146a63d49f9dddfa0e1454854aaff 100644
+--- a/dist/models.js
++++ b/dist/models.js
+@@ -203,7 +203,7 @@ export function calculateCost(model, usage) {
+     usage.cost.total = usage.cost.input + usage.cost.output + usage.cost.cacheRead + usage.cost.cacheWrite;
+     return usage.cost;
+ }
+-const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
++const EXTENDED_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+ export function getSupportedThinkingLevels(model) {
+     if (!model.reasoning)
+         return ["off"];
+@@ -211,7 +211,7 @@ export function getSupportedThinkingLevels(model) {
+         const mapped = model.thinkingLevelMap?.[level];
+         if (mapped === null)
+             return false;
+-        if (level === "xhigh" || level === "max")
++        if (level === "xhigh" || level === "max" || level === "ultra")
+             return mapped !== undefined;
+         return true;
+     });
 diff --git a/dist/types.d.ts b/dist/types.d.ts
-index bdbadd71780fd76fb3ad6ded95239643ed4e89f3..6c44d6fd6d6e9eaf5519fac3830b2d041b10f0ef 100644
+index b05dcff1bdc41679f520799f2582398e454057b3..fab49593e6f4b5552564ac48928f52922950b1fb 100644
 --- a/dist/types.d.ts
 +++ b/dist/types.d.ts
+@@ -18,7 +18,7 @@ export type KnownProvider = "amazon-bedrock" | "ant-ling" | "anthropic" | "googl
+ export type ProviderId = KnownProvider | string;
+ export type KnownImagesProvider = "openrouter";
+ export type ImagesProviderId = KnownImagesProvider | string;
+-export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
++export type ThinkingLevel = "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra";
+ export type ModelThinkingLevel = "off" | ThinkingLevel;
+ export type ThinkingLevelMap = Partial<Record<ModelThinkingLevel, string | null>>;
+ export type ChatTemplateKwargValue = string | number | boolean | null | {
 @@ -46,6 +46,8 @@ export interface StreamOptions {
      maxTokens?: number;
      signal?: AbortSignal;

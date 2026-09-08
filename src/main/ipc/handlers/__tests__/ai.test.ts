@@ -192,7 +192,10 @@ describe('aiHandlers', () => {
 
     const result = await aiHandlers['ai.text.generate'](request, ctx)
 
-    expect(aiService.generateText).toHaveBeenCalledWith(request)
+    expect(aiService.generateText).toHaveBeenCalledWith({
+      ...request,
+      conversation: { id: expect.stringMatching(/^one-shot:/) }
+    })
     expect(result).toBe(out)
   })
 
