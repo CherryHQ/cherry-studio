@@ -6,13 +6,13 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
-import type { StopCondition, Tool, ToolSet } from 'ai'
+import { InvalidToolInputError, type StopCondition, type Tool, type ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 
 const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
-import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
 import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/FsReadTool'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
@@ -21,29 +21,14 @@ import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 import type { AgentOptions } from '../../loop/types'
 
-const { preferenceGetMock, resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
+const { preferenceGetMock, resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
-  resolveProviderAiSdkConfigMock: vi.fn(),
-  resolveRequestContextSettingsSpy: vi.fn()
+  resolveProviderAiSdkConfigMock: vi.fn()
 }))
 
 vi.mock('../../../../provider/config', () => ({
   resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
 }))
-
-// Spy that calls through to the real resolver (the null-pref mock keeps it
-// behavior-preserving) so existing tests are untouched but the assistant
-// override passthrough can be asserted.
-vi.mock('../../../../contextBuild/resolveRequestContextSettings', async (importOriginal) => {
-  const actual = await importOriginal<typeof ResolveRequestContextSettingsModule>()
-  return {
-    ...actual,
-    resolveRequestContextSettings: (...args: Parameters<typeof actual.resolveRequestContextSettings>) => {
-      resolveRequestContextSettingsSpy(...args)
-      return actual.resolveRequestContextSettings(...args)
-    }
-  }
-})
 
 vi.mock('@application', () => ({
   application: {
@@ -97,7 +82,7 @@ describe('buildAgentParams provider resolution', () => {
     const withCallerHeaders = await buildAgentParams({
       request: {
         conversation: { id: 'topic-123', topicId: 'topic-123' },
-        requestOptions: { headers: { 'x-opencode-session': 'caller-wins', 'x-other': 'kept' } }
+        requestOptions: { headers: { 'X-OpenCode-Session': 'caller-wins', 'x-other': 'kept' } }
       },
       signal: undefined,
       provider,
@@ -105,6 +90,57 @@ describe('buildAgentParams provider resolution', () => {
     })
     expect(withCallerHeaders.options.headers).toEqual({ 'x-opencode-session': 'caller-wins', 'x-other': 'kept' })
   })
+
+  it.each([undefined, { 'X-OpenCode-Session': 'caller-session' }])(
+    'sends the chat session on AI-assisted tool repair with caller headers %j',
+    async (callerHeaders) => {
+      const outgoing: Headers[] = []
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: {
+          providerId: 'openai-compatible',
+          conversationHeader: 'x-opencode-session',
+          providerSettings: {
+            name: 'opencode',
+            baseURL: 'https://provider.test/v1',
+            fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+              outgoing.push(new Headers(init?.headers))
+              return Response.json({
+                id: 'repair-1',
+                created: 0,
+                model: 'glm-5',
+                choices: [
+                  { index: 0, message: { role: 'assistant', content: '{"query":"fixed"}' }, finish_reason: 'stop' }
+                ],
+                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+              })
+            }
+          }
+        },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const { options } = await buildAgentParams({
+        request: { conversation: CONVERSATION, requestOptions: { headers: callerHeaders } },
+        signal: undefined,
+        provider: makeProvider({ id: 'opencode' }),
+        model: makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
+      })
+      const repaired = await options.repairToolCall!({
+        system: undefined,
+        messages: [],
+        toolCall: { type: 'tool-call', toolCallId: 'tc-1', toolName: 'search', input: '{"q":"fixed"}' },
+        tools: { search: { inputSchema: z.object({ query: z.string() }) } },
+        inputSchema: async () => ({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }),
+        error: new InvalidToolInputError({
+          toolName: 'search',
+          toolInput: '{"q":"fixed"}',
+          cause: new Error('query required')
+        })
+      })
+      expect(repaired?.input).toBe('{"query":"fixed"}')
+      expect(outgoing).toHaveLength(1)
+      expect(outgoing[0].get('x-opencode-session')).toBe(callerHeaders ? 'caller-session' : CONVERSATION.id)
+    }
+  )
 
   it('adds no conversation header when the provider declares none', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
@@ -1614,28 +1650,6 @@ describe('buildAgentParams — Responses instructions delivery', () => {
       instructions: system,
       systemMessageMode: 'remove'
     })
-  })
-})
-
-describe('buildAgentParams — assistant context-settings passthrough (P2-D)', () => {
-  it("forwards the assistant's contextSettings override to the resolver", async () => {
-    resolveProviderAiSdkConfigMock.mockResolvedValue({
-      config: { providerId: 'anthropic', providerSettings: {} },
-      credentialReceipt: { attribution: 'unknown' }
-    })
-    resolveRequestContextSettingsSpy.mockClear()
-    const provider = makeProvider({
-      id: 'custom-claude',
-      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
-    })
-    const model = makeModel({ id: 'custom-claude::claude-x', providerId: 'custom-claude', apiModelId: 'claude-x' })
-    const override = { truncateThreshold: 4000, compress: { enabled: false } }
-    const assistant = makeAssistant({ settings: { contextSettings: override } })
-
-    await buildAgentParams({ request: { conversation: CONVERSATION }, signal: undefined, provider, model, assistant })
-
-    expect(resolveRequestContextSettingsSpy).toHaveBeenCalledWith(model, override)
   })
 })
 

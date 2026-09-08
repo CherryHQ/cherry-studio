@@ -131,8 +131,8 @@ export interface AiStreamRequest extends AiChatRequest {
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
   /**
    * Attribution for callers with no assistant to derive it from. Neutral on purpose:
-   * the agent-only `usageContext` also rewrites `chatId` to an agent session id, so
-   * reusing it would record a mini app's call as an agent turn.
+   * `usageContext` identifies a trusted agent turn; reusing it for source
+   * attribution would misclassify a mini app's call as an agent turn.
    */
   source?: SourceSnapshot | null
 }

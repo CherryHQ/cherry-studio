@@ -14,7 +14,9 @@ import { providerToAiSdkConfig } from '@main/ai/provider/config'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
+import type { ConversationRef } from '../types'
 import { resolveContextWindow } from './resolveContextWindow'
 
 const logger = loggerService.withContext('resolveCompressionModel')
@@ -36,7 +38,10 @@ export interface CompressionModelDescriptor {
   readonly contextWindow: number | null
 }
 
-export async function resolveCompressionModel(modelIdRaw: string): Promise<CompressionModelDescriptor | null> {
+export async function resolveCompressionModel(
+  modelIdRaw: string,
+  conversation: ConversationRef
+): Promise<CompressionModelDescriptor | null> {
   if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
     logger.warn('compression modelId is not a valid UniqueModelId', { modelIdRaw })
     return null
@@ -70,7 +75,17 @@ export async function resolveCompressionModel(modelIdRaw: string): Promise<Compr
     // BARE modelId — fall back to the parsed `modelId`, not the composite `model.id`
     // (`||` also covers an empty apiModelId).
     const languageModel = await executor.languageModel(model.apiModelId || modelId)
-    return { languageModel, contextWindow: resolveContextWindow(model.contextWindow) }
+    return {
+      languageModel: config.conversationHeader
+        ? wrapLanguageModel({
+            model: languageModel,
+            middleware: defaultSettingsMiddleware({
+              settings: { headers: { [config.conversationHeader]: conversation.id } }
+            })
+          })
+        : languageModel,
+      contextWindow: resolveContextWindow(model.contextWindow)
+    }
   } catch (error) {
     logger.warn('compression model resolution failed', {
       providerId,

@@ -53,6 +53,7 @@ import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
+import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
@@ -1371,6 +1372,7 @@ export class AiService extends BaseService {
       resolveEffectiveEndpoint(provider, model),
       request.apiKeyOverride
     )
+    applyHttpTrace(sdkConfig.providerSettings, { modelName: model.name ?? model.id })
     return { provider, model, assistant, sdkConfig, credentialReceipt }
   }
 

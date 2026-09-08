@@ -942,6 +942,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
       models[0],
+      { id: topicId, topicId },
       assistantContextOverride
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)

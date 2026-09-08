@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { mergeHeaders } from '@main/utils/http'
 import {
   FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -31,7 +32,7 @@ import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'a
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
-import { createHttpTraceFetch } from '../../../observability'
+import { applyHttpTrace } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
 import { resolveSdkConfig } from '../../../provider/sdkConfig'
@@ -129,7 +130,10 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     resolvedEndpoint,
     request.apiKeyOverride
   )
-  applyHttpTrace(sdkConfig, request.conversation.topicId, model)
+  applyHttpTrace(sdkConfig.providerSettings, {
+    topicId: request.conversation.topicId,
+    modelName: model.name ?? model.id
+  })
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /
@@ -142,6 +146,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   // context (fs_read's per-call cap follows the effective persist threshold).
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
+    request.conversation,
     assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
@@ -332,15 +337,6 @@ export function applyResponsesInstructions(
   // `instructions` does not displace the system input message; without this the
   // whole prompt ships twice.
   namespace.systemMessageMode = 'remove'
-}
-
-export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
-  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings
-  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
-    topicId,
-    modelName: model.name ?? model.id
-  })
 }
 
 /**
@@ -653,7 +649,7 @@ function buildAgentOptions(
   const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
   // A provider that keys on the conversation declared the header; the caller's own headers win.
   const headers = sdkConfig.conversationHeader
-    ? { [sdkConfig.conversationHeader]: request.conversation.id, ...callerHeaders }
+    ? mergeHeaders({ [sdkConfig.conversationHeader]: request.conversation.id }, callerHeaders)
     : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
@@ -673,6 +669,7 @@ function buildAgentOptions(
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
+      headers,
       getUsagePlugins: getRepairUsagePlugins
     })
   }

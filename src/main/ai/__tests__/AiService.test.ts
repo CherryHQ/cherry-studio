@@ -1,10 +1,16 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
+import { defaultServiceInstances } from '@test-mocks/main/application'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
+import type * as CustomFetchModule from '../utils/customFetch'
 import { makeProvider } from './fixtures/provider'
 
 const mockGenerateImage = vi.fn()
@@ -84,7 +90,8 @@ vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
   registerBuiltinTools: (...args: unknown[]) => mockRegisterBuiltinTools(...args)
 }))
 
-vi.mock('../utils/customFetch', () => ({
+vi.mock('../utils/customFetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof CustomFetchModule>()),
   installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor(),
   // The inline health-check probe resolves the real provider config, which
   // defaults providerSettings.fetch to customFetch — a stub keeps it inert.
@@ -273,6 +280,53 @@ describe('AiService', () => {
     // tests override with mockRejectedValueOnce to exercise the failure path.
     mockRecordRequest.mockResolvedValue(undefined)
   })
+
+  it.each(['embedding', 'rerank', 'image'] as const)(
+    'preserves developer HTTP traces for direct %s requests without a conversation',
+    async (modality) => {
+      const service = createService()
+      const exporter = new InMemorySpanExporter()
+      const tracerProvider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+      vi.spyOn(trace, 'getTracer').mockReturnValue(tracerProvider.getTracer('test'))
+      mockApplicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
+        if (name === 'FileManager') return {}
+        throw new Error(`Unexpected service: ${name}`)
+      })
+      mockProviderGetByProviderId.mockReturnValue(makeProvider())
+      const { customFetch } = await import('../utils/customFetch')
+      vi.mocked(customFetch).mockResolvedValue(new Response(null, { status: 204 }))
+      const sdkRequest = async (_providerId: string, settings: { fetch: FetchFunction }) => {
+        const response = await settings.fetch(`https://provider.test/${modality}`, { method: 'POST' })
+        expect(response.status).toBe(204)
+        return { embeddings: [[1]], ranking: [{ originalIndex: 0, score: 1 }], images: [] }
+      }
+      mockEmbedMany.mockImplementation(sdkRequest)
+      mockRerank.mockImplementation(sdkRequest)
+      mockGenerateImage.mockImplementation(sdkRequest)
+      try {
+        for (const enabled of [false, true]) {
+          exporter.reset()
+          MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', enabled)
+          const request = { uniqueModelId: createUniqueModelId('test-provider', 'test-model') }
+          if (modality === 'embedding') await service.embedMany({ ...request, values: ['hello'] })
+          else if (modality === 'rerank') await service.rerank({ ...request, query: 'hello', documents: ['hello'] })
+          else await service.generateImage({ ...request, prompt: 'a cherry', paramValues: {}, cleanupPolicy: 'manual' })
+          const spans = exporter.getFinishedSpans()
+          expect(spans).toHaveLength(enabled ? 1 : 0)
+          if (enabled) {
+            expect(spans[0].name).toBe('http.request')
+            expect(spans[0].attributes['http.url']).toBe(`https://provider.test/${modality}`)
+            expect(spans[0].attributes['trace.modelName']).toBe('Test Model')
+            expect(spans[0].attributes['trace.topicId']).toBeUndefined()
+          }
+        }
+      } finally {
+        MockMainPreferenceServiceUtils.resetMocks()
+        await tracerProvider.shutdown()
+      }
+    }
+  )
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {
     const service = createService()
