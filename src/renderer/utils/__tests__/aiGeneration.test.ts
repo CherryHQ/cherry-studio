@@ -109,7 +109,6 @@ describe('fetchGenerate cancellation', () => {
       fetchGenerate({
         prompt: 'system prompt',
         content: 'user content',
-        model: TEST_MODEL,
         signal: controller.signal,
         throwOnError: true
       })
