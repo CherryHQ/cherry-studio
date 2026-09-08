@@ -4,7 +4,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import type { AiGenerateRequest } from '@main/ai/AiService'
+import type { AiGenerateRequest, AsInProcessChat } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
 import { getAppLanguage } from '@main/i18n'
@@ -373,9 +373,9 @@ export class TopicNamingService {
     // agent id, or buildAgentParams resolves its tool configuration (MCP tools,
     // web search, knowledge bases) onto this request — the manual rename path in
     // the renderer omits assistantId for the same reason.
-    const request: AiGenerateRequest = {
+    const request: AsInProcessChat<AiGenerateRequest> = {
       uniqueModelId,
-      chatId,
+      conversation: { id: chatId, topicId: chatId },
       system: systemPrompt,
       prompt,
       // A title is 10 words: never reason. Set this explicitly so the request builder does not

@@ -2678,7 +2678,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: entry.modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
@@ -2756,7 +2756,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: turn.modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: turn.assistantMessageId,
         messages,
@@ -2855,7 +2855,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
@@ -2971,7 +2971,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
