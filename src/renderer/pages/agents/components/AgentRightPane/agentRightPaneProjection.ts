@@ -287,21 +287,16 @@ export function resolveFlowToolCallId(
  */
 function extractLaunchedAgentId(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
   const output = resolvedOutput !== undefined ? resolvedOutput : part && (part as { output?: unknown }).output
-  // Single launch-receipt grammar everywhere: the shared parser gates on the structural markers
-  // and extracts the trailer, so round splitting and entry redirection can never disagree.
-  if (typeof output === 'string') return extractLaunchReceiptId(output)
-  if (isRecord(output)) {
-    // Workflow/local launches carry the same identity under `taskId`.
-    const direct = output.agentId ?? output.agent_id ?? output.taskId
-    return typeof direct === 'string' && direct.length > 0 ? direct : undefined
-  }
-  return undefined
+  // Single launch-receipt grammar everywhere: the shared parser handles text markers and the
+  // structured spellings, so round splitting and entry redirection can never disagree.
+  return extractLaunchReceiptId(output)
 }
 
 /** Whether this part is a SendMessage receipt that resumed THIS agent — the round boundary. */
 function isResumeReceiptFor(part: CherryMessagePart, launchedAgentId: string): boolean {
   const record = part as { toolName?: unknown; output?: unknown }
-  return record.toolName === AgentToolsType.SendMessage && getResumedAgentId(record.output) === launchedAgentId
+  const resumeToolName = record.toolName === AgentToolsType.SendMessage || record.toolName === 'send_message'
+  return resumeToolName && getResumedAgentId(record.output) === launchedAgentId
 }
 
 /** The request to show between rounds — the sent message, falling back to its summary. */
