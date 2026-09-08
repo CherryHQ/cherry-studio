@@ -2,8 +2,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import type { prepareAtomicWrite } from '@main/utils/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 import {
@@ -11,6 +12,22 @@ import {
   resolveMiniMaxCodeConfigPath,
   restoreMiniMaxCodeSelection
 } from '../miniMaxCodeConfig'
+
+const fileWriteHooks = vi.hoisted(() => ({
+  afterPrepare: undefined as undefined | ((target: string) => Promise<void>)
+}))
+
+vi.mock('@main/utils/file', async (importOriginal) => {
+  const actual = await importOriginal<{ prepareAtomicWrite: typeof prepareAtomicWrite }>()
+  return {
+    ...actual,
+    prepareAtomicWrite: async (...args: Parameters<typeof actual.prepareAtomicWrite>) => {
+      const prepared = await actual.prepareAtomicWrite(...args)
+      await fileWriteHooks.afterPrepare?.(args[0])
+      return prepared
+    }
+  }
+})
 
 const tempDirectories: string[] = []
 
@@ -21,6 +38,7 @@ async function createTempDirectory(): Promise<string> {
 }
 
 afterEach(async () => {
+  fileWriteHooks.afterPrepare = undefined
   await Promise.all(tempDirectories.splice(0).map((directory) => fs.rm(directory, { recursive: true, force: true })))
 })
 
@@ -125,5 +143,24 @@ describe('MiniMax Code config selection', () => {
       'MiniMax Code model selection changed before rollback'
     )
     await expect(fs.readFile(configPath, 'utf8')).resolves.toBe('defaultModel: custom_provider:user/model\n')
+  })
+
+  it('does not overwrite an external config edit that lands while activation is being prepared', async () => {
+    const dataDir = await createTempDirectory()
+    const configPath = path.join(dataDir, 'config.yaml')
+    await fs.writeFile(configPath, 'theme: dark\ndefaultModel: minimax/MiniMax-M2.7\n')
+    fileWriteHooks.afterPrepare = async () => {
+      await fs.writeFile(configPath, 'theme: light\ndefaultModel: minimax/MiniMax-M2.7\n')
+    }
+
+    await expect(
+      activateMiniMaxCodeModel(
+        { MINIMAX_DATA_DIR: dataDir },
+        '/unused',
+        'custom_provider:cherry-deepseek',
+        'deepseek-reasoner'
+      )
+    ).rejects.toThrow(/version mismatch/)
+    await expect(fs.readFile(configPath, 'utf8')).resolves.toContain('theme: light')
   })
 })

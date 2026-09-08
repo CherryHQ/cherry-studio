@@ -20,6 +20,14 @@ describe('ListFilesQuerySchema', () => {
     expect(ListFilesQuerySchema.safeParse({ sortBy: 'ext', sortOrder: 'asc' }).success).toBe(true)
   })
 
+  it('accepts a supported file type filter', () => {
+    expect(ListFilesQuerySchema.safeParse({ fileType: 'image' }).success).toBe(true)
+  })
+
+  it('rejects an unknown file type filter', () => {
+    expect(ListFilesQuerySchema.safeParse({ fileType: 'archive' }).success).toBe(false)
+  })
+
   it('accepts inTrash=false with origin=external', () => {
     expect(ListFilesQuerySchema.safeParse({ inTrash: false, origin: 'external' }).success).toBe(true)
   })

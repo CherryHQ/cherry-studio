@@ -200,15 +200,14 @@ submission packaging for either engine.
 Coordinator duties around the selected engine:
 
 0. Run the **Product Demand gate** (`SKILL.md` § Review Stages, stage 1)
-   before implementation review, using `PR_BODY` and the diff. First inspect
-   the actual semantics; skip silently only when they have no product impact.
-   Interactive mode is the default regardless of PR authorship or decision
-   ownership: explain the semantic effect and ask the current user for the
-   product decision. A rejected direction stops the review before code findings
-   are produced. Use record-only automated behavior only when the invocation
-   prompt or workflow context explicitly identifies an automated run; then
-   carry impact, direction, and open product questions into the Step 4 report
-   and, when submitting, the review body as awaiting human confirmation.
+   before implementation review, using `PR_BODY`, the diff, and authoritative
+   decision artifacts they reference. Apply its no-impact,
+   established-direction, and open-decision states exactly; the PR body alone
+   demonstrates author intent, not product approval. Only an open decision may
+   prompt in an interactive run or use record-only behavior in an explicitly
+   automated run; carry the latter's impact, direction, and open product
+   questions into the Step 4 report and, when submitting, the review body as
+   awaiting human confirmation.
    This coordinator gate satisfies stage 1 for the selected engine; do not run
    it a second time inside local-review or teams-review.
 1. Read `PR_BODY` to understand the stated motivation and include it in
@@ -259,6 +258,9 @@ Present results to user:
 - When `LIMITED_SINGLE_AGENT = true`: explicitly disclose that a non-small PR
   received single-agent review without independent adversarial verification
   because the runtime has no subagent capability.
+- In an automated session with an open product decision: include the Product
+  Demand summary — impact, direction, and points needing human confirmation —
+  explicitly marked as awaiting a product decision, never as approved.
 - Checklist candidates: include any valid recurring-pattern candidates as
   `proposed`; regular PR review never accepts, inserts, or claims to persist
   checklist rules.

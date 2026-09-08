@@ -724,16 +724,35 @@ describe('buildAgentParams web-tool routing', () => {
   })
 
   it.each([
-    { clientToolsPreferred: true, expectedRoute: 'client' },
-    { clientToolsPreferred: false, expectedRoute: 'server' }
+    {
+      name: 'model-native tools are preferred',
+      modelToolsPreferred: true,
+      defaultSearchKeywordsProvider: 'exa-mcp',
+      defaultFetchUrlsProvider: 'jina',
+      expectedRoute: 'server'
+    },
+    {
+      name: 'configured services are preferred',
+      modelToolsPreferred: false,
+      defaultSearchKeywordsProvider: 'exa-mcp',
+      defaultFetchUrlsProvider: 'jina',
+      expectedRoute: 'client'
+    },
+    {
+      name: 'configured services are preferred but unavailable',
+      modelToolsPreferred: false,
+      defaultSearchKeywordsProvider: null,
+      defaultFetchUrlsProvider: null,
+      expectedRoute: 'server'
+    }
   ])(
-    'injects only $expectedRoute implementations when preference is $clientToolsPreferred',
-    async ({ clientToolsPreferred, expectedRoute }) => {
+    'injects only $expectedRoute implementations when $name',
+    async ({ modelToolsPreferred, defaultSearchKeywordsProvider, defaultFetchUrlsProvider, expectedRoute }) => {
       const preferences = new Map<string, unknown>([
         ['app.developer_mode.enabled', false],
-        ['chat.web_search.client_tools_preferred', clientToolsPreferred],
-        ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
-        ['chat.web_search.default_fetch_urls_provider', 'jina'],
+        ['chat.web_search.model_tools_preferred', modelToolsPreferred],
+        ['chat.web_search.default_search_keywords_provider', defaultSearchKeywordsProvider],
+        ['chat.web_search.default_fetch_urls_provider', defaultFetchUrlsProvider],
         ['chat.web_search.provider_overrides', {}],
         ['chat.web_search.max_results', 5],
         ['chat.web_search.exclude_domains', []]
@@ -757,6 +776,24 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it('keeps client search available through ExaMCP when the selected provider has no key', async () => {
+    const preferences = new Map<string, unknown>([
+      ['app.developer_mode.enabled', false],
+      ['chat.web_search.model_tools_preferred', false],
+      ['chat.web_search.default_search_keywords_provider', 'tavily'],
+      ['chat.web_search.default_fetch_urls_provider', null],
+      ['chat.web_search.provider_overrides', { tavily: { apiKeys: [] } }],
+      ['chat.web_search.max_results', 5],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+    registry.register(clientSearchEntry)
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.tools?.web_search).toBe(clientSearchEntry.tool)
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(false)
+  })
   it('disables Responses storage for assistant-backed calls too', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'openai', providerSettings: {} },
@@ -821,7 +858,7 @@ describe('buildAgentParams web-tool routing', () => {
       })
       const preferences = new Map<string, unknown>([
         ['app.developer_mode.enabled', false],
-        ['chat.web_search.client_tools_preferred', false],
+        ['chat.web_search.model_tools_preferred', true],
         ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
         ['chat.web_search.provider_overrides', {}],
         ['chat.web_search.max_results', 5],
@@ -867,7 +904,7 @@ describe('buildAgentParams web-tool routing', () => {
         capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
       })
       preferenceGetMock.mockImplementation((key: string) => {
-        if (key === 'chat.web_search.client_tools_preferred') return false
+        if (key === 'chat.web_search.model_tools_preferred') return true
         if (key === 'chat.web_search.max_results') return 5
         if (key === 'chat.web_search.exclude_domains') return []
         return null
@@ -909,7 +946,7 @@ describe('buildAgentParams web-tool routing', () => {
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     })
     preferenceGetMock.mockImplementation((key: string) =>
-      key === 'chat.web_search.client_tools_preferred' ? false : null
+      key === 'chat.web_search.model_tools_preferred' ? true : null
     )
     registry.register(clientSearchEntry)
 
@@ -1162,6 +1199,42 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
 
     expect(result.options.providerOptions).toBeUndefined()
+  })
+
+  it.each([
+    { providerId: 'opencode', runtimeProviderId: 'openai-compatible', adapterFamily: 'openai-compatible' },
+    { providerId: 'openrouter', runtimeProviderId: 'openrouter', adapterFamily: 'openrouter' }
+  ])('treats stale Auto as Default for mandatory-thinking GLM on $providerId', async (providerConfig) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: providerConfig.runtimeProviderId, providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const endpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const provider = makeProvider({
+      id: providerConfig.providerId,
+      defaultChatEndpoint: endpointType,
+      endpointConfigs: { [endpointType]: { adapterFamily: providerConfig.adapterFamily } }
+    })
+    const model = makeModel({
+      id: `${providerConfig.providerId}::glm-5.3-flash`,
+      providerId: providerConfig.providerId,
+      apiModelId: 'glm-5.3-flash',
+      presetModelId: 'glm-5-3-flash',
+      endpointTypes: [endpointType],
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'auto' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    const providerOptions = result.options.providerOptions?.[result.sdkConfig.providerOptionsKey] ?? {}
+    expect(providerOptions).not.toHaveProperty('reasoning')
+    expect(providerOptions).not.toHaveProperty('reasoningEffort')
+    expect(providerOptions).not.toHaveProperty('reasoning_effort')
   })
 
   it('carries the AiHubMix Gemini provider-options namespace from endpoint resolution into translation', async () => {

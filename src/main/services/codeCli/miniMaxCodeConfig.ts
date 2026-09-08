@@ -1,6 +1,15 @@
 import path from 'node:path'
 
-import { atomicWriteFile, ensureDir, read } from '@main/utils/file'
+import {
+  assertPathVersionUnchanged,
+  atomicWriteFile,
+  ensureDir,
+  hashContent,
+  openReadableFileSnapshot,
+  type PathVersion,
+  prepareAtomicWrite
+} from '@main/utils/file'
+import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { Document, isMap, parseDocument } from 'yaml'
 
@@ -9,6 +18,14 @@ const MCODE_CONFIG_FILE_MODE = 0o600
 interface PreviousConfigValue {
   present: boolean
   value?: unknown
+}
+
+interface ConfigDocumentSnapshot {
+  document: Document
+  expected?: {
+    version: PathVersion
+    contentHash: ContentHash
+  }
 }
 
 export interface MiniMaxCodeSelectionReceipt {
@@ -40,10 +57,23 @@ function describeYamlError(error: { message: string; linePos?: Array<{ line: num
   return `${error.message}${location}`
 }
 
-async function readConfigDocument(configPath: AbsoluteFilePath): Promise<Document> {
+async function readConfigDocument(configPath: AbsoluteFilePath): Promise<ConfigDocumentSnapshot> {
   let content: string | undefined
+  let expected: ConfigDocumentSnapshot['expected']
   try {
-    content = await read(configPath)
+    const snapshot = await openReadableFileSnapshot(configPath)
+    try {
+      const chunks: Buffer[] = []
+      for await (const chunk of snapshot.createReadStream()) chunks.push(Buffer.from(chunk))
+      const bytes = Buffer.concat(chunks)
+      content = bytes.toString('utf8')
+      expected = {
+        version: { mtime: snapshot.modifiedAt, size: snapshot.size },
+        contentHash: hashContent(bytes)
+      }
+    } finally {
+      await snapshot.close()
+    }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
@@ -54,7 +84,7 @@ async function readConfigDocument(configPath: AbsoluteFilePath): Promise<Documen
   }
   if (document.contents === null) document.contents = document.createNode({})
   if (!isMap(document.contents)) throw new Error('MiniMax Code config.yaml must contain a YAML mapping')
-  return document
+  return { document, expected }
 }
 
 function snapshotValue(document: Document, key: string): PreviousConfigValue {
@@ -62,9 +92,25 @@ function snapshotValue(document: Document, key: string): PreviousConfigValue {
   return Object.prototype.hasOwnProperty.call(root, key) ? { present: true, value: root[key] } : { present: false }
 }
 
-async function writeConfigDocument(configPath: AbsoluteFilePath, document: Document): Promise<void> {
+async function writeConfigDocument(
+  configPath: AbsoluteFilePath,
+  document: Document,
+  expected?: ConfigDocumentSnapshot['expected']
+): Promise<void> {
   await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(configPath)))
-  await atomicWriteFile(configPath, String(document), { mode: MCODE_CONFIG_FILE_MODE })
+  if (!expected) {
+    await atomicWriteFile(configPath, String(document), { mode: MCODE_CONFIG_FILE_MODE })
+    return
+  }
+
+  const prepared = await prepareAtomicWrite(configPath, String(document), { mode: MCODE_CONFIG_FILE_MODE })
+  try {
+    await assertPathVersionUnchanged(configPath, expected.version, expected.contentHash)
+    await prepared.commit()
+  } catch (error) {
+    await prepared.abort()
+    throw error
+  }
 }
 
 export async function activateMiniMaxCodeModel(
@@ -74,7 +120,8 @@ export async function activateMiniMaxCodeModel(
   modelId: string
 ): Promise<MiniMaxCodeSelectionReceipt> {
   const configPath = resolveMiniMaxCodeConfigPath(environment, systemHome)
-  const document = await readConfigDocument(configPath)
+  const snapshot = await readConfigDocument(configPath)
+  const { document } = snapshot
   const appliedDefaultModel = `${providerId}/${modelId}`
   const receipt: MiniMaxCodeSelectionReceipt = {
     configPath,
@@ -85,7 +132,7 @@ export async function activateMiniMaxCodeModel(
 
   document.setIn(['defaultModel'], appliedDefaultModel)
   document.deleteIn(['defaultModelVariant'])
-  await writeConfigDocument(configPath, document)
+  await writeConfigDocument(configPath, document, snapshot.expected)
   return receipt
 }
 
@@ -95,7 +142,8 @@ function restoreValue(document: Document, key: string, previous: PreviousConfigV
 }
 
 export async function restoreMiniMaxCodeSelection(receipt: MiniMaxCodeSelectionReceipt): Promise<void> {
-  const document = await readConfigDocument(receipt.configPath)
+  const snapshot = await readConfigDocument(receipt.configPath)
+  const { document } = snapshot
   const currentDefaultModel = snapshotValue(document, 'defaultModel')
   const currentVariant = snapshotValue(document, 'defaultModelVariant')
   if (currentDefaultModel.value !== receipt.appliedDefaultModel || currentVariant.present) {
@@ -103,5 +151,5 @@ export async function restoreMiniMaxCodeSelection(receipt: MiniMaxCodeSelectionR
   }
   restoreValue(document, 'defaultModel', receipt.defaultModel)
   restoreValue(document, 'defaultModelVariant', receipt.defaultModelVariant)
-  await writeConfigDocument(receipt.configPath, document)
+  await writeConfigDocument(receipt.configPath, document, snapshot.expected)
 }

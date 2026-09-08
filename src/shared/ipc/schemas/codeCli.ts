@@ -32,10 +32,9 @@ const codeCliRunInputSchema = z.discriminatedUnion('mode', [
     providerId: z.string().min(1),
     model: z.string().min(1),
     // Gateway launch: the CLI runs against the local API gateway, which addresses
-    // models as `providerId:modelId`. Only gemini-cli consumes this flag — it passes the
-    // gateway address on the command line, where `--model` outranks settings.model.name and
-    // rides past gemini-cli's flash-name normalization; the other tools carry gateway
-    // addressing in their own config and ignore it.
+    // models as `providerId:modelId`. Gemini CLI and Antigravity consume this flag to pass
+    // the gateway address on the command line; other tools carry gateway addressing in
+    // their own config and ignore it.
     gateway: z.boolean().optional()
   }),
   // Claude-only `/login` flow (ClaudeCodeSettings).
@@ -52,9 +51,50 @@ const codeCliRunInputSchema = z.discriminatedUnion('mode', [
 
 export type CodeCliRunInput = z.infer<typeof codeCliRunInputSchema>
 
+const CREDENTIAL_QUERY_PARAMETER_NAMES = new Set([
+  'apikey',
+  'auth',
+  'authorization',
+  'accesstoken',
+  'clientsecret',
+  'credential',
+  'credentials',
+  'key',
+  'passwd',
+  'password',
+  'secret',
+  'token'
+])
+
+const miniMaxCodeBaseUrlSchema = z
+  .string()
+  .url()
+  .max(2048)
+  .superRefine((value, context) => {
+    let parsed: URL
+    try {
+      parsed = new URL(value)
+    } catch {
+      return
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      context.addIssue({ code: 'custom', message: 'MiniMax Code base URL must use HTTP(S)' })
+    }
+    if (parsed.username || parsed.password) {
+      context.addIssue({ code: 'custom', message: 'MiniMax Code base URL must not contain credentials' })
+    }
+    for (const name of parsed.searchParams.keys()) {
+      const normalized = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+      if (CREDENTIAL_QUERY_PARAMETER_NAMES.has(normalized)) {
+        context.addIssue({ code: 'custom', message: 'MiniMax Code base URL must not contain credential parameters' })
+        break
+      }
+    }
+  })
+
 const miniMaxCodeProviderApplyInputSchema = z.object({
   providerName: z.string().trim().min(1).max(200),
-  baseUrl: z.string().url().max(2048),
+  baseUrl: miniMaxCodeBaseUrlSchema,
   apiFormat: z.enum(['anthropic-messages', 'openai-completions', 'openai-responses']),
   model: z.string().trim().min(1).max(1000),
   apiKey: z

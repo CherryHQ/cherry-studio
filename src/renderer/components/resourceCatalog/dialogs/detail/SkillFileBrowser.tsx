@@ -1,4 +1,4 @@
-import { Button, Markdown } from '@cherrystudio/ui'
+import { Button, Markdown, Scrollbar } from '@cherrystudio/ui'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useTranslate } from '@renderer/hooks/translate'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -238,7 +238,7 @@ export function SkillFileBrowser({ skillId }: Props) {
             ) : null}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <Scrollbar className="min-h-0 flex-1 overflow-x-auto">
             {loadingContent ? (
               <PreviewLoading />
             ) : selectedFile && previewContent !== null ? (
@@ -268,7 +268,7 @@ export function SkillFileBrowser({ skillId }: Props) {
                 <span className="text-xs">{t('library.skill_detail.select_file')}</span>
               </div>
             )}
-          </div>
+          </Scrollbar>
         </div>
       </div>
     </section>

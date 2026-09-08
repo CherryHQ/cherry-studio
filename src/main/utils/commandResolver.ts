@@ -6,7 +6,7 @@ import path from 'path'
 import which from 'which'
 
 import { getBundledGitPath } from './bundledGit'
-import { getShellEnv } from './shellEnv'
+import { getPathFromEnvironment, getShellEnv } from './shellEnv'
 
 /**
  * Resolution for arbitrary executables in the user's environment — locating
@@ -28,11 +28,6 @@ const MAX_OUTPUT_SIZE = 10240
 
 const WINDOWS_PATH_DELIMITER = ';'
 const DEFAULT_WINDOWS_COMMAND_EXTENSIONS = ['.exe', '.cmd']
-
-function getWindowsPathValue(env: Record<string, string | undefined>): string {
-  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
-  return pathKey ? (env[pathKey] ?? '') : ''
-}
 
 function toWindowsPathExt(extensions: string[]): string {
   return extensions
@@ -88,7 +83,7 @@ async function findWindowsCommandCandidates(
         all: true,
         delimiter: WINDOWS_PATH_DELIMITER,
         nothrow: true,
-        path: getWindowsPathValue(env),
+        path: getPathFromEnvironment(env) ?? '',
         pathExt: toWindowsPathExt(extensions)
       }),
       timeout
@@ -116,7 +111,7 @@ function findWindowsCommandCandidatesSync(
       all: true,
       delimiter: WINDOWS_PATH_DELIMITER,
       nothrow: true,
-      path: getWindowsPathValue(env),
+      path: getPathFromEnvironment(env) ?? '',
       pathExt: toWindowsPathExt(extensions)
     })
     return filterWindowsCommandCandidates(candidates ?? [], extensions)
@@ -124,6 +119,30 @@ function findWindowsCommandCandidatesSync(
     logger.warn(`Error checking command '${command}'`, { error, platform: 'windows' })
     return []
   }
+}
+
+/** Absolute MCP stdio commands skip the bare-name regex and `command -v`. */
+function resolveExistingAbsoluteCommand(command: string): string | null {
+  const trimmed = command.trim()
+  if (!trimmed || !path.isAbsolute(trimmed)) {
+    return null
+  }
+
+  const resolved = path.resolve(trimmed)
+  if (!path.isAbsolute(resolved)) {
+    return null
+  }
+
+  try {
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) {
+      return null
+    }
+  } catch (error) {
+    logger.debug(`Absolute command path is not readable '${resolved}'`, { error })
+    return null
+  }
+
+  return resolved
 }
 
 /**
@@ -136,6 +155,11 @@ export async function findCommandInShellEnv(
   command: string,
   loginShellEnv: Record<string, string>
 ): Promise<string | null> {
+  const absoluteCommand = resolveExistingAbsoluteCommand(command)
+  if (absoluteCommand) {
+    return absoluteCommand
+  }
+
   // Validate command name to prevent command injection
   if (!VALID_COMMAND_NAME_REGEX.test(command)) {
     logger.warn(`Invalid command name '${command}' - must only contain alphanumeric characters, underscore, or hyphen`)

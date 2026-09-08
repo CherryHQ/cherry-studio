@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 import * as z from 'zod'
@@ -35,6 +36,12 @@ export type MenuPresentationMode = 'native' | 'cherry'
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
+
+/**
+ * Global default Agent reply language (`agent.language`). Human-readable label
+ * ("English", "ไทย"), not an app locale code; null = no constraint injected.
+ */
+export type AgentLanguagePreference = AgentLanguage
 
 export enum SelectionTriggerMode {
   Selected = 'selected',
@@ -79,6 +86,7 @@ export type LanguageVarious =
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'tr-TR'
   | 'vi-VN'
 
 export type WindowStyle = 'transparent' | 'opaque'
@@ -165,6 +173,9 @@ export type MultiModelGridPopoverTrigger = 'hover' | 'click'
 
 export type AutoDetectionMethod = 'franc' | 'llm' | 'auto'
 
+/** The canonical reasoning-effort selection — the same type an assistant persists. */
+export type { ReasoningEffortOption } from '@shared/types/aiSdk'
+
 /**
  * Strict language code pattern — only real codes such as "en-us" / "zh-cn" / "ja".
  *
@@ -234,7 +245,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'querit',
   'fetch',
   'jina',
-  'firecrawl'
+  'firecrawl',
+  'parallel'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
@@ -305,6 +317,7 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openclaw',
   'deepseek-harness',
   'gemini-cli',
+  'antigravity-cli',
   'qwen-code',
   'kimi-code',
   'mcode',

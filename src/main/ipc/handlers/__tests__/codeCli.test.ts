@@ -162,5 +162,22 @@ describe('codeCliHandlers', () => {
 
       expect(parsed.success).toBe(false)
     })
+
+    it.each([
+      'ftp://api.example.com/v1',
+      'https://user:password@api.example.com/v1',
+      'https://api.example.com/v1?api_key=secret',
+      'https://api.example.com/v1?access-token=secret'
+    ])('rejects a base URL that can expose credentials through argv: %s', (baseUrl) => {
+      const parsed = codeCliRequestSchemas['code_cli.mcode_provider.apply'].input.safeParse({
+        providerName: 'Provider',
+        baseUrl,
+        apiFormat: 'openai-responses',
+        model: 'model',
+        apiKey: 'secret'
+      })
+
+      expect(parsed.success).toBe(false)
+    })
   })
 })

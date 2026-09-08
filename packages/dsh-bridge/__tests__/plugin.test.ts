@@ -7,11 +7,17 @@ import path from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import type { UserQuestionProvider } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { apply } from '../src/plugin'
 import { BRIDGE_SOCKET_ENV, BRIDGE_TOKEN_ENV } from '../src/protocol'
+
+type PreExecuteHandler = (
+  exec: { agent?: Agent; name: string; arguments: unknown; signal?: AbortSignal },
+  next: () => unknown
+) => Promise<unknown>
 
 const originalSocket = process.env[BRIDGE_SOCKET_ENV]
 const originalToken = process.env[BRIDGE_TOKEN_ENV]
@@ -27,7 +33,9 @@ afterEach(async () => {
 })
 
 /** Host peer: answers the plugin's `ready` and drives host→plugin requests. */
-async function startHost() {
+async function startHost(
+  respond: (method: string, params: Record<string, unknown>) => unknown | Promise<unknown> = () => ({})
+) {
   const socketPath =
     process.platform === 'win32'
       ? `\\\\.\\pipe\\cherry-dsh-plugin-${randomUUID()}`
@@ -40,7 +48,7 @@ async function startHost() {
     transport = new JsonRpcLineTransport(socket, socket)
     transport.onRequest(async (method, params) => {
       requests.push({ method, params })
-      return {}
+      return respond(method, params)
     })
     transport.start()
   })
@@ -95,6 +103,87 @@ const openParams = {
 }
 
 describe('cherry bridge plugin', () => {
+  it('checks root and delegated native tool calls with Main before local permission policy', async () => {
+    const host = await startHost((method) =>
+      method === 'guard/check' ? { kind: 'deny', ruleId: 'user-data-sqlite-write', reason: 'protected SQLite' } : {}
+    )
+    const rootAgent = { id: 'session-1', session: { header: { cwd: '/root-workspace' } } } as Agent
+    const childAgent = {
+      id: 'child-1',
+      session: { header: { cwd: '/child-workspace', parentSession: 'session-1' } }
+    } as Agent
+    let preExecute: PreExecuteHandler | undefined
+    const on = vi.fn((event: string, handler: unknown) => {
+      if (event === 'tools/pre-execute') preExecute = handler as PreExecuteHandler
+      return () => undefined
+    })
+    const get = vi.fn((id: string) => (id === 'session-1' ? rootAgent : undefined))
+    const ctx = makeContext({ agents: { resume: vi.fn(), create: vi.fn(), get }, on })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!preExecute) throw new Error('tools/pre-execute handler was not registered')
+
+    const next = vi.fn()
+    for (const agent of [rootAgent, childAgent]) {
+      await expect(
+        preExecute({ agent, name: 'write', arguments: { file_path: '/user-data/app.sqlite' } }, next)
+      ).resolves.toEqual({
+        kind: 'deny',
+        ruleId: 'user-data-sqlite-write',
+        reason: 'protected SQLite'
+      })
+    }
+    expect(next).not.toHaveBeenCalled()
+    expect(host.requests.filter((request) => request.method === 'guard/check')).toEqual([
+      {
+        method: 'guard/check',
+        params: {
+          sessionId: 'session-1',
+          toolName: 'write',
+          args: { file_path: '/user-data/app.sqlite' },
+          cwd: '/root-workspace'
+        }
+      },
+      {
+        method: 'guard/check',
+        params: {
+          sessionId: 'session-1',
+          toolName: 'write',
+          args: { file_path: '/user-data/app.sqlite' },
+          cwd: '/child-workspace'
+        }
+      }
+    ])
+  })
+
+  it('fails closed when Main cannot complete guard/check', async () => {
+    const host = await startHost((method) => {
+      if (method === 'guard/check') throw new Error('guard unavailable')
+      return {}
+    })
+    const agent = { id: 'session-1', session: { header: { cwd: '/workspace' } } } as Agent
+    let preExecute: PreExecuteHandler | undefined
+    const on = vi.fn((event: string, handler: unknown) => {
+      if (event === 'tools/pre-execute') preExecute = handler as PreExecuteHandler
+      return () => undefined
+    })
+    const ctx = makeContext({ on })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!preExecute) throw new Error('tools/pre-execute handler was not registered')
+
+    await expect(preExecute({ agent, name: 'bash', arguments: { command: 'echo ok' } }, vi.fn())).resolves.toEqual({
+      kind: 'deny',
+      reason: 'The Cherry Studio safety guard could not verify this tool call.'
+    })
+  })
+
   it('rejects a resumed session whose persisted cwd differs from the requested workspace', async () => {
     const host = await startHost()
     const dispose = vi.fn().mockResolvedValue(undefined)
@@ -207,6 +296,51 @@ describe('cherry bridge plugin', () => {
         params: { sessionId: 'session-1', callId: 'exit-plan-call-2' }
       })
     await expect(answer).resolves.toEqual({})
+  })
+
+  it('delivers rejected approval feedback to the same agent after settling the outcome', async () => {
+    const host = await startHost((method) =>
+      method === 'approval/ask' ? { outcome: 'rejected', rejectionReason: 'use a copy instead' } : {}
+    )
+    const followup = vi.fn()
+    const agent = { id: 'session-1', followup, session: { events: [] } } as unknown as Agent
+    let approvalHandler: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
+    const on = vi.fn((event: string, handler: unknown) => {
+      if (event === 'approval/request') {
+        approvalHandler = handler as (request: ApprovalRequest) => Promise<ApprovalOutcome>
+      }
+      return () => undefined
+    })
+    const ctx = makeContext({ on })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!approvalHandler) throw new Error('approval handler was not registered')
+
+    await expect(
+      approvalHandler({
+        agent,
+        toolName: 'bash',
+        callId: 'call-with-feedback',
+        reason: 'needs approval'
+      } as ApprovalRequest)
+    ).resolves.toBe('rejected')
+    expect(followup).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(followup).toHaveBeenCalledOnce())
+    expect(followup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'user',
+        source: { kind: 'user' },
+        content: [
+          {
+            type: 'text',
+            text: 'Tool approval feedback for "bash":\nuse a copy instead'
+          }
+        ]
+      })
+    )
   })
 
   it('rejects an unknown method instead of answering it', async () => {

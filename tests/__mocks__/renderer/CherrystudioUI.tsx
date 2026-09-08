@@ -110,7 +110,6 @@ export const MockCherrystudioUI = {
       <input
         type="checkbox"
         role="switch"
-        aria-label={label}
         checked={checked}
         disabled={disabled}
         onChange={(event) => onCheckedChange?.(event.target.checked)}

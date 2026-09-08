@@ -6,7 +6,7 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
+import { captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -28,6 +28,7 @@ import {
 } from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
 import {
+  useAnyMessageListItemProcessing,
   useMessageListActions,
   useMessageListData,
   useMessageListMeta,
@@ -233,6 +234,16 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
+  const latestAssistantGroupMessages = useMemo(
+    () =>
+      latestAssistantGroupKey
+        ? (groupedMessages
+            .find(([key]) => key === latestAssistantGroupKey)?.[1]
+            .filter((message) => message.role === 'assistant') ?? [])
+        : [],
+    [groupedMessages, latestAssistantGroupKey]
+  )
+  const shouldKeepLatestAssistantGroupMounted = useAnyMessageListItemProcessing(latestAssistantGroupMessages)
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -493,8 +504,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
       if (action === 'copy') {
-        const canvas = await captureScrollable(captureRef)
-        const blob = canvas ? await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')) : null
+        const imageData = await captureScrollableAsDataUrl(captureRef)
+        const blob = imageData ? await fetch(imageData).then((response) => response.blob()) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
         }
@@ -719,15 +730,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const latestAssistantGroupMessages = latestAssistantGroupKey
-    ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
-    : undefined
-  const shouldKeepLatestAssistantGroupMounted =
-    latestAssistantGroupMessages?.some(
-      (message) =>
-        message.role === 'assistant' &&
-        (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
-    ) ?? false
   const keepMountedKeys =
     shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode

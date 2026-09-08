@@ -5,7 +5,6 @@ import type { Provider } from '@shared/data/types/provider'
 import { GripVertical, MoreVertical } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { MouseEvent } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface ProviderListItemProps {
   provider: Provider
@@ -24,7 +23,6 @@ export default function ProviderListItem({
   onOpenMenu,
   renderMenuButton
 }: ProviderListItemProps) {
-  const { t } = useTranslation()
   const handleOpenMenu = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     onOpenMenu?.()
@@ -81,13 +79,6 @@ export default function ProviderListItem({
             displayContext="provider-list"
           />
           <span className={providerListClasses.itemLabel}>{provider.name}</span>
-          {provider.id === 'radeon-cloud' && (
-            <span
-              data-testid="radeon-cloud-free-badge"
-              className="inline-flex h-4 shrink-0 items-center rounded bg-success/10 px-1 font-medium text-[9px] text-success leading-none">
-              {t('models.type.free')}
-            </span>
-          )}
         </div>
       </div>
       {hasTrailingSlot && (

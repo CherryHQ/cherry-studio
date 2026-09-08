@@ -7,8 +7,9 @@ import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionD
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
-import { EmbeddingInferenceService } from '@main/ai/inference/EmbeddingInferenceService'
-import { OcrInferenceService } from '@main/ai/inference/OcrInferenceService'
+import { EmbeddingInferenceService } from '@main/ai/localModel'
+import { LocalModelService } from '@main/ai/localModel'
+import { OcrInferenceService } from '@main/ai/localModel'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
@@ -23,16 +24,20 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService, KnowledgeVectorStoreService } from '@main/features/knowledge'
+import { MiniAppRuntimeService } from '@main/features/miniApp/runtime/MiniAppRuntimeService'
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
+import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { BinaryManager } from '@main/services/binaryManager'
+import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
@@ -90,6 +95,7 @@ import { WebviewService } from '@main/services/WebviewService'
 export const services = {
   MainNetworkDevtoolsService,
   WindowManager,
+  UtilityProcessManager,
   DbService,
   CacheService,
   DataApiService,
@@ -99,10 +105,12 @@ export const services = {
   TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
+  AppService,
   CodeCliService,
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
+  CherryCloudService,
   DeepSeekHarnessService,
   HermesDashboardService,
   LanTransferService,
@@ -147,8 +155,10 @@ export const services = {
   AiStreamManager,
   EmbeddingInferenceService,
   OcrInferenceService,
+  LocalModelService,
   KnowledgeService,
   KnowledgeVectorStoreService,
+  MiniAppRuntimeService,
   ApiGatewayService,
   AppUpdaterService,
   AutoBackupService,

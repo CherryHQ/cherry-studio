@@ -92,7 +92,7 @@ describe('Knowledge base schemas', () => {
       embeddingModelId: 'embed-model',
       chunkSize: 0,
       chunkOverlap: -1,
-      documentCount: 0
+      documentCount: -1
     })
 
     expect(result.success).toBe(false)
@@ -281,7 +281,7 @@ describe('Knowledge base schemas', () => {
     const result = UpdateKnowledgeBaseSchema.safeParse({
       chunkSize: -10,
       chunkOverlap: -1,
-      documentCount: 0
+      documentCount: -1
     })
 
     expect(result.success).toBe(false)
@@ -299,7 +299,7 @@ describe('Knowledge base schemas', () => {
       chunkSize: 0,
       chunkOverlap: -1,
       threshold: 2,
-      documentCount: 0,
+      documentCount: -1,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
@@ -324,6 +324,30 @@ describe('Knowledge base schemas', () => {
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
     ).toBe(false)
+  })
+
+  it('accepts documentCount 0 for empty knowledge bases', () => {
+    const result = KnowledgeBaseSchema.safeParse({
+      id: KNOWLEDGE_BASE_ID,
+      name: 'KB',
+      dimensions: 1024,
+      embeddingModelId: 'embed-model',
+      groupId: null,
+      status: 'completed',
+      error: null,
+      chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+      chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      chunkStrategy: 'structured',
+      chunkSeparator: '\\n\\n',
+      documentCount: 0,
+      createdAt: '2026-04-10T00:00:00.000Z',
+      updatedAt: '2026-04-10T00:00:00.000Z'
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.documentCount).toBe(0)
+    }
   })
 
   it('accepts nullable groupId and requires persisted defaults in entity schema', () => {

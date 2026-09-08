@@ -3,14 +3,27 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { skillService } from '@main/ai/skills/SkillService'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
 import { executeCommand, removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
-import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import {
+  CODE_CLI_TOOL_PRESET_BY_EXECUTABLE,
+  CODE_CLI_TOOL_PRESET_MAP,
+  CODE_CLI_TOOL_PRESETS,
+  type CodeCliToolPreset
+} from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput, MiniMaxCodeProviderApplyInput } from '@shared/ipc/schemas/codeCli'
+import type {
+  BinaryInstallByNameRequest,
+  BinaryRemoveRequest,
+  BinaryRemoveResult,
+  BinaryToolSnapshot
+} from '@shared/types/binary'
 import {
   CodeCli,
   LOGIN_CAPABLE_CLI_TOOLS,
@@ -22,10 +35,12 @@ import {
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
-import { REDACTED, redactRecord } from '@shared/utils/redaction'
+import { REDACTED } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
+import { app } from 'electron'
 import { promisify } from 'util'
 
+import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
 import {
   activateMiniMaxCodeModel,
@@ -46,6 +61,7 @@ const logger = loggerService.withContext('CodeCliService')
 const MCODE_PROVIDER_NAME_PREFIX = '[Cherry Studio] '
 const MCODE_PROVIDER_API_KEY_ENV = 'CHERRY_STUDIO_MCODE_API_KEY'
 const MCODE_PROVIDER_COMMAND_TIMEOUT = 30_000
+const MCODE_PROVIDER_DISCOVERY_ATTEMPTS = 3
 
 interface MiniMaxCodeListedProvider {
   providerId: string
@@ -83,6 +99,7 @@ const MACOS_APPLICATION_LOOKUP_SCRIPT = [
 
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
+@DependsOn(['BinaryManager'])
 export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
@@ -98,6 +115,75 @@ export class CodeCliService extends BaseService {
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
       void this.preloadTerminals()
+    }
+  }
+
+  protected override async onAllReady(): Promise<void> {
+    await this.reconcileCliSkills().catch((error) => {
+      logger.error('Failed to reconcile Code CLI skills', error as Error)
+    })
+  }
+
+  async installCli(request: BinaryInstallByNameRequest): Promise<void> {
+    const preset = this.requirePreset(request.name)
+    await application.get('BinaryManager').installByName(request)
+    const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
+    if (!snapshot || snapshot.availability.source === 'none') {
+      throw new Error(`${preset.executable} is unavailable after installation`)
+    }
+    await this.installCliSkill(preset)
+  }
+
+  async removeCli(request: BinaryRemoveRequest): Promise<BinaryRemoveResult> {
+    const preset = this.requirePreset(request.name)
+    const result = await application.get('BinaryManager').removeTool(request)
+    if (result.status === 'cleanup_blocked') return result
+
+    const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
+    if (snapshot) await this.reconcileCliSkill(preset, snapshot)
+    return result
+  }
+
+  async reconcileCliSkills(): Promise<void> {
+    const snapshots = await application
+      .get('BinaryManager')
+      .getToolSnapshots(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
+
+    for (const preset of CODE_CLI_TOOL_PRESETS) {
+      const snapshot = snapshots[preset.executable]
+      if (!snapshot) continue
+      try {
+        await this.reconcileCliSkill(preset, snapshot)
+      } catch (error) {
+        logger.warn('Failed to reconcile Code CLI skill', {
+          cliTool: preset.id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+  }
+
+  private requirePreset(executable: string): CodeCliToolPreset {
+    const preset = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[executable]
+    if (!preset) throw new Error(`Unknown Code CLI: ${executable}`)
+    return preset
+  }
+
+  private async installCliSkill(preset: CodeCliToolPreset): Promise<void> {
+    const sourcePath = path.join(
+      toAsarUnpackedPath(application.getPath('feature.code_cli.skills.builtin')),
+      preset.skillFolderName
+    )
+    await skillService.syncBuiltinSkill(preset.skillFolderName, sourcePath, app.getVersion(), preset.skillNamespace)
+  }
+
+  private async reconcileCliSkill(preset: CodeCliToolPreset, snapshot: BinaryToolSnapshot): Promise<void> {
+    if (snapshot.availability.source !== 'none') {
+      await this.installCliSkill(preset)
+      return
+    }
+    if (snapshot.application?.status === 'absent') {
+      await skillService.uninstallBuiltinSkill(preset.skillFolderName, preset.skillNamespace)
     }
   }
 
@@ -216,6 +302,22 @@ export class CodeCliService extends BaseService {
     })
   }
 
+  private async listManagedMiniMaxCodeProvidersWithRetry(runtime: {
+    path: string
+    env: Record<string, string>
+  }): Promise<MiniMaxCodeListedProvider[]> {
+    let lastError: unknown
+    for (let attempt = 1; attempt <= MCODE_PROVIDER_DISCOVERY_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.listManagedMiniMaxCodeProviders(runtime)
+      } catch (error) {
+        lastError = error
+        logger.warn('Failed to enumerate MiniMax Code providers', { attempt, error: error as Error })
+      }
+    }
+    throw lastError
+  }
+
   private assertMiniMaxCodeProviderTestSucceeded(output: string): void {
     const parsed: unknown = JSON.parse(output)
     if (!parsed || typeof parsed !== 'object') throw new Error('MiniMax Code returned an invalid provider test result')
@@ -248,11 +350,13 @@ export class CodeCliService extends BaseService {
       let runtime: { path: string; env: Record<string, string> } | undefined
       let createdProviderId: string | undefined
       let selectionReceipt: MiniMaxCodeSelectionReceipt | undefined
+      let providerPersisted = false
+      let previousIds = new Set<string>()
+      const managedName = `${MCODE_PROVIDER_NAME_PREFIX}${input.providerName}`
       try {
         runtime = await this.resolveMiniMaxCodeCommand()
         const previousProviders = await this.listManagedMiniMaxCodeProviders(runtime)
-        const previousIds = new Set(previousProviders.map((provider) => provider.providerId))
-        const managedName = `${MCODE_PROVIDER_NAME_PREFIX}${input.providerName}`
+        previousIds = new Set(previousProviders.map((provider) => provider.providerId))
         await this.runMiniMaxCodeProviderCommand(
           runtime,
           [
@@ -270,8 +374,9 @@ export class CodeCliService extends BaseService {
           ],
           { [MCODE_PROVIDER_API_KEY_ENV]: input.apiKey }
         )
+        providerPersisted = true
 
-        const providers = await this.listManagedMiniMaxCodeProviders(runtime)
+        const providers = await this.listManagedMiniMaxCodeProvidersWithRetry(runtime)
         const appliedProvider =
           providers.find((provider) => !previousIds.has(provider.providerId)) ??
           providers.find((provider) => provider.name === managedName) ??
@@ -311,26 +416,45 @@ export class CodeCliService extends BaseService {
         }
         return { success: true }
       } catch (error) {
-        let rollbackError: unknown
+        const rollbackFailures: string[] = []
         let selectionRestored = selectionReceipt === undefined
         if (selectionReceipt) {
           try {
             await restoreMiniMaxCodeSelection(selectionReceipt)
             selectionRestored = true
           } catch (restoreError) {
-            rollbackError = restoreError
+            rollbackFailures.push('previous MiniMax Code selection could not be restored')
             logger.warn('Failed to restore the previous MiniMax Code selection', restoreError as Error)
           }
         }
-        if (runtime && createdProviderId && selectionRestored) {
-          await this.runMiniMaxCodeProviderCommand(runtime, ['remove', createdProviderId, '--yes']).catch(
-            (removeError) => {
+        if (runtime && providerPersisted && selectionRestored) {
+          let rollbackProviderIds = createdProviderId ? [createdProviderId] : []
+          if (rollbackProviderIds.length === 0) {
+            try {
+              const currentProviders = await this.listManagedMiniMaxCodeProvidersWithRetry(runtime)
+              rollbackProviderIds = currentProviders
+                .filter((provider) => !previousIds.has(provider.providerId) && provider.name === managedName)
+                .map((provider) => provider.providerId)
+            } catch (enumerateError) {
+              rollbackFailures.push('new MiniMax Code provider could not be identified for cleanup')
+              logger.warn(
+                'Failed to identify the rejected Cherry-managed MiniMax Code provider',
+                enumerateError as Error
+              )
+            }
+          }
+          for (const providerId of rollbackProviderIds) {
+            try {
+              await this.runMiniMaxCodeProviderCommand(runtime, ['remove', providerId, '--yes'])
+            } catch (removeError) {
+              rollbackFailures.push(`new MiniMax Code provider ${providerId} could not be removed`)
               logger.warn('Failed to remove the rejected Cherry-managed MiniMax Code provider', removeError as Error)
             }
-          )
+          }
         }
         const failure = error instanceof Error ? error.message : String(error)
-        const rollbackSuffix = rollbackError ? '; previous MiniMax Code selection could not be restored' : ''
+        const rollbackSuffix =
+          rollbackFailures.length > 0 ? `; rollback incomplete: ${rollbackFailures.join('; ')}` : ''
         const message = `${failure}${rollbackSuffix}`.replaceAll(input.apiKey, REDACTED)
         logger.warn('Failed to apply MiniMax Code provider', { message })
         return { success: false, message }
@@ -679,7 +803,7 @@ export class CodeCliService extends BaseService {
         // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
         // recipe itself and writes no Preference — the CLI is a code-owned tool,
         // not a user-added custom one.
-        await binaryManager.installByName({ name: executableName })
+        await this.installCli({ name: executableName })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -693,6 +817,15 @@ export class CodeCliService extends BaseService {
         const message = `${cliTool} is not available after install`
         logger.error(message)
         return { success: false, message }
+      }
+    } else {
+      try {
+        await this.installCliSkill(preset)
+      } catch (error) {
+        logger.warn('Failed to sync an available Code CLI skill before launch', {
+          cliTool,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
     }
 
@@ -740,7 +873,6 @@ export class CodeCliService extends BaseService {
       }
 
       logger.info('Setting environment variables:', Object.keys(env))
-      logger.debug('Environment variable values:', redactRecord(env))
 
       if (isWindows) {
         // Windows uses set command
@@ -819,6 +951,34 @@ export class CodeCliService extends BaseService {
         }
         baseCommand = `${baseCommand} --model ${modelArg}`
       }
+    }
+
+    if (cliTool === CodeCli.ANTIGRAVITY_CLI && normal) {
+      let launchConfig
+      try {
+        launchConfig = await prepareAntigravityLaunch(normal)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error('Failed to prepare Antigravity CLI launch', error as Error)
+        return { success: false, message }
+      }
+
+      // `prepareAntigravityLaunch` already rejects unsafe ids (before it writes settings),
+      // but this is the boundary where the model is concatenated into a shell string and a
+      // .bat, so it re-checks rather than trust its caller.
+      if (!isShellSafeModelId(launchConfig.model)) {
+        const message = `Unsupported model id for ${cliTool}: ${launchConfig.model}`
+        logger.error(message)
+        return { success: false, message }
+      }
+
+      Object.assign(env, launchConfig.env)
+      const geminiDirArg =
+        platform === 'win32'
+          ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
+          : posixQuote(`--gemini_dir=${launchConfig.geminiDir}`)
+      const modelArg = platform === 'win32' ? `"${launchConfig.model}"` : posixQuote(launchConfig.model)
+      baseCommand = `${baseCommand} ${geminiDirArg} --model ${modelArg}`
     }
 
     // The Claude Code settings panel lands its terminal on the login flow rather
@@ -1057,7 +1217,6 @@ export class CodeCliService extends BaseService {
     // Launch terminal process
     try {
       logger.info(`Launching terminal with command: ${terminalCommand}`)
-      logger.debug(`Terminal arguments:`, terminalArgs)
       logger.debug(`Working directory: ${directory}`)
       logger.debug(`Process environment keys: ${Object.keys(processEnv)}`)
 

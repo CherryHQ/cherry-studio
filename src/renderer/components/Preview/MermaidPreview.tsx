@@ -130,7 +130,10 @@ const MermaidPreview = ({
       ref={ref}
       imageRef={containerRef}
       source="mermaid">
-      <ShadowTransparentContainer ref={containerRef} className="mermaid special-preview" />
+      <ShadowTransparentContainer
+        ref={containerRef}
+        className="mermaid special-preview flex items-center justify-center"
+      />
     </ImagePreviewLayout>
   )
 }

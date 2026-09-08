@@ -5,7 +5,7 @@ import ActionIconButton from '@renderer/components/ActionIconButton'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
@@ -42,13 +42,22 @@ interface NotesEditorProps {
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
+  onCreateNote?: () => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
+  ({
+    activeNodeId,
+    currentContent,
+    contentLoadError,
+    tokenCount,
+    onMarkdownChange,
+    editorRef,
+    codeEditorRef,
+    onCreateNote
+  }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
-    const { activeCmTheme } = useCodeStyle()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
@@ -58,6 +67,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
+    const activeCmTheme = useCmTheme(tmpViewMode === 'source')
     const currentViewModeRef = useRef(currentViewMode)
     const userViewModeOverrideRef = useRef(false)
 
@@ -76,7 +86,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (!activeNodeId) {
       return (
         <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState preset="no-note" title={t('notes.empty')} />
+          <EmptyState
+            preset="no-note"
+            title={t('notes.empty')}
+            actionLabel={t('notes.new_note')}
+            onAction={onCreateNote}
+          />
         </div>
       )
     }

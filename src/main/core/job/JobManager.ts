@@ -2002,6 +2002,7 @@ export class JobManager extends BaseService {
       },
       parentId: null,
       cancelRequested: true,
+      cancelRequestedAt: null,
       metadata: {},
       timeoutMs: null,
       createdAt: nowIso,

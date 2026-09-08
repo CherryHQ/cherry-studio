@@ -11,7 +11,7 @@ import {
   LOGIN_CAPABLE_CLI_TOOLS,
   PROVIDERLESS_CLI_TOOLS
 } from '@shared/types/codeCli'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { clearCliConfig, resolveCliConfigApplyContext } from '../cliConfig'
@@ -37,6 +37,11 @@ const logger = loggerService.withContext('CodeCliPage')
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
+
+// A broken managed install reports installed:false (inactive entries, no shim), and hiding it
+// would strip the only surface offering the Retry/Remove that repair or undo it.
+const isGeminiVisible = (status?: VersionStatus): boolean =>
+  status?.installed === true || status?.applicationStatus === 'broken'
 
 export function useCodeCliPageViewProps(
   initialTool?: CodeCli,
@@ -79,6 +84,7 @@ export function useCodeCliPageViewProps(
     resolveProviderMeta,
     resolveProviderMetaForTool,
     gatewayModelsById,
+    modelById,
     defaultGatewayModelId,
     isGatewayModelsLoading
   } = useConfigMetadata(selectedCliTool, providers, isProvidersLoading)
@@ -167,10 +173,24 @@ export function useCodeCliPageViewProps(
     apiGatewayProvider: apiGatewayBundle
   })
 
-  const activeTool = useMemo<CliToolOption | undefined>(
-    () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
-    [selectedCliTool]
+  const { statuses, resolved: statusesResolved } = useCliVersionStatuses(CLI_TOOL_IDS)
+  const visibleTools = useMemo(
+    () =>
+      CLI_TOOLS.filter((tool) => tool.value !== CodeCli.GEMINI_CLI || isGeminiVisible(statuses[CodeCli.GEMINI_CLI])),
+    [statuses]
   )
+  const activeTool = useMemo<CliToolOption | undefined>(
+    () => visibleTools.find((tool) => tool.value === selectedCliTool),
+    [selectedCliTool, visibleTools]
+  )
+  useEffect(() => {
+    // Gate on `resolved`, not on the status being absent: a failed read leaves the map
+    // empty forever, which would hide Gemini while never redirecting off it.
+    if (selectedCliTool !== CodeCli.GEMINI_CLI || !statusesResolved) return
+    if (isGeminiVisible(statuses[CodeCli.GEMINI_CLI])) return
+    const fallback = visibleTools[0]
+    if (fallback) selectTool(fallback.value)
+  }, [selectedCliTool, selectTool, statuses, statusesResolved, visibleTools])
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
   const isOwnLoginSelected = selectedProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
   const isDeepSeekHarnessTool = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
@@ -178,7 +198,6 @@ export function useCodeCliPageViewProps(
   const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
-  const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
   // Local busy Sets give instant feedback; snapshot operations cover mutations
   // initiated in another window or before this page mounted.
   const mergedInstallingTools = useMemo(() => {
@@ -241,6 +260,8 @@ export function useCodeCliPageViewProps(
     selectedTerminal,
     apiGatewayProvider: apiGatewayBundle,
     gatewayModelsById,
+    modelById,
+    isModelsLoading: isGatewayModelsLoading,
     upsertProviderConfig,
     setCurrentProvider,
     setTerminal,
@@ -272,9 +293,20 @@ export function useCodeCliPageViewProps(
     async (toolId: CodeCli) => {
       if (toolId === CodeCli.DEEPSEEK_HARNESS && !(await deepSeekHarness.onStop())) return
       if (toolId === CodeCli.HERMES && !(await hermesDashboard.onStop())) return
+      // MCode provider cleanup resolves the installed CLI in order to use its
+      // public provider commands. Run it before binary removal; doing this
+      // afterward would lazily reinstall the binary we just removed.
+      if (toolId === CodeCli.MCODE && currentProviderId) {
+        try {
+          await clearCliConfig({ cliTool: toolId })
+        } catch (err) {
+          logger.error('Failed to clear CLI config before tool removal:', err as Error)
+          toast.error(t('code.clear_config_failed'))
+        }
+      }
       const success = await remove(toolId)
       if (success && currentProviderId) {
-        if (toolId !== CodeCli.DEEPSEEK_HARNESS) {
+        if (toolId !== CodeCli.DEEPSEEK_HARNESS && toolId !== CodeCli.MCODE) {
           try {
             await clearCliConfig({ cliTool: toolId })
           } catch (err) {
@@ -292,7 +324,7 @@ export function useCodeCliPageViewProps(
 
   return {
     sidebarProps: {
-      tools: CLI_TOOLS,
+      tools: visibleTools,
       selectedCliTool,
       onSelectTool: selectTool,
       toMeta,

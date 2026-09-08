@@ -129,36 +129,66 @@ export function getBinaryIsolatedHomeEnv(): Record<string, string> {
   return env
 }
 
-// `extraPathPrefixes` are prepended after the mise shims dir, while
-// `runtimePathPrefixes` go before it so a CLI's declared interpreter wins over
-// the mutable global runtime shim.
+function mergePathEntries(
+  env: Record<string, string>,
+  prefixes: string[],
+  suffixes: string[],
+  excludedEntries: string[] = []
+): Record<string, string> {
+  const pathSeparator = isWin ? ';' : path.delimiter
+  // Windows env keys are case-insensitive, so the input can carry several PATH
+  // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
+  // the output to a single key — otherwise a stale casing left untouched can
+  // shadow the merged value when the child process spawns.
+  const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
+  const normalize = (value: string) => {
+    const normalized = path.normalize(value)
+    return isWin ? normalized.toLowerCase() : normalized
+  }
+  const excluded = new Set(excludedEntries.map(normalize))
+  // Prefixes, retained caller PATH, then suffixes — deduped with first occurrence
+  // winning. Explicit exclusions are removed from the caller PATH as well as from
+  // either injected side.
+  const pathValue = dedupePathSegments([
+    ...prefixes,
+    ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator)),
+    ...suffixes
+  ])
+    .filter((entry) => !excluded.has(normalize(entry)))
+    .join(pathSeparator)
+  const merged = { ...env }
+  for (const key of pathLikeKeys) delete merged[key]
+  merged[pathKey] = pathValue
+  if (!isWin) merged.PATH = pathValue
+  return merged
+}
+
+/** Prepend PATH entries without changing the caller's other environment variables. */
+export function mergePathPrefixes(env: Record<string, string>, prefixes: string[]): Record<string, string> {
+  return mergePathEntries(env, prefixes, [])
+}
+
+/** Append fallback PATH entries without changing the caller's other environment variables. */
+export function mergePathSuffixes(
+  env: Record<string, string>,
+  suffixes: string[],
+  excludedEntries: string[] = []
+): Record<string, string> {
+  return mergePathEntries(env, [], suffixes, excludedEntries)
+}
+
+// `extraPathPrefixes` are prepended after the mise shims dir but before the
+// caller's existing PATH. `runtimePathPrefixes` go before the shims so a CLI's
+// declared interpreter wins over the mutable global runtime shim.
 export function mergeBinaryExecutionEnv(
   env: Record<string, string>,
   extraPathPrefixes: string[] = [],
   runtimePathPrefixes: string[] = []
 ): Record<string, string> {
   const binaryEnv = getBinaryExecutionEnv()
-  const pathSeparator = isWin ? ';' : path.delimiter
-  // Windows env keys are case-insensitive, so the input can carry several PATH
-  // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
-  // the output to a single key — otherwise a stale casing left untouched can
-  // shadow the merged value when the child process spawns, losing the shims-first
-  // ordering this function guarantees.
-  const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
-  const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
-  // Shims dir first, then any caller prefixes, then the incoming PATH — deduped
-  // (first occurrence wins) so prepending the shims dir can't double it up when
-  // the caller's PATH already carries it (shellEnv appends the same tool dirs
-  // upstream).
-  const pathValue = dedupePathSegments([
-    ...runtimePathPrefixes,
-    binaryEnv.MISE_SHIMS_DIR,
-    ...extraPathPrefixes,
-    ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator))
-  ]).join(pathSeparator)
-  const merged = { ...env, ...binaryEnv }
-  for (const key of pathLikeKeys) delete merged[key]
-  merged[pathKey] = pathValue
-  if (!isWin) merged.PATH = pathValue
-  return merged
+  return {
+    ...mergePathPrefixes(env, [...runtimePathPrefixes, binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes]),
+    ...binaryEnv
+  }
 }

@@ -7,6 +7,7 @@ import {
 } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import {
+  CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_API_BASE_URL,
   CHERRYAI_DEFAULT_MODEL_GROUP,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -42,7 +43,7 @@ describe('CherryAiDefaultModelSeeder', () => {
     }
   }
 
-  it('seeds CherryAI provider, Qwen model, and missing default model preferences', async () => {
+  it('seeds branded CherryAI providers, Qwen model, and missing default model preferences', async () => {
     new CherryAiDefaultModelSeeder().run(dbh.db)
 
     const [provider] = await dbh.db
@@ -55,6 +56,11 @@ describe('CherryAiDefaultModelSeeder', () => {
       .from(userModelTable)
       .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
       .limit(1)
+    const [cloudProvider] = await dbh.db
+      .select()
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, CHERRY_CLOUD_PROVIDER_ID))
+      .limit(1)
 
     expect(provider).toMatchObject({
       providerId: CHERRYAI_PROVIDER_ID,
@@ -64,6 +70,13 @@ describe('CherryAiDefaultModelSeeder', () => {
       isEnabled: true
     })
     expect(provider?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe(CHERRYAI_API_BASE_URL)
+    expect(cloudProvider).toMatchObject({
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      presetProviderId: CHERRYAI_PROVIDER_ID,
+      name: 'CherryAI',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      isEnabled: true
+    })
     expect(model).toMatchObject({
       id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
       providerId: CHERRYAI_PROVIDER_ID,

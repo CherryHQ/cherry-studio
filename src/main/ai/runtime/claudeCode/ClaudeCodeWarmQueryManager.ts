@@ -8,8 +8,14 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
+import type { AgentNotificationContext } from '../agentMcpServers'
 import type { AgentSessionUsageCapture } from '../types'
-import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import {
+  createClaudeCodeProcessDiagnostics,
+  createSpawnClaudeCodeProcess,
+  spawnClaudeCodeProcess
+} from './ClaudeCodeProcessManager'
+import type { ClaudeCodeProcessDiagnostics } from './processExitDiagnostics'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -19,6 +25,7 @@ type WarmQueryEntry = {
   promise: Promise<WarmQuery | undefined>
   closePromise?: Promise<void>
   usageCapture?: AgentSessionUsageCapture
+  processDiagnostics: ClaudeCodeProcessDiagnostics
   idleTimer?: ReturnType<typeof setTimeout>
 }
 
@@ -26,6 +33,8 @@ export interface WarmQueryRequest {
   key: string
   options: Options
   initializeTimeoutMs?: number
+  /** Spawn-frozen connection identity used to reject stale warm processes. */
+  connectionRebuildSignature?: string
   /**
    * Rotation-insensitive identity of the auth/header material the options were built with (e.g. a
    * hash of the provider's enabled key SET and custom headers). The raw rotated key is stripped from
@@ -43,11 +52,14 @@ export interface WarmQueryRequest {
    * prewarmed entry carries binding-only scope and deliberately misses for a scoped turn.
    */
   knowledgeBaseIds?: readonly string[]
+  /** Notification authority is baked into Cherry's in-process MCP server at startup. */
+  notificationContext?: AgentNotificationContext
 }
 
 export interface ConsumedWarmQuery {
   warmQuery: WarmQuery
   usageCapture?: AgentSessionUsageCapture
+  processDiagnostics: ClaudeCodeProcessDiagnostics
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -130,7 +142,9 @@ function sanitizeSensitiveEnvForSignature(options: Options): Options {
 export function createClaudeCodeWarmQuerySignature(
   options: Options,
   credentialsFingerprint?: string,
-  knowledgeBaseIds: readonly string[] = []
+  knowledgeBaseIds: readonly string[] = [],
+  notificationContext?: AgentNotificationContext,
+  connectionRebuildSignature?: string
 ): string {
   const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
@@ -139,7 +153,9 @@ export function createClaudeCodeWarmQuerySignature(
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
-    knowledgeBaseIds: [...knowledgeBaseIds].sort()
+    knowledgeBaseIds: [...knowledgeBaseIds].sort(),
+    notificationContext: notificationContext ?? null,
+    connectionRebuildSignature: connectionRebuildSignature ?? null
   })
 }
 
@@ -205,7 +221,9 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.notificationContext,
+      request.connectionRebuildSignature
     )
     const existing = this.entries.get(request.key)
 
@@ -218,17 +236,19 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       void this.closeEntry(existing)
     }
 
-    const promise = startup({ options: warmOptions, initializeTimeoutMs: request.initializeTimeoutMs }).catch(
-      (error) => {
-        if (this.entries.get(request.key)?.promise === promise) {
-          this.entries.delete(request.key)
-        }
-        logger.warn('Claude warm query startup failed', { key: request.key, error })
-        return undefined
+    const processDiagnostics = createClaudeCodeProcessDiagnostics()
+    const promise = startup({
+      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+      initializeTimeoutMs: request.initializeTimeoutMs
+    }).catch((error) => {
+      if (this.entries.get(request.key)?.promise === promise) {
+        this.entries.delete(request.key)
       }
-    )
+      logger.warn('Claude warm query startup failed', { key: request.key, error })
+      return undefined
+    })
 
-    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture }
+    const entry: WarmQueryEntry = { signature, promise, usageCapture: request.usageCapture, processDiagnostics }
     this.entries.set(request.key, entry)
     this.refreshIdleTimer(request.key, entry)
   }
@@ -238,7 +258,9 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
-      request.knowledgeBaseIds
+      request.knowledgeBaseIds,
+      request.notificationContext,
+      request.connectionRebuildSignature
     )
     const entry = this.entries.get(request.key)
     if (!entry) return undefined
@@ -253,7 +275,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const warmQuery = await entry.promise
     if (!warmQuery) return undefined
-    return { warmQuery, usageCapture: entry.usageCapture }
+    return { warmQuery, usageCapture: entry.usageCapture, processDiagnostics: entry.processDiagnostics }
   }
 
   close(key: string): Promise<void> {

@@ -239,6 +239,24 @@ describe('export', () => {
       expect(markdownToPlainText).toHaveBeenCalledWith('/pdf/ hello')
     })
 
+    it('copies an id re-cited from an earlier turn as a plain number', () => {
+      const testMessage: MessageExportView = {
+        ...createExportView([{ type: 'text', text: 'Still true. [cite:3f2a1b9c-1]' }]),
+        priorCitationParts: [
+          {
+            type: 'tool-web_search',
+            toolCallId: 'earlier-turn',
+            state: 'output-available',
+            input: { query: 'q' },
+            output: [{ id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' }]
+          }
+        ] as MessageExportView['parts']
+      }
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      expect(messageToPlainText(testMessage)).toBe('Still true. [1]')
+    })
+
     it('should resolve tool citation markers to plain numbers before copying', () => {
       // Left in place, `remove-markdown` mangles a chain of markers down to a bare
       // `cite:<id>` and the internal id lands on the clipboard.

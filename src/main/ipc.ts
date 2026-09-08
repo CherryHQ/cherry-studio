@@ -11,7 +11,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { dialog } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
-import { appService } from './services/AppService'
 import { copilotService } from './services/CopilotService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
@@ -37,11 +36,6 @@ export async function registerIpc() {
 
   // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
   // Application lifecycle handlers live in core/application/Application.ts (registerApplicationIpc).
-
-  // launch on boot
-  handleGuarded(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
-    await appService.setAppLaunchOnBoot(isLaunchOnBoot)
-  })
 
   // // theme
   // handleGuarded(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
