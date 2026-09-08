@@ -353,8 +353,20 @@ export function resolveDeepSeekHarnessEndpoint(
   const endpointConfigs = Object.fromEntries(
     Object.entries(provider.endpointConfigs ?? {}).filter(([, config]) => Boolean(config?.baseUrl))
   ) as Provider['endpointConfigs']
-  const endpoint = resolveCanonicalEndpoint({ ...provider, endpointConfigs }, model, undefined, DIRECT_ENDPOINTS)
-    .endpointType as (typeof DIRECT_ENDPOINTS)[number] | undefined
+  const resolvedEndpoint = resolveCanonicalEndpoint(
+    { ...provider, endpointConfigs },
+    model,
+    undefined,
+    DIRECT_ENDPOINTS
+  ).endpointType as (typeof DIRECT_ENDPOINTS)[number] | undefined
+  // Legacy/custom provider rows may omit both endpoint metadata and a default. DSH still
+  // needs a concrete direct route, so use the first configured compatible endpoint rather
+  // than rejecting a provider whose host is otherwise usable.
+  const endpoint =
+    resolvedEndpoint ??
+    (!provider.defaultChatEndpoint && !model.endpointTypes?.length
+      ? DIRECT_ENDPOINTS.find((endpointType) => Boolean(endpointConfigs?.[endpointType]?.baseUrl))
+      : undefined)
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
   const rawBaseUrl = provider.endpointConfigs?.[endpoint]?.baseUrl

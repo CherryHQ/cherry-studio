@@ -204,6 +204,21 @@ describe('DeepSeek Harness config transaction', () => {
     })
   })
 
+  it('falls back to the first configured direct endpoint for legacy rows without metadata', () => {
+    const legacyProvider = provider({
+      defaultChatEndpoint: undefined,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/v1' }
+      }
+    })
+
+    expect(resolveDeepSeekHarnessEndpoint(legacyProvider, model({ endpointTypes: undefined }))).toEqual({
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
+    })
+  })
+
   it('preserves comments, unrelated routes, and old managed models while selecting the new default', async () => {
     const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
     await writeFile(path.join(dir, '.credentials.yaml'), '# credentials note\nOTHER_KEY: keep\n', { mode: 0o600 })
