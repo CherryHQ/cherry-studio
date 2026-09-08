@@ -944,11 +944,12 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
   const resolvedPath = resolveTemplate(path as string, options?.params as Record<string, string | number> | undefined)
   const nextGetKey = createInfiniteQueryKeyGetter(resolvedPath, options?.query, limit)
   const nextInfiniteCacheKey = unstable_serialize_infinite(nextGetKey)
-  const keyStateRef = useRef({ getKey: nextGetKey, infiniteCacheKey: nextInfiniteCacheKey })
-  if (keyStateRef.current.infiniteCacheKey !== nextInfiniteCacheKey) {
-    keyStateRef.current = { getKey: nextGetKey, infiniteCacheKey: nextInfiniteCacheKey }
-  }
-  const { getKey, infiniteCacheKey } = keyStateRef.current
+  const { getKey, infiniteCacheKey } = useMemo(
+    () => ({ getKey: nextGetKey, infiniteCacheKey: nextInfiniteCacheKey }),
+    // The serialized SWR key is the semantic identity; equivalent inline options must reuse this state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nextInfiniteCacheKey]
+  )
 
   return useCallback(
     async (value: InfiniteCacheValue<ResponseForPath<TPath, 'GET'>>) => {

@@ -6,6 +6,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { MockUseDataApiUtils, mockUseInfiniteQuery, mockUseWriteInfiniteCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
+import { createElement, type ReactNode, startTransition, Suspense } from 'react'
 import type * as SWRModule from 'swr'
 import type { Cache, ScopedMutator } from 'swr'
 import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
@@ -923,6 +924,31 @@ describe('useInfiniteQuery integration', () => {
     const writer = result.current
 
     rerender()
+
+    expect(result.current).toBe(writer)
+  })
+
+  it('keeps a cache-only writer stable after an alternate-key render is suspended', () => {
+    const neverSettles = new Promise<never>(() => {})
+    const { Wrapper } = makeWrapper()
+    const SuspenseWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Wrapper, null, createElement(Suspense, { fallback: null }, children))
+    const { result, rerender } = renderHook(
+      ({ shouldSuspend, topicId }) => {
+        const writer = useWriteInfiniteCache('/topics/:topicId/messages', {
+          params: { topicId },
+          query: { includeSiblings: true },
+          limit: 37
+        })
+        if (shouldSuspend) throw neverSettles
+        return writer
+      },
+      { wrapper: SuspenseWrapper, initialProps: { shouldSuspend: false, topicId: 't1' } }
+    )
+    const writer = result.current
+
+    startTransition(() => rerender({ shouldSuspend: true, topicId: 't2' }))
+    rerender({ shouldSuspend: false, topicId: 't1' })
 
     expect(result.current).toBe(writer)
   })
