@@ -74,36 +74,29 @@ describe('aiGeneration reasoning opt-out', () => {
 })
 
 describe('fetchGenerate cancellation', () => {
-  it('settles locally on abort and pairs ai.text.abort with the same request id', async () => {
+  it('relays an in-flight abort to ai.text.abort with the same request id', async () => {
     generateTextMock.mockImplementationOnce(() => new Promise(() => undefined))
     const controller = new AbortController()
-    const result = fetchGenerate({
+    void fetchGenerate({
       prompt: 'system prompt',
       content: 'user content',
       signal: controller.signal,
       throwOnError: true
-    }).catch((error) => error)
+    }).catch(() => undefined)
 
     await vi.waitFor(() => expect(generateTextMock).toHaveBeenCalledTimes(1))
     const requestId = generateTextMock.mock.calls[0][0].requestId
     expect(requestId).toEqual(expect.any(String))
 
-    const reason = new DOMException('cancelled', 'AbortError')
-    controller.abort(reason)
+    controller.abort(new DOMException('cancelled', 'AbortError'))
 
-    await expect(result).resolves.toBe(reason)
     expect(ipcRequestMock).toHaveBeenCalledWith('ai.text.abort', { requestId })
   })
 
-  it('settles locally when the signal aborts before listener registration', async () => {
+  it('never dispatches a generation for an already-aborted signal', async () => {
     const controller = new AbortController()
-    const reason = new DOMException('cancelled before registration', 'AbortError')
-    generateTextMock.mockImplementationOnce(() => {
-      controller.abort(reason)
-      return new Promise<{ text: string }>((resolve) => {
-        queueMicrotask(() => resolve({ text: 'late response' }))
-      })
-    })
+    const reason = new DOMException('cancelled before dispatch', 'AbortError')
+    controller.abort(reason)
 
     await expect(
       fetchGenerate({
@@ -114,9 +107,16 @@ describe('fetchGenerate cancellation', () => {
       })
     ).rejects.toBe(reason)
 
-    const requestId = generateTextMock.mock.calls[0][0].requestId
-    expect(ipcRequestMock).toHaveBeenCalledWith('ai.text.abort', { requestId })
-    expect(ipcRequestMock.mock.calls.filter(([route]) => route === 'ai.text.abort')).toHaveLength(1)
+    expect(generateTextMock).not.toHaveBeenCalled()
+  })
+
+  it('stops relaying once the generation settles', async () => {
+    const controller = new AbortController()
+    await fetchGenerate({ prompt: 'system prompt', content: 'user content', signal: controller.signal })
+
+    controller.abort(new DOMException('cancelled after completion', 'AbortError'))
+
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.text.abort', expect.anything())
   })
 
   it('keeps legacy callers on the existing request shape when no signal is supplied', async () => {

@@ -110,48 +110,35 @@ export async function fetchGenerate({
   throwOnError?: boolean
   signal?: AbortSignal
 }): Promise<string> {
-  const requestId = signal ? crypto.randomUUID() : undefined
-  let abortListener: (() => void) | undefined
+  let stopAbortRelay: (() => void) | undefined
 
   try {
     signal?.throwIfAborted()
     const resolvedModel = model ?? (await readDefaultModel())
-    signal?.throwIfAborted()
     if (!resolvedModel) {
       logger.error('fetchGenerate: no model available')
       if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
       return ''
     }
+    signal?.throwIfAborted()
 
-    const generation = ipcApi.request('ai.text.generate', {
+    // Cancellation is main-side: relay the abort to `ai.text.abort` and let the
+    // in-flight `ai.text.generate` reject on its own.
+    const requestId = signal ? crypto.randomUUID() : undefined
+    if (signal && requestId) {
+      const relayAbort = () => void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
+      signal.addEventListener('abort', relayAbort, { once: true })
+      stopAbortRelay = () => signal.removeEventListener('abort', relayAbort)
+    }
+
+    const { text } = await ipcApi.request('ai.text.generate', {
       ...(requestId ? { requestId } : {}),
       uniqueModelId: resolvedModel.id,
       reasoningEffort: 'none',
       system: prompt,
       prompt: content
     })
-
-    const result = signal
-      ? await Promise.race([
-          generation,
-          new Promise<never>((_, reject) => {
-            let abortHandled = false
-            const onAbort = () => {
-              if (abortHandled) return
-              abortHandled = true
-              if (requestId) {
-                void ipcApi.request('ai.text.abort', { requestId }).catch(() => undefined)
-              }
-              reject(signal.reason ?? new DOMException('The operation was aborted', 'AbortError'))
-            }
-            abortListener = onAbort
-            signal.addEventListener('abort', onAbort, { once: true })
-            if (signal.aborted) onAbort()
-          })
-        ])
-      : await generation
-
-    return result.text || ''
+    return text || ''
   } catch (error: any) {
     if (!signal?.aborted) {
       logger.error('fetchGenerate failed', error)
@@ -159,8 +146,6 @@ export async function fetchGenerate({
     if (throwOnError) throw error
     return ''
   } finally {
-    if (signal && abortListener) {
-      signal.removeEventListener('abort', abortListener)
-    }
+    stopAbortRelay?.()
   }
 }
