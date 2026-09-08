@@ -185,6 +185,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
       <div
         data-testid="agent-conversation-controls"
         data-agent-trigger-mode={props.agentTriggerMode}
+        data-can-change-runtime={String(Boolean(props.canChangeAgentType))}
         data-can-change-workspace={String(Boolean(props.onWorkspaceChange))}
         data-can-change-model={String(Boolean(props.canChangeModel))}>
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
@@ -192,6 +193,9 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
         </button>
         <button type="button" onClick={() => void props.onModelSelect?.({ id: 'provider::model-2', name: 'Model 2' })}>
           change topbar model
+        </button>
+        <button type="button" disabled={!props.canChangeAgentType} onClick={() => void props.onAgentTypeChange?.('pi')}>
+          change topbar runtime
         </button>
       </div>
     )
@@ -333,7 +337,12 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => {
 })
 
 describe('AgentChat settings panel', () => {
-  const defaultSession = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
+  const defaultSession = {
+    id: 'session-1',
+    agentId: 'agent-1',
+    agentType: 'claude-code',
+    accessiblePaths: []
+  } as any
   const createConversationBootstrap = (
     session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = defaultSession
   ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
@@ -373,6 +382,7 @@ describe('AgentChat settings panel', () => {
     updateAgentMock.updateModel.mockReset()
     updateAgentMock.updateModel.mockResolvedValue({ id: 'agent-1' })
     updateSessionMock.updateSession.mockReset()
+    updateSessionMock.updateSession.mockResolvedValue({ id: 'session-1' })
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
     agentRightPanePropsMock.openArtifactFile.mockReset()
     toolApprovalRespondMock.mockReset()
@@ -606,15 +616,35 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
         {
-          agentId: 'agent-1',
+          id: 'session-1',
           modelId: 'provider::model-2'
         },
         { showSuccessToast: false }
       )
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('requests a runtime switch only for an empty session', async () => {
+    const user = userEvent.setup()
+    renderAgentChat()
+
+    await user.click(screen.getByRole('button', { name: 'change topbar runtime' }))
+
+    expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
+      { id: 'session-1', agentType: 'pi' },
+      { showSuccessToast: false }
+    )
+  })
+
+  it('locks the runtime selector after messages are present', async () => {
+    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' }] }
+    renderAgentChat()
+
+    expect(screen.getByRole('button', { name: 'change topbar runtime' })).toBeDisabled()
+    expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-runtime', 'false')
   })
 
   it('asks for confirmation before switching the model when the session has messages', async () => {
@@ -627,12 +657,12 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('agent.session.model_switch_confirm.description')
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'agent.session.model_switch_confirm.skip_for_app_run' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(updateAgentMock.updateModel).not.toHaveBeenCalled()
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
     expect(
@@ -641,14 +671,30 @@ describe('AgentChat settings panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
 
     await waitFor(() =>
-      expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
+      expect(updateSessionMock.updateSession).toHaveBeenCalledWith(
         {
-          agentId: 'agent-1',
+          id: 'session-1',
           modelId: 'provider::model-2'
         },
         { showSuccessToast: false }
       )
     )
+  })
+
+  it('does not update the previous session when model confirmation outlives navigation', async () => {
+    const user = userEvent.setup()
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    const view = renderAgentChat()
+
+    await user.click(screen.getByRole('button', { name: 'change topbar model' }))
+    view.rerender(
+      <AgentChat conversationBootstrap={createConversationBootstrap({ ...defaultSession, id: 'session-2' })} />
+    )
+    await user.click(screen.getByRole('button', { name: 'agent.session.model_switch_confirm.confirm' }))
+
+    expect(updateSessionMock.updateSession).not.toHaveBeenCalled()
   })
 
   it('shares the model confirmation opt-out for the current app run when requested', async () => {
@@ -675,7 +721,7 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'change topbar model' }))
 
-    await waitFor(() => expect(updateAgentMock.updateModel).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(updateSessionMock.updateSession).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 

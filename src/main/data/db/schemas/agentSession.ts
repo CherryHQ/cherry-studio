@@ -1,15 +1,19 @@
+import type { AgentType } from '@shared/data/types/agent'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
 import { jobScheduleTable } from './job'
+import { userModelTable } from './userModel'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
   {
     id: uuidPrimaryKey(),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
+    agentType: text().$type<AgentType>().notNull().default('claude-code'),
+    modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
     // Whether the name was manually edited by user.
     isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),

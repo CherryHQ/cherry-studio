@@ -36,6 +36,8 @@ export interface BuildAgentRuntimePromptOptions {
   workspacePath: string
   agentDataPath: string
   agent: AgentEntity
+  /** Effective session-owned model name for prompt variable expansion. */
+  modelName?: string
   citationsGuidance?: string
   /** Runtime-loaded root workspace instructions, if they are not already supplied by the native base. */
   workspaceInstructions?: string
@@ -52,6 +54,7 @@ export async function buildAgentRuntimePrompt({
   workspacePath,
   agentDataPath,
   agent,
+  modelName,
   citationsGuidance,
   workspaceInstructions,
   customBaseContext,
@@ -71,7 +74,7 @@ export async function buildAgentRuntimePrompt({
   if (builtinRole) await provisionBuiltinAgent(agentDataPath, builtinRole)
 
   const resolvedInstructions = instructions?.trim()
-    ? await replacePromptVariables(instructions, agent.modelName ?? undefined)
+    ? await replacePromptVariables(instructions, modelName ?? agent.modelName ?? undefined)
     : ''
   const hasAgentInstructions = Boolean(resolvedInstructions.trim())
   const parts = await promptBuilder.buildPromptParts(

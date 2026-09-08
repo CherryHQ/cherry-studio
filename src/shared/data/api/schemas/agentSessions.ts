@@ -2,11 +2,13 @@
  * Agent session domain API Schema definitions.
  */
 
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { TraceIdSchema } from '@shared/data/types/trace'
 import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { AgentTypeSchema } from './agents'
 import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema,
@@ -24,9 +26,20 @@ import {
  */
 export const SessionNameEntitySchema = z.string().max(255)
 
+export const AgentSessionRoutingSchema = z.strictObject({
+  /** Session-owned runtime. Seeded from the agent default when the session is created. */
+  agentType: AgentTypeSchema,
+  /** Session-owned primary model. Seeded from the agent default when the session is created. */
+  modelId: UniqueModelIdSchema.nullable()
+})
+export type AgentSessionRouting = z.infer<typeof AgentSessionRoutingSchema>
+
+export const AGENT_SESSION_ROUTING_UPDATE_FIELDS = ['agentId', 'agentType', 'modelId'] as const
+
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
+  ...AgentSessionRoutingSchema.shape,
   /** May be empty for an untitled placeholder session, matching topic.name semantics. */
   name: SessionNameEntitySchema,
   isNameManuallyEdited: z.boolean(),
@@ -56,7 +69,8 @@ export const UpdateAgentSessionSchema = z.strictObject({
   name: SessionNameEntitySchema.optional(),
   isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
-  agentId: z.string().min(1).optional()
+  agentId: z.string().min(1).optional(),
+  ...AgentSessionRoutingSchema.partial().shape
 })
 
 export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>

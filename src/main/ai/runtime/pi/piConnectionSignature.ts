@@ -69,11 +69,12 @@ export async function capturePiConnectionSnapshot(
 ): Promise<PiConnectionSnapshot> {
   const session = agentSessionService.getById(sessionId)
   const agent = agentService.getAgent(agentId)
-  if (!session?.agentId || session.agentId !== agentId || !agent?.model) {
+  if (!session?.agentId || session.agentId !== agentId || !agent) {
     throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
   }
 
-  const modelId = requestedModelId ?? agent.model
+  const modelId = requestedModelId ?? session.modelId
+  if (!modelId) throw new PiInvalidConnectionSnapshotError(`Invalid Pi session snapshot: ${sessionId}`)
   const parsed = parseUniqueModelId(modelId)
   const [provider, model, skills, workspaceSkillPaths] = await Promise.all([
     providerService.getByProviderId(parsed.providerId),

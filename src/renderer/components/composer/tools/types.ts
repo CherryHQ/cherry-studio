@@ -6,6 +6,7 @@ import type {
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
+import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { TFunction } from 'i18next'
@@ -64,7 +65,7 @@ export interface ToolContext {
   session?: {
     agentId?: string
     sessionId?: string
-    agentType?: string
+    agentType?: AgentType
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: readonly AbsoluteFilePath[]
     slashCommands?: SlashCommand[]

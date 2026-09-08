@@ -57,6 +57,7 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
   return {
     id: 'session-1',
     agentId: 'agent-1',
+    modelId: null,
     name: 'Session one',
     description: '',
     workspaceId: 'ws-/Users/jd/project-a',
@@ -67,6 +68,7 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
     updatedAt: '2026-01-01T00:00:00.000Z',
     pinned: false,
     ...overrides,
+    agentType: overrides.agentType ?? 'claude-code',
     isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   } satisfies AgentSessionEntity & { pinned: boolean }
 }

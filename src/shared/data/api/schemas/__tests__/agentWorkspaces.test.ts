@@ -37,6 +37,8 @@ describe('AgentWorkspaceEntitySchema', () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
+      agentType: 'claude-code',
+      modelId: null,
       name: 'Session',
       isNameManuallyEdited: false,
       description: '',
@@ -57,6 +59,8 @@ describe('AgentWorkspaceEntitySchema', () => {
       AgentSessionEntitySchema.safeParse({
         id: 'session-1',
         agentId: 'agent-1',
+        agentType: 'claude-code',
+        modelId: null,
         name: 'Session',
         isNameManuallyEdited: false,
         description: '',

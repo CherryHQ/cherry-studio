@@ -34,6 +34,34 @@ describe('AgentSession schemas', () => {
     })
   })
 
+  it('defines the session-owned model update boundary', () => {
+    expect(
+      UpdateAgentSessionSchema.parse({
+        modelId: 'anthropic::claude-sonnet-4-5'
+      })
+    ).toEqual({
+      modelId: 'anthropic::claude-sonnet-4-5'
+    })
+    expect(UpdateAgentSessionSchema.parse({ modelId: null })).toEqual({ modelId: null })
+    expect(UpdateAgentSessionSchema.parse({})).toEqual({})
+    expect(UpdateAgentSessionSchema.safeParse({ modelId: null, unknown: true }).success).toBe(false)
+
+    const create = {
+      agentId: 'agent-1',
+      name: 'Session',
+      workspace: { type: 'system' }
+    } as const
+    expect(CreateAgentSessionSchema.safeParse({ ...create, modelId: 'anthropic::claude-sonnet-4-5' }).success).toBe(
+      false
+    )
+    expect(CreateAgentSessionSchema.safeParse({ ...create, agentType: 'pi' }).success).toBe(false)
+  })
+
+  it('accepts only supported session runtime updates', () => {
+    expect(UpdateAgentSessionSchema.parse({ agentType: 'pi' })).toEqual({ agentType: 'pi' })
+    expect(UpdateAgentSessionSchema.safeParse({ agentType: 'unsupported' }).success).toBe(false)
+  })
+
   it('allows blank names for untitled placeholder sessions', () => {
     expect(
       CreateAgentSessionSchema.safeParse({

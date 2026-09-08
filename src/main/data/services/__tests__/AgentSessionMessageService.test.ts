@@ -685,7 +685,18 @@ describe('AgentSessionMessageService', () => {
 
   it('writes neither message when the owning Agent changed after validation', async () => {
     await seedAgent('agent-a', 'Agent A')
-    await dbh.db.update(agentSessionTable).set({ agentId: 'agent-a' }).where(eq(agentSessionTable.id, SESSION_ID))
+    await dbh.db.insert(userProviderTable).values({ providerId: 'provider', name: 'Provider', orderKey: 'p0' })
+    await dbh.db.insert(userModelTable).values({
+      id: 'provider::validated-model',
+      providerId: 'provider',
+      modelId: 'validated-model',
+      presetModelId: 'validated-model',
+      orderKey: 'm0'
+    })
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ agentId: 'agent-a', modelId: 'provider::validated-model', agentType: 'claude-code' })
+      .where(eq(agentSessionTable.id, SESSION_ID))
     const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-a'))
     await dbh.db
       .update(agentTable)
@@ -715,7 +726,7 @@ describe('AgentSessionMessageService', () => {
     ).toEqual([])
   })
 
-  it('compares legacy cherry-claw rows by their normalized runtime type', async () => {
+  it('accepts a matching session routing snapshot when the agent defaults differ', async () => {
     dbh.db.insert(userProviderTable).values({ providerId: 'legacy', name: 'Legacy', orderKey: 'p0' }).run()
     dbh.db
       .insert(userModelTable)
@@ -741,7 +752,11 @@ describe('AgentSessionMessageService', () => {
         orderKey: 'a0'
       })
       .run()
-    dbh.db.update(agentSessionTable).set({ agentId: 'legacy-agent' }).where(eq(agentSessionTable.id, SESSION_ID)).run()
+    dbh.db
+      .update(agentSessionTable)
+      .set({ agentId: 'legacy-agent', modelId: 'legacy::model', agentType: 'pi' })
+      .where(eq(agentSessionTable.id, SESSION_ID))
+      .run()
     const [agent] = dbh.db.select().from(agentTable).where(eq(agentTable.id, 'legacy-agent')).all()
 
     expect(() =>
@@ -757,7 +772,7 @@ describe('AgentSessionMessageService', () => {
           id: 'legacy-agent',
           updatedAt: new Date(agent.updatedAt).toISOString(),
           model: 'legacy::model',
-          type: 'claude-code'
+          type: 'pi'
         }
       )
     ).not.toThrow()

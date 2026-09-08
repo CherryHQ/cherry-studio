@@ -703,13 +703,16 @@ export class AgentSessionMessageService {
           .where(eq(sessionMessagesTable.id, message.id))
           .run()
       }
-      if (sessionIds.length > 0) {
-        tx.update(sessionMessagesTable)
-          .set({ runtimeResumeToken: null })
-          .where(inArray(sessionMessagesTable.sessionId, sessionIds))
-          .run()
-      }
+      this.clearRuntimeResumeTokensTx(tx, sessionIds)
     })
+  }
+
+  clearRuntimeResumeTokensTx(tx: DbOrTx, sessionIds: readonly string[]): void {
+    if (sessionIds.length === 0) return
+    tx.update(sessionMessagesTable)
+      .set({ runtimeResumeToken: null })
+      .where(inArray(sessionMessagesTable.sessionId, [...new Set(sessionIds)]))
+      .run()
   }
 
   /** Best-effort terminalization after a live assistant persistence failure. */
@@ -1748,8 +1751,8 @@ export class AgentSessionMessageService {
       .select({
         agentId: sessionTable.agentId,
         agentUpdatedAt: agentTable.updatedAt,
-        agentModel: agentTable.model,
-        agentType: agentTable.type
+        sessionModel: sessionTable.modelId,
+        sessionAgentType: sessionTable.agentType
       })
       .from(sessionTable)
       .leftJoin(agentTable, eq(sessionTable.agentId, agentTable.id))
@@ -1759,14 +1762,12 @@ export class AgentSessionMessageService {
     if (!session || session.agentId !== expectedAgentId) {
       throw DataApiErrorFactory.notFound('Session', sessionId)
     }
-    if (
-      typeof expectedAgent !== 'string' &&
-      (!session.agentUpdatedAt ||
-        new Date(session.agentUpdatedAt).toISOString() !== expectedAgent.updatedAt ||
-        session.agentModel !== expectedAgent.model ||
-        (session.agentType === 'cherry-claw' ? 'claude-code' : session.agentType) !== expectedAgent.type)
-    ) {
+    if (typeof expectedAgent === 'string') return
+    if (!session.agentUpdatedAt || new Date(session.agentUpdatedAt).toISOString() !== expectedAgent.updatedAt) {
       throw DataApiErrorFactory.concurrentModification('Agent', expectedAgent.id)
+    }
+    if (session.sessionModel !== expectedAgent.model || session.sessionAgentType !== expectedAgent.type) {
+      throw DataApiErrorFactory.concurrentModification('Session', sessionId)
     }
   }
 

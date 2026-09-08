@@ -80,6 +80,7 @@ const workspace = {
 const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity => ({
   id: 'session-1',
   agentId: 'agent-1',
+  modelId: null,
   name: 'Session',
   description: undefined,
   workspaceId: workspace.id,
@@ -89,6 +90,7 @@ const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   ...overrides,
+  agentType: overrides.agentType ?? 'claude-code',
   isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
 })
 

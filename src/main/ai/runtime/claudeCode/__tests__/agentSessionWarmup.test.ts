@@ -153,6 +153,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
+      modelId: 'provider-1::model-1',
       workspace: { type: 'user', path: '/workspace/project' }
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::model-1' })
@@ -221,6 +222,31 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     expect(request?.options.resume).toBeUndefined()
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+  })
+
+  it('routes a session through its own model instead of the agent default', async () => {
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'provider-1::session-model',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'provider-1::agent-default' })
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      name: 'Session Model'
+    }))
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.sdkModelId).toBe('session-model-api')
+    expect(mocks.buildSessionSettings).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ modelName: 'Session Model' }),
+      expect.anything()
+    )
   })
 
   it('passes the per-turn knowledge selection into settings and the warm signature', async () => {
@@ -935,6 +961,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('routes non-Anthropic provider models through the local API gateway', async () => {
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'openai::gpt-main',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'openai::gpt-main',
@@ -1125,6 +1157,12 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
+    mocks.getSessionById.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet',
+      workspace: { type: 'user', path: '/workspace/project' }
+    })
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'claude-code::sonnet',
@@ -1245,6 +1283,7 @@ describe('deriveConnectionConfig', () => {
   const sessionWithWorkspace = {
     id: 'session-1',
     agentId: 'agent-1',
+    modelId: 'provider-1::model-1',
     workspace: { type: 'user', path: '/workspace/project' }
   }
 
@@ -1414,6 +1453,24 @@ describe('deriveConnectionConfig', () => {
     expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
   })
 
+  it('includes the connection-scoped agent identity in the rebuild signature', async () => {
+    mocks.getAgent.mockImplementation((agentId: string) => ({
+      id: agentId,
+      model: 'provider-1::model-1',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    }))
+
+    const first = await deriveConnectionConfig('session-1', undefined, 'default', false, [], 'agent-1')
+    const rebound = await deriveConnectionConfig('session-1', undefined, 'default', false, [], 'agent-2')
+
+    expect(first.ok).toBe(true)
+    expect(rebound.ok).toBe(true)
+    if (!first.ok || !rebound.ok) throw new Error('expected ok derive')
+    expect(rebound.config.rebuildSignature).not.toBe(first.config.rebuildSignature)
+  })
+
   it('changes the rebuild signature when the effective agent language changes', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -1482,19 +1539,19 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['promptUserName'])
   })
 
-  it('changes only the prompt model name rebuild fact when the resolved Agent model name changes', async () => {
-    const agent = {
+  it('tracks the selected session model name in prompt and route rebuild facts', async () => {
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
-      model: 'provider-1::model-1',
-      modelName: 'Model One',
+      model: 'provider-1::agent-default',
+      modelName: 'Stale Agent Default',
       disabledTools: [],
       mcps: [],
       configuration: {}
-    }
-    mocks.getAgent.mockReturnValue(agent)
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'model-1-api', name: 'Model One' })
     const original = await deriveSignature()
 
-    mocks.getAgent.mockReturnValue({ ...agent, modelName: 'Renamed Model' })
+    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'model-1-api', name: 'Renamed Model' })
     const renamed = await deriveSignature()
 
     expect(renamed.rebuildSignature).not.toBe(original.rebuildSignature)
@@ -1502,7 +1559,7 @@ describe('deriveConnectionConfig', () => {
       Object.keys(original.rebuildFactFingerprints).filter(
         (name) => original.rebuildFactFingerprints[name] !== renamed.rebuildFactFingerprints[name]
       )
-    ).toEqual(['promptModelName'])
+    ).toEqual(['route', 'promptModelName'])
   })
 
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {

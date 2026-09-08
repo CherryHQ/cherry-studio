@@ -11,27 +11,33 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
-import { getDataService } from '@data/services/dataServiceRegistry'
+import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
-import type {
-  AgentSessionEntity,
-  CreateAgentSessionDto,
-  DeleteAgentSessionsResult,
-  LatestAgentSessionQuery,
-  ListAgentSessionsQuery,
-  ReusableAgentSessionPlaceholdersResponse,
-  ReuseOrCreateAgentSessionDto,
-  UpdateAgentSessionDto
+import {
+  AGENT_SESSION_ROUTING_UPDATE_FIELDS,
+  type AgentSessionEntity,
+  type AgentSessionRouting,
+  type CreateAgentSessionDto,
+  type DeleteAgentSessionsResult,
+  type LatestAgentSessionQuery,
+  type ListAgentSessionsQuery,
+  type ReusableAgentSessionPlaceholdersResponse,
+  type ReuseOrCreateAgentSessionDto,
+  type UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { AgentType } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, notInArray, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -65,6 +71,12 @@ export type AddressableAgentSession = {
   sessionName: string
 }
 
+export interface AgentSessionUpdatedEvent {
+  sessionId: string
+  updates: UpdateAgentSessionDto
+  session: AgentSessionEntity
+}
+
 function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   if (taskIds.length === 0) return
   // Resolve lazily because AgentTaskService reads the Session-owned relation.
@@ -92,6 +104,9 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: clean.id,
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
+    agentType: row.session.agentType,
+    // modelId is legitimately nullable when no model is selected or its model row was deleted.
+    modelId: row.session.modelId as UniqueModelId | null,
     name: clean.name,
     isNameManuallyEdited: clean.isNameManuallyEdited,
     description: clean.description,
@@ -102,6 +117,83 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     lastActivityAt: timestampToISO(row.session.lastActivityAt),
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
+  }
+}
+
+function normalizeSessionAgentType(type: string): AgentType {
+  return (type === 'cherry-claw' ? 'claude-code' : type) as AgentType
+}
+
+type AgentSessionRoutingDefaultSource = {
+  type: string
+  model: string | null
+}
+
+type AgentSessionRoutingUpdateField = (typeof AGENT_SESSION_ROUTING_UPDATE_FIELDS)[number]
+type AgentSessionRoutingPolicy = {
+  [Field in AgentSessionRoutingUpdateField]: { requiresEmptySession: boolean }
+} & {
+  [Field in keyof AgentSessionRouting]: {
+    defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => AgentSessionRouting[Field]
+    clearWhenChanged: readonly (keyof AgentSessionRouting)[]
+  }
+}
+
+const AGENT_SESSION_ROUTING_POLICY = {
+  agentId: {
+    requiresEmptySession: true
+  },
+  agentType: {
+    defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => normalizeSessionAgentType(agent.type),
+    requiresEmptySession: true,
+    clearWhenChanged: ['modelId']
+  },
+  modelId: {
+    defaultFromAgent: (agent: AgentSessionRoutingDefaultSource) => agent.model as UniqueModelId | null,
+    requiresEmptySession: false,
+    clearWhenChanged: []
+  }
+} as const satisfies AgentSessionRoutingPolicy
+
+function routingDefaultsFromAgent(agent: AgentSessionRoutingDefaultSource): AgentSessionRouting {
+  return {
+    agentType: AGENT_SESSION_ROUTING_POLICY.agentType.defaultFromAgent(agent),
+    modelId: AGENT_SESSION_ROUTING_POLICY.modelId.defaultFromAgent(agent)
+  }
+}
+
+function resolveSessionRoutingUpdate(
+  current: AgentSessionRouting & { agentId: string | null },
+  dto: UpdateAgentSessionDto,
+  reboundAgent?: AgentSessionRoutingDefaultSource
+): { patch: Partial<AgentSessionRouting>; requiresEmptySession: boolean } {
+  const agentIdChanged = dto.agentId !== undefined && dto.agentId !== current.agentId
+  const inherited = agentIdChanged && reboundAgent ? routingDefaultsFromAgent(reboundAgent) : undefined
+  const agentType = dto.agentType ?? inherited?.agentType
+  let modelId = dto.modelId !== undefined ? dto.modelId : inherited?.modelId
+  const agentTypeChanged = agentType !== undefined && agentType !== current.agentType
+
+  if (
+    agentTypeChanged &&
+    dto.modelId === undefined &&
+    (!inherited || agentType !== inherited.agentType) &&
+    AGENT_SESSION_ROUTING_POLICY.agentType.clearWhenChanged.includes('modelId')
+  ) {
+    modelId = null
+  }
+
+  const patch: Partial<AgentSessionRouting> = {}
+  if (agentType !== undefined) patch.agentType = agentType
+  if (modelId !== undefined) patch.modelId = modelId
+
+  const changedFields: AgentSessionRoutingUpdateField[] = []
+  if (agentIdChanged) changedFields.push('agentId')
+  if (agentTypeChanged) changedFields.push('agentType')
+  if (modelId !== undefined && modelId !== current.modelId) changedFields.push('modelId')
+
+  return {
+    patch,
+    requiresEmptySession: changedFields.some((field) => AGENT_SESSION_ROUTING_POLICY[field].requiresEmptySession)
   }
 }
 
@@ -131,6 +223,9 @@ export function agentSessionReadModelEffects(
 }
 
 export class AgentSessionService {
+  private readonly _onSessionUpdated = new Emitter<AgentSessionUpdatedEvent>()
+  readonly onSessionUpdated: Event<AgentSessionUpdatedEvent> = this._onSessionUpdated.event
+
   notifyReadModelChange(sessionIds: readonly string[], kind: 'membership' | 'projection'): void {
     const effects = agentSessionReadModelEffects(sessionIds, kind)
     if (effects.length > 0) notifyDataApiDataChange(effects)
@@ -245,7 +340,7 @@ export class AgentSessionService {
    * The caller supplies the reserved id and owns the outer commit boundary.
    */
   createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
-    this.assertAgentExistsTx(tx, dto.agentId)
+    const agent = this.assertAgentExistsTx(tx, dto.agentId)
     const createdAt = Date.now()
 
     let workspaceId: string
@@ -274,9 +369,11 @@ export class AgentSessionService {
       }
     }
 
+    const routing = routingDefaultsFromAgent(agent)
     this.insertTx(tx, {
       id,
       agentId: dto.agentId,
+      ...routing,
       name: dto.name,
       description: dto.description,
       workspaceId,
@@ -304,14 +401,15 @@ export class AgentSessionService {
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
   }
 
-  private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
+  private assertAgentExistsTx(tx: DbOrTx, agentId: string): { id: string; model: string | null; type: string } {
     const [agent] = tx
-      .select({ id: agentsTable.id })
+      .select({ id: agentsTable.id, model: agentsTable.model, type: agentsTable.type })
       .from(agentsTable)
       .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+    return agent
   }
 
   getById(id: string): AgentSessionEntity {
@@ -728,16 +826,59 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
-    if (Object.keys(patch).length === 0) return this.getById(id)
+    const hasRoutingUpdate = AGENT_SESSION_ROUTING_UPDATE_FIELDS.some((field) => dto[field] !== undefined)
+    if (Object.keys(patch).length === 0 && !hasRoutingUpdate) return this.getById(id)
 
     const result = withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          if (hasRoutingUpdate) {
+            const [current] = tx
+              .select({
+                agentId: sessionsTable.agentId,
+                agentType: sessionsTable.agentType,
+                modelId: sessionsTable.modelId
+              })
+              .from(sessionsTable)
+              .where(eq(sessionsTable.id, id))
+              .limit(1)
+              .all()
+            if (!current) throw DataApiErrorFactory.notFound('Session', id)
+
+            if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
+              throw DataApiErrorFactory.validation(
+                { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
+                `Session modelId '${dto.modelId}' is not registered — add the model first or pass null`
+              )
+            }
+            let reboundAgent: AgentSessionRoutingDefaultSource | undefined
+            if (dto.agentId !== undefined) {
+              reboundAgent = this.assertAgentExistsTx(tx, dto.agentId)
+            }
+            const routingUpdate = resolveSessionRoutingUpdate(
+              {
+                agentId: current.agentId,
+                agentType: current.agentType,
+                modelId: current.modelId as UniqueModelId | null
+              },
+              dto,
+              reboundAgent
+            )
+            Object.assign(patch, routingUpdate.patch)
+            if (routingUpdate.requiresEmptySession) {
+              this.assertSessionHasNoMessagesTx(tx, id, 'runtime')
+            }
+          }
+          return this.updateTx(tx, id, patch)
+        }),
       defaultHandlersFor('Session', id)
     )
     if (!result.row) throw DataApiErrorFactory.notFound('Session', id)
     publishTaskReadModelChanges(result.clearedTaskScheduleIds)
     this.notifyReadModelChange([id], 'projection')
-    return this.getById(id)
+    const session = this.getById(id)
+    this._onSessionUpdated.fire({ sessionId: id, updates: patch, session })
+    return session
   }
 
   updateTx(
@@ -780,7 +921,7 @@ export class AgentSessionService {
   setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): void {
     const current = this.getJoinedSessionRowTx(tx, id)
     // The workspace binding is locked the moment a session has any message.
-    this.assertSessionHasNoMessagesTx(tx, id)
+    this.assertSessionHasNoMessagesTx(tx, id, 'workspace')
 
     if (source.type === AGENT_WORKSPACE_TYPE.USER) {
       const workspace = agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
@@ -814,7 +955,7 @@ export class AgentSessionService {
     return row
   }
 
-  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): void {
+  private assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string, field: 'runtime' | 'workspace'): void {
     const [message] = tx
       .select({ id: agentSessionMessageTable.id })
       .from(agentSessionMessageTable)
@@ -823,8 +964,8 @@ export class AgentSessionService {
       .all()
     if (message) {
       throw DataApiErrorFactory.invalidOperation(
-        'update session workspace',
-        'workspace cannot be changed after messages are sent'
+        `update session ${field}`,
+        `${field} cannot be changed after messages are sent`
       )
     }
   }
@@ -834,6 +975,8 @@ export class AgentSessionService {
     values: {
       id: string
       agentId: string
+      agentType: AgentType
+      modelId: UniqueModelId | null
       name: string
       description?: string
       workspaceId: string
@@ -1121,3 +1264,4 @@ export class AgentSessionService {
 }
 
 export const agentSessionService = new AgentSessionService()
+registerDataService('AgentSessionService', agentSessionService)

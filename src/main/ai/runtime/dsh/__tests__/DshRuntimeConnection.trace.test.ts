@@ -32,6 +32,8 @@ const runtimeMocks = vi.hoisted(() => ({
   bridgeRequest: vi.fn().mockResolvedValue(undefined),
   resolveInjection: vi.fn(),
   usesDshGateway: vi.fn(),
+  captureConnectionSnapshot: vi.fn(),
+  buildAgentRuntimePrompt: vi.fn(),
   harnessOptions: undefined as Record<string, any> | undefined,
   getShellEnv: vi.fn()
 }))
@@ -41,7 +43,7 @@ const baseSnapshot = () => ({
   agent: { id: 'agent-1', configuration: {}, disabledTools: [] },
   session: { agentId: 'agent-1', workspace: { path: '/workspace' } },
   provider: {},
-  model: {},
+  model: { id: 'deepseek::deepseek-chat', name: 'DSH Session Model' },
   enabledApiKeys: [],
   additionalSkillPaths: [],
   mcpServerSnapshots: [],
@@ -101,7 +103,7 @@ vi.mock('node:fs/promises', () => ({
 }))
 vi.mock('../dshConnectionSignature', () => ({
   DshInvalidConnectionSnapshotError: class extends Error {},
-  captureDshConnectionSnapshot: vi.fn(() => Promise.resolve(runtimeMocks.snapshot))
+  captureDshConnectionSnapshot: runtimeMocks.captureConnectionSnapshot
 }))
 vi.mock('../modelInjection', () => ({
   resolveDshProviderInjectionFromSnapshot: runtimeMocks.resolveInjection,
@@ -155,7 +157,7 @@ vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
 }))
 vi.mock('@main/ai/runtime/agentPrompt', () => ({
-  buildAgentRuntimePrompt: vi.fn().mockResolvedValue({ base: { kind: 'native' }, append: '' })
+  buildAgentRuntimePrompt: runtimeMocks.buildAgentRuntimePrompt
 }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: vi.fn(() => []) }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: vi.fn(() => '') }))
@@ -193,6 +195,8 @@ beforeEach(() => {
   runtimeMocks.bridgeRequest.mockReset().mockResolvedValue(undefined)
   runtimeMocks.resolveInjection.mockReset().mockReturnValue(baseInjection())
   runtimeMocks.usesDshGateway.mockReset().mockReturnValue(false)
+  runtimeMocks.captureConnectionSnapshot.mockReset().mockImplementation(() => Promise.resolve(runtimeMocks.snapshot))
+  runtimeMocks.buildAgentRuntimePrompt.mockReset().mockResolvedValue({ base: { kind: 'native' }, append: '' })
   vi.mocked(DshBridgeServer).mockClear()
   spans.length = 0
   startSpan.mockClear()
@@ -288,6 +292,28 @@ describe('DshRuntimeConnection tracing', () => {
       'rebuild'
     )
 
+    await connection.close()
+  })
+
+  it.each([
+    ['agent', { agentId: 'agent-2', agentType: 'dsh' }],
+    ['runtime', { agentId: 'agent-1', agentType: 'pi' }]
+  ] as const)('rebuilds before snapshotting when the target %s changes', async (_boundary, target) => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+    runtimeMocks.captureConnectionSnapshot.mockClear()
+
+    await expect(connection.reconcile({ ...target, modelId: 'deepseek::deepseek-chat' })).resolves.toBe('rebuild')
+
+    expect(runtimeMocks.captureConnectionSnapshot).not.toHaveBeenCalled()
+    await connection.close()
+  })
+
+  it('builds prompt variables from the selected session model', async () => {
+    const connection = await new DshRuntimeConnection(connectInput).start()
+
+    expect(runtimeMocks.buildAgentRuntimePrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ modelName: 'DSH Session Model' })
+    )
     await connection.close()
   })
 

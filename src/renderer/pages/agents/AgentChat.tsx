@@ -24,7 +24,6 @@ import {
 } from '@renderer/components/composer/variants/AgentComposer'
 import DiagnosticUploadDialog from '@renderer/components/feedback/DiagnosticUploadDialog'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
-import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -37,6 +36,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentType } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
@@ -59,7 +59,7 @@ const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
 
 interface ModelSwitchTarget {
-  agentId: string
+  sessionId: string
   model: Model
 }
 
@@ -207,9 +207,8 @@ const AgentChat = ({
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
-  const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
-  const agentModelFilter = useAgentModelFilter(activeAgent?.type)
+  const agentModelFilter = useAgentModelFilter(sessionSnapshot?.agentType)
   const isModelDisabled = useAgentModelDisabled()
   const workspacePath = visibleWorkspace?.type === 'user' ? visibleWorkspace.path : undefined
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
@@ -301,16 +300,23 @@ const AgentChat = ({
   )
   const handleAgentModelChange = useCallback(
     async (nextModel?: Model) => {
-      if (!activeAgent || !nextModel || nextModel.id === activeModel?.id) return
+      if (!sessionSnapshot || !nextModel || nextModel.id === activeModel?.id) return
       if (!isEmptyConversation && !skipModelSwitchConfirmationsForAppRun) {
-        setModelSwitchTarget({ agentId: activeAgent.id, model: nextModel })
+        setModelSwitchTarget({ sessionId: sessionSnapshot.id, model: nextModel })
         setSkipModelSwitchConfirmation(false)
         setModelSwitchConfirmOpen(true)
         return
       }
-      await updateModel({ agentId: activeAgent.id, modelId: nextModel.id }, { showSuccessToast: false })
+      await updateSession({ id: sessionSnapshot.id, modelId: nextModel.id }, { showSuccessToast: false })
     },
-    [activeAgent, activeModel?.id, isEmptyConversation, skipModelSwitchConfirmationsForAppRun, updateModel]
+    [activeModel?.id, isEmptyConversation, sessionSnapshot, skipModelSwitchConfirmationsForAppRun, updateSession]
+  )
+  const handleSessionAgentTypeChange = useCallback(
+    async (nextAgentType: AgentType) => {
+      if (!sessionSnapshot || !isEmptyConversation || nextAgentType === sessionSnapshot.agentType) return
+      await updateSession({ id: sessionSnapshot.id, agentType: nextAgentType }, { showSuccessToast: false })
+    },
+    [isEmptyConversation, sessionSnapshot, updateSession]
   )
   const handleSessionWorkspaceChange = useCallback(
     (workspaceId: string | null) => {
@@ -444,6 +450,7 @@ const AgentChat = ({
           activeAgent ? (
             <AgentTopBarControls
               agent={activeAgent}
+              agentType={sessionSnapshot.agentType}
               model={activeModel}
               workspace={sessionSnapshot.workspace}
               workspaceId={sessionSnapshot.workspace?.type === 'system' ? null : sessionSnapshot.workspaceId}
@@ -454,8 +461,10 @@ const AgentChat = ({
               selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
               shouldAutoSelectCreatedAgent
               agentTriggerMode={isEmptyConversation ? 'selector' : 'edit'}
+              canChangeAgentType={isEmptyConversation}
               canChangeModel
               onAgentChange={handleSessionAgentChange}
+              onAgentTypeChange={handleSessionAgentTypeChange}
               onModelSelect={handleAgentModelChange}
               onWorkspaceChange={canChangeWorkspace ? handleSessionWorkspaceChange : undefined}
               modelFilter={agentModelFilter}
@@ -571,18 +580,17 @@ const AgentChat = ({
         cancelText={t('common.cancel')}
         onConfirm={async () => {
           if (
-            !activeAgent ||
             !modelSwitchTarget ||
-            modelSwitchTarget.agentId !== activeAgent.id ||
+            modelSwitchTarget.sessionId !== currentSessionId ||
             modelSwitchTarget.model.id === activeModel?.id
           ) {
             return
           }
-          const updatedAgent = await updateModel(
-            { agentId: activeAgent.id, modelId: modelSwitchTarget.model.id },
+          const updatedSession = await updateSession(
+            { id: modelSwitchTarget.sessionId, modelId: modelSwitchTarget.model.id },
             { showSuccessToast: false }
           )
-          if (updatedAgent && skipModelSwitchConfirmation) {
+          if (updatedSession && skipModelSwitchConfirmation) {
             setSkipModelSwitchConfirmationsForAppRun(true)
           }
         }}

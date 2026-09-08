@@ -34,7 +34,6 @@ import {
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
@@ -43,6 +42,7 @@ import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimeReconcileInput,
   AgentRuntimeReconcileResult,
   AgentRuntimeTraceContext,
   AgentSessionUsageCapture
@@ -291,6 +291,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       workspacePath,
       agentDataPath: this.agentDataPath,
       agent,
+      modelName: snapshot.model.name ?? snapshot.model.id,
       citationsGuidance,
       effectiveLanguage: snapshot.effectiveLanguage,
       // Compensates a custom base for the workspace context the native base owns (claude parity).
@@ -463,11 +464,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    * immediately over the bridge; permission-mode changes wait for an idle
    * boundary. Any spawn-frozen difference is rebuilt by the host.
    */
-  async reconcile(input: {
-    modelId: UniqueModelId
-    reasoningEffort?: ReasoningEffortOption
-    knowledgeBaseIds?: readonly string[]
-  }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: AgentRuntimeReconcileInput): Promise<AgentRuntimeReconcileResult> {
     const run = this.reconcileChain.then(
       () => this.reconcileOnce(input),
       () => this.reconcileOnce(input)
@@ -476,16 +473,15 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: {
-    modelId: UniqueModelId
-    reasoningEffort?: ReasoningEffortOption
-    knowledgeBaseIds?: readonly string[]
-  }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(input: AgentRuntimeReconcileInput): Promise<AgentRuntimeReconcileResult> {
+    if (input.agentType !== undefined && input.agentType !== 'dsh') return 'rebuild'
+    const agentId = input.agentId ?? this.input.agentId
+    if (agentId !== this.input.agentId) return 'rebuild'
     let snapshot
     try {
       snapshot = await captureDshConnectionSnapshot(
         this.input.sessionId,
-        this.input.agentId,
+        agentId,
         input.modelId,
         input.knowledgeBaseIds
       )

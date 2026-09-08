@@ -9,6 +9,8 @@ function createSessions(count: number, renamedId?: string): AgentSessionEntity[]
     return {
       id,
       agentId: 'benchmark-agent',
+      agentType: 'claude-code',
+      modelId: null,
       name: id === renamedId ? `Renamed ${id}` : `Session ${index}`,
       isNameManuallyEdited: id === renamedId,
       description: '',

@@ -7,6 +7,7 @@ function createSession(id: string, overrides: Partial<AgentSessionEntity> = {}):
   return {
     id,
     agentId: 'agent-a',
+    modelId: null,
     name: `Session ${id}`,
     isNameManuallyEdited: false,
     description: '',
@@ -24,7 +25,8 @@ function createSession(id: string, overrides: Partial<AgentSessionEntity> = {}):
     lastActivityAt: '2026-01-01T00:00:00.000Z',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
-    ...overrides
+    ...overrides,
+    agentType: overrides.agentType ?? 'claude-code'
   }
 }
 

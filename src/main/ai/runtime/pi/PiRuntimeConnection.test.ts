@@ -333,7 +333,7 @@ beforeEach(() => {
         agent,
         session,
         provider: { id: 'p' },
-        model: { id: 'p::m' },
+        model: { id: 'p::m', name: 'Pi Session Model' },
         enabledApiKeys: [{ id: 'key-1', key: 'real-key', isEnabled: true }],
         additionalSkillPaths: skills
           .filter((skill: { isEnabled: boolean }) => skill.isEnabled)
@@ -524,9 +524,12 @@ describe('PiRuntimeConnection', () => {
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
 
-    expect(mocks.resolveInjection).toHaveBeenCalledWith(SESSION_ID, { id: 'p' }, { id: 'p::m' }, [
-      { id: 'key-1', key: 'real-key', isEnabled: true }
-    ])
+    expect(mocks.resolveInjection).toHaveBeenCalledWith(
+      SESSION_ID,
+      { id: 'p' },
+      { id: 'p::m', name: 'Pi Session Model' },
+      [{ id: 'key-1', key: 'real-key', isEnabled: true }]
+    )
     expect(mocks.createOpts?.agentDir).toBe(PI_ROOT)
     expect(mocks.setRuntimeApiKey).toHaveBeenCalledWith(expect.stringMatching(`^p:${SESSION_ID}:`), 'real-key')
     expect(mocks.registerProvider).toHaveBeenCalledWith(
@@ -1577,6 +1580,18 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.captureConnectionSnapshot).toHaveBeenCalledTimes(2)
   })
 
+  it.each([
+    ['agent', { agentId: 'agent-2', agentType: 'pi' }],
+    ['runtime', { agentId: 'agent-1', agentType: 'dsh' }]
+  ] as const)('rebuilds before snapshotting when the target %s changes', async (_boundary, target) => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.captureConnectionSnapshot.mockClear()
+
+    await expect(conn.reconcile({ ...target, modelId: 'p::m' })).resolves.toBe('rebuild')
+
+    expect(mocks.captureConnectionSnapshot).not.toHaveBeenCalled()
+  })
+
   it('applies an exact camelCase MCP disable immediately before requesting a tool-catalog rebuild', async () => {
     const toolName = 'mcp__githubServer__searchIssues'
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.', mcps: ['srv-1'] })
@@ -1769,17 +1784,17 @@ describe('PiRuntimeConnection', () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         model: 'p::m',
-        modelName: 'Pi Model',
+        modelName: 'Stale Agent Default',
         instructions: 'Use {{model_name}}.',
         configuration: {}
       })
       mocks.getById.mockReturnValue(agentSession)
-      mocks.replacePromptVariables.mockResolvedValue('Use Pi Model.')
+      mocks.replacePromptVariables.mockResolvedValue('Use Pi Session Model.')
 
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.replacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Pi Model')
-      expect(appendedSystemPrompt()).toContain('<agent_instructions>\nUse Pi Model.\n</agent_instructions>')
+      expect(mocks.replacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Pi Session Model')
+      expect(appendedSystemPrompt()).toContain('<agent_instructions>\nUse Pi Session Model.\n</agent_instructions>')
     })
 
     it('resolves and provisions the bundled definition for a built-in Agent', async () => {
