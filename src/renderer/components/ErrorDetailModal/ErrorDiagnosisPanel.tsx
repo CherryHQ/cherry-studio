@@ -51,7 +51,7 @@ export function ErrorDiagnosisPanel({
       : interaction.kind === 'run'
         ? interaction.tier
         : undefined
-  const isDoctorPending = doctorController.viewModel.status === 'idle' || activeDoctorTier !== undefined
+  const isDoctorPending = doctorController.isAutoRunPending || activeDoctorTier !== undefined
   const isPending = isDoctorPending || diagnosis.status === 'loading'
   const completedChecks = doctorController.viewModel.rows.filter((row) => row.status !== 'pending').length
   const fixedCheckNames = doctorController.session.fixedCheckIds.map((checkId) => t(doctorCheckTitleKey(checkId)))

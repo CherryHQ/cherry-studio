@@ -66,6 +66,7 @@ export function useDoctorController({
     createDoctorSession
   )
   const [now, setNow] = useState(Date.now)
+  const [isAutoRunPending, setIsAutoRunPending] = useState(doctorState.status === 'idle')
   const autoRunRequestedRef = useRef(false)
 
   useEffect(() => {
@@ -122,11 +123,15 @@ export function useDoctorController({
     if (!sharedCacheReady || autoRunRequestedRef.current) return
     if (doctorState.status === 'running') {
       autoRunRequestedRef.current = true
+      setIsAutoRunPending(false)
       return
     }
-    if (doctorState.status !== 'idle') return
+    if (doctorState.status !== 'idle') {
+      setIsAutoRunPending(false)
+      return
+    }
     autoRunRequestedRef.current = true
-    void run('quick')
+    void run('quick').finally(() => setIsAutoRunPending(false))
   }, [doctorState.status, run, sharedCacheReady])
 
   const cancel = useCallback(async () => {
@@ -331,6 +336,7 @@ export function useDoctorController({
     cancelConfirmation: () => dispatch({ type: 'cancel-confirmation' }),
     confirmEvidence,
     executeAction,
+    isAutoRunPending,
     isInteracting,
     isCloseBlocked,
     openLogsPath,
