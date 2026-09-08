@@ -120,9 +120,15 @@ The output format is inferred from `--out`'s extension:
 | Source | Dependency (`--with`) | Output formats |
 | --- | --- | --- |
 | xlsx | `openpyxl` | `xlsx`, `csv`, `md` |
-| docx | `python-docx` | `docx`, `txt`, `md` |
+| docx | `'python-docx>=1.1,<2'` | `docx`, `txt`, `md` |
 | pdf | `pypdf` | `pdf` (page copy), `txt`, `md` |
 | pptx | `python-pptx` | `txt`, `md` (slide, shape, paragraph, or table-cell text) |
+
+The docx pin is not optional. Patch-copy's `expectText` gate compares a paragraph read
+with python-docx against the same paragraph read by the script's own `paragraph_text`,
+which reproduces python-docx's `Paragraph.text` element for element. That equivalence was
+checked against 1.x; a release that changes what `.text` spells would make the gate refuse
+paragraphs nobody edited. Quote the specifier — `>` and `<` are redirects to a shell.
 
 xlsx extraction reads computed values (`data_only`), so formula cells yield their last
 saved result. docx extraction to `docx` carries text only, not run styling.
