@@ -1,4 +1,5 @@
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import type { ReactNode } from 'react'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
@@ -21,12 +22,15 @@ function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: T
   return renderedItem.children === undefined || renderedItem.children === null || toolName === AgentToolsType.Write
 }
 
-function getAgentToolFlowTitle(toolName: string | undefined, input: ToolInput | Record<string, unknown> | undefined) {
+export function getAgentToolFlowTitle(
+  toolName: string | undefined,
+  input: ToolInput | Record<string, unknown> | undefined
+) {
   if (typeof input === 'string') return input.trim() || toolName
   if (!input || typeof input !== 'object' || Array.isArray(input)) return toolName
 
   const inputEntries = Object.entries(input)
-  for (const key of ['description', 'subject', 'title', 'name']) {
+  for (const key of ['description', 'subject', 'title', 'name', 'summary']) {
     const value = inputEntries.find(([field]) => field === key)?.[1]
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
@@ -53,6 +57,9 @@ export function AgentToolCallCard({
   hasError = false,
   isCherrySessionTool = false,
   openFlowOnClick = false,
+  flowTargetToolCallId,
+  flowTitle,
+  labelOverride,
   showInlineDetails = true
 }: {
   toolCallId?: string
@@ -64,6 +71,12 @@ export function AgentToolCallCard({
   hasError?: boolean
   isCherrySessionTool?: boolean
   openFlowOnClick?: boolean
+  /** Opens a different flow than this card's own call — e.g. a resume entry pointing at the launch root. */
+  flowTargetToolCallId?: string
+  /** Title for the opened flow; by default derived from this card's input. */
+  flowTitle?: string
+  /** Replaces the renderer's label — used when a caller knows a more identifying one. */
+  labelOverride?: ReactNode
   showInlineDetails?: boolean
 }) {
   const actions = useOptionalMessageListActions()
@@ -83,9 +96,9 @@ export function AgentToolCallCard({
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
       ? () =>
           actions.openAgentToolFlow?.({
-            toolCallId,
+            toolCallId: flowTargetToolCallId ?? toolCallId,
             toolName,
-            title: getAgentToolFlowTitle(toolName, input)
+            title: flowTitle ?? getAgentToolFlowTitle(toolName, input)
           })
       : undefined
   const errorText = shouldShowHeaderErrorText(toolName, renderedItem) ? extractToolErrorText(output) : undefined
@@ -96,7 +109,7 @@ export function AgentToolCallCard({
       <AgentToolDisclosureLabel
         label={
           <div className="flex min-w-0 items-center gap-1.5">
-            <div className="min-w-0">{renderedItem.label}</div>
+            <div className="min-w-0">{labelOverride ?? renderedItem.label}</div>
             {status && (status !== 'done' || hasError) && (
               <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
             )}

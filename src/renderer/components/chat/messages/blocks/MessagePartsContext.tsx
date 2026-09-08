@@ -5,6 +5,7 @@
  * Components read parts directly via useMessageParts / usePartsMap.
  */
 
+import type { AgentLaunchIndex } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { createContext, use, useMemo } from 'react'
@@ -76,6 +77,27 @@ export function MessagePartsScopeProvider({
 /** Read the parts map from context (null when no provider is present). */
 export function usePartsMap() {
   return use(PartsContext)
+}
+
+// ============================================================================
+// Agent Launch Index Context — list-level, survives tool-group boundaries
+// ============================================================================
+
+const AgentLaunchIndexContext = createContext<AgentLaunchIndex | null>(null)
+
+/**
+ * Provide the list-level launch-identity index so resume resolution is O(1) instead of
+ * re-scanning the transcript per consumer during streaming. Unlike PartsContext, nested
+ * boundaries never null this out — completed tool groups reset PartsContext to skip approval
+ * checks, which would also hide any consumer that must see other messages' launch parts.
+ */
+export function AgentLaunchIndexProvider({ value, children }: { value: AgentLaunchIndex | null; children: ReactNode }) {
+  return <AgentLaunchIndexContext value={value}>{children}</AgentLaunchIndexContext>
+}
+
+/** Read the list-level launch index (null when no provider is mounted). */
+export function useAgentLaunchIndex() {
+  return use(AgentLaunchIndexContext)
 }
 
 /** Check if parts data is provided. */
