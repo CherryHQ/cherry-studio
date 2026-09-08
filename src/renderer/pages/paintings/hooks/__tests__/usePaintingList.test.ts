@@ -188,4 +188,52 @@ describe('usePaintingList', () => {
     expect(draft.persistedAt).toBeUndefined()
     expect(draft.prompt).toBe('')
   })
+
+  it('add() still opens a draft when generation updates arrive during saving', async () => {
+    const painting = makePainting({
+      id: 'current',
+      persistedAt: '2026-01-01',
+      prompt: 'Generate this',
+      generationStatus: 'running'
+    })
+    const setCurrentPainting = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ current }) =>
+        usePaintingList({
+          painting: current,
+          setCurrentPainting,
+          draftDefaults: { providerId: 'silicon' },
+          historyItems: [],
+          cancelGeneration: vi.fn()
+        }),
+      { initialProps: { current: painting } }
+    )
+    let finishSave!: () => void
+    updatePainting.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve
+        })
+    )
+    let pending!: Promise<void>
+    act(() => {
+      pending = result.current.add()
+    })
+    rerender({
+      current: {
+        ...painting,
+        generationStatus: null,
+        generationProgress: 100,
+        files: [{ id: 'output' } as PaintingData['files'][number]],
+        params: {},
+        inputFiles: []
+      }
+    })
+    await act(async () => {
+      finishSave()
+      await pending
+    })
+    expect(setCurrentPainting).toHaveBeenCalledWith(expect.objectContaining({ prompt: '', files: [] }))
+    expect(createPainting).not.toHaveBeenCalled()
+  })
 })

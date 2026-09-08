@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
+import { isEqual } from 'es-toolkit'
 import { useCallback, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
@@ -71,7 +72,18 @@ export function usePaintingList({
   const add = useCallback(async () => {
     const current = paintingRef.current
     if (!(await saveCurrent())) return
-    if (paintingRef.current !== current) return
+    const latest = paintingRef.current
+    // Generation status and output updates do not supersede the user's New action.
+    if (
+      latest.id !== current.id ||
+      latest.prompt !== current.prompt ||
+      latest.providerId !== current.providerId ||
+      latest.model !== current.model ||
+      latest.mode !== current.mode ||
+      !isEqual(latest.params ?? {}, current.params ?? {}) ||
+      !isEqual(latest.inputFiles ?? [], current.inputFiles ?? [])
+    )
+      return
     setCurrentPainting(createDefaultPainting(draftDefaults))
   }, [draftDefaults, saveCurrent, setCurrentPainting])
 
