@@ -4,6 +4,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService, type SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -119,6 +120,16 @@ function knowledgeScopeEquals(left: readonly string[], right: readonly string[])
   return left.every((id) => rightIds.has(id))
 }
 
+function notifyChannelsEqual(
+  left: readonly NotifyChannel[] | undefined,
+  right: readonly NotifyChannel[] | undefined
+): boolean {
+  if (left === undefined || right === undefined) return left === right
+  if (left.length !== right.length) return false
+  const rightChannels = new Map(right.map((channel) => [channel.id, channel.type]))
+  return left.every((channel) => rightChannels.get(channel.id) === channel.type)
+}
+
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = AgentSessionTerminalStatus
 export type AgentSessionTurnTerminalEvent = {
@@ -140,6 +151,8 @@ export interface BeginAgentSessionTurnInput {
   assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
   headless?: boolean
+  /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
   traceId?: string
   /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
@@ -195,6 +208,7 @@ type AgentSessionTurn = {
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
   headless?: boolean
+  trustedNotifyChannels?: readonly NotifyChannel[]
 }
 
 type PendingAgentSessionTurn = {
@@ -207,6 +221,8 @@ type PendingAgentSessionTurn = {
   steer?: boolean
   /** The follow-up must open a responder-less/headless turn. */
   headless?: boolean
+  /** Undefined resolves the linked source channel; [] intentionally grants no notification recipients. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
   /** Submit-time author snapshot so a mid-session agent/model change can't restamp the reply. */
   messageSnapshot?: MessageSnapshot
 }
@@ -481,7 +497,8 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode: input.fastMode === true,
       abortController: new AbortController(),
       activeToolIds: new Set(),
-      headless: input.headless === true
+      headless: input.headless === true,
+      ...(input.trustedNotifyChannels !== undefined ? { trustedNotifyChannels: input.trustedNotifyChannels } : {})
     }
 
     if (existing && this.runtimeStatus(existing) === 'idle') {
@@ -803,6 +820,7 @@ export class AgentSessionRuntimeService extends BaseService {
     message: AgentSessionMessageEntity,
     opts: {
       headless?: boolean
+      trustedNotifyChannels?: readonly NotifyChannel[]
       messageSnapshot?: MessageSnapshot
       reasoningEffort?: ReasoningEffortOption
       serviceTier?: ServiceTierSelection
@@ -816,6 +834,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Message attributes ride the payloads themselves: a redirect carries them through the driver
     // round-trip (steer-boundary/steer-undelivered), a queued follow-up carries them on its queue item.
     const headless = opts.headless === true
+    const trustedNotifyChannels = opts.trustedNotifyChannels
     const messageSnapshot = opts.messageSnapshot ? structuredClone(opts.messageSnapshot) : undefined
     const reasoningEffort = opts.reasoningEffort ?? 'default'
     const serviceTier = opts.serviceTier ?? 'standard'
@@ -869,6 +888,7 @@ export class AgentSessionRuntimeService extends BaseService {
         fastMode,
         steer: true,
         ...(headless ? { headless } : {}),
+        ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {}),
         ...(messageSnapshot ? { messageSnapshot } : {})
       }
     })
@@ -1088,6 +1108,13 @@ export class AgentSessionRuntimeService extends BaseService {
     const entry = this.entries.get(sessionId)
     if (!entry) return false
     return isAgentSessionRuntimeBusy(entry.runtimeState)
+  }
+
+  /** Turn-local notification authority. Undefined lets the resolver use the linked source channel. */
+  getTurnTrustedNotifyChannels(sessionId: string): readonly NotifyChannel[] | undefined {
+    const entry = this.entries.get(sessionId)
+    if (!entry || entry.runtimeState.execution.kind === 'idle') return undefined
+    return this.connectionTarget(entry).trustedNotifyChannels
   }
 
   /** Whether any agent session can still mutate its DB row or external runtime files. */
@@ -1418,14 +1445,16 @@ export class AgentSessionRuntimeService extends BaseService {
           reasoningEffort: turn.reasoningEffort,
           serviceTier: turn.serviceTier,
           knowledgeBaseIds: turn.knowledgeBaseIds,
-          fastMode: turn.fastMode
+          fastMode: turn.fastMode,
+          trustedNotifyChannels: turn.trustedNotifyChannels
         }
       : {
           modelId: entry.modelId,
           reasoningEffort: 'default',
           serviceTier: 'standard',
           knowledgeBaseIds: [],
-          fastMode: false
+          fastMode: false,
+          trustedNotifyChannels: undefined
         }
   }
 
@@ -1440,7 +1469,8 @@ export class AgentSessionRuntimeService extends BaseService {
       knowledgeScopeEquals(
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, current.knowledgeBaseIds),
         resolveKnowledgeBaseScope(configuredKnowledgeBaseIds, target.knowledgeBaseIds)
-      )
+      ) &&
+      notifyChannelsEqual(current.trustedNotifyChannels, target.trustedNotifyChannels)
     )
   }
 
@@ -1809,6 +1839,7 @@ export class AgentSessionRuntimeService extends BaseService {
       candidate.aliases.some((alias) => normalizeAgentSdkModelAlias(alias) === normalizedModel)
     )
     const modelId = frozenModel?.modelId ?? normalizedModel
+    const apiModelId = frozenModel?.apiModelId ?? normalizedModel
     aiUsageRecordService.recordInvocation({
       requestId: invocation.requestId,
       context: createAiUsageCaptureContext({
@@ -1826,6 +1857,19 @@ export class AgentSessionRuntimeService extends BaseService {
       metrics: invocation.metrics,
       completedAt: Date.now()
     })
+
+    if (!invocation.usage) return
+    try {
+      application.get('AnalyticsService').trackTokenUsage({
+        provider: capture.providerId,
+        model: apiModelId,
+        input_tokens: invocation.usage.inputTokens,
+        output_tokens: invocation.usage.outputTokens,
+        source: 'agent'
+      })
+    } catch {
+      // Telemetry must never affect Agent runtime delivery.
+    }
   }
 
   private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
@@ -2539,6 +2583,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
     const { message: nextMessage, reasoningEffort, serviceTier, knowledgeBaseIds, fastMode = false } = pendingTurn
+    const trustedNotifyChannels = pendingTurn.trustedNotifyChannels
 
     // A queued follow-up can outlive the agent's model: deleting the model nulls `agent.model` via the FK
     // (`onDelete: 'set null'`) without emitting an agent update, so `applyAgentModelUpdate` never ran and
@@ -2614,7 +2659,8 @@ export class AgentSessionRuntimeService extends BaseService {
       fastMode,
       abortController: new AbortController(),
       activeToolIds: new Set(),
-      headless
+      headless,
+      ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
@@ -2741,7 +2787,7 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
-    const { modelId, serviceTier, knowledgeBaseIds, fastMode } = this.connectionTarget(entry)
+    const { modelId, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = this.connectionTarget(entry)
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
     const rootSpan = this.startRuntimeRootSpan(entry, modelId)
@@ -2781,7 +2827,8 @@ export class AgentSessionRuntimeService extends BaseService {
       // Pre-admitted: the connected runtime started this generation, so `admitTurn` must not send.
       abortController: new AbortController(),
       activeToolIds: new Set(),
-      headless: this.getInteractionState(entry.sessionId).userResponse === 'unavailable'
+      headless: this.getInteractionState(entry.sessionId).userResponse === 'unavailable',
+      ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'autonomous-turn-created', turn: receiveOnlyTurn })
     await this.refreshTurnTraceContext(entry, receiveOnlyTurn)
@@ -2849,6 +2896,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // binding, so a later binding edit can pull the two raw selections apart while the live-turn
     // rebuild is still deferred, leaving the query serving one set and our bookkeeping claiming another.
     const knowledgeBaseIds = transition.sourceTurn.knowledgeBaseIds
+    const trustedNotifyChannels = transition.sourceTurn.trustedNotifyChannels
     const headless = transition.headless
     // The continuation answers the steered follow-up — freeze its submit-time author, not the entry's.
     const messageSnapshot =
@@ -2894,7 +2942,8 @@ export class AgentSessionRuntimeService extends BaseService {
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       abortController: new AbortController(),
       activeToolIds: new Set(),
-      headless
+      headless,
+      ...(trustedNotifyChannels !== undefined ? { trustedNotifyChannels } : {})
     }
     this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
     await this.refreshTurnTraceContext(entry, continuationTurn)

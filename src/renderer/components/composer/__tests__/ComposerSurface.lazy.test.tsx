@@ -38,6 +38,12 @@ vi.mock('@renderer/components/SendMessageButton', () => ({
   )
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => (key === 'chat.input.ai_disclaimer' ? '内容由 AI 生成，仅供参考' : key)
+  })
+}))
+
 vi.mock('../ComposerSurfaceRuntime', () => {
   mocks.runtimeLoads += 1
   return {
@@ -141,6 +147,18 @@ describe('deferred ComposerSurface', () => {
       screen.getByRole('button', { name: 'Send' })
     )
     expect(mocks.runtimeLoads).toBe(0)
+  })
+
+  it('shows the AI-generated content disclaimer only in the CN edition', () => {
+    vi.stubGlobal('__APP_EDITION__', 'global')
+    const view = render(<Harness showAiDisclaimer />)
+
+    expect(screen.queryByText('内容由 AI 生成，仅供参考')).not.toBeInTheDocument()
+
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    view.rerender(<Harness showAiDisclaimer />)
+
+    expect(screen.getByText('内容由 AI 生成，仅供参考')).toBeInTheDocument()
   })
 
   it('keeps a whitespace-only draft on the fallback without loading the runtime', () => {

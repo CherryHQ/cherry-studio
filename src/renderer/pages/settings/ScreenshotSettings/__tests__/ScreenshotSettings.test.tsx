@@ -1,3 +1,10 @@
+import { cacheService } from '@data/CacheService'
+import {
+  LOCAL_MODEL_STATUS_CACHE_KEY,
+  type LocalModelBundleId,
+  type LocalModelStatusSnapshot
+} from '@shared/data/presets/localModel'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -5,6 +12,15 @@ import type { AnchorHTMLAttributes } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ScreenshotSettings from '../ScreenshotSettings'
+
+vi.unmock('@data/hooks/useCache')
+
+const OCR = 'pp-ocrv6-medium'
+
+function publishLocalModelStatus(id: LocalModelBundleId, snapshot: LocalModelStatusSnapshot): void {
+  const snapshots = cacheService.getSharedSnapshot(LOCAL_MODEL_STATUS_CACHE_KEY) ?? {}
+  cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, { ...snapshots, [id]: snapshot })
+}
 
 type ScreenCaptureStatus = 'authorized' | 'not-determined' | 'denied'
 
@@ -17,8 +33,7 @@ const { mockRequest, platform } = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) },
-  useIpcOn: () => {}
+  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) }
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -41,8 +56,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-// The globally installed @cherrystudio/ui mock (tests/renderer.setup.ts) has no
-// DescriptionSwitch, and a file-level vi.mock replaces it wholesale, not merges.
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
   return MockCherrystudioUI
@@ -53,18 +66,15 @@ interface IpcStub {
   permission?: ScreenCaptureStatus
   /** Status the OS reports back after prompting. */
   afterRequest?: ScreenCaptureStatus
-  ocrStatus?: string
 }
 
-function stubIpc({ permission = 'authorized', afterRequest = 'authorized', ocrStatus = 'not_downloaded' }: IpcStub) {
+function stubIpc({ permission = 'authorized', afterRequest = 'authorized' }: IpcStub = {}) {
   mockRequest.mockImplementation((route: string) => {
     switch (route) {
       case 'system.mac.screen_capture_status':
         return Promise.resolve(permission)
       case 'system.mac.request_screen_capture':
         return Promise.resolve(afterRequest)
-      case 'local_model.get_status':
-        return Promise.resolve({ status: ocrStatus })
       default:
         return Promise.resolve()
     }
@@ -73,11 +83,15 @@ function stubIpc({ permission = 'authorized', afterRequest = 'authorized', ocrSt
 
 const requestedRoutes = () => mockRequest.mock.calls.map((call) => call[0] as string)
 
-const autoOcrSwitch = () => screen.getByRole('switch', { name: 'settings.screenshot.ocr.auto.title' })
+const screenshotEnabledSwitchName = /^settings\.screenshot\.enable\.title\b/
+const autoOcrSwitchName = /^settings\.screenshot\.ocr\.auto\.title\b/
+const autoOcrSwitch = () => screen.getByRole('switch', { name: autoOcrSwitchName })
 
 describe('ScreenshotSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockCacheUtils.resetMocks()
+    publishLocalModelStatus(OCR, { status: 'not_downloaded', percent: 0 })
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.screenshot.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('feature.screenshot.auto_ocr', true)
@@ -102,7 +116,7 @@ describe('ScreenshotSettings', () => {
   })
 
   it('keeps the auto-OCR switch inoperable until the OCR model is ready', async () => {
-    stubIpc({ ocrStatus: 'not_downloaded' })
+    stubIpc()
     const { unmount } = render(<ScreenshotSettings />)
 
     // Turning auto-OCR on without the model would promise recognition that silently never runs.
@@ -110,7 +124,8 @@ describe('ScreenshotSettings', () => {
     expect(screen.getByText('settings.screenshot.ocr.model.unavailable')).toBeInTheDocument()
     unmount()
 
-    stubIpc({ ocrStatus: 'ready' })
+    publishLocalModelStatus(OCR, { status: 'ready', percent: 100 })
+    stubIpc()
     render(<ScreenshotSettings />)
 
     await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
@@ -133,7 +148,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
 
     // macOS renders the accelerator as symbols; the mocked binding is CommandOrControl+Shift+A.
     expect(screen.getByText('⌘⇧A')).toBeInTheDocument()
@@ -150,7 +165,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
 
     expect(screen.getByText('⌘⇧A')).toBeInTheDocument()
     expect(screen.getByText('settings.screenshot.shortcut.disabled')).toBeInTheDocument()
@@ -160,7 +175,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
 
     // Another application already owns the accelerator. The binding is still displayed,
@@ -176,7 +191,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
     act(() => conflictListener?.({ key: 'shortcut.app.search', hasConflict: true }))
 
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
@@ -187,7 +202,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
 
     expect(screen.getByText('settings.screenshot.shortcut.unset')).toBeInTheDocument()
   })
@@ -197,14 +212,15 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'denied' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
 
     expect(screen.queryByText('settings.screenshot.permission.title')).not.toBeInTheDocument()
     expect(requestedRoutes()).not.toContain('system.mac.screen_capture_status')
   })
 
   it('renders no permission section on macOS once the permission is already granted', async () => {
-    stubIpc({ permission: 'authorized', ocrStatus: 'ready' })
+    publishLocalModelStatus(OCR, { status: 'ready', percent: 100 })
+    stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
     // The OCR badge settles strictly after the permission status does, so an absent

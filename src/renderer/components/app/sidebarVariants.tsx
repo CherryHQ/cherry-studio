@@ -39,7 +39,7 @@ export interface SidebarVariantContext {
   assistantIconType: AssistantIconType
   agentIconType: AssistantIconType
   defaultModelId: string | null
-  isRequiredApp: (id: SidebarAppId) => boolean
+  visibleAppCount: number
   openApp: (id: SidebarAppId, options?: { inNewTab?: boolean }) => void
   openMiniApp: (id: string, options?: { inNewTab?: boolean }) => void
   openAgent: (id: string, options?: { inNewTab?: boolean }) => void
@@ -71,6 +71,8 @@ const appVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 
     // the preference.
     if (!path || !Icon) return null
 
+    const isLastApp = ctx.visibleAppCount <= 1
+
     return {
       key: getSidebarFavoriteKey(item),
       label: ctx.t(getSidebarIconLabelKey(id)),
@@ -83,7 +85,7 @@ const appVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 
           type: 'item',
           id: `sidebar.remove-app.${id}`,
           label: ctx.t('launchpad.unpin_from_sidebar'),
-          enabled: !ctx.isRequiredApp(id),
+          enabled: !isLastApp,
           onSelect: () => ctx.removeApp(id)
         }
       ]

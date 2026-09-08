@@ -193,7 +193,21 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+    if (metadata.stats?.inputTokenDetails?.cacheReadTokens !== undefined) {
+      this.state.cacheReadTokens = metadata.stats.inputTokenDetails.cacheReadTokens
+    }
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+  }
+
+  private buildUsage(): NonNullable<ChatCompletion['usage']> {
+    return {
+      prompt_tokens: this.state.inputTokens,
+      completion_tokens: this.state.outputTokens,
+      total_tokens: this.state.inputTokens + this.state.outputTokens,
+      ...(this.state.cacheReadTokens !== undefined
+        ? { prompt_tokens_details: { cached_tokens: this.state.cacheReadTokens } }
+        : {})
+    }
   }
 
   private emitContentDelta(content: string): void {
@@ -318,11 +332,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
           finish_reason: this.finishReason || 'stop'
         }
       ],
-      usage: {
-        prompt_tokens: this.state.inputTokens,
-        completion_tokens: this.state.outputTokens,
-        total_tokens: this.state.inputTokens + this.state.outputTokens
-      }
+      usage: this.buildUsage()
     }
 
     this.emit(finalChunk)
@@ -379,11 +389,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
           logprobs: null
         }
       ],
-      usage: {
-        prompt_tokens: this.state.inputTokens,
-        completion_tokens: this.state.outputTokens,
-        total_tokens: this.state.inputTokens + this.state.outputTokens
-      }
+      usage: this.buildUsage()
     }
   }
 }

@@ -9,6 +9,7 @@ import {
   InputGroupInput
 } from '@cherrystudio/ui'
 import { AgentRuntimeTiles } from '@renderer/components/AgentRuntimeOption'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { PermissionModeSelect } from '@renderer/components/PermissionModeOption'
 import { AgentDefaultWorkspaceField } from '@renderer/components/resourceCatalog/dialogs/components/AgentDefaultWorkspaceField'
 import { EmojiAvatarPicker } from '@renderer/components/resourceCatalog/dialogs/components/DialogFormFields'
@@ -20,7 +21,6 @@ import {
 import { getPermissionModeCards } from '@renderer/utils/agent'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
-import type { Model } from '@shared/data/types/model'
 import { useEffect, useState } from 'react'
 import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -39,7 +39,8 @@ type ModelFieldProps = {
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   onSettingsNavigate?: (navigate: () => void) => void
 }
 
@@ -47,7 +48,8 @@ type BasicInfoStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
   fallbackAvatar: string
-  modelFilter?: (model: Model) => boolean
+  modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   /** Agent create flows expose a runtime selector that drives the model filter (D8). */
   runtimeSelectable?: boolean
   onSettingsNavigate?: (navigate: () => void) => void
@@ -65,6 +67,7 @@ function AgentRuntimeModelFields({
   modelLabels,
   setModelLabels,
   modelFilter,
+  isModelDisabled,
   onSettingsNavigate
 }: ModelFieldProps) {
   const { t } = useTranslation()
@@ -128,9 +131,11 @@ function AgentRuntimeModelFields({
       <CompactModelField
         form={form}
         name="modelId"
+        includeAgentOnlyModels
         label={t('common.model')}
         labelClassName="font-medium"
         filter={modelFilter}
+        isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
@@ -157,6 +162,7 @@ export function BasicInfoStep({
   portalContainer,
   fallbackAvatar,
   modelFilter,
+  isModelDisabled,
   runtimeSelectable = false,
   onSettingsNavigate
 }: BasicInfoStepProps) {
@@ -212,6 +218,7 @@ export function BasicInfoStep({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           modelFilter={modelFilter}
+          isModelDisabled={isModelDisabled}
           onSettingsNavigate={onSettingsNavigate}
         />
       ) : (
@@ -221,6 +228,7 @@ export function BasicInfoStep({
           label={t('common.model')}
           labelClassName="font-medium"
           filter={modelFilter}
+          isModelDisabled={isModelDisabled}
           portalContainer={portalContainer}
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}

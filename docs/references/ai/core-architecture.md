@@ -78,8 +78,8 @@ each subsystem.
    `AiStreamManager.dispatch`.
 4. `dispatchStreamRequest` picks the first `ChatContextProvider` whose
    `canHandle(topicId)` matches and asks it to `prepareDispatch`.
-5. The provider resolves models, persists the user message (chat) or skips
-   persistence (temporary / translate), creates `PersistenceListener` per
+5. The provider resolves models, persists the user message for persistent chat
+   or skips it for temporary chat, creates `PersistenceListener` per
    execution, returns `PreparedDispatch`.
 6. `dispatch` reconciles any live stream, then calls `manager.send(input)`:
    - **chat resubmit** (topic already streaming): the provider persists the

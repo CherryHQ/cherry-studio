@@ -62,6 +62,10 @@ vi.mock('@application', async () => {
     ...module,
     application: {
       ...module.application,
+      get: (name: string) =>
+        name === 'AgentSessionRuntimeService'
+          ? { getTurnTrustedNotifyChannels: () => undefined }
+          : module.application.get(name as never),
       getPath: mockGetPath
     }
   }
@@ -94,7 +98,7 @@ vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
-  agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
+  agentChannelService: { findBySessionId: vi.fn(() => null), listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
 vi.mock('@data/services/AgentService', () => ({

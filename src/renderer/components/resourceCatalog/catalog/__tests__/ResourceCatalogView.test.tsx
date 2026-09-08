@@ -93,7 +93,8 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => {
 })
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => () => true
+  useAgentModelFilter: () => () => true,
+  useAgentModelDisabled: () => () => false
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog/useResourceCatalogController', () => ({

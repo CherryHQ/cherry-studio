@@ -10,6 +10,7 @@
  */
 
 import { application } from '@application'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
@@ -52,10 +53,15 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
 
   async execute(ctx) {
+    // The row is already `running` here; publish so open task lists leave the
+    // previous run's state. JobContext carries no scheduleId — resolve the row.
+    const scheduleId = jobService.getById(ctx.jobId)?.scheduleId
+    if (scheduleId) agentTaskService.notifyReadModelChange([scheduleId])
     return await runAgentTask(ctx)
   },
 
   async onSettled(event) {
+    if (event.scheduleId) agentTaskService.notifyReadModelChange([event.scheduleId])
     if (event.status !== 'failed' || !event.scheduleId) return
 
     const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)

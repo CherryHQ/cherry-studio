@@ -14,6 +14,8 @@ interface ImagePreviewLayoutProps {
   loading?: boolean
   error?: string | null
   enableToolbar?: boolean
+  enableDrag?: boolean
+  enableWheelZoom?: boolean
   className?: string
 }
 
@@ -27,14 +29,16 @@ const ImagePreviewLayout = ({
   loading,
   error,
   enableToolbar,
+  enableDrag = true,
+  enableWheelZoom = true,
   className
 }: ImagePreviewLayoutProps) => {
   // 使用通用图像工具
   const { pan, zoom, copy, download, dialog } = useImageTools(imageRef, {
     imgSelector: 'svg',
     prefix: source ?? 'svg',
-    enableDrag: true,
-    enableWheelZoom: true
+    enableDrag,
+    enableWheelZoom
   })
 
   useImperativeHandle(ref, () => {
@@ -47,6 +51,8 @@ const ImagePreviewLayout = ({
     }
   })
 
+  const enablePanZoom = enableDrag || enableWheelZoom
+
   return (
     <PreviewContainer className={`image-preview-layout flex-col ${className ?? ''}`}>
       {loading && (
@@ -56,7 +62,7 @@ const ImagePreviewLayout = ({
       )}
       {error && <PreviewError>{error}</PreviewError>}
       {children}
-      {!error && enableToolbar && <ImageToolbar pan={pan} zoom={zoom} dialog={dialog} />}
+      {!error && enableToolbar && <ImageToolbar pan={pan} zoom={zoom} dialog={dialog} enablePanZoom={enablePanZoom} />}
     </PreviewContainer>
   )
 }

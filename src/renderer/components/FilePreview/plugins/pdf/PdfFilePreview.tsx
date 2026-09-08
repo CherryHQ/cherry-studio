@@ -26,6 +26,7 @@ import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
 import { PdfFilePreviewToolbar } from './PdfFilePreviewToolbar'
 import { PDF_RANGE_CHUNK_SIZE_BYTES, PdfFileRangeTransport, PdfRangeTooLargeError } from './PdfFileRangeTransport'
+import { type PdfDestination, PdfOutline, type PdfOutlineItem, type PdfOutlineStatus } from './PdfOutline'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -38,9 +39,9 @@ const PINCH_WHEEL_MAX_EVENT_DELTA = 0.8
 const PINCH_WHEEL_PIXEL_DIVISOR = 10
 const PINCH_WHEEL_IDLE_RESET_MS = 180
 const PINCH_SCALE_SENSITIVITY = 0.075
-const PDF_PAGE_FOREGROUND = 'CanvasText'
 
 type PdfJsViewer = InstanceType<typeof PDFViewer>
+type PdfJsLinkService = InstanceType<typeof PDFLinkService>
 type PdfViewerOptionsWithAbortSignal = ConstructorParameters<typeof PDFViewer>[0] & { abortSignal: AbortSignal }
 
 interface PdfPageChangingEvent {
@@ -125,6 +126,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<HTMLDivElement>(null)
   const pdfViewerRef = useRef<PdfJsViewer | null>(null)
+  const linkServiceRef = useRef<PdfJsLinkService | null>(null)
   const [background, setBackground] = useState(() => resolveThemeBackground(null))
   const backgroundRef = useRef(background)
   backgroundRef.current = background
@@ -133,6 +135,9 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false)
+  const [outlineItems, setOutlineItems] = useState<PdfOutlineItem[]>([])
+  const [outlineStatus, setOutlineStatus] = useState<PdfOutlineStatus>('loading')
 
   const applyViewerBackground = useCallback((nextBackground: string | null) => {
     const viewer = viewerRef.current
@@ -210,13 +215,24 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
     focusContainer()
   }, [focusContainer])
 
+  const navigateToOutlineDestination = useCallback(
+    (destination: PdfDestination) => {
+      const linkService = linkServiceRef.current
+      if (!linkService) return
+
+      void linkService.goToDestination(destination).catch((error: unknown) => {
+        const normalized = error instanceof Error ? error : new Error(String(error))
+        logger.error(`Failed to navigate PDF outline: ${filePath}`, normalized)
+        toast.error(t('file_preview.pdf.navigation_error'))
+      })
+    },
+    [filePath, t]
+  )
+
   useEffect(() => {
     const pdfViewer = pdfViewerRef.current
     if (pdfViewer) {
-      pdfViewer.pageColors = {
-        ...(background ? { background } : {}),
-        foreground: PDF_PAGE_FOREGROUND
-      }
+      pdfViewer.pageColors = background ? { background } : null
     }
     applyViewerBackground(background)
   }, [applyViewerBackground, background])
@@ -268,6 +284,9 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
     setCurrentPage(0)
     setPageCount(0)
     setZoom(DEFAULT_ZOOM)
+    setIsOutlineOpen(false)
+    setOutlineItems([])
+    setOutlineStatus('loading')
 
     void (async () => {
       try {
@@ -302,6 +321,32 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
   }, [filePath, metadata.size, refreshKey])
 
   useEffect(() => {
+    if (!documentProxy) return
+
+    let cancelled = false
+    setOutlineItems([])
+    setOutlineStatus('loading')
+
+    void documentProxy
+      .getOutline()
+      .then((items) => {
+        if (cancelled) return
+        setOutlineItems((items ?? []) as PdfOutlineItem[])
+        setOutlineStatus('ready')
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        const normalized = error instanceof Error ? error : new Error(String(error))
+        logger.error(`Failed to load PDF outline: ${filePath}`, normalized)
+        setOutlineStatus('error')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [documentProxy, filePath])
+
+  useEffect(() => {
     const container = containerRef.current
     const viewerElement = viewerRef.current
     if (!documentProxy || !container || !viewerElement) return
@@ -319,10 +364,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
         linkService,
         abortSignal: viewerAbortController.signal,
         annotationMode: AnnotationMode.ENABLE,
-        pageColors: {
-          ...(backgroundRef.current ? { background: backgroundRef.current } : {}),
-          foreground: PDF_PAGE_FOREGROUND
-        },
+        ...(backgroundRef.current ? { pageColors: { background: backgroundRef.current } } : {}),
         supportsPinchToZoom: true
       }
       pdfViewer = new PDFViewer(viewerOptions)
@@ -432,6 +474,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
 
     try {
       pdfViewerRef.current = pdfViewer
+      linkServiceRef.current = linkService
       linkService.setViewer(pdfViewer)
       pdfViewer.setDocument(documentProxy)
       linkService.setDocument(documentProxy)
@@ -481,6 +524,9 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
       if (pdfViewerRef.current === pdfViewer) {
         pdfViewerRef.current = null
       }
+      if (linkServiceRef.current === linkService) {
+        linkServiceRef.current = null
+      }
     }
   }, [applyViewerBackground, documentProxy, filePath, focusContainer])
 
@@ -490,13 +536,16 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
     <FilePreviewLayout.Frame>
       <PdfFilePreviewToolbar
         currentPage={hasPages ? currentPage : 0}
+        isOutlineOpen={isOutlineOpen}
         pageCount={hasPages ? pageCount : 0}
         zoomLabel={formatZoom(zoom)}
+        onJumpToPage={jumpToPage}
         onPreviousPage={() => jumpToPage(currentPage - 1)}
         onNextPage={() => jumpToPage(currentPage + 1)}
         onZoomOut={() => zoomBy('out')}
         onZoomIn={() => zoomBy('in')}
         onResetZoom={resetZoom}
+        onToggleOutline={() => setIsOutlineOpen((open) => !open)}
       />
       <FilePreviewLayout.Content>
         <div
@@ -516,14 +565,21 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
             <PdfPreviewTooLarge filePath={filePath} />
           ) : (
             <>
-              <div
-                ref={containerRef}
-                data-testid="pdfjs-viewer-container"
-                role="region"
-                aria-label={fileName}
-                className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
-                tabIndex={0}>
-                <div ref={viewerRef} data-testid="pdfjs-viewer" className="pdfViewer" />
+              <div className="flex h-full min-h-0 w-full">
+                {isOutlineOpen ? (
+                  <PdfOutline items={outlineItems} status={outlineStatus} onNavigate={navigateToOutlineDestination} />
+                ) : null}
+                <div className="relative min-w-0 flex-1">
+                  <div
+                    ref={containerRef}
+                    data-testid="pdfjs-viewer-container"
+                    role="region"
+                    aria-label={fileName}
+                    className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+                    tabIndex={0}>
+                    <div ref={viewerRef} data-testid="pdfjs-viewer" className="pdfViewer selectable" />
+                  </div>
+                </div>
               </div>
               {status === 'loading' ? (
                 <div

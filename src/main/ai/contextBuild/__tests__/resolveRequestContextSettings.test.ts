@@ -22,6 +22,7 @@ const setPrefs = (
     maxMessages: number | null
     compressEnabled: boolean
     modelId: string | null
+    thresholdPercent: number
   }> = {}
 ) => {
   const map: Record<string, unknown> = {
@@ -31,7 +32,8 @@ const setPrefs = (
     // resolver an `undefined` no real request can produce.
     'chat.context_settings.max_messages': over.maxMessages ?? null,
     'chat.context_settings.compress.enabled': over.compressEnabled ?? true,
-    'chat.context_settings.compress.model_id': 'modelId' in over ? over.modelId : null
+    'chat.context_settings.compress.model_id': 'modelId' in over ? over.modelId : null,
+    'chat.context_settings.compress.threshold_percent': 'thresholdPercent' in over ? over.thresholdPercent : 80
   }
   mockPrefGet.mockImplementation((k: string) => map[k])
 }
@@ -126,5 +128,48 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
     setPrefs({ modelId: 'openai::global-compressor' })
     await resolveRequestContextSettings(model, { compress: { modelId: null } })
     expect(mockResolveCompressionModel).toHaveBeenCalledWith('openai::global-compressor')
+  })
+
+  it('reads the compaction trigger from the global preference, and lets an assistant override it', async () => {
+    setPrefs({ thresholdPercent: 60 })
+    const { contextSettings } = await resolveRequestContextSettings(model)
+    expect(contextSettings.compress.thresholdPercent).toBe(60)
+
+    const overridden = await resolveRequestContextSettings(model, { compress: { thresholdPercent: 95 } })
+    expect(overridden.contextSettings.compress.thresholdPercent).toBe(95)
+  })
+
+  // The generated preference schema carries no min/max, so a hand-edited config
+  // can park the trigger at 0 — which would fold on every step — or at NaN,
+  // which compares false against every estimate and folds forever.
+  it.each([
+    ['zero', 0, 20],
+    ['above 100', 250, 100],
+    ['not a number', Number.NaN, 80]
+  ])('clamps an out-of-range global trigger (%s)', async (_label, stored, expected) => {
+    setPrefs({ thresholdPercent: stored })
+    const { contextSettings } = await resolveRequestContextSettings(model)
+    expect(contextSettings.compress.thresholdPercent).toBe(expected)
+  })
+
+  // The assistant layer is a JSON settings column that production never
+  // `.parse()`s, so a migration artifact or a direct DB edit reaches the
+  // trigger unchecked — clamping the globals alone leaves this path open.
+  it.each([
+    ['zero', 0, 20],
+    ['above 100', 250, 100],
+    ['not a number', Number.NaN, 80]
+  ])('clamps an out-of-range assistant trigger (%s)', async (_label, stored, expected) => {
+    setPrefs({ thresholdPercent: 80 })
+    const { contextSettings } = await resolveRequestContextSettings(model, {
+      compress: { thresholdPercent: stored }
+    })
+    expect(contextSettings.compress.thresholdPercent).toBe(expected)
+  })
+
+  it('inherits the global trigger when the assistant stores none', async () => {
+    setPrefs({ thresholdPercent: 55 })
+    const { contextSettings } = await resolveRequestContextSettings(model, { compress: { enabled: true } })
+    expect(contextSettings.compress.thresholdPercent).toBe(55)
   })
 })

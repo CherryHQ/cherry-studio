@@ -25,7 +25,7 @@ async function transform(prompt: LanguageModelV3Prompt): Promise<LanguageModelV3
     params: { prompt } as any,
     model: {} as any
   })
-  return result.prompt as LanguageModelV3Prompt
+  return result.prompt
 }
 
 const model = (id: string): Model => ({ id, apiModelId: id, providerId: 'cherryin', name: id }) as Model
@@ -80,7 +80,7 @@ describe('deepseekResponsesReasoningReplay', () => {
       expect(assistant.content[1]).toEqual({ type: 'text', text: 'answer' })
     })
 
-    it('leaves reasoning parts with a native OpenAI round-trip alone', async () => {
+    it('tags item-backed reasoning for raw passback but preserves encrypted reasoning', async () => {
       const prompt: LanguageModelV3Prompt = [
         {
           role: 'assistant',
@@ -94,7 +94,7 @@ describe('deepseekResponsesReasoningReplay', () => {
       expect(result[0].content[0]).toEqual({
         type: 'reasoning',
         text: 'a',
-        providerOptions: { openai: { itemId: 'rs_1' } }
+        providerOptions: { openai: { itemId: 'rs_1', rawReasoningContent: true } }
       })
       expect(result[0].content[1]).toEqual({
         type: 'reasoning',

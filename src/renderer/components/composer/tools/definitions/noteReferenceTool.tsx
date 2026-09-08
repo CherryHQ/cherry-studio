@@ -1,10 +1,11 @@
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { projectNotesTree, resolveNotesPath } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import { FILE_TYPE } from '@renderer/types/file'
@@ -12,7 +13,7 @@ import type { NotesTreeNode } from '@renderer/types/note'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { NotebookPen } from 'lucide-react'
+import { NotebookPen, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 export const NOTE_REFERENCE_LAUNCHER_ID = 'note-reference'
@@ -61,6 +62,19 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
     if (!root || !resolvedNotesPath) return []
     return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
   }, [resolvedNotesPath, root, version])
+  const manageNotesAction = useMemo<ComposerToolFooterAction>(() => {
+    const label = t('chat.input.note_reference.manage')
+    return {
+      id: 'note-reference:manage',
+      panelSymbol: ComposerPanelSymbol.Notes,
+      order: 10,
+      label,
+      ariaLabel: label,
+      tooltip: label,
+      icon: <Settings2 />,
+      action: () => openRoute('/app/notes')
+    }
+  }, [t])
 
   const panelItems = useMemo<QuickPanelListItem[]>(() => {
     if (!dataRequested || (!resolvedNotesPath && !pathError) || isLoading) {
@@ -124,7 +138,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
   }, [isVisible, panelItems, symbol, updateList])
 
   const openNoteReferencePanel = useCallback<NonNullable<ComposerToolLauncher['action']>>(
-    ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+    ({ parentPanel, queryAnchor, quickPanel }) => {
       setDataRequested(true)
       setResolvedNotesPath(undefined)
       setPathError(null)
@@ -139,27 +153,31 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         symbol: ComposerPanelSymbol.Notes,
         parentPanel,
         queryAnchor,
-        triggerInfo: triggerInfo ?? { type: 'button' }
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true
       })
     },
     [notesPath, panelItems, t]
   )
 
   useEffect(() => {
-    return launcher.registerLaunchers([
-      {
-        id: NOTE_REFERENCE_LAUNCHER_ID,
-        kind: 'panel',
-        sources: ['root-panel'],
-        order: 60,
-        label: t('chat.input.note_reference.title'),
-        description: t('chat.input.note_reference.description'),
-        icon: <NotebookPen />,
-        panelSymbol: ComposerPanelSymbol.Notes,
-        action: openNoteReferencePanel
-      }
-    ])
-  }, [launcher, openNoteReferencePanel, t])
+    return launcher.registerLaunchers(
+      [
+        {
+          id: NOTE_REFERENCE_LAUNCHER_ID,
+          kind: 'panel',
+          sources: ['root-panel'],
+          order: 60,
+          label: t('chat.input.note_reference.title'),
+          description: t('chat.input.note_reference.description'),
+          icon: <NotebookPen />,
+          panelSymbol: ComposerPanelSymbol.Notes,
+          action: openNoteReferencePanel
+        }
+      ],
+      [manageNotesAction]
+    )
+  }, [launcher, manageNotesAction, openNoteReferencePanel, t])
 
   return null
 }
