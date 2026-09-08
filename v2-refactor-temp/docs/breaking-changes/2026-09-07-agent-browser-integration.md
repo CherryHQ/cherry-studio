@@ -2,7 +2,7 @@
 title: Agent browser control and browser data settings
 category: changed
 severity: notice
-introduced_in_pr: 20166
+introduced_in_pr: "#20166"
 date: 2026-09-07
 ---
 

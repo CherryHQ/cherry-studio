@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
-import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
+import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
 import { Mutex } from 'async-mutex'
 
 import { settleAction } from '../actions/settle'
@@ -39,7 +39,7 @@ export class AgentBrowserController extends BrowserPageController {
   }
 
   validateUrl(url: string): string {
-    return normalizeBrowserUrl(url)
+    return normalizeBrowserEntryUrl(url)
   }
 
   async getSession(privateMode = false, tabId?: string) {
@@ -133,15 +133,6 @@ export class AgentBrowserController extends BrowserPageController {
     return target
       ? [{ tabId: target.tabId, url: sanitizeSnapshotUrl(target.guest.getURL()), title: target.guest.getTitle() }]
       : []
-  }
-  async switchTab(): Promise<void> {
-    throw new BrowserSessionError('not_allowed')
-  }
-  async closeTab(): Promise<void> {
-    throw new BrowserSessionError('not_allowed')
-  }
-  async reset(): Promise<void> {
-    throw new BrowserSessionError('not_allowed')
   }
   dispose(): Promise<void> {
     this.abort.abort(new BrowserSessionError('debugger_unavailable'))

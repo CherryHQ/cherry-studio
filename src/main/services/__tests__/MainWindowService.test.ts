@@ -418,9 +418,21 @@ describe('MainWindowService', () => {
       )
       expect(shell.openExternal).not.toHaveBeenCalled()
       vi.mocked(navigation.showMainWindow).mockClear()
-      for (const invalid of ['javascript:alert(1)', 'file:///tmp/index.html', 'https://user:pass@example.com'])
+      for (const invalid of ['javascript:alert(1)', 'https://user:pass@example.com'])
         expect(() => svc.openBrowserTab(invalid)).toThrow('Unsupported browser URL')
       expect(navigation.showMainWindow).not.toHaveBeenCalled()
+    })
+    it('opens an explicit local HTML URL in a browser tab', () => {
+      const url = 'file:///tmp/local%20page.html'
+      svc.openBrowserTab(url)
+      const navigation = createMockApplication().get('MainWindowService') as MainWindowService
+      expect(navigation.showMainWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'tab-attach',
+          tab: expect.objectContaining({ url: `/app/browser?${new URLSearchParams({ url })}` })
+        })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
     })
     it('uses the system browser by default', async () => {
       await svc.openWebsite('https://example.com')

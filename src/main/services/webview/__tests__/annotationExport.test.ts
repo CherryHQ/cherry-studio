@@ -17,6 +17,7 @@ vi.mock('@application', async () => {
 import { exportAnnotationDocument } from '../annotationExport'
 
 interface MockGuest extends EventEmitter {
+  session: EventEmitter
   id: number
   debugger: EventEmitter & {
     attach: ReturnType<typeof vi.fn>
@@ -43,6 +44,7 @@ function createGuest(
   let attached = false
   return Object.assign(new EventEmitter(), {
     id: 7,
+    session: new EventEmitter(),
     debugger: Object.assign(new EventEmitter(), {
       attach: vi.fn(() => {
         attached = true

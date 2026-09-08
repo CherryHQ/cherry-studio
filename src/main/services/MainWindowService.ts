@@ -21,7 +21,7 @@ import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
-import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
+import { normalizeBrowserEntryUrl, normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -528,7 +528,7 @@ export class MainWindowService extends BaseService {
   }
 
   openBrowserTab(url: string): void {
-    const normalized = normalizeBrowserUrl(url)
+    const normalized = normalizeBrowserEntryUrl(url)
     openTabInMainWindow({
       id: randomUUID(),
       type: 'route',

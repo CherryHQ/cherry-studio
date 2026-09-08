@@ -117,8 +117,13 @@ export class AgentBrowserRegistry implements Disposable {
   async reveal(context: AgentBrowserContext, signal: AbortSignal, url?: string): Promise<AgentBrowserTarget> {
     signal.throwIfAborted()
     const existing = this.get(context)
-    const ordinary = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
-    if (existing && (!url || existing.guest.session === ordinary)) {
+    const isFile = url?.startsWith('file:')
+    const expectedSession = session.fromPartition(
+      getWebviewPartition(isFile ? WebviewSecurityProfile.AgentHtmlArtifact : WebviewSecurityProfile.AgentBrowser)
+    )
+    const matches = (target: AgentBrowserTarget) =>
+      !url || (target.guest.session === expectedSession && (!isFile || target.guest.getURL() === url))
+    if (existing && matches(existing)) {
       application
         .get('IpcApiService')
         .send(existing.windowId, 'browser.pane.open_requested', { sessionId: context.sessionId })
@@ -138,7 +143,7 @@ export class AgentBrowserRegistry implements Disposable {
       const subscription = this.changed.event(() => {
         try {
           const target = this.get(context)
-          if (target && (!url || target.guest.session === ordinary)) {
+          if (target && matches(target)) {
             cleanup()
             resolve(target)
           }
@@ -152,7 +157,7 @@ export class AgentBrowserRegistry implements Disposable {
         abort.throwIfAborted()
         application.get('IpcApiService').broadcast('browser.pane.open_requested', {
           sessionId: context.sessionId,
-          url: url ? 'about:blank' : undefined
+          url: isFile ? url : url ? 'about:blank' : undefined
         })
       } catch (error) {
         cleanup()

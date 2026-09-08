@@ -101,3 +101,9 @@ Navigation/disposal aborts captures;
 Firefox `favicons.sqlite` imports populate the same cache for up to 256 recent history origins.
 History rendering reads local data URLs, never a third-party favicon service. Clearing history
 also clears these cached images; uncached or failed images fall back to the globe icon.
+
+Explicit `file://` HTML entries, including address-bar and Agent opens, use the isolated
+`agent-html-artifact` profile. They can execute page scripts and load relative resources
+within the opened file's directory. Opening a different file establishes a fresh guest
+and directory authorization. Ordinary HTTP(S) guests cannot navigate into local files;
+the artifact policy also rejects directory escapes and symlink escapes.

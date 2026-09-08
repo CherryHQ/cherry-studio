@@ -89,6 +89,27 @@ describe('Agent browser authority and control lifetime', () => {
     vi.restoreAllMocks()
   })
 
+  it('reveals an explicitly requested HTML file in the artifact profile', async () => {
+    service.agentBrowser.attach(sessionId, 1, windowId)
+    const url = 'file:///workspace/local%20page.html'
+    expect(controller.validateUrl(url)).toBe(url)
+    const pending = service.agentBrowser.reveal({ agentId, sessionId }, new AbortController().signal, url)
+    expect(application.get('IpcApiService').broadcast).toHaveBeenLastCalledWith('browser.pane.open_requested', {
+      sessionId,
+      url
+    })
+    const artifact = createGuest(2)
+    Object.assign(artifact.mock, {
+      getType: () => 'webview',
+      hostWebContents: host,
+      session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
+    })
+    artifact.mock.getURL.mockReturnValue(url)
+    vi.mocked(webContents.fromId).mockReturnValue(artifact.guest)
+    service.agentBrowser.attach(sessionId, 2, windowId)
+    expect((await pending).guest).toBe(artifact.guest)
+  })
+
   it('revokes control after the built-in tool is disabled without closing the page', async () => {
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
     expect((await controller.getSession(false, tabId)).session.guest).toBe(fixture.guest)

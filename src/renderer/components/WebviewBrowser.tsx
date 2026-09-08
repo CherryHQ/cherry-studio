@@ -41,13 +41,13 @@ interface Props {
 
 /** A shared browser surface for Agent previews and explicitly opened HTML artifacts. */
 export function WebviewBrowser({
-  initialUrl,
+  initialUrl: sourceUrl,
   agentSessionId,
   onNavigate,
   onUrlChange,
   onTitleChange,
   onFaviconChange,
-  securityProfile,
+  securityProfile: sourceProfile,
   target,
   isHostActive,
   reloadKey,
@@ -55,6 +55,25 @@ export function WebviewBrowser({
   onAnnotationSaved
 }: Props) {
   const { t } = useTranslation()
+  const [navigation, setNavigation] = useState<{
+    sourceUrl: string
+    sourceProfile: Props['securityProfile']
+    url: string
+  }>()
+  const hasNavigation = navigation?.sourceUrl === sourceUrl && navigation.sourceProfile === sourceProfile
+  const initialUrl = hasNavigation ? navigation.url : sourceUrl
+  const securityProfile = initialUrl.startsWith('file:')
+    ? WebviewSecurityProfile.AgentHtmlArtifact
+    : hasNavigation
+      ? WebviewSecurityProfile.AgentBrowser
+      : sourceProfile
+  const handleNavigate = useCallback(
+    (url: string) => {
+      if (onNavigate) onNavigate(url)
+      else setNavigation({ sourceUrl, sourceProfile, url })
+    },
+    [onNavigate, sourceUrl, sourceProfile]
+  )
   const webviewRef = useRef<WebviewTag | null>(null)
   const [webviewRevision, setWebviewRevision] = useState(0)
   useAgentBrowserGuest(agentSessionId, webviewRef.current, webviewRevision)
@@ -141,7 +160,7 @@ export function WebviewBrowser({
         initialUrl={initialUrl}
         pageTitle={pageTitle}
         historyEnabled={securityProfile === WebviewSecurityProfile.AgentBrowser}
-        onNavigate={onNavigate}
+        onNavigate={handleNavigate}
         isWebviewReady={isReady}
         isHostActive={isHostActive}
         target={target}

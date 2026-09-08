@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { BrowserSessionError } from '../../session/BrowserSessionError'
 import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
@@ -43,6 +44,7 @@ export const switchTabToolDefinition = {
 export async function handleSwitchTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = SwitchTabSchema.parse(args)
+    if (!controller.switchTab) throw new BrowserSessionError('not_allowed')
     await controller.switchTab(privateMode ?? false, tabId)
     return successResponse(JSON.stringify({ switched: tabId }))
   } catch (error) {
@@ -67,6 +69,7 @@ export const closeTabToolDefinition = {
 export async function handleCloseTab(controller: BrowserController, args: unknown) {
   try {
     const { tabId, privateMode } = CloseTabSchema.parse(args)
+    if (!controller.closeTab) throw new BrowserSessionError('not_allowed')
     await controller.closeTab(privateMode ?? false, tabId)
     return successResponse(JSON.stringify({ closed: tabId }))
   } catch (error) {

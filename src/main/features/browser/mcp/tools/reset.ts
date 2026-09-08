@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import { BrowserSessionError } from '../../session/BrowserSessionError'
 import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
@@ -21,6 +22,7 @@ export const resetToolDefinition = {
 export async function handleReset(controller: BrowserController, args: unknown) {
   try {
     const { privateMode, tabId } = ResetSchema.parse(args)
+    if (!controller.reset) throw new BrowserSessionError('not_allowed')
     await controller.reset(privateMode, tabId)
     return successResponse('reset')
   } catch (error) {

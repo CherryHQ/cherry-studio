@@ -25,9 +25,12 @@ export function BrowserPage({ initialUrl }: { initialUrl: string }) {
   return (
     <WebviewBrowser
       initialUrl={initialUrl}
-      securityProfile={WebviewSecurityProfile.AgentBrowser}
+      securityProfile={
+        initialUrl.startsWith('file:') ? WebviewSecurityProfile.AgentHtmlArtifact : WebviewSecurityProfile.AgentBrowser
+      }
       target={{ id: `browser:${tab?.id ?? id}`, label: t('settings.browser.title') }}
       isHostActive={isActive}
+      onNavigate={handleUrlChange}
       onUrlChange={handleUrlChange}
       onTitleChange={setTitle}
       onFaviconChange={setFavicon}

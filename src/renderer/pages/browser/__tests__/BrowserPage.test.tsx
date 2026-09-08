@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -128,4 +128,18 @@ describe('Browser tab metadata', () => {
       icon: undefined
     })
   })
+})
+
+it('opens a typed local HTML URL in a new artifact guest and persists the route', async () => {
+  const view = openBrowser('/app/browser?url=https://first.test')
+  const oldGuest = await screen.findByTestId('webview-browser-guest')
+  const address = screen.getByRole('combobox')
+  fireEvent.focus(address)
+  fireEvent.change(address, { target: { value: 'file:///tmp/local%20page.html' } })
+  fireEvent.submit(address.closest('form')!)
+  await waitFor(() => expect(view.router.state.location.search).toEqual({ url: 'file:///tmp/local%20page.html' }))
+  const guest = screen.getByTestId('webview-browser-guest')
+  expect(guest).not.toBe(oldGuest)
+  expect(guest).toHaveAttribute('partition', 'agent-html-artifact')
+  expect(guest).toHaveAttribute('src', 'file:///tmp/local%20page.html')
 })

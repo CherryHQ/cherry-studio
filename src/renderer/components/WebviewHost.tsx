@@ -54,7 +54,7 @@ export function WebviewHost({
   securityProfile,
   reloadKey,
   allowPopups = false,
-  openLinksExternal = true,
+  openLinksExternal,
   userAgent,
   className,
   style,
@@ -109,9 +109,11 @@ export function WebviewHost({
         void ipcApi
           .request('webview.set_spell_check_enabled', { webviewId, isEnable: enableSpellCheck })
           .catch((error) => logger.debug('Failed to update WebView spell check', { id, error }))
-        void ipcApi
-          .request('webview.set_open_link_external', { webviewId, isExternal: openLinksExternal })
-          .catch((error) => logger.debug('Failed to update WebView link handling', { id, error }))
+        if (openLinksExternal !== undefined) {
+          void ipcApi
+            .request('webview.set_open_link_external', { webviewId, isExternal: openLinksExternal })
+            .catch((error) => logger.debug('Failed to update WebView link handling', { id, error }))
+        }
       } catch (error) {
         logger.debug('WebView is not ready for guest preferences', { id, error })
       }
