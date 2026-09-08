@@ -322,6 +322,60 @@ describe('agentSessionRuntimeState', () => {
     expect(flushed.effects).toEqual([{ type: 'deliver-buffer', turn: admitted, chunks: [reply] }])
   })
 
+  it('keeps a deferred admitted turn admitted when the receive-only placeholder is abandoned', () => {
+    // startReceiveOnlyTurn abandons the autonomous turn when its placeholder save fails; restoring
+    // the host turn as `pending` would re-send a prompt dsh already accepted.
+    const admitted = turn('user')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(admitted)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: admitted }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: admitted }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'goal-round', round: 1 },
+      deferCurrentTurn: true
+    }).state
+
+    const restored = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-abandoned' })
+    expect(restored.state.execution).toEqual({
+      kind: 'turn',
+      turn: admitted,
+      stream: 'unopened',
+      admission: 'admitted'
+    })
+  })
+
+  it('routes the host reply to the deferred turn once the receive-only generation released ownership', () => {
+    // The reply can arrive before the receive-only stream is ever created; it must not be attributed
+    // to the autonomous message's buffer (nor dropped once that turn is terminal).
+    const admitted = turn('user')
+    const receiveOnly = turn('wake')
+    let state = createAgentSessionRuntimeState<Turn, PendingTurn, Reservation>(admitted)
+    state = transitionAgentSessionRuntime(state, { type: 'turn-stream-opened', turn: admitted }).state
+    state = transitionAgentSessionRuntime(state, { type: 'turn-admitted', turn: admitted }).state
+    state = transitionAgentSessionRuntime(state, {
+      type: 'autonomous-turn-state',
+      state: 'started',
+      origin: { kind: 'goal-round', round: 1 },
+      deferCurrentTurn: true
+    }).state
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-created', turn: receiveOnly }).state
+    const roundChunk = { type: 'text-delta', id: 'round', delta: 'A' } as const
+    state = transitionAgentSessionRuntime(state, { type: 'buffer-chunk', chunk: roundChunk }).state
+    state = transitionAgentSessionRuntime(state, { type: 'autonomous-turn-state', state: 'finished' }).state
+    const reply = { type: 'text-delta', id: 'reply', delta: '我很好' } as const
+    state = transitionAgentSessionRuntime(state, { type: 'buffer-chunk', chunk: reply }).state
+    state = transitionAgentSessionRuntime(state, { type: 'runtime-terminal', outcome: { status: 'success' } }).state
+    const late = { type: 'text-delta', id: 'reply', delta: '。' } as const
+    state = transitionAgentSessionRuntime(state, { type: 'buffer-chunk', chunk: late }).state
+
+    expect(state.execution).toMatchObject({
+      kind: 'autonomous-turn',
+      buffer: [roundChunk],
+      deferredBuffer: [reply, late]
+    })
+  })
+
   it('does not replace a running receive-only launch while restoring its deferred turn', () => {
     const deferred = turn('user')
     const receiveOnly = turn('wake')

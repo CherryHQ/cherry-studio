@@ -336,7 +336,9 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
                 kind: 'turn',
                 turn: state.execution.deferredTurn,
                 stream: 'unopened',
-                admission: 'pending'
+                // An admitted prompt must not be re-sent because the receive-only placeholder failed.
+                admission: state.execution.deferredAdmission ?? 'pending',
+                ...(state.execution.deferredBuffer?.length ? { buffer: state.execution.deferredBuffer } : {})
               }
             : { kind: 'idle', ...(state.execution.contextTurn ? { lastTurn: state.execution.contextTurn } : {}) }
         },
@@ -390,8 +392,13 @@ export function transitionAgentSessionRuntime<TTurn, TPendingTurn, TReservation>
           effects: []
         }
       }
-      // A receive-only generation has ended; anything after it belongs to the deferred admitted turn.
-      if (execution.kind === 'autonomous-turn' && execution.deferredTurn && execution.stream !== 'unopened') {
+      // The receive-only generation has released ownership (or ended): anything after it belongs to
+      // the deferred admitted turn, even if the receive-only stream itself was never created.
+      if (
+        execution.kind === 'autonomous-turn' &&
+        execution.deferredTurn &&
+        (execution.ownership === 'released' || execution.terminal !== undefined || execution.stream !== 'unopened')
+      ) {
         return {
           state: {
             ...state,
