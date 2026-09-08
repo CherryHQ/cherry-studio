@@ -15,8 +15,6 @@ export const DEFAULT_MAX_TOKENS = 8192
  * lane re-folded an already-folded prompt on every step. 0.375 keeps the
  * default 80% trigger at exactly the 0.3×window budget this replaces.
  */
-export const CONTEXT_COMPACT_TRIGGER_RATIO = 0.8
-export const CONTEXT_COMPACT_KEEP_BUDGET_RATIO = 0.3
 export const CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER = 0.375
 
 /**
