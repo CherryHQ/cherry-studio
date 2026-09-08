@@ -2,14 +2,13 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import {
-  createUniqueModelId,
   isUniqueModelId,
   type Model as SharedModel,
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
 import { hasClearContextPart } from '@shared/data/types/uiParts'
-import { resolveUniqueModelIds } from '@shared/utils/model'
+import { resolveUniqueModelId, resolveUniqueModelIds } from '@shared/utils/model'
 import { isToolUIPart } from 'ai'
 
 import type { MessageListItem } from '../types'
@@ -39,8 +38,7 @@ export function toMessageListItem(message: CherryUIMessage, ctx: MessageListItem
     model = { id: modelId, name: modelId, provider: providerId }
   }
   const modelId =
-    metadata.modelId ??
-    (message.role === 'assistant' && model ? createUniqueModelId(model.provider, model.id) : undefined)
+    metadata.modelId ?? (message.role === 'assistant' && model ? resolveUniqueModelId(undefined, model) : undefined)
 
   return {
     id: message.id,

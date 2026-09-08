@@ -62,6 +62,29 @@ describe('toMessageListItem', () => {
     expect(item.modelId).toBeUndefined()
   })
 
+  it('keeps a snapshot-backed message renderable when its model identity is malformed', () => {
+    const message = {
+      id: 'm3',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        status: 'success',
+        modelId: null,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'model?version', name: 'Legacy Model', provider: 'provider-a' }
+        }
+      }
+    } as CherryUIMessage
+
+    const item = toMessageListItem(message, { topicId: 'topic-1' })
+
+    expect(item.model).toEqual({ id: 'model?version', name: 'Legacy Model', provider: 'provider-a' })
+    expect(item.modelId).toBeUndefined()
+    expect(item.persistedModelId).toBeNull()
+  })
+
   it('projects a clear-context marker for the divider renderer', () => {
     const message = {
       id: 'clear-1',
