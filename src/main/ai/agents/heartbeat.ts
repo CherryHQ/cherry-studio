@@ -1,4 +1,4 @@
-import { open, readFile } from 'node:fs/promises'
+import { mkdir, open, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -62,15 +62,31 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
 export async function ensureHeartbeatFile(workspacePath: string): Promise<void> {
   const resolved = path.resolve(workspacePath, HEARTBEAT_FILENAME)
   try {
-    const handle = await open(resolved, 'wx', 0o600)
-    try {
-      await handle.writeFile(HEARTBEAT_TEMPLATE, 'utf-8')
-    } finally {
-      await handle.close()
-    }
+    await writeTemplate(resolved)
     logger.info(`Provisioned heartbeat file: ${resolved}`)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') return
+    // Missing workspace directory (migrated/corrupted install or manual deletion): create it and retry once.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      await mkdir(path.dirname(resolved), { recursive: true })
+      try {
+        await writeTemplate(resolved)
+        logger.info(`Provisioned heartbeat file after recreating workspace: ${resolved}`)
+      } catch (retryError) {
+        if ((retryError as NodeJS.ErrnoException).code === 'EEXIST') return
+        throw retryError
+      }
+      return
+    }
     throw error
+  }
+}
+
+async function writeTemplate(resolved: string): Promise<void> {
+  const handle = await open(resolved, 'wx', 0o600)
+  try {
+    await handle.writeFile(HEARTBEAT_TEMPLATE, 'utf-8')
+  } finally {
+    await handle.close()
   }
 }

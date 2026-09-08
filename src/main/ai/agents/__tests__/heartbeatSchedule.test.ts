@@ -178,6 +178,18 @@ describe('heartbeatSchedule', () => {
     expect(content).toBe('- real checklist\n')
   })
 
+  it('recreates a missing agent data directory and still seeds heartbeat.md', async () => {
+    seedAgent(AGENT_ID)
+    // Simulate a migrated/corrupted install: the row exists but the directory is gone.
+    rmSync(path.join(agentsRoot, AGENT_ID), { recursive: true, force: true })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('created')
+    const seeded = await readFile(path.join(agentsRoot, AGENT_ID, 'heartbeat.md'), 'utf-8')
+    expect(seeded).toContain('<!--')
+  })
+
   it('is idempotent — a second sync is a no-op', async () => {
     seedAgent(AGENT_ID)
 
