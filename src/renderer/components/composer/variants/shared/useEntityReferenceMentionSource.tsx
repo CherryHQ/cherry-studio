@@ -12,6 +12,7 @@ import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../qui
 import {
   AGENT_REFERENCE_PREVIEW_MAX_CHARS,
   buildAgentSessionReferencePointer,
+  type EntityReferenceTarget,
   fetchEntityReferencePromptText,
   fitEntityReferencePromptText
 } from './entityReferenceContext'
