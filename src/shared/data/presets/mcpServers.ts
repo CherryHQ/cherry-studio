@@ -1,21 +1,28 @@
 /**
  * Builtin (preset) MCP server definitions
  *
- * Single source of truth for the built-in MCP servers: the renderer lists them for install,
- * and `BuiltinMcpServerSeeder` reconciles already-installed rows against them.
+ * Single source of truth for user-installable built-in MCP servers.
  *
  * Note: The `hub` server (@cherry/hub) is intentionally excluded because:
  * - It's a meta-server that aggregates all other MCP servers
  * - It's designed for LLM code mode, not direct user interaction
  * - It should be auto-enabled internally when needed, not manually installed
  */
-import type { McpServer } from '@shared/data/types/mcpServer'
+import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServerType } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
-/** A builtin server as declared in code; the `id` is assigned by the database on install. */
-export type McpServerPreset = Omit<McpServer, 'id' | 'name'> & { name: BuiltinMcpServerName }
+/** A builtin server as declared in code; database identity and timestamps are assigned on install. */
+export type McpServerPreset = Readonly<
+  Omit<CreateMcpServerDto, 'name' | 'sortOrder' | 'installedAt' | 'trustedAt'> & {
+    name: BuiltinMcpServerName
+    type: McpServerType
+    installSource: 'builtin'
+    isTrusted: true
+  }
+>
 
-/** Frozen because both the renderer catalog and the seeder read these objects live. */
+/** Frozen because renderer consumers read these objects live. */
 const freezePresets = (presets: McpServerPreset[]): readonly Readonly<McpServerPreset>[] =>
   Object.freeze(
     presets.map((preset) => {
@@ -69,7 +76,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   {
     name: BuiltinMcpServerNames.memory,
     reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
-    type: 'inMemory',
+    type: 'inProcess',
     isActive: true,
     env: {
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
@@ -81,7 +88,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.sequentialThinking,
-    type: 'inMemory',
+    type: 'inProcess',
     isActive: true,
     provider: 'CherryAI',
     installSource: 'builtin',
@@ -89,7 +96,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.braveSearch,
-    type: 'inMemory',
+    type: 'inProcess',
     isActive: false,
     env: {
       BRAVE_API_KEY: 'YOUR_API_KEY'
@@ -101,7 +108,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.fetch,
-    type: 'inMemory',
+    type: 'inProcess',
     isActive: true,
     provider: 'CherryAI',
     installSource: 'builtin',
@@ -109,7 +116,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.filesystem,
-    type: 'inMemory',
+    type: 'inProcess',
     args: ['/Users/username/Desktop'],
     disabledAutoApproveTools: [...filesystemManualApprovalTools],
     shouldConfig: true,
@@ -120,7 +127,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.difyKnowledge,
-    type: 'inMemory',
+    type: 'inProcess',
     isActive: false,
     env: {
       DIFY_KEY: 'YOUR_DIFY_KEY'
@@ -132,7 +139,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.python,
-    type: 'inMemory',
+    type: 'inProcess',
     isActive: false,
     provider: 'CherryAI',
     installSource: 'builtin',
@@ -141,7 +148,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   {
     name: BuiltinMcpServerNames.didiMcp,
     reference: 'https://mcp.didichuxing.com/',
-    type: 'inMemory',
+    type: 'inProcess',
     isActive: false,
     env: {
       DIDI_API_KEY: 'YOUR_DIDI_API_KEY'
@@ -153,7 +160,7 @@ export const PRESET_MCP_SERVERS = freezePresets([
   },
   {
     name: BuiltinMcpServerNames.browser,
-    type: 'inMemory',
+    type: 'inProcess',
     isActive: false,
     provider: 'CherryAI',
     installSource: 'builtin',
@@ -171,3 +178,73 @@ export const PRESET_MCP_SERVERS = freezePresets([
     isTrusted: true
   }
 ])
+
+const MCP_SERVER_PRESET_BY_NAME: ReadonlyMap<BuiltinMcpServerName, Readonly<McpServerPreset>> = new Map(
+  PRESET_MCP_SERVERS.map((preset) => [preset.name, preset])
+)
+
+export const getMcpServerPreset = (name: unknown): Readonly<McpServerPreset> | undefined => {
+  return typeof name === 'string' ? MCP_SERVER_PRESET_BY_NAME.get(name as BuiltinMcpServerName) : undefined
+}
+
+export interface McpServerConnectionDraft {
+  name?: unknown
+  type?: unknown
+  baseUrl?: unknown
+  command?: unknown
+  installSource?: unknown
+}
+
+export interface McpServerConnectionResolution {
+  type: McpServerType | null
+  preset?: Readonly<McpServerPreset>
+  disable: boolean
+  warning?: string
+}
+
+/** Normalizes v1 connection labels without admitting `inMemory` into the v2 entity model. */
+export function resolveMcpServerConnection(draft: McpServerConnectionDraft): McpServerConnectionResolution {
+  const preset = getMcpServerPreset(draft.name)
+  const type = typeof draft.type === 'string' ? draft.type : undefined
+  const hasCommand = typeof draft.command === 'string' && draft.command.trim().length > 0
+  const hasBaseUrl = typeof draft.baseUrl === 'string' && draft.baseUrl.trim().length > 0
+
+  if (
+    preset &&
+    (type === 'inMemory' ||
+      type === 'inProcess' ||
+      (type === undefined && draft.installSource === 'builtin' && !hasCommand && !hasBaseUrl))
+  ) {
+    return { type: preset.type, preset, disable: false }
+  }
+
+  if (type === 'inMemory' || type === 'inProcess') {
+    if (hasCommand) return { type: 'stdio', disable: false }
+    if (hasBaseUrl) {
+      return {
+        type: (draft.baseUrl as string).endsWith('/mcp') ? 'streamableHttp' : 'sse',
+        disable: false
+      }
+    }
+    return {
+      type: null,
+      disable: true,
+      warning: `Disabled unknown legacy ${type} MCP server: ${String(draft.name ?? 'unknown')}`
+    }
+  }
+
+  if (type === 'stdio' || type === 'sse' || type === 'streamableHttp') {
+    return { type, disable: false }
+  }
+  if (type?.includes('http')) return { type: 'streamableHttp', disable: false }
+  if (type === undefined) {
+    if (hasCommand) return { type: 'stdio', disable: false }
+    if (hasBaseUrl) {
+      return {
+        type: (draft.baseUrl as string).endsWith('/mcp') ? 'streamableHttp' : 'sse',
+        disable: false
+      }
+    }
+  }
+  return { type: null, disable: false }
+}

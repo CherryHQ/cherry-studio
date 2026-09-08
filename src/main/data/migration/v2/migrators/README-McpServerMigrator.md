@@ -22,7 +22,7 @@ Migrates MCP server configurations from Redux to SQLite.
 
 | Source | Reason | V2 Target |
 |--------|--------|-----------|
-| Dexie `mcp:provider:*:servers` | Re-fetched from provider API | Handled in separate PR |
+| Dexie `mcp:provider:*:servers` | Re-fetched from provider API | Renderer persist cache `feature.mcp.provider_available_servers` |
 
 ## Field Mappings
 
@@ -32,7 +32,7 @@ All McpServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property
 |---|---|---|
 | `id` | `id` | Direct (PK) |
 | `name` | `name` | Uses source `name`; falls back to the generated `id` when missing/empty/whitespace-only |
-| `type` | `type` | Nullable passthrough |
+| `type` | `type` | Normalize legacy aliases; known `inMemory` builtins become their real `inProcess` / HTTP / stdio connection type |
 | `description` | `description` | Nullable passthrough |
 | `baseUrl` / `url` | `baseUrl` | Falls back from `url` if `baseUrl` is absent (legacy SSE servers) |
 | `command` | `command` | Nullable passthrough |
@@ -67,6 +67,7 @@ All McpServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property
 - **Missing/empty/whitespace-only `name`**: Uses the generated `id` as the migrated name
 - **Duplicate `id`**: Second occurrence is skipped, first is kept
 - **Missing `isActive`**: Defaults to `false`
+- **Unknown `inMemory` / `inProcess` without an endpoint**: Preserve the row as disabled with a null type and emit a migration warning
 - **`undefined`/`null` optional fields**: Stored as `null` in SQLite
 
 ## Execution Order

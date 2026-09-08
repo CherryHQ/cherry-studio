@@ -7,6 +7,7 @@
 
 import * as z from 'zod'
 
+import { isBuiltinMcpServerName } from '../../../utils/mcp'
 import { type McpServer, McpServerSchema, McpServerTypeSchema } from '../../types/mcpServer'
 import type { OffsetPaginationResponse } from '../types'
 
@@ -53,13 +54,25 @@ const MCP_SERVER_MUTABLE_FIELDS = {
  * - `id` is excluded (auto-generated UUID by database)
  * - All other fields are optional
  */
-export const CreateMcpServerSchema = McpServerSchema.pick(MCP_SERVER_MUTABLE_FIELDS).partial().required({ name: true })
+const MutableMcpServerSchema = McpServerSchema.pick(MCP_SERVER_MUTABLE_FIELDS)
+
+export const CreateMcpServerSchema = MutableMcpServerSchema.partial()
+  .required({ name: true })
+  .superRefine((server, ctx) => {
+    if (server.type === 'inProcess' && !isBuiltinMcpServerName(server.name)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['type'],
+        message: 'inProcess type is only valid for a known built-in MCP server'
+      })
+    }
+  })
 export type CreateMcpServerDto = z.infer<typeof CreateMcpServerSchema>
 
 /**
- * DTO for updating an existing MCP server. All fields optional, chain-derived from Create.
+ * DTO for updating an existing MCP server. All fields optional.
  */
-export const UpdateMcpServerSchema = CreateMcpServerSchema.partial()
+export const UpdateMcpServerSchema = MutableMcpServerSchema.partial()
 export type UpdateMcpServerDto = z.infer<typeof UpdateMcpServerSchema>
 
 /**

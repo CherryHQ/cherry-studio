@@ -67,7 +67,7 @@ describe('McpServerMappings', () => {
 
       const result = transformMcpServer({ id: 'srv-1', ...fields }, 0)
       expect(result.oldId).toBe('srv-1')
-      expect(result.row).toStrictEqual(expect.objectContaining({ ...fields, sortOrder: 0 }))
+      expect(result.row).toStrictEqual(expect.objectContaining({ ...fields, type: 'inProcess', sortOrder: 0 }))
       // New ID is a UUID, different from the old one
       expect(result.row.id).toBeDefined()
       expect(result.row.id).not.toBe('srv-1')
@@ -204,7 +204,6 @@ describe('McpServerMappings', () => {
         ['stdio', 'stdio'],
         ['sse', 'sse'],
         ['streamableHttp', 'streamableHttp'],
-        ['inMemory', 'inMemory'],
         // v1 briefly allowed these literals before collapsing them into streamableHttp
         ['http', 'streamableHttp'],
         ['streamable_http', 'streamableHttp'],
@@ -217,6 +216,66 @@ describe('McpServerMappings', () => {
       ])('maps legacy type %j to %j', (input, expected) => {
         const result = transformMcpServer({ id: 'srv-legacy', name: 'legacy', isActive: false, type: input }, 0)
         expect(result.row.type).toBe(expected)
+      })
+
+      it('maps a known builtin inMemory server to its v2 in-process type', () => {
+        const result = transformMcpServer(
+          {
+            id: 'srv-fetch',
+            name: '@cherry/fetch',
+            type: 'inMemory',
+            isActive: true,
+            installSource: 'builtin'
+          },
+          0
+        )
+
+        expect(result.row.type).toBe('inProcess')
+        expect(result.warning).toBeUndefined()
+      })
+
+      it('maps external builtin servers to their canonical transport', () => {
+        const result = transformMcpServer(
+          {
+            id: 'srv-flomo',
+            name: '@cherry/flomo',
+            type: 'inMemory',
+            headers: { Authorization: 'Bearer token' },
+            isActive: false,
+            installSource: 'builtin'
+          },
+          0
+        )
+
+        expect(result.row).toMatchObject({
+          type: 'streamableHttp',
+          baseUrl: 'https://flomoapp.com/mcp',
+          headers: { Authorization: 'Bearer token', APP: 'Cherry Studio' }
+        })
+      })
+
+      it('disables an unknown inMemory server without dropping its row', () => {
+        const result = transformMcpServer({ id: 'srv-unknown', name: 'unknown', type: 'inMemory', isActive: true }, 0)
+
+        expect(result.row.type).toBeNull()
+        expect(result.row.isActive).toBe(false)
+        expect(result.warning).toContain('Disabled unknown legacy inMemory MCP server')
+      })
+
+      it('infers missing connection types from command and URL', () => {
+        expect(
+          transformMcpServer({ id: 'srv-command', name: 'command', command: 'npx', isActive: false }, 0).row.type
+        ).toBe('stdio')
+        expect(
+          transformMcpServer(
+            { id: 'srv-modern', name: 'modern', baseUrl: 'https://example.com/mcp', isActive: false },
+            0
+          ).row.type
+        ).toBe('streamableHttp')
+        expect(
+          transformMcpServer({ id: 'srv-sse', name: 'sse', baseUrl: 'https://example.com/sse', isActive: false }, 0).row
+            .type
+        ).toBe('sse')
       })
 
       it('maps missing type to null', () => {

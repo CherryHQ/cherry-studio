@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { Server } from '@modelcontextprotocol/server'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { type BuiltinMcpServerName, BuiltinMcpServerNames, isBuiltinMcpServerName } from '@shared/utils/mcp'
+import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import BraveSearchServer from './braveSearch'
 import { BrowserServer } from './browser'
@@ -26,34 +26,13 @@ const statelessEndpoint = (createServer: () => Server): BuiltinMcpEndpoint => ({
 })
 
 export function resolveBuiltinExternalMcpServer(server: McpServer): McpServer {
-  if (!isBuiltinMcpServerName(server.name)) return server
+  if (server.name !== BuiltinMcpServerNames.qveris) return server
 
-  switch (server.name) {
-    case BuiltinMcpServerNames.nowledgeMem:
-      return {
-        ...server,
-        type: 'streamableHttp',
-        baseUrl: 'http://127.0.0.1:14242/mcp',
-        headers: { ...server.headers, APP: 'Cherry Studio' }
-      }
-    case BuiltinMcpServerNames.flomo:
-      return {
-        ...server,
-        type: 'streamableHttp',
-        baseUrl: 'https://flomoapp.com/mcp',
-        headers: { ...server.headers, APP: 'Cherry Studio' }
-      }
-    case BuiltinMcpServerNames.qveris: {
-      const apiKey = server.env?.QVERIS_API_KEY?.trim()
-      if (!apiKey) throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
-      return {
-        ...server,
-        type: 'streamableHttp',
-        headers: { ...server.headers, Authorization: `Bearer ${apiKey}` }
-      }
-    }
-    default:
-      return server
+  const apiKey = server.env?.QVERIS_API_KEY?.trim()
+  if (!apiKey) throw new Error('QVeris MCP requires the QVERIS_API_KEY environment variable')
+  return {
+    ...server,
+    headers: { ...server.headers, Authorization: `Bearer ${apiKey}` }
   }
 }
 
@@ -108,6 +87,6 @@ export function createBuiltinMcpEndpoint(
       }
     }
     default:
-      throw new Error(`Unknown in-memory MCP server: ${name}`)
+      throw new Error(`Unknown in-process MCP server: ${name}`)
   }
 }

@@ -276,7 +276,7 @@ export const getPaintingsBackgroundOptionsLabelKey = (key: string): string => {
 }
 
 const mcpTypeKeyMap = {
-  inMemory: 'settings.mcp.types.inMemory',
+  inProcess: 'settings.mcp.types.inMemory',
   sse: 'settings.mcp.types.sse',
   stdio: 'settings.mcp.types.stdio',
   streamableHttp: 'settings.mcp.types.streamableHttp'

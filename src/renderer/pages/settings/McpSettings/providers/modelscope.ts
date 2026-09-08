@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { getMcpServerType } from '@renderer/types/mcp'
+import { getMcpServerType } from '@shared/data/api/schemas/mcpServerImport'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import i18next from 'i18next'
 import { nanoid } from 'nanoid'

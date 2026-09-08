@@ -25,29 +25,21 @@ describe('resolveBuiltinExternalMcpServer', () => {
     expect(() => resolveBuiltinExternalMcpServer(qveris('   '))).toThrow(/QVERIS_API_KEY/)
   })
 
-  it('resolves builtin HTTP endpoints and preserves configured headers', () => {
-    expect(
-      resolveBuiltinExternalMcpServer(server({ name: BuiltinMcpServerNames.flomo, headers: { Existing: 'value' } }))
-    ).toMatchObject({
-      type: 'streamableHttp',
-      baseUrl: 'https://flomoapp.com/mcp',
-      headers: { Existing: 'value', APP: 'Cherry Studio' }
-    })
-    expect(resolveBuiltinExternalMcpServer(server({ name: BuiltinMcpServerNames.nowledgeMem }))).toMatchObject({
-      type: 'streamableHttp',
-      baseUrl: 'http://127.0.0.1:14242/mcp',
-      headers: { APP: 'Cherry Studio' }
-    })
-  })
-
-  it('leaves non-builtin servers unchanged', () => {
-    const custom = server({ name: 'custom-server', baseUrl: 'https://example.com/mcp' })
-    expect(resolveBuiltinExternalMcpServer(custom)).toBe(custom)
+  it('leaves connection data unchanged for servers without an auth projection', () => {
+    for (const candidate of [
+      server({ name: BuiltinMcpServerNames.flomo, baseUrl: 'https://flomoapp.com/mcp' }),
+      server({ name: BuiltinMcpServerNames.nowledgeMem, baseUrl: 'http://127.0.0.1:14242/mcp' }),
+      server({ name: 'custom-server', baseUrl: 'https://example.com/mcp' })
+    ]) {
+      expect(resolveBuiltinExternalMcpServer(candidate)).toBe(candidate)
+    }
   })
 })
 
 describe('createBuiltinMcpEndpoint', () => {
   it('rejects a name with no in-process implementation', async () => {
-    expect(() => createBuiltinMcpEndpoint(BuiltinMcpServerNames.mcpAutoInstall)).toThrow(/Unknown in-memory MCP server/)
+    expect(() => createBuiltinMcpEndpoint(BuiltinMcpServerNames.mcpAutoInstall)).toThrow(
+      /Unknown in-process MCP server/
+    )
   })
 })

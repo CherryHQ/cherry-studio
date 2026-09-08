@@ -162,6 +162,24 @@ describe('McpServerMigrator', () => {
         warnings: ['Skipped duplicate server id: dup-1']
       })
     })
+
+    it('reports and preserves an unknown legacy inMemory server as disabled', async () => {
+      const ctx = createMockContext({
+        mcp: {
+          servers: [{ id: 'legacy-unknown', name: 'legacy-unknown', type: 'inMemory', isActive: true }]
+        }
+      })
+
+      const result = await migrator.prepare(ctx as any)
+
+      expect(result).toStrictEqual({
+        success: true,
+        itemCount: 1,
+        warnings: ['Disabled unknown legacy inMemory MCP server: legacy-unknown']
+      })
+      await migrator.execute(ctx as any)
+      expect(ctx.insertedRows[0]).toMatchObject({ name: 'legacy-unknown', type: null, isActive: false })
+    })
   })
 
   describe('execute', () => {

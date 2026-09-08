@@ -23,10 +23,9 @@ import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { safeValidateMcpConfig } from '@renderer/types/mcp'
 import { formatZodError } from '@renderer/utils/error'
 import { parseJSON } from '@renderer/utils/json'
-import { objectKeys } from '@renderer/utils/object'
+import { safeNormalizeMcpServerImportPayload } from '@shared/data/api/schemas/mcpServerImport'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { ImportIcon } from 'lucide-react'
@@ -47,10 +46,6 @@ interface AddMcpServerModalProps {
   onSuccess: (servers: CreateMcpServerDto[]) => Promise<McpServer[]>
   existingServers: McpServer[]
   initialImportMethod?: 'json' | 'dxt' | 'mcpb'
-}
-
-interface ParsedServerData extends McpServer {
-  url?: string // JSON 可能包含此欄位，而不是 baseUrl
 }
 
 // 預設的 JSON 範例內容
@@ -132,7 +127,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
    */
   const getServersFromJson = (
     inputValue: string
-  ): { serversToAdd: Partial<ParsedServerData>[]; error: null } | { serversToAdd: null; error: string } => {
+  ): { serversToAdd: CreateMcpServerDto[]; error: null } | { serversToAdd: null; error: string } => {
     const trimmedInput = inputValue.trim()
     const parsedJson = parseJSON(trimmedInput)
     if (parsedJson === null) {
@@ -140,19 +135,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
       return { serversToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
 
-    const { data: validConfig, error } = safeValidateMcpConfig(parsedJson)
+    const { data: serversToAdd, error } = safeNormalizeMcpServerImportPayload(parsedJson)
     if (error) {
-      logger.error('Failed to validate json.', { parsedJson, error })
+      logger.error('Failed to validate MCP server JSON', error)
       return { serversToAdd: null, error: formatZodError(error, t('settings.mcp.addServer.importFrom.invalid')) }
-    }
-
-    const serversToAdd = objectKeys(validConfig.mcpServers).map((key) => {
-      const server = validConfig.mcpServers[key]
-      return server.name ? server : { ...server, name: key }
-    })
-
-    if (serversToAdd.length === 0) {
-      return { serversToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
 
     return { serversToAdd, error: null }
@@ -318,8 +304,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         const serverDtos = serversToAdd.map((serverToAdd) =>
           toCreateMcpServerDto({
             ...serverToAdd,
-            name: serverToAdd.name || t('settings.mcp.newServer'),
-            baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
+            name: serverToAdd.name,
             isActive: false, // 初始狀態為非啟用
             installSource: 'manual' as const,
             isTrusted: true,

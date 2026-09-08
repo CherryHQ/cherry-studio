@@ -607,7 +607,7 @@ Dexie `settings` 表是一个通用 KV 存储（`{ id: string, value: any }`）�
 | Key Pattern | Value Type | 迁移目标 |
 | --- | --- | --- |
 | `image://provider-${providerId}` | `string` (base64 data URL \| emoji \| `''`) | file manager |
-| `mcp:provider:${provider.key}:servers` | `MCPServer[]` | new table |
+| `mcp:provider:${provider.key}:servers` | `MCPServer[]` | regenerable renderer persist cache (`feature.mcp.provider_available_servers`) |
 
 *已知遗留键（代码中无引用，运行时 IndexedDB 中存在）*:
 

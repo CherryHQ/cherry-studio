@@ -29,13 +29,13 @@ export const isBuiltinMcpServerName = (name: string): name is BuiltinMcpServerNa
   return BuiltinMcpServerNamesArray.some((n) => n === name)
 }
 
-export type BuiltinMcpServer = McpServer & {
-  type: 'inMemory' | 'stdio'
+export type InProcessMcpServer = McpServer & {
+  type: 'inProcess'
   name: BuiltinMcpServerName
 }
 
-export const isInMemoryBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer & { type: 'inMemory' } => {
-  return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
+export const isInProcessMcpServer = (server: McpServer): server is InProcessMcpServer => {
+  return server.type === 'inProcess' && isBuiltinMcpServerName(server.name)
 }
 
 /**

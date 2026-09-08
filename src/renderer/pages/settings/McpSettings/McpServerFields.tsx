@@ -20,7 +20,6 @@ import {
 import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
 import { type McpServer, type McpServerType, McpServerTypeSchema } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import type React from 'react'
 import { useCallback, useState } from 'react'
 import type { DefaultValues, UseFormReturn } from 'react-hook-form'
@@ -32,7 +31,7 @@ export const buildMcpSchema = (t: (key: string) => string) =>
     .object({
       name: z.string().trim().min(1, t('common.name')),
       description: z.string().optional(),
-      serverType: z.enum(['stdio', 'sse', 'streamableHttp', 'inMemory']),
+      serverType: z.enum(['stdio', 'sse', 'streamableHttp', 'inProcess']),
       baseUrl: z.string().optional(),
       command: z.string().optional(),
       registryUrl: z.string().optional(),
@@ -51,7 +50,7 @@ export const buildMcpSchema = (t: (key: string) => string) =>
       if ((value.serverType === 'sse' || value.serverType === 'streamableHttp') && !value.baseUrl?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['baseUrl'], message: t('settings.mcp.url') })
       }
-      if (resolveMcpConfigTransportType(value.serverType, value.name) === 'stdio' && !value.command?.trim()) {
+      if (value.serverType === 'stdio' && !value.command?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: t('settings.mcp.command') })
       }
     })
@@ -59,27 +58,13 @@ export const buildMcpSchema = (t: (key: string) => string) =>
 export type McpFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
 export type McpForm = UseFormReturn<McpFormValues>
 
-export function resolveMcpConfigTransportType(type: McpServer['type'], name: string): McpServer['type'] {
-  return type === 'inMemory' && name === BuiltinMcpServerNames.mcpAutoInstall ? 'stdio' : type
-}
-
 /**
- * Env reaches the runtime for stdio and in-memory servers. Over HTTP only a built-in that
+ * Env reaches the runtime for stdio and in-process servers. Over HTTP only a built-in that
  * declares it needs configuration reads it — QVeris turns `QVERIS_API_KEY` into its auth
  * header — so every other remote server keeps the editor hidden.
  */
 export function showsEnvEditor(serverType: McpServer['type'], builtinRequiresEnv?: boolean): boolean {
-  return serverType === 'stdio' || serverType === 'inMemory' || Boolean(builtinRequiresEnv)
-}
-
-export function resolveMcpConfigInstallSource(
-  server: Pick<McpServer, 'installSource' | 'name' | 'type'>
-): McpServer['installSource'] {
-  if (server.installSource) return server.installSource
-
-  return server.type === 'inMemory' && server.name === BuiltinMcpServerNames.mcpAutoInstall
-    ? 'builtin'
-    : server.installSource
+  return serverType === 'stdio' || serverType === 'inProcess' || Boolean(builtinRequiresEnv)
 }
 
 export const MCP_FORM_DEFAULT_VALUES: McpFormValues = {
@@ -216,7 +201,7 @@ export function toMcpFormDefaultValues(server: McpServer): DefaultValues<McpForm
   return {
     name: server.name,
     description: server.description ?? '',
-    serverType: resolveMcpConfigTransportType(server.type, server.name),
+    serverType: server.type,
     baseUrl: server.baseUrl || '',
     command: server.command || '',
     registryUrl: server.registryUrl || '',
@@ -377,7 +362,7 @@ export function McpIdentityFields({ form, onServerTypeChange, isBuiltin, singleC
 export function McpEndpointField({ form, serverType, registryState, singleColumn }: FieldsProps) {
   const { t } = useTranslation()
 
-  if (!serverType || serverType === 'inMemory') return null
+  if (!serverType || serverType === 'inProcess') return null
 
   return (
     <McpFieldGroup singleColumn={singleColumn}>
@@ -526,7 +511,7 @@ export function McpTransportFields({
           )}
         />
       )}
-      {(serverType === 'stdio' || serverType === 'inMemory') && includeArgs && <McpArgsField form={form} />}
+      {(serverType === 'stdio' || serverType === 'inProcess') && includeArgs && <McpArgsField form={form} />}
       {showsEnvEditor(serverType, builtinRequiresEnv) && (
         <>
           <FormField

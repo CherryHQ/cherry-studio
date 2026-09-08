@@ -53,7 +53,7 @@ export const mcpServerTable = sqliteTable(
     index('mcp_server_sort_order_idx').on(t.sortOrder),
     check(
       'mcp_server_type_check',
-      sql`${t.type} IS NULL OR ${t.type} IN ('stdio', 'sse', 'streamableHttp', 'inMemory')`
+      sql`${t.type} IS NULL OR ${t.type} IN ('stdio', 'sse', 'streamableHttp', 'inProcess')`
     ),
     check(
       'mcp_server_install_source_check',

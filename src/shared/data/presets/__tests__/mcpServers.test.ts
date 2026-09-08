@@ -5,8 +5,14 @@ import { describe, expect, it } from 'vitest'
 const preset = (name: string) => PRESET_MCP_SERVERS.find((server) => server.name === name)
 
 describe('PRESET_MCP_SERVERS', () => {
+  it('uses stable names without database identity or timestamps', () => {
+    expect(PRESET_MCP_SERVERS).toHaveLength(13)
+    expect(PRESET_MCP_SERVERS.every((server) => !('id' in server))).toBe(true)
+    expect(PRESET_MCP_SERVERS.every((server) => !('createdAt' in server) && !('installedAt' in server))).toBe(true)
+    expect(preset(BuiltinMcpServerNames.hub)).toBeUndefined()
+  })
+
   it('models flomo and nowledge-mem as the HTTP endpoints they are', () => {
-    // The seeder writes these URLs onto installed rows, so the exact endpoint is the contract.
     expect(preset(BuiltinMcpServerNames.flomo)).toEqual(
       expect.objectContaining({ type: 'streamableHttp', baseUrl: 'https://flomoapp.com/mcp' })
     )
@@ -33,11 +39,19 @@ describe('PRESET_MCP_SERVERS', () => {
     )
   })
 
-  it('gives every non in-memory preset what it needs to connect', () => {
-    // The seeder copies these fields onto installed rows, so a preset missing them
-    // would migrate a working server into an unconnectable one.
+  it('models Cherry-hosted implementations as in-process', () => {
+    for (const name of [
+      BuiltinMcpServerNames.memory,
+      BuiltinMcpServerNames.sequentialThinking,
+      BuiltinMcpServerNames.browser
+    ]) {
+      expect(preset(name)?.type).toBe('inProcess')
+    }
+  })
+
+  it('gives every external preset what it needs to connect', () => {
     for (const server of PRESET_MCP_SERVERS) {
-      if (server.type === 'inMemory') continue
+      if (server.type === 'inProcess') continue
       if (server.type === 'stdio') {
         expect(server.command, server.name).toBeTruthy()
       } else {

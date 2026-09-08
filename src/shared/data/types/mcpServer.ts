@@ -19,8 +19,8 @@ export const McpConfigSampleSchema = z.object({
 })
 export type McpConfigSample = z.infer<typeof McpConfigSampleSchema>
 
-/** MCP Server communication protocol */
-export const McpServerTypeSchema = z.enum(['stdio', 'sse', 'streamableHttp', 'inMemory'])
+/** MCP Server connection type */
+export const McpServerTypeSchema = z.enum(['stdio', 'sse', 'streamableHttp', 'inProcess'])
 export type McpServerType = z.infer<typeof McpServerTypeSchema>
 
 /** MCP Server install source */

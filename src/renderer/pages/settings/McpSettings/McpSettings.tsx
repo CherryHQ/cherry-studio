@@ -20,7 +20,6 @@ import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
-import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 import { getRouteApi, useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
@@ -38,7 +37,6 @@ import {
   McpIdentityFields,
   McpRuntimeFields,
   McpTransportFields,
-  resolveMcpConfigInstallSource,
   toMcpFormDefaultValues,
   toMcpServerFields,
   useMcpRegistryState
@@ -225,7 +223,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
       const mcpServer: McpServer = {
         ...server,
         ...toMcpServerFields(values),
-        installSource: resolveMcpConfigInstallSource(server),
+        installSource: server.installSource,
         isActive: values.isActive ?? server.isActive,
         timeout: values.timeout || server.timeout,
         // Use nullish coalescing to allow empty strings (for deletion)
@@ -437,9 +435,8 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     serverType,
     onServerTypeChange: setServerType,
     registryState,
-    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server),
-    builtinRequiresEnv:
-      (server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)) && Boolean(server.shouldConfig)
+    isBuiltin: server.installSource === 'builtin',
+    builtinRequiresEnv: server.installSource === 'builtin' && Boolean(server.shouldConfig)
   }
 
   const tabs: McpTabItem[] = [

@@ -15,7 +15,7 @@ import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { InputFor, WindowId } from '@shared/ipc/types'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
-import { BuiltinMcpServerNames, isBuiltinMcpServerName } from '@shared/utils/mcp'
+import { isInProcessMcpServer } from '@shared/utils/mcp'
 import { safeSerialize } from '@shared/utils/serialize'
 import { app } from 'electron'
 import { nanoid } from 'nanoid'
@@ -250,12 +250,7 @@ export class McpRuntimeService extends BaseService {
     const connectTimeoutMs = Math.max((server.timeout ?? 0) * 1000, MCP_CONNECT_TIMEOUT_FLOOR_MS)
     const events = this.connectionEvents(server)
 
-    if (
-      isBuiltinMcpServerName(server.name) &&
-      server.name !== BuiltinMcpServerNames.mcpAutoInstall &&
-      server.name !== BuiltinMcpServerNames.nowledgeMem &&
-      server.name !== BuiltinMcpServerNames.flomo
-    ) {
+    if (isInProcessMcpServer(server)) {
       return createInProcessMcpConnection({
         appVersion: app.getVersion(),
         endpoint: createBuiltinMcpEndpoint(server.name, [...(server.args || [])], server.env || {}),

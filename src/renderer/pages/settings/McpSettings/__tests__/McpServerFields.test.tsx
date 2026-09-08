@@ -4,8 +4,6 @@ import { describe, expect, it } from 'vitest'
 import {
   buildMcpSchema,
   type McpFormValues,
-  resolveMcpConfigInstallSource,
-  resolveMcpConfigTransportType,
   showsEnvEditor,
   toMcpFormDefaultValues,
   toMcpServerFields
@@ -88,46 +86,15 @@ describe('toMcpFormDefaultValues', () => {
     expect(toMcpFormDefaultValues(server).serverType).toBeUndefined()
   })
 
-  it('normalizes the legacy online-package built-in transport without guessing other missing types', () => {
+  it('keeps the canonical in-process type', () => {
     const server = {
       id: '7676dffa-53d7-4c35-abbb-e30cd9b27169',
-      name: '@cherry/mcp-auto-install',
-      type: 'inMemory',
-      command: 'npx',
+      name: '@cherry/memory',
+      type: 'inProcess',
       isActive: false
     } satisfies McpServer
 
-    expect(toMcpFormDefaultValues(server).serverType).toBe('stdio')
-  })
-})
-
-describe('resolveMcpConfigTransportType', () => {
-  it('exposes stdio configuration for the online-package built-in server', () => {
-    expect(resolveMcpConfigTransportType('inMemory', '@cherry/mcp-auto-install')).toBe('stdio')
-  })
-
-  it('keeps other built-in servers on the in-memory configuration', () => {
-    expect(resolveMcpConfigTransportType('inMemory', '@cherry/memory')).toBe('inMemory')
-  })
-})
-
-describe('resolveMcpConfigInstallSource', () => {
-  it('preserves the built-in identity of a legacy auto-install server', () => {
-    expect(
-      resolveMcpConfigInstallSource({
-        name: '@cherry/mcp-auto-install',
-        type: 'inMemory'
-      })
-    ).toBe('builtin')
-  })
-
-  it('does not classify other legacy servers as built-in', () => {
-    expect(
-      resolveMcpConfigInstallSource({
-        name: 'Legacy server',
-        type: 'inMemory'
-      })
-    ).toBeUndefined()
+    expect(toMcpFormDefaultValues(server).serverType).toBe('inProcess')
   })
 })
 
@@ -136,7 +103,7 @@ describe('buildMcpSchema', () => {
     const result = buildMcpSchema((key) => key).safeParse(
       stdioFormValues({
         name: '@cherry/mcp-auto-install',
-        serverType: 'inMemory',
+        serverType: 'stdio',
         command: ''
       })
     )
@@ -151,7 +118,7 @@ describe('buildMcpSchema', () => {
 describe('showsEnvEditor', () => {
   it('offers env wherever the runtime reads it', () => {
     expect(showsEnvEditor('stdio')).toBe(true)
-    expect(showsEnvEditor('inMemory')).toBe(true)
+    expect(showsEnvEditor('inProcess')).toBe(true)
   })
 
   it('offers env to a hosted built-in that authenticates with one, such as QVeris', () => {

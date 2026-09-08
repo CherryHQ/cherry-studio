@@ -8,7 +8,7 @@
  * - isUvInstalled, isBunInstalled
  *
  * Not migrated (regenerable cache, re-fetched from provider API):
- * - Dexie mcp:provider:*:servers (handled in separate PR)
+ * - Dexie mcp:provider:*:servers
  */
 
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
@@ -64,7 +64,9 @@ export class McpServerMigrator extends BaseMigrator {
           seenIds.add(s.id)
 
           try {
-            this.preparedResults.push(transformMcpServer(s, this.preparedResults.length))
+            const transformed = transformMcpServer(s, this.preparedResults.length)
+            this.preparedResults.push(transformed)
+            if (transformed.warning) warnings.push(transformed.warning)
           } catch (err) {
             this.skippedCount++
             warnings.push(`Failed to transform server ${s.id}: ${(err as Error).message}`)

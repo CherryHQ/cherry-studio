@@ -381,16 +381,24 @@
           "originalKey": "servers",
           "type": "array",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "isUvInstalled",
           "type": "boolean",
           "defaultValue": true,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "cache",
+          "targetKey": null
+        },
+        {
+          "originalKey": "isBunInstalled",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "cache",
           "targetKey": null
         }
       ],
@@ -3446,6 +3454,14 @@
     },
     "dexieSettings": {
       "settings": [
+        {
+          "originalKey": "mcp:provider:${provider.key}:servers",
+          "type": "MCPServer[]",
+          "defaultValue": [],
+          "status": "classified",
+          "category": "cache",
+          "targetKey": null
+        },
         {
           "originalKey": "translate:detect:method",
           "type": "PreferenceTypes.AutoDetectionMethod",
