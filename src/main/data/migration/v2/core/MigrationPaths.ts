@@ -16,7 +16,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { CHERRY_HOME } from '@main/core/paths/constants'
+import { CHERRY_HOME, DEV_PROFILE_ROOT } from '@main/core/paths/constants'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
@@ -162,14 +162,16 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   let dataLocation: string | undefined
 
   const exe = getNormalizedExecutablePath()
-  const bootConfigEntry = bootConfigService.get('app.user_data_path')?.[exe]
+  const bootConfigEntry = DEV_PROFILE_ROOT ? undefined : bootConfigService.get('app.user_data_path')?.[exe]
 
   // ── Front gate P: split the boot-config short-circuit ──
   //
   // resolveUserDataLocation() (preboot) has already run: if a boot-config
   // entry existed and was VALID, it setPath'd userData to it; if it existed
   // but was INVALID, it silently fell through to the Electron default.
-  if (bootConfigEntry) {
+  if (DEV_PROFILE_ROOT) {
+    logger.info('Dev profile root active, skipping legacy userData redirects', { currentUserData })
+  } else if (bootConfigEntry) {
     if (isUsableDataDir(bootConfigEntry)) {
       // Valid → current userData already IS the target. Skip legacy probing.
       logger.info('Boot-config userData entry present and valid, skipping legacy detection', { exe })
