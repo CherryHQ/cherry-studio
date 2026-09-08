@@ -4545,6 +4545,7 @@
   "settings.provider.cherry_cloud.logout_failed": "Impossible de se déconnecter. Réessayez.",
   "settings.provider.cherry_cloud.sign_in_failed": "Échec de la connexion. Réessayez.",
   "settings.provider.cherry_cloud.signing_in": "En attente de l’autorisation du navigateur…",
+  "settings.provider.cherry_cloud.upgrade_required": "Votre version de Cherry Studio n’est plus prise en charge. Veuillez mettre à jour Cherry Studio avant de vous connecter.",
   "settings.provider.cherryin.api_host.acceleration": "Domaine d'accélération",
   "settings.provider.cherryin.api_host.international": "Domaine international",
   "settings.provider.claude_code.agent_only_note": "Le fournisseur Claude Code n'est disponible que pour les Agents — il ne peut pas être utilisé dans les chats ou les assistants.",

@@ -93,6 +93,13 @@ export class CherryCloudLoginUnavailableError extends Error {
   }
 }
 
+export class CherryCloudUpgradeRequiredError extends Error {
+  constructor() {
+    super('Update Cherry Studio to sign in to Cherry Cloud')
+    this.name = 'CherryCloudUpgradeRequiredError'
+  }
+}
+
 class CherryCloudSessionRequiredError extends Error {
   constructor() {
     super('Cherry Cloud account is not signed in')
@@ -1013,6 +1020,7 @@ export class CherryCloudService extends BaseService {
       })
       throw new CherryCloudLoginUnavailableError()
     }
+    if (response.status === 426) throw new CherryCloudUpgradeRequiredError()
     if (response.status === 404 || response.status >= 500) {
       logger.warn('Cherry Cloud login service returned an unavailable response', { path, status: response.status })
       throw new CherryCloudLoginUnavailableError()

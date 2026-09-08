@@ -628,6 +628,19 @@ describe('CherryCloudService', () => {
     expect(newReceiver.dispose).toHaveBeenCalledOnce()
   })
 
+  it('reports an upgrade requirement without opening a browser or leaving login pending', async () => {
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse({ error: { code: 'CLIENT_UPGRADE_REQUIRED' } }, 426))
+    const service = await createService()
+
+    await expect(service.startLogin()).rejects.toHaveProperty('name', 'CherryCloudUpgradeRequiredError')
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.openExternal).not.toHaveBeenCalled()
+    expect(mocks.loopbackReceiver.dispose).toHaveBeenCalled()
+
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
+  })
+
   it('reports an unavailable login service when the backend cannot be reached', async () => {
     mockCloudRoute('/api/v1/desktop/authorizations', () => Promise.reject(new TypeError('fetch failed')))
     const service = await createService()
