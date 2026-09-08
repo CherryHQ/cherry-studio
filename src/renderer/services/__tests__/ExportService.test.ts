@@ -1664,7 +1664,7 @@ describe('ExportService image capture serialization', () => {
       throw new Error('CDP attach failed')
     })
     vi.mocked(htmlToImage.toCanvas).mockImplementation(async (element) => {
-      capturedNoteSurface = element as HTMLElement
+      capturedNoteSurface = element
       return { toDataURL: vi.fn(() => 'data:image/png;base64,note') } as unknown as HTMLCanvasElement
     })
 
