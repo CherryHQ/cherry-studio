@@ -1,3 +1,4 @@
+import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { GuestSession } from '../session/GuestSession'
@@ -152,5 +153,78 @@ describe('GuestSession command lifetime', () => {
     mock.isDevToolsOpened.mockReturnValue(false)
     await session.send('Runtime.enable')
     expect(session.isAvailable()).toBe(true)
+  })
+})
+
+describe('GuestSession annotation context lifetime', () => {
+  const annotation: WebviewAnnotation = {
+    id: '00000000-0000-4000-8000-000000000001',
+    comment: 'Adjust this button',
+    element: { selector: '#submit', tagName: 'button', text: 'Submit', ariaLabel: null, role: 'button' }
+  }
+
+  it.each([
+    ['Runtime.executionContextsCleared', 'creation'],
+    ['Runtime.executionContextDestroyed', 'creation'],
+    ['Runtime.executionContextsCleared', 'capture'],
+    ['Runtime.executionContextDestroyed', 'capture']
+  ])('discards %s during %s and recovers on the next capture', async (event, stage) => {
+    const { session, mock } = setup()
+    const fallback = mock.debugger.sendCommand.getMockImplementation()!
+    const paused = Promise.withResolvers<object>()
+    const started = Promise.withResolvers<void>()
+    let contextId = 73
+    let pause = true
+    mock.debugger.sendCommand.mockImplementation(async (method, params) => {
+      if (method === 'Page.createIsolatedWorld') {
+        if (pause && stage === 'creation') {
+          started.resolve()
+          return paused.promise
+        }
+        return { executionContextId: contextId }
+      }
+      if (method === 'Runtime.evaluate') {
+        if ((params as { contextId: number }).contextId !== contextId) throw new Error('Invalid context')
+        if (pause && stage === 'capture') {
+          started.resolve()
+          return paused.promise
+        }
+        return { result: { objectId: 'submit' } }
+      }
+      if (method === 'DOM.describeNode') return { node: { backendNodeId: 1 } }
+      if (method === 'Accessibility.getAXNodeAndAncestors')
+        return {
+          nodes: [
+            {
+              nodeId: 'submit',
+              backendDOMNodeId: 1,
+              ignored: false,
+              role: { value: 'button' },
+              name: { value: 'Submit' }
+            }
+          ]
+        }
+      return fallback(method, params)
+    })
+    const result = session.describeElement(annotation, { remaining: 100 })
+    const rejected = expect(result).rejects.toMatchObject({ code: 'stale_ref' })
+    await started.promise
+    mock.debugger.emit('message', {}, event, { executionContextId: contextId })
+    contextId = 74
+    pause = false
+    paused.resolve(stage === 'creation' ? { executionContextId: 73 } : { result: { objectId: 'submit' } })
+    await rejected
+    await expect(session.describeElement(annotation, { remaining: 100 })).resolves.toMatchObject({
+      status: 'available',
+      tree: { role: 'button', name: 'Submit' }
+    })
+    mock.debugger.emit('message', {}, 'Runtime.executionContextDestroyed', { executionContextId: 999 })
+    await expect(session.describeElement(annotation, { remaining: 100 })).resolves.toMatchObject({
+      status: 'available',
+      tree: { role: 'button', name: 'Submit' }
+    })
+    expect(
+      mock.debugger.sendCommand.mock.calls.filter(([method]) => method === 'Page.createIsolatedWorld')
+    ).toHaveLength(2)
   })
 })

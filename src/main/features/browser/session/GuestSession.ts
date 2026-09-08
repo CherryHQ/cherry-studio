@@ -35,6 +35,7 @@ export class GuestSession {
   private attachingAbort?: AbortController
   private attachWaiters = 0
   private annotationContextId?: number
+  private annotationContextEpoch = 0
   private epoch = 0
   private nextRef = 1
   private readonly refs = new Map<BrowserRef, number>()
@@ -79,10 +80,15 @@ export class GuestSession {
 
   private invalidateDocument() {
     this.epoch++
-    this.annotationContextId = undefined
+    this.invalidateAnnotationContext()
     this.refs.clear()
     this.nodeRefs.clear()
     this.revision = undefined
+  }
+
+  private invalidateAnnotationContext() {
+    this.annotationContextEpoch++
+    this.annotationContextId = undefined
   }
 
   private clearDialog() {
@@ -103,9 +109,11 @@ export class GuestSession {
       this.clearDialog()
     } else if (
       method === 'Runtime.executionContextsCleared' ||
-      (method === 'Runtime.executionContextDestroyed' && params.executionContextId === this.annotationContextId)
+      (method === 'Runtime.executionContextDestroyed' &&
+        (this.annotationContextId === undefined || params.executionContextId === this.annotationContextId))
     ) {
-      this.annotationContextId = undefined
+      // During isolated-world creation, its context ID is not yet known.
+      this.invalidateAnnotationContext()
     } else if (method === 'Page.javascriptDialogOpening') {
       this.pendingDialog = { type: params.type, message: params.message }
       this.rejectPending(new BrowserSessionError('dialog_open', this.pendingDialog))
@@ -296,6 +304,7 @@ export class GuestSession {
     try {
       await this.ensureAttached(options)
       const epoch = this.epoch
+      const contextEpoch = this.annotationContextEpoch
       if (this.annotationContextId === undefined) {
         const world = await this.send<{ executionContextId: number }>(
           'Page.createIsolatedWorld',
@@ -306,7 +315,8 @@ export class GuestSession {
           },
           options
         )
-        if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
+        if (epoch !== this.epoch || contextEpoch !== this.annotationContextEpoch)
+          throw new BrowserSessionError('stale_ref')
         this.annotationContextId = world.executionContextId
       }
       const result = await describeElement(
@@ -317,7 +327,8 @@ export class GuestSession {
         options.deadline ?? Date.now() + 5_000,
         options.signal
       )
-      if (epoch !== this.epoch) throw new BrowserSessionError('stale_ref')
+      if (epoch !== this.epoch || contextEpoch !== this.annotationContextEpoch)
+        throw new BrowserSessionError('stale_ref')
       return result
     } finally {
       this.operations--

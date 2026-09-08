@@ -77,7 +77,7 @@ export function buildSnapshotTree(
       attributes.has('onclick') ||
       (attributes.has('tabindex') && Number(attributes.get('tabindex')) >= 0) ||
       (attributes.has('contenteditable') && attributes.get('contenteditable') !== 'false')
-    const keep = visible && (interactive || (!node.ignored && textRoles.has(role) && name))
+    const keep = visible && !node.ignored && (interactive || (textRoles.has(role) && name))
     let emitted = false
     if (keep && id !== undefined) {
       const { x, y, w, h } = raw.viewport

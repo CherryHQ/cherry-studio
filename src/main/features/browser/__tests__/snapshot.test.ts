@@ -137,6 +137,25 @@ describe('browser snapshots', () => {
     expect(JSON.stringify(tree.nodes)).not.toContain('SYNTHETIC_PASSWORD')
   })
 
+  it.each(['DOM', 'AX-only'])('omits ignored targets but preserves their actionable children with %s data', (mode) => {
+    const raw = fixture()
+    raw.ax[1] = { ...raw.ax[1], ignored: true, role: { value: 'generic' }, childIds: ['button'] }
+    raw.ax[0].childIds = raw.ax[0].childIds!.filter((id) => id !== 'button')
+    raw.ax[3].parentId = 'label'
+    raw.ax[2].ignored = true
+    raw.dom!.documents[0].layout.styles[0][0] = raw.dom!.strings.push('pointer') - 1
+    if (mode === 'AX-only') raw.dom = undefined
+    const allocated: number[] = []
+    const tree = buildSnapshotTree(raw, (id) => {
+      allocated.push(id)
+      return `e${id}`
+    })
+    expect(tree.nodes.some((node) => node.backendNodeId === 1 || node.backendNodeId === 2)).toBe(false)
+    expect(allocated).not.toContain(1)
+    expect(allocated).not.toContain(2)
+    expect(tree.nodes.find((node) => node.backendNodeId === 3)).toMatchObject({ ref: 'e3', name: 'Submit', depth: 0 })
+  })
+
   it('does not copy data URL payloads or URL credentials into the snapshot header', () => {
     const tree = buildSnapshotTree(fixture(), (id) => `e${id}`)
     const base = { ...tree, documentId: 'doc', title: 'Form', truncated: false }
