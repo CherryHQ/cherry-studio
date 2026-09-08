@@ -33,7 +33,7 @@ export const ListModelsQuerySchema = z.object({
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
 const validatePreferredEndpoint = (
-  data: { endpointTypes?: EndpointType[]; preferredEndpointType?: EndpointType | null },
+  data: { endpointTypes?: EndpointType[] | null; preferredEndpointType?: EndpointType | null },
   ctx: z.RefinementCtx
 ) => {
   if (data.endpointTypes && data.preferredEndpointType && !data.endpointTypes.includes(data.preferredEndpointType)) {
@@ -110,7 +110,33 @@ export const UpdateModelSchema = CreateModelObjectSchema.omit({
 })
   .partial()
   .extend({
-    /** `null` explicitly clears a stored limit; `undefined` or an absent key leaves it unchanged. */
+    /**
+     * On a preset-backed model `null` clears the stored override so the field inherits the registry
+     * again; `undefined` or an absent key leaves it unchanged. A custom model rejects `null` for the
+     * fields it must own.
+     */
+    name: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
+    group: z.string().nullable().optional(),
+    capabilities: z
+      .array(z.enum(objectValues(MODEL_CAPABILITY)))
+      .nullable()
+      .optional(),
+    inputModalities: z
+      .array(z.enum(objectValues(MODALITY)))
+      .nullable()
+      .optional(),
+    outputModalities: z
+      .array(z.enum(objectValues(MODALITY)))
+      .nullable()
+      .optional(),
+    endpointTypes: z
+      .array(z.enum(objectValues(ENDPOINT_TYPE)))
+      .nullable()
+      .optional(),
+    supportsStreaming: z.boolean().nullable().optional(),
+    parameterSupport: ParameterSupportDbSchema.nullable().optional(),
+    pricing: RuntimeModelPricingSchema.nullable().optional(),
     contextWindow: PositiveModelTokenLimitSchema.nullable().optional(),
     maxInputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
     maxOutputTokens: PositiveModelTokenLimitSchema.nullable().optional(),

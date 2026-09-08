@@ -332,6 +332,26 @@ describe('toCreateModelDto', () => {
     })
   })
 
+  it('leaves name, group and context window to the registry for a preset-backed model', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::qwen3:32b' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3:32b',
+      presetModelId: 'qwen3-32b',
+      name: 'Qwen3 32B',
+      group: 'Qwen',
+      contextWindow: 40960,
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto).not.toHaveProperty('name')
+    expect(dto).not.toHaveProperty('group')
+    expect(dto).not.toHaveProperty('contextWindow')
+  })
+
   it('forwards all discovered capabilities for a custom model', () => {
     const dto = toCreateModelDto('ollama', {
       id: 'ollama::acme-thinker:latest' as UniqueModelId,

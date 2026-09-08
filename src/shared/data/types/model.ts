@@ -361,6 +361,28 @@ export const RuntimeModelPricingSchema = z
   })
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
+/**
+ * Preset-backed rows store these as a delta over the registry baseline:
+ * `null` inherits, `[]` (or a value) is a user override. Custom rows own all of them.
+ */
+export const MODEL_OVERRIDE_FIELDS = [
+  'name',
+  'description',
+  'group',
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes',
+  'preferredEndpointType',
+  'contextWindow',
+  'maxInputTokens',
+  'maxOutputTokens',
+  'supportsStreaming',
+  'parameterSupport',
+  'pricing'
+] as const
+export type ModelOverrideField = (typeof MODEL_OVERRIDE_FIELDS)[number]
+
 const ModelObjectSchema = z.object({
   /** Unique identifier: "providerId::modelId" */
   id: UniqueModelIdSchema,
@@ -370,6 +392,12 @@ const ModelObjectSchema = z.object({
   apiModelId: z.string().optional(),
   /** Preset catalog model ID this row was created from, if any */
   presetModelId: z.string().nullable().optional(),
+  /**
+   * Which fields this row overrides rather than inherits from its preset — the stored delta's
+   * shape, so a client can tell an override from a baseline value without re-deriving the merge.
+   * Absent on custom rows, which own every field.
+   */
+  overrides: z.partialRecord(z.enum(MODEL_OVERRIDE_FIELDS), z.literal(true)).optional(),
 
   // Display Information
   /** Display name */

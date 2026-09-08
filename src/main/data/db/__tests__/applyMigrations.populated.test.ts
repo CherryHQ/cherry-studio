@@ -107,7 +107,7 @@ describe('applyMigrations over a populated database', () => {
   }
 
   it('backfills text generation only when a persisted capability list has no operation', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_broken_doorman'))
     const now = Date.now()
     sqlite
       .prepare(
@@ -204,6 +204,42 @@ describe('applyMigrations over a populated database', () => {
       ['asr', ['audio-recognition', 'audio-transcript']],
       ['audio-chat', ['audio-recognition', 'text-generation']],
       ['preset-image', ['image-recognition']]
+    ])
+  })
+
+  it('turns a legacy implicit empty input-modality list back into an unset column', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0022_normalize_legacy_input_modalities'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('modality-migration', 'Modality Migration', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    const insert = sqlite.prepare(
+      `INSERT INTO user_model
+         (id, provider_id, model_id, name, capabilities, input_modalities, input_modalities_explicit,
+          supports_streaming, is_enabled, is_hidden, order_key, created_at, updated_at)
+       VALUES (?, 'modality-migration', ?, ?, '["text-generation"]', ?, ?, 1, 1, 0, ?, ?, ?)`
+    )
+    // The old add form wrote `[]` for "nothing chosen"; only a flagged `[]` is a real clear.
+    insert.run('modality-migration::implicit', 'implicit', 'Implicit', '[]', 0, 'a0', now, now)
+    insert.run('modality-migration::cleared', 'cleared', 'Cleared', '[]', 1, 'a1', now, now)
+    insert.run('modality-migration::set', 'set', 'Set', '["text","image"]', 0, 'a2', now, now)
+    insert.run('modality-migration::unset', 'unset', 'Unset', null, 0, 'a3', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite
+      .prepare(
+        "SELECT model_id, input_modalities FROM user_model WHERE provider_id = 'modality-migration' ORDER BY order_key"
+      )
+      .all() as Array<{ model_id: string; input_modalities: string | null }>
+    expect(rows.map((row) => [row.model_id, row.input_modalities])).toEqual([
+      ['implicit', null],
+      ['cleared', '[]'],
+      ['set', '["text","image"]'],
+      ['unset', null]
     ])
   })
 

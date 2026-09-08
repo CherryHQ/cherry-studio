@@ -24,7 +24,6 @@ import { pinService } from '@data/services/PinService'
 import {
   createCustomModel,
   inferCustomModelReasoning,
-  matchesModelPricingBaseline,
   mergePresetModel,
   projectRuntimeReasoning,
   providerRegistryService,
@@ -54,7 +53,6 @@ import type {
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
 import { isModelEndpointTypeAvailable } from '@shared/utils/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
-import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -82,6 +80,9 @@ const PRESET_DELTA_FIELDS = [
 type PresetDeltaField = (typeof PRESET_DELTA_FIELDS)[number]
 
 const PRESET_DELTA_FIELD_SET: ReadonlySet<string> = new Set(PRESET_DELTA_FIELDS)
+
+/** Columns `user_model_custom_config_check` requires on a custom row. */
+const CUSTOM_ROW_REQUIRED_FIELDS: ReadonlySet<string> = new Set(['name', 'capabilities', 'supportsStreaming'])
 
 function isPresetDeltaField(field: string): field is PresetDeltaField {
   return PRESET_DELTA_FIELD_SET.has(field)
@@ -331,34 +332,6 @@ function dtoKeyToDbKey(key: keyof UpdateModelDto): string {
   return mapping && Array.isArray(mapping) ? mapping[1] : key
 }
 
-function getBaselineField(model: Model, field: PresetDeltaField): unknown {
-  if (field === 'parameters') return model.parameterSupport
-  return model[field as keyof Model]
-}
-
-const SET_VALUED_DELTA_FIELDS: ReadonlySet<PresetDeltaField> = new Set([
-  'capabilities',
-  'inputModalities',
-  'outputModalities',
-  'endpointTypes'
-])
-
-function matchesBaseline(value: unknown, baseline: unknown, field: PresetDeltaField): boolean {
-  if (field === 'pricing') {
-    return matchesModelPricingBaseline(value, baseline)
-  }
-  // These arrays are sets: the drawer rebuilds them in its own order, and storing a reordered copy
-  // of the baseline as a "delta" would freeze the model against every later registry update.
-  if (SET_VALUED_DELTA_FIELDS.has(field) && Array.isArray(value) && Array.isArray(baseline)) {
-    return (
-      value.length === baseline.length &&
-      new Set(value).size === value.length &&
-      value.every((v) => baseline.includes(v))
-    )
-  }
-  return isEqual(value, baseline)
-}
-
 /**
  * The operation contract holds over the effective model, so it is closed here — where the registry
  * baseline is in hand — rather than guessed at write or migration time. A stored capability list
@@ -373,23 +346,6 @@ function ensureOperationCapability(model: Model, baseline: Model | null): Model 
       ? baselineOperations
       : [defaultOperationCapability(model.inputModalities, model.outputModalities)]
   return { ...model, capabilities: [...model.capabilities, ...operations] }
-}
-
-function collectPresetDeltaFields(dto: CreateModelDto | UpdateModelDto, baseline: Model | null): PresetDeltaField[] {
-  const deltaFields = new Set<PresetDeltaField>()
-
-  for (const key of Object.keys(dto) as (keyof UpdateModelDto)[]) {
-    const field = dtoKeyToDbKey(key)
-    if (!isPresetDeltaField(field)) continue
-
-    const value = dto[key]
-    if (value === undefined) continue
-    if (!baseline || !matchesBaseline(value, getBaselineField(baseline, field), field)) {
-      deltaFields.add(field)
-    }
-  }
-
-  return [...deltaFields]
 }
 
 function presetDeltaToNewUserModel(
@@ -492,6 +448,17 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
   }
 }
 
+/** The stored delta's shape: every preset-delta column that is not null is an override. */
+function readOverrides(row: UserModelRow): Model['overrides'] {
+  const overrides: Partial<NonNullable<Model['overrides']>> = {}
+  for (const field of PRESET_DELTA_FIELDS) {
+    if (row[field as keyof UserModelRow] !== null) {
+      overrides[field === 'parameters' ? 'parameterSupport' : field] = true
+    }
+  }
+  return Object.keys(overrides).length > 0 ? overrides : undefined
+}
+
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
   return {
     ...model,
@@ -512,7 +479,10 @@ function createPresetFallback(
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
-  return applyStoredModelState(ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline), row)
+  return applyStoredModelState(
+    { ...ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline), overrides: readOverrides(row) },
+    row
+  )
 }
 
 /** Field → messages, so an update can reject only the violations it introduces. */
@@ -577,27 +547,6 @@ class ModelService {
     }
   }
 
-  private getRegistryBaseline(
-    providerId: string,
-    modelId: string,
-    reasoningConfigCache?: Map<string, ReasoningProviderContext>
-  ): Model | null {
-    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = providerRegistryService.lookupModel(
-      providerId,
-      modelId,
-      reasoningConfigCache
-    )
-    if (!presetModel) return null
-    return mergePresetModel(
-      presetModel,
-      registryOverride,
-      providerId,
-      reasoningProfile.wire,
-      reasoningProfile.support,
-      serviceTierControl
-    )
-  }
-
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
     const presetModel = registryData?.presetModel ?? null
     const dtoValues = dtoToNewUserModel(dto)
@@ -617,8 +566,11 @@ class ModelService {
         preferredEndpointType:
           dto.preferredEndpointType === null ? undefined : (dto.preferredEndpointType ?? baseline.preferredEndpointType)
       })
-      const deltaFields = collectPresetDeltaFields(dto, baseline)
-      return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
+      const overriddenFields = (Object.keys(dto) as (keyof CreateModelDto)[])
+        .filter((key) => dto[key] !== undefined)
+        .map((key) => dtoKeyToDbKey(key as keyof UpdateModelDto))
+        .filter(isPresetDeltaField)
+      return presetDeltaToNewUserModel(dto, presetModel.id, overriddenFields)
     }
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
@@ -650,65 +602,29 @@ class ModelService {
 
   private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
-    const currentModel = this.enrichRowsFromRegistry([existing])[0]
-    // Reject only what this patch introduces. A stored row can already violate the contract without
-    // anyone touching it — the provider dropped the pinned endpoint, or the contract tightened after
-    // the row was written — and the read path already handles both (a stale pin is skipped, a model
-    // with no operation is non-chat). Re-asserting the whole entity here would make every unrelated
-    // edit, down to a rename, fail on a condition the user did not cause and cannot see.
-    const issuesBefore = this.collectEffectiveEndpointIssues(existing.providerId, existing.modelId, {
-      capabilities: currentModel.capabilities,
-      endpointTypes: currentModel.endpointTypes,
-      preferredEndpointType: currentModel.preferredEndpointType
-    })
-    const issuesAfter = this.collectEffectiveEndpointIssues(existing.providerId, existing.modelId, {
-      capabilities: dto.capabilities ?? currentModel.capabilities,
-      endpointTypes: dto.endpointTypes ?? currentModel.endpointTypes,
-      preferredEndpointType:
-        dto.preferredEndpointType === null
-          ? undefined
-          : (dto.preferredEndpointType ?? currentModel.preferredEndpointType)
-    })
+    for (const entry of UPDATE_MODEL_FIELD_MAP) {
+      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
+      const value = dto[dtoKey]
+      if (value === undefined) continue
+      // `null` hands a preset-backed field back to the registry; a custom row has nowhere to hand it.
+      if (value === null && !existing.presetModelId && CUSTOM_ROW_REQUIRED_FIELDS.has(String(dbKey))) {
+        throw DataApiErrorFactory.validation({ [dtoKey]: ['A custom model must own this field'] })
+      }
+      ;(updates as Record<string, unknown>)[dbKey] = value
+    }
+    if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
+
+    // Reject only the contract violations this patch introduces: a row can already violate the
+    // contract without being touched, and the read path tolerates that.
+    const [before, after] = this.enrichRowsFromRegistry([existing, { ...existing, ...updates }])
+    const issuesBefore = this.collectEffectiveEndpointIssues(existing.providerId, existing.modelId, before)
+    const issuesAfter = this.collectEffectiveEndpointIssues(existing.providerId, existing.modelId, after)
     if (hasNewIssues(issuesBefore.capabilities, issuesAfter.capabilities)) {
       throw DataApiErrorFactory.validation({ capabilities: issuesAfter.capabilities })
     }
     if (hasNewIssues(issuesBefore.preferredEndpointType, issuesAfter.preferredEndpointType)) {
       throw DataApiErrorFactory.validation({ preferredEndpointType: issuesAfter.preferredEndpointType })
     }
-    const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
-      .map(dtoKeyToDbKey)
-      .some(isPresetDeltaField)
-
-    let baseline: Model | null = null
-    if (existing.presetModelId && hasPresetDeltaField) {
-      try {
-        baseline = this.getRegistryBaseline(existing.providerId, existing.modelId)
-      } catch (error) {
-        logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
-          providerId: existing.providerId,
-          modelId: existing.modelId,
-          error
-        })
-      }
-    }
-
-    for (const entry of UPDATE_MODEL_FIELD_MAP) {
-      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
-      const value = dto[dtoKey]
-      if (value === undefined) continue
-
-      if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
-        const field = String(dbKey) as PresetDeltaField
-        if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
-          ;(updates as Record<string, unknown>)[dbKey] = null
-        } else {
-          ;(updates as Record<string, unknown>)[dbKey] = value
-        }
-      } else {
-        ;(updates as Record<string, unknown>)[dbKey] = value
-      }
-    }
-    if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
     return updates
   }
 
@@ -900,7 +816,10 @@ class ModelService {
           )
           const resolved = ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
-          return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
+          return applyStoredModelState(
+            { ...(imageGeneration ? { ...resolved, imageGeneration } : resolved), overrides: readOverrides(row) },
+            row
+          )
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
             providerId: row.providerId,
@@ -942,9 +861,7 @@ class ModelService {
         if (model.description === undefined && registryModel?.description !== undefined) {
           updates.description = registryModel.description
         }
-        const hasExplicitInputModalities =
-          row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
-        if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
+        if (row.inputModalities === null && registryModel?.inputModalities !== undefined) {
           updates.inputModalities = registryModel.inputModalities
         }
         if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {

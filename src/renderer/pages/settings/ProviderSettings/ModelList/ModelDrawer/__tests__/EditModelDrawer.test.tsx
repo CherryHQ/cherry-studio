@@ -235,8 +235,25 @@ describe('EditModelDrawer', () => {
     await user.tab()
 
     expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ name: 'Claude 4 Sonnet Renamed' }))
-    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('pricing')
+    // Every field sent is stored as an override, so untouched fields must stay out of the patch.
+    expect(updateModelMock.mock.calls[0][2]).toEqual({ name: 'Claude 4 Sonnet Renamed' })
+  })
+
+  it('hands classification back to the registry when a preset-backed model is reset', async () => {
+    const user = userEvent.setup()
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={{ ...makePricingModel(), presetModelId: 'claude-4-sonnet' }}
+      />
+    )
+
+    await user.click(screen.getByLabelText('common.reset'))
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual({ capabilities: null, inputModalities: null })
   })
 
   it('keeps a queued pricing save when a later unrelated field is edited', async () => {

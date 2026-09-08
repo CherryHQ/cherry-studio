@@ -51,7 +51,8 @@ interface BuildPatchOverrides {
   endpointTypes?: EndpointType[]
   /** `null` clears the pin; `undefined` leaves it untouched. */
   preferredEndpointType?: EndpointType | null
-  classification?: ModelClassificationState
+  /** `null` hands capabilities and input modalities back to the registry. */
+  classification?: ModelClassificationState | null
   supportsStreaming?: boolean
   pricing?: Model['pricing']
   contextWindow?: number | null
@@ -149,53 +150,35 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   )
 
   const buildPatch = useCallback(
-    (overrides?: BuildPatchOverrides): UpdateModelDto => {
+    (overrides: BuildPatchOverrides): UpdateModelDto => {
       if (!model) {
         return {}
       }
-
-      const nextName = overrides?.name ?? name
-      const nextGroup = overrides?.group ?? group
-      const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
-      const hasPricingOverride = overrides != null && Object.hasOwn(overrides, 'pricing')
-      const hasContextWindowOverride = overrides != null && Object.hasOwn(overrides, 'contextWindow')
-      const hasMaxInputTokensOverride = overrides != null && Object.hasOwn(overrides, 'maxInputTokens')
-      const hasMaxOutputTokensOverride = overrides != null && Object.hasOwn(overrides, 'maxOutputTokens')
-      const nextContextWindow = hasContextWindowOverride ? overrides?.contextWindow : contextWindow
-      const nextMaxInputTokens = hasMaxInputTokensOverride ? overrides?.maxInputTokens : maxInputTokens
-      const nextMaxOutputTokens = hasMaxOutputTokensOverride ? overrides?.maxOutputTokens : maxOutputTokens
-      const nextClassification = overrides?.classification
-      const effectiveClassification = nextClassification ?? classification
-      const classifiedCapabilities = nextClassification
-        ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
-        : undefined
-      const classifiedInputModalities = nextClassification
-        ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
-        : undefined
+      // Every field present here is stored as an override, so only what the user touched goes out.
+      const has = (key: keyof BuildPatchOverrides) => Object.hasOwn(overrides, key)
+      const nextClassification = overrides.classification
 
       return {
-        name: nextName || model.name,
-        group: nextGroup || model.group,
-        ...(hasEndpointTypesOverride ? { endpointTypes: [...(overrides.endpointTypes ?? [])] } : {}),
+        ...(has('name') ? { name: overrides.name || model.name } : {}),
+        ...(has('group') ? { group: overrides.group || model.group } : {}),
+        ...(has('endpointTypes') ? { endpointTypes: [...(overrides.endpointTypes ?? [])] } : {}),
         // `null` is a real value here (clear the pin), so test for presence, not truthiness.
-        ...(overrides != null && Object.hasOwn(overrides, 'preferredEndpointType')
-          ? { preferredEndpointType: overrides.preferredEndpointType }
+        ...(has('preferredEndpointType') ? { preferredEndpointType: overrides.preferredEndpointType } : {}),
+        ...(nextClassification === null ? { capabilities: null, inputModalities: null } : {}),
+        ...(nextClassification
+          ? {
+              capabilities: buildModelCapabilities(model.capabilities ?? [], nextClassification),
+              inputModalities: buildModelInputModalities(model.inputModalities ?? [], nextClassification)
+            }
           : {}),
-        ...(nextClassification && classifiedCapabilities && classifiedInputModalities
-          ? { capabilities: classifiedCapabilities, inputModalities: classifiedInputModalities }
-          : {}),
-        supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
-        ...(hasContextWindowOverride && nextContextWindow !== undefined ? { contextWindow: nextContextWindow } : {}),
-        ...(hasMaxInputTokensOverride && nextMaxInputTokens !== undefined
-          ? { maxInputTokens: nextMaxInputTokens }
-          : {}),
-        ...(hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined
-          ? { maxOutputTokens: nextMaxOutputTokens }
-          : {}),
-        ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
+        ...(has('supportsStreaming') ? { supportsStreaming: overrides.supportsStreaming } : {}),
+        ...(has('contextWindow') ? { contextWindow: overrides.contextWindow } : {}),
+        ...(has('maxInputTokens') ? { maxInputTokens: overrides.maxInputTokens } : {}),
+        ...(has('maxOutputTokens') ? { maxOutputTokens: overrides.maxOutputTokens } : {}),
+        ...(has('pricing') ? { pricing: overrides.pricing } : {})
       }
     },
-    [group, contextWindow, maxInputTokens, maxOutputTokens, model, name, classification, supportsStreaming]
+    [model]
   )
 
   const processAutoSaveQueue = useCallback(async () => {
@@ -221,7 +204,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   }, [handleUpdateModel, t])
 
   const autoSave = useCallback(
-    (overrides?: BuildPatchOverrides) => {
+    (overrides: BuildPatchOverrides) => {
       if (!model) {
         return
       }
@@ -278,7 +261,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       if (shouldClearPreference) setPreferredEndpointType(null)
       autoSave({
         classification: nextClassification,
-        endpointTypes: nextEndpointTypes,
+        ...(nextEndpointTypes.length !== endpointTypes.length ? { endpointTypes: nextEndpointTypes } : {}),
         ...(shouldClearPreference ? { preferredEndpointType: null } : {})
       })
     },
@@ -318,23 +301,15 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       inputModalities: new Set(savedClassification.inputModalities)
     }
     setClassification(nextClassification)
-    autoSave({ classification: nextClassification })
-  }, [autoSave, savedClassification])
+    autoSave(model?.presetModelId ? { classification: null } : { classification: nextClassification })
+  }, [autoSave, model?.presetModelId, savedClassification])
 
   const handlePreferredEndpointTypeChange = useCallback(
     (next: EndpointType | undefined) => {
-      if (next && endpointTypes.length === 0) {
-        const materializedEndpointTypes = [...preferredEndpointOptions]
-        setEndpointTypes(materializedEndpointTypes)
-        setPreferredEndpointType(next)
-        autoSave({ endpointTypes: materializedEndpointTypes, preferredEndpointType: next })
-        return
-      }
-
       setPreferredEndpointType(next ?? null)
       autoSave({ preferredEndpointType: next ?? null })
     },
-    [autoSave, endpointTypes.length, preferredEndpointOptions]
+    [autoSave]
   )
 
   if (!provider || !model) {
