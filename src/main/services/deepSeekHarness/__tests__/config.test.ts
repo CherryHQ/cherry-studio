@@ -139,6 +139,30 @@ describe('DeepSeek Harness config transaction', () => {
     ).toThrow('has no DeepSeek Harness compatible endpoint')
   })
 
+  it('routes on the pinned endpoint ahead of the declaration order', () => {
+    const relay = provider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://proxy.example/anthropic' }
+      }
+    })
+    const pinned = model({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    })
+
+    expect(resolveDeepSeekHarnessEndpoint(relay, pinned)).toMatchObject({
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      protocol: 'anthropic-messages'
+    })
+
+    // A pin the harness cannot speak, or the provider does not serve, is ignored rather than fatal.
+    expect(
+      resolveDeepSeekHarnessEndpoint(relay, model({ ...pinned, preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES }))
+    ).toMatchObject({ endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
+  })
+
   it('uses the selected OpenAI endpoint regardless of developer-role support', () => {
     const openAiFirstProvider = provider({
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
