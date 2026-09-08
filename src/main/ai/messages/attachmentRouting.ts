@@ -64,6 +64,22 @@ function uniqueHandle(base: string, used: Set<string>): string {
   return candidate
 }
 
+function collectComposerFileTokenIds(message: UIMessage): Set<string> {
+  const tokenIds = new Set<string>()
+  for (const part of message.parts ?? []) {
+    if (part.type !== 'text') continue
+    for (const token of readCherryMeta(part)?.composer?.tokens ?? []) {
+      if (token.kind === 'file') tokenIds.add(token.id)
+    }
+  }
+  return tokenIds
+}
+
+function isActiveManagedFilePart(part: FileUIPart, composerFileTokenIds: ReadonlySet<string>): boolean {
+  const sourceId = readCherryMeta(part)?.fileTokenSourceId
+  return !sourceId || composerFileTokenIds.has(`file:${sourceId}`)
+}
+
 /**
  * Flat allow-list of fileEntry-backed attachments across all messages. Each gets
  * a **unique** model-facing `handle` (normalized + deduped) plus the original
@@ -73,10 +89,12 @@ export function collectFileAttachments(messages: UIMessage[] | undefined): FileA
   const refs: FileAttachmentRef[] = []
   const used = new Set<string>()
   for (const message of messages ?? []) {
+    const composerFileTokenIds = collectComposerFileTokenIds(message)
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const fileEntryId = readCherryMeta(part)?.fileEntryId
       if (!fileEntryId) continue
+      if (!isActiveManagedFilePart(part, composerFileTokenIds)) continue
       const displayName = part.filename ?? 'file'
       const handle = uniqueHandle(displayName.trim() || 'file', used)
       refs.push({ fileEntryId, handle, displayName })
@@ -172,6 +190,7 @@ async function prepareChatMessage<T extends UIMessage>(
   if (!message.parts?.length) return message
 
   const kept: UIMessage['parts'] = []
+  const composerFileTokenIds = collectComposerFileTokenIds(message)
   const inlineNative = async (part: FileUIPart): Promise<boolean> => {
     const inlined = await materializeNativeFilePart(part)
     if (!inlined) return false
@@ -208,6 +227,15 @@ async function prepareChatMessage<T extends UIMessage>(
       continue
     }
 
+    if (!isActiveManagedFilePart(part, composerFileTokenIds)) {
+      logger.warn('Ignoring orphaned managed file part', {
+        messageId: message.id,
+        displayName: part.filename ?? 'file',
+        fileEntryId
+      })
+      continue
+    }
+
     // This is the eager (every-turn, whole-history) path, so any failure here —
     // missing/deleted entry, parse error, failed native
     // materialization — must degrade to a model-visible note rather than reject
@@ -232,7 +260,14 @@ async function prepareChatMessage<T extends UIMessage>(
       // provider request. Gateway-backed models can explicitly enable Vision.
       if (fileType === FILE_TYPE.IMAGE) {
         const ocrText = await ocrNonVisionImage(fileEntryId, ctx.signal)
-        if (ocrText === null) throw new NonVisionImageOcrError()
+        if (ocrText === null) {
+          logger.warn('Non-vision image OCR produced no readable text', {
+            messageId: message.id,
+            displayName,
+            fileEntryId
+          })
+          throw new NonVisionImageOcrError()
+        }
         defer(kept, pending, handle, ocrText)
         continue
       }
