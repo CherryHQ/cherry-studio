@@ -178,6 +178,11 @@ describe('buildCompactReplay', () => {
       {
         topicId: 'topic-1',
         executionId: 'provider-b::model-b',
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-b::model-b',
         chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' } as UIMessageChunk
       },
       {
@@ -200,6 +205,11 @@ describe('buildCompactReplay', () => {
         topicId: 'topic-1',
         executionId: 'provider-a::model-a',
         chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' }
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-b::model-b',
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
       },
       {
         topicId: 'topic-1',
