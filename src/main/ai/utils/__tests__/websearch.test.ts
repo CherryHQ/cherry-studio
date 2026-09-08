@@ -111,7 +111,7 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
     expect(config).toEqual({ openai: { searchContextSize: 'medium' } })
   })
 
-  it('uses the configured model endpoint when the CherryIN default config is missing', () => {
+  it('reuses the configured shared host for the CherryIN Responses endpoint when the default is missing', () => {
     const cherryin = {
       id: 'cherryin',
       presetProviderId: 'cherryin',
@@ -132,7 +132,7 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
       cherryin
     )
 
-    expect(config).toEqual({ 'openai-chat': { searchContextSize: 'medium' } })
+    expect(config).toEqual({ openai: { searchContextSize: 'medium' } })
   })
 })
 
