@@ -31,9 +31,6 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/components/MiniApp/MiniAppDetailPanel', () => ({ default: () => null }))
-vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
-  WebviewAnnotationControls: () => <div data-testid="annotation-controls" />
-}))
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({ pinned: [], allApps: [], updateAppStatus: vi.fn() })
 }))
@@ -94,7 +91,6 @@ function renderToolbar(webview: WebviewTag | null, currentUrl: string | null = a
         webviewRevision={0}
         currentUrl={currentUrl}
         isWebviewReady
-        isHostActive
         onReload={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"
@@ -206,7 +202,6 @@ describe('MinimalToolbar address bar', () => {
         webviewRevision={1}
         currentUrl={null}
         isWebviewReady
-        isHostActive
         onReload={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"
@@ -247,7 +242,6 @@ describe('MinimalToolbar address bar', () => {
         webviewRevision={1}
         currentUrl={null}
         isWebviewReady
-        isHostActive
         onReload={vi.fn()}
         onOpenDevTools={vi.fn()}
         splitMode="open"

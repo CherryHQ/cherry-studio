@@ -530,14 +530,16 @@ export function WebviewNavigation({
       </Popover>
 
       <div className="flex shrink-0 items-center gap-0.5">
-        <WebviewAnnotationControls
-          webviewRef={webviewRef}
-          webviewRevision={webviewRevision}
-          isWebviewReady={isWebviewReady}
-          isHostActive={isHostActive}
-          target={target}
-          onAnnotationSaved={onAnnotationSaved}
-        />
+        {onAnnotationSaved && (
+          <WebviewAnnotationControls
+            webviewRef={webviewRef}
+            webviewRevision={webviewRevision}
+            isWebviewReady={isWebviewReady}
+            isHostActive={isHostActive}
+            target={target}
+            onAnnotationSaved={onAnnotationSaved}
+          />
+        )}
         {canOpenExternal ? (
           <Tooltip content={t('webview.navigation.open_external')} placement="bottom">
             <Button

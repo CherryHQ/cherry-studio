@@ -1193,7 +1193,8 @@ still creates its own `<webview>` through `WebviewContainer`.
 | Guest host | [WebviewContainer](../../../src/renderer/components/MiniApp/WebviewContainer.tsx) | [WebviewHost](../../../src/renderer/components/WebviewHost.tsx), composed by `WebviewBrowser` | Separate element creation, event wiring and preference application |
 | Navigation toolbar | `MinimalToolbar` | `WebviewNavigation` | Separate implementations with overlapping navigation/address state |
 | Page lifetime | `MiniAppTabsPool` owns keep-alive and split-pane placement | Browser tab or Agent pane owns the guest | Separate product ownership |
-| Page search and annotations | `WebviewSearch`, `WebviewAnnotationControls` | Same components | Shared |
+| Page search | `WebviewSearch` | `WebviewSearch` | Shared |
+| Annotation controls | Hidden | `WebviewAnnotationControls` in Agent panes only; hidden in standalone tabs | Requires a conversation receiver (`onAnnotationSaved`) |
 | Annotation accessibility capture | [annotationExport](../../../src/main/services/webview/annotationExport.ts) borrows a guest lease | `BrowserSessionService` / `GuestSession` | Shared debugger ownership and capture engine |
 | Runtime and security | `MiniAppRuntimeService`, app preparation and MiniApp host policies | Browser session/control and profile policies | Separate authorities; sharing capture does not grant Agent control over MiniApps |
 

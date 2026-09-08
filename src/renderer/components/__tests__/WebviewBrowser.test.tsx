@@ -11,12 +11,6 @@ import { WebviewBrowser } from '../WebviewBrowser'
 
 vi.unmock('@cherrystudio/ui')
 
-vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
-  WebviewAnnotationControls: ({ target }: { target: { id: string } }) => (
-    <div data-testid="annotation-controls" data-target-id={target.id} />
-  )
-}))
-
 vi.mock('@renderer/data/hooks/usePreference', async () => {
   const { MockUsePreference } = await import('@test-mocks/renderer/usePreference')
   return MockUsePreference
@@ -32,6 +26,23 @@ vi.mock('react-i18next', () => ({
 }))
 
 describe('WebviewBrowser', () => {
+  it('offers annotation only when the host can add it to a conversation', () => {
+    const props = {
+      initialUrl: 'https://example.com',
+      securityProfile: 'agent-browser' as const,
+      isHostActive: true,
+      target: { id: 'browser-context', label: 'Browser' }
+    }
+    const view = render(<WebviewBrowser {...props} />)
+    expect(screen.queryByRole('button', { name: 'webview.annotation.enable_mode' })).not.toBeInTheDocument()
+
+    view.rerender(<WebviewBrowser {...props} onAnnotationSaved={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'webview.annotation.enable_mode' })).toBeInTheDocument()
+
+    view.rerender(<WebviewBrowser {...props} />)
+    expect(screen.queryByRole('button', { name: 'webview.annotation.enable_mode' })).not.toBeInTheDocument()
+  })
+
   it('shows the live title and domain at rest while preserving the full URL during editing', () => {
     const url = 'https://github.com/maizzle/framework'
     const view = render(
@@ -107,7 +118,7 @@ describe('WebviewBrowser', () => {
     expect(screen.getByRole('combobox', { name: 'webview.navigation.address' })).toBeEnabled()
   })
 
-  it('activates navigation and annotations when its isolated guest becomes ready', () => {
+  it('activates navigation when its isolated guest becomes ready', () => {
     vi.spyOn(mockRendererLoggerService, 'debug').mockImplementation(() => {})
     const { container } = render(
       <WebviewBrowser
@@ -140,7 +151,6 @@ describe('WebviewBrowser', () => {
 
     expect(screen.getByRole('textbox', { name: 'webview.navigation.address' })).toBeEnabled()
     expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.getByTestId('annotation-controls')).toHaveAttribute('data-target-id', 'agent-browser:session-a')
     expect(screen.getByRole('button', { name: 'Pane controls' })).toBeInTheDocument()
 
     act(() => {

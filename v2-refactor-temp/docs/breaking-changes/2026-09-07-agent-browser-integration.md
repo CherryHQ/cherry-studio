@@ -57,3 +57,6 @@ The button opens the same import dialog as Browser settings. A renderer persist-
 the prompt across tabs, windows and restarts after dismissal or an import with at least one imported
 item. Empty, failed and cancelled imports with no imported items keep the prompt available.
 Earlier imports have no persisted completion marker and may receive the prompt once after upgrading.
+
+Page annotation controls are available only in the Agent browser pane, where saved annotations
+are added to the conversation draft. Standalone Browser tabs and MiniApps no longer show these controls.
