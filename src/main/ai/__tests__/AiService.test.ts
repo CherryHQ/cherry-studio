@@ -747,6 +747,36 @@ describe('AiService', () => {
       ).rejects.toBe(abortError)
     })
 
+    it('does not persist images when cancellation happens during validation', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      const abortError = new DOMException('Image generation cancelled', 'AbortError')
+      const controller = new AbortController()
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: TINY_PNG_BASE64, mediaType: 'image/png' }] })
+      mockFileTypeFromBuffer.mockImplementationOnce(async (...args: Parameters<typeof fileTypeFromBufferActual>) => {
+        controller.abort(abortError)
+        return fileTypeFromBufferActual(...args)
+      })
+      const createInternalEntry = vi.fn()
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {},
+          requestOptions: { signal: controller.signal }
+        })
+      ).rejects.toBe(abortError)
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
     it('keeps malformed URL candidates on the provider-error path', async () => {
       const service = createService()
       vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -1096,6 +1126,50 @@ describe('AiService', () => {
         validation: {
           receivedCount: 2,
           rejected: [{ index: 1, reason: 'download_failed' }]
+        }
+      })
+    })
+
+    it('preserves a dropped candidate index before a successful URL', async () => {
+      const service = createService()
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockDownloadImageAsBase64.mockResolvedValue({ data: TINY_PNG_BASE64, media_type: 'image/png' })
+      mockGenerateImage.mockImplementation(async (_providerId, _providerSettings, options) => {
+        options.onProviderCall?.({
+          modality: 'image',
+          requestId: 'ai-core:image:test',
+          providerId: 'test-provider',
+          modelId: 'test-model',
+          imageCount: 1,
+          metrics: { timeCompletionMs: 10 },
+          completedAt: 100
+        })
+        await options.experimental_download([
+          { url: new URL('https://example.com/b.png'), isUrlSupportedByModel: false, originalIndex: 1 }
+        ])
+        return { images: [{ base64: TINY_PNG_BASE64, mediaType: 'image/png', originalIndex: 1 }] }
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'png', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValue(file)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [file],
+        validation: {
+          receivedCount: 2,
+          rejected: [{ index: 0, reason: 'invalid_image_data' }]
         }
       })
     })

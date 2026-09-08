@@ -376,6 +376,17 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(recordRequestMock).toHaveBeenCalledWith(expect.objectContaining({ imageCount: 0 }))
   })
 
+  it('does not complete with empty validation when submit cancellation returns no image URLs', async () => {
+    const controller = new AbortController()
+    submitMock.mockImplementation(async () => {
+      controller.abort()
+      return { imageUrls: [] }
+    })
+
+    await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
   it('reports an empty output when poll returns no image URLs', async () => {
     submitMock.mockResolvedValue({ taskId: 'task-empty' })
     pollMock.mockResolvedValue([])

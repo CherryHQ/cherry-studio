@@ -1005,15 +1005,24 @@ export class AiService extends BaseService {
     const failedDownloadIndexSet = new Set(failedDownloadIndexes)
     const droppedImageCount = Math.max(failedDownloadIndexes.length, providerImageCount - images.length)
     const highestDownloadIndex = Math.max(-1, ...remoteDownloadOutcomes.keys())
-    const receivedCount = Math.max(images.length + droppedImageCount, highestDownloadIndex + 1)
-    const imageIndexes = Array.from({ length: receivedCount }, (_, index) => index)
-      .filter((index) => !failedDownloadIndexSet.has(index))
-      .slice(0, images.length)
+    const highestImageIndex = Math.max(-1, ...images.map((image) => image.originalIndex ?? -1))
+    const receivedCount = Math.max(images.length + droppedImageCount, highestDownloadIndex + 1, highestImageIndex + 1)
+    const explicitImageIndexes = new Set(
+      images.map((image) => image.originalIndex).filter((index): index is number => index !== undefined)
+    )
+    const fallbackImageIndexes = Array.from({ length: receivedCount }, (_, index) => index).filter(
+      (index) => !failedDownloadIndexSet.has(index) && !explicitImageIndexes.has(index)
+    )
+    let nextFallbackImageIndex = 0
+    const imageIndexes = images.map(
+      (image, index) => image.originalIndex ?? fallbackImageIndexes[nextFallbackImageIndex++] ?? index
+    )
     for (const [index, image] of images.entries()) {
       const validated = await validateGeneratedImage(image)
       if (validated.reason) rejected.push({ index: imageIndexes[index] ?? index, reason: validated.reason })
       else dataUrls.push(validated.data)
     }
+    signal?.throwIfAborted()
 
     rejected.push(...failedDownloadIndexes.map((index) => ({ index, reason: 'download_failed' as const })))
     const assignedIndexes = new Set([...imageIndexes, ...failedDownloadIndexes])
@@ -1038,6 +1047,7 @@ export class AiService extends BaseService {
         fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
       )
     )
+    signal?.throwIfAborted()
 
     return { files, ...(validation && { validation }) }
   }

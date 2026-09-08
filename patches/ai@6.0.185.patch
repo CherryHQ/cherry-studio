@@ -1,5 +1,5 @@
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa66514e2b1607 100644
+index 23c5e351eb34a71f5a19576761effd709af3dd9f..cef756bf4ace96878da1fd8a2d4fa5833603b079 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
 @@ -586,6 +586,7 @@ type TelemetrySettings = {
@@ -10,7 +10,30 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa6651
  }>) => PromiseLike<Array<{
      data: Uint8Array;
      mediaType: string | undefined;
-@@ -5041,7 +5042,7 @@ type GenerateImagePrompt = string | {
+@@ -612,6 +613,10 @@ interface ReasoningOutput {
+  * A generated file.
+  */
+ interface GeneratedFile {
++    /**
++     * Original provider result index when available.
++     */
++    readonly originalIndex?: number;
+     /**
+      * File as a base64 encoded string.
+      */
+@@ -631,9 +636,11 @@ declare class DefaultGeneratedFile implements GeneratedFile {
+     private base64Data;
+     private uint8ArrayData;
+     readonly mediaType: string;
++    readonly originalIndex?: number;
+     constructor({ data, mediaType, }: {
+         data: string | Uint8Array;
+         mediaType: string;
++        originalIndex?: number;
+     });
+     get base64(): string;
+     get uint8Array(): Uint8Array<ArrayBufferLike>;
+@@ -5041,7 +5048,7 @@ type GenerateImagePrompt = string | {
   *
   * @returns A result object that contains the generated images.
   */
@@ -19,7 +42,7 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa6651
      /**
       * The image model to use.
       */
-@@ -5100,6 +5101,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+@@ -5100,6 +5107,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
       * Only applicable for HTTP-based providers.
       */
      headers?: Record<string, string>;
@@ -33,7 +56,7 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa6651
  
  /**
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa66514e2b1607 100644
+index 23c5e351eb34a71f5a19576761effd709af3dd9f..cef756bf4ace96878da1fd8a2d4fa5833603b079 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
 @@ -586,6 +586,7 @@ type TelemetrySettings = {
@@ -44,7 +67,30 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa6651
  }>) => PromiseLike<Array<{
      data: Uint8Array;
      mediaType: string | undefined;
-@@ -5041,7 +5042,7 @@ type GenerateImagePrompt = string | {
+@@ -612,6 +613,10 @@ interface ReasoningOutput {
+  * A generated file.
+  */
+ interface GeneratedFile {
++    /**
++     * Original provider result index when available.
++     */
++    readonly originalIndex?: number;
+     /**
+      * File as a base64 encoded string.
+      */
+@@ -631,9 +636,11 @@ declare class DefaultGeneratedFile implements GeneratedFile {
+     private base64Data;
+     private uint8ArrayData;
+     readonly mediaType: string;
++    readonly originalIndex?: number;
+     constructor({ data, mediaType, }: {
+         data: string | Uint8Array;
+         mediaType: string;
++        originalIndex?: number;
+     });
+     get base64(): string;
+     get uint8Array(): Uint8Array<ArrayBufferLike>;
+@@ -5041,7 +5048,7 @@ type GenerateImagePrompt = string | {
   *
   * @returns A result object that contains the generated images.
   */
@@ -53,7 +99,7 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa6651
      /**
       * The image model to use.
       */
-@@ -5100,6 +5101,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+@@ -5100,6 +5107,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
       * Only applicable for HTTP-based providers.
       */
      headers?: Record<string, string>;
@@ -67,10 +113,26 @@ index 23c5e351eb34a71f5a19576761effd709af3dd9f..f58430833a155c7af32d832f86aa6651
  
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c13574934522 100644
+index 5774837d8961e535a03b2037c58bdcff45cf1916..572b46f9e3654ce6c0426993ec5a50eb675c9d7d 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -8468,6 +8468,16 @@ function createUIMessageStream({
+@@ -3090,12 +3090,14 @@ var import_provider_utils10 = require("@ai-sdk/provider-utils");
+ var DefaultGeneratedFile = class {
+   constructor({
+     data,
+-    mediaType
++    mediaType,
++    originalIndex
+   }) {
+     const isUint8Array = data instanceof Uint8Array;
+     this.base64Data = isUint8Array ? void 0 : data;
+     this.uint8ArrayData = isUint8Array ? data : void 0;
+     this.mediaType = mediaType;
++    this.originalIndex = originalIndex;
+   }
+   // lazy conversion with caching to avoid unnecessary conversion overhead:
+   get base64() {
+@@ -8468,6 +8470,16 @@ function createUIMessageStream({
  }
  
  // src/ui-message-stream/read-ui-message-stream.ts
@@ -87,7 +149,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c135
  function readUIMessageStream({
    message,
    stream,
-@@ -8500,7 +8510,7 @@ function readUIMessageStream({
+@@ -8500,7 +8512,7 @@ function readUIMessageStream({
          return job({
            state,
            write: () => {
@@ -96,7 +158,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c135
            }
          });
        },
-@@ -9636,6 +9646,14 @@ var DefaultEmbedManyResult = class {
+@@ -9636,6 +9648,14 @@ var DefaultEmbedManyResult = class {
  
  // src/generate-image/generate-image.ts
  var import_provider_utils25 = require("@ai-sdk/provider-utils");
@@ -111,7 +173,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c135
  async function generateImage({
    model: modelArg,
    prompt: promptArg,
-@@ -9647,7 +9665,8 @@ async function generateImage({
+@@ -9647,7 +9667,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -121,7 +183,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c135
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9696,11 +9715,43 @@ async function generateImage({
+@@ -9696,21 +9717,68 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -140,7 +202,7 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c135
 +        if (typeof image === "string" && image.startsWith("data:")) {
 +          const { mediaType, base64Content } = splitDataUrl(image);
 +          if (mediaType != null && base64Content != null) {
-+            return new DefaultGeneratedFile({ data: base64Content, mediaType });
++            return new DefaultGeneratedFile({ data: base64Content, mediaType, originalIndex: originalIndexOffset + index });
 +          }
 +        }
 +        const imageUrl = typeof image === "string" ? toDownloadableImageUrl(image) : void 0;
@@ -158,7 +220,8 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c135
 +          if (downloadedData != null) {
 +            return new DefaultGeneratedFile({
 +              data: downloadedData.data,
-+              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
++              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png",
++              originalIndex: originalIndexOffset + index
 +            });
 +          }
 +          // A url we failed to fetch is not image data — dropping it beats persisting the
@@ -169,9 +232,11 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c135
            return new DefaultGeneratedFile({
              data: image,
              mediaType: (_a22 = detectMediaType({
-@@ -9708,9 +9759,22 @@ async function generateImage({
+               data: image,
                signatures: imageMediaTypeSignatures
-             })) != null ? _a22 : "image/png"
+-            })) != null ? _a22 : "image/png"
++            })) != null ? _a22 : "image/png",
++            originalIndex: originalIndexOffset + index
            });
 +        } catch (invalidImageData) {
 +          // Neither a fetchable url nor decodable base64 — drop it instead of letting one
@@ -194,10 +259,26 @@ index 5774837d8961e535a03b2037c58bdcff45cf1916..6bbf300d826923457e3222b13310c135
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24de8367e26 100644
+index 6862f01537bf5c2c5d47772fab0174a99180fdf6..eeef92b5739828eaeeaf7b93b18eebb3f7547d93 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -8392,6 +8392,16 @@ function createUIMessageStream({
+@@ -2991,12 +2991,14 @@ import {
+ var DefaultGeneratedFile = class {
+   constructor({
+     data,
+-    mediaType
++    mediaType,
++    originalIndex
+   }) {
+     const isUint8Array = data instanceof Uint8Array;
+     this.base64Data = isUint8Array ? void 0 : data;
+     this.uint8ArrayData = isUint8Array ? data : void 0;
+     this.mediaType = mediaType;
++    this.originalIndex = originalIndex;
+   }
+   // lazy conversion with caching to avoid unnecessary conversion overhead:
+   get base64() {
+@@ -8392,6 +8394,16 @@ function createUIMessageStream({
  }
  
  // src/ui-message-stream/read-ui-message-stream.ts
@@ -214,7 +295,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24d
  function readUIMessageStream({
    message,
    stream,
-@@ -8424,7 +8434,7 @@ function readUIMessageStream({
+@@ -8424,7 +8436,7 @@ function readUIMessageStream({
          return job({
            state,
            write: () => {
@@ -223,7 +304,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24d
            }
          });
        },
-@@ -9575,6 +9585,14 @@ import {
+@@ -9575,6 +9587,14 @@ import {
    convertBase64ToUint8Array as convertBase64ToUint8Array4,
    withUserAgentSuffix as withUserAgentSuffix5
  } from "@ai-sdk/provider-utils";
@@ -238,7 +319,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24d
  async function generateImage({
    model: modelArg,
    prompt: promptArg,
-@@ -9586,7 +9604,8 @@ async function generateImage({
+@@ -9586,7 +9606,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -248,7 +329,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24d
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9635,11 +9654,43 @@ async function generateImage({
+@@ -9635,21 +9656,68 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -267,7 +348,7 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24d
 +        if (typeof image === "string" && image.startsWith("data:")) {
 +          const { mediaType, base64Content } = splitDataUrl(image);
 +          if (mediaType != null && base64Content != null) {
-+            return new DefaultGeneratedFile({ data: base64Content, mediaType });
++            return new DefaultGeneratedFile({ data: base64Content, mediaType, originalIndex: originalIndexOffset + index });
 +          }
 +        }
 +        const imageUrl = typeof image === "string" ? toDownloadableImageUrl(image) : void 0;
@@ -285,7 +366,8 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24d
 +          if (downloadedData != null) {
 +            return new DefaultGeneratedFile({
 +              data: downloadedData.data,
-+              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
++              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png",
++              originalIndex: originalIndexOffset + index
 +            });
 +          }
 +          // A url we failed to fetch is not image data — dropping it beats persisting the
@@ -296,9 +378,11 @@ index 6862f01537bf5c2c5d47772fab0174a99180fdf6..3003f75052dcf00d1cb3c6d0c569a24d
            return new DefaultGeneratedFile({
              data: image,
              mediaType: (_a22 = detectMediaType({
-@@ -9647,9 +9698,22 @@ async function generateImage({
+               data: image,
                signatures: imageMediaTypeSignatures
-             })) != null ? _a22 : "image/png"
+-            })) != null ? _a22 : "image/png"
++            })) != null ? _a22 : "image/png",
++            originalIndex: originalIndexOffset + index
            });
 +        } catch (invalidImageData) {
 +          // Neither a fetchable url nor decodable base64 — drop it instead of letting one

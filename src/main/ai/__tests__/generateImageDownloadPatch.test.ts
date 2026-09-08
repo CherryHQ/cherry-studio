@@ -106,4 +106,16 @@ describe('patched ai generateImage url download', () => {
     expect(result.images[0].base64).toBe('QUJD')
     expect(originalIndexes).toEqual([1])
   })
+
+  it('keeps the provider index on a surviving URL after a malformed candidate', async () => {
+    const result = await generateImage({
+      model: imageModel(['https://exa mple.com/bad.png', 'https://img/ok.png']),
+      prompt: 'a fox',
+      n: 2,
+      experimental_download: async () => [{ data: bytes, mediaType: 'image/png' }]
+    })
+
+    expect(result.images).toHaveLength(1)
+    expect(result.images[0].originalIndex).toBe(1)
+  })
 })

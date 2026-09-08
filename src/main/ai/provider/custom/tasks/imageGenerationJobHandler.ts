@@ -110,6 +110,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       // job rather than silently complete with zero files (a paid no-op).
       throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
     }
+    ctx.signal.throwIfAborted()
 
     // Record before local download: the provider invocation completed even if file
     // persistence fails. Polling is part of this invocation, not another billable
@@ -129,6 +130,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     // Preserve empty/rejected output as structured validation so both the painting
     // page and built-in tool can explain the paid no-op without parsing job errors.
     const output = await downloadAndPersistImageUrls(urls, ctx.signal, input.cleanupPolicy)
+    ctx.signal.throwIfAborted()
     ctx.reportProgress(100, { stage: 'done' })
     return output satisfies ImageGenerationJobOutput
   }
@@ -233,6 +235,7 @@ async function downloadAndPersistImageUrls(
       continue
     }
     files.push(await fileManager.createInternalEntry({ source: 'base64', data: validated.data, cleanupPolicy }))
+    signal.throwIfAborted()
   }
   if (files.length === 0 && downloadFailures > 0) {
     throw new Error(`Image generation produced ${urls.length} URL(s) but all downloads failed`)
