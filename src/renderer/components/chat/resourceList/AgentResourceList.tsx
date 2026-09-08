@@ -86,7 +86,7 @@ export function AgentResourceList({
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const {
-    hiddenBuiltinAgentIds,
+    filterVisibleAgents,
     hideBuiltinAgent,
     isLoading: isBuiltinAgentVisibilityLoading
   } = useBuiltinAgentListVisibility()
@@ -117,29 +117,13 @@ export function AgentResourceList({
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const { agentFavoriteIds: sidebarAgentFavoriteIds, toggleAgent, removeAgent } = useSidebarFavorites()
   const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
-  const hiddenBuiltinAgentIdSet = useMemo(() => new Set(hiddenBuiltinAgentIds), [hiddenBuiltinAgentIds])
   const handleHideBuiltinAgent = useCallback(
     async (agentId: string) => {
       await hideBuiltinAgent(agentId)
     },
     [hideBuiltinAgent]
   )
-  const hiddenProtectedAgentIdSet = useMemo(
-    () =>
-      new Set(
-        agents
-          .filter(
-            (agent) =>
-              hiddenBuiltinAgentIdSet.has(agent.id) && isProtectedBuiltinAgentRole(agent.configuration?.builtin_role)
-          )
-          .map((agent) => agent.id)
-      ),
-    [agents, hiddenBuiltinAgentIdSet]
-  )
-  const visibleAgents = useMemo(
-    () => agents.filter((agent) => !hiddenProtectedAgentIdSet.has(agent.id)),
-    [agents, hiddenProtectedAgentIdSet]
-  )
+  const visibleAgents = useMemo(() => filterVisibleAgents(agents), [agents, filterVisibleAgents])
   const handleActivationError = useCallback(
     (error: unknown) => {
       logger.error('Failed to activate agent resource from classic-layout rail', { error })

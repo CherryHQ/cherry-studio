@@ -18,10 +18,18 @@ vi.mock('@data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useBuiltinAgentListVisibility', () => ({
-  useBuiltinAgentListVisibility: () => ({
-    hiddenBuiltinAgentIds: hiddenBuiltinVisibilityMock.ids,
-    isLoading: hiddenBuiltinVisibilityMock.isLoading
-  })
+  useBuiltinAgentListVisibility: () => {
+    const isHiddenBuiltin = (agent: { id: string; configuration?: { builtin_role?: string } }) =>
+      hiddenBuiltinVisibilityMock.ids.includes(agent.id) &&
+      ['assistant', 'support'].includes(agent.configuration?.builtin_role ?? '')
+
+    return {
+      filterHiddenBuiltinAgents: <T extends { id: string; configuration?: { builtin_role?: string } }>(agents: T[]) =>
+        agents.filter(isHiddenBuiltin),
+      hasHiddenBuiltinAgents: hiddenBuiltinVisibilityMock.ids.length > 0,
+      isLoading: hiddenBuiltinVisibilityMock.isLoading
+    }
+  }
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))

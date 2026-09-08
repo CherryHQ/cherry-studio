@@ -911,6 +911,32 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.queryByRole('region', { name: 'Cherry Assistant' })).not.toBeInTheDocument()
   })
 
+  it('keeps the classic agent rail empty until built-in visibility is resolved', () => {
+    agentDataMocks.agents = [
+      {
+        id: 'agent-1',
+        name: 'Cherry Assistant',
+        orderKey: 'a',
+        configuration: { builtin_role: 'assistant' },
+        model: 'anthropic::claude-sonnet-4',
+        modelName: 'Claude Sonnet 4'
+      }
+    ]
+    vi.mocked(mockPreferenceService.getCachedValue).mockReturnValueOnce(undefined)
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('region', { name: 'Cherry Assistant' })).not.toBeInTheDocument()
+  })
+
   it('creates a new session for the hovered agent row', () => {
     const onCreateSession = vi.fn()
 

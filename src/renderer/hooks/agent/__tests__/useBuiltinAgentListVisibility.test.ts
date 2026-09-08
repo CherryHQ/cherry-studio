@@ -57,4 +57,23 @@ describe('useBuiltinAgentListVisibility', () => {
 
     expect(result.current.isLoading).toBe(false)
   })
+
+  it('owns protected built-in filtering and fails closed until visibility is resolved', () => {
+    mocks.state['agent.session.hidden_builtin_ids'] = undefined
+    mocks.renderedIds = ['hidden-assistant', 'stale-user-id']
+    const agents = [
+      { id: 'hidden-assistant', configuration: { builtin_role: 'assistant' } },
+      { id: 'visible-support', configuration: { builtin_role: 'support' } },
+      { id: 'stale-user-id', configuration: {} }
+    ]
+    const { result, rerender } = renderHook(() => useBuiltinAgentListVisibility())
+
+    expect(result.current.filterVisibleAgents(agents)).toEqual([])
+
+    mocks.state['agent.session.hidden_builtin_ids'] = mocks.renderedIds
+    rerender()
+
+    expect(result.current.filterHiddenBuiltinAgents(agents)).toEqual([agents[0]])
+    expect(result.current.filterVisibleAgents(agents)).toEqual([agents[1], agents[2]])
+  })
 })

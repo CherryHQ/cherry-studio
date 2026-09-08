@@ -391,7 +391,9 @@ const Sessions = ({
   })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const {
-    hiddenBuiltinAgentIds = [],
+    filterHiddenBuiltinAgents,
+    filterVisibleAgents,
+    hasHiddenBuiltinAgents,
     hideBuiltinAgent,
     isLoading: isBuiltinAgentVisibilityLoading
   } = useBuiltinAgentListVisibility()
@@ -429,7 +431,7 @@ const Sessions = ({
     isLoading: isHiddenBuiltinAgentsLoading,
     refetch: refetchHiddenBuiltinAgents
   } = useAgents({
-    builtinRoles: hiddenBuiltinAgentIds.length > 0 ? PROTECTED_BUILTIN_AGENT_ROLES : []
+    builtinRoles: hasHiddenBuiltinAgents ? PROTECTED_BUILTIN_AGENT_ROLES : []
   })
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -595,7 +597,6 @@ const Sessions = ({
     },
     [removeSidebarAgent, sidebarAgentFavoriteIdSet, toggleSidebarAgent]
   )
-  const hiddenBuiltinAgentIdSet = useMemo(() => new Set(hiddenBuiltinAgentIds), [hiddenBuiltinAgentIds])
   const handleHideBuiltinAgent = useCallback(
     async (agentId: string) => {
       await hideBuiltinAgent(agentId)
@@ -603,23 +604,17 @@ const Sessions = ({
     [hideBuiltinAgent]
   )
   const hiddenProtectedAgentIdSet = useMemo(
-    () =>
-      new Set(
-        hiddenBuiltinAgents
-          .filter(
-            (agent) =>
-              hiddenBuiltinAgentIdSet.has(agent.id) && isProtectedBuiltinAgentRole(agent.configuration?.builtin_role)
-          )
-          .map((agent) => agent.id)
-      ),
-    [hiddenBuiltinAgentIdSet, hiddenBuiltinAgents]
+    () => new Set(filterHiddenBuiltinAgents(hiddenBuiltinAgents).map((agent) => agent.id)),
+    [filterHiddenBuiltinAgents, hiddenBuiltinAgents]
   )
   const agentsWithSessionMetadata = useMemo(() => {
     const knownAgentIds = new Set(agents.map((agent) => agent.id))
     return [...agents, ...sessionAgents.filter((agent) => !knownAgentIds.has(agent.id))]
   }, [agents, sessionAgents])
   const agentsForDisplay = useMemo(() => {
-    const visibleAgents = agentsWithSessionMetadata.filter((agent) => !hiddenProtectedAgentIdSet.has(agent.id))
+    const visibleAgents = filterVisibleAgents(agentsWithSessionMetadata).filter(
+      (agent) => !hiddenProtectedAgentIdSet.has(agent.id)
+    )
     if (!optimisticAgentOrderIds) return visibleAgents
 
     const agentById = new Map(visibleAgents.map((agent) => [agent.id, agent]))
@@ -636,7 +631,7 @@ const Sessions = ({
     }
 
     return orderedAgents
-  }, [agentsWithSessionMetadata, hiddenProtectedAgentIdSet, optimisticAgentOrderIds])
+  }, [agentsWithSessionMetadata, filterVisibleAgents, hiddenProtectedAgentIdSet, optimisticAgentOrderIds])
   const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
   const getSessionExportOptions = useCallback(
     (session: AgentSessionEntity): AgentSessionExportOptions => ({
@@ -1269,7 +1264,7 @@ const Sessions = ({
 
   const handleRetry = useCallback(async () => {
     const retries: Promise<unknown>[] = [reload()]
-    if (hiddenBuiltinAgentIds.length > 0) {
+    if (hasHiddenBuiltinAgents) {
       retries.push(refetchHiddenBuiltinAgents())
     }
     if (displayMode === 'agent') {
@@ -1284,7 +1279,7 @@ const Sessions = ({
     await Promise.allSettled(retries)
   }, [
     displayMode,
-    hiddenBuiltinAgentIds.length,
+    hasHiddenBuiltinAgents,
     supplementalSessionAgentIds.length,
     refetchAgents,
     refetchHiddenBuiltinAgents,
