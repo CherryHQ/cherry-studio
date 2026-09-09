@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
+
+const logger = loggerService.withContext('PythonService')
 
 interface PythonExecutionRequest {
   id: string
@@ -74,6 +77,15 @@ export class PythonService extends BaseService {
 
       const timeoutId = setTimeout(() => {
         this.pendingRequests.delete(requestId)
+        try {
+          // 计时覆盖 IPC + 渲染侧排队 + 执行全程，超时必须通知渲染侧取消，否则排队中的请求仍会执行
+          application
+            .get('WindowManager')
+            .broadcastToType(WindowType.Main, IpcChannel.Python_ExecutionCancel, requestId)
+        } catch (error) {
+          // 取消广播失败不能吞掉调用方的 reject，否则该请求会永远挂起
+          logger.error('Failed to broadcast Python execution cancel', error as Error)
+        }
         reject(new Error('Python execution timed out'))
       }, timeout + 5000)
 
