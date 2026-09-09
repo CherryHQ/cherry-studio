@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +8,7 @@ import MultiSelectActionPopup from '../MultiSelectActionPopup'
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   // Keep the real Checkbox: tri-state and interaction assertions must cover
   // the actual UI primitive, not a locally reimplemented stand-in.
-  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  const actual = await importOriginal<CherryStudioUi>()
   return {
     ...actual,
     Button: ({ children, disabled, onClick }: any) => (

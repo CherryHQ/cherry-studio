@@ -83,16 +83,17 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const fetchOnMount = options.fetchOnMount ?? enabled
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
   // Load-all mode (multi-select "select all"): auto-paginate to the oldest
-  // page — same pattern as `useTopics({ loadAll: true })`. A failed page
-  // fetch abandons the request instead of retrying on every render; the
-  // user can re-trigger select-all.
+  // page — same pattern as `useTopics({ loadAll: true })`. `loadNext` is
+  // fire-and-forget (its promise is dropped inside useDataApi), so a failed
+  // page fetch is detected via the query `error` and abandons load-all
+  // instead of retrying on every render; the user can re-trigger select-all.
   const [loadAllRequested, setLoadAllRequested] = useState(false)
   const startLoadAll = useCallback(() => setLoadAllRequested(true), [])
   const stopLoadAll = useCallback(() => setLoadAllRequested(false), [])
   useEffect(() => {
     stopLoadAll()
   }, [sessionId, stopLoadAll])
-  const { pages, isLoading, isRefreshing, hasNext, loadNext, mutate } = useConversationHistoryQuery(
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, mutate } = useConversationHistoryQuery(
     '/agent-sessions/:sessionId/messages',
     {
       params: { sessionId },
@@ -263,10 +264,14 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   )
 
   useEffect(() => {
-    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing) {
-      void Promise.resolve(loadNext()).catch(stopLoadAll)
+    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing && !error) {
+      void loadNext()
     }
-  }, [enabled, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext, stopLoadAll])
+  }, [enabled, error, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext])
+  // A failed page fetch abandons the load-all; the user can re-trigger select-all.
+  useEffect(() => {
+    if (error && loadAllRequested) stopLoadAll()
+  }, [error, loadAllRequested, stopLoadAll])
   // Fully loaded — reset so first-page revalidation resumes after select-all.
   useEffect(() => {
     if (loadAllRequested && !hasNext) stopLoadAll()

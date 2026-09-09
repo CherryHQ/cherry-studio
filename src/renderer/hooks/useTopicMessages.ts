@@ -165,16 +165,17 @@ export function useTopicMessages(
   // mid-session swaps to a fresh cache entry instead of mixing page sizes.
   const pageSize = messageNavigation === 'anchor' ? ANCHOR_RAIL_PAGE_SIZE : PAGE_SIZE
   // Load-all mode (multi-select "select all"): auto-paginate to the oldest
-  // page — same pattern as `useTopics({ loadAll: true })`. A failed page
-  // fetch abandons the request instead of retrying on every render; the
-  // user can re-trigger select-all.
+  // page — same pattern as `useTopics({ loadAll: true })`. `loadNext` is
+  // fire-and-forget (its promise is dropped inside useDataApi), so a failed
+  // page fetch is detected via the query `error` and abandons load-all
+  // instead of retrying on every render; the user can re-trigger select-all.
   const [loadAllRequested, setLoadAllRequested] = useState(false)
   const startLoadAll = useCallback(() => setLoadAllRequested(true), [])
   const stopLoadAll = useCallback(() => setLoadAllRequested(false), [])
   useEffect(() => {
     stopLoadAll()
   }, [stopLoadAll, topicId])
-  const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useConversationHistoryQuery(
+  const { pages, isLoading, isRefreshing, error, mutate, loadNext, hasNext } = useConversationHistoryQuery(
     '/topics/:topicId/messages',
     {
       params: { topicId },
@@ -211,10 +212,14 @@ export function useTopicMessages(
   const activeNodeId = pages[0]?.activeNodeId ?? null
 
   useEffect(() => {
-    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing) {
-      void Promise.resolve(loadNext()).catch(stopLoadAll)
+    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing && !error) {
+      void loadNext()
     }
-  }, [enabled, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext, stopLoadAll])
+  }, [enabled, error, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext])
+  // A failed page fetch abandons the load-all; the user can re-trigger select-all.
+  useEffect(() => {
+    if (error && loadAllRequested) stopLoadAll()
+  }, [error, loadAllRequested, stopLoadAll])
   // Fully loaded — reset so first-page revalidation resumes after select-all.
   useEffect(() => {
     if (loadAllRequested && !hasNext) stopLoadAll()

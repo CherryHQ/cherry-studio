@@ -454,14 +454,15 @@ describe('useMessageSelectionController', () => {
       act(() => {
         result.current.actions.toggleSelectAllMessages?.(true)
       })
+      // The mount-time initial toggle already stopped idempotently — isolate
+      // the stop call that belongs to the exit action itself.
+      handle.stop.mockClear()
       act(() => {
         result.current.actions.toggleMultiSelectMode?.(false)
       })
       rerender({ messages: [message('a'), message('b')], pagination: handle })
 
-      // Exiting multi-select stops an in-progress load-all (the mount-time
-      // initial toggle also stops idempotently, so "at least once").
-      expect(handle.stop).toHaveBeenCalled()
+      expect(handle.stop).toHaveBeenCalledTimes(1)
       expect(cacheValues['chat.selected_message_ids']).toEqual([])
     })
 
