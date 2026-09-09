@@ -114,7 +114,7 @@ function projectBranchMessages(items: BranchMessage[]): BranchProjection {
     const message = pickDisplayMember(bucket, item.message.id)
     displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
     if (bucket.length < 2) continue
-    bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    bucket.sort(compareMessageOrder)
     for (const member of bucket) siblingsMap[member.id] = bucket
   }
   return { displayMessages, siblingsMap }

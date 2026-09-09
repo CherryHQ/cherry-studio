@@ -7,12 +7,13 @@ import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { decodeTextBufferIfText, isOutsidePath, openReadableFileSnapshot } from '@main/utils/file'
+import { decodeTextBufferIfText, isOutsidePath, isPathInside, openReadableFileSnapshot } from '@main/utils/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { SkillCatalogEntry } from '@shared/types/skill'
 import type {
   SkillFileNode,
   SkillImportSystemOptions,
@@ -164,6 +165,35 @@ export class SkillService {
   /** Resolve the app-owned directory for an installed skill. */
   getInstalledSkillDirectory(skill: Pick<InstalledSkill, 'folderName' | 'source' | 'sourceUrl'>): string {
     return this.getSkillStoragePath(skill.folderName)
+  }
+
+  /** Classify only registered skills, following symlinks rather than import provenance. */
+  async listCatalog(query: Pick<ListSkillsQuery, 'search'> = {}): Promise<SkillCatalogEntry[]> {
+    const skills = agentGlobalSkillService.list(query)
+    if (skills.length === 0) return []
+    const realPath = async (directory: string): Promise<string | undefined> => {
+      try {
+        return await fs.promises.realpath(directory)
+      } catch (error) {
+        if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) return undefined
+        throw error
+      }
+    }
+    const env = await getShellEnv()
+    const roots = await Promise.all(
+      [
+        application.getPath('feature.agents.skills'),
+        ...buildSystemSkillSources(application.getPath('sys.home'), env).map((source) => source.directoryPath)
+      ].map(realPath)
+    )
+    return Promise.all(
+      skills.map(async (skill): Promise<SkillCatalogEntry> => {
+        if (skill.source === 'builtin') return { ...skill, scope: 'builtin' }
+        const directory = await realPath(this.getInstalledSkillDirectory(skill))
+        const scope = directory && roots.some((root) => root && isPathInside(directory, root)) ? 'system' : 'local'
+        return { ...skill, scope }
+      })
+    )
   }
 
   /** Local plugin bridge used when the SDK user setting source must remain isolated. */

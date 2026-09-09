@@ -121,6 +121,7 @@ const MessageGroup = ({
     if (messages.length === 1) return messages[0]?.id
     return pickPreferredSelectedMessage(messages, getMessageUiState)?.id ?? messages.at(-1)?.id ?? messages[0]?.id
   })
+  const previousActiveBranchMessageIdRef = useRef(messages.find((message) => message.isActiveBranch)?.id)
 
   // Re-sync the selected ID when the active branch or group membership changes.
   // Without this, fold mode can keep showing an old model column even after
@@ -135,9 +136,11 @@ const MessageGroup = ({
 
     const hasSelected = messages.some((m) => m.id === selectedMessageId)
     const activeBranchMessage = messages.find((message) => message.isActiveBranch)
+    const activeBranchChanged = activeBranchMessage?.id !== previousActiveBranchMessageIdRef.current
+    previousActiveBranchMessageIdRef.current = activeBranchMessage?.id
     let nextSelectedMessage: MessageListItem | undefined
 
-    if (activeBranchMessage && activeBranchMessage.id !== selectedMessageId) {
+    if (activeBranchChanged && activeBranchMessage && activeBranchMessage.id !== selectedMessageId) {
       nextSelectedMessage = activeBranchMessage
     } else if (!hasSelected) {
       nextSelectedMessage = pickPreferredSelectedMessage(messages, getMessageUiState) ?? messages.at(-1) ?? messages[0]

@@ -502,7 +502,7 @@ export class MiniAppRuntimeService extends BaseService {
   }
 
   /**
-   * Recomputes "which apps need the user's attention" and pushes it to every window.
+   * Recomputes "which apps need the user's attention" and publishes the shared snapshot.
    *
    * DERIVED, never stored. Two things can want attention — a host-added leaf under a
    * declared wildcard, and an available update — and both are already answerable from
@@ -513,7 +513,7 @@ export class MiniAppRuntimeService extends BaseService {
    * Called at startup, after `mini_app.grant.approve_pending`, and after any update check.
    */
   broadcastAttentionState(): void {
-    application.get('IpcApiService').broadcast('mini_app.runtime.attention', { apps: this.appsNeedingAttention() })
+    application.get('CacheService').setShared('mini_app.attention', this.appsNeedingAttention())
   }
 
   /**
@@ -536,14 +536,7 @@ export class MiniAppRuntimeService extends BaseService {
     return resolveLocalizedText(manifest.name, getAppLanguage())
   }
 
-  /**
-   * Pull-based counterpart to the broadcast.
-   *
-   * Both are needed: a window that opens AFTER the startup broadcast never saw it, and
-   * a broadcast-only design would leave that window with no badges until the next
-   * grant or update check. `mini_app.detail` and the list route return this so the
-   * first render is correct; the event keeps later renders correct.
-   */
+  /** Current derived attention state, used by management and focused tests. */
   attentionState(): CacheMiniAppAttention[] {
     return this.appsNeedingAttention()
   }

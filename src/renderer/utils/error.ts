@@ -7,11 +7,11 @@ import type {
   SerializedAiSdkNoSuchToolError,
   SerializedError
 } from '@renderer/types/error'
-import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
+import { isSerializedAiSdkApiCallError, isSerializedAiSdkRetryError } from '@renderer/types/error'
+import { getSafeProviderErrorMessage, serializeNestedProviderError } from '@shared/ai/providerError'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
-import type { NoSuchToolError } from 'ai'
-import { AISDKError } from 'ai'
+import { AISDKError, APICallError, type NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import { type AxiosError, isAxiosError } from 'axios'
 import { t } from 'i18next'
@@ -151,6 +151,8 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
 }
 
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
+  if (APICallError.isInstance(error as unknown)) return serializeNestedProviderError(error) as SerializedError
+
   // 统一所有可能的错误字段
   const serializedError: SerializedError = {
     name: error.name ?? null,
@@ -201,8 +203,8 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   if ('availableProviders' in error) serializedError.availableProviders = error.availableProviders
   if ('availableTools' in error) serializedError.availableTools = error.availableTools ?? null
   if ('reason' in error) serializedError.reason = error.reason
-  if ('lastError' in error) serializedError.lastError = safeSerialize(error.lastError)
-  if ('errors' in error) serializedError.errors = error.errors.map((err: unknown) => safeSerialize(err))
+  if ('lastError' in error) serializedError.lastError = serializeNestedProviderError(error.lastError)
+  if ('errors' in error) serializedError.errors = error.errors.map(serializeNestedProviderError)
   if ('originalError' in error)
     serializedError.originalError = InvalidToolInputError.isInstance(error.originalError)
       ? serializeInvalidToolInputError(error.originalError)
@@ -305,9 +307,13 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
     if (error.statusCode) {
       text += `${t('error.statusCode')}: ${error.statusCode}\n`
     }
-    text += `${t('error.requestUrl')}: ${error.url}\n`
-    const requestBodyValues = safeToString(error.requestBodyValues)
-    text += `${t('error.requestBodyValues')}: ${requestBodyValues}\n`
+    if (error.url) {
+      text += `${t('error.requestUrl')}: ${error.url}\n`
+    }
+    if (error.requestBodyValues !== null) {
+      const requestBodyValues = safeToString(error.requestBodyValues)
+      text += `${t('error.requestBodyValues')}: ${requestBodyValues}\n`
+    }
     if (error.responseHeaders) {
       text += `${t('error.responseHeaders')}: ${JSON.stringify(error.responseHeaders, null, 2)}\n`
     }
@@ -323,30 +329,23 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
   return text.trim()
 }
 
-const PROVIDER_ERROR_TEXT_MAX = 500
+function retryProviderText(error: SerializedError): string {
+  if (!isSerializedAiSdkRetryError(error)) return ''
+  const attempts = Array.isArray(error.errors) ? [...error.errors].reverse() : []
+  for (const nested of [error.lastError, ...attempts]) {
+    if (!nested || typeof nested !== 'object' || Array.isArray(nested)) continue
+    const text = providerErrorText(nested as SerializedError)
+    if (text) return text
+  }
+  return ''
+}
 
 /** The provider's own error text. `message` degrades to the HTTP statusText ("Forbidden")
  *  whenever the body misses the SDK's error schema, so `responseBody` wins. */
 export function providerErrorText(error: SerializedError | undefined): string {
-  const fallback = error?.message ?? ''
-  const body = typeof error?.responseBody === 'string' ? error.responseBody.trim() : ''
-  if (!body) return fallback
-
-  const parsed = parseJSON(body)
-  // Probe the common shapes one level deep; an unknown shape falls through to the raw body.
-  // Some providers (e.g. AMD) nest the message under `detail.error.message`; probe one
-  // more level there so users see the message, not the raw JSON body.
-  const picked =
-    parsed &&
-    (parsed.error?.message ??
-      parsed.message ??
-      parsed.detail?.error?.message ??
-      parsed.detail?.message ??
-      parsed.detail ??
-      parsed.msg ??
-      parsed.error)
-  const text = typeof picked === 'string' && picked.trim() ? picked.trim() : body
-  return text.length > PROVIDER_ERROR_TEXT_MAX ? `${text.slice(0, PROVIDER_ERROR_TEXT_MAX)}…` : text
+  if (!error) return ''
+  const payload = getSafeProviderErrorMessage({ responseBody: error.responseBody, data: error.data })
+  return payload || retryProviderText(error) || getSafeProviderErrorMessage({ message: error.message })
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>

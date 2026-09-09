@@ -29,6 +29,7 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
     toSkillResult(() => skillService.installFromZip({ zipFilePath }), 'Failed to install skill from ZIP'),
   'skill.install_from_directory': ({ directoryPath }) =>
     toSkillResult(() => skillService.installFromDirectory({ directoryPath }), 'Failed to install skill from directory'),
+  'skill.list_catalog': (query) => skillService.listCatalog(query),
   'skill.list_local': ({ workdir }) =>
     toSkillResult(() => skillService.listLocal(workdir), 'Failed to list local plugins'),
   'skill.reconcile': () => skillService.reconcileSkills(),

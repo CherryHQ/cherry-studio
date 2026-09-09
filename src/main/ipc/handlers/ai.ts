@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { fileEntryService } from '@data/services/FileEntryService'
@@ -28,7 +30,7 @@ const logger = loggerService.withContext('ipc/ai')
 /**
  * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
  * the streaming-chat ops delegate to `AiStreamManager`. Business logic, provider
- * resolution, the image abort registry and the stream registry all stay in those
+ * resolution, the abort registry and the stream registry all stay in those
  * services — these handlers only translate the IPC call.
  *
  * Every generating call is wrapped by {@link exposeAiError}: a provider/SDK failure
@@ -45,10 +47,11 @@ async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T>
     // reject keeps only `message`, and a downstream normalize (e.g. the paintings
     // pipeline → `REMOTE_ERROR`) can collapse even that — so the only durable record of
     // the real cause is this log. User-initiated aborts are control flow, not failures.
+    const serializedError = serializeError(e)
     if (!(e instanceof Error && e.name === 'AbortError')) {
-      logger.error(`${route} failed`, serializeError(e))
+      logger.error(`${route} failed`, serializedError)
     }
-    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, e instanceof Error ? e.message : String(e), serializeError(e))
+    throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, serializedError.message ?? '', serializedError)
   }
 }
 
@@ -154,14 +157,24 @@ function agentTaskNotFound(taskId: string): IpcError {
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
-  'ai.text.generate': (request) =>
-    exposeAiError('ai.text.generate', () => application.get('AiService').generateText(request)),
+  // A renderer one-shot call has no topic; it is its own conversation.
+  'ai.text.generate': ({ requestId, ...request }) => {
+    const generate = { ...request, conversation: { id: `one-shot:${randomUUID()}` } }
+    return exposeAiError('ai.text.generate', () =>
+      requestId
+        ? application.get('AiService').runTextRequest(requestId, generate)
+        : application.get('AiService').generateText(generate)
+    )
+  },
+  'ai.text.abort': async ({ requestId }) => {
+    application.get('AiService').abortRequest(requestId)
+  },
   'ai.embedding.embed_many': (request) =>
     exposeAiError('ai.embedding.embed_many', () => application.get('AiService').embedMany(request)),
   'ai.image.generate': ({ requestId, payload }) =>
     exposeAiError('ai.image.generate', () => application.get('AiService').runImageRequest(requestId, payload)),
   'ai.image.abort': async ({ requestId }) => {
-    application.get('AiService').abortImage(requestId)
+    application.get('AiService').abortRequest(requestId)
   },
 
   // ── Provider model catalog & reachability probe. ──

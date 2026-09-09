@@ -77,14 +77,26 @@ describe('generatePainting', () => {
     expect(payload).not.toHaveProperty('size')
   })
 
+  // The pipeline awaits model-support prefetch, provider checks and input-image reads before
+  // reaching generatePainting. An abort during those must not fire the billable request.
+  it('never requests ai.image.generate when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(generatePainting(makeOptions({}, controller.signal))).rejects.toMatchObject({ name: 'AbortError' })
+    expect(ipcRequestMock).not.toHaveBeenCalled()
+  })
+
   // A provider failure now crosses IpcApi as an IpcError (name 'IpcError'), which no longer
   // satisfies runPainting's `name === 'AbortError'` silent-cancel check — generatePainting's
   // `.catch` re-derives a real AbortError only when the user aborted, else re-throws the original.
   it('re-throws a real AbortError when the request rejects after the user aborted', async () => {
     const controller = new AbortController()
-    controller.abort()
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'ai.image.generate') throw new Error('cancelled by main')
+      if (route === 'ai.image.generate') {
+        controller.abort()
+        throw new Error('cancelled by main')
+      }
       return undefined
     })
 

@@ -2,7 +2,8 @@ import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -520,6 +521,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
 
 describe('CodeCliPage', () => {
   beforeEach(() => {
+    MockUseCacheUtils.resetMocks()
     vi.clearAllMocks()
     ipcEventHandlers.clear()
     mockProviders.splice(0, mockProviders.length, provider)
@@ -543,8 +545,6 @@ describe('CodeCliPage', () => {
     selectFolderMock.mockResolvedValue('/tmp/project')
     navigateMock.mockResolvedValue(undefined)
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status' || route === 'hermes_dashboard.get_status')
-        return { status: 'stopped' }
       if (route === 'hermes_dashboard.start') return { success: true, url: 'http://127.0.0.1:49152' }
       return { success: true }
     })
@@ -757,7 +757,6 @@ describe('CodeCliPage', () => {
       currentProviderId: 'anthropic'
     })
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') return { status: 'stopped' }
       if (route === 'deepseek_harness.start') return { success: true, url: 'http://127.0.0.1:43123' }
       return { success: true }
     })
@@ -788,11 +787,9 @@ describe('CodeCliPage', () => {
         [CodeCli.DEEPSEEK_HARNESS]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true }
       })
     )
-    ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') {
-        return { status: 'running', url: 'http://127.0.0.1:43123' }
-      }
-      return { success: true }
+    MockUseCacheUtils.setSharedCacheValue('feature.deepseek_harness.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:43123'
     })
 
     render(<CodeCliPage />)
@@ -822,9 +819,9 @@ describe('CodeCliPage', () => {
     versionStatusesMock.mockReturnValue(
       baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
     )
-    ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'hermes_dashboard.get_status') return { status: 'running', url: 'http://127.0.0.1:49152' }
-      return { success: true }
+    MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:49152'
     })
 
     render(<CodeCliPage />)
@@ -836,7 +833,7 @@ describe('CodeCliPage', () => {
     })
   })
 
-  it('locks Hermes Agent provider actions immediately after a cross-window status push', async () => {
+  it('locks Hermes Agent provider actions from the shared status snapshot', async () => {
     mockCodeCliState({
       selectedCliTool: CodeCli.HERMES,
       providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
@@ -845,55 +842,17 @@ describe('CodeCliPage', () => {
     versionStatusesMock.mockReturnValue(
       baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
     )
-    ipcRequestMock.mockImplementation((route: string) => {
-      if (route === 'hermes_dashboard.get_status') return new Promise(() => {})
-      return Promise.resolve({ success: true })
+    MockUseCacheUtils.setSharedCacheValue('feature.hermes_dashboard.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:49152'
     })
     render(<CodeCliPage />)
-
-    const statusChanged = ipcEventHandlers.get('hermes_dashboard.status_changed')
-    if (!statusChanged) throw new Error('Expected Hermes Dashboard status listener')
-    await act(async () => {
-      statusChanged({ status: 'running', url: 'http://127.0.0.1:49152' })
-    })
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
       expect(screen.getByRole('button', { name: 'configure anthropic' })).toBeDisabled()
       expect(screen.getByRole('button', { name: 'upgrade tool' })).toBeDisabled()
     })
-  })
-
-  it('keeps a Hermes cross-window push authoritative over a status poll that answers later', async () => {
-    mockCodeCliState({
-      selectedCliTool: CodeCli.HERMES,
-      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
-      currentProviderId: 'anthropic'
-    })
-    versionStatusesMock.mockReturnValue(
-      baseVersionStatuses({ [CodeCli.HERMES]: { current: '1.0.0', latest: '1.1.0', canUpgrade: true } })
-    )
-    let answerStatusPoll: ((status: { status: string; url?: string }) => void) | undefined
-    ipcRequestMock.mockImplementation((route: string) => {
-      if (route === 'hermes_dashboard.get_status')
-        return new Promise((resolve) => {
-          answerStatusPoll = resolve
-        })
-      return Promise.resolve({ success: true })
-    })
-    render(<CodeCliPage />)
-
-    const statusChanged = ipcEventHandlers.get('hermes_dashboard.status_changed')
-    if (!statusChanged) throw new Error('Expected Hermes Dashboard status listener')
-    await act(async () => {
-      statusChanged({ status: 'running', url: 'http://127.0.0.1:49152' })
-    })
-    if (!answerStatusPoll) throw new Error('Expected an in-flight Hermes Dashboard status poll')
-    await act(async () => {
-      answerStatusPoll?.({ status: 'stopped' })
-    })
-
-    expect(screen.getByRole('button', { name: 'toggle anthropic' })).toBeDisabled()
   })
 
   it('enables the provider after saving detailed config from the pending dialog', async () => {
@@ -1242,12 +1201,15 @@ describe('CodeCliPage', () => {
       currentProviderId: 'anthropic'
     })
     ipcRequestMock.mockImplementation(async (route: string) => {
-      if (route === 'deepseek_harness.get_status') return { status: 'running', url: 'http://127.0.0.1:43123' }
       if (route === 'deepseek_harness.stop') {
         events.push('stop')
         return { success: true }
       }
       return { success: true }
+    })
+    MockUseCacheUtils.setSharedCacheValue('feature.deepseek_harness.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:43123'
     })
     removeMock.mockImplementation(async () => {
       events.push('remove')

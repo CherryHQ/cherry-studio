@@ -265,7 +265,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         {
           modelId: validated.uniqueModelId,
           request: {
-            chatId: validated.topicId,
+            conversation: { id: validated.topicId, topicId: validated.topicId },
             trigger: 'submit-message',
             assistantId: validated.agentId,
             uniqueModelId: validated.uniqueModelId,

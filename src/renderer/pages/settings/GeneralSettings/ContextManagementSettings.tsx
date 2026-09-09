@@ -190,6 +190,7 @@ export const ContextManagementSettings = () => {
                     filter={chatModelFilter}
                     onSelect={handleSelectCompressModel}
                     placeholder={t('settings.models.context_management.compress_model_follow')}
+                    noneOptionLabel={t('settings.models.context_management.compress_model_follow')}
                   />
                 </div>
               </SettingRow>

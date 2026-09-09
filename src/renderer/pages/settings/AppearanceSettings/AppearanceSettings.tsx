@@ -28,7 +28,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -121,7 +121,7 @@ const AppearanceSettings: FC = () => {
   const { theme, settedTheme, setTheme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
-  const { activeCmTheme } = useCodeStyle()
+  const activeCmTheme = useCmTheme()
   const { appFavorites, setAppPinned } = useSidebarFavorites()
   const isChatAssistantVisible = appFavorites.includes('assistants')
 

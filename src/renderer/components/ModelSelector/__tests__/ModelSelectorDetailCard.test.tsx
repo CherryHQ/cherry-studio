@@ -38,6 +38,7 @@ vi.mock('react-i18next', () => ({
         'assistants.settings.reasoning_effort.default': 'Default',
         'assistants.settings.reasoning_effort.label': 'Reasoning Effort',
         'assistants.settings.reasoning_effort.max': 'Max',
+        'assistants.settings.reasoning_effort.ultra': 'Ultra',
         'assistants.settings.reasoning_effort.xhigh': 'Extra High',
         'models.detail.context_window': 'Context window',
         'models.detail.max_input_tokens': 'Max input tokens',
@@ -297,5 +298,23 @@ describe('ModelSelectorDetailCard', () => {
     // filtered out of the display; 'max' renders its i18n label).
     expect(screen.getByText('Reasoning Effort')).toBeInTheDocument()
     expect(screen.getByText('Max')).toBeInTheDocument()
+  })
+
+  it('renders the localized Ultra effort for GPT-6 Astra', () => {
+    const model = makeModel({
+      id: 'openai-codex::gpt-6-astra' as UniqueModelId,
+      providerId: 'openai-codex',
+      apiModelId: 'gpt-6-astra',
+      name: 'GPT-6 Astra',
+      reasoning: { selectableEfforts: ['ultra'] }
+    })
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
+        <button type="button">GPT-6 Astra</button>
+      </ModelSelectorDetailCard>
+    )
+
+    expect(screen.getByText('Ultra')).toBeInTheDocument()
   })
 })

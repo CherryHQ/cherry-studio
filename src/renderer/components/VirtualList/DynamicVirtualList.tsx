@@ -380,7 +380,9 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             zIndex: isItemActiveSticky ? activeStickyZIndex : isItemSticky ? STICKY_ITEM_Z_INDEX : 0,
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
             ...(isItemActiveSticky && {
-              backgroundColor: 'var(--background)'
+              // --card, not --background: the latter is translucent in dark mode, so rows
+              // scrolling under a pinned header would show through it.
+              backgroundColor: 'var(--card)'
             }),
             ...(horizontal
               ? {

@@ -270,7 +270,8 @@ function binaryReadResult(content: Uint8Array) {
 }
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@cherrystudio/ui', async (importActual) => {

@@ -139,7 +139,7 @@ export const inLoopCompactionFeature: RequestFeature = {
   name: 'in-loop-compaction',
   applies: (scope) => {
     if (scope.request.contextOwner === 'caller') return false
-    const topicId = scope.request.chatId
+    const topicId = scope.request.conversation.topicId
     if (!topicId) return false
     if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false

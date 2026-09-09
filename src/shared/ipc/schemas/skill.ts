@@ -1,4 +1,10 @@
-import type { InstalledSkill, LocalSkill, SkillResult, SystemSkillCandidate } from '@shared/types/skill'
+import type {
+  InstalledSkill,
+  LocalSkill,
+  SkillCatalogEntry,
+  SkillResult,
+  SystemSkillCandidate
+} from '@shared/types/skill'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -29,6 +35,10 @@ export const skillRequestSchemas = {
   'skill.install_from_directory': defineRoute({
     input: z.object({ directoryPath: z.string() }),
     output: z.custom<SkillResult<InstalledSkill>>()
+  }),
+  'skill.list_catalog': defineRoute({
+    input: z.object({ search: z.string().trim().min(1).optional() }),
+    output: z.custom<SkillCatalogEntry[]>()
   }),
   'skill.list_local': defineRoute({
     input: z.object({ workdir: z.string().min(1) }),

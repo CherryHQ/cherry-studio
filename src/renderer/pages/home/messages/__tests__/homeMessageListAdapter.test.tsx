@@ -59,10 +59,22 @@ const openRouteMock = vi.hoisted(() => vi.fn())
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const topicPreviewInputFileMock = vi.hoisted(() => vi.fn())
 const getMessageActivityStateMock = vi.hoisted(() =>
-  vi.fn(() => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false }))
+  vi.fn(() => ({
+    isProcessing: false,
+    isStreamTarget: false,
+    isApprovalAnchor: false,
+    isActiveTurnProcessing: false,
+    isStreamLive: false
+  }))
 )
 const messageActivityStoreMock = vi.hoisted(() => ({
-  getSnapshot: vi.fn(() => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false })),
+  getSnapshot: vi.fn(() => ({
+    isProcessing: false,
+    isStreamTarget: false,
+    isApprovalAnchor: false,
+    isActiveTurnProcessing: false,
+    isStreamLive: false
+  })),
   subscribe: vi.fn(() => vi.fn())
 }))
 

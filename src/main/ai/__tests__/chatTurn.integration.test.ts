@@ -53,7 +53,8 @@ vi.mock('@main/data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     resolveReasoningProfile: () => ({ support: undefined, wire: undefined }),
-    resolveServiceTierControl: () => undefined
+    resolveServiceTierControl: () => undefined,
+    isRegistryProvider: () => false
   },
   projectRuntimeReasoning: vi.fn()
 }))
@@ -172,7 +173,7 @@ describe('chat turn integration trajectory', () => {
         {
           modelId,
           request: {
-            chatId: topicId,
+            conversation: { id: topicId, topicId },
             trigger: 'submit-message',
             messageId: 'assistant-1',
             uniqueModelId: modelId,
@@ -233,7 +234,7 @@ describe('chat turn integration trajectory', () => {
         {
           modelId,
           request: {
-            chatId: topicId,
+            conversation: { id: topicId, topicId },
             trigger: 'submit-message',
             messageId: 'assistant-tool-1',
             uniqueModelId: modelId,
@@ -298,7 +299,7 @@ describe('chat turn integration trajectory', () => {
         {
           modelId,
           request: {
-            chatId: topicId,
+            conversation: { id: topicId, topicId },
             trigger: 'submit-message',
             messageId: 'assistant-error-1',
             uniqueModelId: modelId,
@@ -344,7 +345,7 @@ describe('chat turn integration trajectory', () => {
         {
           modelId,
           request: {
-            chatId: topicId,
+            conversation: { id: topicId, topicId },
             trigger: 'submit-message',
             messageId: 'assistant-missing-finish-1',
             uniqueModelId: modelId,

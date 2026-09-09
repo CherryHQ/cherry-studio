@@ -37,9 +37,11 @@ import {
   ChevronRight,
   FolderSearch,
   Import,
+  LayoutGrid,
   Library,
   Pencil,
   Plus,
+  Rows2,
   Search,
   Tag,
   Trash2
@@ -83,6 +85,8 @@ interface Props {
   /** Settings variant only: page heading rendered above the search row. */
   title?: ReactNode
   description?: ReactNode
+  toolbarFooter?: ReactNode
+  allowColumnToggle?: boolean
 }
 
 function getGridColumnCount(width: number) {
@@ -213,7 +217,9 @@ export const ResourceGrid: FC<Props> = ({
   toolbarLeading,
   variant = 'library',
   title,
-  description
+  description,
+  toolbarFooter,
+  allowColumnToggle = false
 }) => {
   const { t } = useTranslation()
   const isSettings = variant === 'settings'
@@ -222,7 +228,11 @@ export const ResourceGrid: FC<Props> = ({
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const responsiveColumnCount = useGridColumnCount(scrollRef)
-  const columnCount = isSettings ? 1 : responsiveColumnCount
+  const [preferredColumns, setPreferredColumns] = useState<1 | 2>(1)
+  const columnCount = isSettings
+    ? Math.min(allowColumnToggle ? preferredColumns : 1, responsiveColumnCount)
+    : responsiveColumnCount
+  const layoutLabel = t(columnCount === 1 ? 'common.layout.two_columns' : 'common.layout.single_column')
   const [showAllGroups, setShowAllGroups] = useState(false)
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [renamingGroup, setRenamingGroup] = useState<GroupItem | null>(null)
@@ -385,6 +395,22 @@ export const ResourceGrid: FC<Props> = ({
           </div>
         )}
 
+        {toolbarFooter || (isSettings && allowColumnToggle) ? (
+          <div className="mt-3 flex shrink-0 items-center justify-between gap-3 border-border-subtle border-b">
+            {toolbarFooter}
+            {isSettings && allowColumnToggle && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={layoutLabel}
+                title={layoutLabel}
+                disabled={responsiveColumnCount < 2}
+                onClick={() => setPreferredColumns(columnCount === 1 ? 2 : 1)}>
+                {columnCount === 1 ? <Rows2 size={20} aria-hidden /> : <LayoutGrid size={20} aria-hidden />}
+              </Button>
+            )}
+          </div>
+        ) : null}
         {showGroupToolbar && (
           <div className="flex items-center overflow-x-auto px-2 pt-1 pb-2 [&::-webkit-scrollbar]:h-0">
             <div

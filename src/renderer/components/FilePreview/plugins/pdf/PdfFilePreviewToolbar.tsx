@@ -50,7 +50,6 @@ export function PdfFilePreviewToolbar({
     const pageNumber = Number(pageValue)
     if (Number.isInteger(pageNumber) && pageNumber > 0) {
       onJumpToPage(pageNumber)
-      return
     }
     setPageValue(hasPages ? String(currentPage) : '')
   }

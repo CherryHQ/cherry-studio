@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -5,8 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   request: vi.fn(),
-  useIpcOn: vi.fn(),
-  events: new Map<string, (payload: Record<string, unknown>) => void>(),
   openSmartMiniApp: vi.fn(),
   toastError: vi.fn()
 }))
@@ -15,7 +14,8 @@ vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
 }))
 
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request }, useIpcOn: mocks.useIpcOn }))
+vi.mock('@data/hooks/useCache', async (importOriginal) => importOriginal())
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }) }
@@ -28,9 +28,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 const { useDeepSeekHarnessController } = await import('../useDeepSeekHarnessController')
 
 const emitStatusChanged = (payload: Record<string, unknown>) => {
-  const handler = mocks.events.get('deepseek_harness.status_changed')
-  if (!handler) throw new Error('status_changed handler not registered')
-  handler(payload)
+  cacheService.setShared('feature.deepseek_harness.status', payload as never)
 }
 
 const directProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
@@ -53,13 +51,9 @@ function renderController(provider: Provider = directProvider) {
 describe('useDeepSeekHarnessController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cacheService.deleteShared('feature.deepseek_harness.status')
     vi.spyOn(Date, 'now').mockReturnValue(1_776_000_000_000)
-    mocks.events.clear()
-    mocks.useIpcOn.mockImplementation((event: string, handler: (payload: Record<string, unknown>) => void) => {
-      mocks.events.set(event, handler)
-    })
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'deepseek_harness.get_status') return Promise.resolve({ status: 'stopped' })
       if (route === 'deepseek_harness.start') {
         return Promise.resolve({ success: true, url: 'http://127.0.0.1:43123' })
       }
@@ -127,7 +121,6 @@ describe('useDeepSeekHarnessController', () => {
 
   it('does not open a Mini App when main rejects the launch', async () => {
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'deepseek_harness.get_status') return Promise.resolve({ status: 'stopped' })
       if (route === 'deepseek_harness.start') return Promise.resolve({ success: false, message: 'config collision' })
       return Promise.resolve({ success: true })
     })
@@ -138,10 +131,11 @@ describe('useDeepSeekHarnessController', () => {
   })
 
   it('tracks managed status via pushed events, reopens the current URL, and stops only through the managed IPC', async () => {
+    cacheService.setShared('feature.deepseek_harness.status', {
+      status: 'running',
+      url: 'http://127.0.0.1:45231'
+    })
     mocks.request.mockImplementation((route: string) => {
-      if (route === 'deepseek_harness.get_status') {
-        return Promise.resolve({ status: 'running', url: 'http://127.0.0.1:45231' })
-      }
       if (route === 'deepseek_harness.stop') return Promise.resolve({ success: true })
       return Promise.resolve({ success: true })
     })

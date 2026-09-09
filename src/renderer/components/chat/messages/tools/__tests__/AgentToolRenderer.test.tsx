@@ -167,6 +167,7 @@ describe('AgentToolRenderer', () => {
     'message.tools.sections.output': 'Output',
     'message.tools.sections.prompt': 'Prompt',
     'message.tools.sections.input': 'Input',
+    'message.tools.status.error': 'Error',
     'agent.toolPermission.decisionDenied': 'Denied',
     'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
     'agent.askUserQuestion.title': 'Questions from Agent',
@@ -1184,6 +1185,45 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
       expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()
+    })
+  })
+
+  describe('Bash result presentation', () => {
+    it('labels successful Bash results as output', async () => {
+      const user = userEvent.setup()
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'done',
+        arguments: { command: 'pwd' },
+        response: '/workspace'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      const content = screen.getByTestId('collapse-content-Bash')
+      expect(content).toHaveTextContent('Output')
+      expect(content).toHaveTextContent('/workspace')
+    })
+
+    it('labels failed Bash execution details as an error instead of command output', async () => {
+      const user = userEvent.setup()
+      const errorText =
+        'sandbox escalation to "danger-full-access" is not strictly wider than this call\'s current "danger-full-access" mode'
+      const toolResponse = createToolResponse({
+        tool: { id: 'Bash', name: 'Bash', description: 'Execute command', type: 'provider' },
+        status: 'error',
+        arguments: { command: 'pwd' },
+        response: { isError: true, content: [{ type: 'text', text: errorText }] }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+      await user.click(screen.getByRole('button'))
+
+      const content = screen.getByTestId('collapse-content-Bash')
+      expect(content).toHaveTextContent('Error')
+      expect(content).toHaveTextContent(errorText)
+      expect(content).not.toHaveTextContent('Output')
     })
   })
 

@@ -1,5 +1,5 @@
 import { Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
-import { useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -92,10 +92,16 @@ function TopicMessageFlowNodePreviewCard({
   const {
     data: message,
     error,
-    isLoading
+    isLoading,
+    mutate
   } = useQuery('/messages/:id', {
     enabled: open,
     params: { id: messageId }
+  })
+  useDataChange('/messages/:id', (effects) => {
+    if (open && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(messageId))) {
+      void mutate()
+    }
   })
   const uiMessage = useMemo(() => (message ? sharedMessageToUIMessage(message) : null), [message])
   const messageItems = useMemo(

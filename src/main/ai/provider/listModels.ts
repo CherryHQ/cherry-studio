@@ -15,7 +15,7 @@ import {
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
-import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
+import { mergeHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
@@ -36,7 +36,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
-import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
+import { defaultHeaders, getBaseUrl, getExtraHeaders, getProviderAppHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
   createVertexModelListRequest,
@@ -56,6 +56,7 @@ import {
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
+  TokenDanceModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
@@ -270,7 +271,11 @@ const geminiFetcher: ModelFetcher = {
     // would persist the key into local logs users attach to bug reports.
     const response = await getFromApi({
       url: `${baseUrl}/v1beta/models`,
-      headers: mergeHeaders(defaultAppHeaders(), { 'x-goog-api-key': apiKey }, provider.settings?.extraHeaders),
+      headers: mergeHeaders(
+        getProviderAppHeaders(provider),
+        { 'x-goog-api-key': apiKey },
+        provider.settings?.extraHeaders
+      ),
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
@@ -453,12 +458,18 @@ type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'
 
 const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
   anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  'anthropic:messages': ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
   embeddings: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
   gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'gemini:generate-content': ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
   'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
   'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
   openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:chat-completions': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai:embeddings': ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+  'openai:image-generations': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'openai:responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES,
   'openai-video': ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION
@@ -517,6 +528,38 @@ const newApiFetcher: ModelFetcher = {
         ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
       })
     })
+  }
+}
+
+const tokenDanceFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.tokendance),
+  fetch: async (provider, signal) => {
+    const modelsUrl =
+      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls?.default ??
+      `${formatApiHost(getBaseUrl(provider))}/models`
+    const response = await getFromApi({
+      url: modelsUrl,
+      headers: defaultHeaders(provider),
+      responseSchema: TokenDanceModelsResponseSchema,
+      abortSignal: signal
+    })
+
+    return dedup(response.data, (m) => m.id)
+      .map((m) => {
+        const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
+        if (!endpointTypes) return undefined
+
+        const impliedCapability = endpointImpliedCapability(endpointTypes[0])
+
+        return toModel(m.id, provider, {
+          name: m.name || m.id,
+          description: m.description,
+          contextWindow: m.context_length,
+          endpointTypes,
+          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+        })
+      })
+      .filter((model): model is Partial<Model> => Boolean(model))
   }
 }
 
@@ -697,7 +740,7 @@ const anthropicFetcher: ModelFetcher = {
     const response = await getFromApi({
       url: `${baseUrl}/models?limit=1000`,
       headers: mergeHeaders(
-        defaultAppHeaders(),
+        getProviderAppHeaders(provider),
         { 'x-api-key': apiKey, 'anthropic-version': ANTHROPIC_VERSION },
         provider.settings?.extraHeaders
       ),
@@ -774,7 +817,7 @@ export async function probeOllamaModel(
   const start = performance.now()
   const baseUrl = formatOllamaApiHost(getBaseUrl(provider))
   const resolved = providerService.resolveApiKey(provider.id, apiKeyOverride)
-  const headers = mergeHeaders(defaultAppHeaders(), getExtraHeaders(provider), {
+  const headers = mergeHeaders(getProviderAppHeaders(provider), getExtraHeaders(provider), {
     'Content-Type': 'application/json',
     ...(resolved.value ? { Authorization: `Bearer ${resolved.value}`, 'X-Api-Key': resolved.value } : {})
   })
@@ -802,6 +845,7 @@ const fetchers: ModelFetcher[] = [
   ovmsFetcher,
   togetherFetcher,
   newApiFetcher,
+  tokenDanceFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,

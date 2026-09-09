@@ -13,6 +13,8 @@
 
 // Wire-safe by design (dsh keeps this subpath free of cordis imports), and pinned to
 // the same rc at both ends — safe to put on the wire, unlike the wider ContentBlock.
+import type { CallId } from '@deepseek-ai/dsh-llm'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { AskUserQuestionAnswer, AskUserQuestionItem } from '@deepseek-ai/dsh-user-questions/types'
 
 export type {
@@ -135,7 +137,14 @@ export interface BridgePluginRequestMap {
     result: { kind: 'allow' } | { kind: 'deny'; ruleId: 'user-data-sqlite-write'; reason: string }
   }
   'approval/ask': {
-    params: { sessionId: string; toolName: string; callId?: string; args?: unknown; reason?: string }
+    params: {
+      sessionId: string
+      sessionEventSeq: SessionEvent['seq']
+      toolName: string
+      callId?: CallId
+      args?: unknown
+      reason?: string
+    }
     result: { outcome: 'allowed-once' | 'rejected'; rejectionReason?: string }
   }
   'tool/call': {
@@ -147,8 +156,9 @@ export interface BridgePluginRequestMap {
   'question/ask': {
     params: {
       sessionId: string
+      sessionEventSeq: SessionEvent['seq']
       /** Exact `exit_plan_mode` call correlated from the plugin's authoritative session log. */
-      callId: string
+      callId: CallId
       questions: AskUserQuestionItem[]
     }
     result: AskUserQuestionAnswer

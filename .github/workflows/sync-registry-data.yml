@@ -14,6 +14,10 @@ name: Sync provider-registry data
 # compatibility range and monotonic workflow revision. Clients only download
 # the model metadata files; provider routing always remains bundled.
 #
+# Every published v{N}/ is refreshed, not just the current one: an older dir gets
+# the catalog down-converted against its own frozen validator, so shipped apps on
+# an older schema keep receiving new models (see scripts/publishRegistryCatalog.js).
+#
 # One-time setup (both required before this is useful):
 #   1. Create the orphan branch, from a clean repo:
 #        git checkout --orphan x-files/provider-registry && git rm -rf .
@@ -30,7 +34,10 @@ on:
     paths:
       - '.github/workflows/sync-registry-data.yml'
       - 'packages/provider-registry/data/**'
+      # A new frozen baseline adds a publish dir; the publisher decides what each holds.
+      - 'packages/provider-registry/compat/**'
       - 'scripts/buildRegistrySyncRequest.js'
+      - 'scripts/publishRegistryCatalog.js'
       # A REGISTRY_SCHEMA_VERSION bump changes the publish dir (v{N}); watch its
       # source so a version-only change still creates the new vN/ directory.
       - 'packages/provider-registry/src/registry-loader.ts'
@@ -81,25 +88,24 @@ jobs:
             echo "Could not resolve REGISTRY_MIN_APP_VERSION from registry-loader.ts" >&2
             exit 1
           fi
-          echo "dir=v$VER" >> "$GITHUB_OUTPUT"
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "min_app_version=$MIN_APP_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Provide the frozen baselines' runtime dependency
+        run: |
+          # v2's baseline was generated before the bundler inlined every dependency,
+          # and a published baseline is immutable — so supply `semver` here instead.
+          npm install --no-save --prefix "$RUNNER_TEMP/baseline-deps" semver@^7.7.1
+          mkdir -p main/node_modules
+          cp -R "$RUNNER_TEMP/baseline-deps/node_modules/semver" main/node_modules/
 
       - name: Validate catalog against frozen schema
         run: |
           node "main/packages/provider-registry/compat/v${{ steps.ver.outputs.version }}-validator.mjs" \
             main/packages/provider-registry/data
 
-      - name: Copy catalog into version dir
-        run: |
-          DEST="pub/${{ steps.ver.outputs.dir }}"
-          mkdir -p "$DEST"
-          cp main/packages/provider-registry/data/models.json \
-             main/packages/provider-registry/data/providers.json \
-             main/packages/provider-registry/data/provider-models.json \
-             "$DEST/"
-
-      - name: Write release manifest
+      - name: Publish catalog into version dirs
+        id: publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -117,17 +123,15 @@ jobs:
           if [ -z "$SOURCE_APP_VERSION" ] || [ "$SOURCE_APP_VERSION" = "null" ]; then
             SOURCE_APP_VERSION=$(jq -r '.version' main/package.json)
           fi
-          DEST="pub/${{ steps.ver.outputs.dir }}"
-          jq -n \
-            --arg sourceAppVersion "$SOURCE_APP_VERSION" \
-            --arg minAppVersion "${{ steps.ver.outputs.min_app_version }}" \
-            --argjson revision "${{ github.run_number }}" \
-            --argjson schema "${{ steps.ver.outputs.version }}" \
-            --arg models "$(jq -r '.version' "$DEST/models.json")" \
-            --arg providers "$(jq -r '.version' "$DEST/providers.json")" \
-            --arg providerModels "$(jq -r '.version' "$DEST/provider-models.json")" \
-            '{minAppVersion: $minAppVersion, sourceAppVersion: $sourceAppVersion, revision: $revision, schemaVersion: $schema, files: {"models.json": $models, "providers.json": $providers, "provider-models.json": $providerModels}}' \
-            > "$DEST/manifest.json"
+          DIRS=$(REGISTRY_PUBLISH_SOURCE=main/packages/provider-registry/data \
+            REGISTRY_PUBLISH_COMPAT=main/packages/provider-registry/compat \
+            REGISTRY_PUBLISH_DEST=pub \
+            REGISTRY_PUBLISH_CURRENT_VERSION="${{ steps.ver.outputs.version }}" \
+            REGISTRY_PUBLISH_MIN_APP_VERSION="${{ steps.ver.outputs.min_app_version }}" \
+            REGISTRY_PUBLISH_SOURCE_APP_VERSION="$SOURCE_APP_VERSION" \
+            REGISTRY_PUBLISH_REVISION="${{ github.run_number }}" \
+            node main/scripts/publishRegistryCatalog.js)
+          echo "dirs=$DIRS" >> "$GITHUB_OUTPUT"
 
       - name: Commit if changed
         working-directory: pub
@@ -136,7 +140,7 @@ jobs:
         run: |
           # Commits go through GraphQL rather than `git push`: GitHub signs
           # API-authored commits, which the branch's required-signatures rule demands.
-          git add "${{ steps.ver.outputs.dir }}"
+          git add ${{ steps.publish.outputs.dirs }}
           if git diff --cached --quiet; then
             echo "No catalog changes to publish."
             exit 0
@@ -153,7 +157,7 @@ jobs:
           trap 'rm -f "$REQUEST_FILE"' EXIT
           REGISTRY_SYNC_REF_ID="$REF_ID" \
           REGISTRY_SYNC_EXPECTED_HEAD_OID="$HEAD_OID" \
-          REGISTRY_SYNC_HEADLINE="chore(provider-registry): sync catalog to ${{ steps.ver.outputs.dir }}" \
+          REGISTRY_SYNC_HEADLINE="chore(provider-registry): sync catalog to ${{ steps.publish.outputs.dirs }}" \
           REGISTRY_SYNC_BODY="Source: ${{ github.repository }}@${{ github.sha }}
           Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             node ../main/scripts/buildRegistrySyncRequest.js "$REQUEST_FILE"

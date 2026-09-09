@@ -7,6 +7,7 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -61,11 +62,13 @@ export interface MessageActivityState {
   isProcessing: boolean
   isStreamTarget: boolean
   isApprovalAnchor: boolean
+  isActiveTurnProcessing: boolean
+  isStreamLive: boolean
 }
 
 export interface MessageActivityStore {
   getSnapshot: (message: MessageListItem) => MessageActivityState
-  subscribe: (messageId: string, listener: () => void) => () => void
+  subscribe: (message: MessageListItem, listener: () => void) => () => void
 }
 
 export interface MessageFileView {
@@ -214,6 +217,7 @@ export interface MessageListItem {
   isActiveBranch?: boolean
   stats?: MessageStats
   delivery?: AgentSessionDelivery
+  turnOrigin?: AutonomousTurnOrigin
   mentions?: Array<{
     id: string
     name: string

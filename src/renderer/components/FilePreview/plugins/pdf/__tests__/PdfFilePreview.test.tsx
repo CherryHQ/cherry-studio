@@ -359,6 +359,24 @@ describe('PdfFilePreview', () => {
     expect(mocks.pdfViewerPageNumbers).toContain(3)
   })
 
+  it.each(['{Enter}', '{Tab}'])('normalizes an out-of-range page at the last page on %s', async (commitKey) => {
+    const user = userEvent.setup()
+    renderPreview()
+    const pageInput = screen.getByRole('textbox', { name: 'file_preview.pdf.page_number' })
+    await waitFor(() => expect(pageInput).toBeEnabled())
+
+    await user.clear(pageInput)
+    await user.type(pageInput, '3{Enter}')
+    await waitFor(() => expect(pageInput).toHaveValue('3'))
+    expect(screen.getByRole('button', { name: 'common.next' })).toBeDisabled()
+
+    await user.clear(pageInput)
+    await user.type(pageInput, `999${commitKey}`)
+
+    expect(pageInput).toHaveValue('3')
+    expect(screen.getByRole('button', { name: 'common.next' })).toBeDisabled()
+  })
+
   it('shows the PDF outline and navigates to its destinations', async () => {
     const user = userEvent.setup()
     const destination = [{ num: 4, gen: 0 }, { name: 'XYZ' }, 0, 0, null]

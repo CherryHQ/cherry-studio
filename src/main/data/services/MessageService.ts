@@ -46,7 +46,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -332,7 +332,6 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
       isBlankUserTurn({ role: message.role, status: message.status, parts: message.data.parts }) && !hasChildren
         ? true
         : undefined,
-    hasContent: (message.data.parts?.length ?? 0) > 0,
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,
@@ -1678,31 +1677,7 @@ export class MessageService {
         ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
       }
       const descendantIds = this.getDescendantIdsTx(tx, id)
-      for (let offset = 0; offset < descendantIds.length; offset += SQLITE_INARRAY_CHUNK) {
-        const chunk = descendantIds.slice(offset, offset + SQLITE_INARRAY_CHUNK)
-        const descendants = tx
-          .select({
-            id: messageTable.id,
-            stats: messageTable.stats,
-            updatedAt: messageTable.updatedAt
-          })
-          .from(messageTable)
-          .where(inArray(messageTable.id, chunk))
-          .all()
-        for (const descendant of descendants) {
-          if (descendant.stats?.contextTokens === undefined) continue
-          const descendantStats = { ...descendant.stats }
-          delete descendantStats.contextTokens
-          tx.update(messageTable)
-            .set({ stats: descendantStats, updatedAt: descendant.updatedAt })
-            .where(eq(messageTable.id, descendant.id))
-            .run()
-        }
-        tx.update(messageTable)
-          .set({ compactionSummary: null, updatedAt: messageTable.updatedAt })
-          .where(inArray(messageTable.id, chunk))
-          .run()
-      }
+      this.clearContextAnchorsTx(tx, descendantIds)
       const [updated] = tx
         .update(messageTable)
         .set({ data, status: 'pending', stats, compactionSummary: null, updatedAt: row.updatedAt })
@@ -1932,11 +1907,12 @@ export class MessageService {
    *
    * Supports two modes:
    * - cascade=true: Delete the message and all its descendants
-   * - cascade=false: Delete only this message, reparent children to grandparent
+   * - cascade=false: Delete only this message. An active grouped reply hands context
+   *   and children to its next sibling (previous at the end); otherwise splice onto the parent.
    *
    * When the deleted message(s) include the topic's activeNodeId, it will be
    * automatically updated based on activeNodeStrategy:
-   * - 'parent' (default): Sets activeNodeId to the deleted message's parent
+   * - 'parent' (default): Use the remaining context reply, falling back to the parent
    * - 'clear': Sets activeNodeId to null
    *
    * All operations are performed within a transaction for consistency.
@@ -1989,6 +1965,7 @@ export class MessageService {
       const descendantIds = cascade ? this.getDescendantIdsTx(tx, id) : []
       let deletedIds: string[]
       let reparentedIds: string[] | undefined
+      let contextChangedIds: string[] = []
       let newActiveNodeId: string | null | undefined
 
       // The virtual root is structural and never a valid active node.
@@ -2014,14 +1991,44 @@ export class MessageService {
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
       } else {
-        // Splice this node out: reparent its children onto its parent (their grandparent).
-        reparentedIds = this.reparentChildrenTx(tx, [message])
+        // Only the active context reply may hand its continuation to another member.
+        // Resolve the successor from persisted membership, including hidden regenerations.
+        const isContextReply =
+          activeNodeStrategy === 'parent' &&
+          message.role === 'assistant' &&
+          message.siblingsGroupId !== 0 &&
+          topic.activeNodeId !== null &&
+          this.getPathRowsToNodeTx(tx, topic.activeNodeId, { topicId: message.topicId }).some((row) => row.id === id)
+        const group = isContextReply
+          ? tx
+              .select({ id: messageTable.id })
+              .from(messageTable)
+              .where(
+                and(
+                  eq(messageTable.topicId, message.topicId),
+                  eq(messageTable.parentId, message.parentId),
+                  eq(messageTable.role, 'assistant'),
+                  eq(messageTable.siblingsGroupId, message.siblingsGroupId),
+                  isNull(messageTable.deletedAt)
+                )
+              )
+              .orderBy(asc(messageTable.createdAt), asc(messageTable.id))
+              .all()
+          : []
+        // Match the displayed chronological order: next, or previous at the end.
+        const contextIndex = group.findIndex((member) => member.id === id)
+        const successor = contextIndex < 0 ? undefined : (group[contextIndex + 1] ?? group[contextIndex - 1])
+        if (isContextReply) {
+          contextChangedIds = this.getDescendantIdsTx(tx, id)
+          this.clearContextAnchorsTx(tx, contextChangedIds)
+        }
+        reparentedIds = this.reparentChildrenTx(tx, [message], successor?.id)
 
         deletedIds = [id]
 
         // Check if activeNodeId is affected
         if (topic.activeNodeId === id) {
-          newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
+          newActiveNodeId = activeNodeStrategy === 'clear' ? null : (successor?.id ?? parentFallback)
         }
 
         // Hard delete this message
@@ -2050,12 +2057,13 @@ export class MessageService {
       return {
         topicId: message.topicId,
         deletedIds,
+        contextChangedIds,
         reparentedIds: reparentedIds?.length ? reparentedIds : undefined,
         newActiveNodeId
       }
     })
-    const { topicId, ...response } = result
-    const changedIds = [...response.deletedIds, ...(response.reparentedIds ?? [])]
+    const { topicId, contextChangedIds, ...response } = result
+    const changedIds = [...new Set([...response.deletedIds, ...(response.reparentedIds ?? []), ...contextChangedIds])]
     notifyDataApiDataChange([
       {
         endpoint: '/topics/:topicId/messages',
@@ -2064,7 +2072,7 @@ export class MessageService {
         entityIds: changedIds
       },
       { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: changedIds },
-      { endpoint: '/messages/:id', entityIds: response.deletedIds },
+      { endpoint: '/messages/:id', entityIds: changedIds },
       ...(response.newActiveNodeId !== undefined
         ? ([
             { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
@@ -2073,6 +2081,35 @@ export class MessageService {
         : [])
     ])
     return response
+  }
+
+  /** Clear derived context after changing message ancestry or content. */
+  private clearContextAnchorsTx(tx: DbOrTx, messageIds: string[]): void {
+    for (let offset = 0; offset < messageIds.length; offset += SQLITE_INARRAY_CHUNK) {
+      const chunk = messageIds.slice(offset, offset + SQLITE_INARRAY_CHUNK)
+      const descendants = tx
+        .select({
+          id: messageTable.id,
+          stats: messageTable.stats,
+          updatedAt: messageTable.updatedAt
+        })
+        .from(messageTable)
+        .where(inArray(messageTable.id, chunk))
+        .all()
+      for (const descendant of descendants) {
+        if (descendant.stats?.contextTokens === undefined) continue
+        const descendantStats = { ...descendant.stats }
+        delete descendantStats.contextTokens
+        tx.update(messageTable)
+          .set({ stats: descendantStats, updatedAt: descendant.updatedAt })
+          .where(eq(messageTable.id, descendant.id))
+          .run()
+      }
+      tx.update(messageTable)
+        .set({ compactionSummary: null, updatedAt: messageTable.updatedAt })
+        .where(inArray(messageTable.id, chunk))
+        .run()
+    }
   }
 
   private resolveActiveNodeFallbackTx(tx: DbOrTx, parentId: string | null): string | null {
@@ -2088,9 +2125,13 @@ export class MessageService {
     return !parent || parent.role === 'root' ? null : parentId
   }
 
-  private reparentChildrenTx(tx: DbOrTx, targets: Array<Pick<MessageRow, 'id' | 'parentId'>>): string[] {
+  private reparentChildrenTx(
+    tx: DbOrTx,
+    targets: Array<Pick<MessageRow, 'id' | 'parentId'>>,
+    destinationParentId?: string
+  ): string[] {
     const targetIds = targets.map((target) => target.id)
-    const newParentId = targets[0]?.parentId ?? null
+    const newParentId = destinationParentId ?? targets[0]?.parentId ?? null
     const children = tx
       .select({
         id: messageTable.id,

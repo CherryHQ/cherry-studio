@@ -12,6 +12,7 @@ import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@sh
 import type { BinaryAvailability } from '@shared/types/binary'
 import type { DeepSeekHarnessPermissionMode, DeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { ManagedToolStatus, ManagedToolStatusState } from '@shared/types/managedTool'
 import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { isNonChatModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
@@ -40,8 +41,6 @@ const GATEWAY_ROUTE = 'cherry-studio-codemate-gateway'
 const GATEWAY_CREDENTIAL_REF = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
 const MANAGED_CREDENTIAL_ENV = /^CHERRY_STUDIO_CODEMATE_(?:[A-F0-9]{12}|GATEWAY)_API_KEY$/i
 
-type DeepSeekHarnessStatus = 'stopped' | 'starting' | 'running' | 'error'
-
 interface DeepSeekHarnessStartInput extends DeepSeekHarnessSettings {
   mode: DeepSeekHarnessMode
   uniqueModelId: UniqueModelId
@@ -57,35 +56,33 @@ interface DeepSeekHarnessRuntime {
 @DependsOn(['ApiGatewayService'])
 export class DeepSeekHarnessService extends BaseService {
   private readonly operationMutex = new Mutex()
-  private status: DeepSeekHarnessStatus = 'stopped'
+  private status: ManagedToolStatus = 'stopped'
   private url: string | undefined
   private child: ChildProcess | null = null
   private stoppingChild: ChildProcess | null = null
   private runningPermissionMode: DeepSeekHarnessPermissionMode | undefined
   private readonly startupAbortControllers = new Set<AbortController>()
-  // Bumped by every setStatus broadcast; request paths use it to detect no-op completions.
+  // Bumped by every status publication; request paths use it to detect no-op completions.
   private statusTransitionId = 0
+
+  protected onInit(): void {
+    application.get('CacheService').setShared('feature.deepseek_harness.status', this.getStatus())
+  }
 
   protected async onStop(): Promise<void> {
     await this.stop()
   }
 
-  getStatus(): { status: DeepSeekHarnessStatus; url?: string } {
+  getStatus(): ManagedToolStatusState {
     return { status: this.status, ...(this.url ? { url: this.url } : {}) }
   }
 
-  /** Single status-transition point: assign, then broadcast; same-value calls are not transitions. */
-  private setStatus(status: DeepSeekHarnessStatus, options?: { force?: boolean }): void {
+  /** Single status-transition point for the main-owned shared snapshot. */
+  private setStatus(status: ManagedToolStatus, options?: { force?: boolean }): void {
     if (!options?.force && this.status === status) return
     this.status = status
     this.statusTransitionId++
-    try {
-      application.get('IpcApiService').broadcast('deepseek_harness.status_changed', this.getStatus())
-    } catch (err) {
-      // A lost broadcast is corrected by the next transition or a request-completion
-      // rebroadcast; it must never abort the transition itself.
-      logger.warn('Failed to broadcast DeepSeek Harness status change', err as Error)
-    }
+    application.get('CacheService').setShared('feature.deepseek_harness.status', this.getStatus())
   }
 
   async start(
@@ -121,8 +118,8 @@ export class DeepSeekHarnessService extends BaseService {
                   : 'DeepSeek Harness exited while updating its configuration'
               )
             }
-            // Idempotent success broadcasts nothing on its own — rebroadcast so a
-            // renderer that missed an earlier event is corrected by this request.
+            // Idempotent success publishes nothing on its own — republish so a
+            // renderer that missed an earlier update is corrected by this request.
             if (this.statusTransitionId === transitionBefore) this.setStatus('running', { force: true })
             return { success: true, url: this.url }
           } catch (error) {
@@ -164,7 +161,7 @@ export class DeepSeekHarnessService extends BaseService {
           return { success: true, url }
         } catch (error) {
           // Terminal state first: the cleanup-driven termination handler must not
-          // broadcast 'stopped' for a failed launch on its way to 'error'.
+          // publish 'stopped' for a failed launch on its way to 'error'.
           this.url = undefined
           this.setStatus('error')
           await this.stopOwnedProcessLocked().catch((stopError) => {

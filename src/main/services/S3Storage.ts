@@ -15,7 +15,7 @@ const logger = loggerService.withContext('S3Storage')
 const S3_SOCKET_IDLE_TIMEOUT_MS = 5 * 60_000
 
 // 需要使用 Virtual Host-Style 的服务商域名后缀白名单
-const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'volces.com']
+const VIRTUAL_HOST_SUFFIXES = ['aliyuncs.com', 'myqcloud.com', 'qiniucs.com', 'volces.com']
 
 interface S3UploadOptions {
   signal?: AbortSignal
@@ -31,18 +31,25 @@ export default class S3Storage {
 
   constructor(config: S3Config) {
     const { endpoint, region, accessKeyId, secretAccessKey, bucket, root } = config
+    let resolvedEndpoint = endpoint || undefined
 
     const usePathStyle = (() => {
       if (!endpoint) return false
 
       try {
-        const { hostname } = new URL(endpoint)
+        const endpointUrl = new URL(endpoint)
+        const { hostname } = endpointUrl
 
         if (hostname === 'localhost' || net.isIP(hostname) !== 0) {
           return true
         }
 
         const isInWhiteList = VIRTUAL_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix))
+        const bucketPrefix = `${bucket.toLowerCase()}.`
+        if (isInWhiteList && hostname.startsWith(bucketPrefix)) {
+          endpointUrl.hostname = hostname.slice(bucketPrefix.length)
+          resolvedEndpoint = endpointUrl.toString()
+        }
         return !isInWhiteList
       } catch (e) {
         logger.warn(`[S3Storage] Failed to parse endpoint, fallback to Path-Style: ${endpoint}`, e as Error)
@@ -52,7 +59,7 @@ export default class S3Storage {
 
     this.client = new S3Client({
       region,
-      endpoint: endpoint || undefined,
+      endpoint: resolvedEndpoint,
       credentials: {
         accessKeyId: accessKeyId,
         secretAccessKey: secretAccessKey

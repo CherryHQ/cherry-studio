@@ -18,6 +18,7 @@ export interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Bu
 export interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
   filter: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
+  noneOptionLabel?: string
   onSelect: (model: Model | undefined) => void
 }
 
@@ -69,6 +70,7 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   compact,
   filter,
   isModelDisabled,
+  noneOptionLabel,
   onSelect
 }) => (
   <ModelSelector
@@ -77,6 +79,7 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     onSelect={onSelect}
     filter={filter}
     isModelDisabled={isModelDisabled}
+    noneOptionLabel={noneOptionLabel}
     trigger={
       <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
     }

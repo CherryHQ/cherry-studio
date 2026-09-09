@@ -40,8 +40,8 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
    */
   approvalEmitter?: ToolApprovalEmitterHolder
   /**
-   * Session-scoped holder for mid-turn steers. The PreToolUse steer hook drains it (injecting the
-   * steer text as `additionalContext`); the connection's `redirect()` fills it. Shared by sessionId
+   * Session-scoped holder for mid-turn steers. The steer hooks drain it (injecting the steer text
+   * as `additionalContext`); the connection's `redirect()` fills it. Shared by sessionId
    * so a warm-pooled query's hook and the live connection reference the same holder.
    */
   steerHolder?: SteerHolder
@@ -75,9 +75,10 @@ export type ToolApprovalEmitterHolder = {
 
 export type SteerHolder = {
   /** Mid-turn steers stashed via the connection's `redirect()`; drained in place (splice) by the
-   *  PreToolUse steer hook, or emitted as `steer-undelivered` when the turn ends before injection. */
+   *  steer hooks (PostToolBatch after the running batch, or the next PreToolUse), or emitted as
+   *  `steer-undelivered` when the turn ends before injection. */
   pending: AgentRuntimeUserInput[]
-  /** Fired by the PreToolUse steer hook the moment it injects the drained steers as `additionalContext`.
+  /** Fired by the steer hook the moment it injects the drained steers as `additionalContext`.
    *  The connection uses this to arm a `steer-boundary` at the next assistant message so the host can
    *  roll the assistant row (A1a + A2). Bound by the live connection at start; absent ⇒ no roll. */
   onInjected?: (inputs: AgentRuntimeUserInput[]) => void

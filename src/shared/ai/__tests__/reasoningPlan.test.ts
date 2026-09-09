@@ -13,6 +13,10 @@ describe('resolveBudgetTokens', () => {
     expect(resolveBudgetTokens('high', reasoning)).toBe(computeBudgetTokens(reasoning.thinkingTokenLimits, 0.8))
   })
 
+  it('uses the full descriptor budget for ultra effort', () => {
+    expect(resolveBudgetTokens('ultra', reasoning)).toBe(reasoning.thinkingTokenLimits.max)
+  })
+
   it('does not infer limits when the descriptor omits them', () => {
     expect(resolveBudgetTokens('high', undefined)).toBeUndefined()
     expect(resolveBudgetTokens('high', { selectableEfforts: ['high'] })).toBeUndefined()

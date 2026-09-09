@@ -47,7 +47,8 @@ vi.mock('@renderer/services/externalOpenTargetService', async (importOriginal) =
 })
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: null })
+  useCodeStyle: () => ({ activeCmTheme: null }),
+  useCmTheme: () => null
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({

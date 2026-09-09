@@ -24,6 +24,7 @@ interface Harness {
   socket: net.Socket
   transport: JsonRpcLineTransport
   events: AgentRuntimeEvent[]
+  eventSources: Array<Parameters<DshBridgeServerOptions['emit']>[1]>
   lifecycleEdges: Array<BridgeNotificationMap['subagent/lifecycle']>
   nextRequest: () => Promise<HostRequest>
 }
@@ -36,19 +37,23 @@ function makeServer(
     Promise.reject(new Error('unexpected tool call')),
   readyTimeoutMs?: number,
   onGuardCheck: DshBridgeServerOptions['onGuardCheck'] = async () => ({ kind: 'allow' })
-): { server: DshBridgeServer; events: AgentRuntimeEvent[]; lifecycleEdges: Harness['lifecycleEdges'] } {
+): Pick<Harness, 'server' | 'events' | 'eventSources' | 'lifecycleEdges'> {
   const events: AgentRuntimeEvent[] = []
+  const eventSources: Harness['eventSources'] = []
   const lifecycleEdges: Harness['lifecycleEdges'] = []
   const server = new DshBridgeServer({
     sessionId: SESSION_ID,
-    emit: (event) => events.push(event),
+    emit: (event, source) => {
+      events.push(event)
+      eventSources.push(source)
+    },
     getInteractionState: () => ({ userResponse }),
     onToolCall,
     onGuardCheck,
     onSubagentLifecycle: (edge) => lifecycleEdges.push(edge),
     ...(readyTimeoutMs === undefined ? {} : { readyTimeoutMs })
   })
-  return { server, events, lifecycleEdges }
+  return { server, events, eventSources, lifecycleEdges }
 }
 
 /** Connect a JSON-RPC peer that records host requests; authenticates unless a token is given. */
@@ -99,11 +104,11 @@ async function makeHarness(
   onToolCall?: (name: string, args: unknown, signal: AbortSignal) => Promise<{ text: string; data?: unknown }>,
   onGuardCheck?: DshBridgeServerOptions['onGuardCheck']
 ): Promise<Harness> {
-  const { server, events, lifecycleEdges } = makeServer(userResponse, onToolCall, undefined, onGuardCheck)
+  const { server, events, eventSources, lifecycleEdges } = makeServer(userResponse, onToolCall, undefined, onGuardCheck)
   await server.listen()
   const plugin = await connectPlugin(server)
   await server.whenReady()
-  const harness: Harness = { server, events, lifecycleEdges, ...plugin }
+  const harness: Harness = { server, events, eventSources, lifecycleEdges, ...plugin }
   harnesses.push(harness)
   return harness
 }
@@ -363,12 +368,14 @@ describe('DshBridgeServer', () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('approval/ask', {
       sessionId: SESSION_ID,
+      sessionEventSeq: 17,
       toolName: 'bash',
       callId: 'call-9',
       args: { command: 'echo hi' }
     })
 
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    expect(harness.eventSources).toEqual([{ sessionId: SESSION_ID, seq: 17 }])
     const event = harness.events[0]
     expect(event.type).toBe('tool-approval-request')
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
@@ -450,6 +457,7 @@ describe('DshBridgeServer', () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('question/ask', {
       sessionId: SESSION_ID,
+      sessionEventSeq: 21,
       callId: 'exit-plan-call-1',
       questions: [
         {
@@ -466,7 +474,7 @@ describe('DshBridgeServer', () => {
     await vi.waitFor(() => expect(harness.events).toHaveLength(1))
     const event = harness.events[0]
     if (event.type !== 'tool-approval-request') throw new Error('unreachable')
-    // Anchored to the streamed exit_plan_mode call so the card lands on its tool row.
+    expect(harness.eventSources).toEqual([{ sessionId: SESSION_ID, seq: 21 }])
     expect(event.request).toMatchObject({
       toolCallId: 'exit-plan-call-1',
       toolName: 'exit_plan_mode',

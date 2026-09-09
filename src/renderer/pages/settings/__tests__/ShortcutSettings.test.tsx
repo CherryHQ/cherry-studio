@@ -38,7 +38,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 // throws. Tests set this to choose which row (if any) arrives focused.
 const { routerSearch } = vi.hoisted(() => ({ routerSearch: { current: {} as { command?: string } } }))
 vi.mock('@tanstack/react-router', () => ({
-  useSearch: () => routerSearch.current
+  getRouteApi: () => ({ useSearch: () => routerSearch.current })
 }))
 
 // jsdom ships no scrollIntoView, and the focused row calls it on mount.

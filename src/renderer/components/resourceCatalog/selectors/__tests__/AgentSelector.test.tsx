@@ -110,7 +110,8 @@ vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({

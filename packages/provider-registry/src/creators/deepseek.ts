@@ -49,6 +49,19 @@ export default defineCreator({
       openWeights: true
     },
     {
+      id: 'deepseek-v4.1-flash-expires-on-0910',
+      name: 'DeepSeek V4.1 Flash Expires-On-0910',
+      family: 'deepseek-flash',
+      capabilities: ['function-call', 'image-recognition', 'reasoning', 'structured-output'],
+      contextWindow: 1000000,
+      maxOutputTokens: 393216,
+      inputModalities: ['text', 'image'],
+      outputModalities: ['text'],
+      pricing: v4FlashPeakPricing,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
+      openWeights: true
+    },
+    {
       id: 'deepseek-v4-pro',
       name: 'DeepSeek V4 Pro',
       family: 'deepseek-thinking',

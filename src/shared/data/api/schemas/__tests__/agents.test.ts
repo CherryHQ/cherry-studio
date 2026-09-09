@@ -47,6 +47,15 @@ describe('AgentEntitySchema', () => {
     expect(AgentConfigurationSchema.safeParse({ service_tier: 'invalid' }).success).toBe(false)
   })
 
+  it('bounds the per-agent language label: trimmed, non-empty, nullable, length-capped', () => {
+    expect(AgentConfigurationSchema.parse({ language: '  Thai  ' }).language).toBe('Thai')
+    expect(AgentConfigurationSchema.parse({ language: null }).language).toBeNull()
+    expect(AgentConfigurationSchema.parse({ language: undefined }).language).toBeUndefined()
+    expect(AgentConfigurationSchema.parse({ language: 'x'.repeat(50) }).language).toHaveLength(50)
+    expect(AgentConfigurationSchema.safeParse({ language: '   ' }).success).toBe(false)
+    expect(AgentConfigurationSchema.safeParse({ language: 'x'.repeat(51) }).success).toBe(false)
+  })
+
   it('accepts first-level configuration patches and preserves explicit removals', () => {
     expect(UpdateAgentSchema.parse({ configuration: { reasoning_effort: 'high' } }).configuration).toEqual({
       reasoning_effort: 'high'

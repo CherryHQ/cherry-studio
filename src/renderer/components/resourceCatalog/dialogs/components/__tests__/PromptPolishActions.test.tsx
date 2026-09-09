@@ -114,7 +114,8 @@ describe('PromptPolishActions', () => {
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
       prompt: TEST_EXISTING_SYSTEM_PROMPT,
       content: 'Draft {{date}} for ${city}',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     const undoButton = screen.getByRole('button', { name: 'Undo' })
@@ -146,7 +147,8 @@ describe('PromptPolishActions', () => {
     expect(mocks.fetchGenerate).toHaveBeenCalledWith({
       prompt: TEST_GENERATE_SYSTEM_PROMPT,
       content: 'Alpha Agent',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))

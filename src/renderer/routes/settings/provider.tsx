@@ -8,8 +8,8 @@ export const providerSettingsSearchSchema = z.object({
   // and normalize back to the string the downstream consumer (JSON.parse) expects.
   addProviderData: z
     .union([z.string(), z.record(z.string(), z.unknown())])
-    .optional()
-    .transform((value) => (value == null || typeof value === 'string' ? value : JSON.stringify(value))),
+    .transform((value) => (typeof value === 'string' ? value : JSON.stringify(value)))
+    .optional(),
   filter: z.string().optional(),
   id: z.string().optional()
 })

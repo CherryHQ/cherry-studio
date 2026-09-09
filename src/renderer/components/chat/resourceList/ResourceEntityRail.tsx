@@ -29,7 +29,7 @@ export type ResourceEntityRailItem = {
   reorderable?: boolean
   /**
    * When true, a *visible* entity floats into the "已固定" section at the top and cannot be dragged.
-   * It does not affect visibility — an entity with no resources stays hidden whether pinned or not.
+   * It does not affect item visibility.
    */
   pinned?: boolean
   /** Canonical assistant group. Only consulted when `groupByGroup` is enabled. */

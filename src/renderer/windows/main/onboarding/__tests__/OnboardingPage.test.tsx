@@ -649,10 +649,31 @@ describe('OnboardingPage', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
   })
 
-  it('uses cancellable Cherry Cloud login instead of CherryIN in the CN edition', async () => {
+  it('uses CherryIN in the CN edition when Cherry Account onboarding is disabled', async () => {
     const user = userEvent.setup()
     cloudMocks.appEdition = 'cn'
     render(<OnboardingPage />)
+
+    await user.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
+
+    await waitFor(() => expect(oauthWithCherryInMock).toHaveBeenCalledTimes(1))
+    expect(cloudMocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps CherryIN in the global edition when Cherry Account onboarding is enabled', async () => {
+    const user = userEvent.setup()
+    render(<OnboardingPage enableCherryAccountLogin />)
+
+    await user.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
+
+    await waitFor(() => expect(oauthWithCherryInMock).toHaveBeenCalledTimes(1))
+    expect(cloudMocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('uses cancellable Cherry Cloud login instead of CherryIN in the CN edition', async () => {
+    const user = userEvent.setup()
+    cloudMocks.appEdition = 'cn'
+    render(<OnboardingPage enableCherryAccountLogin />)
 
     expect(screen.queryByRole('button', { name: 'onboarding.welcome.login_cherryin' })).not.toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' }))
@@ -693,7 +714,7 @@ describe('OnboardingPage', () => {
       }
       throw new Error(`Unexpected path: ${path}`)
     })
-    render(<OnboardingPage />)
+    render(<OnboardingPage enableCherryAccountLogin />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
     act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
@@ -716,7 +737,7 @@ describe('OnboardingPage', () => {
   it('opens provider setup after the warning even when an ordinary chat model is available', async () => {
     const user = userEvent.setup()
     cloudMocks.appEdition = 'cn'
-    render(<OnboardingPage />)
+    render(<OnboardingPage enableCherryAccountLogin />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
     act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))

@@ -247,10 +247,12 @@ describe('cherry bridge plugin', () => {
         events: [
           {
             type: 'tool/call',
+            seq: 7,
             data: { callId: 'exit-plan-call-1', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
           },
           {
             type: 'tool/call',
+            seq: 9,
             data: { callId: 'exit-plan-call-2', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
           }
         ]
@@ -293,7 +295,7 @@ describe('cherry bridge plugin', () => {
     await expect
       .poll(() => host.requests.find((request) => request.method === 'question/ask'))
       .toMatchObject({
-        params: { sessionId: 'session-1', callId: 'exit-plan-call-2' }
+        params: { sessionId: 'session-1', callId: 'exit-plan-call-2', sessionEventSeq: 9 }
       })
     await expect(answer).resolves.toEqual({})
   })
@@ -303,7 +305,11 @@ describe('cherry bridge plugin', () => {
       method === 'approval/ask' ? { outcome: 'rejected', rejectionReason: 'use a copy instead' } : {}
     )
     const followup = vi.fn()
-    const agent = { id: 'session-1', followup, session: { events: [] } } as unknown as Agent
+    const agent = {
+      id: 'session-1',
+      followup,
+      session: { events: [{ type: 'approval/asked', seq: 12, data: { id: 'ask-1', toolName: 'bash' } }] }
+    } as unknown as Agent
     let approvalHandler: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
     const on = vi.fn((event: string, handler: unknown) => {
       if (event === 'approval/request') {
@@ -327,6 +333,10 @@ describe('cherry bridge plugin', () => {
         reason: 'needs approval'
       } as ApprovalRequest)
     ).resolves.toBe('rejected')
+    expect(host.requests.find((request) => request.method === 'approval/ask')?.params).toMatchObject({
+      sessionId: 'session-1',
+      sessionEventSeq: 12
+    })
     expect(followup).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(followup).toHaveBeenCalledOnce())
     expect(followup).toHaveBeenCalledWith(

@@ -28,15 +28,8 @@ interface ParsedProxyBypassRule {
 }
 
 /**
- * Parses Electron-style bypass rules and matches URLs against them.
- *
- * Fully self-contained — every helper lives inside, `ipaddr.js` arrives as a parameter, and
- * the rule-type tags are string literals rather than a module-scope enum — so the inference
- * worker can inject it via `.toString()`, the same mechanism as `configureWorkerProxy`.
- * Keep it that way: the worker must evaluate bypass rules per hop (a download redirects to a
- * CDN on another origin), and sharing this one source is what keeps its answer identical to
- * the main process's. ProxyService still owns the policy — it decides the rules; this only
- * applies them.
+ * Shares Electron-style bypass matching across Node proxy backends.
+ * ProxyService owns the policy; this matcher only applies the supplied rules.
  */
 export function createProxyBypassMatcher(
   ipaddrModule: typeof ipaddr,

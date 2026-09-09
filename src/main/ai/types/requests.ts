@@ -11,7 +11,7 @@ import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
  * signatures so renderer payloads can't smuggle in `AbortSignal`.
  */
 export interface AiTransportOptions {
-  /** Layered on top of `defaultAppHeaders()` + `provider.settings.extraHeaders`; caller wins on conflict. */
+  /** Layered on top of provider-aware app attribution + `provider.settings.extraHeaders`; caller wins on conflict. */
   headers?: Record<string, string | undefined>
   /** Idle-chunk timeout (ms) for streaming flows; resets per chunk. Falls back to `DEFAULT_TIMEOUT` (30 min). */
   timeout?: number
@@ -52,13 +52,31 @@ export interface CallOverrides {
   providerOptions?: ProviderOptions
 }
 
-export interface AiBaseRequest {
-  assistantId?: string
+/**
+ * The conversation a chat request belongs to. Supplied by the caller — the only
+ * party that knows its unit of work (a topic, an agent session, one probe).
+ */
+export interface ConversationRef {
+  id: string
+  /** The stream manager's topic key (a chat topic, or a prompt stream's own id); absent for probes. */
+  topicId?: string
+}
+
+/** Transport-level request every modality shares: which model, which credential, how to send. */
+export interface AiRequest {
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId
-  mcpToolIds?: string[]
+  /** Usage attribution and, when `uniqueModelId` is absent, the model to fall back to. */
+  assistantId?: string
   /** Selected API key override, currently used by provider health checks. */
   apiKeyOverride?: string
+  requestOptions?: AiTransportOptions
+}
+
+/** Text generation (streaming or not): a conversation plus everything that shapes a turn. */
+export interface AiChatRequest extends AiRequest {
+  conversation: ConversationRef
+  mcpToolIds?: string[]
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
   /** Canonical provider request tier captured when the message was submitted. */
@@ -72,7 +90,6 @@ export interface AiBaseRequest {
    * assistant has no binding does this selection define the scope on its own.
    */
   knowledgeBaseIds?: string[]
-  requestOptions?: AiTransportOptions
   /**
    * Main-internal context ownership. Omitted means Cherry-managed; caller-owned
    * requests bypass Cherry's history truncation, pruning, and compaction.
@@ -96,10 +113,9 @@ export interface ListModelsRequest {
 
 export type ChatTrigger = Parameters<ChatTransport<UIMessage>['sendMessages']>[0]['trigger']
 
-/** Streaming chat request — serialisable across IPC. */
-export interface AiStreamRequest extends AiBaseRequest {
-  /** `topicId` in the AiStreamManager path. */
-  chatId: string
+/** Main-internal streaming chat request with a required stream topic. */
+export interface AiStreamRequest extends AiChatRequest {
+  conversation: ConversationRef & { topicId: string }
   trigger: ChatTrigger
   messageId?: string
   messages?: UIMessage[]
@@ -114,8 +130,8 @@ export interface AiStreamRequest extends AiBaseRequest {
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
   /**
    * Attribution for callers with no assistant to derive it from. Neutral on purpose:
-   * the agent-only `usageContext` also rewrites `chatId` to an agent session id, so
-   * reusing it would record a mini app's call as an agent turn.
+   * `usageContext` identifies a trusted agent turn; reusing it for source
+   * attribution would misclassify a mini app's call as an agent turn.
    */
   source?: SourceSnapshot | null
 }

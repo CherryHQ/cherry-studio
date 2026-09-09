@@ -1362,6 +1362,59 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('keeps usable Querit results when individual items omit optional fields', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        error_code: 200,
+        error_msg: '',
+        query_context: { query: 'hello' },
+        results: {
+          result: [
+            {
+              title: 'Complete result',
+              snippet: 'Complete content',
+              url: 'https://querit.example/complete'
+            },
+            {
+              site_name: 'Querit fallback title',
+              snippet: 'Partial content',
+              url: 'https://querit.example/partial'
+            },
+            {
+              title: 'Missing URL',
+              snippet: 'This item cannot be opened'
+            }
+          ]
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        apiHost: 'https://api.querit.ai'
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).resolves.toMatchObject({
+      results: [
+        {
+          title: 'Complete result',
+          content: 'Complete content',
+          url: 'https://querit.example/complete'
+        },
+        {
+          title: 'Querit fallback title',
+          content: 'Partial content',
+          url: 'https://querit.example/partial'
+        }
+      ]
+    })
+  })
+
   it('sends a markdown contents request and normalizes the crawled page', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-contents-response.json')))
 

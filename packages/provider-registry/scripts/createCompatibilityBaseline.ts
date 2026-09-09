@@ -35,7 +35,7 @@ async function createCompatibilityBaseline(): Promise<void> {
       dts: false,
       report: false,
       tsconfig: false,
-      noExternal: [/^zod(?:\/|$)/]
+      noExternal: () => true
     })
 
     const bundle = readFileSync(path.join(outputDirectory, targetName), 'utf8').replace(/[ \t]+$/gm, '')
@@ -47,6 +47,14 @@ async function createCompatibilityBaseline(): Promise<void> {
       cwd: repositoryRoot,
       stdio: 'inherit'
     })
+    // CI runs the baseline with bare `node` against a checkout that has no node_modules.
+    const leaked = [...readFileSync(targetPath, 'utf8').matchAll(/^import\b.*?['"]([^'"]+)['"]/gm)]
+      .map(([, id]) => id)
+      .filter((id) => !id.startsWith('node:'))
+    if (leaked.length > 0) {
+      rmSync(targetPath)
+      throw new Error(`Baseline is not dependency-free, it imports ${leaked.join(', ')}`)
+    }
     console.log(`Created frozen registry compatibility baseline ${path.relative(packageRoot, targetPath)}`)
   } finally {
     rmSync(outputDirectory, { recursive: true, force: true })

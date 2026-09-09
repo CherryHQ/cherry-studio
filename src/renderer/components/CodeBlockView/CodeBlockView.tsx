@@ -17,7 +17,7 @@ import {
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { toast } from '@renderer/services/toast'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
@@ -104,7 +104,6 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     themeDark: 'chat.code.editor.theme_dark'
   })
 
-  const { activeCmTheme } = useCodeStyle()
   const canEdit = codeEditor.enabled && editable
   const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
   const startedStreamingRef = useRef(isStreaming)
@@ -159,6 +158,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
   const isEditing = canEdit && (viewMode === 'edit' || (viewMode === 'split' && viewState.previousMode === 'edit'))
+  const activeCmTheme = useCmTheme(isEditing)
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
   const [wrapOverride, setWrapOverride] = useState(codeWrappable)

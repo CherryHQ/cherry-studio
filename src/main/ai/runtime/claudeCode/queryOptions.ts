@@ -9,7 +9,6 @@ export interface ClaudeCodeQueryOptionsInput {
   settings: ClaudeCodeSettings
   abortController?: AbortController
   responseFormat?: Parameters<LanguageModelV3['doStream']>[0]['responseFormat']
-  stderrCollector?: (data: string) => void
   effectiveResume?: string
 }
 
@@ -18,7 +17,6 @@ export function createClaudeCodeQueryOptions({
   settings,
   abortController,
   responseFormat,
-  stderrCollector,
   effectiveResume
 }: ClaudeCodeQueryOptionsInput): Options {
   const {
@@ -43,14 +41,6 @@ export function createClaudeCodeQueryOptions({
     model: modelId,
     ...(abortController ? { abortController } : {}),
     resume: effectiveResume ?? settings.resume
-  }
-
-  const userStderrCallback = settings.stderr
-  if (stderrCollector || userStderrCallback) {
-    opts.stderr = (data: string) => {
-      if (stderrCollector) stderrCollector(data)
-      if (userStderrCallback) userStderrCallback(data)
-    }
   }
 
   if (responseFormat?.type === 'json' && responseFormat.schema) {

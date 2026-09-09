@@ -21,7 +21,7 @@ const autoBackupEventSchema = z.discriminatedUnion('status', [
 export const backupRequestSchemas = {
   'backup.get_auto_sync_state': defineRoute({
     input: z.void(),
-    output: z.object({ events: z.array(autoBackupEventSchema), pendingNotifications: z.array(autoBackupEventSchema) })
+    output: z.object({ pendingNotifications: z.array(autoBackupEventSchema) })
   }),
   'backup.acknowledge_auto_sync_notification': defineRoute({
     input: z.object({ type: autoBackupTypeSchema, id: z.number().int().positive() }),

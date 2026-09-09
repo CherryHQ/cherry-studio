@@ -41,7 +41,10 @@ const scope = (overrides: {
   adapterFamily?: string
 }) =>
   ({
-    request: { chatId: overrides.chatId, contextOwner: overrides.contextOwner },
+    request: {
+      conversation: { id: overrides.chatId ?? 'no-topic', topicId: overrides.chatId },
+      contextOwner: overrides.contextOwner
+    },
     model: { id: 'prov::model', contextWindow: overrides.contextWindow },
     provider: provider(overrides.adapterFamily),
     contextSettings: {
@@ -101,7 +104,7 @@ describe('inLoopCompactionFeature', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW }))).toBe(true)
   })
 
-  it('does not apply when chatId is missing', () => {
+  it('does not apply when the conversation has no topic', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ contextWindow: CONTEXT_WINDOW }))).toBe(false)
   })
 

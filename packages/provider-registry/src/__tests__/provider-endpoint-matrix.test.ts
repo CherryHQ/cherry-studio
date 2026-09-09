@@ -150,6 +150,10 @@ describe('opencode (Zen Go) endpoint matrix', () => {
     expect(endpointsOf('opencode', 'gpt-5-6-luna')).toEqual(['openai-responses'])
   })
 
+  it('pins Muse Spark 1.3 Contributor to Responses and excludes Chat Completions', () => {
+    expect(endpointsOf('opencode', 'muse-spark-1-3-contributor')).toEqual(['openai-responses'])
+  })
+
   it.each(['qwen3-8-flash', 'qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])(
     'pins %s to the Anthropic-compatible endpoint',
     (modelId) => {

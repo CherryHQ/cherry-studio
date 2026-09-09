@@ -5,7 +5,7 @@ import ActionIconButton from '@renderer/components/ActionIconButton'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
@@ -58,7 +58,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
-    const { activeCmTheme } = useCodeStyle()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
@@ -68,6 +67,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
+    const activeCmTheme = useCmTheme(tmpViewMode === 'source')
     const currentViewModeRef = useRef(currentViewMode)
     const userViewModeOverrideRef = useRef(false)
 

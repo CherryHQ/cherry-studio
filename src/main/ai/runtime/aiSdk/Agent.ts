@@ -313,6 +313,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const capturedUiErrors: Array<{ error: unknown }> = []
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
+        sendSources: true,
         onError: (error) => {
           capturedUiErrors.push({ error })
           return error instanceof Error ? error.message : String(error)

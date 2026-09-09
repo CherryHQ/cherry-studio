@@ -1,9 +1,10 @@
-import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { useDataChange, useMutation } from '@data/hooks/useDataApi'
+import { act, renderHook as renderHookBase, waitFor } from '@testing-library/react'
+import { createElement, type PropsWithChildren } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invalidateMock = vi.hoisted(() => vi.fn())
-const refetchMock = vi.hoisted(() => vi.fn())
 const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -17,14 +18,18 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: skillMocks.request } }))
 
 import { skillAdapter, useSkillMutationsById } from '../skillAdapter'
 
-function mockSkillQuery() {
-  vi.mocked(useQuery).mockReturnValue({
-    data: [],
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    refetch: refetchMock
-  } as unknown as ReturnType<typeof useQuery>)
+function renderHook<T>(callback: () => T) {
+  const cache = new Map()
+  return renderHookBase(callback, {
+    wrapper: ({ children }: PropsWithChildren) =>
+      createElement(
+        SWRConfig,
+        {
+          value: { provider: () => cache, dedupingInterval: 0, shouldRetryOnError: false }
+        },
+        children
+      )
+  })
 }
 
 describe('skillAdapter mutations', () => {
@@ -92,8 +97,7 @@ describe('skillAdapter reconcile-on-open', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     invalidateMock.mockResolvedValue(undefined)
-    skillMocks.request.mockResolvedValue(undefined)
-    mockSkillQuery()
+    skillMocks.request.mockImplementation(async (route) => (route === 'skill.list_catalog' ? [] : undefined))
   })
 
   it('reconciles the on-disk library and refreshes when the skill view opens', async () => {
@@ -112,12 +116,37 @@ describe('skillAdapter reconcile-on-open', () => {
     expect(invalidateMock).not.toHaveBeenCalled()
   })
 
-  it('refetches the catalog after a cross-window data change', () => {
-    renderHook(() => skillAdapter.useList({ enabled: true }))
-
+  it('refetches the catalog after a cross-window data change', async () => {
+    const { result } = renderHook(() => skillAdapter.useList({ enabled: true }))
+    await waitFor(() => expect(result.current.data).toEqual([]))
+    skillMocks.request.mockImplementation(async (route) =>
+      route === 'skill.list_catalog' ? [{ id: 'new-skill', scope: 'system' }] : undefined
+    )
     const listener = vi.mocked(useDataChange).mock.calls.at(-1)?.[1]
-    listener?.([])
+    await act(async () => {
+      listener?.([])
+    })
+    await waitFor(() => expect(result.current.data).toEqual([{ id: 'new-skill', scope: 'system' }]))
+  })
 
-    expect(refetchMock).toHaveBeenCalledOnce()
+  it('refreshes the IPC catalog after uninstall even without a database event', async () => {
+    let removed = false
+    skillMocks.request.mockImplementation(async (route) => {
+      if (route === 'skill.list_catalog') return removed ? [] : [{ id: 'skill-1', scope: 'system' }]
+      if (route === 'skill.uninstall') {
+        removed = true
+        return { success: true }
+      }
+      return undefined
+    })
+    const { result } = renderHook(() => ({
+      list: skillAdapter.useList({ enabled: true }),
+      mutation: useSkillMutationsById('skill-1')
+    }))
+    await waitFor(() => expect(result.current.list.data).toHaveLength(1))
+    await act(async () => {
+      await result.current.mutation.uninstallSkill()
+    })
+    await waitFor(() => expect(result.current.list.data).toEqual([]))
   })
 })

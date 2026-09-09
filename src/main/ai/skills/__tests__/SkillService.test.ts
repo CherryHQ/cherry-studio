@@ -5,12 +5,14 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { application } from '@application'
+import { skillHandlers as dataSkillHandlers } from '@data/api/handlers/skills'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { skillHandlers } from '@main/ipc/handlers/skill'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
@@ -138,6 +140,50 @@ describe('SkillService', () => {
       }
     ])
   }
+
+  describe('catalog scopes', () => {
+    it('uses physical directories for registered skills with no source URL and excludes junction targets outside system roots', async () => {
+      await seedSkills()
+      await dbh.db
+        .update(agentGlobalSkillTable)
+        .set({ source: 'local', sourceUrl: null })
+        .where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
+      const root = await createTempDir('skill-scopes-')
+      const globalRoot = path.join(root, 'global')
+      const project = path.join(root, 'project')
+      const projectSkill = path.join(project, '.agents', 'skills', 'skill-two')
+      await fs.promises.mkdir(path.join(globalRoot, 'skill-one'), { recursive: true })
+      await fs.promises.mkdir(path.join(globalRoot, 'unregistered'), { recursive: true })
+      await fs.promises.mkdir(projectSkill, { recursive: true })
+      await fs.promises.symlink(projectSkill, path.join(globalRoot, 'skill-two'), 'junction')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? globalRoot : root
+        return filename ? path.join(base, filename) : base
+      })
+      try {
+        const service = new SkillService()
+        expect(await service.listCatalog()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: SKILL_ID_1, scope: 'system' }),
+            expect.objectContaining({ id: SKILL_ID_2, scope: 'local' }),
+            expect.objectContaining({ id: SKILL_ID_BUILTIN, scope: 'builtin' })
+          ])
+        )
+        expect(await service.listCatalog()).toHaveLength(3)
+        const filtered = await skillHandlers['skill.list_catalog']({ search: 'skill-two' }, {} as never)
+        expect(filtered).toHaveLength(1)
+        expect(filtered[0]).toMatchObject({ id: SKILL_ID_2, scope: 'local' })
+        const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockRejectedValue(new Error('unavailable filesystem'))
+        try {
+          expect(await dataSkillHandlers['/skills'].GET({ query: {} } as never)).toHaveLength(3)
+        } finally {
+          realpathSpy.mockRestore()
+        }
+      } finally {
+        getPathSpy.mockRestore()
+      }
+    })
+  })
 
   describe('list', () => {
     it('returns empty array when no skills installed', async () => {
