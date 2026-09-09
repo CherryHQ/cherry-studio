@@ -43,7 +43,10 @@ export function resolveClaudeBaseUrl(provider: Provider): string {
 }
 
 export function resolveCodexBaseUrl(provider: Provider): string {
-  return formatApiHost(resolveEndpointBaseUrl(provider, CODEX_RESPONSES_ENDPOINT))
+  // Codex only speaks the Responses wire protocol. Keep Chat-only providers
+  // ineligible here; the shared-host compatibility fallback is for the
+  // multi-protocol CLI adapters below.
+  return formatApiHost(provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl)
 }
 
 export function resolveOpenAIBaseUrl(provider: Provider): string {
@@ -105,7 +108,12 @@ function resolveSupportedEndpointType(
     throw new Error(`Model does not advertise a ${supportedEndpoints.join(' or ')} endpoint for this CLI`)
   }
 
-  return supportedEndpoints.find(hasEndpoint) ?? fallbackEndpoint
+  // With no model capability metadata, prefer an endpoint that is explicitly
+  // configured before considering the Responses-over-Chat compatibility host.
+  const directlyConfiguredEndpoint = supportedEndpoints.find((type) =>
+    Boolean(provider.endpointConfigs?.[type]?.baseUrl)
+  )
+  return directlyConfiguredEndpoint ?? supportedEndpoints.find(hasEndpoint) ?? fallbackEndpoint
 }
 
 /** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */

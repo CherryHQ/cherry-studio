@@ -924,6 +924,28 @@ describe('writeCliConfigDraft', () => {
       expect(provider.options.baseURL).toBe('https://chat.example.com/v1')
     })
 
+    it('materializes a shared Chat host when the model selects Responses', async () => {
+      const sharedHostProvider = {
+        id: 'mixed',
+        name: 'Mixed',
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://shared.example.com/v1' }
+        }
+      } as unknown as Provider
+
+      mockGet({
+        '/providers/mixed': () => sharedHostProvider,
+        '/providers/mixed/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'responses-model', endpointTypes: ['openai-responses'] })
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'mixed::responses-model' })
+
+      const provider = JSON.parse(opencodeWrite().content).provider['cherry-Mixed']
+      expect(provider.npm).toBe('@ai-sdk/openai')
+      expect(provider.options.baseURL).toBe('https://shared.example.com/v1')
+    })
+
     it('writes the global OpenCode permission mode', async () => {
       mockGet({
         '/providers/deepseek': () => openaiCompatProvider,

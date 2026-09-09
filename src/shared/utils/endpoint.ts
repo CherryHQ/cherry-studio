@@ -35,7 +35,11 @@ export function resolveEndpointBaseUrl(
   const configured = provider.endpointConfigs?.[endpointType]?.baseUrl
   if (configured) return configured
 
-  const isKnownGateway = provider.id === 'aihubmix' || provider.presetProviderId === 'aihubmix'
+  const isKnownGateway =
+    provider.id === 'aihubmix' ||
+    provider.presetProviderId === 'aihubmix' ||
+    provider.id === 'dmxapi' ||
+    provider.presetProviderId === 'dmxapi'
   if (endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES || isKnownGateway) return undefined
 
   return provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl

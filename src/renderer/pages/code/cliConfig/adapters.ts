@@ -3,6 +3,7 @@ import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } fro
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
+import { resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { stringify as stringifyToml } from 'smol-toml'
 import { type Document, isMap, isScalar } from 'yaml'
 
@@ -430,7 +431,7 @@ const openCodeAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.OPEN_CODE),
   providerBaseUrls: (provider) =>
     OPEN_CODE_ENDPOINTS.flatMap((endpoint) => {
-      const baseUrl = normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))
+      const baseUrl = normalizeUrl(formatApiHost(resolveEndpointBaseUrl(provider, endpoint)))
       return baseUrl ? [baseUrl] : []
     }),
   sanitize: sanitizeOpenCodeConfigBlob,
@@ -441,7 +442,7 @@ const openCodeAdapter: CliConfigAdapter = {
     // bare ANTHROPIC_BASE_URL (the Claude binary adds /v1/messages itself), the
     // @ai-sdk/anthropic package OpenCode loads expects the /v1 in baseURL and only
     // appends /messages.
-    const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
+    const baseUrl = formatApiHost(resolveEndpointBaseUrl(provider, npmInfo.endpointType) ?? '')
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('opencode-config', parseJsonOrThrow, args.files, read)
     const env = asRecord(configBlob.env)
@@ -471,7 +472,7 @@ const openCodeAdapter: CliConfigAdapter = {
   },
   assertCredentials(context) {
     const npmInfo = resolveOpenCodeNpmInfo(context.provider, context.modelRecord?.endpointTypes)
-    const baseUrl = formatApiHost(context.provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
+    const baseUrl = formatApiHost(resolveEndpointBaseUrl(context.provider, npmInfo.endpointType) ?? '')
     if (!context.apiKey || !baseUrl) throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection, configBlob) {
@@ -843,7 +844,6 @@ const hermesAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.HERMES),
   providerBaseUrls: (provider) =>
     HERMES_ENDPOINTS.flatMap((endpoint) => {
-      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
       const baseUrl = normalizeUrl(resolveHermesProviderInfo(provider, [endpoint]).baseUrl)
       return baseUrl ? [baseUrl] : []
     }),
@@ -936,7 +936,6 @@ const piAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.PI),
   providerBaseUrls: (provider) =>
     PI_ENDPOINTS.flatMap((endpoint) => {
-      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
       const baseUrl = normalizeUrl(resolvePiProviderInfo(provider, [endpoint]).baseUrl)
       return baseUrl ? [baseUrl] : []
     }),
