@@ -174,7 +174,7 @@ describe('diagnostic source collection', () => {
   it('does not leak an unhandled rejection when staging cannot open its temporary file', async () => {
     const now = Date.now()
     const source = path.join(logsDir, `app.${formatLogDate(now)}.log`)
-    const line = `${JSON.stringify({ message: 'x'.repeat(32 * 1024), timestamp: new Date(now - 1_000).toISOString() })}\n`
+    const line = `${JSON.stringify({ message: 'x'.repeat(1024 * 1024), timestamp: new Date(now - 1_000).toISOString() })}\n`
     await writeFile(source, line)
     const range = { fromMs: now - 86_400_000, toMs: now }
     const collection = await collectDiagnosticSources(range, ALL_SOURCES)
