@@ -1,7 +1,7 @@
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
@@ -490,11 +490,11 @@ describe('translate model parameters', () => {
     isHidden: false
   } satisfies Model
 
-  const setters = new Map<string, ReturnType<typeof vi.fn>>()
+  const setters = new Map<string, Mock<(_value: unknown) => Promise<void>>>()
   const setterFor = (key: string) => {
     const existing = setters.get(key)
     if (existing) return existing
-    const setter = vi.fn().mockResolvedValue(undefined)
+    const setter = vi.fn<(_value: unknown) => Promise<void>>(async () => {})
     setters.set(key, setter)
     return setter
   }

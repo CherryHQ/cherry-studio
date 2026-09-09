@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import type * as CatalogTypesModule from '../../catalog/types'
+import type { CapabilityHooks, PublishLocalModelStatus } from '../BundleInstaller'
 
 let rootDir: string
 
@@ -80,12 +81,12 @@ const BUNDLE: CatalogTypesModule.ModelBundle = {
 const INSTALL_SUBDIR = 'org/model'
 const GLOBAL_FIRST = async () => 'global-first' as const
 
-let terminateRuntimeThen: ReturnType<typeof vi.fn>
-let acquireRemovalGuard: ReturnType<typeof vi.fn>
-let releaseRemovalGuard: ReturnType<typeof vi.fn>
-let afterRemove: ReturnType<typeof vi.fn>
-let publishStatus: ReturnType<typeof vi.fn>
-let finalizeSharedArtifacts: ReturnType<typeof vi.fn>
+let terminateRuntimeThen: Mock<CapabilityHooks['terminateRuntimeThen']>
+let acquireRemovalGuard: Mock<NonNullable<CapabilityHooks['acquireRemovalGuard']>>
+let releaseRemovalGuard: Mock<() => void>
+let afterRemove: Mock<NonNullable<CapabilityHooks['afterRemove']>>
+let publishStatus: Mock<PublishLocalModelStatus>
+let finalizeSharedArtifacts: Mock<() => Promise<void>>
 let manager: InstanceType<typeof BundleInstaller>
 
 function newManager() {
@@ -93,7 +94,7 @@ function newManager() {
     BUNDLE,
     {
       acquireRemovalGuard,
-      terminateRuntimeThen,
+      terminateRuntimeThen: terminateRuntimeThen as CapabilityHooks['terminateRuntimeThen'],
       afterRemove
     },
     publishStatus,
@@ -125,7 +126,7 @@ beforeEach(() => {
   afterRemove = vi.fn(async () => {})
   publishStatus = vi.fn()
   finalizeSharedArtifacts = vi.fn(async () => {})
-  terminateRuntimeThen = vi.fn(async (after: () => Promise<unknown>) => after())
+  terminateRuntimeThen = vi.fn(async <T>(after: () => Promise<T>) => after())
   artifactInstalled.mockReturnValue(true)
   installArtifact.mockResolvedValue(undefined)
   downloadBundleFiles.mockImplementation(async () => installComplete())
