@@ -57,9 +57,8 @@ vi.mock('../../catalog/catalog', async (importOriginal) => {
 })
 
 const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
-const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported, removeArtifact } = await import(
-  '../tarballArtifact'
-)
+const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported, removeArtifact } =
+  await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
 function tarballResponse(content: Buffer) {
