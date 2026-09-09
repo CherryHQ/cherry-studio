@@ -11,6 +11,7 @@ import { CdpBrowserController } from '../../mcp/controller'
 import { handleWaitFor } from '../../mcp/tools/navigate'
 import { handleHistory } from '../../mcp/tools/navigate'
 import { handleReset } from '../../mcp/tools/reset'
+import type { WindowInfo } from '../../mcp/types'
 import { createGuest } from '../guestFixture'
 
 vi.mock('electron', async () => {
@@ -128,6 +129,28 @@ const controller = () => {
 }
 
 describe('MCP browser on shared sessions', () => {
+  it.each(['createTab', 'getSession'] as const)(
+    'does not resurrect a window reset after %s obtained it',
+    async (method) => {
+      const c = controller()
+      const windowsAccess = c as unknown as {
+        getOrCreateWindow: (privateMode: boolean, showWindow?: boolean) => Promise<WindowInfo>
+      }
+      const getWindow = windowsAccess.getOrCreateWindow.bind(c)
+      vi.spyOn(windowsAccess, 'getOrCreateWindow').mockImplementationOnce(async (...args) => {
+        const info = await getWindow(...args)
+        await c.reset(false)
+        return info
+      })
+
+      await expect(c[method]()).rejects.toMatchObject({ code: 'debugger_unavailable' })
+      expect(await c.listTabs()).toEqual([])
+      expect(windows.size).toBe(0)
+      const replacement = await c.createTab()
+      expect(replacement.view.webContents.isDestroyed()).toBe(false)
+    }
+  )
+
   it.each([undefined, false])('cancels an opening window before completing reset (%s)', async (mode) => {
     const c = controller()
     const started = new Signal<void>()

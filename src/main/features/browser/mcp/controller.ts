@@ -437,7 +437,17 @@ export class CdpBrowserController {
    */
   public async createTab(privateMode = false, showWindow = false): Promise<{ tabId: string; view: BrowserView }> {
     const windowInfo = await this.getOrCreateWindow(privateMode, showWindow)
-    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    return this.createTabInWindow(windowInfo)
+  }
+
+  private assertWindowActive(windowInfo: WindowInfo): void {
+    if (this.disposed || this.windows.get(windowInfo.windowKey) !== windowInfo || windowInfo.window.isDestroyed())
+      throw new BrowserSessionError('debugger_unavailable')
+  }
+
+  private async createTabInWindow(windowInfo: WindowInfo): Promise<{ tabId: string; view: BrowserView }> {
+    this.assertWindowActive(windowInfo)
+    const privateMode = windowInfo.privateMode
     const tabId = randomUUID()
     const partition = this.getPartition(privateMode)
 
@@ -545,7 +555,8 @@ export class CdpBrowserController {
     try {
       // Chromium needs a document before enabling CDP domains on a fresh BrowserView.
       await ready
-      if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+      this.assertWindowActive(windowInfo)
+      if (windowInfo.tabs.get(tabId)?.view !== view) throw new BrowserSessionError('not_found')
     } catch (error) {
       this.closeTabInternal(windowInfo, tabId)
       throw error
@@ -569,10 +580,11 @@ export class CdpBrowserController {
     if (tabId && !this.windows.get(this.getWindowKey(privateMode))?.tabs.has(tabId))
       throw new BrowserSessionError('not_found')
     const windowInfo = await this.getOrCreateWindow(privateMode, showWindow)
+    this.assertWindowActive(windowInfo)
 
     // If newTab is requested, create a fresh tab
     if (newTab) {
-      const { tabId: freshTabId } = await this.createTab(privateMode, showWindow)
+      const { tabId: freshTabId } = await this.createTabInWindow(windowInfo)
       const tab = windowInfo.tabs.get(freshTabId)
       if (!tab) {
         throw new Error(`Tab ${freshTabId} was created but not found - it may have been closed`)
@@ -584,6 +596,8 @@ export class CdpBrowserController {
       const tab = windowInfo.tabs.get(tabId)
       if (tab && !tab.view.webContents.isDestroyed()) {
         await tab.ready
+        this.assertWindowActive(windowInfo)
+        if (windowInfo.tabs.get(tabId) !== tab) throw new BrowserSessionError('not_found')
         this.touchTab(windowInfo.windowKey, tabId)
         return { tabId, tab }
       }
@@ -592,16 +606,19 @@ export class CdpBrowserController {
 
     // Use active tab or create new one
     if (windowInfo.activeTabId) {
-      const activeTab = windowInfo.tabs.get(windowInfo.activeTabId)
+      const activeTabId = windowInfo.activeTabId
+      const activeTab = windowInfo.tabs.get(activeTabId)
       if (activeTab && !activeTab.view.webContents.isDestroyed()) {
         await activeTab.ready
-        this.touchTab(windowInfo.windowKey, windowInfo.activeTabId)
-        return { tabId: windowInfo.activeTabId, tab: activeTab }
+        this.assertWindowActive(windowInfo)
+        if (windowInfo.tabs.get(activeTabId) !== activeTab) throw new BrowserSessionError('not_found')
+        this.touchTab(windowInfo.windowKey, activeTabId)
+        return { tabId: activeTabId, tab: activeTab }
       }
     }
 
     // Create new tab
-    const { tabId: newTabId } = await this.createTab(privateMode, showWindow)
+    const { tabId: newTabId } = await this.createTabInWindow(windowInfo)
     const tab = windowInfo.tabs.get(newTabId)
     if (!tab) {
       throw new Error(`Tab ${newTabId} was created but not found - it may have been closed`)
