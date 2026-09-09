@@ -580,6 +580,25 @@ describe('HistoryRecordsView assistant mode', () => {
     expect(onRecordSelect).not.toHaveBeenCalled()
   })
 
+  it('consumes select-all before it reaches the window command dispatcher', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory()
+    const dispatchCommand = vi.fn()
+    window.addEventListener('keydown', dispatchCommand)
+    try {
+      screen.getByRole('button', { name: 'Alpha topic' }).focus()
+      await user.keyboard('{Control>}a{/Control}')
+      expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
+      expect(dispatchCommand.mock.calls.some(([event]) => event.key === 'a')).toBe(false)
+      dispatchCommand.mockClear()
+      await user.click(screen.getByRole('searchbox'))
+      await user.keyboard('{Control>}a{/Control}')
+      expect(dispatchCommand.mock.calls.some(([event]) => event.key === 'a')).toBe(true)
+    } finally {
+      window.removeEventListener('keydown', dispatchCommand)
+    }
+  })
+
   it('drops a filtered-out range anchor and ignores modified or outside shortcuts', async () => {
     const user = userEvent.setup()
     setupAssistantHistory({

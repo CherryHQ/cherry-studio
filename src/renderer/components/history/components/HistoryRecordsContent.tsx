@@ -49,6 +49,7 @@ export function HistoryRecordsContent<T>({
         return
 
       event.preventDefault()
+      event.stopPropagation()
       toggleSelectAll(true)
     }
     document.addEventListener('keydown', handleKeyDown)
