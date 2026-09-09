@@ -51,6 +51,50 @@ function message(fileEntryId: string, filename: string) {
   }
 }
 
+function messageWithComposerAttachments() {
+  return {
+    id: 'message-managed-files',
+    role: 'user',
+    data: {
+      parts: [
+        {
+          type: 'text',
+          text: 'attachments',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [{ id: 'file:live-source', kind: 'file', label: 'live.txt', index: 0, textOffset: 0 }]
+              }
+            }
+          }
+        },
+        {
+          type: 'file',
+          url: 'file:///tmp/live.txt',
+          mediaType: 'text/plain',
+          filename: 'live.txt',
+          providerMetadata: { cherry: { fileEntryId: 'entry-live', fileTokenSourceId: 'live-source' } }
+        },
+        {
+          type: 'file',
+          url: 'file:///tmp/stale.txt',
+          mediaType: 'text/plain',
+          filename: 'stale.txt',
+          providerMetadata: { cherry: { fileEntryId: 'entry-stale', fileTokenSourceId: 'stale-source' } }
+        },
+        {
+          type: 'file',
+          url: 'file:///tmp/legacy.txt',
+          mediaType: 'text/plain',
+          filename: 'legacy.txt',
+          providerMetadata: { cherry: { fileEntryId: 'entry-legacy' } }
+        }
+      ]
+    }
+  }
+}
+
 function handlers(server: InstanceType<typeof AssistantFileToolsServer>) {
   return (server.mcpServer.server as any)._requestHandlers
 }
@@ -104,6 +148,30 @@ describe('AssistantFileToolsServer', () => {
     expect(second.content[0].text).toBe('(none)')
     expect(mocks.listSessionMessages).toHaveBeenCalledTimes(2)
     expect(JSON.stringify(first)).not.toContain(entryId)
+  })
+
+  it('does not expose orphaned managed attachments to read_file', async () => {
+    mocks.listSessionMessages.mockReturnValue({ items: [messageWithComposerAttachments()], nextCursor: undefined })
+    mocks.readFile.mockImplementation(async (_input, context) => ({
+      text: context.attachments.map((attachment: { displayName: string }) => attachment.displayName).join(',')
+    }))
+    const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
+
+    const result = await callTool(server, 'read_file', {
+      filename: createAssistantFileAttachmentHandle('entry-live')
+    })
+
+    expect(result.content[0].text).toBe('live.txt,legacy.txt')
+    expect(mocks.readFile).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        attachments: [
+          expect.objectContaining({ fileEntryId: 'entry-live', displayName: 'live.txt' }),
+          expect.objectContaining({ fileEntryId: 'entry-legacy', displayName: 'legacy.txt' })
+        ]
+      },
+      expect.any(AbortSignal)
+    )
   })
 
   it('resolves attachments only when save_attachment is invoked', async () => {

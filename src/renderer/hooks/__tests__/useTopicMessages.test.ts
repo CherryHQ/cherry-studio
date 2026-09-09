@@ -190,6 +190,43 @@ describe('useTopicMessages', () => {
     expect(mutate).toHaveBeenCalledWith()
   })
 
+  it('keeps tied single-model siblings in ID order when the active reply changes', () => {
+    const replies = ['reply-a', 'reply-b', 'reply-c'].map((id) =>
+      createAssistantMessage(id, 'provider::model', '2026-01-01T00:00:01.000Z')
+    )
+    let active = replies[1]
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages: [
+            {
+              items: [{ message: active, siblingsGroup: replies.filter((reply) => reply.id !== active.id).reverse() }],
+              activeNodeId: active.id
+            }
+          ],
+          isLoading: false,
+          isRefreshing: false,
+          hasNext: false,
+          loadNext: vi.fn(),
+          refresh: vi.fn(),
+          reset: vi.fn(),
+          mutate: vi.fn()
+        }) as never
+    )
+    const { result, rerender } = renderHook(() => useTopicMessages('topic-1'))
+
+    for (const reply of [replies[1], replies[2], replies[0]]) {
+      active = reply
+      rerender()
+      expect(result.current.uiMessages.map((message) => message.id)).toEqual([active.id])
+      expect(result.current.siblingsMap[active.id].map((message) => message.id)).toEqual([
+        'reply-a',
+        'reply-b',
+        'reply-c'
+      ])
+    }
+  })
+
   it('uses one group classification for multi-model display and single-model navigation', () => {
     const firstModelReply = createAssistantMessage('reply-a-1', 'provider-a::model-a', '2026-01-01T00:00:01.000Z')
     const otherModelReply = createAssistantMessage('reply-b-1', 'provider-b::model-b', '2026-01-01T00:00:02.000Z')
