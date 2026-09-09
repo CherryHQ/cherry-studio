@@ -208,7 +208,6 @@ vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
 const { listModels: listModelsFromProviderActual } =
   await vi.importActual<typeof ListModelsModule>('../provider/listModels')
 const { AiService, resolveRequiredNativeFileSupport } = await import('../AiService')
-const { imageInputEntryParams } = await import('../utils/executeImageRequest')
 const imageSdk = await import('../provider/imageSdk')
 const { messageService } = await import('@main/data/services/MessageService')
 
@@ -1971,24 +1970,6 @@ describe('AiService tool approval', () => {
   })
 })
 
-describe('imageInputEntryParams', () => {
-  it('maps a base64 data URL to a base64 entry', () => {
-    expect(imageInputEntryParams('data:image/png;base64,AAAA')).toEqual({
-      source: 'base64',
-      data: 'data:image/png;base64,AAAA',
-      cleanupPolicy: 'delete_when_unreferenced'
-    })
-  })
-
-  it('maps an http(s) URL to a url entry (preserves the inputImages URL contract)', () => {
-    expect(imageInputEntryParams('https://cdn.example.com/in.png')).toEqual({
-      source: 'url',
-      url: 'https://cdn.example.com/in.png',
-      cleanupPolicy: 'delete_when_unreferenced'
-    })
-  })
-})
-
 describe('AiService.generateImage — custom async transport (job path)', () => {
   beforeEach(() => {
     mockAddFileRefsTx.mockReset()
@@ -2165,7 +2146,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     ).rejects.toThrow('vendor exploded')
   })
 
-  it('cancels the job and throws AbortError when the request is aborted', async () => {
+  it('rejects an already-aborted request before creating a job', async () => {
     const service = createService()
     stubResolution()
     const controller = new AbortController()
@@ -2198,7 +2179,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         requestOptions: { signal: controller.signal }
       })
     ).rejects.toThrow(/abort/i)
-    expect(cancel).toHaveBeenCalledWith('job-1', expect.any(String))
+    expect(cancel).not.toHaveBeenCalled()
   })
 
   it('enqueues the job, returns its output files, and classifies the temp input copy for GC reclaim', async () => {
@@ -2239,8 +2220,8 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       expect.objectContaining({
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'a cat',
-        inputFileIds: ['in-1'],
-        maskFileId: 'mask-1',
+        inputImages: [{ type: 'file', fileId: 'in-1' }],
+        mask: { type: 'file', fileId: 'mask-1' },
         source: { type: 'assistant', id: 'assistant-1', name: 'Image Assistant', icon: '🎨' }
       })
     )

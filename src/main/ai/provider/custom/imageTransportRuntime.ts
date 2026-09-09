@@ -39,6 +39,7 @@ export async function executeImageTransport<P>({
   throwIfAborted(input.signal)
   const submission = await transport.submit(input)
   if (submission.kind === 'completed') {
+    throwIfAborted(input.signal)
     return requireNonEmptyImageUrls(submission.imageUrls, 'Image transport')
   }
   if (submission.kind !== 'submitted' || typeof submission.taskId !== 'string' || submission.taskId.length === 0) {
@@ -91,7 +92,15 @@ async function pollImageTransportTask<P>({
     throw new Error(`Image transport cannot query task '${taskId}'`)
   }
 
-  const { signal } = context
+  const policy = task.pollPolicy
+  const deadline = new AbortController()
+  const signal = policy.maxElapsedMs === null ? context.signal : AbortSignal.any([context.signal, deadline.signal])
+  const queryContext = { ...context, signal }
+  const cancellationError = () => {
+    if (context.signal.aborted) return createImageAbortError()
+    if (deadline.signal.aborted) return new Error('Task polling timeout')
+    return createImageAbortError()
+  }
   let remoteSettled = false
   let cancellationPromise: Promise<void> | undefined
   const requestRemoteCancellation = () => {
@@ -108,8 +117,9 @@ async function pollImageTransportTask<P>({
   }
 
   signal.addEventListener('abort', onAbort, { once: true })
+  const deadlineTimer =
+    policy.maxElapsedMs === null ? undefined : setTimeout(() => deadline.abort(), policy.maxElapsedMs)
   try {
-    const policy = task.pollPolicy
     const startedAt = Date.now()
     let attempts = 0
     let consecutiveErrors = 0
@@ -130,7 +140,7 @@ async function pollImageTransportTask<P>({
 
       attempts++
       try {
-        const state = await task.query(taskId, context)
+        const state = await task.query(taskId, queryContext)
         throwIfAborted(signal)
         consecutiveErrors = 0
 
@@ -147,7 +157,7 @@ async function pollImageTransportTask<P>({
       } catch (error) {
         if (signal.aborted || isAbortError(error)) {
           await requestRemoteCancellation()
-          throw createImageAbortError()
+          throw cancellationError()
         }
         if (error instanceof ImageTransportTaskFailedError || !isRetryableQueryError(error)) {
           throw error
@@ -164,11 +174,12 @@ async function pollImageTransportTask<P>({
   } catch (error) {
     if (signal.aborted || isAbortError(error)) {
       await requestRemoteCancellation()
-      throw createImageAbortError()
+      throw cancellationError()
     }
     if (!remoteSettled) await requestRemoteCancellation()
     throw error
   } finally {
+    clearTimeout(deadlineTimer)
     signal.removeEventListener('abort', onAbort)
   }
 }

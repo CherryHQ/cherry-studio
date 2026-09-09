@@ -7,12 +7,17 @@ import type { JobHandle } from '@main/core/job/types'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
+import { type Base64String, Base64StringSchema } from '@shared/types/file'
 
 import type { AiImageRequest, AiImageResult, AsInProcess } from '../AiService'
 import type { NativeImageTarget } from '../provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries } from '../provider/custom/tasks/imageGenerationJobHandler'
-import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from '../provider/custom/tasks/jobTypes'
+import { imageJobConnectionKey } from '../provider/custom/tasks/imageJobConnection'
+import type {
+  ImageGenerationJobOutput,
+  ImageGenerationJobPayload,
+  ImageJobInput
+} from '../provider/custom/tasks/jobTypes'
 import { buildSdkImageOptions, resolveSdkImageConfig } from '../provider/imageSdk'
 import type { AppProviderSettingsMap } from '../types'
 import { resolveImageRequestSize } from './aiSdkNativeBindings'
@@ -35,7 +40,9 @@ export async function executeImageRequest(
       { ...request, uniqueModelId: prepared.model.id },
       request.requestOptions?.signal,
       source,
-      target.protocol
+      target.protocol,
+      target.modelId,
+      imageJobConnectionKey(prepared.provider, prepared.model)
     )
   }
   const { result, sdkConfig } = await executeDirectImageRequest(prepared, source)
@@ -131,18 +138,13 @@ async function downloadSdkImageInput(image: string, signal: AbortSignal | undefi
   return `data:${downloaded.media_type};base64,${downloaded.data}`
 }
 
-/** Scratch copies belong to the Job, never to the caller's output retention policy. */
-export function imageInputEntryParams(value: string): CreateInternalEntryIpcParams {
-  return value.startsWith('data:')
-    ? { source: 'base64', data: value as Base64String, cleanupPolicy: 'delete_when_unreferenced' }
-    : { source: 'url', url: value as UrlString, cleanupPolicy: 'delete_when_unreferenced' }
-}
-
 async function executeImageJob(
   request: AsInProcess<AiImageRequest>,
   signal: AbortSignal | undefined,
   source: SourceSnapshot | undefined,
-  target: NativeImageTarget
+  target: NativeImageTarget,
+  modelId: string,
+  connectionKey: string
 ): Promise<AiImageResult> {
   const { structured, vendorBag: providerParams } = splitParamValues(request.paramValues)
   const uniqueModelId = request.uniqueModelId
@@ -152,32 +154,41 @@ async function executeImageJob(
   const jobManager = application.get('JobManager')
 
   const createdEntryIds: string[] = []
-  const persistInputImage = async (value: string): Promise<string> => {
-    const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
+  const persistInputImage = async (value: string): Promise<ImageJobInput> => {
+    if (!value.startsWith('data:')) return { type: 'url', url: value }
+    const entry = await fileManager.createInternalEntry({
+      source: 'base64',
+      data: Base64StringSchema.parse(value),
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
     createdEntryIds.push(entry.id)
-    return entry.id
+    return { type: 'file', fileId: entry.id }
   }
 
   let handle: JobHandle
   try {
     // allSettled (not all) so every create resolves before we decide: a partial
     // failure still leaves `createdEntryIds` complete for the catch to clean up.
+    if (signal?.aborted) throw new DOMException('Image generation aborted', 'AbortError')
     const settled = await Promise.allSettled((request.inputImages ?? []).map(persistInputImage))
     const rejected = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
     if (rejected) throw rejected.reason
-    const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
-    const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
+    const inputImages = settled.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
+    const mask = request.mask ? await persistInputImage(request.mask) : undefined
+    if (signal?.aborted) throw new DOMException('Image generation aborted', 'AbortError')
     const requestSize = resolveImageRequestSize(structured.size)
 
     const payload: ImageGenerationJobPayload = {
       uniqueModelId,
+      modelId,
+      connectionKey,
       prompt: request.prompt,
       n: structured.n ?? 1,
       ...(requestSize !== undefined && { size: requestSize }),
       ...(structured.aspectRatio && { aspectRatio: structured.aspectRatio }),
       seed: structured.seed,
-      ...(inputFileIds && { inputFileIds }),
-      ...(maskFileId && { maskFileId }),
+      inputImages,
+      mask,
       target,
       ...(source && { source }),
       providerParams,
@@ -187,12 +198,18 @@ async function executeImageJob(
     handle = application.get('DbService').withWriteTx((tx) => {
       const jobHandle = jobManager.enqueueTx(tx, 'image-generation.generate', payload)
       jobService.addFileRefsTx(tx, [
-        ...(inputFileIds ?? []).map((fileEntryId) => ({
-          fileEntryId,
-          sourceId: jobHandle.id,
-          role: 'input' as const
-        })),
-        ...(maskFileId ? [{ fileEntryId: maskFileId, sourceId: jobHandle.id, role: 'mask' as const }] : [])
+        ...inputImages.flatMap((image) =>
+          image.type === 'file'
+            ? [
+                {
+                  fileEntryId: image.fileId,
+                  sourceId: jobHandle.id,
+                  role: 'input' as const
+                }
+              ]
+            : []
+        ),
+        ...(mask?.type === 'file' ? [{ fileEntryId: mask.fileId, sourceId: jobHandle.id, role: 'mask' as const }] : [])
       ])
       return jobHandle
     })

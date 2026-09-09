@@ -215,7 +215,7 @@ export interface AiImageRequest extends AiBaseRequest {
    * infrastructure — the calling business feature decides the policy
    * (file-entry-cleanup.md §4.1). It deliberately does NOT reach the job path's
    * input / mask copies: those are transport scratch owned by the job, not a
-   * caller-visible artifact (see `imageInputEntryParams`).
+   * caller-visible artifact.
    */
   cleanupPolicy: CleanupPolicy
 }

@@ -1,6 +1,7 @@
 import { APICallError } from '@ai-sdk/provider'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
-import { describe, expect, it, vi } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   ImageGenerationSubmitInput,
@@ -50,6 +51,88 @@ function asyncTransport(
 }
 
 describe('image transport runtime', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it.each(['delay', 'query'] as const)('stops at the elapsed-time budget during %s and cancels once', async (stage) => {
+    vi.useFakeTimers()
+    const cancelRemote = vi.fn().mockResolvedValue(undefined)
+    const transport = asyncTransport({
+      pollPolicy: { ...TEST_POLICY, initialDelayMs: stage === 'delay' ? 30_000 : 0, maxElapsedMs: 1_000 },
+      query: (_id, { signal }) =>
+        new Promise<ImageTransportTaskState>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })
+        }),
+      cancel: { kind: 'supported', cancelRemote }
+    })
+    let outcome: unknown
+    const execution = executeImageTransport({
+      transport,
+      input: input(),
+      onTaskSubmitted: async () => {},
+      onProgress: vi.fn(),
+      logContext: {}
+    }).catch((error) => {
+      outcome = error
+    })
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(outcome).toMatchObject({ message: 'Task polling timeout' })
+    await execution
+    expect(cancelRemote).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+  it('rejects a synchronous completion received after cancellation without attempting remote cancellation', async () => {
+    const controller = new AbortController()
+    const transport: ImageGenerationTransport<VendorBag> = {
+      async submit() {
+        controller.abort()
+        return { kind: 'completed', imageUrls: ['https://img/sync.png'] }
+      },
+      supportsInput: () => ({ files: false, mask: false }),
+      task: { kind: 'unsupported' }
+    }
+    await expect(
+      executeImageTransport({
+        transport,
+        input: input(controller.signal),
+        onTaskSubmitted: vi.fn(),
+        onProgress: vi.fn(),
+        logContext: {}
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it.each(['unsupported', 'failed'] as const)(
+    'reports that the remote task may continue when cancellation is %s',
+    async (kind) => {
+      mockMainLoggerService.warn.mockClear()
+      const controller = new AbortController()
+      const transport = asyncTransport({
+        cancel:
+          kind === 'unsupported'
+            ? { kind }
+            : {
+                kind: 'supported',
+                cancelRemote: vi.fn().mockRejectedValue(new Error('Only pending tasks can be cancelled'))
+              }
+      })
+      await expect(
+        executeImageTransport({
+          transport,
+          input: input(controller.signal),
+          onTaskSubmitted: async () => {
+            controller.abort()
+          },
+          onProgress: vi.fn(),
+          logContext: { jobId: 'local-job' }
+        })
+      ).rejects.toMatchObject({ name: 'AbortError' })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledOnce()
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('the remote task may continue'),
+        expect.objectContaining({ taskId: 'task-1', jobId: 'local-job' })
+      )
+    }
+  )
   it('does not submit an already-aborted request', async () => {
     const controller = new AbortController()
     controller.abort()

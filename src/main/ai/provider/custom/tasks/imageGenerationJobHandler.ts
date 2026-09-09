@@ -14,50 +14,22 @@ import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
 
 import { resolveProviderAiSdkConfig } from '../../config'
-import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
 import { warnUnsupportedTransportInputs } from '../imageGenerationModel'
 import type { ImageGenerationSubmitInput } from '../imageTransport'
 import { bindNativeImageTarget, createNativeImageTransport } from '../imageTransportRegistry'
 import { executeImageTransport } from '../imageTransportRuntime'
-import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
+import { imageJobConnectionKey } from './imageJobConnection'
+import type { ImageGenerationJobOutput, ImageGenerationJobPayload, ImageJobInput } from './jobTypes'
 
 const logger = loggerService.withContext('ImageGenerationJobHandler')
 
-/**
- * Image-generation job handler for custom-provider transports. It resolves
- * durable inputs and persists outputs; `executeImageTransport` owns submit,
- * task-id persistence ordering, polling and remote cancellation.
- *
- * Secrets are never persisted — the apiKey is re-read from provider config on
- * every attempt via `resolveProviderAiSdkConfig`. Input images / mask are
- * referenced by FileEntry id and read back from FileManager, keeping the payload
- * under the 1MB job cap.
- *
- * **Deliberately not restart-durable.** The job's only consumer is the in-process
- * awaiter in `AiService.generateImageViaJob` (`await handle.finished`) — the sole
- * `handle.finished` in the main process; every other job type's result is a durable
- * side effect the handler writes itself. Nothing here designates a durable
- * destination: the payload records no consumer identity, so a result produced after
- * a restart reaches nobody. It would be downloaded, persisted as zero-referenced
- * `delete_when_unreferenced` entries, and reclaimed an hour later — and if the crash
- * landed after the vendor accepted the submit but before the task id was durable,
- * resuming would submit a second time and bill the user twice. So non-terminal jobs
- * are cancelled at startup (`recovery: 'abandon'`) instead of resumed.
- *
- * To make results survive a restart, do what `file-processing.remote-poll` does:
- * carry a durable destination in the payload (for paintings, the already-persisted
- * `painting.id` — the row exists before enqueue) and have this handler write the
- * result there, which registers `painting_file_ref` rows and makes GC correct for
- * free. Then switch `recovery` back to `'retry'` and restore the resume branch from
- * the recipe in `docs/references/job-and-scheduler/handler-authoring.md`.
- */
+/** Resolve the saved execution identity and inputs; the runtime owns remote task termination.
+ *  Abandon on restart: the consumer is an in-process awaiter, not a durable delivery destination. */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {
   recovery: 'abandon',
   defaultQueue: (input) => `image-generation.${parseUniqueModelId(input.uniqueModelId).providerId}`,
   defaultConcurrency: 2,
-  // The transport already retries transient poll errors internally; a job-level
-  // retry would re-submit and burn the user's vendor quota, so cap at 1 attempt
-  // (parity with agent.task).
+  // Only query failures are retryable; retrying this handler could submit and bill twice.
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 30 * 60_000,
   async execute(ctx) {
@@ -67,22 +39,18 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     if (!provider) throw new Error(`Image generation job: provider '${providerId}' not found`)
     const model = modelService.getByKey(providerId, modelId)
     if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
+    if (input.connectionKey !== imageJobConnectionKey(provider, model)) {
+      throw new Error('Image generation connection changed while the job was queued; submit a new request')
+    }
 
     const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
       nativeImageTarget: input.target
     })
-    const sdkConfig = {
-      ...config,
-      modelId: resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
-    }
-    // Built fresh every execution and held in memory only. Upstream persists this
-    // to job metadata so a resumed run can still attribute its cost; with
-    // `recovery: 'abandon'` no run outlives the process, so persisting it would be
-    // a write nobody reads — and would imply a durability this handler does not have.
+    // Attribution follows the credential selected for this invocation, not the enqueue-time rotation state.
     const captureContext = createAiUsageCaptureContext({
       providerId: provider.id,
       providerName: provider.name,
-      modelId: sdkConfig.modelId,
+      modelId: input.modelId,
       modelName: model.name,
       pricing: model.pricing,
       trustProviderReportedCost: provider.reportsActualCost,
@@ -95,7 +63,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
 
     const transport = await createNativeImageTransport(bindNativeImageTarget(input.target, config))
 
-    const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
+    const submitInput = await buildSubmitInput(input, ctx.signal)
     warnUnsupportedTransportInputs(transport, submitInput, { jobId: ctx.jobId, uniqueModelId: input.uniqueModelId })
     const urls = await executeImageTransport({
       transport,
@@ -130,13 +98,12 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
 
 async function buildSubmitInput(
   input: ImageGenerationJobPayload,
-  modelId: string,
   signal: AbortSignal
 ): Promise<ImageGenerationSubmitInput<VendorBag>> {
-  const files = input.inputFileIds?.length ? await Promise.all(input.inputFileIds.map(readImageFile)) : undefined
-  const mask = input.maskFileId ? await readImageFile(input.maskFileId) : undefined
+  const files = input.inputImages.length ? await Promise.all(input.inputImages.map(readImageInput)) : undefined
+  const mask = input.mask ? await readImageInput(input.mask) : undefined
   return {
-    modelId,
+    modelId: input.modelId,
     prompt: input.prompt,
     n: input.n,
     size: input.size,
@@ -146,12 +113,14 @@ async function buildSubmitInput(
     mask,
     modelDescriptor: input.target.modelDescriptor,
     providerParams: input.providerParams,
+    headers: {},
     signal
   }
 }
 
-async function readImageFile(fileId: string): Promise<ImageModelV3File> {
-  const { content, mime } = await application.get('FileManager').read(fileId, { encoding: 'base64' })
+async function readImageInput(input: ImageJobInput): Promise<ImageModelV3File> {
+  if (input.type === 'url') return input
+  const { content, mime } = await application.get('FileManager').read(input.fileId, { encoding: 'base64' })
   return { type: 'file', mediaType: mime, data: content }
 }
 
