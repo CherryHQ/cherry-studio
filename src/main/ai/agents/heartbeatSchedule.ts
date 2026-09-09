@@ -219,10 +219,19 @@ async function runSync(
   }
   // Workspace row before the file: if this throws (a SYSTEM row owns the
   // path), no orphaned heartbeat.md is left behind to wedge future syncs.
-  const workspace = agentWorkspaceService.findOrCreateByPath(workspacePath, {
+  const { workspace, created: workspaceCreated } = agentWorkspaceService.findOrCreateByPathResult(workspacePath, {
     name: `Heartbeat — ${agent.name}`
   })
-  await ensureHeartbeatFile(workspacePath)
+  try {
+    await ensureHeartbeatFile(workspacePath)
+  } catch (error) {
+    // A workspace row created by this call would be orphaned (no heartbeat
+    // row points at it) when file provisioning fails — roll it back.
+    if (workspaceCreated) {
+      application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, workspace.id))
+    }
+    throw error
+  }
   const trigger: Trigger = { kind: 'interval', ms: intervalMinutes * 60_000 }
   const jobInputTemplate: HeartbeatJobInputTemplate = {
     agentId,
@@ -251,7 +260,9 @@ async function runSync(
         jobInputTemplate
       })
     })
-    jobManager.syncJobScheduleTimerById(row.id)
+    // Re-arming an enabled interval resets its phase — skip the timer sync
+    // when only the template changed (the armed callback re-reads the row).
+    if (!row.enabled || triggerChanged) jobManager.syncJobScheduleTimerById(row.id)
     touchedScheduleId = row.id
     logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
     return 'updated'

@@ -7,7 +7,7 @@
  * in-place repair of migrated rows, pause/resume lifecycle, and timer arming.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -546,8 +546,8 @@ describe('heartbeatSchedule', () => {
     // schedule commit — the onAgentDeleted sweep has already run, so the
     // committed row would be orphaned without the post-commit re-check.
     seedAgent(AGENT_ID)
-    const original = agentWorkspaceService.findOrCreateByPath.bind(agentWorkspaceService)
-    const spy = vi.spyOn(agentWorkspaceService, 'findOrCreateByPath').mockImplementation((...args) => {
+    const original = agentWorkspaceService.findOrCreateByPathResult.bind(agentWorkspaceService)
+    const spy = vi.spyOn(agentWorkspaceService, 'findOrCreateByPathResult').mockImplementation((...args) => {
       dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
       return original(...args)
     })
@@ -558,6 +558,40 @@ describe('heartbeatSchedule', () => {
     expect(outcome).toBe('skipped-missing-agent')
     expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
     expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+  })
+
+  it('rolls back a newly created workspace row when heartbeat-file provisioning fails', async () => {
+    // The workspace is created before heartbeat.md so a SYSTEM-owned path
+    // leaves no orphaned file — but the reverse failure (file provisioning
+    // fails after the workspace insert) must not orphan the workspace row.
+    seedAgent(AGENT_ID)
+    chmodSync(path.join(agentsRoot, AGENT_ID), 0o555)
+
+    await expect(syncHeartbeatSchedule(AGENT_ID)).rejects.toThrow()
+
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
+  })
+
+  it('does not re-arm the timer when only the job-input template drifted', async () => {
+    // Re-arming an enabled interval resets its phase — a template-only repair
+    // must leave the cadence untouched (the armed callback re-reads the row).
+    seedAgent(AGENT_ID, { heartbeat_interval: 45 })
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    dbh.db
+      .update(jobScheduleTable)
+      .set({ jobInputTemplate: { ...(row.jobInputTemplate as object), reuseRevision: 3 } })
+      .where(eq(jobScheduleTable.id, row.id))
+      .run()
+    const spy = vi.spyOn(jobManager, 'syncJobScheduleTimerById')
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('updated')
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+    expect(jobScheduleService.getById(row.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 0 })
   })
 
   it('skips an agent type missing from the capabilities table', async () => {
