@@ -944,8 +944,8 @@ describe('OnboardingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
 
-    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('provider-settings')).toBeInTheDocument()
+    expect(await screen.findByTestId('provider-settings')).toBeInTheDocument()
+    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
     expect(screen.queryByTestId('model-settings')).not.toBeInTheDocument()
     expect(toastErrorMock).toHaveBeenCalledWith('onboarding.provider_setup.missing_model')
     expect(toastSuccessMock).not.toHaveBeenCalled()
