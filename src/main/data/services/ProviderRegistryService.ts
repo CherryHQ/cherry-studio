@@ -32,8 +32,10 @@ import {
   applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
   configureOpenAIResponsesSummary,
+  defaultOperationCapability,
   deriveLegacyReasoningFields,
   ENDPOINT_TYPE,
+  getModelOperationCapabilities,
   inferAdapterFamily,
   inferReasoningControls,
   inferReasoningMembership,
@@ -444,6 +446,22 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
     imageGeneration: override.imageGeneration
   }
+}
+
+/**
+ * The operation contract holds over the effective model, so it is closed here — where the registry
+ * baseline is in hand — rather than guessed at write or migration time. A stored capability list
+ * from before the contract (a full override like `["function-call"]`, or a seeded `[]`) keeps what
+ * it says and gains the operation its baseline declares; an unmatched row gets the shared default.
+ */
+export function ensureOperationCapability(model: Model, baseline: Model | null): Model {
+  if (getModelOperationCapabilities(model.capabilities).length > 0) return model
+  const baselineOperations = baseline ? getModelOperationCapabilities(baseline.capabilities) : []
+  const operations =
+    baselineOperations.length > 0
+      ? baselineOperations
+      : [defaultOperationCapability(model.inputModalities, model.outputModalities)]
+  return { ...model, capabilities: [...model.capabilities, ...operations] }
 }
 
 /**

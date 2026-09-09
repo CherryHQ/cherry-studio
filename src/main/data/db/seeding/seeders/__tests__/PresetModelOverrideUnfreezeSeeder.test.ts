@@ -1,6 +1,6 @@
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { PresetModelOverrideUnfreezeSeeder } from '@data/db/seeding/seeders/presetModelOverrideUnfreezeSeeder'
+import { PresetModelOverrideUnfreezeSeeder } from '@data/db/seeding/seeders/PresetModelOverrideUnfreezeSeeder'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
       return null
     }
     findModel(id: string) {
+      if (id === 'jamba-1-5-large') return { id, name: 'Jamba', capabilities: [MODEL_CAPABILITY.TEXT_GENERATION] }
       return id !== 'unknown'
         ? {
             id: 'gpt-4o',
@@ -97,6 +98,22 @@ describe('PresetModelOverrideUnfreezeSeeder', () => {
       contextWindow: 64_000,
       supportsStreaming: false
     })
+  })
+
+  it('unfreezes pre-operation capability snapshots while retaining feature differences', async () => {
+    await seed([
+      { modelId: 'frozen', capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] },
+      { modelId: 'chosen', capabilities: [MODEL_CAPABILITY.REASONING] }
+    ])
+    new PresetModelOverrideUnfreezeSeeder().run(dbh.db)
+    expect((await read('openai::frozen')).capabilities).toBeNull()
+    expect((await read('openai::chosen')).capabilities).toEqual([MODEL_CAPABILITY.REASONING])
+  })
+
+  it('preserves explicit empty modalities when the registry does not declare them', async () => {
+    await seed([{ modelId: 'jamba-1-5-large', inputModalities: [], outputModalities: [] }])
+    new PresetModelOverrideUnfreezeSeeder().run(dbh.db)
+    expect(await read('openai::jamba-1-5-large')).toMatchObject({ inputModalities: [], outputModalities: [] })
   })
 
   it('leaves custom rows and rows without a registry entry alone', async () => {

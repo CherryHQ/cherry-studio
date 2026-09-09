@@ -10,7 +10,6 @@
 import { application } from '@application'
 import type { ModelEndpointContractInput, ModelLookupResult } from '@cherrystudio/provider-registry'
 import {
-  defaultOperationCapability,
   getModelEndpointContractIssues,
   getModelOperationCapabilities,
   inferReasoningOwnedBy,
@@ -24,6 +23,7 @@ import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import {
   createCustomModel,
+  ensureOperationCapability,
   inferCustomModelReasoning,
   mergePresetModel,
   projectRuntimeReasoning,
@@ -330,22 +330,6 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
 function dtoKeyToDbKey(key: keyof UpdateModelDto): string {
   const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
   return mapping && Array.isArray(mapping) ? mapping[1] : key
-}
-
-/**
- * The operation contract holds over the effective model, so it is closed here — where the registry
- * baseline is in hand — rather than guessed at write or migration time. A stored capability list
- * from before the contract (a full override like `["function-call"]`, or a seeded `[]`) keeps what
- * it says and gains the operation its baseline declares; an unmatched row gets the shared default.
- */
-function ensureOperationCapability(model: Model, baseline: Model | null): Model {
-  if (getModelOperationCapabilities(model.capabilities).length > 0) return model
-  const baselineOperations = baseline ? getModelOperationCapabilities(baseline.capabilities) : []
-  const operations =
-    baselineOperations.length > 0
-      ? baselineOperations
-      : [defaultOperationCapability(model.inputModalities, model.outputModalities)]
-  return { ...model, capabilities: [...model.capabilities, ...operations] }
 }
 
 function presetDeltaToNewUserModel(
