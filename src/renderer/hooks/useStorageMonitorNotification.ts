@@ -1,7 +1,7 @@
-import { useSharedCacheValue } from '@data/hooks/useCache'
 import { t } from 'i18next'
 import { useEffect, useRef } from 'react'
 
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 

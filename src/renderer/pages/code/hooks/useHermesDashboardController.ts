@@ -1,7 +1,7 @@
-import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
