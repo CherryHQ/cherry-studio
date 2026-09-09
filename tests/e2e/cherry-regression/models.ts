@@ -68,6 +68,13 @@ async function addModel(page: Page, model: string): Promise<void> {
   await closeOpenSettingsDrawer(page)
 }
 
+export async function skipNewProviderModelSetup(page: Page): Promise<void> {
+  const skipButton = page.getByRole('button', { name: 'Skip', exact: true })
+  await expect(skipButton).toBeVisible()
+  await skipButton.click()
+  await expect(skipButton).toBeHidden()
+}
+
 export async function ensureCustomChatProvider(app: RegressionApp, page: Page): Promise<string> {
   const { baseUrl, apiKey, chatModel } = app.config.customProvider
   await openSettingsSection(page, 'Model Provider')
@@ -85,6 +92,7 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
     await apiKeyInput.fill(apiKey)
     await page.getByRole('textbox', { name: 'Anthropic', exact: true }).fill(baseUrl)
     await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await skipNewProviderModelSetup(page)
   }
 
   const providerHeading = page.getByRole('heading', { name: CUSTOM_CHAT_PROVIDER, exact: true, level: 1 })

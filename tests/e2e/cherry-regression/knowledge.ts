@@ -5,7 +5,7 @@ import type { Page } from '@playwright/test'
 import type { RegressionApp } from './app'
 import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
-import { openSettingsSection, selectVisibleModel } from './models'
+import { openSettingsSection, selectVisibleModel, skipNewProviderModelSetup } from './models'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 export const EMBEDDING_PROVIDER = 'Cherry Regression Embedding'
@@ -28,6 +28,7 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
     await apiKeyInput.fill(apiKey)
     await page.getByRole('textbox', { name: 'OpenAI', exact: true }).fill(baseUrl)
     await page.getByRole('button', { name: 'Add', exact: true }).click()
+    await skipNewProviderModelSetup(page)
   }
 
   const providerHeading = page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })
