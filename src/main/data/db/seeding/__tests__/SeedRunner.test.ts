@@ -6,7 +6,7 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupSeederTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +23,7 @@ function createSeeder(overrides: Partial<ISeeder> = {}): ISeeder {
 }
 
 describe('SeedRunner', () => {
-  const dbh = setupTestDatabase()
+  const dbh = setupSeederTestDatabase()
 
   beforeEach(() => {
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {

@@ -10,13 +10,13 @@ import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_EMOJI, DEFAULT_ASSISTANT_PROMPT } from '@shared/data/presets/defaultAssistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { setupSeederTestDatabase, withRoot } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('DefaultAssistantSeeder', () => {
-  const dbh = setupTestDatabase()
+  const dbh = setupSeederTestDatabase()
   const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
   async function runCherryAiModelDependencySeed() {

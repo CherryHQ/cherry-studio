@@ -10,7 +10,7 @@
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupSeederTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
 // Fake registry providers — two preset providers: 'openai' and 'anthropic'.
@@ -39,7 +39,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 })
 
 describe('PresetProviderSeeder.run — insert-only behavior', () => {
-  const dbh = setupTestDatabase()
+  const dbh = setupSeederTestDatabase()
 
   it('should insert all preset providers when DB is empty', async () => {
     const seed = new PresetProviderSeeder()

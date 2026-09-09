@@ -9,12 +9,12 @@ import {
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupSeederTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 describe('LocalModelSeeder', () => {
-  const dbh = setupTestDatabase()
+  const dbh = setupSeederTestDatabase()
 
   function readProvider() {
     return dbh.db

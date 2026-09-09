@@ -1973,27 +1973,17 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
   })
 })
 
-/**
- * Seeders run inside `DbService.onInit()`, where `getDb()` still throws. A `*Tx`
- * read that reaches for the service singleton instead of its own transaction
- * therefore aborts startup (v2.0.11 shipped exactly that: the Cherry Support
- * seeder could not create the built-in Agent). Edition availability must be
- * decided from columns the caller's own query already returned.
- */
+/** Seeder transaction reads must work while `DbService.getDb()` still throws during startup. */
 describe('ModelService — transaction-scoped reads never re-enter DbService', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { name: 'GPT-4o' }))
-    MockMainDbServiceUtils.setDb({
-      select: () => {
-        throw new Error('Database is not initialized, please call init() first!')
-      }
-    })
+    MockMainDbServiceUtils.setIsReady(false)
   })
 
-  afterEach(() => MockMainDbServiceUtils.setDb(dbh.db))
+  afterEach(() => MockMainDbServiceUtils.setIsReady(true))
 
   const uid = createUniqueModelId('openai', 'gpt-4o')
 

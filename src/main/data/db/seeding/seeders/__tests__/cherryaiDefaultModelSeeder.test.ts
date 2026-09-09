@@ -16,13 +16,13 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupSeederTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 describe('CherryAiDefaultModelSeeder', () => {
-  const dbh = setupTestDatabase()
+  const dbh = setupSeederTestDatabase()
 
   beforeEach(() => {
     mockMainLoggerService.warn.mockClear()

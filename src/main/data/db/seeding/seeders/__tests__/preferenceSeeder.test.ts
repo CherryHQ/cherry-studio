@@ -1,12 +1,12 @@
 import { preferenceTable } from '@data/db/schemas/preference'
 import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupSeederTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 describe('PreferenceSeeder', () => {
-  const dbh = setupTestDatabase()
+  const dbh = setupSeederTestDatabase()
   const toolbarKey = 'chat.input.toolbar.pinned_tools'
   const modelToolsPreferredKey = 'chat.web_search.model_tools_preferred'
 
