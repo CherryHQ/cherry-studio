@@ -34,7 +34,8 @@ export interface ResolvedEndpoint {
  */
 export function resolveWireModelId(model: Model, endpointType: EndpointType | undefined): string {
   const rawId = getRawModelId(model)
-  return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? rawId.replace(/^models\//, '') : rawId
+  const isGoogleModel = endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT || model.providerId === 'google'
+  return isGoogleModel ? rawId.replace(/^models\//, '') : rawId
 }
 
 /**
