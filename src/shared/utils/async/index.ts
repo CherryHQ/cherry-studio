@@ -1,5 +1,6 @@
 export { AsyncEventQueue } from './AsyncEventQueue'
 export { AsyncInitializer } from './AsyncInitializer'
+export { type CancelablePromise, createCancelablePromise } from './cancelablePromise'
 export { createAbortError, isAbortError, onAbort, timeoutSignal } from './cancellation'
 export { CoalescingTask } from './CoalescingTask'
 export { IdleTimeoutController, type IdleTimeoutHandle } from './IdleTimeoutController'

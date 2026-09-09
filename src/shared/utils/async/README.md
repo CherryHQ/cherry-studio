@@ -18,6 +18,7 @@ not a copy of VS Code's cancellation-token or lifecycle framework.
 | Deadline with failure | `withTimeout(promise, ms, errorFactory, options?)` | Same ownership; rejects with the caller's error. |
 | One deadline across a drain loop | `createTimeout(ms, onTimeout, options?)` | Reuse `.promise` for each round and call `.dispose()` in `finally`. Disposal releases the timer without settling the promise. |
 | Cancel one waiter | `raceCancellation(promise, signal?, reason?)` | Removes the abort listener promptly, observes late rejection, leaves shared work running. Optional `reason` preserves a boundary's error mapping. |
+| Own a cancellable task | `createCancelablePromise(factory, onLateResult?)` | Starts eagerly with an owned signal; `cancel(reason?)` rejects the wait and signals the producer. Late-result cleanup requires explicit ownership. |
 | Subscribe to cancellation | `onAbort(signal, callback)` | Calls back synchronously for an already-aborted signal, otherwise once on abort, with the original reason. Returns idempotent detachment. |
 | Native timeout and parent cancellation | `timeoutSignal(timeoutMs, parent?)` | Uses native timeout and signal composition, preserving validation and the first abort reason. No disposable timer handle. |
 | Disposable timeout and parent cancellation | `createDisposableTimeoutSignal(timeoutMs, timeoutReason, parent?)` | Calls the reason factory at expiry. Disposal clears only the deadline; parent cancellation remains connected. |
@@ -79,6 +80,45 @@ It does not cancel or consume the source stream. Use a bounded `reset(durationMs
 for temporary long waits such as approval; disposal is final.
 
 ## Cancellation and ownership
+
+### Owned tasks and independent waiters
+
+`createCancelablePromise(factory, onLateResult?)` returns a native Promise with
+an additional `cancel(reason?)` method. The factory receives an `AbortSignal`;
+it may return a value or thenable, and synchronous throws become rejections.
+Cancellation is idempotent, preserves the first reason (native `AbortError` when
+omitted), and ends the public wait even if the producer ignores its signal.
+Once the producer's success or failure has been observed, cancellation is a no-op.
+This does not retract already delivered values or queued consumer callbacks.
+
+The task owner holds cancellation authority. A consumer of shared work instead
+uses `raceCancellation(task, consumerSignal)`, which cancels only that consumer's
+wait. `then`, `catch`, `finally`, and wrapping the task in an async function return
+ordinary promises; cancellation authority does not propagate through chaining.
+
+Unlike VS Code, this helper never guesses ownership from a result's `dispose`
+method. Supply `onLateResult` only for resources exclusively owned by this task:
+
+```ts
+const task = createCancelablePromise(
+  (signal) => loadOwnedResource(signal),
+  (resource) => resource.dispose()
+)
+```
+
+The callback runs once if cancellation wins and a result arrives later, including
+when an already-resolved producer has not yet had its result observed. It never
+runs for a result delivered normally. Async cleanup is supported, but the cancelled
+task does not wait for it; callback failures are observed like other late producer
+failures and cannot replace the cancellation reason. Report cleanup failures in
+the callback when needed. Without this callback, the producer retains cleanup
+responsibility. Intermediate resources always need producer-side `finally` cleanup.
+
+The helper composes `raceCancellation`; it does not replace it, enforce latest-request
+identity, stop non-cooperative operations, or prove that producer cleanup has finished.
+Keep phase checkpoints, progressive-event guards, and resource-drain barriers with
+their owners. It does not implement `Disposable`: ending a task and releasing an
+already acquired resource are separate responsibilities.
 
 Stopping a wait does not prove that the task exited. Process termination, worker
 disposal, queue slots, database writes, and job terminal states remain with the
