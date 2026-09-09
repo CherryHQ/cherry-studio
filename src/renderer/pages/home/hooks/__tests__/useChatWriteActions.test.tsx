@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -135,12 +136,13 @@ describe('useChatWriteActions — canvas branch targets', () => {
   }
 
   function seedBranch(user: Message, assistants: Message[]) {
-    MockDataApiUtils.setCustomResponse('/topics/t1/path', 'GET', [user, assistants[0]])
-    MockDataApiUtils.setCustomResponse('/topics/t1/messages', 'GET', {
-      items: [{ message: user }, { message: assistants[0], siblingsGroup: assistants }],
-      activeNodeId: assistants[0].id,
-      rootId: 'vroot'
-    })
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce([user, assistants[0]])
+      .mockResolvedValueOnce({
+        items: [{ message: user }, { message: assistants[0], siblingsGroup: assistants }],
+        activeNodeId: assistants[0].id,
+        rootId: 'vroot'
+      })
   }
 
   it('regenerates against the requested branch history and parent instead of the selected branch', async () => {
@@ -545,12 +547,17 @@ describe('useChatWriteActions — regenerate', () => {
     let finishRegenerate: (() => void) | undefined
     regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
 
-    const request = actions.regenerate('a1')
+    let settled = false
+    const request = actions.regenerate('a1').finally(() => {
+      settled = true
+    })
 
-    expect(regenerate).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(regenerate).toHaveBeenCalledOnce())
+    expect(settled).toBe(false)
 
     finishRegenerate?.()
     await request
+    expect(settled).toBe(true)
   })
 
   it('inherits the persisted turn options when retrying an assistant message', async () => {
