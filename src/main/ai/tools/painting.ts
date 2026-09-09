@@ -14,13 +14,11 @@
  * cancellation (aborted signal) is the exception — it rethrows, so it
  * propagates as the cancellation it is rather than a retryable error.
  */
-
 import { application } from '@application'
 import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { isAbortError } from '@main/utils/error'
 import type { GenerateImageOutput } from '@shared/ai/builtinTools'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import {
@@ -29,6 +27,7 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
+import { isAbortError } from '@shared/utils/async'
 import * as z from 'zod'
 
 import { type GenerateImageToolInput, limitGenerateImageInputIds } from './generateImageTool'

@@ -672,6 +672,20 @@ describe('processMessage (streaming)', () => {
     await expect(readAll(res.body)).resolves.toBe('')
   })
 
+  // A disconnected non-streaming caller must not launch a provider execution under a fresh stream id.
+  it('does not admit an already-aborted non-streaming request and returns finalized JSON', async () => {
+    const res = await processMessage({
+      params: { model: 'openai:gpt-4', stream: false, messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      signal: AbortSignal.abort()
+    })
+
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+    expect(res.headers.get('Content-Type')).toBe('application/json')
+    await expect(res.json()).resolves.toEqual({ done: true })
+  })
+
   it('settles as an empty response when the client aborts before commitment', async () => {
     const controller = new AbortController()
     const { response } = await startStreaming(controller.signal)

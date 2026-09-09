@@ -222,64 +222,55 @@ describe('ConversationNavigationService', () => {
   })
 
   it('retries an incomplete ownership snapshot instead of treating a late owner as absent', async () => {
-    vi.useFakeTimers()
-    try {
-      const navigation = service.focusOrOpen(target, 'Refactor project', 'main-1')
-      const firstRequestId = ownershipRequestId()
-      service.reportOwnership(firstRequestId, 'main-1', false)
+    const navigation = service.focusOrOpen(target, 'Refactor project', 'main-1')
+    const firstRequestId = ownershipRequestId()
+    service.reportOwnership(firstRequestId, 'main-1', false)
 
-      await vi.advanceTimersByTimeAsync(250)
+    await vi.waitFor(() => expect(ownershipRequestId()).not.toBe(firstRequestId))
 
-      expect(
-        mocks.send.mock.calls.filter(([, event]) => event === 'navigation.conversation_focus_or_open_requested')
-      ).toHaveLength(0)
-      expect(mocks.openRouteInMainWindow).not.toHaveBeenCalled()
+    expect(
+      mocks.send.mock.calls.filter(([, event]) => event === 'navigation.conversation_focus_or_open_requested')
+    ).toHaveLength(0)
+    expect(mocks.openRouteInMainWindow).not.toHaveBeenCalled()
 
-      const secondRequestId = ownershipRequestId()
-      expect(secondRequestId).not.toBe(firstRequestId)
-      service.reportOwnership(secondRequestId, 'main-1', false)
-      service.reportOwnership(secondRequestId, 'sub-1', true)
-      await vi.advanceTimersByTimeAsync(0)
-      service.reportOwnership(secondRequestId, 'sub-1', true)
-      await navigation
-
+    const secondRequestId = ownershipRequestId()
+    service.reportOwnership(secondRequestId, 'main-1', false)
+    service.reportOwnership(secondRequestId, 'sub-1', true)
+    await vi.waitFor(() =>
       expect(mocks.send).toHaveBeenCalledWith('sub-1', 'navigation.conversation_focus_or_open_requested', {
         requestId: secondRequestId,
         target,
         title: 'Refactor project'
       })
-    } finally {
-      vi.useRealTimers()
-    }
+    )
+    service.reportOwnership(secondRequestId, 'sub-1', true)
+    await navigation
+
+    expect(mocks.openRouteInMainWindow).not.toHaveBeenCalled()
   })
 
   it('waits for a live Main renderer to become ready instead of sending an ephemeral cold route', async () => {
-    vi.useFakeTimers()
-    try {
-      mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
-        type === WindowType.Main ? [windowInfo('main-1', WindowType.Main)] : []
-      )
-      const navigation = service.focusOrOpen(target, 'Refactor project')
-      const firstRequestId = ownershipRequestId()
+    mocks.getWindowInfosByType.mockImplementation((type: WindowType) =>
+      type === WindowType.Main ? [windowInfo('main-1', WindowType.Main)] : []
+    )
+    const navigation = service.focusOrOpen(target, 'Refactor project')
+    const firstRequestId = ownershipRequestId()
 
-      await vi.advanceTimersByTimeAsync(250)
+    await vi.waitFor(() => expect(ownershipRequestId()).not.toBe(firstRequestId))
 
-      expect(mocks.openRouteInMainWindow).not.toHaveBeenCalled()
-      const secondRequestId = ownershipRequestId()
-      expect(secondRequestId).not.toBe(firstRequestId)
-
-      service.reportOwnership(secondRequestId, 'main-1', false)
-      await vi.advanceTimersByTimeAsync(0)
-      service.reportOwnership(secondRequestId, 'main-1', true)
-      await navigation
-
+    expect(mocks.openRouteInMainWindow).not.toHaveBeenCalled()
+    const secondRequestId = ownershipRequestId()
+    service.reportOwnership(secondRequestId, 'main-1', false)
+    await vi.waitFor(() =>
       expect(mocks.send).toHaveBeenCalledWith('main-1', 'navigation.conversation_focus_or_open_requested', {
         requestId: secondRequestId,
         target,
         title: 'Refactor project'
       })
-    } finally {
-      vi.useRealTimers()
-    }
+    )
+    service.reportOwnership(secondRequestId, 'main-1', true)
+    await navigation
+
+    expect(mocks.openRouteInMainWindow).not.toHaveBeenCalled()
   })
 })

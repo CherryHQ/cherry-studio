@@ -8,6 +8,7 @@ import {
 import { Upload } from '@aws-sdk/lib-storage'
 import { loggerService } from '@logger'
 import type { S3Config } from '@shared/types/backup'
+import { onAbort as subscribeToAbort } from '@shared/utils/async'
 import * as net from 'net'
 import { Readable } from 'stream'
 
@@ -98,10 +99,7 @@ export default class S3Storage {
     const abortController = new AbortController()
     const forwardAbort = () => abortController.abort(options.signal?.reason)
 
-    options.signal?.addEventListener('abort', forwardAbort, { once: true })
-    if (options.signal?.aborted) {
-      forwardAbort()
-    }
+    const disposeAbort = subscribeToAbort(options.signal, forwardAbort)
 
     try {
       const contentType = key.endsWith('.zip') ? 'application/zip' : 'application/octet-stream'
@@ -121,7 +119,7 @@ export default class S3Storage {
       logger.error('[S3Storage] Error putting object:', error as Error)
       throw error
     } finally {
-      options.signal?.removeEventListener('abort', forwardAbort)
+      disposeAbort()
       if (data instanceof Readable && !data.destroyed) data.destroy()
     }
   }

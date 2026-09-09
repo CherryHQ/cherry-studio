@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
+import { delay as sleep } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
@@ -98,7 +99,7 @@ class WeChatAdapter extends ChannelAdapter {
         await bot.send(chatId, chunks[i])
 
         if (i < chunks.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 100))
+          await sleep(100)
         }
       }
     } finally {

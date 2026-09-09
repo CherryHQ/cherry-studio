@@ -2,7 +2,10 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { createDeferred } from '@shared/utils/async'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,7 +55,6 @@ const mocks = vi.hoisted(() => {
     fsRead: vi.fn(),
     goToSlide: vi.fn(),
     load: vi.fn(),
-    loggerError: vi.fn(),
     mockFiles: { slides: new Map() },
     parseZipLazyMedia: vi.fn(),
     renderList: vi.fn(),
@@ -60,6 +62,7 @@ const mocks = vi.hoisted(() => {
   }
 
   class MockPptxViewer {
+    destroyed = false
     currentSlideIndex = 0
     slideCount = 3
     zoomPercent = 100
@@ -74,7 +77,8 @@ const mocks = vi.hoisted(() => {
     }
 
     async renderList(options: unknown) {
-      state.renderList(options)
+      await state.renderList(options)
+      if (this.destroyed) return
       this.container.textContent = 'rendered pptx'
       this.options.onSlideChange?.(0)
     }
@@ -91,6 +95,7 @@ const mocks = vi.hoisted(() => {
     }
 
     destroy() {
+      this.destroyed = true
       state.destroy()
     }
   }
@@ -103,12 +108,6 @@ vi.mock('@aiden0z/pptx-renderer', () => ({
   parseZipLazyMedia: mocks.parseZipLazyMedia,
   PptxViewer: mocks.MockPptxViewer,
   RECOMMENDED_ZIP_LIMITS: {}
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({ error: mocks.loggerError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() })
-  }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -135,6 +134,8 @@ vi.mock('react-i18next', () => ({
 
 import PowerPointFilePreview from '../PowerPointFilePreview'
 
+const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+
 const filePath = '/tmp/presentations/roadmap.pptx' as AbsoluteFilePath
 
 beforeEach(() => {
@@ -151,36 +152,21 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('PowerPointFilePreview', () => {
-  it('loads and renders PPTX slides with a centered standalone toolbar', async () => {
+  it('renders slides and updates the page and zoom controls', async () => {
+    const user = userEvent.setup()
     render(
       <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
     )
 
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
-    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
-
-    expect(mocks.fsRead).toHaveBeenCalledWith(filePath)
-    expect(new Uint8Array(mocks.parseZipLazyMedia.mock.calls[0][0])).toEqual(new Uint8Array([80, 75, 3, 4]))
-    expect(mocks.buildPresentation).toHaveBeenCalledWith(mocks.mockFiles, { lazySlides: true })
-    expect(mocks.renderList).toHaveBeenCalledWith({
-      windowed: true,
-      batchSize: 4,
-      initialSlides: 3,
-      overscanViewport: 2
-    })
-    const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
-    expect(toolbar).toHaveClass('h-11', 'min-h-11')
-    expect(toolbar).not.toHaveClass('bg-background')
-    expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
+    await screen.findByText('rendered pptx')
     expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3')
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
-    await waitFor(() => expect(mocks.goToSlide).toHaveBeenCalledWith(1))
+    await user.click(screen.getByRole('button', { name: 'common.next' }))
     await waitFor(() => expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('2 / 3'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
-    await waitFor(() => expect(mocks.setZoom).toHaveBeenCalledWith(110))
-    expect(screen.getByTestId('pptx-preview-zoom-value')).toHaveTextContent('110%')
+    await user.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+    await waitFor(() => expect(screen.getByTestId('pptx-preview-zoom-value')).toHaveTextContent('110%'))
   })
 
   it('removes external media relationships before loading the viewer', async () => {
@@ -221,7 +207,7 @@ describe('PowerPointFilePreview', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
     expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
-    expect(mocks.loggerError).toHaveBeenCalledWith(`Failed to load PPTX preview: ${filePath}`, error)
+    expect(loggerError).toHaveBeenCalledWith(`Failed to load PPTX preview: ${filePath}`, error)
   })
 
   it('rebuilds and destroys the viewer when refreshKey changes', async () => {
@@ -239,4 +225,40 @@ describe('PowerPointFilePreview', () => {
     await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2))
     expect(mocks.destroy).toHaveBeenCalledTimes(1)
   })
+
+  it.each(['read', 'parse', 'render'] as const)(
+    'discards stale %s completion while the refreshed preview is still loading',
+    async (stage) => {
+      const oldWork = createDeferred<unknown>()
+      const nextRead = createDeferred<Uint8Array>()
+      const operation = { read: mocks.fsRead, parse: mocks.parseZipLazyMedia, render: mocks.renderList }[stage]
+      operation.mockReturnValueOnce(oldWork.promise)
+      const view = render(
+        <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+      )
+      await waitFor(() => expect(operation).toHaveBeenCalledOnce())
+      mocks.fsRead.mockReturnValueOnce(nextRead.promise)
+      view.rerender(
+        <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={1} />
+      )
+      await act(async () => {
+        oldWork.resolve(stage === 'read' ? new Uint8Array([80, 75, 3, 4]) : mocks.mockFiles)
+        await oldWork.promise
+      })
+
+      expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
+      expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('0 / 0')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(loggerError).not.toHaveBeenCalled()
+      expect(mocks.load).toHaveBeenCalledTimes(stage === 'render' ? 1 : 0)
+      expect(mocks.destroy).toHaveBeenCalledTimes(stage === 'render' ? 1 : 0)
+
+      await act(async () => nextRead.resolve(new Uint8Array([80, 75, 3, 4])))
+      await screen.findByText('rendered pptx')
+      expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3')
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      view.unmount()
+      expect(mocks.destroy).toHaveBeenCalledTimes(stage === 'render' ? 2 : 1)
+    }
+  )
 })

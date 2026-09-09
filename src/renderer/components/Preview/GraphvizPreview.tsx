@@ -1,4 +1,4 @@
-import { AsyncInitializer } from '@renderer/utils/asyncInitializer'
+import { AsyncInitializer } from '@shared/utils/async'
 import React, { memo, useCallback } from 'react'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'

@@ -1,3 +1,4 @@
+import { SequencerByKey } from '@shared/utils/async'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 interface VersionedNamedResource {
@@ -27,7 +28,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
   const [nameOverlays, setNameOverlays] = useState<ReadonlyMap<string, OptimisticNameOverlay>>(() => new Map())
   const sourceItemsRef = useRef(sourceItems)
   const requestIdRef = useRef(0)
-  const queuesRef = useRef(new Map<string, Promise<void>>())
+  const queuesRef = useRef(new SequencerByKey<string>())
   sourceItemsRef.current = sourceItems
 
   const items = useMemo(
@@ -81,8 +82,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
       return next
     })
 
-    const previousRequest = queuesRef.current.get(item.id) ?? Promise.resolve()
-    const request = previousRequest.then(() => {
+    return queuesRef.current.queue(item.id, async () => {
       const latestItem = sourceItemsRef.current.find((candidate) => candidate.id === item.id)
       setNameOverlays((current) => {
         const overlay = current.get(item.id)
@@ -97,10 +97,8 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
         next.set(item.id, { ...overlay, baseUpdatedAt: latestItem.updatedAt })
         return next
       })
-      return persist()
-    })
-    const settledRequest = request.then(
-      (persisted) => {
+      try {
+        const persisted = await persist()
         setNameOverlays((current) => {
           const overlay = current.get(item.id)
           if (overlay?.requestId !== requestId) return current
@@ -113,8 +111,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
           return next
         })
         return persisted
-      },
-      (error) => {
+      } catch (error) {
         setNameOverlays((current) => {
           if (current.get(item.id)?.requestId !== requestId) return current
           const next = new Map(current)
@@ -123,19 +120,7 @@ export function useOptimisticResourceName<T extends VersionedNamedResource>(sour
         })
         throw error
       }
-    )
-    const queueTail = settledRequest.then(
-      () => undefined,
-      () => undefined
-    )
-    queuesRef.current.set(item.id, queueTail)
-    void queueTail.finally(() => {
-      if (queuesRef.current.get(item.id) === queueTail) {
-        queuesRef.current.delete(item.id)
-      }
     })
-
-    return settledRequest
   }, [])
 
   return { items, rename }

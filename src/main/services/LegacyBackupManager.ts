@@ -17,7 +17,6 @@ import { randomUUID } from 'node:crypto'
 import type { Stats } from 'node:fs'
 import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { setTimeout as delay } from 'node:timers/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -27,7 +26,6 @@ import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { hashDbFile } from '@main/data/db/restore/hashDbFile'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { type AtomicWriteStream, createAtomicWriteStream } from '@main/utils/file'
-import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
@@ -42,8 +40,15 @@ import {
   type WebDavConfig
 } from '@shared/types/backup'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import {
+  IdleTimeoutController,
+  Mutex,
+  onAbort as subscribeToAbort,
+  retry,
+  timeoutSignal,
+  tryAcquire
+} from '@shared/utils/async'
 import { ZipArchive } from 'archiver'
-import { Mutex, tryAcquire } from 'async-mutex'
 import Database from 'better-sqlite3'
 import dayjs from 'dayjs'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
@@ -256,11 +261,6 @@ class BackupManager {
     return `cherry-studio.${dayjs().format('YYYYMMDDHHmmssSSS')}.${getHostname() || 'unknown'}.${getDeviceType() || 'unknown'}.zip`
   }
 
-  private createRemoteCleanupSignal(signal?: AbortSignal): AbortSignal {
-    const timeoutSignal = AbortSignal.timeout(REMOTE_UPLOAD_IDLE_TIMEOUT_MS)
-    return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
-  }
-
   private async cleanupOldBackups(
     maxBackups: number,
     listFiles: (signal?: AbortSignal) => Promise<BackupFileInfo[]>,
@@ -292,16 +292,12 @@ class BackupManager {
     signal: AbortSignal | undefined,
     maxAttempts: number
   ): Promise<void> {
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        signal?.throwIfAborted()
-        await deleteFile(fileName, signal)
-        return
-      } catch (error) {
-        if (signal?.aborted || attempt === maxAttempts) throw error
-        await delay(attempt * 1_000, undefined, { signal })
-      }
-    }
+    await retry(() => deleteFile(fileName, signal), {
+      maxAttempts,
+      delayMs: (attempt) => attempt * 1_000,
+      shouldRetry: () => true,
+      signal
+    })
   }
 
   private async backupDirect(
@@ -462,8 +458,9 @@ class BackupManager {
       })
 
       await new Promise<void>((resolve, reject) => {
+        let disposeAbort = () => {}
         function cleanup() {
-          signal?.removeEventListener('abort', onAbort)
+          disposeAbort()
         }
         function complete() {
           cleanup()
@@ -478,11 +475,8 @@ class BackupManager {
           fail(signal?.reason)
         }
 
-        signal?.addEventListener('abort', onAbort, { once: true })
-        if (signal?.aborted) {
-          onAbort()
-          return
-        }
+        disposeAbort = subscribeToAbort(signal, onAbort)
+        if (signal?.aborted) return
         atomicOutput.on('finish', complete)
         atomicOutput.on('error', fail)
         archive.on('error', fail)
@@ -773,11 +767,11 @@ class BackupManager {
           }
         }
       } finally {
-        idleTimeout.cleanup()
+        idleTimeout.dispose()
         await fs.remove(backupedFilePath).catch(() => {})
       }
 
-      const cleanupSignal = this.createRemoteCleanupSignal(operationSignal)
+      const cleanupSignal = timeoutSignal(REMOTE_UPLOAD_IDLE_TIMEOUT_MS, operationSignal)
       const cleanupError = await this.cleanupOldBackups(
         webdavConfig.maxBackups ?? 0,
         (currentSignal) => this.listWebdavFiles(null, webdavConfig, currentSignal),
@@ -827,7 +821,7 @@ class BackupManager {
         await fs.remove(backupedFilePath).catch(() => {})
       }
 
-      const cleanupSignal = this.createRemoteCleanupSignal(operationSignal)
+      const cleanupSignal = timeoutSignal(REMOTE_UPLOAD_IDLE_TIMEOUT_MS, operationSignal)
       const cleanupError = await this.cleanupOldBackups(
         s3Config.maxBackups,
         (currentSignal) => this.listS3Files(null, s3Config, currentSignal),
@@ -859,13 +853,12 @@ class BackupManager {
 
     source.once('error', onSourceError)
     source.pipe(stream)
-    signal.addEventListener('abort', onAbort, { once: true })
-    if (signal.aborted) onAbort()
+    const disposeAbort = subscribeToAbort(signal, onAbort)
 
     return {
       stream,
       cleanup: () => {
-        signal.removeEventListener('abort', onAbort)
+        disposeAbort()
         source.removeListener('error', onSourceError)
         if (!source.destroyed) source.destroy()
         if (!stream.destroyed) stream.destroy()

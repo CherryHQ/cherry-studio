@@ -30,6 +30,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { CoalescingTask } from '@shared/utils/async'
 import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
@@ -152,12 +153,10 @@ export function useDebouncedAutoSave({
 }): () => Promise<void> {
   const onSaveRef = useRef(onSave)
   const changeKeyRef = useRef(changeKey)
-  const savingRef = useRef(false)
+  const saveTaskRef = useRef(new CoalescingTask())
   // `changeKey` captured when the in-flight save started; a follow-up pass is
   // only queued when the state has moved past it.
   const savedKeyRef = useRef<string | null>(null)
-  const pendingRef = useRef(false)
-  const inFlightRef = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     onSaveRef.current = onSave
@@ -165,25 +164,12 @@ export function useDebouncedAutoSave({
   })
 
   const flush = useCallback((): Promise<void> => {
-    if (savingRef.current) {
-      // A save is already running; queue one more pass only if the latest state
-      // differs from what that save captured (otherwise it already covers it).
-      if (changeKeyRef.current !== savedKeyRef.current) pendingRef.current = true
-      return inFlightRef.current
-    }
-    savingRef.current = true
-    inFlightRef.current = (async () => {
-      try {
-        do {
-          pendingRef.current = false
-          savedKeyRef.current = changeKeyRef.current
-          await onSaveRef.current()
-        } while (pendingRef.current)
-      } finally {
-        savingRef.current = false
-      }
-    })()
-    return inFlightRef.current
+    const task = saveTaskRef.current
+    if (task.promise && changeKeyRef.current === savedKeyRef.current) return task.promise
+    return task.run(() => {
+      savedKeyRef.current = changeKeyRef.current
+      return onSaveRef.current()
+    })
   }, [])
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { createTimeout } from '@shared/utils/async'
 import { type ChildProcess, execFile, spawn, type SpawnOptions } from 'child_process'
 import crossSpawn from 'cross-spawn'
 import path from 'path'
@@ -154,13 +155,13 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
 export function waitForProcessExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true)
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
+    const timeout = createTimeout(timeoutMs, () => {
       child.off('exit', onClose)
       child.off('close', onClose)
       resolve(false)
-    }, timeoutMs)
+    })
     const onClose = () => {
-      clearTimeout(timeout)
+      timeout.dispose()
       child.off('exit', onClose)
       child.off('close', onClose)
       resolve(true)
@@ -197,7 +198,7 @@ export async function executeCommand(
     let stderr = ''
     let outputBytes = 0
     let outputLimitError: Error | undefined
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    let timeoutId: ReturnType<typeof createTimeout<void>> | undefined
 
     const collectOutput = (chunk: unknown): string | null => {
       if (outputLimitError) return null
@@ -206,7 +207,7 @@ export async function executeCommand(
       const nextOutputBytes = outputBytes + chunkBytes
       if (options?.maxOutputBytes !== undefined && nextOutputBytes > options.maxOutputBytes) {
         outputLimitError = new Error(`Command output exceeded ${options.maxOutputBytes} bytes`)
-        if (timeoutId) clearTimeout(timeoutId)
+        if (timeoutId) timeoutId.dispose()
         child.kill('SIGKILL')
         return null
       }
@@ -223,19 +224,19 @@ export async function executeCommand(
     })
 
     if (options?.timeout) {
-      timeoutId = setTimeout(() => {
+      timeoutId = createTimeout(options.timeout, () => {
         child.kill('SIGKILL')
         reject(new Error(`Command timed out after ${options.timeout}ms`))
-      }, options.timeout)
+      })
     }
 
     child.on('error', (err) => {
-      if (timeoutId) clearTimeout(timeoutId)
+      if (timeoutId) timeoutId.dispose()
       reject(outputLimitError ?? err)
     })
 
     child.on('close', (code) => {
-      if (timeoutId) clearTimeout(timeoutId)
+      if (timeoutId) timeoutId.dispose()
       if (outputLimitError) {
         reject(outputLimitError)
       } else if (code === 0) {

@@ -14,6 +14,7 @@ import 'dayjs/locale/zh-tw'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import { AsyncInitializer } from '@shared/utils/async'
 import { defaultLanguage } from '@shared/utils/languages'
 import dayjs from 'dayjs'
 import i18n from 'i18next'
@@ -71,8 +72,6 @@ export const setDayjsLocale = (language: string) => {
   dayjs.locale(dayjsLocale)
 }
 
-let initPromise: Promise<void> | null = null
-
 const doInit = async (): Promise<void> => {
   // Resolve the language up front. A rejected lookup falls back rather than
   // rejecting init — the UI must still render (in the fallback language).
@@ -109,11 +108,13 @@ const doInit = async (): Promise<void> => {
     })
 }
 
+const i18nInitializer = new AsyncInitializer(doInit)
+
 /**
  * Initialize i18next once, lazily. Idempotent: concurrent and repeat callers all
  * await the same in-flight promise. Every window entry must `await initI18n()`
  * before rendering, because translation packs now load asynchronously.
  */
-export const initI18n = (): Promise<void> => (initPromise ??= doInit())
+export const initI18n = (): Promise<void> => i18nInitializer.get()
 
 export default i18n

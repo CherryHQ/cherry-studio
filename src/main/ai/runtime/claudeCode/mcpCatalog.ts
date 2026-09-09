@@ -3,7 +3,6 @@
  * (with the alias forms the CLI may use to name a tool), and the bounded tools-cache warm that
  * keeps a cold or dead server from stalling session start (issue #16242).
  */
-
 import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -19,6 +18,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
+import { raceTimeout } from '@shared/utils/async'
 
 import type { McpToolDisplayMetadata } from './types'
 
@@ -111,14 +111,12 @@ export async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<McpWar
     })
   )
 
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<boolean>((resolve) => {
-    timer = setTimeout(() => resolve(false), MCP_WARM_TIMEOUT_MS)
-    timer.unref?.()
-  })
-
-  const completedInTime = await Promise.race([warm.then(() => true), timeout])
-  if (timer) clearTimeout(timer)
+  const completedInTime = await raceTimeout(
+    warm.then(() => true),
+    MCP_WARM_TIMEOUT_MS,
+    () => false,
+    { ref: false }
+  )
   return { completedInTime, warm }
 }
 

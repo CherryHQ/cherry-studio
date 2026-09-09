@@ -1,5 +1,6 @@
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { delay as sleep } from '@shared/utils/async'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
@@ -647,7 +648,7 @@ class QqAdapter extends ChannelAdapter {
       await this.sendToChat(chatId, chunks[i], replyToMsgId)
 
       if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        await sleep(100)
       }
     }
   }

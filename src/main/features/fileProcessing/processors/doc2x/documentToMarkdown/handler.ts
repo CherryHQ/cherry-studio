@@ -17,7 +17,7 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   mode: 'remote-poll',
   prepare(file, config, signal) {
     signal?.throwIfAborted()
-    const startContext = prepareStartContext(file, config, signal)
+    const startContext = prepareStartContext(file, config)
 
     return {
       mode: 'remote-poll',
@@ -80,13 +80,7 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   }
 }
 
-function prepareStartContext(
-  file: FileInfo,
-  config: FileProcessorMerged,
-  signal?: AbortSignal
-): PreparedDoc2xStartContext {
-  signal?.throwIfAborted()
-
+function prepareStartContext(file: FileInfo, config: FileProcessorMerged): PreparedDoc2xStartContext {
   const capability = getRequiredCapability(config, 'document_to_markdown', 'doc2x')
 
   return {

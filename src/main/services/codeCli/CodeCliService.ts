@@ -33,6 +33,7 @@ import {
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
+import { withTimeout } from '@shared/utils/async'
 import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
 import { REDACTED } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
@@ -345,16 +346,14 @@ export class CodeCliService extends BaseService {
     try {
       // Wait for all checks to complete with a global timeout
       const results = await Promise.allSettled(
-        terminalPromises.map((p) =>
-          Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))])
-        )
+        terminalPromises.map((p) => withTimeout(p, 5000, () => new Error('timeout')))
       )
 
       const availableTerminals: TerminalConfig[] = []
       let hasProbeFailure = false
       results.forEach((result, index) => {
         if (result.status === 'fulfilled' && result.value) {
-          availableTerminals.push(result.value as TerminalConfig)
+          availableTerminals.push(result.value)
         } else if (result.status === 'rejected') {
           hasProbeFailure = true
           logger.debug(`Terminal check failed for ${terminalList[index].id}:`, result.reason)

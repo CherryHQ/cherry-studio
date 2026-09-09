@@ -2,6 +2,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
+import { onAbort as subscribeToAbort } from '@shared/utils/async'
 import { KB } from '@shared/utils/constants'
 import { redactRecord, redactUrlParams } from '@shared/utils/redaction'
 
@@ -172,7 +173,7 @@ async function accumulateBody(
 ): Promise<{ body: string; error?: unknown }> {
   const reader = stream.getReader()
   const onAbort = () => void reader.cancel().catch(() => {})
-  signal?.addEventListener('abort', onAbort, { once: true })
+  const disposeAbort = subscribeToAbort(signal ?? undefined, onAbort)
   const decoder = new TextDecoder()
   let acc = ''
   let streamError: unknown
@@ -188,7 +189,7 @@ async function accumulateBody(
     streamError = error
   } finally {
     void reader.cancel().catch(() => {})
-    signal?.removeEventListener('abort', onAbort)
+    disposeAbort()
   }
   return { body: truncate(acc, maxBytes), error: streamError }
 }

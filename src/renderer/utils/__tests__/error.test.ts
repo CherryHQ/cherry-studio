@@ -222,6 +222,15 @@ describe('error', () => {
       const timeoutError = new DOMException('The operation timed out', 'TimeoutError')
       expect(isAbortError(timeoutError)).toBe(false)
     })
+
+    it('keeps an AbortError caused by a timeout distinct from user cancellation', () => {
+      const error = new Error('Request was aborted.', {
+        cause: new DOMException('The operation timed out', 'TimeoutError')
+      })
+      error.name = 'AbortError'
+
+      expect(isAbortError(error)).toBe(false)
+    })
   })
 
   describe('isTimeoutError', () => {

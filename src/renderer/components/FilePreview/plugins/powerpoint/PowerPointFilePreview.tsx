@@ -48,12 +48,6 @@ function assertSourceSize(size: number): void {
   }
 }
 
-function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw new DOMException('Preview aborted', 'AbortError')
-  }
-}
-
 function getRelationshipTypeName(type: string): string {
   return type.trim().toLowerCase().split('/').at(-1) ?? ''
 }
@@ -164,7 +158,6 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
     const container = containerRef.current
     if (!container) return
 
-    const controller = new AbortController()
     let cancelled = false
     let viewer: PptxViewer | null = null
 
@@ -181,15 +174,13 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
         assertSourceSize(metadata.size)
 
         const pptxData = toUint8Array(await window.api.fs.read(filePath))
-        assertSourceSize(pptxData.byteLength)
         if (cancelled) return
+        assertSourceSize(pptxData.byteLength)
 
-        throwIfAborted(controller.signal)
         const pptxFiles = await parseZipLazyMedia(toArrayBuffer(pptxData), RECOMMENDED_ZIP_LIMITS)
-        throwIfAborted(controller.signal)
+        if (cancelled) return
         const presentation = buildPresentation(pptxFiles, { lazySlides: true })
         stripExternalMediaRelationships(presentation)
-        throwIfAborted(controller.signal)
 
         viewer = new PptxViewer(container, {
           fitMode: 'contain',
@@ -235,7 +226,6 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
           initialSlides: 3,
           overscanViewport: 2
         })
-        throwIfAborted(controller.signal)
         if (cancelled) return
 
         const nextPageCount = viewer.slideCount
@@ -259,7 +249,6 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
 
     return () => {
       cancelled = true
-      controller.abort()
       controlsBusyRef.current = false
       if (viewerRef.current === viewer) {
         viewerRef.current = null

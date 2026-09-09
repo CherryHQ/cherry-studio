@@ -1,10 +1,11 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
+import { createAbortError } from '@shared/utils/async'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { readErrorMessage } from '../readErrorMessage'
-import { createAbortError, fileToDataUrl, waitWithSignal } from '../transportUtils'
+import { fileToDataUrl, waitWithSignal } from '../transportUtils'
 
 /**
  * AiHubMix BFL async FLUX transport.

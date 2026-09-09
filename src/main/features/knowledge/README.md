@@ -71,7 +71,7 @@ so a file whose original vanished still restores fine.
 
 ## Concurrency
 
-The per-base mutation lock is a core `KeyedMutex` (acquired via `runExclusive`), an **application-level** mutex serializing multi-step business
+The per-base mutation lock is a shared `KeyedMutex` (acquired via `runExclusive`), an **application-level** mutex serializing multi-step business
 invariants that span the main DB, the index store, and the filesystem (e.g. add's
 read-conflicts-then-create-rows sequence). It is not about protecting SQLite itself — the per-base
 driver is synchronous, and single statements are atomic. Handlers acquire the lock only around the

@@ -1,5 +1,6 @@
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { AsyncInitializer } from '@shared/utils/async'
 
 import { createClaudeCodeRuntimeDriver } from './claudeCode'
 import { DshRuntimeDriver } from './dsh/DshRuntimeDriver'
@@ -11,27 +12,22 @@ class LazyClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 
-  private implementationPromise: Promise<AgentSessionRuntimeDriver> | undefined
+  private readonly implementation = new AsyncInitializer(createClaudeCodeRuntimeDriver)
 
   validateSession(session: AgentSessionEntity): Promise<void> {
-    return this.loadImplementation().then((driver) => driver.validateSession(session))
+    return this.implementation.get().then((driver) => driver.validateSession(session))
   }
 
   listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
-    return this.loadImplementation().then((driver) => driver.listAvailableTools(mcpIds))
+    return this.implementation.get().then((driver) => driver.listAvailableTools(mcpIds))
   }
 
   connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return this.loadImplementation().then((driver) => driver.connect(input))
+    return this.implementation.get().then((driver) => driver.connect(input))
   }
 
   onSessionIdle(sessionId: string): void {
-    void this.loadImplementation().then((driver) => driver.onSessionIdle?.(sessionId))
-  }
-
-  private loadImplementation(): Promise<AgentSessionRuntimeDriver> {
-    this.implementationPromise ??= createClaudeCodeRuntimeDriver()
-    return this.implementationPromise
+    void this.implementation.get().then((driver) => driver.onSessionIdle?.(sessionId))
   }
 }
 

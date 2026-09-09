@@ -10,12 +10,12 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/types/file'
+import { createAbortError, onAbort as subscribeToAbort } from '@shared/utils/async'
 
 import { resolveProviderAiSdkConfig } from '../../config'
 import { resolveEffectiveEndpoint, resolveWireModelId } from '../../endpoint'
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
-import { createAbortError } from '../transportUtils'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
 
 const logger = loggerService.withContext('ImageGenerationJobHandler')
@@ -184,8 +184,8 @@ async function pollUntilDone(
       cancelRemote()
       throw createAbortError('Image generation aborted')
     }
-    ctx.signal.addEventListener('abort', cancelRemote, { once: true })
   }
+  const disposeAbort = cancelRemote ? subscribeToAbort(ctx.signal, cancelRemote) : undefined
   try {
     return await transport.poll(taskId, {
       signal: ctx.signal,
@@ -195,7 +195,7 @@ async function pollUntilDone(
       modelDescriptor: ctx.input.modelDescriptor
     })
   } finally {
-    if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)
+    disposeAbort?.()
   }
 }
 

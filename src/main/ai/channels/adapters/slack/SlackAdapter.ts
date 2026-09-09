@@ -1,4 +1,5 @@
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import { delay as sleep } from '@shared/utils/async'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 import { net } from 'electron'
 import WebSocket from 'ws'
@@ -555,7 +556,7 @@ class SlackAdapter extends ChannelAdapter {
       })
 
       if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
+        await sleep(100)
       }
     }
   }

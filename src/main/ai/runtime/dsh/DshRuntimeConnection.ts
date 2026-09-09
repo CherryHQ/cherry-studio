@@ -36,9 +36,9 @@ import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@share
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { AsyncEventQueue, Sequencer } from '@shared/utils/async'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
-import { AsyncEventQueue } from '../AsyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -140,7 +140,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
   /** Serializes push/pull reconciles so snapshot reads and live policy writes cannot land out of order. */
-  private reconcileChain: Promise<unknown> = Promise.resolve()
+  private readonly reconcileQueue = new Sequencer()
   private _usageCapture?: AgentSessionUsageCapture
 
   readonly events = this.eventQueue
@@ -468,12 +468,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     reasoningEffort?: ReasoningEffortOption
     knowledgeBaseIds?: readonly string[]
   }): Promise<AgentRuntimeReconcileResult> {
-    const run = this.reconcileChain.then(
-      () => this.reconcileOnce(input),
-      () => this.reconcileOnce(input)
-    )
-    this.reconcileChain = run.catch(() => undefined)
-    return run
+    return this.reconcileQueue.queue(() => this.reconcileOnce(input))
   }
 
   private async reconcileOnce(input: {

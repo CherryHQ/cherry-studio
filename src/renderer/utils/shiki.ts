@@ -1,9 +1,8 @@
 import { loggerService } from '@logger'
+import { AsyncInitializer } from '@shared/utils/async'
 import type { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
 import type { SpecialLanguage, ThemedToken } from 'shiki/core'
 import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'
-
-import { AsyncInitializer } from './asyncInitializer'
 
 export const DEFAULT_LANGUAGES = ['text', 'javascript', 'typescript', 'python', 'java', 'markdown', 'json']
 export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']

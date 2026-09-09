@@ -2,6 +2,7 @@ import type * as fs from 'node:fs'
 import type { Socket } from 'node:net'
 
 import type { LanClientEvent, LanTransferPeer } from '@shared/types/lanTransfer'
+import type { createTimeout } from '@shared/utils/async'
 
 /**
  * Pending response handler for awaiting control messages
@@ -12,9 +13,8 @@ export type PendingResponse = {
   chunkIndex?: number
   resolve: (payload: unknown) => void
   reject: (error: Error) => void
-  timeoutHandle?: NodeJS.Timeout
-  abortSignal?: AbortSignal
-  abortListener?: () => void
+  timeoutHandle?: ReturnType<typeof createTimeout<void>>
+  disposeAbort?: () => void
 }
 
 /**

@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import PQueue from 'p-queue'
+import { PQueue, timeoutSignal } from '@shared/utils/async'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
 const logger = loggerService.withContext('KnowledgeWebSearch')
@@ -41,8 +41,7 @@ export async function fetchKnowledgeWebPage(url: string, signal?: AbortSignal): 
 
     const response = await knowledgeWebFetchQueue.add(
       async () => {
-        const timeoutSignal = AbortSignal.timeout(DEFAULT_FETCH_TIMEOUT_MS)
-        const fetchSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+        const fetchSignal = timeoutSignal(DEFAULT_FETCH_TIMEOUT_MS, signal)
 
         return await application
           .get('WebSearchService')

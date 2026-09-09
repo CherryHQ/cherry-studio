@@ -11,7 +11,6 @@
  * app is taken offline, on stop — and when a log is forgotten, because it is the one
  * place that knows those moments.
  */
-
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -23,6 +22,7 @@ import {
   type MiniAppActivityListing
 } from '@shared/types/miniAppActivity'
 import type { MiniAppMethod } from '@shared/types/miniAppManifest'
+import { SequencerByKey } from '@shared/utils/async'
 import { shell } from 'electron'
 
 import { miniAppLogsPath } from './paths'
@@ -162,7 +162,7 @@ interface DayBudget {
 
 export class MiniAppActivityLog {
   /** Per-app write serialization: appends and the sweep must not interleave. */
-  private readonly chains = new Map<string, Promise<unknown>>()
+  private readonly chains = new SequencerByKey<string>()
   /** appId → the day its directory was last swept. Re-swept when the day rolls over. */
   private readonly swept = new Map<string, string>()
   private readonly counters = new Map<string, Map<string, Counter>>()
@@ -356,17 +356,11 @@ export class MiniAppActivityLog {
       }
       this.counters.delete(id)
     }
-    const pending = appId === undefined ? [...this.chains.values()] : [this.chains.get(appId) ?? Promise.resolve()]
-    await Promise.all(pending)
+    await this.chains.flush(appId)
   }
 
   private serialize<T>(appId: string, fn: () => Promise<T>): Promise<T> {
-    const next = (this.chains.get(appId) ?? Promise.resolve()).then(fn, fn)
-    this.chains.set(
-      appId,
-      next.catch(() => undefined)
-    )
-    return next
+    return this.chains.queue(appId, fn)
   }
 }
 

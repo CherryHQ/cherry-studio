@@ -3,6 +3,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils/uuid'
 import type { FileEntry } from '@shared/data/types/file'
 import type { PaintingMode } from '@shared/data/types/painting'
+import { isAbortError } from '@shared/utils/async'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
@@ -128,7 +129,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         applyIfVisible({ ...targetPainting, files: generatedFiles } as PaintingData)
         await refresh()
       } catch (error) {
-        const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
+        const isCanceled = controller.signal.aborted || (error instanceof Error && isAbortError(error))
         const failedState: PaintingGenerationState = {
           ...generationState,
           generationStatus: isCanceled ? 'canceled' : 'failed',

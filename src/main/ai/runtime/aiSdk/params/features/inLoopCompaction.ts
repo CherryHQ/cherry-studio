@@ -35,8 +35,8 @@ import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dia
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
-import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
+import { isAbortError } from '@shared/utils/async'
 import type { LanguageModelUsage, ModelMessage } from 'ai'
 
 import type { RequestFeature } from '../feature'

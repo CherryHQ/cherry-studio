@@ -2,6 +2,7 @@ import { once } from 'node:events'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { finished } from 'node:stream/promises'
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -70,10 +71,6 @@ function contextRecord(archiveName: ChatArchiveName, key: string, entity: unknow
 function serializeRecord(reference: ChatRecordReference, entity: unknown): HydratedChatRecord {
   const data = Buffer.from(`${JSON.stringify(entity)}\n`, 'utf8')
   return { ...reference, bytes: data.length, data }
-}
-
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve))
 }
 
 async function* collectNormalChatRecords(

@@ -4,7 +4,7 @@ import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { formatApiKeys, joinApiKeyString, splitApiKeyString } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { debounce } from 'es-toolkit/compat'
+import { debounce } from '@shared/utils/async'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 

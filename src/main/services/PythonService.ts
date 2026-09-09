@@ -4,6 +4,7 @@ import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { createTimeout } from '@shared/utils/async'
 
 interface PythonExecutionRequest {
   id: string
@@ -27,7 +28,11 @@ interface PythonExecutionResponse {
 export class PythonService extends BaseService {
   private pendingRequests = new Map<
     string,
-    { resolve: (value: string) => void; reject: (error: Error) => void; timeoutId: NodeJS.Timeout }
+    {
+      resolve: (value: string) => void
+      reject: (error: Error) => void
+      timeoutId: ReturnType<typeof createTimeout<void>>
+    }
   >()
 
   protected async onInit() {
@@ -36,7 +41,7 @@ export class PythonService extends BaseService {
 
   protected async onStop() {
     for (const [id, { reject, timeoutId }] of this.pendingRequests) {
-      clearTimeout(timeoutId)
+      timeoutId.dispose()
       reject(new Error('PythonService is stopping'))
       this.pendingRequests.delete(id)
     }
@@ -46,7 +51,7 @@ export class PythonService extends BaseService {
     this.ipcOn(IpcChannel.Python_ExecutionResponse, (_, response: PythonExecutionResponse) => {
       const request = this.pendingRequests.get(response.id)
       if (request) {
-        clearTimeout(request.timeoutId)
+        request.timeoutId.dispose()
         this.pendingRequests.delete(response.id)
         if (response.error) {
           request.reject(new Error(response.error))
@@ -72,18 +77,18 @@ export class PythonService extends BaseService {
     return new Promise((resolve, reject) => {
       const requestId = randomUUID()
 
-      const timeoutId = setTimeout(() => {
+      const timeoutId = createTimeout(timeout + 5000, () => {
         this.pendingRequests.delete(requestId)
         reject(new Error('Python execution timed out'))
-      }, timeout + 5000)
+      })
 
       this.pendingRequests.set(requestId, {
         resolve: (value: string) => {
-          clearTimeout(timeoutId)
+          timeoutId.dispose()
           resolve(value)
         },
         reject: (error: Error) => {
-          clearTimeout(timeoutId)
+          timeoutId.dispose()
           reject(error)
         },
         timeoutId

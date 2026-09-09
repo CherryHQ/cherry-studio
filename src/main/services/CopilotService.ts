@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { mergeHeaders } from '@main/utils/http'
+import { delay as sleep } from '@shared/utils/async'
 import { net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -200,7 +201,7 @@ class CopilotService {
     let currentDelay = CONFIG.POLLING.INITIAL_DELAY_MS
 
     for (let attempt = 0; attempt < CONFIG.POLLING.MAX_ATTEMPTS; attempt++) {
-      await this.delay(currentDelay)
+      await sleep(currentDelay)
 
       try {
         const response = await net.fetch(CONFIG.API_URLS.GITHUB_ACCESS_TOKEN, {
@@ -302,13 +303,6 @@ class CopilotService {
       logger.error('Failed to logout:', error as Error)
       throw new CopilotServiceError('无法完成退出登录操作', error)
     }
-  }
-
-  /**
-   * 辅助方法：延迟执行
-   */
-  private delay = (ms: number): Promise<void> => {
-    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }
 

@@ -17,6 +17,7 @@ import {
   type MiniAppDistributionManifest,
   MiniAppDistributionManifestSchema
 } from '@shared/types/miniAppManifest'
+import { IdleTimeoutController } from '@shared/utils/async'
 import { net } from 'electron'
 
 // One cleanup policy for the whole feature: best-effort, logged, never masking.
@@ -28,20 +29,6 @@ const logger = loggerService.withContext('miniApp:httpSource')
 export const MINI_APP_SOURCE_TIMEOUT_MS = 30_000
 /** Silence, not duration, ends a package download: a slow link stays alive by sending. */
 export const MINI_APP_DOWNLOAD_IDLE_MS = 60_000
-
-/** An abort that fires `ms` after the last `bump()` — a whole-exchange deadline when never bumped. */
-function deadline(ms: number) {
-  const abort = new AbortController()
-  let timer = setTimeout(() => abort.abort(), ms)
-  return {
-    signal: abort.signal,
-    bump: () => {
-      clearTimeout(timer)
-      timer = setTimeout(() => abort.abort(), ms)
-    },
-    clear: () => clearTimeout(timer)
-  }
-}
 
 /** Origin and path only: presigned urls carry their credential in the query, and warn logs persist. */
 function loggable(url: string): string {
@@ -117,7 +104,7 @@ async function fetchManifestFrom(url: string): Promise<MiniAppDistributionManife
   assertHttps(url)
   // `credentials: 'omit'` is as mandatory here as in `cherry.network.fetch` (design §8) —
   // a third-party URL, and Electron sends session auth when unset (`electron.d.ts:20240`).
-  const { signal, clear } = deadline(MINI_APP_SOURCE_TIMEOUT_MS)
+  const { signal, dispose } = new IdleTimeoutController(MINI_APP_SOURCE_TIMEOUT_MS, () => undefined)
   try {
     const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal })
     if (!res.ok) throw new Error(`Failed to fetch mini app manifest: ${res.status}`)
@@ -133,7 +120,7 @@ async function fetchManifestFrom(url: string): Promise<MiniAppDistributionManife
     }
     return MiniAppDistributionManifestSchema.parse(JSON.parse(Buffer.concat(chunks).toString('utf8')))
   } finally {
-    clear()
+    dispose()
   }
 }
 
@@ -183,18 +170,18 @@ async function fetchPackageFrom(
     throw new Error(`Package declares ${expected.size} bytes, over the ${MINI_APP_MAX_PACKAGE_BYTES} limit`)
   }
 
-  const idle = deadline(MINI_APP_DOWNLOAD_IDLE_MS)
+  const idle = new IdleTimeoutController(MINI_APP_DOWNLOAD_IDLE_MS, () => undefined)
   try {
     return await downloadPackage(url, expected, idle, onProgress)
   } finally {
-    idle.clear()
+    idle.dispose()
   }
 }
 
 async function downloadPackage(
   url: string,
   expected: { sha256: string; size: number; origins: readonly string[] },
-  idle: ReturnType<typeof deadline>,
+  idle: IdleTimeoutController,
   onProgress?: (received: number, total: number) => void
 ): Promise<DownloadedPackage> {
   const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal: idle.signal })
@@ -214,7 +201,7 @@ async function downloadPackage(
     let received = 0
     try {
       for await (const chunk of res.body as unknown as AsyncIterable<Uint8Array>) {
-        idle.bump()
+        idle.reset()
         received += chunk.byteLength
         if (received > expected.size) {
           throw new Error(`Package exceeds the declared ${expected.size} bytes`)
@@ -256,7 +243,7 @@ export async function fetchIcon(
   if (!expected.origins.includes(parsed.origin)) {
     throw new Error(`Icon origin ${parsed.origin} is not one of the pinned ${expected.origins.join(', ')}`)
   }
-  const { signal, clear } = deadline(MINI_APP_SOURCE_TIMEOUT_MS)
+  const { signal, dispose } = new IdleTimeoutController(MINI_APP_SOURCE_TIMEOUT_MS, () => undefined)
   const chunks: Uint8Array[] = []
   try {
     const res = await net.fetch(url, { credentials: 'omit', redirect: 'error', signal })
@@ -269,7 +256,7 @@ export async function fetchIcon(
       chunks.push(chunk)
     }
   } finally {
-    clear()
+    dispose()
   }
   const bytes = Buffer.concat(chunks)
   const actual = createHash('sha256').update(bytes).digest('hex')

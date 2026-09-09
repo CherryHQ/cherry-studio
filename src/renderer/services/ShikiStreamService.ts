@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { DEFAULT_LANGUAGES, DEFAULT_THEMES, getHighlighter, loadLanguageAndThemeIfNeeded } from '@renderer/utils/shiki'
+import { createTimeout } from '@shared/utils/async'
 import { LRUCache } from 'lru-cache'
 import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
 
@@ -181,14 +182,14 @@ class ShikiStreamService {
     }
 
     const id = this.requestId++
-    let timerId: ReturnType<typeof setTimeout>
+    let deadline: ReturnType<typeof createTimeout> | undefined
     let settled = false
 
     const promise = new Promise((resolve, reject) => {
       const safeResolve = (value: any) => {
         if (!settled) {
           settled = true
-          clearTimeout(timerId)
+          deadline?.dispose()
           this.pendingRequests.delete(id)
           resolve(value)
         }
@@ -197,7 +198,7 @@ class ShikiStreamService {
       const safeReject = (reason?: any) => {
         if (!settled) {
           settled = true
-          clearTimeout(timerId)
+          deadline?.dispose()
           this.pendingRequests.delete(id)
           reject(reason)
         }
@@ -223,7 +224,7 @@ class ShikiStreamService {
       const timeout = getTimeoutForMessageType(message.type)
 
       // 设置超时处理
-      timerId = setTimeout(() => {
+      deadline = createTimeout(timeout, () => {
         // 如果是高亮操作超时，说明代码块太长，记录callerId以便降级
         if (message.type === 'highlight' && message.callerId) {
           this.workerDegradationCache.set(message.callerId, true)
@@ -231,7 +232,7 @@ class ShikiStreamService {
         } else {
           safeReject(new Error(`Worker ${message.type} request timeout`))
         }
-      }, timeout)
+      })
     })
 
     try {

@@ -12,14 +12,13 @@
  * succeed without a configuration change. A cancellation (aborted signal) is
  * the exception — it rethrows so it propagates as the cancellation it is.
  */
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import { isPermanentWebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
-import { isAbortError } from '@main/utils/error'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
+import { isAbortError } from '@shared/utils/async'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('WebLookup')

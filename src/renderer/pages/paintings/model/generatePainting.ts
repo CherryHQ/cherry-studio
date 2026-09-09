@@ -1,6 +1,7 @@
 import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
+import { onAbort } from '@shared/utils/async'
 
 import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 import { runPainting } from './runPainting'
@@ -45,8 +46,7 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
       throw new DOMException('Image generation aborted', 'AbortError')
     }
     const requestId = crypto.randomUUID()
-    const onAbort = () => void ipcApi.request('ai.image.abort', { requestId })
-    opts.signal.addEventListener('abort', onAbort, { once: true })
+    const detachAbort = onAbort(opts.signal, () => void ipcApi.request('ai.image.abort', { requestId }))
     const result = await ipcApi
       .request('ai.image.generate', {
         requestId,
@@ -60,14 +60,13 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
           ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })
         }
       })
-      // A failure now crosses IpcApi as an IpcError (name 'IpcError'), so an abort would
-      // no longer satisfy runPainting's `name === 'AbortError'` cancel check. When the
-      // user aborted, re-throw a real AbortError to preserve the silent-cancel behaviour.
+      // IpcError loses the abort name; restore it only for user cancellation
+      // so runPainting preserves silent cancellation.
       .catch((error) => {
         if (opts.signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
         throw error
       })
-      .finally(() => opts.signal.removeEventListener('abort', onAbort))
+      .finally(detachAbort)
 
     if (opts.signal.aborted) {
       throw new DOMException('Image generation aborted', 'AbortError')

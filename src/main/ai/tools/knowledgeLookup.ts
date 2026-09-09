@@ -43,7 +43,7 @@ import type {
   KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
 import { KnowledgeAddItemInputSchema } from '@shared/data/types/knowledge'
-import PQueue from 'p-queue'
+import { PQueue } from '@shared/utils/async'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('KnowledgeLookup')

@@ -1,10 +1,11 @@
 import path from 'node:path'
 
-import { isMainExternalModule } from '../../electron.vite.config'
+import { isMainExternalModule, mainResolveAlias } from '../../electron.vite.config'
 import { smokeAppDir } from './appDir'
 
 export default {
   main: {
+    resolve: { alias: mainResolveAlias },
     build: {
       emptyOutDir: true,
       outDir: path.join(smokeAppDir(), 'out', 'main'),

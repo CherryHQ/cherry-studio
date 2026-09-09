@@ -5,7 +5,6 @@
  *
  * That map is the security-critical part — a guest-supplied appId is never trusted.
  */
-
 import path from 'node:path'
 
 import { application } from '@application'
@@ -17,6 +16,7 @@ import { getAppLanguage } from '@main/i18n'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 import { MINI_APP_BRIDGE_CHANNEL, MINI_APP_STREAM_CHANNEL } from '@shared/ipc/schemas/miniAppBridge'
 import { MINI_APP_SCHEME, MiniAppManifestSchema, resolveLocalizedText } from '@shared/types/miniAppManifest'
+import { delay as sleep, SequencerByKey } from '@shared/utils/async'
 import { eq } from 'drizzle-orm'
 import { session, webContents } from 'electron'
 
@@ -410,8 +410,7 @@ export class MiniAppRuntimeService extends BaseService {
     }
   }
 
-  /** Per-app quiesce serialization; declared HERE, with its only writer. */
-  private readonly quiesceChain = new Map<string, Promise<void>>()
+  private readonly quiesceQueue = new SequencerByKey<string>()
 
   /**
    * Takes a mini app offline, runs `mutate`, and leaves it offline.
@@ -428,7 +427,7 @@ export class MiniAppRuntimeService extends BaseService {
   async withAppQuiesced<T>(appId: string, mutate: () => Promise<T>): Promise<T> {
     // Serialized per app, NOT via `withPublishLock` — `clear_data` and `reset` do not
     // take it. No cycle: the publish lock is always the outer one when both are held.
-    const run = (this.quiesceChain.get(appId) ?? Promise.resolve()).then(async () => {
+    return this.quiesceQueue.queue(appId, async () => {
       // Marked BEFORE the first check: otherwise the renderer can `prepare` between
       // "no guests left" and the mutation, and attach old code onto changing files.
       this.quiescingAppIds.add(appId)
@@ -441,16 +440,6 @@ export class MiniAppRuntimeService extends BaseService {
         this.quiescingAppIds.delete(appId)
       }
     })
-    // Keep the chain alive past a rejection, or one failed uninstall poisons every
-    // later quiesce for that app.
-    this.quiesceChain.set(
-      appId,
-      run.then(
-        () => undefined,
-        () => undefined
-      )
-    )
-    return run
   }
 
   private async quiesceThenMutate<T>(appId: string, mutate: () => Promise<T>): Promise<T> {
@@ -487,7 +476,7 @@ export class MiniAppRuntimeService extends BaseService {
   private async waitForNoGuests(appId: string, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs
     while (this.guestsOf(appId).length > 0 && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, GUEST_POLL_INTERVAL_MS))
+      await sleep(GUEST_POLL_INTERVAL_MS)
     }
   }
 

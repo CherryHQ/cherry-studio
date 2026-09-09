@@ -2,11 +2,10 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { readableContentService } from '@main/services/readableContent'
-import { isAbortError } from '@main/utils/error'
 import { fetchRemoteText } from '@main/utils/remoteFetch'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { WindowId } from '@shared/ipc/types'
-import PQueue from 'p-queue'
+import { createAbortError, isAbortError, PQueue, raceCancellation } from '@shared/utils/async'
 
 const logger = loggerService.withContext('CitationPreview')
 
@@ -37,12 +36,6 @@ function createErrorLogContext(safeUrl: string, error: unknown): { origin: strin
     origin: new URL(safeUrl).origin,
     errorName: error instanceof Error ? error.name || 'Error' : 'UnknownError'
   }
-}
-
-function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
 }
 
 function getRequestKey(context: CitationPreviewRequestContext): string {
@@ -106,9 +99,11 @@ export class CitationPreviewService extends BaseService {
     request.urls.add(safeUrl)
     job.consumers.add(requestKey)
 
-    return this.waitForPreview(job.promise, request.controller.signal).finally(() => {
-      this.detachRequest(requestKey, safeUrl, request)
-    })
+    return raceCancellation(job.promise, request.controller.signal)
+      .catch(() => '')
+      .finally(() => {
+        this.detachRequest(requestKey, safeUrl, request)
+      })
   }
 
   cancelPreviews(context: CitationPreviewRequestContext): void {
@@ -190,32 +185,6 @@ export class CitationPreviewService extends BaseService {
     })
 
     return job
-  }
-
-  private waitForPreview(preview: Promise<string>, signal: AbortSignal): Promise<string> {
-    if (signal.aborted) {
-      return Promise.resolve('')
-    }
-
-    return new Promise((resolve) => {
-      const handleAbort = (): void => {
-        cleanup()
-        resolve('')
-      }
-      const cleanup = (): void => signal.removeEventListener('abort', handleAbort)
-
-      signal.addEventListener('abort', handleAbort, { once: true })
-      void preview.then(
-        (content) => {
-          cleanup()
-          resolve(content)
-        },
-        () => {
-          cleanup()
-          resolve('')
-        }
-      )
-    })
   }
 
   private cancelRequest(requestKey: string, error: Error): void {

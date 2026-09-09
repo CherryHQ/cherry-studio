@@ -26,6 +26,28 @@ function fakeTracer() {
 }
 
 describe('createHttpTraceFetch', () => {
+  // An abort before the fetch resolves must release trace capture without consuming the SDK's body.
+  it('settles a pre-aborted trace while the SDK response body remains open', async () => {
+    const { tracer, state } = fakeTracer()
+    let source!: ReadableStreamDefaultController<Uint8Array>
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        source = controller
+      }
+    })
+    const tracedFetch = createHttpTraceFetch(async () => new Response(body), { tracer })
+    const response = await tracedFetch('https://api.example.com', { signal: AbortSignal.abort() })
+
+    try {
+      await vi.waitFor(() => expect(state.ended).toBe(true), { timeout: 100 })
+      expect(state.status?.code).toBe(SpanStatusCode.ERROR)
+    } finally {
+      source.enqueue(new TextEncoder().encode('sdk body'))
+      source.close()
+    }
+    expect(await response.text()).toBe('sdk body')
+  })
+
   it('records url/method/status + redacted headers as dedicated attributes, body-only inputs/outputs', async () => {
     const { tracer, attributes, state } = fakeTracer()
     const innerFetch = vi.fn(

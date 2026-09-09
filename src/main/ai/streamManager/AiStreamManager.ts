@@ -5,7 +5,6 @@ import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
   BaseService,
   type Disposable,
@@ -19,7 +18,6 @@ import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
-import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
   ActiveExecution,
@@ -35,6 +33,9 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
+import { createTimeout } from '@shared/utils/async'
+import { KeyedMutex } from '@shared/utils/async'
+import { withIdleTimeout } from '@shared/utils/async'
 import type { UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
@@ -372,10 +373,7 @@ export class AiStreamManager extends BaseService {
    * `onInit`; the IpcApi handler registers earlier (IpcApiService, BeforeReady), so the
    * ordering guarantee moves onto this gate.
    */
-  private markReconciled!: () => void
-  private readonly reconciled = new Promise<void>((resolve) => {
-    this.markReconciled = resolve
-  })
+  private readonly reconciliation = Promise.withResolvers<void>()
 
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
@@ -389,7 +387,7 @@ export class AiStreamManager extends BaseService {
     // Resolve crash-orphaned PENDING rows before any new stream can be opened — at boot the
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
     this.reconcileStalePendingMessages()
-    this.markReconciled()
+    this.reconciliation.resolve()
     logger.info('AiStreamManager initialized')
   }
 
@@ -406,7 +404,7 @@ export class AiStreamManager extends BaseService {
     // Gate on the boot reconcile so a placeholder written here is never clobbered by it.
     // No-op after boot (resolved promise); the only caller it can actually block is a
     // stream opened in the boot window before reconcile finished.
-    await this.reconciled
+    await this.reconciliation.promise
     return this.withDispatchLock(req.topicId, async () => {
       // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
       // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
@@ -514,17 +512,14 @@ export class AiStreamManager extends BaseService {
       }
     }
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<'timeout'>((resolve) => {
-      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
-    })
+    const timeout = createTimeout(opts.timeoutMs, () => 'timeout' as const)
     try {
       for (;;) {
         collect()
         if (pending.size === 0) return { stragglerIds: [] }
         const winner = await Promise.race([
           Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
-          timeout
+          timeout.promise
         ])
         if (winner === 'timeout') {
           const stragglerIds = [...new Set(pending.values())]
@@ -533,7 +528,7 @@ export class AiStreamManager extends BaseService {
         }
       }
     } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+      timeout.dispose()
     }
   }
 

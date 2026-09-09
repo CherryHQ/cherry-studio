@@ -3,6 +3,7 @@ import { platform } from 'node:os'
 
 import { loggerService } from '@logger'
 import type { LanHandshakeRequestMessage, LanTransferPeer } from '@shared/types/lanTransfer'
+import { onAbort as subscribeToAbort } from '@shared/utils/async'
 import { app } from 'electron'
 
 import type { ConnectionContext } from '../types'
@@ -113,11 +114,12 @@ export async function waitForSocketDrain(socket: Socket, abortSignal: AbortSigna
   }
 
   await new Promise<void>((resolve, reject) => {
+    let disposeAbort = () => {}
     const cleanup = () => {
       socket.off('drain', onDrain)
       socket.off('close', onClose)
       socket.off('error', onError)
-      abortSignal.removeEventListener('abort', onAbort)
+      disposeAbort()
     }
 
     const onDrain = () => {
@@ -143,7 +145,7 @@ export async function waitForSocketDrain(socket: Socket, abortSignal: AbortSigna
     socket.once('drain', onDrain)
     socket.once('close', onClose)
     socket.once('error', onError)
-    abortSignal.addEventListener('abort', onAbort, { once: true })
+    disposeAbort = subscribeToAbort(abortSignal, onAbort)
   })
 }
 

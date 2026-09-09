@@ -8,7 +8,6 @@ import { loggerService } from '@logger'
 import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
 import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
-import { isAbortError } from '@main/utils/error'
 import { isSameOrInside, realpath } from '@main/utils/file'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import {
@@ -18,6 +17,7 @@ import {
   toMarkdownOutputSchema
 } from '@shared/ai/builtinTools'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { AsyncInitializer, createAbortError, isAbortError } from '@shared/utils/async'
 import * as z from 'zod'
 
 export interface CherryDocumentContext {
@@ -34,11 +34,7 @@ type AnydocModule = {
   toMarkdownBytes: typeof toMarkdownBytes
 }
 
-let anydocModulePromise: Promise<AnydocModule> | undefined
-
-function loadAnydocModule(): Promise<AnydocModule> {
-  return (anydocModulePromise ??= import('@firecrawl/anydoc'))
-}
+const anydocModule = new AsyncInitializer<AnydocModule>(() => import('@firecrawl/anydoc'))
 
 function toMcpInputSchema(schema: z.ZodType): Tool['inputSchema'] {
   const json = z.toJSONSchema(schema) as Record<string, unknown>
@@ -48,7 +44,7 @@ function toMcpInputSchema(schema: z.ZodType): Tool['inputSchema'] {
 
 function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) {
-    throw signal.reason ?? Object.assign(new Error('aborted'), { name: 'AbortError' })
+    throw signal.reason ?? createAbortError('aborted')
   }
 }
 
@@ -130,7 +126,7 @@ export class CherryDocumentTools {
       const source = await resolveDocumentSource(this.context, sourcePath)
       throwIfAborted(signal)
 
-      const anydoc = await loadAnydocModule()
+      const anydoc = await anydocModule.get()
       const format = anydoc.formatFromExtension(path.extname(source.filename)) ?? undefined
       const markdown = (await anydoc.toMarkdownBytes(Buffer.from(source.data, 'base64'), format)).trim()
       if (!markdown) throw new Error('Document conversion produced no text')

@@ -1,7 +1,8 @@
 import type { Worker } from 'node:worker_threads'
 
 import { loggerService } from '@logger'
-import PQueue from 'p-queue'
+import { createTimeout, onAbort as subscribeToAbort, raceCancellation } from '@shared/utils/async'
+import { PQueue } from '@shared/utils/async'
 
 import type { ReadableContentWorkerInput, ReadableContentWorkerMessage } from './readableContentWorker'
 // oxlint-disable-next-line import/default -- Electron Vite exposes ?nodeWorker imports as default worker factories.
@@ -64,7 +65,7 @@ export class ReadableContentService {
 
     try {
       const queuedTask = this.queue.add(() => this.runWorker(input, signal, options.timeoutMs))
-      const result = await this.waitForQueueTask(queuedTask, signal)
+      const result = await raceCancellation(queuedTask, signal)
       if (!result) {
         throw new Error('Readable content extraction task did not return a result')
       }
@@ -75,34 +76,6 @@ export class ReadableContentService {
       }
       throw error
     }
-  }
-
-  private waitForQueueTask<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
-    if (signal.aborted) {
-      return Promise.reject(getAbortReason(signal))
-    }
-
-    return new Promise((resolve, reject) => {
-      let settled = false
-      const cleanup = (): void => signal.removeEventListener('abort', handleAbort)
-      const finish = (callback: () => void): void => {
-        if (settled) return
-        settled = true
-        cleanup()
-        callback()
-      }
-      const handleAbort = (): void => finish(() => reject(getAbortReason(signal)))
-
-      signal.addEventListener('abort', handleAbort, { once: true })
-      void task.then(
-        (result) => finish(() => resolve(result)),
-        (error) => finish(() => reject(error))
-      )
-
-      if (signal.aborted) {
-        handleAbort()
-      }
-    })
   }
 
   private runWorker(
@@ -118,10 +91,11 @@ export class ReadableContentService {
       const worker = createReadableContentWorker({ workerData: input })
       const timeoutMs = requestedTimeoutMs ?? DEFAULT_PARSE_TIMEOUT_MS
       let settled = false
+      let disposeAbort = () => {}
 
       const cleanup = (): void => {
-        clearTimeout(timeout)
-        signal.removeEventListener('abort', handleAbort)
+        timeout.dispose()
+        disposeAbort()
         worker.removeListener('message', handleMessage)
         worker.removeListener('error', handleError)
         worker.removeListener('exit', handleExit)
@@ -152,20 +126,19 @@ export class ReadableContentService {
       const handleExit = (code: number): void => {
         finish(() => reject(new Error(`Readable content worker exited before responding (code ${code})`)))
       }
-      const timeout = setTimeout(() => {
-        finish(() => reject(createTimeoutError(timeoutMs)))
-      }, timeoutMs)
+      const timeout = createTimeout(
+        timeoutMs,
+        () => {
+          finish(() => reject(createTimeoutError(timeoutMs)))
+        },
+        { ref: false }
+      )
 
-      timeout.unref()
       worker.unref()
       worker.once('message', handleMessage)
       worker.once('error', handleError)
       worker.once('exit', handleExit)
-      signal.addEventListener('abort', handleAbort, { once: true })
-
-      if (signal.aborted) {
-        handleAbort()
-      }
+      disposeAbort = subscribeToAbort(signal, handleAbort)
     })
   }
 

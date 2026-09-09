@@ -51,6 +51,7 @@ import {
 } from '@shared/data/types/model'
 import { type AgentTaskEventPartData, getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { createTimeout, isAbortError, onAbort } from '@shared/utils/async'
 import { readUIMessageStream, type UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -206,6 +207,7 @@ type AgentSessionTurn = {
   fastMode: boolean
   abortController: AbortController
   controller?: ReadableStreamDefaultController<UIMessageChunk>
+  offAbort?: () => void
   activeToolIds: Set<string>
   headless?: boolean
   trustedNotifyChannels?: readonly NotifyChannel[]
@@ -778,22 +780,28 @@ export class AgentSessionRuntimeService extends BaseService {
       throw new Error(`No active agent runtime turn ${input.turnId} for session ${input.sessionId}`)
     }
 
+    let streamController: ReadableStreamDefaultController<UIMessageChunk>
     return new ReadableStream<UIMessageChunk>({
       start: async (controller) => {
+        streamController = controller
+        let offAbort = () => {}
         try {
           this.clearIdleTimer(entry)
+          turn.offAbort?.()
+          turn.offAbort = undefined
           turn.controller = controller
           this.applyRuntimeStateEvent(entry, { type: 'turn-stream-opened', turn })
 
           // A user Stop is the only abort source now (steer no longer interrupts) — tear the
           // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => void this.closeSession(entry.sessionId)
-          if (input.signal.aborted) {
-            onAbort()
+          offAbort = onAbort(input.signal, () => {
+            if (this.isCurrentEntry(entry) && turn.controller === controller) void this.closeSession(entry.sessionId)
+          })
+          if (!this.isCurrentEntry(entry) || turn.controller !== controller) {
+            offAbort()
             return
-          } else {
-            input.signal.addEventListener('abort', onAbort, { once: true })
           }
+          turn.offAbort = offAbort
 
           controller.enqueue({ type: 'start' })
           // A steer/autonomous transition owns any chunks that arrived before this controller. The
@@ -804,10 +812,16 @@ export class AgentSessionRuntimeService extends BaseService {
           if (!connected || !this.isCurrentEntry(entry) || !this.isTurnLive(entry, turn)) return
           await this.admitTurn(entry, turn)
         } catch (error) {
+          offAbort()
+          if (turn.controller === controller) {
+            turn.controller = undefined
+            turn.offAbort = undefined
+          }
           controller.error(error)
         }
       },
       cancel: () => {
+        if (!this.isCurrentEntry(entry) || turn.controller !== streamController) return
         // Routed through the machine so the settle is a real transition (`awaiting-persistence`)
         // rather than an out-of-band mutation the busy/live queries cannot see.
         this.applyRuntimeStateEvent(entry, { type: 'runtime-terminal', outcome: { status: 'paused' } })
@@ -1245,17 +1259,14 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<'timeout'>((resolve) => {
-      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
-    })
+    const timeout = createTimeout(opts.timeoutMs, () => 'timeout' as const)
     try {
       for (;;) {
         collect()
         if (pending.size === 0) return { stragglerIds: [] }
         const winner = await Promise.race([
           Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
-          timeout
+          timeout.promise
         ])
         if (winner === 'timeout') {
           const stragglerIds = [...new Set(pending.values())]
@@ -1264,7 +1275,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       }
     } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+      timeout.dispose()
     }
   }
 
@@ -2261,10 +2272,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const existing = this.backgroundWorkWaiters.get(entry.sessionId)
     if (existing?.connection === connection) return existing.promise
 
-    let resolve!: () => void
-    const promise = new Promise<void>((done) => {
-      resolve = done
-    })
+    const { promise, resolve } = Promise.withResolvers<void>()
     this.backgroundWorkWaiters.set(entry.sessionId, { connection, promise, resolve })
     this.applyRuntimeStateEvent(entry, { type: 'connection-rebuild-deferred', connection, target })
     return promise
@@ -2462,6 +2470,8 @@ export class AgentSessionRuntimeService extends BaseService {
    *  is synchronous, so a trailing `chunk` event in the same connection loop already reads not-live
    *  and never touches the closed controller). */
   private closeTurn(turn: AgentSessionTurn): void {
+    turn.offAbort?.()
+    turn.offAbort = undefined
     try {
       turn.controller?.close()
     } catch {
@@ -2472,6 +2482,8 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private errorTurn(turn: AgentSessionTurn, error: unknown): void {
+    turn.offAbort?.()
+    turn.offAbort = undefined
     try {
       turn.controller?.error(error)
     } catch {
@@ -2711,6 +2723,8 @@ export class AgentSessionRuntimeService extends BaseService {
       return
     }
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
+    turn.offAbort?.()
+    turn.offAbort = undefined
     try {
       turn.controller?.close()
     } catch {
@@ -3213,10 +3227,6 @@ export class AgentSessionRuntimeService extends BaseService {
       return Promise.resolve()
     }
   }
-}
-
-function isAbortError(error: unknown): boolean {
-  return !!error && typeof error === 'object' && 'name' in error && (error as { name: unknown }).name === 'AbortError'
 }
 
 /**

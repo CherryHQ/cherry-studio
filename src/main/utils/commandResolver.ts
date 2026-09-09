@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { createTimeout, raceTimeout } from '@shared/utils/async'
 import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
@@ -73,12 +74,8 @@ async function findWindowsCommandCandidates(
   env: Record<string, string | undefined>,
   extensions: string[]
 ): Promise<string[]> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined
   try {
-    const timeout = new Promise<undefined>((resolve) => {
-      timeoutId = setTimeout(() => resolve(undefined), COMMAND_LOOKUP_TIMEOUT_MS)
-    })
-    const candidates = await Promise.race([
+    const candidates = await raceTimeout(
       which(command, {
         all: true,
         delimiter: WINDOWS_PATH_DELIMITER,
@@ -86,8 +83,9 @@ async function findWindowsCommandCandidates(
         path: getPathFromEnvironment(env) ?? '',
         pathExt: toWindowsPathExt(extensions)
       }),
-      timeout
-    ])
+      COMMAND_LOOKUP_TIMEOUT_MS,
+      () => undefined
+    )
     if (candidates === undefined) {
       logger.debug(`Timeout checking command '${command}' on Windows`)
       return []
@@ -96,8 +94,6 @@ async function findWindowsCommandCandidates(
   } catch (error) {
     logger.warn(`Error checking command '${command}'`, { error, platform: 'windows' })
     return []
-  } finally {
-    clearTimeout(timeoutId)
   }
 }
 
@@ -196,12 +192,12 @@ export async function findCommandInShellEnv(
     })
 
     let output = ''
-    const timeoutId = setTimeout(() => {
+    const timeoutId = createTimeout(COMMAND_LOOKUP_TIMEOUT_MS, () => {
       if (resolved) return
       child.kill('SIGKILL')
       logger.debug(`Timeout checking command '${command}'`)
       safeResolve(null)
-    }, COMMAND_LOOKUP_TIMEOUT_MS)
+    })
 
     child.stdout.on('data', (data) => {
       if (output.length < MAX_OUTPUT_SIZE) {
@@ -210,7 +206,7 @@ export async function findCommandInShellEnv(
     })
 
     child.on('close', (code) => {
-      clearTimeout(timeoutId)
+      timeoutId.dispose()
       if (resolved) return
 
       if (code === 0 && output.trim()) {
@@ -231,7 +227,7 @@ export async function findCommandInShellEnv(
     })
 
     child.on('error', (error) => {
-      clearTimeout(timeoutId)
+      timeoutId.dispose()
       if (resolved) return
       logger.warn(`Error checking command '${command}':`, { error, platform: 'unix' })
       safeResolve(null)

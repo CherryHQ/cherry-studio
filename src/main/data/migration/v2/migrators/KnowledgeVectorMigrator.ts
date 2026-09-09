@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
@@ -25,6 +26,7 @@ import {
   type KnowledgeItemData,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
+import { retry } from '@shared/utils/async'
 import { eq, inArray } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -82,23 +84,13 @@ const STREAM_ROW_YIELD_INTERVAL = 1024
 const VECTOR_STREAM_BATCH_SIZE = 500
 
 async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T> {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await operation()
-    } catch (error) {
+  return retry(operation, {
+    maxAttempts: FS_RETRY_MAX_ATTEMPTS,
+    delayMs: (attempt) => Math.min(FS_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), FS_RETRY_MAX_DELAY_MS),
+    shouldRetry: (error) => {
       const code = (error as NodeJS.ErrnoException | null)?.code
-      if (attempt >= FS_RETRY_MAX_ATTEMPTS || code === undefined || !TRANSIENT_FS_LOCK_CODES.has(code)) {
-        throw error
-      }
-      const delay = Math.min(FS_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), FS_RETRY_MAX_DELAY_MS)
-      await new Promise((resolve) => setTimeout(resolve, delay))
+      return code !== undefined && TRANSIENT_FS_LOCK_CODES.has(code)
     }
-  }
-}
-
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => {
-    setImmediate(resolve)
   })
 }
 

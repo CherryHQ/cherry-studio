@@ -3,6 +3,7 @@ import { BlockList, isIP } from 'node:net'
 
 import { application } from '@application'
 import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
+import { createTimeout } from '@shared/utils/async'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -166,7 +167,7 @@ export const networkCapability = {
     const abort = new AbortController()
     // Covers the WHOLE exchange, not just the headers: a server that answers and then
     // dangles its body would otherwise hold a concurrency slot for ever.
-    const timer = setTimeout(() => abort.abort('timeout'), MINI_APP_FETCH_TIMEOUT_MS)
+    const deadline = createTimeout(MINI_APP_FETCH_TIMEOUT_MS, () => abort.abort('timeout'))
     const owned = inflight.get(senderId) ?? new Set<AbortController>()
     owned.add(abort)
     inflight.set(senderId, owned)
@@ -220,7 +221,7 @@ export const networkCapability = {
       // that dies mid-body. Raw, the bridge answers `Internal` and blames the author's code.
       throw new MiniAppUnavailableError(`Request to ${url} failed: ${(error as Error).message}`)
     } finally {
-      clearTimeout(timer)
+      deadline.dispose()
       owned.delete(abort)
       if (owned.size === 0) inflight.delete(senderId)
       release()

@@ -6,7 +6,7 @@ import type {
   CacheCleanupInspection,
   CacheCleanupRunResult
 } from '@shared/types/cacheCleanupIpc'
-import { Mutex } from 'async-mutex'
+import { Mutex } from '@shared/utils/async'
 
 import { clearLegacyV1, inspectLegacyV1 } from './legacyV1'
 import { clearOrphanedData, inspectOrphanedData } from './orphanedData'

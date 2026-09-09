@@ -11,6 +11,7 @@ import {
 } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import ElectronShutdownHandler from '@paymoapp/electron-shutdown-handler'
+import { raceTimeout } from '@shared/utils/async'
 import { BrowserWindow, powerMonitor, powerSaveBlocker } from 'electron'
 
 const logger = loggerService.withContext('PowerService')
@@ -197,19 +198,9 @@ export class PowerService extends BaseService {
       }
     })()
 
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<void>((resolve) => {
-      timer = setTimeout(() => {
-        logger.warn('Shutdown handlers timed out — proceeding with quit', { timeoutMs: SHUTDOWN_HANDLER_TIMEOUT_MS })
-        resolve()
-      }, SHUTDOWN_HANDLER_TIMEOUT_MS)
+    await raceTimeout(run, SHUTDOWN_HANDLER_TIMEOUT_MS, () => {
+      logger.warn('Shutdown handlers timed out — proceeding with quit', { timeoutMs: SHUTDOWN_HANDLER_TIMEOUT_MS })
     })
-
-    try {
-      await Promise.race([run, timeout])
-    } finally {
-      if (timer) clearTimeout(timer)
-    }
   }
 
   private initElectronShutdownHandler(): void {

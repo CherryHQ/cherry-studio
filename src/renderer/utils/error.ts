@@ -9,6 +9,7 @@ import type {
 } from '@renderer/types/error'
 import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
 import { aiErrorDetail, aiStreamAdmissionReason } from '@shared/ipc/errors/ai'
+import { isAbortError as hasAbortErrorName } from '@shared/utils/async'
 import { safeSerialize } from '@shared/utils/serialize'
 import type { NoSuchToolError } from 'ai'
 import { AISDKError } from 'ai'
@@ -92,16 +93,15 @@ export const isAbortError = (error: any): boolean => {
     return false
   }
 
+  if (hasAbortErrorName(error)) {
+    return true
+  }
+
   // Convert message to string for consistent checking
   const errorMessage = String(error?.message || '')
 
   // 检查错误消息
   if (errorMessage === 'Request was aborted.') {
-    return true
-  }
-
-  // 检查是否为 DOMException 类型的中止错误
-  if (error instanceof DOMException && error.name === 'AbortError') {
     return true
   }
 

@@ -43,6 +43,7 @@ import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } fro
 import type { JobContext } from '@main/core/job/types'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { createDisposableTimeoutSignal, onAbort as subscribeToAbort } from '@shared/utils/async'
 
 const logger = loggerService.withContext('runAgentTask')
 
@@ -68,15 +69,11 @@ function makeRunSignal(
   if (!timeoutMinutes || timeoutMinutes <= 0) {
     return { signal: outerSignal, dispose: () => {} }
   }
-  // Own the timeout so `dispose()` can actually release the timer on normal
-  // completion (an `AbortSignal.timeout` keeps a live timer until it fires).
-  const timeoutController = new AbortController()
-  const timer = setTimeout(
-    () => timeoutController.abort(new Error(`Task timed out after ${timeoutMinutes} minute(s)`)),
-    timeoutMinutes * 60_000
+  return createDisposableTimeoutSignal(
+    timeoutMinutes * 60_000,
+    () => new Error(`Task timed out after ${timeoutMinutes} minute(s)`),
+    outerSignal
   )
-  const signal = AbortSignal.any([outerSignal, timeoutController.signal])
-  return { signal, dispose: () => clearTimeout(timer) }
 }
 
 /**
@@ -240,12 +237,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const { signal: runSignal, dispose } = makeRunSignal(ctx.signal, timeoutMinutes)
   const startTimeMs = Date.now()
 
-  let resolveExecution!: (text: string) => void
-  let rejectExecution!: (err: unknown) => void
-  const executionDone = new Promise<string>((resolve, reject) => {
-    resolveExecution = resolve
-    rejectExecution = reject
-  })
+  const { promise: executionDone, resolve: resolveExecution, reject: rejectExecution } = Promise.withResolvers<string>()
   let topicId = buildAgentSessionTopicId(session.id)
   let accumulatedText = ''
   let completionActive = true
@@ -303,6 +295,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
   }
   let runError: Error | null = null
+  let disposeAbort: (() => void) | undefined
   let resultText = ''
   try {
     let rebound = false
@@ -343,8 +336,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     // Do not arm topic-level cancellation before admission. While this call waits for the
     // dispatch lock, the topic may legitimately belong to a user's live turn; aborting there
     // would kill exactly the stream that `requireIdle` is meant to stand down from.
-    if (runSignal.aborted) onRunAbort()
-    else runSignal.addEventListener('abort', onRunAbort, { once: true })
+    disposeAbort = subscribeToAbort(runSignal, onRunAbort)
 
     resultText = await executionDone
   } catch (err) {
@@ -358,7 +350,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     }
     throw runError
   } finally {
-    runSignal.removeEventListener('abort', onRunAbort)
+    disposeAbort?.()
     dispose()
   }
 

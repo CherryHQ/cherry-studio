@@ -16,6 +16,7 @@ import { joinApiKeyString } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
+import { delay as sleep } from '@shared/utils/async'
 import {
   AlertCircle,
   ArrowLeft,
@@ -416,7 +417,7 @@ export default function ProviderApiSetupDialog({ providerId, initialStep, onClos
 
     setCompletedVerificationSteps((current) => new Set(current).add('check'))
     if (shouldCheckModel) {
-      await new Promise((resolve) => setTimeout(resolve, VERIFICATION_STEP_FEEDBACK_DURATION_MS))
+      await sleep(VERIFICATION_STEP_FEEDBACK_DURATION_MS)
     }
 
     setBusyState('enabling')

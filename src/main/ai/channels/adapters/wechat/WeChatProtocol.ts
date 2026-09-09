@@ -8,10 +8,10 @@ import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:
 import fs from 'node:fs'
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { setTimeout as delay } from 'node:timers/promises'
 
 import { loggerService } from '@logger'
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import { delay, timeoutSignal } from '@shared/utils/async'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -482,8 +482,7 @@ async function apiFetch(
   signal?: AbortSignal
 ): Promise<unknown> {
   const url = `${baseUrlOrigin}${endpoint}`
-  const timeoutSignal = AbortSignal.timeout(timeoutMs)
-  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
+  const requestSignal = timeoutSignal(timeoutMs, signal)
   const response = await net.fetch(url, {
     method: 'POST',
     headers: buildHeaders(token, uin),

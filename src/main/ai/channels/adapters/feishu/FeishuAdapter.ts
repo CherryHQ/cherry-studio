@@ -78,19 +78,19 @@ function splitThreadMarkdown(text: string): string[] {
 class FeishuStreamSession {
   private currentText = ''
   private disposed = false
-  private resolveController!: (controller: Lark.MarkdownStreamController) => void
-  private resolveCompletion!: () => void
+  private readonly resolveController: (controller: Lark.MarkdownStreamController) => void
+  private readonly resolveCompletion: () => void
   private readonly controllerReady: Promise<Lark.MarkdownStreamController>
   private readonly completion: Promise<void>
   private readonly stream: Promise<Lark.SendResult>
 
   constructor(channel: Lark.LarkChannel, chatId: string, opts?: SendMessageOptions) {
-    this.controllerReady = new Promise((resolve) => {
-      this.resolveController = resolve
-    })
-    this.completion = new Promise((resolve) => {
-      this.resolveCompletion = resolve
-    })
+    const controller = Promise.withResolvers<Lark.MarkdownStreamController>()
+    this.controllerReady = controller.promise
+    this.resolveController = controller.resolve
+    const completion = Promise.withResolvers<void>()
+    this.completion = completion.promise
+    this.resolveCompletion = completion.resolve
     this.stream = channel.stream(
       chatId,
       {

@@ -1,11 +1,10 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
+import { createAbortError, delay } from '@shared/utils/async'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 /**
  * Shared building blocks for transports / image-model adapters.
  *
- *   - `createAbortError` synthesizes the standard `AbortError` shape callers
- *     downstream key off (`error.name === 'AbortError'`).
  *   - `waitWithSignal` is the abort-aware sleep every async-polling transport
  *     needs between attempts.
  *   - `uint8ToBase64` and `fileToDataUrl` are the AI SDK `ImageModelV3File`
@@ -16,12 +15,6 @@ import { parseDataUrl } from '@shared/utils/dataUrl'
  * / aihubmixFlux transports; consolidating here avoids three more
  * `function uint8ToBase64()` declarations when the next async vendor lands.
  */
-
-export function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
-}
 
 /**
  * Whether an HTTP error status should end a poll loop immediately. A 4xx
@@ -34,18 +27,8 @@ export function isTerminalHttpStatus(status: number): boolean {
 }
 
 export function waitWithSignal(delayMs: number, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) return Promise.reject(createAbortError('Task polling aborted'))
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort)
-      resolve()
-    }, delayMs)
-    const onAbort = () => {
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', onAbort)
-      reject(createAbortError('Task polling aborted'))
-    }
-    signal?.addEventListener('abort', onAbort, { once: true })
+  return delay(delayMs, signal).catch(() => {
+    throw createAbortError('Task polling aborted')
   })
 }
 

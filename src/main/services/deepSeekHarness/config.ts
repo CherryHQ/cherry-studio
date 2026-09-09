@@ -9,6 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { DeepSeekHarnessAgentPreset } from '@shared/types/codeCli'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { delay } from '@shared/utils/async'
 import { Document, isMap, isSeq, parseDocument, type YAMLError } from 'yaml'
 
 export type DeepSeekHarnessMode = 'direct' | 'gateway'
@@ -66,10 +67,6 @@ const PROTOCOL_BY_ENDPOINT: Record<(typeof DIRECT_ENDPOINTS)[number], DeepSeekHa
   [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: 'anthropic-messages',
   [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'openai-responses',
   [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: 'openai-completions'
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function isAlreadyExists(error: unknown): boolean {

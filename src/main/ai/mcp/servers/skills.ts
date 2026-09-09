@@ -3,6 +3,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { createTimeout } from '@shared/utils/async'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
 import { net } from 'electron'
 
@@ -157,7 +158,7 @@ class SkillsServer {
 
   private async fetchMarketplaceJson(url: string): Promise<unknown> {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    const deadline = createTimeout(REQUEST_TIMEOUT_MS, () => controller.abort())
     try {
       const response = await net.fetch(url, { method: 'GET', signal: controller.signal })
       if (!response.ok) {
@@ -165,7 +166,7 @@ class SkillsServer {
       }
       return response.json()
     } finally {
-      clearTimeout(timer)
+      deadline.dispose()
     }
   }
 

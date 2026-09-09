@@ -18,7 +18,9 @@
  * this.registerDisposable(dbService.migrationComplete.onResolved(() => { ... }))
  */
 
-import type { Disposable, Event } from './event'
+import type { Disposable } from '@shared/types/disposable'
+
+import type { Event } from './event'
 import { Emitter } from './event'
 
 export class Signal<T> implements Disposable, PromiseLike<T> {
@@ -26,13 +28,13 @@ export class Signal<T> implements Disposable, PromiseLike<T> {
   private _resolved = false
   private _disposed = false
   private readonly _emitter = new Emitter<T>()
-  private _resolve!: (value: T) => void
+  private readonly _resolve: (value: T) => void
   private readonly _promise: Promise<T>
 
   constructor() {
-    this._promise = new Promise<T>((resolve) => {
-      this._resolve = resolve
-    })
+    const { promise, resolve } = Promise.withResolvers<T>()
+    this._promise = promise
+    this._resolve = resolve
   }
 
   /**

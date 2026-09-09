@@ -270,6 +270,7 @@ describe('Skill search normalizers', () => {
 
 describe('searchSkills', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -343,6 +344,54 @@ describe('searchSkills', () => {
 
     await expect(searchSkills('vercel')).rejects.toThrow(SKILL_SEARCH_FAILED_ERROR)
     expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('aborts pending registry requests at the deadline with the native AbortError reason', async () => {
+    vi.useFakeTimers()
+    const signals: AbortSignal[] = []
+    vi.stubGlobal('fetch', (_url: string, init: RequestInit) => {
+      const signal = init.signal!
+      signals.push(signal)
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+    })
+    const rejected = expect(searchSkills('vercel')).rejects.toThrow(SKILL_SEARCH_FAILED_ERROR)
+
+    await vi.advanceTimersByTimeAsync(14_999)
+    expect(signals).toHaveLength(3)
+    expect(signals.every((signal) => !signal.aborted)).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(1)
+    await rejected
+    expect(
+      signals.every((signal) => signal.reason instanceof DOMException && signal.reason.name === 'AbortError')
+    ).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('disposes fetch deadlines before response-body parsing finishes', async () => {
+    vi.useFakeTimers()
+    const body = Promise.withResolvers<unknown>()
+    const signals: AbortSignal[] = []
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      signals.push(init.signal!)
+      if (url.startsWith('https://skills.sh/')) {
+        return { ok: true, json: () => body.promise } as Response
+      }
+      throw new Error('network down')
+    })
+    const pending = searchSkills('vercel')
+
+    await vi.advanceTimersByTimeAsync(15_001)
+    expect(signals).toHaveLength(3)
+    expect(signals.every((signal) => !signal.aborted)).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+
+    body.resolve(skillsShFixture)
+    const results = await pending
+    expect(results).toHaveLength(3)
+    expect(results.every((result) => result.sourceRegistry === 'skills.sh')).toBe(true)
   })
 
   it('should reject when one registry returns malformed data and all others fail', async () => {

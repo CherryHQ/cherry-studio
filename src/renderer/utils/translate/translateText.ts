@@ -1,6 +1,7 @@
 import { ipcApi } from '@renderer/ipc'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import { onAbort } from '@shared/utils/async'
 import { t } from 'i18next'
 import { v4 as uuid } from 'uuid'
 
@@ -33,7 +34,11 @@ export const translateText = async (
   let cleaned = false
   const unsubscribers: Array<() => void> = []
 
-  let abortListener: (() => void) | undefined
+  const detachAbort = onAbort(signal, () => {
+    void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => {
+      // Already aborted / stream gone — main drives the final reject via the stream error event.
+    })
+  })
   const cleanup = () => {
     if (cleaned) return
     cleaned = true
@@ -44,16 +49,7 @@ export const translateText = async (
         // listener unsub never throws meaningfully
       }
     }
-    if (signal && abortListener) signal.removeEventListener('abort', abortListener)
-  }
-
-  if (signal) {
-    abortListener = () => {
-      void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => {
-        // Already aborted / stream gone — main drives the final reject via the stream error event.
-      })
-    }
-    signal.addEventListener('abort', abortListener, { once: true })
+    detachAbort()
   }
 
   return new Promise<string>((resolve, reject) => {

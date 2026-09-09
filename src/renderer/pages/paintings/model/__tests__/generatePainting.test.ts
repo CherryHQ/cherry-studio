@@ -103,6 +103,44 @@ describe('generatePainting', () => {
     await expect(generatePainting(makeOptions({}, controller.signal))).rejects.toMatchObject({ name: 'AbortError' })
   })
 
+  it('waits for the cancelled request and rejects a result that arrives after abort', async () => {
+    const controller = new AbortController()
+    const generation = Promise.withResolvers<{ files: [] }>()
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'ai.image.generate' ? generation.promise : Promise.resolve()
+    )
+    let settled = false
+    const outcome = generatePainting(makeOptions({}, controller.signal)).then(
+      (value) => {
+        settled = true
+        return value
+      },
+      (error: unknown) => {
+        settled = true
+        return error
+      }
+    )
+    const requestId = ipcRequestMock.mock.calls.find(([route]) => route === 'ai.image.generate')?.[1].requestId
+    expect(requestId).toBeTypeOf('string')
+
+    controller.abort()
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(false)
+    expect(ipcRequestMock).toHaveBeenCalledWith('ai.image.abort', { requestId })
+
+    generation.resolve({ files: [] })
+    expect(await outcome).toMatchObject({ name: 'AbortError', message: 'Image generation aborted' })
+  })
+
+  it('detaches cancellation after the generate request settles', async () => {
+    const controller = new AbortController()
+    await generatePainting(makeOptions({}, controller.signal))
+
+    controller.abort()
+
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.image.abort', expect.anything())
+  })
+
   it('re-throws the original error when the request rejects without a user abort', async () => {
     const failure = new Error('provider exploded')
     ipcRequestMock.mockImplementation(async (route: string) => {

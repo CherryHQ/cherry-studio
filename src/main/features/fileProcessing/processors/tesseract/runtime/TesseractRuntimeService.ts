@@ -5,8 +5,8 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { loadOcrImage } from '@main/features/fileProcessing/utils/ocr'
 import { regionService } from '@main/services/RegionService'
+import { createAbortError, onAbort as subscribeToAbort, PQueue } from '@shared/utils/async'
 import { MB } from '@shared/utils/constants'
-import PQueue from 'p-queue'
 import type { LanguageCode } from 'tesseract.js'
 import type Tesseract from 'tesseract.js'
 
@@ -142,27 +142,20 @@ export class TesseractRuntimeService extends BaseService {
       return recognizePromise
     }
 
-    let rejectAbort!: (error: Error) => void
-    const abortHandler = () => {
+    const abort = Promise.withResolvers<never>()
+    const disposeAbort = subscribeToAbort(signal, () => {
       void this.invalidateWorker(worker).catch((error) => {
         logger.warn('Failed to terminate Tesseract worker after task abort', error as Error)
       })
-      rejectAbort(this.createAbortError(signal.reason))
-    }
-    const abortPromise = new Promise<never>((_, reject) => {
-      rejectAbort = reject
-      signal.addEventListener('abort', abortHandler, { once: true })
+      abort.reject(this.createAbortError(signal.reason))
     })
-    if (signal.aborted) {
-      abortHandler()
-    }
 
     try {
-      const result = await Promise.race([recognizePromise, abortPromise])
+      const result = await Promise.race([recognizePromise, abort.promise])
       signal?.throwIfAborted()
       return result
     } finally {
-      signal.removeEventListener('abort', abortHandler)
+      disposeAbort()
     }
   }
 
@@ -271,14 +264,8 @@ export class TesseractRuntimeService extends BaseService {
       return reason
     }
 
-    if (reason instanceof Error) {
-      const error = new Error(reason.message)
-      error.name = 'AbortError'
-      return error
-    }
-
-    const error = new Error(typeof reason === 'string' ? reason : 'The operation was aborted')
-    error.name = 'AbortError'
-    return error
+    return createAbortError(
+      reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : 'The operation was aborted'
+    )
   }
 }

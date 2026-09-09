@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
+import { createDisposableTimeoutSignal } from '@shared/utils/async'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -218,13 +219,9 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
   }
 
   private async executeSearch(context: ExaMcpSearchContext): Promise<string> {
-    const timeoutController = new AbortController()
     const timeoutError = new DOMException(`Exa MCP search timed out after ${REQUEST_TIMEOUT_MS}ms`, 'TimeoutError')
-    const timeoutId = setTimeout(() => timeoutController.abort(timeoutError), REQUEST_TIMEOUT_MS)
-
-    const signal = context.upstreamSignal
-      ? AbortSignal.any([timeoutController.signal, context.upstreamSignal])
-      : timeoutController.signal
+    const deadline = createDisposableTimeoutSignal(REQUEST_TIMEOUT_MS, () => timeoutError, context.upstreamSignal)
+    const { signal } = deadline
 
     try {
       const headers: Record<string, string> = {
@@ -250,14 +247,14 @@ export class ExaMcpProvider extends BaseWebSearchProvider {
 
       return await response.text()
     } catch (error) {
-      if (timeoutController.signal.aborted && !context.upstreamSignal?.aborted) {
-        const signalReason = timeoutController.signal.reason
+      if (signal.aborted && !context.upstreamSignal?.aborted) {
+        const signalReason = signal.reason
         throw signalReason instanceof Error ? signalReason : timeoutError
       }
 
       throw error
     } finally {
-      clearTimeout(timeoutId)
+      deadline.dispose()
     }
   }
 }

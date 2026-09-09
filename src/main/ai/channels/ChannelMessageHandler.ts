@@ -19,6 +19,7 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { createTimeout, SequencerByKey } from '@shared/utils/async'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -93,8 +94,8 @@ export class ChannelMessageHandler {
   private readonly pendingResolutions = new Map<string, Promise<AgentSessionEntity | null>>()
   /** Per-chat debounce buffer — accumulates rapid messages before flushing */
   private readonly pendingBatches = new Map<string, PendingBatch>()
-  /** Per-sender serial queue; shared-session admission rejects cross-sender overlap visibly. */
-  private readonly chatQueues = new Map<string, Promise<void>>()
+  /** Per-agent queue generations; each conversation stays FIFO until agent state is cleared. */
+  private readonly agentQueues = new Map<string, SequencerByKey<string>>()
   /** Active abort controllers per session — allows renderer to abort via IPC */
   private readonly activeAbortControllers = new Map<string, AbortController>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. See `pause()`. */
@@ -159,14 +160,11 @@ export class ChannelMessageHandler {
     const snapshot = [...this.pendingAdmissions.entries()]
     if (snapshot.length === 0) return { stragglerIds: [] }
 
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-    const timeout = new Promise<'timeout'>((resolve) => {
-      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
-    })
+    const timeout = createTimeout(opts.timeoutMs, () => 'timeout' as const)
     try {
       const winner = await Promise.race([
         Promise.allSettled(snapshot.map(([, admission]) => admission)).then(() => 'done' as const),
-        timeout
+        timeout.promise
       ])
       if (winner === 'done') return { stragglerIds: [] }
       const stragglerIds = snapshot.filter(([id]) => this.pendingAdmissions.has(id)).map(([id]) => id)
@@ -176,7 +174,7 @@ export class ChannelMessageHandler {
       })
       return { stragglerIds }
     } finally {
-      if (timeoutHandle) clearTimeout(timeoutHandle)
+      timeout.dispose()
     }
   }
 
@@ -245,15 +243,11 @@ export class ChannelMessageHandler {
       }
 
       // Start a new batch
-      let release!: () => void
-      const ready = new Promise<void>((resolve) => {
-        release = resolve
-      })
+
+      const { promise: ready, resolve: release } = Promise.withResolvers<void>()
       const admissionId = `${batchKey}#${++this.admissionSeq}`
-      let admit!: () => void
-      const admission = new Promise<void>((resolve) => {
-        admit = resolve
-      })
+
+      const { promise: admission, resolve: admit } = Promise.withResolvers<void>()
       this.pendingAdmissions.set(admissionId, admission)
       void admission.then(() => this.pendingAdmissions.delete(admissionId))
 
@@ -280,15 +274,23 @@ export class ChannelMessageHandler {
     batch.release()
   }
 
+  private getAgentQueue(agentId: string): SequencerByKey<string> {
+    let queue = this.agentQueues.get(agentId)
+    if (!queue) {
+      queue = new SequencerByKey<string>()
+      this.agentQueues.set(agentId, queue)
+    }
+    return queue
+  }
+
   private enqueueBatch(batchKey: string, batch: PendingBatch, ready: Promise<void>): void {
     const queueKey = conversationKey(
       batch.adapter.agentId,
       batch.adapter.channelId,
       conversationIdOf(batch.messages[0])
     )
-    const prev = this.chatQueues.get(queueKey) ?? Promise.resolve()
-    const current = prev
-      .then(async () => {
+    void this.getAgentQueue(batch.adapter.agentId).queue(queueKey, () =>
+      (async () => {
         await ready
         if (batch.cancelled) return
 
@@ -297,44 +299,37 @@ export class ChannelMessageHandler {
           logger.info('Flushing merged message batch', { batchKey, messageCount: batch.messages.length })
         }
         await this.processIncoming(batch.adapter, merged, batch.admit)
-      })
-      .then(
-        () => batch.resolvers.forEach((r) => r.resolve()),
-        (err) => batch.resolvers.forEach((r) => r.reject(err))
-      )
-      .finally(() => {
-        // Clean up queue entry when no newer work has been enqueued
-        if (this.chatQueues.get(queueKey) === settled) {
-          this.chatQueues.delete(queueKey)
-        }
-      })
-    // Log errors but keep the queue chain intact
-    const settled = current.catch((err) => {
-      const errMsg = err instanceof Error ? err.message : String(err)
-      logger.error('Channel message processing failed', { batchKey, error: errMsg })
+      })()
+        .then(
+          () => batch.resolvers.forEach((r) => r.resolve()),
+          (err) => batch.resolvers.forEach((r) => r.reject(err))
+        )
+        .catch((err) => {
+          const errMsg = err instanceof Error ? err.message : String(err)
+          logger.error('Channel message processing failed', { batchKey, error: errMsg })
 
-      // Best-effort: notify the user with a generic message (no internal details)
-      try {
-        const adapter = batch.adapter
-        const message = batch.messages.at(-1)
-        const chatId = message?.chatId
-        if (adapter && message && chatId) {
-          adapter
-            .sendMessage(chatId, t('common.channel_message_processing_error'), {
-              ...responseOptionsFor(message)
-            })
-            .catch((sendErr) => {
-              logger.debug('Failed to send error notification to channel', {
-                chatId,
-                error: sendErr instanceof Error ? sendErr.message : String(sendErr)
-              })
-            })
-        }
-      } catch {
-        // Do not let error notification break the queue
-      }
-    })
-    this.chatQueues.set(queueKey, settled)
+          // Best-effort: notify the user with a generic message (no internal details).
+          try {
+            const adapter = batch.adapter
+            const message = batch.messages.at(-1)
+            const chatId = message?.chatId
+            if (adapter && message && chatId) {
+              adapter
+                .sendMessage(chatId, t('common.channel_message_processing_error'), {
+                  ...responseOptionsFor(message)
+                })
+                .catch((sendErr) => {
+                  logger.debug('Failed to send error notification to channel', {
+                    chatId,
+                    error: sendErr instanceof Error ? sendErr.message : String(sendErr)
+                  })
+                })
+            }
+          } catch {
+            // Do not let error notification break the queue.
+          }
+        })
+    )
   }
 
   private mergeMessages(messages: ChannelMessageEvent[]): ChannelMessageEvent {
@@ -548,22 +543,12 @@ export class ChannelMessageHandler {
 
     const queueKey = conversationKey(adapter.agentId, adapter.channelId, conversationIdOf(command))
     const admissionId = `command:${queueKey}#${++this.admissionSeq}`
-    let admit!: () => void
-    const admission = new Promise<void>((resolve) => {
-      admit = resolve
-    })
+
+    const { promise: admission, resolve: admit } = Promise.withResolvers<void>()
     this.pendingAdmissions.set(admissionId, admission)
     void admission.then(() => this.pendingAdmissions.delete(admissionId))
 
-    const previous = this.chatQueues.get(queueKey) ?? Promise.resolve()
-    const current = previous.then(() => this.processCommand(adapter, command, admit))
-    const settled = current.finally(() => {
-      if (this.chatQueues.get(queueKey) === settled) {
-        this.chatQueues.delete(queueKey)
-      }
-    })
-    this.chatQueues.set(queueKey, settled)
-    return settled
+    return this.getAgentQueue(adapter.agentId).queue(queueKey, () => this.processCommand(adapter, command, admit))
   }
 
   private async processCommand(
@@ -712,11 +697,7 @@ export class ChannelMessageHandler {
         batch.resolvers.forEach((r) => r.reject(new Error('Agent removed; batch discarded')))
       }
     }
-    for (const key of this.chatQueues.keys()) {
-      if (key.startsWith(`${agentId}:`)) {
-        this.chatQueues.delete(key)
-      }
-    }
+    this.agentQueues.delete(agentId)
   }
 
   /** Abort an active stream for the given session. Returns true if a stream was in flight. */
@@ -907,12 +888,11 @@ export class ChannelMessageHandler {
       throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
     }
 
-    let resolveExecution!: (text: string) => void
-    let rejectExecution!: (err: unknown) => void
-    const executionDone = new Promise<string>((resolve, reject) => {
-      resolveExecution = resolve
-      rejectExecution = reject
-    })
+    const {
+      promise: executionDone,
+      resolve: resolveExecution,
+      reject: rejectExecution
+    } = Promise.withResolvers<string>()
     let accumulatedText = ''
     const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,

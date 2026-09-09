@@ -6,7 +6,7 @@ import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockTabs = vi.hoisted(() => ({
@@ -64,7 +64,7 @@ describe('useMiniApps', () => {
     mockIpCountry('CN')
     vi.stubGlobal('__APP_EDITION__', 'global')
 
-    // Reset module-level regionDetectionPromise to ensure fresh detection in each test
+    // Each test starts with a fresh region detection result.
     __resetRegionDetectionForTesting()
     mockTabs.tabs = []
     mockTabs.hasContext = true
@@ -702,12 +702,6 @@ describe('useMiniApps', () => {
   // === Region Auto-Detection ===
 
   describe('region auto-detection', () => {
-    beforeEach(() => {
-      // Reset the module-level promise between tests
-      // We need to re-import the module or access the internal state
-      // Since regionDetectionPromise is module-scoped, we test via the hook's useEffect
-    })
-
     it('should call setDetectedRegion with CN when IP resolves to CN', async () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
@@ -741,20 +735,57 @@ describe('useMiniApps', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
     })
 
-    it('should fallback to CN when IP detection rejects', async () => {
+    it('caches the CN fallback after IP detection rejects', async () => {
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
       mockIpCountry(new Error('Network error'))
 
+      const first = renderHook(() => useMiniApps())
+
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN'))
+      first.unmount()
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      mockIpCountry('US')
+
       renderHook(() => useMiniApps())
 
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 50))
-      })
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN'))
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(1)
+    })
 
-      expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
+    it('shares detection across mounts and starts a new lookup after the test reset', async () => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      const detection = Promise.withResolvers<string>()
+      mocks.request.mockImplementation((route: string) =>
+        route === 'system.get_ip_country' ? detection.promise : Promise.resolve(undefined)
+      )
+      const first = renderHook(() => useMiniApps())
+      const concurrent = renderHook(() => useMiniApps())
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(1)
+
+      await act(async () => {
+        detection.resolve('US')
+        await detection.promise
+      })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
+      first.unmount()
+      concurrent.unmount()
+
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      mockIpCountry('CN')
+      const repeated = renderHook(() => useMiniApps())
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global'))
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(1)
+      repeated.unmount()
+
+      __resetRegionDetectionForTesting()
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+      renderHook(() => useMiniApps())
+      await waitFor(() => expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN'))
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'system.get_ip_country')).toHaveLength(2)
     })
 
     it('should not call detectUserRegion when region is explicitly set', async () => {

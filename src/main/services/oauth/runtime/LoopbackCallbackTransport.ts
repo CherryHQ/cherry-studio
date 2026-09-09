@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
+import { onAbort as subscribeToAbort } from '@shared/utils/async'
+
 import { OAuthServiceError } from '../errors'
 import type { LoopbackCallbackConfig } from './types'
 
@@ -43,14 +45,17 @@ export class LoopbackCallbackTransport {
       // mid-flight. Settle exactly once so a fired timer (or any late callback)
       // is a no-op.
       let settled = false
+      let disposeAbort = () => {}
       const settleResolve = (code: string) => {
         if (settled) return
         settled = true
+        disposeAbort()
         resolve(code)
       }
       const settleReject = (error: unknown) => {
         if (settled) return
         settled = true
+        disposeAbort()
         this.close()
         reject(error)
       }
@@ -117,8 +122,9 @@ export class LoopbackCallbackTransport {
           server.listen(this.config.port, host)
         })
 
+      disposeAbort = subscribeToAbort(signal, () => settleReject(new OAuthServiceError('Sign-in timed out')))
+      if (settled) return
       void Promise.all(this.config.hosts.map(listen)).catch(settleReject)
-      signal.addEventListener('abort', () => settleReject(new OAuthServiceError('Sign-in timed out')), { once: true })
     })
   }
 }

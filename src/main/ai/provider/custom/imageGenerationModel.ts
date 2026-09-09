@@ -1,7 +1,6 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ImageGenerationMode } from '@shared/data/types/model'
-
-import { createAbortError } from './transportUtils'
+import { createAbortError, onAbort as subscribeToAbort } from '@shared/utils/async'
 
 /**
  * Per-model transport routing — which endpoint to POST, whether to poll, and
@@ -132,11 +131,11 @@ export function createImageGenerationModel(
           throw createAbortError('Image generation aborted')
         }
 
-        abortSignal?.addEventListener('abort', cancelRemoteTask, { once: true })
+        const disposeAbort = subscribeToAbort(abortSignal, cancelRemoteTask)
         try {
           urls = await transport.poll(submitResult.taskId, { signal: abortSignal, onProgress })
         } finally {
-          abortSignal?.removeEventListener('abort', cancelRemoteTask)
+          disposeAbort()
         }
       } else {
         urls = []

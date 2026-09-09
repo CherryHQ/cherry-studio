@@ -13,7 +13,7 @@ import {
 } from '@main/ai/agents/agentDataDirectory'
 import { isMac, isWin } from '@main/core/platform'
 import { isPathInside, isSameOrInside } from '@main/utils/file'
-import PQueue from 'p-queue'
+import { PQueue } from '@shared/utils/async'
 import { validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('AgentsFilesystemMigration')

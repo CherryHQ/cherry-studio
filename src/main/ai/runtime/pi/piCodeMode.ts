@@ -7,6 +7,7 @@ import {
   PI_TOOL_EXEC_TOOL_NAME,
   PI_TOOL_SEARCH_TOOL_NAME
 } from '@shared/ai/piBuiltinTools'
+import { Sequencer } from '@shared/utils/async'
 
 import type { PiToolAuthorizationRequest, PiToolAuthorizer } from './approvalExtension'
 import type { PiMcpToolDefinition } from './piMcpToolAdapter'
@@ -257,24 +258,15 @@ function tokenize(value: string): string[] {
 }
 
 function createSerializedAuthorizer(authorizer: PiToolAuthorizer): SerializedAuthorizer {
-  let tail = Promise.resolve()
-  return async (request) => {
-    const previous = tail
-    let release!: () => void
-    tail = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    await previous
-    try {
+  const queue = new Sequencer()
+  return (request) =>
+    queue.queue(async () => {
       if (request.signal?.aborted) {
         const reason = request.signal.reason
         throw reason instanceof Error ? reason : new Error(reason === undefined ? 'tool_exec aborted' : String(reason))
       }
-      return await authorizer(request)
-    } finally {
-      release()
-    }
-  }
+      return authorizer(request)
+    })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

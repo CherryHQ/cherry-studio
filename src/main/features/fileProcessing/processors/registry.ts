@@ -1,5 +1,6 @@
 import { isDarwinX64, isMac, isWin, isWinArm64 } from '@main/core/platform'
 import type { FileProcessorFeature } from '@shared/data/preference/preferenceTypes'
+import { AsyncInitializer } from '@shared/utils/async'
 
 import { isOvOcrAvailable } from './ovocr/utils'
 import type { FileProcessingCapabilityHandler, FileProcessingProcessorRegistry } from './types'
@@ -8,12 +9,12 @@ function lazyHandler<Feature extends FileProcessorFeature>(
   mode: FileProcessingCapabilityHandler['mode'],
   load: () => Promise<FileProcessingCapabilityHandler<Feature>>
 ): FileProcessingCapabilityHandler<Feature> {
-  let handlerPromise: Promise<FileProcessingCapabilityHandler<Feature>> | undefined
+  const initializer = new AsyncInitializer(load)
 
   return {
     mode,
     async prepare(file, config, signal, context) {
-      const handler = await (handlerPromise ??= load())
+      const handler = await initializer.get()
       return handler.prepare(file, config, signal, context)
     }
   }

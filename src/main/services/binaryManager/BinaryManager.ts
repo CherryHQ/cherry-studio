@@ -41,7 +41,7 @@ import type {
   BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
-import { Mutex } from 'async-mutex'
+import { Mutex } from '@shared/utils/async'
 import { valid as semverValid } from 'semver'
 
 import { sanitizedCommandError } from './commandError'

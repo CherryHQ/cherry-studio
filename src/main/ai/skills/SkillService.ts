@@ -24,7 +24,7 @@ import type {
   SystemSkillCandidate,
   SystemSkillPlacement
 } from '@shared/types/skill'
-import { Mutex } from 'async-mutex'
+import { Mutex } from '@shared/utils/async'
 
 import { extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'

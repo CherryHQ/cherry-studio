@@ -8,6 +8,7 @@ import {
   formatPhaseProfile,
   type ServiceSpan
 } from '@main/core/diagnostics'
+import { raceTimeout } from '@shared/utils/async'
 
 import { SERVICE_STOP_TIMEOUT_MS } from './constants'
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
@@ -26,31 +27,6 @@ import {
 } from './types'
 
 const logger = loggerService.withContext('Lifecycle')
-
-/**
- * Race a teardown against a ceiling. The loser is NOT cancelled — it keeps
- * running in the background, overlapping whatever the shutdown pass does next.
- * That overlap is accepted during shutdown: the process is about to disappear,
- * and no service pins its correctness on `onStop` (crash and `kill -9` bypass
- * it entirely, so every service already carries atomic writes or self-healing).
- *
- * `run` carries its own rejection handler, so a late failure from the loser is
- * still logged rather than vanishing.
- *
- * The timer must be cleared: one leaked multi-second timer per service would
- * hold the event loop open long after an otherwise instant shutdown.
- */
-async function raceWithTimeout(run: Promise<TeardownOutcome>, timeoutMs: number): Promise<TeardownOutcome> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<TeardownOutcome>((resolve) => {
-    timer = setTimeout(() => resolve('timed_out'), timeoutMs)
-  })
-  try {
-    return await Promise.race([run, timeout])
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 /**
  * Emit the aggregate log for one teardown pass.
@@ -373,7 +349,8 @@ export class LifecycleManager extends EventEmitter {
       }
     )
 
-    const outcome = timeoutMs === undefined ? await run : await raceWithTimeout(run, timeoutMs)
+    // Shutdown ceilings stop waiting; late teardown work keeps running and reporting failures.
+    const outcome = timeoutMs === undefined ? await run : await raceTimeout(run, timeoutMs, () => 'timed_out' as const)
 
     if (outcome === 'timed_out') {
       logger.warn(`Service '${serviceName}' stop timed out — proceeding`, { timeoutMs })
@@ -406,7 +383,7 @@ export class LifecycleManager extends EventEmitter {
       }
     )
 
-    let outcome = timeoutMs === undefined ? await run : await raceWithTimeout(run, timeoutMs)
+    let outcome = timeoutMs === undefined ? await run : await raceTimeout(run, timeoutMs, () => 'timed_out' as const)
 
     if (outcome === 'timed_out') {
       logger.warn(`Service '${serviceName}' destroy timed out — proceeding`, { timeoutMs })

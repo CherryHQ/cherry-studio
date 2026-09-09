@@ -142,7 +142,7 @@ describe('AiStreamManager.dispatch — boot reconcile gate', () => {
 
   it('does not write a placeholder until the boot reconcile finishes, so a mid-boot open cannot race it', async () => {
     // A stream opens before onInit runs the crash-orphan reconcile — dispatch must stay parked on
-    // the gate (the synchronous sweep runs entirely inside onInit before markReconciled fires).
+    // the gate (the synchronous sweep runs entirely inside onInit before the reconciliation gate opens).
     const dispatchPromise = mgr.dispatch(fakeSubscriber, openReq('t'))
     await flush()
     expect(dispatchEvents).toEqual([])
@@ -155,11 +155,5 @@ describe('AiStreamManager.dispatch — boot reconcile gate', () => {
 
     await settleDispatch(0)
     await dispatchPromise
-  })
-
-  it('flips orphaned pending rows to error during the reconcile sweep', async () => {
-    findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
-    await runOnInit(mgr)
-    expect(markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
   })
 })

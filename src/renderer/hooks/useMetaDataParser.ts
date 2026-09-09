@@ -1,3 +1,4 @@
+import { isAbortError } from '@shared/utils/async'
 import axios from 'axios'
 import * as htmlparser2 from 'htmlparser2'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -94,7 +95,7 @@ export function useMetaDataParser<T extends string>(
       setMetadata(parsedMetadata)
     } catch (err) {
       // Don't set error if request was aborted
-      if (axios.isCancel(err) || (err instanceof Error && err.name === 'AbortError')) {
+      if (axios.isCancel(err) || (err instanceof Error && isAbortError(err))) {
         return
       }
       setError(err instanceof Error ? err : new Error('Failed to fetch HTML'))

@@ -25,7 +25,6 @@
  * Context-bound providers act on the session via the {@link CherryAgentContext}
  * passed at construction.
  */
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '@main/ai/tools/generateImageTool'
@@ -44,7 +43,6 @@ import {
   WEB_SEARCH_DESCRIPTION,
   webLookupModelOutput
 } from '@main/ai/tools/webLookup'
-import { isAbortError } from '@main/utils/error'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -62,6 +60,7 @@ import {
   webFetchInputSchema,
   webSearchInputSchema
 } from '@shared/ai/builtinTools'
+import { isAbortError } from '@shared/utils/async'
 import * as z from 'zod'
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'

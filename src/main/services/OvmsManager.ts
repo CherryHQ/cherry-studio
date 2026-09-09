@@ -12,6 +12,7 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { delay as sleep } from '@shared/utils/async'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
@@ -101,7 +102,7 @@ export class OvmsManager extends BaseService {
         }
 
         // Wait 300ms before checking again
-        await new Promise((resolve) => setTimeout(resolve, 300))
+        await sleep(300)
       }
 
       logger.warn(`Process with PID ${pid} did not disappear within timeout`)

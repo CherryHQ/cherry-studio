@@ -16,6 +16,7 @@ import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schema
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
 import type { AppEdition } from '@shared/types/appEdition'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
+import { AsyncInitializer } from '@shared/utils/async'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -71,42 +72,33 @@ const filterByEdition = (apps: MiniApp[], appEdition: AppEdition): MiniApp[] => 
   return apps.filter((app) => isVisibleForEdition(app, appEdition))
 }
 
-// Module-level promise to ensure only one IP detection request is made
-let regionDetectionPromise: Promise<MiniAppRegion> | null = null
+const loadUserRegion = async (): Promise<MiniAppRegion> => {
+  try {
+    const country = await ipcApi.request('system.get_ip_country')
+    return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
+  } catch (err) {
+    // Default to CN so mainland China users — the primary audience — never
+    // silently lose access to region-restricted apps they expect.
+    const error = err as Error
+    loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
+      error: error.message,
+      stack: error.stack,
+      fallback: 'CN'
+    })
+    return 'CN'
+  }
+}
+
+let regionDetection = new AsyncInitializer(loadUserRegion)
 
 /**
  * @only_for_testing - Reset module-level region detection state between tests
  */
 export const __resetRegionDetectionForTesting = () => {
-  regionDetectionPromise = null
+  regionDetection = new AsyncInitializer(loadUserRegion)
 }
 
-// Detect user region via IPC call to main process (cached at module level)
-const detectUserRegion = async (): Promise<MiniAppRegion> => {
-  // Return existing promise if detection is already in progress
-  if (regionDetectionPromise) {
-    return regionDetectionPromise
-  }
-
-  regionDetectionPromise = (async () => {
-    try {
-      const country = await ipcApi.request('system.get_ip_country')
-      return country.toUpperCase() === 'CN' ? 'CN' : 'Global'
-    } catch (err) {
-      // Default to CN so mainland China users — the primary audience — never
-      // silently lose access to region-restricted apps they expect.
-      const error = err as Error
-      loggerService.withContext('detectUserRegion').error('Region detection failed, falling back to CN', {
-        error: error.message,
-        stack: error.stack,
-        fallback: 'CN'
-      })
-      return 'CN'
-    }
-  })()
-
-  return regionDetectionPromise
-}
+const detectUserRegion = async (): Promise<MiniAppRegion> => regionDetection.get()
 
 /**
  * V2 useMiniApps hook — DataApi + Preference + Cache
