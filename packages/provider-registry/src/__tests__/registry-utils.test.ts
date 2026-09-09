@@ -9,7 +9,6 @@ import {
   applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
   defaultOperationCapability,
-  ENDPOINT_OPERATION_CONTRACT,
   endpointAllowedOperationCapabilities,
   endpointDefaultOperationCapability,
   getModelEndpointContractIssues,
@@ -281,17 +280,9 @@ describe('inferAdapterFamily', () => {
 
 describe('endpoint operation contract', () => {
   it('covers every endpoint and keeps each default operation allowed', () => {
-    expect(Object.keys(ENDPOINT_OPERATION_CONTRACT).sort()).toEqual([...objectValues(ENDPOINT_TYPE)].sort())
-    expect(
-      Object.entries(ENDPOINT_OPERATION_CONTRACT)
-        .filter(
-          ([endpointType, contract]) =>
-            !endpointAllowedOperationCapabilities(
-              endpointType as (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]
-            ).includes(contract.defaultOperation)
-        )
-        .map(([endpointType]) => endpointType)
-    ).toEqual([])
+    for (const endpoint of objectValues(ENDPOINT_TYPE)) {
+      expect(endpointAllowedOperationCapabilities(endpoint)).toContain(endpointDefaultOperationCapability(endpoint))
+    }
   })
 
   it('declares defaults for text and specialized endpoints', () => {
@@ -307,7 +298,7 @@ describe('endpoint operation contract', () => {
     expect(endpointDefaultOperationCapability(null)).toBeUndefined()
   })
 
-  it('allows Google Generate Content to serve text and image operations', () => {
+  it('allows the Google adapter family to serve text, image, and embedding operations', () => {
     expect(
       isEndpointCompatibleWithOperation(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, MODEL_CAPABILITY.TEXT_GENERATION)
     ).toBe(true)
@@ -315,7 +306,7 @@ describe('endpoint operation contract', () => {
       isEndpointCompatibleWithOperation(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, MODEL_CAPABILITY.IMAGE_GENERATION)
     ).toBe(true)
     expect(isEndpointCompatibleWithOperation(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, MODEL_CAPABILITY.EMBEDDING)).toBe(
-      false
+      true
     )
   })
 

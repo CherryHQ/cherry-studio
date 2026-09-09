@@ -1,3 +1,7 @@
+import { resolve } from 'node:path'
+
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { mergePresetModel } from '@data/services/ProviderRegistryService'
 import {
   CHERRY_CLOUD_MODEL_GROUP,
   CHERRY_CLOUD_PROVIDER_ID,
@@ -1912,4 +1916,53 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
   })
+})
+
+describe('official preset operation routes', () => {
+  const loader = new RegistryLoader({
+    models: resolve('packages/provider-registry/data/models.json'),
+    providers: resolve('packages/provider-registry/data/providers.json'),
+    providerModels: resolve('packages/provider-registry/data/provider-models.json')
+  })
+
+  it.each([
+    {
+      providerId: 'openai',
+      modelId: 'text-embedding-3-small',
+      operation: MODEL_CAPABILITY.EMBEDDING,
+      adapter: 'openai',
+      baseURL: 'https://api.openai.com/v1'
+    },
+    {
+      providerId: 'openai',
+      modelId: 'gpt-image-1',
+      operation: MODEL_CAPABILITY.IMAGE_GENERATION,
+      adapter: 'openai',
+      baseURL: 'https://api.openai.com/v1'
+    },
+    {
+      providerId: 'gemini',
+      modelId: 'gemini-embedding-001',
+      operation: MODEL_CAPABILITY.EMBEDDING,
+      adapter: 'google',
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta'
+    }
+  ])(
+    '$providerId/$modelId resolves its native operation config',
+    async ({ providerId, modelId, operation, adapter, baseURL }) => {
+      const preset = loader.findProvider(providerId)!
+      const model = mergePresetModel(loader.findModel(modelId)!, loader.findOverride(providerId, modelId), providerId)
+      const config = await providerToAiSdkConfig(
+        makeProvider({
+          id: providerId,
+          endpointConfigs: preset.endpointConfigs,
+          defaultChatEndpoint: preset.defaultChatEndpoint ?? undefined
+        }),
+        model,
+        { operationCapability: operation }
+      )
+      expect(config.providerId).toBe(adapter)
+      expect(config.providerSettings).toMatchObject({ baseURL })
+    }
+  )
 })

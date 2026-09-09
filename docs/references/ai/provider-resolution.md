@@ -61,6 +61,11 @@ operation, `resolveEffectiveEndpoint` resolves candidates in this order:
 7. For other operations, a compatible endpoint explicitly configured by the provider; otherwise the
    operation is not routable.
 
+Official OpenAI presets explicitly configure embedding and image endpoints with the native OpenAI
+adapter. The Google endpoint represents the native Google adapter family, including embedding calls;
+the adapter selects `embedContent` or `batchEmbedContents` for an embedding operation. These operations
+never borrow an arbitrary chat route when the provider declaration is missing.
+
 `endpointTypes` is a protocol restriction, not a second model-type system. A model may support
 multiple operations and multiple endpoints; it does not have to declare one endpoint for every
 capability. Invalid or operation-incompatible preferences are ignored for that request. A configured

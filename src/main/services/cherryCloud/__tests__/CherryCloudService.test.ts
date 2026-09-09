@@ -962,7 +962,7 @@ describe('CherryCloudService', () => {
           endpointTypes: ['anthropic-messages'],
           contextWindow: 128_000,
           maxOutputTokens: 8_192,
-          capabilities: ['function-call'],
+          capabilities: ['function-call', 'text-generation'],
           supportsStreaming: true
         }
       },
@@ -975,7 +975,7 @@ describe('CherryCloudService', () => {
           endpointTypes: ['openai-chat-completions'],
           contextWindow: 256_000,
           maxOutputTokens: 16_384,
-          capabilities: ['function-call', 'reasoning'],
+          capabilities: ['function-call', 'reasoning', 'text-generation'],
           supportsStreaming: true
         }
       }
@@ -1030,7 +1030,7 @@ describe('CherryCloudService', () => {
           endpointTypes: ['anthropic-messages'],
           contextWindow: 128_000,
           maxOutputTokens: 8_192,
-          capabilities: ['function-call'],
+          capabilities: ['function-call', 'text-generation'],
           supportsStreaming: true,
           isEnabled: true
         }
@@ -1047,7 +1047,7 @@ describe('CherryCloudService', () => {
         apiModelId: 'deepseek-free',
         presetModelId: 'deepseek-free',
         name: 'DeepSeek Free',
-        capabilities: ['function-call', 'reasoning'],
+        capabilities: ['function-call', 'reasoning', 'text-generation'],
         supportsStreaming: true,
         isEnabled: true,
         isHidden: false
@@ -1075,7 +1075,7 @@ describe('CherryCloudService', () => {
           endpointTypes: ['anthropic-messages'],
           contextWindow: 128_000,
           maxOutputTokens: 8_192,
-          capabilities: ['function-call', 'reasoning'],
+          capabilities: ['function-call', 'reasoning', 'text-generation'],
           supportsStreaming: true
         }
       }
@@ -1119,7 +1119,7 @@ describe('CherryCloudService', () => {
         endpointTypes: ['anthropic-messages'],
         contextWindow: 128_000,
         maxOutputTokens: 8_192,
-        capabilities: ['function-call'],
+        capabilities: ['function-call', 'text-generation'],
         supportsStreaming: true,
         isEnabled: true
       }

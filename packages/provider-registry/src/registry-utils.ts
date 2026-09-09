@@ -166,14 +166,14 @@ interface EndpointOperationContract {
 }
 
 /** Operation semantics for every wire endpoint supported by the registry. */
-export const ENDPOINT_OPERATION_CONTRACT = {
+const ENDPOINT_OPERATION_CONTRACT = {
   [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
     defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
     allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION]
   },
   [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
     defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
-    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION]
+    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.EMBEDDING]
   },
   [ENDPOINT_TYPE.JINA_RERANK]: {
     defaultOperation: MODEL_CAPABILITY.RERANK,
@@ -228,10 +228,6 @@ export const ENDPOINT_OPERATION_CONTRACT = {
     allowedOperations: [MODEL_CAPABILITY.VIDEO_GENERATION]
   }
 } as const satisfies Record<EndpointType, EndpointOperationContract>
-
-export type EndpointTypeForOperation<C extends ModelOperationCapability> = {
-  [K in EndpointType]: C extends (typeof ENDPOINT_OPERATION_CONTRACT)[K]['allowedOperations'][number] ? K : never
-}[EndpointType]
 
 export interface ModelEndpointContractInput {
   capabilities?: readonly ModelCapability[]

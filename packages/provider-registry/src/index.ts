@@ -123,7 +123,6 @@ export {
 
 // Pure lookup and transformation utilities (no fs dependency)
 export type {
-  EndpointTypeForOperation,
   ModelEndpointContractInput,
   ModelLookupResult,
   ModelOperationCapability,
@@ -133,7 +132,6 @@ export {
   applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
   defaultOperationCapability,
-  ENDPOINT_OPERATION_CONTRACT,
   endpointAllowedOperationCapabilities,
   endpointDefaultOperationCapability,
   getModelEndpointContractIssues,

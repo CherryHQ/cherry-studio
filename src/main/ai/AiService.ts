@@ -1334,14 +1334,14 @@ export class AiService extends BaseService {
         // with the caller's key, no job row, no result download.
         const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
         probe = (async () => {
-          const { config } = await resolveProviderAiSdkConfig(provider, model, {
-            apiKeyOverride: request.apiKeyOverride
+          const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+            operationCapability: MODEL_CAPABILITY.IMAGE_GENERATION
           })
-          const wireModelId = resolveWireModelId(
-            model,
-            resolveEffectiveEndpoint(provider, model, { operationCapability: MODEL_CAPABILITY.IMAGE_GENERATION })
-              .endpointType
-          )
+          const { config } = await resolveProviderAiSdkConfig(provider, model, {
+            apiKeyOverride: request.apiKeyOverride,
+            resolvedEndpoint
+          })
+          const wireModelId = resolveWireModelId(model, resolvedEndpoint.endpointType)
           const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
           if (!transport) {
             throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
@@ -1410,8 +1410,7 @@ export class AiService extends BaseService {
     request: AsInProcessChat<AiChatRequest> & { messageId?: string },
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
-    getRepairUsagePlugins?: () => AiPlugin[],
-    operationCapability: ModelOperationCapability = MODEL_CAPABILITY.TEXT_GENERATION
+    getRepairUsagePlugins?: () => AiPlugin[]
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
@@ -1419,7 +1418,6 @@ export class AiService extends BaseService {
       signal,
       provider,
       model,
-      operationCapability,
       assistant,
       extraFeatures,
       getRepairUsagePlugins,

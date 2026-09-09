@@ -2011,6 +2011,57 @@ describe('AiService tool approval', () => {
   // key, dropping the health check's apiKeyOverride — the probe could run with a
   // different rotated credential than the one being reported. The check probes
   // inline instead, resolving the config WITH the caller's key.
+  it.each([ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])(
+    'probes DashScope images on the image route when chat defaults to %s',
+    async (defaultChatEndpoint) => {
+      const service = createService()
+      mockProviderGetByProviderId.mockReturnValueOnce(
+        makeProvider({
+          id: 'dashscope',
+          defaultChatEndpoint,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+              adapterFamily: 'openai',
+              baseUrl: 'https://dashscope.aliyuncs.com/api/v2/apps/protocols/compatible-mode/v1'
+            },
+            [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+              adapterFamily: 'anthropic',
+              baseUrl: 'https://dashscope.aliyuncs.com/apps/anthropic'
+            },
+            [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+              adapterFamily: 'dashscope',
+              baseUrl: 'https://dashscope.aliyuncs.com'
+            }
+          }
+        })
+      )
+      mockModelGetByKey.mockReturnValue({
+        id: 'dashscope::qwen-image',
+        providerId: 'dashscope',
+        apiModelId: 'qwen-image',
+        name: 'Qwen Image',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        supportsStreaming: false,
+        isEnabled: true,
+        isHidden: false
+      })
+      const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/image.png'] })
+      mockResolveImageTransport.mockImplementation((providerId) =>
+        providerId === 'dashscope' ? { submit } : undefined
+      )
+      await expect(
+        service.checkModel({ uniqueModelId: 'dashscope::qwen-image', apiKeyOverride: 'sk-selected' })
+      ).resolves.toHaveProperty('latency')
+      expect(submit).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'qwen-image' }))
+      expect(mockResolveImageTransport).toHaveBeenCalledWith(
+        'dashscope',
+        'qwen-image',
+        expect.objectContaining({ apiKey: 'sk-selected' })
+      )
+    }
+  )
+
   it('probes transport image models inline with the caller API-key override', async () => {
     const service = createService()
     mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
