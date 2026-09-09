@@ -125,9 +125,11 @@ export class AgentJobsService extends BaseService {
     })
   }
 
-  protected async onDestroy(): Promise<void> {
-    // Drain in-flight work — event subscriptions stay live until disposables
-    // are cleaned up after onDestroy, so loop until quiescent.
+  protected async onStop(): Promise<void> {
+    // Drain at stop, not destroy: dependency ordering stops this service
+    // before JobManager/DbService, so the work we wait out still has live
+    // infrastructure underneath it. Subscriptions stay live until the
+    // post-stop disposable cleanup, so loop until quiescent.
     while (this.inFlightWork.size > 0) {
       await Promise.allSettled([...this.inFlightWork])
     }

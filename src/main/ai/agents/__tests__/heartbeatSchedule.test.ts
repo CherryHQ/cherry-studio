@@ -739,6 +739,39 @@ describe('heartbeatSchedule', () => {
     expect(scheduler.has(`schedule:${id}`)).toBe(false)
   })
 
+  it('keeps the circuit-breaker marker when a capability gate pauses the row', async () => {
+    // Only the user's toggle-off resets a breaker stop; a capability-gated
+    // pause (runtime lost heartbeat support) must preserve the marker, or
+    // restoring the capability would silently re-arm a stopped schedule.
+    seedAgent(AGENT_ID)
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: 3_600_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    dbh.db
+      .update(jobScheduleTable)
+      .set({ metadata: { circuitBreakerPaused: true } })
+      .where(eq(jobScheduleTable.id, id))
+      .run()
+    dbh.db.update(agentTable).set({ type: 'dsh' }).where(eq(agentTable.id, AGENT_ID)).run()
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('skipped-capability')
+    const row = jobScheduleService.getById(id)
+    expect(row?.enabled).toBe(false)
+    expect(row?.metadata).toMatchObject({ circuitBreakerPaused: true })
+  })
+
   it('resets a circuit-breaker pause through the heartbeat toggle off/on', async () => {
     // Toggling off clears the marker (the user's deliberate reset gesture);
     // toggling back on then converges to enabled as usual.

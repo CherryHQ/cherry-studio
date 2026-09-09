@@ -155,15 +155,20 @@ export function syncHeartbeatSchedule(agentId: string, rows?: JobScheduleSnapsho
 }
 
 /** Pause (never delete) every enabled heartbeat row; returns the paused ids. */
-function pauseHeartbeatRows(agentId: string, rows: JobScheduleSnapshot[]): string[] {
+function pauseHeartbeatRows(
+  agentId: string,
+  rows: JobScheduleSnapshot[],
+  options: { clearBreakerMarker: boolean }
+): string[] {
   // Duplicates can exist (migration disambiguation) — pausing only the first
-  // identity match would leave the rest firing. An explicit pause is also the
-  // user's reset gesture for a circuit-breaker stop, so clear its marker on
-  // every identity row, already-paused ones included.
+  // identity match would leave the rest firing. Only the user's explicit
+  // toggle-off clears the circuit-breaker marker (the reset gesture);
+  // capability-gated pauses must keep it, or restoring the capability would
+  // silently re-arm a schedule the breaker stopped.
   const paused: string[] = []
   for (const row of rows) {
     if (!matchesHeartbeatIdentity(row, agentId)) continue
-    const clearMarker = isCircuitBreakerPaused(row.metadata)
+    const clearMarker = options.clearBreakerMarker && isCircuitBreakerPaused(row.metadata)
     if (!row.enabled && !clearMarker) continue
     application.get('DbService').withWriteTx((tx) => {
       application.get('JobManager').updateJobScheduleTx(tx, row.id, {
@@ -229,7 +234,7 @@ async function runSync(
       agentId,
       type: agent.type
     })
-    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows))
+    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
     return finalize('skipped-capability')
   }
 
@@ -237,7 +242,7 @@ async function runSync(
   // the same capability here so a schedule is never armed for, say, dsh —
   // and a capability removal pauses (never deletes) any previously-armed row.
   if (capabilities.heartbeat !== true) {
-    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows))
+    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: false }))
     return finalize('skipped-capability')
   }
 
@@ -246,7 +251,8 @@ async function runSync(
   if (config.heartbeat_enabled === false) {
     // Pause instead of delete: zero timer ticks while off, no churn on re-enable.
     // The run-side gate remains as a backstop for rows paused by neither path.
-    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows))
+    // An explicit toggle-off also resets a circuit-breaker stop (marker cleared).
+    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows, { clearBreakerMarker: true }))
     return finalize(touchedScheduleIds.length > 0 ? 'paused' : 'skipped-disabled')
   }
 
