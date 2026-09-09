@@ -94,6 +94,7 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ScheduledTaskEntity, ScheduledTaskListItem, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Cron } from 'croner'
 import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
@@ -218,6 +219,21 @@ const formatTimes = (hours: string[], minute: string) =>
     .map((hour) => `${hour}:${minute}`)
     .join(',')
 
+function isValidCronExpression(value: string): boolean {
+  const expression = value.trim()
+
+  let cron: Cron | undefined
+  try {
+    cron = new Cron(expression, { paused: true })
+    cron.nextRun()
+    return true
+  } catch {
+    return false
+  } finally {
+    cron?.stop()
+  }
+}
+
 export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 'timeoutMinutes'> {
   if (trigger.kind === 'interval') {
     return {
@@ -285,7 +301,7 @@ export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null 
 
   if (schedule.kind === 'cron') {
     const expr = schedule.value.trim()
-    return expr ? { kind: 'cron', expr } : null
+    return isValidCronExpression(expr) ? { kind: 'cron', expr } : null
   }
 
   const times = parseTimes(schedule.value)
@@ -554,6 +570,14 @@ export const TaskTimeSelect: FC<{
         disabled={disabled}
         options={SCHEDULE_HOURS.map((hour) => ({ value: hour, label: hour }))}
         value={hours}
+        renderValue={(selectedHours) => {
+          const values = Array.isArray(selectedHours) ? selectedHours : []
+          return (
+            <span className={cn('min-w-0 flex-1 truncate text-left', values.length === 0 && 'text-muted-foreground')}>
+              {values.length > 0 ? values.join(', ') : t('agent.tasks.schedule.hours')}
+            </span>
+          )
+        }}
         onChange={(next) => {
           if (Array.isArray(next)) onChange(formatTimes(next, displayMinute))
         }}
@@ -665,6 +689,16 @@ const TaskScheduleControls: FC<{
           if (date) updateValue(date.toISOString())
         }}
       />
+    ) : value.kind === 'cron' ? (
+      <Input
+        className="w-72 max-w-full font-mono"
+        value={value.value}
+        placeholder={t('agent.tasks.schedule.cronPlaceholder')}
+        disabled={disabled}
+        aria-label={t('agent.tasks.schedule.cron')}
+        aria-invalid={invalid || undefined}
+        onChange={(event) => updateValue(event.target.value)}
+      />
     ) : null
 
   return (
@@ -672,12 +706,9 @@ const TaskScheduleControls: FC<{
       <Field data-invalid={invalid || undefined}>
         <FieldLabel htmlFor={`${id}-kind`}>{t('agent.tasks.frequency.label')}</FieldLabel>
         <RowFlex className="flex-wrap items-center gap-3">
-          <Select
-            value={value.kind === 'cron' ? undefined : value.kind}
-            disabled={disabled}
-            onValueChange={(kind) => updateKind(kind as Exclude<ScheduleKind, 'cron'>)}>
+          <Select value={value.kind} disabled={disabled} onValueChange={(kind) => updateKind(kind as ScheduleKind)}>
             <SelectTrigger id={`${id}-kind`} aria-invalid={invalid || undefined}>
-              <SelectValue placeholder={value.kind === 'cron' ? t('agent.tasks.schedule.custom') : undefined} />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -687,12 +718,17 @@ const TaskScheduleControls: FC<{
                 <SelectItem value="weekly">{t('agent.tasks.schedule.weekly')}</SelectItem>
                 <SelectItem value="interval">{t('agent.tasks.schedule.interval')}</SelectItem>
                 <SelectItem value="once">{t('agent.tasks.schedule.once')}</SelectItem>
+                <SelectItem value="cron">{t('agent.tasks.schedule.cron')}</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
           {frequencyControl}
         </RowFlex>
-        <FieldError>{invalid ? t('agent.tasks.schedule.invalid') : undefined}</FieldError>
+        <FieldError>
+          {invalid
+            ? t(value.kind === 'cron' ? 'agent.tasks.schedule.invalidCron' : 'agent.tasks.schedule.invalid')
+            : undefined}
+        </FieldError>
       </Field>
 
       <Field>
