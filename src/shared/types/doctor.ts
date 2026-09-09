@@ -50,6 +50,7 @@ export interface DoctorFixMeta {
 }
 
 export const DOCTOR_CHECK_IDS = [
+  'install-architecture-match',
   'install-version-channel',
   'install-update-available',
   'install-native-modules',
@@ -96,6 +97,13 @@ export interface DoctorCheckMeta<Id extends DoctorCheckId> {
 const ENDPOINT_DETAILS = ['reachable', 'untrusted_tls', 'unreachable', 'proxy_auth', 'server_error', 'timeout'] as const
 
 export const DOCTOR_CHECK_CATALOG = {
+  'install-architecture-match': {
+    domain: 'install',
+    tier: 'quick',
+    fixes: [],
+    details: ['translated'],
+    requires: []
+  },
   'install-version-channel': {
     domain: 'install',
     tier: 'quick',

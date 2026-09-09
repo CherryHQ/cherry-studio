@@ -1,5 +1,10 @@
 import { bootConfigValid, hardwareAcceleration } from './checks/config'
-import { installNativeModules, installUpdateAvailable, installVersionChannel } from './checks/install'
+import {
+  installArchitectureMatch,
+  installNativeModules,
+  installUpdateAvailable,
+  installVersionChannel
+} from './checks/install'
 import { recentLogFindings } from './checks/logs'
 import { mcpLaunchCommands, mcpServersConnected } from './checks/mcp'
 import {
@@ -20,6 +25,7 @@ import type { DoctorCheckRegistry } from './types'
 
 /** One entry per catalog id; the type makes a missing or extra entry a compile error. */
 export const doctorCheckRegistry: DoctorCheckRegistry = {
+  'install-architecture-match': installArchitectureMatch,
   'install-version-channel': installVersionChannel,
   'install-update-available': installUpdateAvailable,
   'install-native-modules': installNativeModules,
