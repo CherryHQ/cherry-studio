@@ -23,6 +23,8 @@ const {
   mockStartRun,
   mockBindTaskSessionReuse,
   mockIsSessionBusy,
+  mockUpdateJobScheduleTx,
+  mockSyncJobScheduleTimerById,
   captured
 } = vi.hoisted(() => {
   const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
@@ -36,6 +38,8 @@ const {
     }),
     mockBindTaskSessionReuse: vi.fn(() => true),
     mockIsSessionBusy: vi.fn(() => false),
+    mockUpdateJobScheduleTx: vi.fn(),
+    mockSyncJobScheduleTimerById: vi.fn(),
     captured
   }
 })
@@ -49,7 +53,13 @@ vi.mock('@application', async () => {
     AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
     AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse },
     // Gate that keeps a reusing fire off a session with a live turn.
-    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy }
+    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy },
+    // The heartbeat workspace-deleted branch pauses its own schedule.
+    JobManager: {
+      ...mod.defaultServiceInstances.JobManager,
+      updateJobScheduleTx: mockUpdateJobScheduleTx,
+      syncJobScheduleTimerById: mockSyncJobScheduleTimerById
+    }
   } as never)
 })
 
@@ -334,6 +344,25 @@ describe('runAgentTask', () => {
     expect(out).toEqual({ result: 'Skipped (workspace deleted)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
+    // The schedule pauses itself instead of tick-and-skipping until the next
+    // heartbeat sync re-provisions the workspace.
+    expect(mockUpdateJobScheduleTx).toHaveBeenCalledWith(expect.anything(), 's1', { enabled: false })
+    expect(mockSyncJobScheduleTimerById).toHaveBeenCalledWith('s1')
+  })
+
+  it('skips an ad-hoc heartbeat with a deleted workspace without pausing (no schedule)', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot(null))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(agentWorkspaceService.getById).mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('Workspace', 'ws-1')
+    })
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (workspace deleted)' })
+    expect(agentSessionService.create).not.toHaveBeenCalled()
+    expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
   })
 
   it('rejects an enabled heartbeat whose user source resolves to a system workspace', async () => {

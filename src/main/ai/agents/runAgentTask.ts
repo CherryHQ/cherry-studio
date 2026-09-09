@@ -178,6 +178,22 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       workspaceRow = agentWorkspaceService.getById(workspace.workspaceId)
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        // Stop tick-and-skip cycles after the user deletes the heartbeat workspace;
+        // the next heartbeat sync re-provisions the workspace and re-arms the row.
+        if (scheduleId) {
+          try {
+            application.get('DbService').withWriteTx((tx) => {
+              application.get('JobManager').updateJobScheduleTx(tx, scheduleId, { enabled: false })
+            })
+            application.get('JobManager').syncJobScheduleTimerById(scheduleId)
+          } catch (pauseError) {
+            logger.warn('Failed to pause heartbeat schedule after workspace deletion', {
+              agentId,
+              scheduleId,
+              error: pauseError
+            })
+          }
+        }
         logger.debug('Heartbeat skipped (workspace deleted)', {
           agentId,
           scheduleId,
