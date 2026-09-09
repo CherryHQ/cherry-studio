@@ -439,5 +439,20 @@ describe('useMessageSelectionController', () => {
 
       expect(cacheValues['chat.selected_message_ids']).toEqual([])
     })
+
+    it('drops the deferred select-all when multi-select mode is exited mid-load', () => {
+      const loadAllOlder = vi.fn()
+      const { result, rerender } = renderPaginatedController([message('a')], { hasOlder: true, loadAllOlder })
+
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+      act(() => {
+        result.current.actions.toggleMultiSelectMode?.(false)
+      })
+      rerender({ messages: [message('a'), message('b')], hasOlder: false, loadAllOlder, isLoadingAll: false })
+
+      expect(cacheValues['chat.selected_message_ids']).toEqual([])
+    })
   })
 })

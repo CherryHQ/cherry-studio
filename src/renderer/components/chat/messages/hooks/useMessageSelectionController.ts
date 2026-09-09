@@ -68,11 +68,17 @@ export function useMessageSelectionController({
 
   const selectedIds = useMemo(() => selectedMessageIds ?? [], [selectedMessageIds])
 
+  // Set while a select-all is waiting for load-all pagination to finish.
+  const selectAllPendingRef = useRef(false)
+
   const toggleMultiSelectMode = useCallback(
     (enabled: boolean) => {
       setIsMultiSelectMode(enabled)
       if (!enabled) {
         setSelectedMessageIds([])
+        // Abandon any select-all still waiting for pagination — exiting
+        // multi-select must not let the deferred selection apply later.
+        selectAllPendingRef.current = false
       }
     },
     [setIsMultiSelectMode, setSelectedMessageIds]
@@ -111,9 +117,6 @@ export function useMessageSelectionController({
   // Keep the toggle action identity stable while streaming rewrites the messages array.
   const latestSelectableIdsRef = useRef(selectableIds)
   latestSelectableIdsRef.current = selectableIds
-
-  // Set while a select-all is waiting for load-all pagination to finish.
-  const selectAllPendingRef = useRef(false)
 
   const performSelectAll = useCallback(() => {
     setSelectedMessageIds(latestSelectableIdsRef.current)

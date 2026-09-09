@@ -207,7 +207,9 @@ export function useTopicMessages(
   }, [topicId])
   useEffect(() => {
     if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing) {
-      loadNext()
+      // A failed page fetch would otherwise retry on every render — abandon
+      // the load-all instead; the user can re-trigger select-all.
+      void Promise.resolve(loadNext()).catch(() => setLoadAllRequested(false))
     }
   }, [enabled, loadAllRequested, hasNext, isLoading, isRefreshing, loadNext])
 
