@@ -434,6 +434,58 @@ describe('useMessageSelectionController', () => {
       expect(cacheValues['chat.selected_message_ids']).toEqual(['a', 'b'])
     })
 
+    it('keeps manual deselection made while the deferred select-all is loading', () => {
+      const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
+
+      // The user has a manual selection, then requests select-all (deferred).
+      act(() => {
+        result.current.actions.selectMessage?.('a', true)
+      })
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+      rerender({ messages: [message('a')], pagination: { ...handle, isLoading: true } })
+
+      // Mid-load the user unticks a message they no longer want exported.
+      act(() => {
+        result.current.actions.selectMessage?.('a', false)
+      })
+
+      // Load completes — the late select-all must not silently re-tick 'a'.
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
+      // The mock cache setter does not re-render; render once more to observe it.
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
+
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['b'])
+      expect(result.current.selection.selectAllState).toBe('indeterminate')
+    })
+
+    it('re-includes a message re-ticked while the deferred select-all is loading', () => {
+      const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
+
+      act(() => {
+        result.current.actions.selectMessage?.('a', true)
+      })
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+      rerender({ messages: [message('a')], pagination: { ...handle, isLoading: true } })
+      act(() => {
+        result.current.actions.selectMessage?.('a', false)
+      })
+      // Last action wins: the user changes their mind and re-ticks it.
+      act(() => {
+        result.current.actions.selectMessage?.('a', true)
+      })
+
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
+      // The mock cache setter does not re-render; render once more to observe it.
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
+
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['a', 'b'])
+      expect(result.current.selection.selectAllState).toBe(true)
+    })
+
     it('drops the deferred select-all when toggled off while loading', () => {
       const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
 
