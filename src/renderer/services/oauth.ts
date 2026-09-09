@@ -189,83 +189,20 @@ export interface NewApiOAuthConfig {
   apiHost?: string
 }
 
-/**
- * CherryIN OAuth flow using Authorization Code with PKCE.
- *
- * PKCE, token exchange and API-key fetch all happen in the main process
- * (`OAuthRuntimeService`); the deep-link callback is routed by `ProtocolService`
- * directly to this renderer's webContents (captured at flow-start time), so we
- * just await a single point-to-point IPC event keyed by `state`.
- */
+/** CherryIN authorization and HTTP callback are handled in the main process. */
 export const oauthWithCherryIn = async (
   setKey: (key: string) => void | Promise<void>,
   config: NewApiOAuthConfig
 ): Promise<string> => {
-  const { oauthServer, apiHost } = config
-
-  const { authUrl, state } = await ipcApi.request('oauth.start_deep_link_flow', {
+  const result = await ipcApi.request('oauth.sign_in', {
     providerId: SystemProviderIds.cherryin,
-    oauthServer,
-    apiHost
+    requestId: crypto.randomUUID(),
+    oauthServer: config.oauthServer,
+    apiHost: config.apiHost
   })
-
-  logger.debug('Opening authorization URL')
-
-  window.open(
-    authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
-
-  return new Promise<string>((resolve, reject) => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-
-    const removeListener = ipcApi.on('oauth.deep_link_result', async (result) => {
-      // Defensive: another concurrent CherryIN flow on the same window would
-      // hit the same listener; main only ever pushes for our state, but filter
-      // anyway to keep the contract explicit.
-      if (result.state !== state) return
-
-      cleanup()
-
-      if ('error' in result) {
-        logger.error(`OAuth error: ${result.error}`)
-        reject(new Error(result.error))
-        return
-      }
-
-      if (!result.apiKeys) {
-        reject(new Error('No API keys received'))
-        return
-      }
-
-      logger.debug('Successfully obtained API keys')
-      try {
-        await setKey(result.apiKeys)
-      } catch (err) {
-        reject(err)
-        return
-      }
-      resolve(result.apiKeys)
-    })
-
-    function cleanup(): void {
-      removeListener()
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-        timeoutId = null
-      }
-    }
-
-    timeoutId = setTimeout(
-      () => {
-        logger.warn('Flow timed out')
-        cleanup()
-        reject(new Error('OAuth flow timed out'))
-      },
-      10 * 60 * 1000
-    )
-  })
+  if (!result.apiKeys) throw new Error('No API keys received')
+  await setKey(result.apiKeys)
+  return result.apiKeys
 }
 
 export const oauthWithTokenDance = async (setKey) => {

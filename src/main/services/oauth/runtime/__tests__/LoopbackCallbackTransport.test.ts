@@ -79,6 +79,23 @@ describe('LoopbackCallbackTransport', () => {
     await expect(observed).resolves.toEqual({ status: 'resolved', code: 'current' })
   })
 
+  it('reports an occupied port through readiness and the login result', async () => {
+    const first = transport.waitForAuthorizationCode('expected', AbortSignal.timeout(5000))
+    await transport.ready
+    const port = await activePort(transport)
+    const blocked = new LoopbackCallbackTransport({ ...CONFIG, port })
+    try {
+      const code = blocked.waitForAuthorizationCode('other', AbortSignal.timeout(5000))
+      const rejection = expect(code).rejects.toThrow(/Failed to start OAuth callback server/)
+      await expect(blocked.ready).rejects.toThrow(/Failed to start OAuth callback server/)
+      await rejection
+    } finally {
+      blocked.close()
+      await fetch(`http://127.0.0.1:${port}/callback?code=ok&state=expected`)
+      await first
+    }
+  })
+
   it('rejects when the provider returns an error', async () => {
     const promise = transport.waitForAuthorizationCode('expected', AbortSignal.timeout(5000))
     const port = await activePort(transport)
