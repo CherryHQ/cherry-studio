@@ -1,6 +1,6 @@
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { DEFAULT_HEARTBEAT_ENABLED, normalizePermissionMode } from '@renderer/utils/agent/permissionMode'
-import { DEFAULT_HEARTBEAT_INTERVAL_MINUTES } from '@shared/ai/agentHeartbeat'
+import { clampHeartbeatIntervalMinutes } from '@shared/ai/agentHeartbeat'
 import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -43,10 +43,6 @@ export interface AgentFormState {
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : ''
-}
-
-function asNumber(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 /**
@@ -106,7 +102,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
     heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
-    heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL_MINUTES
+    heartbeatInterval: clampHeartbeatIntervalMinutes(cfg.heartbeat_interval)
   }
 }
 

@@ -18,11 +18,7 @@ import { HEARTBEAT_PROMPT_SENTINEL } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import {
-  DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
-  MAX_HEARTBEAT_INTERVAL_MINUTES,
-  MIN_HEARTBEAT_INTERVAL_MINUTES
-} from '@shared/ai/agentHeartbeat'
+import { clampHeartbeatIntervalMinutes } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -52,15 +48,6 @@ type HeartbeatJobInputTemplate = {
   timeoutMinutes: number
   workspace: { type: 'user'; workspaceId: string }
   reuseRevision: number
-}
-
-/** Zero/negative/non-numeric means "unset", not "as fast as possible" — default. */
-function clampIntervalMinutes(raw: unknown): number {
-  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) {
-    return DEFAULT_HEARTBEAT_INTERVAL_MINUTES
-  }
-  // A bare Math.round could land on 0 (e.g. 0.4) and arm a 0ms trigger.
-  return Math.min(Math.max(MIN_HEARTBEAT_INTERVAL_MINUTES, Math.round(raw)), MAX_HEARTBEAT_INTERVAL_MINUTES)
 }
 
 /** A row is this agent's heartbeat iff its template carries the sentinel prompt. */
@@ -175,21 +162,29 @@ async function runSync(
   const agent = agentService.getAgent(agentId)
   if (!agent) return 'skipped-missing-agent'
 
-  // The id of any row this sync wrote — the mid-sync deletion guard below
-  // needs it to undo the write.
+  // The ids of anything this sync wrote — the mid-sync deletion guard below
+  // needs them to undo the writes.
   let touchedScheduleId: string | null = null
+  let createdWorkspaceId: string | null = null
   const finalize = async (outcome: HeartbeatSyncOutcome): Promise<HeartbeatSyncOutcome> => {
     // The agent could be deleted mid-sync, its onAgentDeleted schedule sweep
-    // having already run — a row committed afterwards would be orphaned.
-    if (!touchedScheduleId || agentService.getAgent(agentId)) return outcome
-    const jobManager = application.get('JobManager')
-    await jobManager.unregisterJobScheduleById(touchedScheduleId).catch((error) => {
-      logger.warn('Failed to remove heartbeat schedule for an agent deleted mid-sync', { agentId, error })
-    })
-    logger.info('Removed heartbeat schedule for an agent deleted mid-sync', {
-      agentId,
-      scheduleId: touchedScheduleId
-    })
+    // having already run — a row committed afterwards would be orphaned, as
+    // would a workspace this sync created.
+    if ((!touchedScheduleId && !createdWorkspaceId) || agentService.getAgent(agentId)) return outcome
+    if (touchedScheduleId) {
+      const jobManager = application.get('JobManager')
+      await jobManager.unregisterJobScheduleById(touchedScheduleId).catch((error) => {
+        logger.warn('Failed to remove heartbeat schedule for an agent deleted mid-sync', { agentId, error })
+      })
+      logger.info('Removed heartbeat schedule for an agent deleted mid-sync', {
+        agentId,
+        scheduleId: touchedScheduleId
+      })
+    }
+    if (createdWorkspaceId) {
+      const workspaceId = createdWorkspaceId
+      application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, workspaceId))
+    }
     return 'skipped-missing-agent'
   }
 
@@ -221,7 +216,7 @@ async function runSync(
     return finalize(touchedScheduleId ? 'paused' : 'skipped-disabled')
   }
 
-  const intervalMinutes = clampIntervalMinutes(config.heartbeat_interval)
+  const intervalMinutes = clampHeartbeatIntervalMinutes(config.heartbeat_interval)
 
   // Heartbeat sessions run in a user workspace pointing at the agent data
   // directory — the stable per-agent home where heartbeat.md lives.
@@ -240,6 +235,7 @@ async function runSync(
   const { workspace, created: workspaceCreated } = agentWorkspaceService.findOrCreateByPathResult(workspacePath, {
     name: `Heartbeat — ${agent.name}`
   })
+  createdWorkspaceId = workspaceCreated ? workspace.id : null
   try {
     await ensureHeartbeatFile(workspacePath)
     const trigger: Trigger = { kind: 'interval', ms: intervalMinutes * 60_000 }
@@ -314,8 +310,8 @@ async function runSync(
   } catch (error) {
     // A workspace row created by this call is orphaned (no heartbeat row
     // points at it) when provisioning fails before the schedule commits.
-    if (workspaceCreated && !touchedScheduleId) {
-      application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, workspace.id))
+    if (createdWorkspaceId && !touchedScheduleId) {
+      application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, createdWorkspaceId))
     }
     throw error
   }

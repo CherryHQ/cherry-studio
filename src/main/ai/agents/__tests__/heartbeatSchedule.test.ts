@@ -558,6 +558,8 @@ describe('heartbeatSchedule', () => {
     expect(outcome).toBe('skipped-missing-agent')
     expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
     expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    // The workspace this sync created is rolled back along with the schedule.
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
   })
 
   it('rolls back a newly created workspace row when heartbeat-file provisioning fails', async () => {
