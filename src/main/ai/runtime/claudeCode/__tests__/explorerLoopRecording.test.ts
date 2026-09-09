@@ -206,6 +206,13 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
     expect(res8.hookSpecificOutput?.additionalContext).toContain(
       "File read limit (user constraint): 8/10 on 'src/file.ts' (2 left)."
     )
+
+    await firePostToolUse('Read', { file_path: 'src/file.ts', offset: 80 })
+    await firePostToolUse('Read', { file_path: 'src/file.ts', offset: 90 })
+    const res10 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(res10.hookSpecificOutput?.additionalContext).toContain(
+      "CRITICAL: file read limit (user constraint): 10/10 on 'src/file.ts' (last allowed read before lock)."
+    )
   })
 
   it('delivers ladder warnings for exploration budget and injects steer on cap', async () => {

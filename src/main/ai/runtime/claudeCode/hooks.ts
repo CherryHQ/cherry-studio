@@ -147,7 +147,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
             }
           }
 
-          // Same-file slice read ladder warnings (7, 8, 9)
+          // Same-file slice read ladder warnings (7, 8, 9, 10)
           const fileReadCount = status.fileReadCount
           const targetFile = status.filePath ?? 'file'
           if (toolName === 'Read' && fileReadCount !== undefined) {
@@ -164,6 +164,14 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
                 hookSpecificOutput: {
                   hookEventName: 'PreToolUse',
                   additionalContext: `File read limit (user constraint): ${fileReadCount}/10 on '${targetFile}' (${10 - fileReadCount} left). Edit/Write or report to user to avoid lock.`
+                }
+              }
+            }
+            if (fileReadCount === 10) {
+              return {
+                hookSpecificOutput: {
+                  hookEventName: 'PreToolUse',
+                  additionalContext: `CRITICAL: file read limit (user constraint): 10/10 on '${targetFile}' (last allowed read before lock). Edit/Write or report to user now.`
                 }
               }
             }
@@ -202,7 +210,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
                 parts: [
                   {
                     type: 'text',
-                    text: '打破了只读代码循环，继续工作。'
+                    text: 'Exploration budget exhausted (user constraint). Broke read-only exploration loop; proceed with Edit/Write code modification or report conclusions to the user now.'
                   }
                 ]
               }

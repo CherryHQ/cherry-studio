@@ -22,7 +22,10 @@ export const EXPLORER_IDENTICAL_THRESHOLD = 3
 /** Identical tool-call run length at which the next call is denied outright. */
 export const EXPLORER_IDENTICAL_HARD_THRESHOLD = 5
 
-/** Maximum slice reads allowed on the same file without workspace mutation. */
+/**
+ * Maximum slice reads allowed on the same file without workspace mutation.
+ * Allows up to 10 completed reads (with last-chance warning at 10); the 11th incoming read is denied.
+ */
 export const EXPLORER_SAME_FILE_CAP = 10
 
 /** Consecutive exploration calls without code mutations at which warnings begin. */

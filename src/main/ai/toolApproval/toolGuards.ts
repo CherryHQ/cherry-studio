@@ -57,13 +57,9 @@ export interface ToolGuardContext {
     | {
         identicalRun: number
         consecutiveReads: number
-        isCycle?: boolean
-        isDuplicateChunk?: boolean
         sameFileCapReached?: boolean
         filePath?: string
-        lastOffset?: number
-        rangeStart?: number
-        rangeEnd?: number
+        fileReadCount?: number
       }
     | undefined
 }
