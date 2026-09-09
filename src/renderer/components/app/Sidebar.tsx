@@ -150,7 +150,7 @@ export default function Sidebar({
             align="start"
             side="right"
             sideOffset={8}
-            className="w-72 p-0"
+            className="w-64 p-0"
             onClick={(event) => event.stopPropagation()}>
             <UserAccountPanel active={userMenuOpen} />
           </PopoverContent>

@@ -118,8 +118,8 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
   }
 
   return (
-    <ColFlex className="w-72">
-      <RowFlex className="items-center gap-2.5 p-3">
+    <ColFlex className="w-64">
+      <RowFlex className="items-center gap-2 p-2">
         <Popover
           open={avatarPopoverOpen}
           onOpenChange={(visible) => {
@@ -131,13 +131,13 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
               type="button"
               variant="ghost"
               aria-label={t('common.avatar')}
-              className="group relative size-12 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
+              className="group relative size-9 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
               {isEmoji(avatar) ? (
-                <EmojiAvatar size={48} fontSize={24}>
+                <EmojiAvatar size={36} fontSize={18}>
                   {avatar}
                 </EmojiAvatar>
               ) : (
-                <Avatar className="size-12 rounded-full">
+                <Avatar className="size-9 rounded-full">
                   <AvatarImage src={avatar} className="object-cover" />
                 </Avatar>
               )}
@@ -178,7 +178,7 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
             )}
           </PopoverContent>
         </Popover>
-        <ColFlex className="min-w-0 flex-1 gap-1">
+        <ColFlex className="min-w-0 flex-1 gap-0.5">
           <span className="text-muted-foreground text-xs">{t('settings.general.user_name.label')}</span>
           {isEditingUserName ? (
             <RowFlex className="min-w-0 items-center gap-1">
@@ -246,10 +246,10 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
         </ColFlex>
       </RowFlex>
       {isCnEdition || cloudStatus?.phase === 'signed-in' ? (
-        <ColFlex className="gap-2 border-border-subtle border-t px-3 py-2.5">
-          <RowFlex className="items-start gap-2.5">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-background-subtle text-muted-foreground">
-              <Cloud className="size-4" aria-hidden />
+        <ColFlex className="gap-2 border-border-subtle border-t px-2.5 py-2">
+          <RowFlex className="items-start gap-2">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-background-subtle text-muted-foreground">
+              <Cloud className="size-3.5" aria-hidden />
             </span>
             <ColFlex className="min-w-0 flex-1 gap-1">
               <RowFlex className="min-w-0 items-center justify-between gap-2">
