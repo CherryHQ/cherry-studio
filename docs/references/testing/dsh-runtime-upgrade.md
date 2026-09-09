@@ -1,5 +1,5 @@
 ---
-description: Build and regression examples for the DSH 0.1.2-rc.1 runtime, including offline subprocess startup and persisted session recovery
+description: Reusable build, approval, sandbox, and packaging regression checks for the embedded DSH runtime
 sources:
   - packages/dsh-bridge
   - src/main/ai/runtime/dsh
@@ -10,9 +10,9 @@ sources:
 
 ## Scope
 
-Cherry pins DSH to `0.1.2-rc.1`. The removed demo executable and agent spine are replaced by a Cherry-owned boot entry and an explicit Cordis composition. The SDK starts that entry through `dshBin`; `CHERRY_DSH_CONFIG` points to the per-connection composition. API keys remain in the child environment, not in the YAML.
+Cherry embeds a version-pinned DSH runtime using a Cherry-owned boot entry and an explicit Cordis composition. The SDK starts that entry through `dshBin`; `CHERRY_DSH_CONFIG` points to the per-connection composition. API keys remain in the child environment, not in YAML. Read `packages/dsh-bridge/package.json` for the current version; record upgrade-specific findings and historical-data compatibility in the PR.
 
-The upgrade also uses `ToolCallId`, branded `SessionSeq` values, session snapshots, the user-question event listener, and the four-argument command API. The old developer-role compatibility patch is removed because the new adapter supports that setting directly.
+The SDK's optional default-launch convenience path is not used. Until upstream makes its umbrella runtime dependency optional or a peer, a version-specific pnpm override removes that dependency. The packaging suite checks the resolved lock graph; remove the override only after verifying the upstream contract.
 
 ## Build
 
@@ -26,15 +26,17 @@ pnpm build
 
 The bridge runtime is generated under `packages/dsh-bridge/dist/runtime/`; the application build is under `out/`. This does not produce an installer. Rebuild the bridge after changing its plugin, entry list, or dependencies before running the integration tests.
 
-## Example 1: Offline Startup and Session Recovery
+## Example 1: Offline Approval and Sandbox Feedback
 
 ```sh
-pnpm exec vitest run --project main src/main/ai/runtime/dsh/__tests__/runtimeUpgrade.test.ts
+pnpm exec vitest run --project main src/main/ai/runtime/dsh/__tests__/runtimeUpgrade.test.ts src/main/ai/runtime/dsh/__tests__/sandboxEscalation.test.ts
 ```
 
-This test launches the built runtime twice using the real SDK and authenticated Cherry bridge. It checks initialization, session creation, unknown-command handling, context usage, and recovery after process shutdown. The first launch commits plan mode; the second must report `noop` when enabling it again. This catches a broken resume path that silently creates a fresh session.
+These tests launch the built runtime using the real SDK, authenticated Cherry bridge, and a local HTTP model fixture. Approval coverage verifies that rejection feedback reaches the next model step and that rejected tools do not execute. A harmless non-empty skill directory exercises skill plugin activation.
 
-No model request or tool execution is allowed. The model endpoint is a dummy loopback URL; the workspace, composition, and session logs use a temporary directory that is cleaned up afterward. No production session data or real API key is needed. This verifies sessions written by rc.1, not migration of rc.7 logs.
+Sandbox coverage verifies session-aware shell schemas and actionable tool errors for paired, unpaired, and repeated escalation parameters, including two calls in one model response. The guard rejects invalid parameters without a forced `blocked` turn; the model can correct them or report the issue normally. This is not same-mode escalation as a no-op and does not impose a general retry limit.
+
+Workspaces, compositions, and logs are temporary and cleaned up afterward. No real API key or production data is needed. These tests do not establish compatibility with logs from older SDK versions.
 
 ## Example 2: Bridge, Adapter, and Packaging Regression
 
@@ -46,7 +48,7 @@ pnpm exec vitest run --project scripts scripts/__tests__/dsh-runtime-packaging.t
 pnpm lint
 ```
 
-These suites cover approval and cancellation, missing-workspace denial, session workspace mismatch, stream and trace projection, developer-role compatibility against a local HTTP fixture, real PNG processing through the bundled attachment API, and runtime packaging rules. The packaging suite does not launch an installed application.
+These suites cover approval and cancellation, missing-workspace denial, session workspace mismatch, stream and trace projection, developer-role compatibility against a local HTTP fixture, real PNG processing through the bundled attachment API, and runtime packaging rules, SDK dependency-graph exclusions, normalized fail-closed plugin settings, and Full Access shell-parameter feedback. The packaging suite does not launch an installed application.
 
 ## Example 3: Manual Model and UI Checks
 
@@ -63,4 +65,4 @@ Use an isolated test profile and a disposable workspace. Start the built applica
 | Subagents | Ask a child agent to summarize one test file | Child events and completion reach the parent; cancellation does not leave work running |
 | Compaction | Build a short history and invoke `/compact` | Command completes, context usage refreshes, and the next turn still works |
 
-Before adopting rc.1 for existing data, back up the application data and test a **copy** of an rc.7 session log in an isolated profile. Keep the original unchanged; the automated recovery example does not establish old-log compatibility or rollback safety. Repeat native shell/sandbox checks on Windows, macOS, and Linux before release.
+Before adopting an upgraded SDK for existing data, back up the application data and test a **copy** of a session log from the previously shipped version in an isolated profile. Keep the original unchanged; the automated examples do not establish old-log compatibility or rollback safety. Repeat native shell/sandbox checks on Windows, macOS, and Linux before release.

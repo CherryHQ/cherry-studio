@@ -1,8 +1,6 @@
-import { existsSync } from 'node:fs'
-import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { type DshRuntimeEntrySpecifier, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
+import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { describe, expect, it } from 'vitest'
 
 import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
@@ -26,46 +24,6 @@ describe('dsh SDK bundling viability', () => {
     const protocol = await loadDshSdkProtocol()
 
     expect(typeof protocol.JsonRpcLineTransport).toBe('function')
-  })
-
-  it('resolves the runtime bin and every composed plugin to on-disk entries', () => {
-    const specifiers = [
-      '@cherrystudio/dsh-bridge/bin',
-      '@deepseek-ai/dsh-sdk-jsonrpc-server',
-      '@deepseek-ai/dsh-llm-pi-ai',
-      '@deepseek-ai/dsh-llm-retry',
-      '@deepseek-ai/dsh-pwsh-local',
-      '@deepseek-ai/dsh-pwsh-sandbox',
-      '@deepseek-ai/dsh-sandbox-local',
-      '@deepseek-ai/dsh-sandbox-policy',
-      '@deepseek-ai/dsh-subprocess-local',
-      '@deepseek-ai/dsh-bash-sandbox',
-      '@deepseek-ai/dsh-user-approval',
-      '@deepseek-ai/dsh-agent-loop',
-      '@deepseek-ai/dsh-system-prompt',
-      '@deepseek-ai/dsh-agent-instructions',
-      '@deepseek-ai/dsh-attachment-local',
-      '@deepseek-ai/dsh-fs-local',
-      '@deepseek-ai/dsh-tool-fs',
-      '@deepseek-ai/dsh-tool-todo',
-      '@deepseek-ai/dsh-compaction-tool-result-pruner',
-      '@deepseek-ai/dsh-compaction-basic',
-      '@deepseek-ai/dsh-commands',
-      '@deepseek-ai/dsh-command-compact',
-      '@deepseek-ai/dsh-command-goal',
-      '@deepseek-ai/dsh-goal',
-      '@deepseek-ai/dsh-goal-round-driver',
-      '@deepseek-ai/dsh-tool-goal',
-      '@deepseek-ai/dsh-session-persistence-jsonl',
-      '@deepseek-ai/dsh-shell-env',
-      '@deepseek-ai/dsh-tool-pwsh',
-      '@cherrystudio/dsh-bridge/plugin'
-    ] satisfies DshRuntimeEntrySpecifier[]
-    for (const specifier of specifiers) {
-      const resolved = resolveBundledDshRuntimeEntry(specifier)
-      expect(path.isAbsolute(resolved), `not absolute: ${resolved}`).toBe(true)
-      expect(existsSync(resolved), `missing on disk: ${resolved}`).toBe(true)
-    }
   })
 
   it('imports the built bridge plugin with production-declared runtime dependencies', async () => {

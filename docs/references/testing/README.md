@@ -1,9 +1,11 @@
 ---
-description: Home for testing reference docs covering frontend test policy and the SQLite database test harness
+description: Home for testing references covering frontend policy, the SQLite harness, and DSH runtime regression checks
 sources:
   - tests
   - src/renderer
   - packages/ui
+  - packages/dsh-bridge
+  - src/main/ai/runtime/dsh
 ---
 
 # Testing Reference
@@ -14,4 +16,4 @@ Testing policy and harnesses for Cherry Studio: what makes a test worth writing 
 | --- | --- |
 | [Frontend Testing Guidelines](./frontend-testing.md) | Normative rules for renderer, packages/ui, and E2E tests — layer choice, mocking, and review gates |
 | [Database Testing Guide](./database-testing.md) | The setupTestDatabase harness for SQLite-backed main-process code, with migration recipes and anti-patterns |
-| [DSH Runtime Upgrade Tests](./dsh-runtime-upgrade.md) | Offline startup and session recovery examples, regression commands, and manual model checks |
+| [DSH Runtime Upgrade Tests](./dsh-runtime-upgrade.md) | Offline approval and sandbox feedback, packaging contracts, and manual model checks |

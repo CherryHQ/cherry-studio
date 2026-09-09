@@ -14,12 +14,29 @@ import { DshBridgeServer } from '../DshBridgeServer'
 import { loadDshSdk } from '../dshSdk'
 
 it.each([
-  { mode: 'bypassPermissions', repeat: true },
-  { mode: 'bypassPermissions', repeat: false },
-  { mode: 'default', repeat: false }
+  {
+    mode: 'bypassPermissions',
+    repeat: true,
+    calls: 2,
+    args: { sandbox_permissions: 'danger-full-access', justification: 'Test escalation.' }
+  },
+  { mode: 'bypassPermissions', repeat: false, calls: 1, args: { sandbox_permissions: 'danger-full-access' } },
+  { mode: 'bypassPermissions', repeat: false, calls: 1, args: { justification: 'A reason without an upgrade.' } },
+  {
+    mode: 'bypassPermissions',
+    repeat: false,
+    calls: 1,
+    args: { sandbox_permissions: 'danger-full-access', justification: '' }
+  },
+  {
+    mode: 'default',
+    repeat: false,
+    calls: 1,
+    args: { sandbox_permissions: 'danger-full-access', justification: 'Test escalation.' }
+  }
 ] as const)(
-  'bounds invalid shell escalation ($mode, repeat=$repeat)',
-  async ({ mode, repeat }) => {
+  'returns actionable shell parameter errors without terminating the turn ($mode, $args)',
+  async ({ mode, repeat, calls, args }) => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'cherry-dsh-escalation-'))
     const sessionId = randomUUID()
     const shell = process.platform === 'win32' ? 'pwsh' : 'bash'
@@ -34,27 +51,23 @@ it.each([
       request.setEncoding('utf8')
       for await (const chunk of request) body += chunk
       requests.push(JSON.parse(body))
-      // Even a model ignoring the corrected schema must not keep the turn alive.
-      const call = requests.length === 1 || (repeat && requests.length <= 4)
+      const call = requests.length === 1 || (repeat && requests.length === 2)
       const delta = call
         ? {
             role: 'assistant',
-            tool_calls: [
-              {
-                index: 0,
-                id: `call-${requests.length}`,
-                type: 'function',
-                function: {
-                  name: shell,
-                  arguments: JSON.stringify({
-                    command: 'echo escalation-test',
-                    description: 'Print an escalation test marker',
-                    sandbox_permissions: 'danger-full-access',
-                    justification: 'Test the escalation boundary.'
-                  })
-                }
+            tool_calls: Array.from({ length: calls }, (_, index) => ({
+              index,
+              id: `call-${requests.length}-${index}`,
+              type: 'function',
+              function: {
+                name: shell,
+                arguments: JSON.stringify({
+                  command: 'echo escalation-test',
+                  description: 'Print an escalation test marker',
+                  ...args
+                })
               }
-            ]
+            }))
           }
         : { role: 'assistant', content: 'Stopped requesting escalation.' }
       response.writeHead(200, { 'content-type': 'text/event-stream' })
@@ -165,28 +178,28 @@ it.each([
       })
       await bridge.request('session/prompt', { sessionId, contentBlocks: [{ type: 'text', text: 'Check the shell.' }] })
       await expect.poll(completedTurns, { timeout: 20000 }).toHaveLength(1)
-      expect(requests).toHaveLength(2)
+      expect(requests).toHaveLength(repeat ? 3 : 2)
       const schema = requests[0].tools.find((tool) => tool.function.name === shell)?.function.parameters.properties
       expect(schema).toBeDefined()
       expect(Object.hasOwn(schema!, 'sandbox_permissions')).toBe(!fullAccess)
       expect(Object.hasOwn(schema!, 'justification')).toBe(!fullAccess)
       if (fullAccess) {
         expect(approvals).toBe(0)
-        expect(JSON.stringify(requests[1].messages)).toContain('not strictly wider')
+        expect(JSON.stringify(requests[1].messages)).not.toContain('not strictly wider')
         expect(JSON.stringify(requests[1].messages)).toContain('Remove sandbox_permissions and justification')
       } else {
         expect(approvals).toBeGreaterThan(0)
         expect(JSON.stringify(requests[1].messages)).not.toContain('Remove sandbox_permissions and justification')
       }
       expect(events.find((event) => event.type === 'turn/end')?.data).toMatchObject({
-        reason: { kind: repeat ? 'blocked' : 'completed' }
+        reason: { kind: 'completed' }
       })
-      expect(events.filter((event) => event.type === 'tool/result')).toHaveLength(repeat ? 2 : 1)
+      expect(events.filter((event) => event.type === 'tool/result')).toHaveLength((repeat ? 2 : 1) * calls)
       if (repeat) {
         await bridge.request('session/prompt', { sessionId, contentBlocks: [{ type: 'text', text: 'Continue.' }] })
         await expect.poll(completedTurns, { timeout: 20000 }).toHaveLength(2)
         expect(requests).toHaveLength(4)
-        expect(completedTurns()[1].data).toMatchObject({ reason: { kind: 'blocked' } })
+        expect(completedTurns()[1].data).toMatchObject({ reason: { kind: 'completed' } })
       }
     } finally {
       subscription.close()

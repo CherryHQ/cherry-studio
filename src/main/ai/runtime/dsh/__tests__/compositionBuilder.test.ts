@@ -42,7 +42,7 @@ function entryById(yml: string, id: string): ParsedEntry {
 }
 
 function providerRoute(yml: string, providerName: string): Record<string, any> {
-  return entryById(yml, 'llm').config?.providers?.[providerName]
+  return entryById(yml, 'llm-pi-ai').config?.providers?.[providerName]
 }
 
 function makeInjection(modelOverrides: Partial<Model> = {}, reasoningEffort: ReasoningEffortOption = 'default') {
@@ -121,6 +121,26 @@ describe('buildDshCompositionYaml', () => {
     const without = buildDshCompositionYaml(makeInput())
     expect(parseEntries(without).map((entry) => entry.id)).not.toContain('skill-filesystem')
     expect(parseEntries(without).map((entry) => entry.id)).not.toContain('tool-skill')
+  })
+
+  it('preserves fail-closed settings through the bundled plugins configuration schemas', async () => {
+    for (const platform of ['win32', 'linux'] as const) {
+      const yaml = buildDshCompositionYaml(makeInput({ platform, skillDirs: ['/data/Skills/review'] }))
+      const shellId = platform === 'win32' ? 'tool-pwsh' : 'tool-bash'
+      for (const [id, specifier, expected] of [
+        ['skill-filesystem', '@deepseek-ai/dsh-skill-filesystem', { includeDefaultRoots: false, watch: false }],
+        [
+          shellId,
+          platform === 'win32' ? '@deepseek-ai/dsh-tool-pwsh' : '@deepseek-ai/dsh-tool-bash',
+          { enableRunInBackground: false }
+        ],
+        ['workspace-context', '@deepseek-ai/dsh-agent-instructions', { dshHome: '/tmp/dsh-root', maxBytes: 32768 }]
+      ] as const) {
+        const entry = entryById(yaml, id)
+        const { Config } = await import(pathToFileURL(resolveDshPluginPath(specifier)).href)
+        expect(Config(entry.config), id).toMatchObject(expected)
+      }
+    }
   })
 
   it('breaks {{ openers in the persona so dsh strict interpolation cannot throw', () => {
@@ -357,7 +377,7 @@ describe('buildDshCompositionYaml', () => {
       expect(injection.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta')
       const route = providerRoute(yaml, 'google')
       expect(route).toBeDefined()
-      // Google is a catalog-provider reuse: an explicit api would be rejected by rc.6.
+      // Google reuses the catalog provider; the adapter requires that route rather than an explicit api.
       expect(route).not.toHaveProperty('api')
     }
   )
@@ -444,7 +464,7 @@ describe('buildDshCompositionYaml', () => {
 
   it('emits developer-role compatibility accepted by the bundled dsh adapter', async () => {
     const yaml = buildDshCompositionYaml(makeInput())
-    const llmConfig = entryById(yaml, 'llm').config
+    const llmConfig = entryById(yaml, 'llm-pi-ai').config
     const pluginUrl = pathToFileURL(resolveDshPluginPath('@deepseek-ai/dsh-llm-pi-ai')).href
     const { Config } = await import(pluginUrl)
 
@@ -507,7 +527,7 @@ describe('buildDshCompositionYaml', () => {
       )
       const context = new Context()
       await context.plugin(LlmRuntime)
-      await context.plugin(dshLlmPiAi, entryById(yaml, 'llm').config)
+      await context.plugin(dshLlmPiAi, entryById(yaml, 'llm-pi-ai').config)
       try {
         for await (const chunk of context.llm.stream({
           provider: injection.providerName,

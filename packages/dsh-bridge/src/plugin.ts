@@ -63,11 +63,12 @@ export function apply(ctx: Context): void {
   const sessionTools = new Map<string, Set<string>>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
   const pendingCommands = new Map<string, AbortController>()
-  const invalidEscalations = new WeakMap<Agent, number>()
 
   const isFullAccess = (agent: Agent) =>
     ctx.get('sandboxPolicy')?.resolve({ session: agent.session }).mode === 'danger-full-access'
 
+  // Upstream advertises escalation targets globally; remove this projection when schemas become session-aware.
+  // Track the embedding limitation in CherryHQ/cherry-studio#19801; execution permissions remain unchanged.
   ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
     const assembly = await next()
     if (!context.agent || !isFullAccess(context.agent)) return assembly
@@ -80,43 +81,19 @@ export function apply(ctx: Context): void {
         delete properties.justification
         return {
           ...tool,
-          description: `${tool.description}\nThis session already has full access. Omit sandbox_permissions and justification; no wider mode exists.`,
+          description: [
+            tool.name === 'pwsh'
+              ? 'Execute a PowerShell command and return stdout/stderr.'
+              : 'Execute a bash command and return stdout/stderr.',
+            'Each call uses a fresh shell; pass workdir explicitly. Non-zero exits are reported as [exit code: N].',
+            'Long output may be truncated; use the reported output file for the full result. Background execution is unavailable.',
+            'This session already has full access. Omit sandbox_permissions and justification; no wider mode exists.',
+            'Tool policies and safety guards still apply. A denied operation must not be worked around.'
+          ].join(' '),
           parameters: { ...tool.parameters, properties }
         }
       })
     }
-  })
-
-  ctx.on('tools/result', (exec, result) => {
-    const agent = exec.agent
-    if (!agent || !result.isError || (exec.name !== 'bash' && exec.name !== 'pwsh') || !isFullAccess(agent)) return
-    if (
-      !/^sandbox escalation to "(?:workspace-write|danger-full-access)" is not strictly wider than this call's current "danger-full-access" mode$/.test(
-        result.error.message
-      )
-    )
-      return
-    const attempts = (invalidEscalations.get(agent) ?? 0) + 1
-    invalidEscalations.set(agent, attempts)
-    if (attempts === 1) {
-      agent.inject(
-        createUserMessage({
-          content: [
-            {
-              type: 'text',
-              text: 'The command did not execute: this session already has danger-full-access. Remove sandbox_permissions and justification and use the current permissions. Repeating this invalid escalation will stop the current turn.'
-            }
-          ],
-          source: { kind: 'plugin', plugin: 'cherry-bridge' }
-        })
-      )
-    }
-  })
-
-  ctx.on('agent/pre-step', async ({ agent, step }, next) => {
-    if (step === 1) invalidEscalations.delete(agent)
-    if ((invalidEscalations.get(agent) ?? 0) >= 2) return { kind: 'reject' }
-    return next()
   })
 
   const link: BridgeLink = connectBridgeLink({ socketPath, onRequest: handleRequest })
@@ -457,7 +434,15 @@ export function apply(ctx: Context): void {
   // Hard guard, active in every mode (bypass included) and immune to later listeners.
   ctx.tools.guard((exec) => {
     if (exec.name !== 'bash' && exec.name !== 'pwsh') return undefined
-    const command = (exec.arguments as { command?: unknown } | null | undefined)?.command
+    const args = exec.arguments as { command?: unknown; sandbox_permissions?: unknown; justification?: unknown } | null
+    if (
+      exec.agent &&
+      isFullAccess(exec.agent) &&
+      (args?.sandbox_permissions !== undefined || args?.justification !== undefined)
+    ) {
+      return 'This session already has Full Access. Remove sandbox_permissions and justification and retry using the current permissions. The command did not execute.'
+    }
+    const command = args?.command
     if (typeof command !== 'string' || !command.trim()) return undefined
     const reason = detectGlobalInstall(command)
     if (reason === null) return undefined
@@ -481,12 +466,16 @@ export function apply(ctx: Context): void {
       )
       if (req.signal?.aborted) return 'cancelled'
       if (outcome === 'rejected' && rejectionReason) {
-        req.agent.inject(
-          createUserMessage({
-            content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
-            source: { kind: 'user' }
-          })
-        )
+        try {
+          req.agent.inject(
+            createUserMessage({
+              content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
+              source: { kind: 'user' }
+            })
+          )
+        } catch (error) {
+          console.error('[cherry-bridge] failed to deliver tool rejection feedback:', error)
+        }
       }
       return outcome
     } catch {

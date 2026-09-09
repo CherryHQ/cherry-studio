@@ -53,7 +53,7 @@ export interface DshCompositionInput {
   /** JSONL session-persistence root (`feature.agents.dsh.sessions`). */
   sessionsRoot: string
   permissionMode: BridgePermissionMode
-  /** Cherry-materialized system prompt; empty string keeps the spine's native persona. */
+  /** Cherry-materialized system prompt; empty string adds no persona beyond the optional harness identity. */
   persona: string
   /** A workspace `system.md` replaced the native base — drop the dsh identity sentence. */
   customBase: boolean
@@ -83,7 +83,7 @@ const DSH_PLAN_MODE_SECTION = [
 function buildProviderRoute(input: DshCompositionInput): Record<string, unknown> {
   return {
     apiKeyEnv: 'CHERRY_DSH_API_KEY',
-    // Google is a catalog-provider reuse: naming its explicit protocol would be rejected by rc.6.
+    // Google reuses the catalog provider; the adapter requires that route rather than an explicit protocol.
     ...(input.api === 'google-generative-ai' ? {} : { api: input.api }),
     baseURL: input.baseUrl,
     ...(input.headers && Object.keys(input.headers).length ? { headers: input.headers } : {}),
@@ -128,7 +128,9 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
 
   const entries: DshCompositionEntry[] = [
     entry('sdk-jsonrpc-server', '@deepseek-ai/dsh-sdk-jsonrpc-server', { maxTokensAsSuccess: false }),
-    entry('llm', '@deepseek-ai/dsh-llm-pi-ai', { providers: { [input.providerName]: buildProviderRoute(input) } }),
+    entry('llm-pi-ai', '@deepseek-ai/dsh-llm-pi-ai', {
+      providers: { [input.providerName]: buildProviderRoute(input) }
+    }),
     // Configless = normal mode: 2 retries for empty/rate-limit/server/timeout/transport,
     // 500ms→10s backoff. The provider profile above sets no `retryPolicy` override.
     entry('llm-retry', '@deepseek-ai/dsh-llm-retry'),
@@ -144,7 +146,7 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     // policy: ask ALWAYS — bypass is expressed by the bridge plugin's allow-all, never `never`.
     entry('approval', '@deepseek-ai/dsh-user-approval', { policy: 'ask' }),
     entry('timer', '@deepseek-ai/cordis-plugin-timer'),
-    entry('llm-runtime', '@deepseek-ai/dsh-llm'),
+    entry('llm', '@deepseek-ai/dsh-llm'),
     entry('session', '@deepseek-ai/dsh-session'),
     entry('session-title', '@deepseek-ai/dsh-session-title', {
       fallbackMaxWords: 5,
@@ -154,14 +156,13 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     entry('system-prompt', '@deepseek-ai/dsh-system-prompt', buildSystemPromptConfig(input)),
     entry('tools', '@deepseek-ai/dsh-tools'),
     entry('agent', '@deepseek-ai/dsh-agent'),
-    entry('jobs', '@deepseek-ai/dsh-jobs-local'),
     entry('invariants', '@deepseek-ai/dsh-invariants'),
     entry('session-invariant', '@deepseek-ai/dsh-session/invariant'),
     entry('agent-invariant', '@deepseek-ai/dsh-agent/invariant'),
     entry('scope-invariant', '@deepseek-ai/dsh-scope/invariant'),
     entry('agent-loop-invariant', '@deepseek-ai/dsh-agent-loop/invariant'),
     entry('agent-loop', '@deepseek-ai/dsh-agent-loop', { agents: [] }),
-    entry('workspace-context', '@deepseek-ai/dsh-agent-instructions', { maxBytes: 32768 }),
+    entry('workspace-context', '@deepseek-ai/dsh-agent-instructions', { dshHome: input.dshRoot, maxBytes: 32768 }),
     ...(input.skillDirs.length
       ? [
           entry('skill', '@deepseek-ai/dsh-skill'),
@@ -174,18 +175,14 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
           entry('tool-skill', '@deepseek-ai/dsh-tool-skill')
         ]
       : []),
-    ...(!isWindows
-      ? [
-          entry('shell-env', '@deepseek-ai/dsh-shell-env', { dshHome: input.dshRoot }),
-          entry('tool-bash', '@deepseek-ai/dsh-tool-bash', { enableRunInBackground: false })
-        ]
-      : []),
-    ...(isWindows
-      ? [
-          entry('shell-env', '@deepseek-ai/dsh-shell-env', { dshHome: input.dshRoot }),
-          entry('tool-pwsh', '@deepseek-ai/dsh-tool-pwsh', { enableRunInBackground: false })
-        ]
-      : []),
+    entry('shell-env', '@deepseek-ai/dsh-shell-env', { dshHome: input.dshRoot }),
+    entry(
+      isWindows ? 'tool-pwsh' : 'tool-bash',
+      isWindows ? '@deepseek-ai/dsh-tool-pwsh' : '@deepseek-ai/dsh-tool-bash',
+      {
+        enableRunInBackground: false
+      }
+    ),
     entry('fs', '@deepseek-ai/dsh-fs-local', { cwd: input.workspacePath }),
     entry('attachments', '@deepseek-ai/dsh-attachment-local', { dshHome: input.dshRoot }),
     entry('tool-fs', '@deepseek-ai/dsh-tool-fs'),
