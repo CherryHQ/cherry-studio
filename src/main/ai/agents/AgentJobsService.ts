@@ -76,11 +76,10 @@ export class AgentJobsService extends BaseService {
   // in onDestroy so nothing touches JobManager/DbService after their disposal.
   private inFlightHeartbeatWork = new Set<Promise<unknown>>()
 
-  private trackHeartbeatWork<T>(work: Promise<T>): Promise<T> {
+  private trackHeartbeatWork(work: Promise<unknown>): void {
     this.inFlightHeartbeatWork.add(work)
     const done = () => this.inFlightHeartbeatWork.delete(work)
-    work.then(done, done)
-    return work
+    void work.then(done, done)
   }
 
   protected async onInit(): Promise<void> {
