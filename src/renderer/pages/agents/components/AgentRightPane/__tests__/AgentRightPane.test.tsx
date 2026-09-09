@@ -817,6 +817,7 @@ describe('AgentRightPane', () => {
       expect(onAnnotationSaved).toBeDefined()
       act(() =>
         onAnnotationSaved?.({
+          updated: false,
           annotation: {
             id: '123e4567-e89b-12d3-a456-426614174000',
             comment: 'Fix the checkout button',
@@ -845,6 +846,7 @@ describe('AgentRightPane', () => {
 - URL: \`https://example.com/cart\`
 - Selector: \`#checkout\``
       expect(emittedPayload).toEqual({
+        updateOnly: false,
         topicId: 'agent-session:session-a',
         token: {
           id: 'webview-annotation:123e4567-e89b-12d3-a456-426614174000',
@@ -1011,6 +1013,34 @@ describe('AgentRightPane', () => {
     rerender(renderPane([message], { [message.id]: [part] }, loading))
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6791/')
   })
+
+  it.each([true, false])(
+    'accepts a live part appended to an older assistant while history hydrates (loading=%s)',
+    (loading) => {
+      resolveArtifactPaneFileSelectionMock.mockReturnValue({ workspacePath: '/workspace', filePath: 'artifact.html' })
+      const historyMessage = createPreviewMessage('older-live-message', [], '2020-01-01T00:00:00.000Z')
+      const renderPane = (parts: CherryMessagePart[], isMessageHistoryLoading: boolean) => (
+        <TestAgentRightPane
+          sessionId="older-live-session"
+          workspacePath="/workspace"
+          messages={parts.length ? [historyMessage] : []}
+          partsByMessageId={{ [historyMessage.id]: parts }}
+          streamingLayers={{
+            liveMessageIds: [historyMessage.id],
+            historyPartsByMessageId: { [historyMessage.id]: [] }
+          }}
+          isMessageHistoryLoading={isMessageHistoryLoading}>
+          <OpenArtifactButton path="artifact.html" />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      const { rerender } = render(renderPane([], true))
+      fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+      const part = createPreviewToolPart('older-live-tool', 'Bash', 'Ready at http://localhost:6792/')
+      rerender(renderPane([part], loading))
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6792/')
+    }
+  )
 
   it('accepts the first preview emitted after an empty initial history finishes loading', () => {
     const sessionId = 'session-empty-initial-history'

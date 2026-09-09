@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -108,8 +109,8 @@ import { useTranslation } from 'react-i18next'
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
   type AgentArtifactFile,
+  type AgentPreviewUrlCandidate,
   type AgentPreviewUrlFrontier,
-  type AgentPreviewUrlSource,
   type AgentRightPaneStatus,
   type AgentRunLiveness,
   type AgentRunTask,
@@ -117,6 +118,7 @@ import {
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection,
+  findAgentPreviewUrlCandidates,
   getAgentPreviewUrlFrontier,
   isAgentPreviewUrlSourceAfterFrontier
 } from './agentRightPaneProjection'
@@ -209,10 +211,12 @@ interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   browserUrl: string | null
-  acceptDetectedBrowserUrl: (url: string | null, source: AgentPreviewUrlSource | null) => void
+  acceptDetectedBrowserUrl: (url: string | null, source: AgentPreviewUrlCandidate | null) => void
 }
 
 interface ExplicitBrowserBaseline {
+  liveCandidateKeys: Set<string>
+  candidateKeys: Set<string>
   openedAt: number
   sessionId?: string
   frontier: AgentPreviewUrlFrontier | null
@@ -270,6 +274,7 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
   userOpenIntentSeq?: number
   revealRequest?: ResourceListRevealRequest
+  streamingLayers?: MessageStreamingLayers
   isMessageHistoryLoading?: boolean
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -460,6 +465,7 @@ function AgentRightPaneStateProvider({
   onFileNavigationRequestChange,
   userOpenIntentSeq,
   revealRequest,
+  streamingLayers,
   isMessageHistoryLoading = false
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
@@ -491,13 +497,30 @@ function AgentRightPaneStateProvider({
     () => getAgentPreviewUrlFrontier(messages, partsByMessageId),
     [messages, partsByMessageId]
   )
+  const previewSourceRef = useRef({ messages, partsByMessageId })
   const previewUrlFrontierRef = useRef(previewUrlFrontier)
   useLayoutEffect(() => {
     previewUrlFrontierRef.current = previewUrlFrontier
-  }, [previewUrlFrontier])
+    previewSourceRef.current = { messages, partsByMessageId }
+  }, [previewUrlFrontier, messages, partsByMessageId])
   useLayoutEffect(() => {
     if (explicitBrowserBaselineRef.current?.sessionId !== sessionId) explicitBrowserBaselineRef.current = null
   }, [sessionId])
+  useLayoutEffect(() => {
+    const baseline = explicitBrowserBaselineRef.current
+    if (!baseline || !streamingLayers) return
+    const historicalKeys = new Set(
+      findAgentPreviewUrlCandidates(messages, streamingLayers.historyPartsByMessageId).map((candidate) => candidate.key)
+    )
+    for (const candidate of findAgentPreviewUrlCandidates(messages, partsByMessageId)) {
+      if (
+        streamingLayers.liveMessageIds.includes(candidate.messageId) &&
+        !historicalKeys.has(candidate.key) &&
+        !baseline.candidateKeys.has(candidate.key)
+      )
+        baseline.liveCandidateKeys.add(candidate.key)
+    }
+  }, [messages, partsByMessageId, streamingLayers])
   // Holds whatever the browser pane last showed: the detected dev-server URL or an opened HTML artifact.
   const browserUrl = browserUrlState.sessionId === sessionId ? browserUrlState.url : null
   useLayoutEffect(() => {
@@ -514,12 +537,19 @@ function AgentRightPaneStateProvider({
     explicitBrowserBaselineRef.current = { ...baseline, frontier, waitingForHistory: false }
   }, [browserUrl, isMessageHistoryLoading, previewUrlFrontier, sessionId])
   const acceptDetectedBrowserUrl = useCallback(
-    (url: string | null, source: AgentPreviewUrlSource | null) => {
+    (url: string | null, source: AgentPreviewUrlCandidate | null) => {
       if (!url || !source) return
       const baseline = explicitBrowserBaselineRef.current
-      if (baseline?.waitingForHistory && (!source.createdAt || Date.parse(source.createdAt) <= baseline.openedAt))
+      const isNewLiveSource = baseline?.liveCandidateKeys.has(source.key)
+
+      if (
+        !isNewLiveSource &&
+        baseline?.waitingForHistory &&
+        (!source.createdAt || Date.parse(source.createdAt) <= baseline.openedAt)
+      )
         return
       if (
+        !isNewLiveSource &&
         baseline &&
         baseline.sessionId === sessionId &&
         browserUrl === baseline.url &&
@@ -540,6 +570,13 @@ function AgentRightPaneStateProvider({
     (url: string) => {
       const frontier = previewUrlFrontierRef.current
       explicitBrowserBaselineRef.current = {
+        liveCandidateKeys: new Set(),
+        candidateKeys: new Set(
+          findAgentPreviewUrlCandidates(
+            previewSourceRef.current.messages,
+            previewSourceRef.current.partsByMessageId
+          ).map((candidate) => candidate.key)
+        ),
         openedAt: Date.now(),
         sessionId,
         frontier,
@@ -873,13 +910,14 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
 
   // Every saved annotation lands in the composer as a reference chip the user can keep or delete.
   const handleAnnotationSaved = useCallback(
-    ({ annotation, page }: WebviewAnnotationSavedPayload) => {
+    ({ annotation, page, updated }: WebviewAnnotationSavedPayload) => {
       if (!sessionId) return
       const { comment } = annotation
       const label =
         comment.length > ANNOTATION_TOKEN_LABEL_MAX ? `${comment.slice(0, ANNOTATION_TOKEN_LABEL_MAX)}…` : comment
       const promptText = formatAgentWebviewAnnotationPrompt({ annotation, page })
       void EventEmitter.emit(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, {
+        updateOnly: updated,
         topicId: buildAgentSessionTopicId(sessionId),
         token: {
           id: `webview-annotation:${annotation.id}`,
