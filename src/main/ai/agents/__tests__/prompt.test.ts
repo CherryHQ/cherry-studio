@@ -116,7 +116,7 @@ describe('PromptBuilder', () => {
     expect(base).toEqual({ kind: 'native' })
     expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).toContain('## Memories')
-    expect(result).toContain('`/workspace/SOUL.md`')
+    expect(result).toContain(`\`${resolvePath('/workspace')}/SOUL.md\``)
   })
 
   it('no longer embeds the always-injected tool-usage handbook (now a lazy builtin skill)', async () => {
@@ -170,7 +170,7 @@ describe('PromptBuilder', () => {
     mockedOpen.mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }))
 
     await expect(builder.buildPromptParts(resolvePath('/workspace'))).rejects.toThrow(
-      'Failed to read required agent prompt file: /workspace/system.md'
+      `Failed to read required agent prompt file: ${resolvePath('/workspace/system.md')}`
     )
   })
 
@@ -185,7 +185,7 @@ describe('PromptBuilder', () => {
     } as any)
 
     await expect(builder.buildPromptParts(resolvePath('/workspace'))).rejects.toThrow(
-      'Failed to read required agent prompt file: /workspace/system.md'
+      `Failed to read required agent prompt file: ${resolvePath('/workspace/system.md')}`
     )
   })
 
@@ -319,8 +319,8 @@ Always cite primary sources.`
     expect(result).not.toContain('Workspace-local system prompt.')
     expect(result).toContain('Persistent agent identity.')
     expect(result).toContain('Persistent agent fact.')
-    expect(result).toContain('`/agent-data/`')
-    expect(result).toContain('`/agent-data/SOUL.md`')
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/\``)
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/SOUL.md\``)
     expect(result).toContain('current working directory is the session workspace')
   })
 
@@ -336,9 +336,9 @@ Always cite primary sources.`
 
     expect(result).not.toContain('## Bootstrap Mode')
     expect(result).toContain('## Memories')
-    expect(result).toContain('`/agent-data/SOUL.md`')
-    expect(result).toContain('`/agent-data/USER.md`')
-    expect(result).toContain('`/agent-data/memory/FACT.md`')
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/SOUL.md\``)
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/USER.md\``)
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/memory/FACT.md\``)
   })
 
   it('ignores symbolic-link persona files', async () => {

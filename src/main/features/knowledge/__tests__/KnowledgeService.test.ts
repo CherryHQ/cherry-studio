@@ -1,4 +1,4 @@
-import { resolve as resolvePath } from 'node:path'
+import { basename, resolve as resolvePath } from 'node:path'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
@@ -296,7 +296,7 @@ function createFileItem(
     type: 'file',
     data: {
       source,
-      relativePath: (source.split('/').pop() ?? source) as PosixRelativeFilePath,
+      relativePath: basename(source) as PosixRelativeFilePath,
       ...(indexedRelativePath ? { indexedRelativePath } : {})
     },
     ...lifecycle,

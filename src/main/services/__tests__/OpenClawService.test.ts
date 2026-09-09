@@ -129,10 +129,16 @@ vi.mock('@data/services/ProviderService', () => ({
 
 vi.mock('@main/utils/shellEnv', () => ({
   refreshShellEnv: vi.fn(() =>
-    Promise.resolve({ PATH: resolvePath('/mock/bin:/usr/bin'), MISE_DATA_DIR: resolvePath('/mock/mise') })
+    Promise.resolve({
+      PATH: [resolvePath('/mock/bin'), resolvePath('/usr/bin')].join(path.delimiter),
+      MISE_DATA_DIR: resolvePath('/mock/mise')
+    })
   ),
   getRawShellEnv: vi.fn(() =>
-    Promise.resolve({ PATH: resolvePath('/usr/local/bin:/usr/bin'), MISE_DATA_DIR: resolvePath('/user/mise') })
+    Promise.resolve({
+      PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
+      MISE_DATA_DIR: resolvePath('/user/mise')
+    })
   )
 }))
 
@@ -635,7 +641,7 @@ describe('OpenClawService gateway status state machine', () => {
     it('uses the canonical /healthz endpoint when /health serves HTML', async () => {
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
         const url = String(input)
-        if (url.endsWith(resolvePath('/healthz'))) {
+        if (url.endsWith('/healthz')) {
           return new Response(JSON.stringify({ ok: true, status: 'live' }), {
             status: 200,
             headers: { 'content-type': 'application/json' }
@@ -840,7 +846,7 @@ describe('OpenClawService gateway status state machine', () => {
         ['gateway', 'run', '--force'],
         expect.objectContaining({
           env: {
-            PATH: resolvePath('/usr/local/bin:/usr/bin'),
+            PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
             MISE_DATA_DIR: resolvePath('/user/mise'),
             OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
             OPENCLAW_NO_AUTO_UPDATE: '1'
@@ -871,7 +877,7 @@ describe('OpenClawService gateway status state machine', () => {
         ['gateway', 'run', '--force'],
         expect.objectContaining({
           env: {
-            PATH: resolvePath('/mock/bin:/usr/bin'),
+            PATH: [resolvePath('/mock/bin'), resolvePath('/usr/bin')].join(path.delimiter),
             MISE_DATA_DIR: resolvePath('/mock/mise'),
             OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
             OPENCLAW_NO_AUTO_UPDATE: '1'
@@ -930,7 +936,7 @@ describe('OpenClawService gateway status state machine', () => {
       vi.useFakeTimers()
 
       const shellEnv = {
-        PATH: resolvePath('/usr/local/bin:/usr/bin'),
+        PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
         HTTP_PROXY: 'socks5://127.0.0.1:1080',
         HTTPS_PROXY: 'http://127.0.0.1:7897',
         http_proxy: 'socks5://127.0.0.1:1080',
@@ -950,7 +956,7 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(started).resolves.toBeUndefined()
 
       expect(crossPlatformSpawnMock.mock.calls[0][2].env).toEqual({
-        PATH: resolvePath('/usr/local/bin:/usr/bin'),
+        PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
         USER_DEFINED_TOKEN: 'keep-me',
         MISE_DATA_DIR: resolvePath('/user/mise'),
         OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
@@ -2231,7 +2237,7 @@ describe('OpenClawService gateway status state machine', () => {
       expect(path.dirname(candidatePath)).toBe(path.dirname(configPath))
       expect(path.basename(candidatePath)).toContain('openclaw.json.cherry-candidate-')
       expect(fs.existsSync(candidatePath)).toBe(false)
-      expect(fs.statSync(configPath).mode & 0o777).toBe(0o600)
+      if (process.platform !== 'win32') expect(fs.statSync(configPath).mode & 0o777).toBe(0o600)
     })
 
     it('returns a sanitized preflight failure and leaves the formal file unchanged for malformed validation output', async () => {

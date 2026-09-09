@@ -32,7 +32,7 @@ jobs:
       - run: pnpm install
       - run: pnpm rebuild:node
       - name: Run all tests in group
-        run: pnpm exec vitest run ${{ matrix.projects }} --maxWorkers=4 --minWorkers=1 --silent --reporter=default --reporter=json --outputFile=test-results.json
+        run: pnpm exec vitest run ${{ matrix.projects }} --maxWorkers=2 --minWorkers=1 --silent --reporter=default --reporter=json --outputFile=test-results.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:

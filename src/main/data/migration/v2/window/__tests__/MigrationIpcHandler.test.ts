@@ -493,7 +493,7 @@ describe('MigrationIpcHandler', () => {
       )
 
       expect(fsMock.appendFile).toHaveBeenCalledWith(
-        `${migrationPaths.migrationDexieExportDir}/message_blocks.json`,
+        resolvePath(migrationPaths.migrationDexieExportDir, 'message_blocks.json'),
         '{"id":"b1"}',
         'utf-8'
       )

@@ -483,7 +483,7 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [{ executablePath: resolvePath('/current/exe'), dataPath: DEFAULT_USER_DATA }]
         }),
-        [`${DEFAULT_USER_DATA}/version.log`]: GOOD_VERSION_LOG
+        [resolvePath(DEFAULT_USER_DATA, 'version.log')]: GOOD_VERSION_LOG
       }
     })
 

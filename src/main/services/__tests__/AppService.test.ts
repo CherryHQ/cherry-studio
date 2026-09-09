@@ -255,7 +255,7 @@ describe('AppService', () => {
       expect(atomicWriteFileMock).toHaveBeenCalledWith(desktopFile, expect.any(String))
       const desktopContent = atomicWriteFileMock.mock.calls[0][1]
       expect(desktopContent).toContain('Type=Application')
-      expect(desktopContent).toContain('Exec=/mock/app.exe_file')
+      expect(desktopContent).toContain(`Exec=${resolvePath('/mock/app.exe_file')}`)
       expect(desktopContent).toContain('X-GNOME-Autostart-enabled=true')
       expect(desktopContent).toContain('Hidden=false')
     })
@@ -268,8 +268,8 @@ describe('AppService', () => {
       await new AppService().setAppLaunchOnBoot(true)
 
       const desktopContent = atomicWriteFileMock.mock.calls[0][1]
-      expect(desktopContent).toContain('Exec=/opt/CherryStudio.AppImage')
-      expect(desktopContent).not.toContain('Exec=/mock/app.exe_file')
+      expect(desktopContent).toContain(`Exec=${resolvePath('/opt/CherryStudio.AppImage')}`)
+      expect(desktopContent).not.toContain(`Exec=${resolvePath('/mock/app.exe_file')}`)
     })
 
     it('propagates Linux removal errors', async () => {

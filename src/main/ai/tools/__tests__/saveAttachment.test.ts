@@ -158,7 +158,7 @@ describe('saveAttachmentToWorkspace', () => {
 
   it('rejects an output directory symlink that escapes the workspace', async () => {
     const outsideDirectory = path.dirname(sourcePath)
-    await symlink(outsideDirectory, path.join(workspacePath, 'escaped'))
+    await symlink(outsideDirectory, path.join(workspacePath, 'escaped'), 'junction')
 
     let error: Error | undefined
     try {

@@ -1,4 +1,4 @@
-import { resolve as resolvePath } from 'node:path'
+import { join, resolve as resolvePath } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -218,8 +218,7 @@ describe('getNormalizedExecutablePath', () => {
     stubBootConfig()
     stubFs()
     const { getNormalizedExecutablePath } = await loadModule()
-    // path.join is globally mocked to args.join('/').
-    expect(getNormalizedExecutablePath()).toBe('D:\\PortableApps\\CherryStudio/cherry-studio-portable.exe')
+    expect(getNormalizedExecutablePath()).toBe(join('D:\\PortableApps\\CherryStudio', 'cherry-studio-portable.exe'))
   })
 })
 
@@ -392,7 +391,7 @@ describe('resolveUserDataLocation', () => {
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).toHaveBeenCalledWith('userData', 'D:\\PortableApps\\CherryStudio/data')
+      expect(setPathMock).toHaveBeenCalledWith('userData', join('D:\\PortableApps\\CherryStudio', 'data'))
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
@@ -428,7 +427,7 @@ describe('resolveUserDataLocation', () => {
       stubElectron({ exePath: 'D:\\PortableApps\\CherryStudio\\Cherry Studio.exe' })
       stubBootConfig({
         'app.user_data_path': {
-          'D:\\PortableApps\\CherryStudio/cherry-studio-portable.exe': 'D:\\Data\\Cherry'
+          [join('D:\\PortableApps\\CherryStudio', 'cherry-studio-portable.exe')]: 'D:\\Data\\Cherry'
         }
       })
       stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })

@@ -1,5 +1,6 @@
 import type * as FsPromises from 'node:fs/promises'
-import { resolve as resolvePath } from 'node:path'
+import { basename, dirname, resolve as resolvePath } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import type {
@@ -575,17 +576,17 @@ describe('transformBlocksToParts', () => {
     expect(part.url).toBe('https://example.com/img.png')
   })
 
-  it('transforms image with file path to file:// URL', async () => {
+  it.each(['photo.jpg', 'photo #100%.jpg'])('transforms image path %s to a usable file URL', async (filename) => {
     const { parts } = await transformBlocksToParts([
       block('image', {
-        file: { id: 'abc-123', path: resolvePath('/Users/test/files/photo.jpg'), ext: '.jpg', origin_name: 'photo.jpg' }
+        file: { id: 'abc-123', path: resolvePath('/Users/test/files', filename), ext: '.jpg', origin_name: filename }
       })
     ])
 
     const part = parts[0] as FileUIPart
-    expect(part.url).toBe('file:///Users/test/files/photo.jpg')
+    expect(fileURLToPath(part.url)).toBe(resolvePath('/Users/test/files', filename))
     expect(part.mediaType).toBe('image/jpeg')
-    expect(part.filename).toBe('photo.jpg')
+    expect(part.filename).toBe(filename)
   })
 
   describe('base64 → file_entry promotion', () => {
@@ -612,7 +613,8 @@ describe('transformBlocksToParts', () => {
 
       expect(parts).toHaveLength(1)
       const part = parts[0] as FileUIPart
-      expect(part.url).toMatch(/^file:\/\/\/mock\/migration-userdata\/Data\/Files\/.+\.png$/)
+      expect(dirname(fileURLToPath(part.url))).toBe(MIGRATION_FILES_DIR)
+      expect(basename(fileURLToPath(part.url))).toMatch(/^[\w-]+\.png$/)
       expect(part.mediaType).toBe('image/png')
       const fileEntryId = readCherryMeta(part)?.fileEntryId
       expect(fileEntryId).toBeTruthy()
@@ -726,7 +728,7 @@ describe('transformBlocksToParts', () => {
     const part = parts[0] as FileUIPart
     expect(part.type).toBe('file')
     expect(part.mediaType).toBe('application/pdf')
-    expect(part.url).toBe('file:///Users/test/files/doc.pdf')
+    expect(part.url).toBe(pathToFileURL(resolvePath('/Users/test/files/doc.pdf')).href)
     expect(part.filename).toBe('document.pdf')
   })
 

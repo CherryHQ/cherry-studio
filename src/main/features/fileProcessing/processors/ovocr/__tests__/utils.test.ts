@@ -145,7 +145,7 @@ describe('OvOcr executeExtraction', () => {
 
       expect(mkdtempSpy).toHaveBeenCalledWith(resolvePath('/tmp/app-temp/cherry-ovocr-'))
       expect(execMock).toHaveBeenCalledWith(
-        '"/mock/ovocr"',
+        `"${resolvePath('/mock/ovocr')}"`,
         expect.objectContaining({
           cwd: resolvePath('/tmp/cherry-ovocr-1'),
           timeout: 60000,

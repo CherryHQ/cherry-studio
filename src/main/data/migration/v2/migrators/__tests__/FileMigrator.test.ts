@@ -50,7 +50,7 @@ function makeInternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'report',
     origin_name: 'report.pdf',
-    path: `${MOCK_USER_DATA}/Data/Files/550e8400-e29b-41d4-a716-446655440000.pdf`,
+    path: resolvePath(`${MOCK_USER_DATA}/Data/Files/550e8400-e29b-41d4-a716-446655440000.pdf`),
     size: 1024,
     ext: '.pdf',
     type: 'document',
@@ -191,7 +191,7 @@ describe('FileMigrator id preservation', () => {
     const v7Id = '018f4e4a-7b3d-7b3d-8b3d-9b3d0b3d1b3d'
     const row = makeInternalRow({
       id: v7Id,
-      path: `${MOCK_USER_DATA}/Data/Files/${v7Id}.pdf`
+      path: resolvePath(`${MOCK_USER_DATA}/Data/Files/${v7Id}.pdf`)
     })
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
@@ -205,7 +205,7 @@ describe('FileMigrator id preservation', () => {
 
   it('preserves v4 ids verbatim (no translation, no idRemap)', async () => {
     const v4Id = '550e8400-e29b-41d4-a716-446655440000'
-    const row = makeInternalRow({ id: v4Id, path: `${MOCK_USER_DATA}/Data/Files/${v4Id}.pdf` })
+    const row = makeInternalRow({ id: v4Id, path: resolvePath(`${MOCK_USER_DATA}/Data/Files/${v4Id}.pdf`) })
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
     await m.prepare(ctx as never)
@@ -219,7 +219,7 @@ describe('FileMigrator id preservation', () => {
 
   it('repeated execute on the same fixture produces identical file_entry rows', async () => {
     const v4Id = '550e8400-e29b-41d4-a716-446655440000'
-    const row = makeInternalRow({ id: v4Id, path: `${MOCK_USER_DATA}/Data/Files/${v4Id}.pdf` })
+    const row = makeInternalRow({ id: v4Id, path: resolvePath(`${MOCK_USER_DATA}/Data/Files/${v4Id}.pdf`) })
 
     const { ctx: ctx1, insertValues: insert1 } = createMockContext([row])
     const m1 = new FileMigrator()
@@ -243,11 +243,11 @@ describe('FileMigrator id preservation', () => {
     const rows = [
       makeInternalRow({
         id: 'aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
-        path: `${MOCK_USER_DATA}/Data/Files/aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa.pdf`
+        path: resolvePath(`${MOCK_USER_DATA}/Data/Files/aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa.pdf`)
       }),
       makeInternalRow({
         id: 'bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
-        path: `${MOCK_USER_DATA}/Data/Files/bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb.txt`,
+        path: resolvePath(`${MOCK_USER_DATA}/Data/Files/bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb.txt`),
         name: 'notes',
         origin_name: 'notes.txt',
         ext: '.txt'
@@ -1008,12 +1008,12 @@ describe('FileMigrator write/read validation invariant', () => {
       makeInternalRow(),
       makeInternalRow({
         id: 'aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
-        path: `${MOCK_USER_DATA}/Data/Files/aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa.pdf`,
+        path: resolvePath(`${MOCK_USER_DATA}/Data/Files/aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa.pdf`),
         origin_name: 'evil\\dir/report.pdf'
       }),
       makeInternalRow({
         id: 'bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
-        path: `${MOCK_USER_DATA}/Data/Files/bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb.txt`,
+        path: resolvePath(`${MOCK_USER_DATA}/Data/Files/bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb.txt`),
         origin_name: '..',
         ext: '.txt'
       })

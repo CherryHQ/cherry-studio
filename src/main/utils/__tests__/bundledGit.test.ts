@@ -7,7 +7,6 @@ import { getBundledGitDir, getBundledGitPath } from '../bundledGit'
 // Force the Windows code path regardless of host so both branches run everywhere.
 vi.mock('@main/core/platform', () => ({ isWin: true }))
 vi.mock('fs')
-vi.mock('path')
 // getBundledGit* resolve application.getPath() + toAsarUnpackedPath; mock both so
 // the test controls the candidate path and asserts only the existence check.
 vi.mock('@application', async () => {
@@ -18,13 +17,11 @@ vi.mock('../asar', () => ({ toAsarUnpackedPath: (p: string) => p }))
 
 describe('bundledGit', () => {
   const platformKey = `${process.platform}-${process.arch}`
-  const expectedExe = ['/mock/app.root.resources.binaries', platformKey, 'git', 'cmd', 'git.exe'].join('\\')
-  const expectedDir = ['/mock/app.root.resources.binaries', platformKey, 'git', 'cmd'].join('\\')
+  const expectedExe = path.resolve('/mock/app.root.resources.binaries', platformKey, 'git', 'cmd', 'git.exe')
+  const expectedDir = path.resolve('/mock/app.root.resources.binaries', platformKey, 'git', 'cmd')
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
-    vi.mocked(path.dirname).mockImplementation((p) => p.split('\\').slice(0, -1).join('\\'))
   })
 
   describe('getBundledGitPath', () => {
