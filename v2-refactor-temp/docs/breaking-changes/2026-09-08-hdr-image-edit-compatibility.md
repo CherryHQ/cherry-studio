@@ -2,7 +2,7 @@
 title: HDR reference photos are converted for image editing
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#20261'
 date: 2026-09-08
 ---
 
