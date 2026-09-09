@@ -7,7 +7,7 @@
  * in-place repair of migrated rows, pause/resume lifecycle, and timer arming.
  */
 
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -16,6 +16,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable } from '@data/db/schemas/job'
+import { agentService } from '@data/services/AgentService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
@@ -445,6 +446,80 @@ describe('heartbeatSchedule', () => {
       workspace: { type: 'user' }
     })
     expect(scheduler.has(`schedule:${id}`)).toBe(true)
+  })
+
+  it('never rewrites a user task that owns the reserved heartbeat name', async () => {
+    // Pre-reservation data or a manual DB edit: same agent, reserved name, but
+    // a real user prompt. The self-heal fallback must not claim the row — sync
+    // fails on the UNIQUE conflict instead of overwriting the user's prompt.
+    seedAgent(AGENT_ID)
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: 5 * 60_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: 'run my report',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
+
+    await expect(syncHeartbeatSchedule(AGENT_ID)).rejects.toThrow()
+
+    const row = jobScheduleService.getById(id)
+    expect(row?.jobInputTemplate).toEqual(templateBefore)
+    expect(row?.enabled).toBe(true)
+  })
+
+  it('serializes same-agent syncs — a racing config save reads fresh and commits last', async () => {
+    // Without the per-agent chain both syncs would read the configuration
+    // before either commits, letting the slower one write a stale interval.
+    seedAgent(AGENT_ID, { heartbeat_interval: 30 })
+    const events: string[] = []
+    const originalGetAgent = agentService.getAgent.bind(agentService)
+    const spy = vi.spyOn(agentService, 'getAgent').mockImplementation((id: string) => {
+      if (id === AGENT_ID) events.push('read')
+      return originalGetAgent(id)
+    })
+
+    const first = syncHeartbeatSchedule(AGENT_ID).then((outcome) => {
+      events.push('first-settled')
+      return outcome
+    })
+    // The chain defers the first sync's config read to a microtask — wait for
+    // it, or the configuration flip below would land before the read.
+    await vi.waitFor(() => {
+      if (!events.includes('read')) throw new Error('first sync has not read the configuration yet')
+    })
+    setAgentConfiguration(AGENT_ID, { heartbeat_interval: 45 })
+    const second = syncHeartbeatSchedule(AGENT_ID)
+
+    const [firstOutcome, secondOutcome] = await Promise.all([first, second])
+    spy.mockRestore()
+
+    expect(firstOutcome).toBe('created')
+    expect(secondOutcome).toBe('updated')
+    expect(events).toEqual(['read', 'first-settled', 'read'])
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row.trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
+  })
+
+  it('skips provisioning when the agent data directory symlinks outside managed storage', async () => {
+    seedAgent(AGENT_ID)
+    const outside = mkdtempSync(path.join(tmpdir(), 'cs-test-hb-escape-'))
+    rmSync(path.join(agentsRoot, AGENT_ID), { recursive: true, force: true })
+    symlinkSync(outside, path.join(agentsRoot, AGENT_ID))
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('skipped-untrusted-path')
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    expect(existsSync(path.join(outside, 'heartbeat.md'))).toBe(false)
+    rmSync(outside, { recursive: true, force: true })
   })
 
   it('skips an agent type missing from the capabilities table', async () => {

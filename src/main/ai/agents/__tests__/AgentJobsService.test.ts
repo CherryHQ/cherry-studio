@@ -224,6 +224,13 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
     })
 
+    it('refuses the reserved heartbeat schedule name — nothing is written', () => {
+      expect(() => service.createTask(AGENT_ID, { ...form, name: `heartbeat_${AGENT_ID}` })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
     it('rejects an invalid cron trigger up front — no row, no subscriptions, no timer', () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
 
@@ -270,6 +277,15 @@ describe('AgentJobsService', () => {
         'reserved for the agent heartbeat'
       )
       expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ prompt: form.prompt })
+    })
+
+    it('refuses to rename an existing task onto the reserved heartbeat name', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      expect(() => service.updateTask(AGENT_ID, task.id, { name: `heartbeat_${AGENT_ID}` })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.getById(task.id)?.name).toBe(form.name)
     })
 
     it('drops a semantically-equal trigger from the patch — the interval phase is not reset', () => {

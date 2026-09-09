@@ -12,6 +12,3 @@ export const MIN_HEARTBEAT_INTERVAL_MINUTES = 1
 
 /** Upper form bound (24h). */
 export const MAX_HEARTBEAT_INTERVAL_MINUTES = 1440
-
-/** Run timeout for an agent task turn (heartbeat and user tasks alike). */
-export const DEFAULT_AGENT_TASK_TIMEOUT_MINUTES = 2

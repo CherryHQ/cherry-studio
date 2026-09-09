@@ -19,7 +19,6 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
 import {
-  DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
   DEFAULT_HEARTBEAT_INTERVAL_MINUTES,
   MAX_HEARTBEAT_INTERVAL_MINUTES,
   MIN_HEARTBEAT_INTERVAL_MINUTES
@@ -29,7 +28,8 @@ import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { JOB_ERROR_CODES, type JobScheduleSnapshot, type Trigger, triggersEqual } from '@shared/data/api/schemas/jobs'
 
-import { agentDataDirectoryPath } from './agentDataDirectory'
+import { agentDataDirectoryPath, assertAgentStoragePath } from './agentDataDirectory'
+import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { ensureHeartbeatFile } from './heartbeat'
 
 const logger = loggerService.withContext('HeartbeatSchedule')
@@ -44,6 +44,7 @@ export type HeartbeatSyncOutcome =
   | 'skipped-disabled'
   | 'skipped-capability'
   | 'skipped-missing-agent'
+  | 'skipped-untrusted-path'
 
 type HeartbeatJobInputTemplate = {
   agentId: string
@@ -72,12 +73,13 @@ function isHeartbeatRow(row: { jobInputTemplate: unknown }, agentId: string): bo
 function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
   return (
     rows.find((row) => isHeartbeatRow(row, agentId)) ??
-    // Self-heal fallback: a corrupted sentinel prompt (legacy migration, manual
-    // edit) still leaves the reserved name + template agentId as identity.
+    // Self-heal fallback: whitespace-corrupted sentinel still identified by
+    // reserved name + agentId. Free-text prompt = user task — never rewrite.
     rows.find((row) => {
       if (row.name !== `heartbeat_${agentId}`) return false
-      const template = row.jobInputTemplate as { agentId?: unknown } | null
-      return template?.agentId === agentId
+      const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
+      if (template?.agentId !== agentId) return false
+      return typeof template.prompt !== 'string' || template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL
     }) ??
     null
   )
@@ -112,13 +114,31 @@ function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): b
   return workspace.type !== target.workspace.type || workspace.workspaceId !== target.workspace.workspaceId
 }
 
+// Per-agent sync chains — the serialization behind the export below.
+const syncChains = new Map<string, Promise<HeartbeatSyncOutcome>>()
+
 /**
  * Converge the agent's heartbeat schedule with its configuration. Safe to
  * call repeatedly and from any context (event handlers, startup, agent
  * creation); every failure path is the caller's to log, never a user-facing
  * error — the v1 handler had the same contract.
+ *
+ * Same-agent calls are serialized: each sync reads the configuration at
+ * entry, so an unserialized pair (config-save racing the startup pass) could
+ * commit a stale read over a fresher one. The last entrant commits last.
  */
-export async function syncHeartbeatSchedule(
+export function syncHeartbeatSchedule(agentId: string, rows?: JobScheduleSnapshot[]): Promise<HeartbeatSyncOutcome> {
+  const previous = syncChains.get(agentId) ?? Promise.resolve()
+  const current = previous.catch(() => undefined).then(() => runSync(agentId, rows))
+  syncChains.set(agentId, current)
+  const settled = () => {
+    if (syncChains.get(agentId) === current) syncChains.delete(agentId)
+  }
+  current.then(settled, settled)
+  return current
+}
+
+async function runSync(
   agentId: string,
   rows: JobScheduleSnapshot[] = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 ): Promise<HeartbeatSyncOutcome> {
@@ -160,7 +180,16 @@ export async function syncHeartbeatSchedule(
 
   // Heartbeat sessions run in a user workspace pointing at the agent data
   // directory — the stable per-agent home where heartbeat.md lives.
-  const workspacePath = agentDataDirectoryPath(application.getPath('feature.agents.data'), agentId)
+  const agentsDataRoot = application.getPath('feature.agents.data')
+  const workspacePath = agentDataDirectoryPath(agentsDataRoot, agentId)
+  try {
+    // A symlinked/tampered agent directory must not lead provisioning (or
+    // the run side's heartbeat.md read) outside managed storage.
+    await assertAgentStoragePath(agentsDataRoot, workspacePath)
+  } catch (error) {
+    logger.warn('Agent data path failed the storage check; heartbeat not armed', { agentId, workspacePath, error })
+    return 'skipped-untrusted-path'
+  }
   // Workspace row before the file: if this throws (a SYSTEM row owns the
   // path), no orphaned heartbeat.md is left behind to wedge future syncs.
   const workspace = agentWorkspaceService.findOrCreateByPath(workspacePath, {
