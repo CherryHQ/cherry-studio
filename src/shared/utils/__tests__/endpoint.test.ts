@@ -3,7 +3,7 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { resolveCanonicalEndpoint } from '../endpoint'
+import { resolveCanonicalEndpoint, resolveEndpointBaseUrl } from '../endpoint'
 
 const provider = (overrides: Partial<Provider> = {}): Provider =>
   ({
@@ -82,7 +82,7 @@ describe('resolveCanonicalEndpoint', () => {
     ).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
   })
 
-  it.each([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])(
+  it.each([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.IMAGE_GENERATION])(
     'does not assign a chat route to a capability-only %s model without endpointTypes',
     (capability) => {
       const capabilityOnly = model({ capabilities: [capability], endpointTypes: undefined })
@@ -164,6 +164,22 @@ describe('resolveCanonicalEndpoint', () => {
 
     expect(resolveCanonicalEndpoint(geminiProvider, imageModel).endpointType).toBe(
       ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    )
+  })
+
+  it('materializes a shared chat host for an inferred Responses endpoint', () => {
+    const sharedHostProvider = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1' }
+      }
+    })
+    const responsesModel = model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+
+    expect(resolveCanonicalEndpoint(sharedHostProvider, responsesModel).endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    )
+    expect(resolveEndpointBaseUrl(sharedHostProvider, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(
+      'https://relay.example/v1'
     )
   })
 

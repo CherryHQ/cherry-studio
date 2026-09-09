@@ -28,7 +28,7 @@ import type { BinaryAvailability } from '@shared/types/binary'
 import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
-import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
+import { resolveCanonicalEndpoint, resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { isNonChatModel } from '@shared/utils/model'
 import { redactSecretText } from '@shared/utils/redaction'
 
@@ -1149,7 +1149,7 @@ export class OpenClawService extends BaseService {
       }
       throw new Error(`Provider ${provider.id} has no usable chat endpoint configured for ${primaryModel.id}`)
     }
-    const apiHost = provider.endpointConfigs?.[endpointType]?.baseUrl
+    const apiHost = resolveEndpointBaseUrl(provider, endpointType)
 
     if (!apiHost) {
       throw new Error(`Provider ${provider.id} has no API host configured for ${endpointType}`)

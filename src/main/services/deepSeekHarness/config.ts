@@ -9,7 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { DeepSeekHarnessAgentPreset } from '@shared/types/codeCli'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
+import { resolveCanonicalEndpoint, resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { Document, isMap, isSeq, parseDocument, type YAMLError } from 'yaml'
 
 export type DeepSeekHarnessMode = 'direct' | 'gateway'
@@ -372,7 +372,7 @@ export function resolveDeepSeekHarnessEndpoint(
       : undefined)
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
-  const rawBaseUrl = provider.endpointConfigs?.[endpoint]?.baseUrl
+  const rawBaseUrl = resolveEndpointBaseUrl(provider, endpoint)
   if (!rawBaseUrl) throw new Error(`Provider ${provider.id} has no API host configured for ${endpoint}`)
   const baseUrl =
     endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES

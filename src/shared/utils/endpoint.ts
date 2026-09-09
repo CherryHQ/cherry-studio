@@ -21,6 +21,27 @@ export type EndpointSelectionProvider = Pick<
 >
 
 /**
+ * Resolve the configured host for an endpoint selected by the canonical route resolver.
+ *
+ * OpenAI-compatible providers often expose one shared `/v1` host under chat-completions
+ * while declaring Responses-capable models in their catalog. Keep that compatibility
+ * fallback in one place so direct integrations (for example DSH and OpenClaw) materialize
+ * the same host that endpoint selection already accepts.
+ */
+export function resolveEndpointBaseUrl(
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'endpointConfigs'>,
+  endpointType: EndpointType
+): string | undefined {
+  const configured = provider.endpointConfigs?.[endpointType]?.baseUrl
+  if (configured) return configured
+
+  const isKnownGateway = provider.id === 'aihubmix' || provider.presetProviderId === 'aihubmix'
+  if (endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES || isKnownGateway) return undefined
+
+  return provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl
+}
+
+/**
  * Select the endpoint protocol shared by main-process requests and endpoint-aware consumers.
  *
  * A candidate is usable only when the provider still has configuration for it. Dedicated
@@ -53,7 +74,7 @@ export function resolveCanonicalEndpoint(
   // the chat transport; only a dedicated primary endpoint or another explicit
   // operation-only capability should force a non-chat route.
   const chatPrimaryImageCapability =
-    !hasDeclaredDedicatedEndpoint && capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
+    endpointTypes.length > 0 && !hasDeclaredDedicatedEndpoint && capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
   const nonChat =
     Boolean(hasDeclaredDedicatedEndpoint) || (isNonChatModel({ ...model, capabilities }) && !chatPrimaryImageCapability)
   const isAllowed = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
@@ -70,12 +91,7 @@ export function resolveCanonicalEndpoint(
     // models explicitly. Reuse that configured host for the Responses dialect,
     // but never infer it for known multi-backend gateways (their endpoint map is
     // the routing contract and a stale declaration must remain undefined).
-    const isKnownGateway = provider.id === 'aihubmix' || provider.presetProviderId === 'aihubmix'
-    return (
-      endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES &&
-      !isKnownGateway &&
-      Boolean(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl)
-    )
+    return Boolean(resolveEndpointBaseUrl(provider, endpointType))
   }
   const endpointBackedCapabilities = new Set(
     Object.values(ENDPOINT_TYPE)

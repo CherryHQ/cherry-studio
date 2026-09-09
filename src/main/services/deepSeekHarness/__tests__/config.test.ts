@@ -185,6 +185,20 @@ describe('DeepSeek Harness config transaction', () => {
     })
   })
 
+  it('materializes a shared chat host for an inferred Responses endpoint', () => {
+    const sharedHostProvider = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' }
+      }
+    })
+
+    expect(resolveDeepSeekHarnessEndpoint(sharedHostProvider, model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }))).toEqual({
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
+    })
+  })
+
   it('uses the provider default when it is one of the model declared endpoints', () => {
     const providerDefault = provider({
       defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,

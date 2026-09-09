@@ -1700,6 +1700,34 @@ describe('OpenClawService gateway status state machine', () => {
       )
     })
 
+    it('materializes a shared chat host for an inferred Responses model', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
+          }
+        })
+      )
+      const model = createModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'openai-response',
+          apiHost: 'https://api.openai.com/v1'
+        }),
+        expect.objectContaining({ endpoint_type: 'openai-response' })
+      )
+    })
+
     it('determines OpenAI Responses API type from model endpoint type', () => {
       const apiType = (service as any).determineApiType(
         {
