@@ -1217,7 +1217,11 @@ describe('ModelService.list — registry enrichment', () => {
         inputModalities: ['text', 'image'],
         outputModalities: ['image'],
         endpointTypes: ['openai-responses'],
-        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 }
+        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 },
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } },
+          topP: { supported: false, range: { min: 0, max: 1 } }
+        }
       },
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
@@ -1235,6 +1239,10 @@ describe('ModelService.list — registry enrichment', () => {
       contextWindow: 256_000,
       maxInputTokens: 120_000,
       maxOutputTokens: 4096,
+      parameterSupport: expect.objectContaining({
+        temperature: expect.objectContaining({ supported: false }),
+        topP: expect.objectContaining({ supported: false })
+      }),
       pricing: {
         input: { perMillionTokens: 5 },
         output: { perMillionTokens: 15 }
@@ -1254,7 +1262,13 @@ describe('ModelService.list — registry enrichment', () => {
           name: 'Future Model',
           description: 'Custom description',
           inputModalities: ['audio'],
-          outputModalities: ['video']
+          outputModalities: ['video'],
+          parameterSupport: {
+            temperature: { supported: true, range: { min: 0, max: 2 } },
+            maxTokens: true,
+            stopSequences: true,
+            systemMessage: true
+          }
         }
       }
     ])
@@ -1271,7 +1285,10 @@ describe('ModelService.list — registry enrichment', () => {
       },
       registryOverride: {
         inputModalities: ['text', 'image'],
-        outputModalities: ['image']
+        outputModalities: ['image'],
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } }
+        }
       },
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
@@ -1284,7 +1301,10 @@ describe('ModelService.list — registry enrichment', () => {
       name: 'Future Model',
       description: 'Custom description',
       inputModalities: ['audio'],
-      outputModalities: ['video']
+      outputModalities: ['video'],
+      parameterSupport: expect.objectContaining({
+        temperature: { supported: true, range: { min: 0, max: 2 } }
+      })
     })
     expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
   })

@@ -18093,6 +18093,32 @@
       }
     },
     {
+      "apiModelId": "kimi-k2.7-code",
+      "modelId": "kimi-k2-7-code",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot"
+    },
+    {
+      "apiModelId": "kimi-k2.7-code-highspeed",
+      "modelId": "kimi-k2-7-code-highspeed",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
+      "providerId": "moonshot"
+    },
+    {
       "modelId": "kimi-k3",
       "parameterSupport": {
         "temperature": {
