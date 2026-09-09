@@ -9,11 +9,26 @@ const getServerCapabilities = vi.fn<() => Record<string, unknown> | undefined>()
 const runtimeListResources = vi.fn()
 const runtimeListPrompts = vi.fn()
 const cacheStore = new Map<string, unknown>()
+const cacheExpirations = new Map<string, number>()
+const readCache = (key: string) => {
+  const expiresAt = cacheExpirations.get(key)
+  if (expiresAt !== undefined && expiresAt <= Date.now()) {
+    cacheStore.delete(key)
+    cacheExpirations.delete(key)
+  }
+  return cacheStore.get(key)
+}
 const cacheService = {
-  has: vi.fn((key: string) => cacheStore.has(key)),
-  get: vi.fn((key: string) => cacheStore.get(key)),
-  set: vi.fn((key: string, value: unknown) => cacheStore.set(key, value)),
-  delete: vi.fn((key: string) => cacheStore.delete(key)),
+  has: vi.fn((key: string) => readCache(key) !== undefined),
+  get: vi.fn((key: string) => readCache(key)),
+  set: vi.fn((key: string, value: unknown, ttl?: number) => {
+    cacheStore.set(key, value)
+    if (ttl !== undefined) cacheExpirations.set(key, Date.now() + ttl)
+  }),
+  delete: vi.fn((key: string) => {
+    cacheExpirations.delete(key)
+    return cacheStore.delete(key)
+  }),
   setShared: vi.fn((key: string, value: unknown) => cacheStore.set(key, value)),
   getShared: vi.fn((key: string) => cacheStore.get(key))
 }
@@ -91,6 +106,7 @@ describe('McpCatalogService', () => {
     runtimeListResources.mockReset()
     runtimeListPrompts.mockReset()
     cacheStore.clear()
+    cacheExpirations.clear()
     Object.values(cacheService).forEach((mock) => mock.mockClear())
     runtimeService.getServerKey.mockClear()
     runtimeService.withClient.mockClear()
@@ -280,10 +296,7 @@ describe('McpCatalogService', () => {
     await service.warmToolsCache('server-1')
 
     expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
-    expect(loggerDebug).toHaveBeenCalledWith(
-      'Skipping MCP tools warm during retry backoff',
-      expect.objectContaining({ serverId: 'server-1', remainingMs: expect.any(Number) })
-    )
+    expect(loggerDebug).toHaveBeenCalledWith('Skipping MCP tools warm during retry backoff', { serverId: 'server-1' })
   })
 
   it('clears the retry deadline when the shared tools cache is explicitly cleared', async () => {

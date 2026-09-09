@@ -1,4 +1,5 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
@@ -114,9 +115,25 @@ describe('ChannelManager', () => {
     await channelManager.start()
     expect(createdAdapters).toHaveLength(2)
     createdAdapters.forEach((a) => expect(a.connect).toHaveBeenCalledTimes(1))
+    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-1', {
+      channelId: 'ch-1',
+      connected: true
+    })
+    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-2', {
+      channelId: 'ch-2',
+      connected: true
+    })
 
     await channelManager.stop()
     createdAdapters.forEach((a) => expect(a.disconnect).toHaveBeenCalledTimes(1))
+    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toEqual({
+      channelId: 'ch-1',
+      connected: false
+    })
+    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-2')).toEqual({
+      channelId: 'ch-2',
+      connected: false
+    })
   })
 
   it('disconnectAgent disconnects all adapters for agent and clears session tracker', async () => {
@@ -127,6 +144,14 @@ describe('ChannelManager', () => {
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(2)
+    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-1', {
+      channelId: 'ch-1',
+      connected: true
+    })
+    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-2', {
+      channelId: 'ch-2',
+      connected: true
+    })
 
     await channelManager.disconnectAgent('agent-1')
 
@@ -134,6 +159,14 @@ describe('ChannelManager', () => {
     expect(createdAdapters[1].disconnect).toHaveBeenCalledTimes(1)
     expect(createdAdapters).toHaveLength(2) // no new adapters created
     expect(channelMessageHandler.clearSessionTracker).toHaveBeenCalledWith('agent-1')
+    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toEqual({
+      channelId: 'ch-1',
+      connected: false
+    })
+    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-2')).toEqual({
+      channelId: 'ch-2',
+      connected: false
+    })
   })
 
   it('disconnectAgent for unknown agent is a no-op', async () => {
@@ -155,6 +188,10 @@ describe('ChannelManager', () => {
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(2)
+    MockMainCacheServiceExport.cacheService.setShared('channel.status.ch-1', {
+      channelId: 'ch-1',
+      connected: true
+    })
 
     await channelManager.disconnectChannel('ch-1')
 
@@ -162,6 +199,10 @@ describe('ChannelManager', () => {
     expect(createdAdapters[1].disconnect).not.toHaveBeenCalled()
     // No new adapter created — disconnect only
     expect(createdAdapters).toHaveLength(2)
+    expect(MockMainCacheServiceExport.cacheService.getShared('channel.status.ch-1')).toEqual({
+      channelId: 'ch-1',
+      connected: false
+    })
   })
 
   it('syncChannel only disconnects the target channel, leaving others untouched', async () => {

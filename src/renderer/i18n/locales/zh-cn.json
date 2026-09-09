@@ -252,6 +252,8 @@
   "agent.session_delivery.status.consumed": "已消费",
   "agent.session_delivery.status.delivering": "投递中",
   "agent.session_delivery.status.failed": "失败",
+  "agent.session_turn_origin.background_work": "后台工作完成后继续",
+  "agent.session_turn_origin.goal_round": "目标推进 · 第 {{round}} 轮",
   "agent.settings.permissionMode.title": "权限模式",
   "agent.settings.skills.addMore": "管理技能",
   "agent.settings.tooling.mcp.toggle": "切换 {{name}}",

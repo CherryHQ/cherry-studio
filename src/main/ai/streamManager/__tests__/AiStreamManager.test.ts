@@ -2932,7 +2932,7 @@ describe('AiStreamManager', () => {
 
     it('keeps the thrown error when a lossy error chunk precedes it', async () => {
       // The chunk carries only `error.message`; rebuilding from it would drop the
-      // statusCode / responseBody that error classification and the error block need.
+      // status code and safe provider detail that classification and the error block need.
       vi.useRealTimers()
 
       const apiError = new APICallError({
@@ -2967,9 +2967,19 @@ describe('AiStreamManager', () => {
 
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults[0].error).toMatchObject({
+      expect(listener.errorResults[0].error).toEqual({
+        name: 'AI_APICallError',
+        message: 'no access to this model',
+        providerErrorCategory: 'permission',
+        stack: null,
+        cause: null,
+        url: '',
+        requestBodyValues: null,
         statusCode: 403,
-        responseBody: '{"detail":"no access to this model"}'
+        responseHeaders: null,
+        responseBody: null,
+        isRetryable: false,
+        data: null
       })
     })
   })
