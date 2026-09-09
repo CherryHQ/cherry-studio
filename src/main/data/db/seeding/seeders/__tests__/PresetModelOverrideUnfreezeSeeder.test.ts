@@ -21,6 +21,10 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
             name: 'GPT-4o',
             capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.TEXT_GENERATION],
             inputModalities: ['text', 'image'],
+            parameterSupport: {
+              temperature: { supported: true, range: { min: 0, max: 2 } },
+              topP: { supported: true }
+            },
             contextWindow: 128_000
           }
         : null
@@ -70,6 +74,10 @@ describe('PresetModelOverrideUnfreezeSeeder', () => {
         capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL],
         inputModalities: ['image', 'text'],
         contextWindow: 128_000,
+        parameters: {
+          topP: { supported: true },
+          temperature: { range: { max: 2, min: 0 }, supported: true }
+        },
         supportsStreaming: true
       },
       {
@@ -78,6 +86,7 @@ describe('PresetModelOverrideUnfreezeSeeder', () => {
         capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
         inputModalities: [],
         contextWindow: 64_000,
+        parameters: { temperature: { supported: false } },
         supportsStreaming: false
       }
     ])
@@ -89,6 +98,7 @@ describe('PresetModelOverrideUnfreezeSeeder', () => {
       capabilities: null,
       inputModalities: null,
       contextWindow: null,
+      parameters: null,
       supportsStreaming: null
     })
     expect(await read('openai::chosen')).toMatchObject({
@@ -96,6 +106,7 @@ describe('PresetModelOverrideUnfreezeSeeder', () => {
       capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       inputModalities: [],
       contextWindow: 64_000,
+      parameters: { temperature: { supported: false } },
       supportsStreaming: false
     })
   })
@@ -110,10 +121,14 @@ describe('PresetModelOverrideUnfreezeSeeder', () => {
     expect((await read('openai::chosen')).capabilities).toEqual([MODEL_CAPABILITY.REASONING])
   })
 
-  it('preserves explicit empty modalities when the registry does not declare them', async () => {
-    await seed([{ modelId: 'jamba-1-5-large', inputModalities: [], outputModalities: [] }])
+  it('preserves explicit empty overrides when the registry does not declare them', async () => {
+    await seed([{ modelId: 'jamba-1-5-large', inputModalities: [], outputModalities: [], parameters: {} }])
     new PresetModelOverrideUnfreezeSeeder().run(dbh.db)
-    expect(await read('openai::jamba-1-5-large')).toMatchObject({ inputModalities: [], outputModalities: [] })
+    expect(await read('openai::jamba-1-5-large')).toMatchObject({
+      inputModalities: [],
+      outputModalities: [],
+      parameters: {}
+    })
   })
 
   it('leaves custom rows and rows without a registry entry alone', async () => {

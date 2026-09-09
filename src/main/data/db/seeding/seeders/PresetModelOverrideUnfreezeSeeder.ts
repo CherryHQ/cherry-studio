@@ -9,6 +9,7 @@ import {
 import { resolveRegistryPaths } from '@data/services/utils/registryDataPaths'
 import type { Model } from '@shared/data/types/model'
 import { eq, isNotNull } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 
 import type { DbType, ISeeder } from '../../types'
 
@@ -27,6 +28,7 @@ type UnfreezableColumn =
   | 'maxOutputTokens'
   | 'supportsStreaming'
   | 'pricing'
+  | 'parameters'
 
 /** Delta columns and the test that says "this stored value is just the registry's own value". */
 const REGISTRY_EQUAL: ReadonlyArray<[UnfreezableColumn, (stored: never, baseline: Model) => boolean]> = [
@@ -44,7 +46,8 @@ const REGISTRY_EQUAL: ReadonlyArray<[UnfreezableColumn, (stored: never, baseline
   ['maxInputTokens', (v: number, b) => v === b.maxInputTokens],
   ['maxOutputTokens', (v: number, b) => v === b.maxOutputTokens],
   ['supportsStreaming', (v: boolean, b) => v === b.supportsStreaming],
-  ['pricing', (v: Model['pricing'], b) => matchesModelPricingBaseline(v, b.pricing)]
+  ['pricing', (v: Model['pricing'], b) => matchesModelPricingBaseline(v, b.pricing)],
+  ['parameters', (v: Model['parameterSupport'], b) => isEqual(v, b.parameterSupport)]
 ]
 
 /**
