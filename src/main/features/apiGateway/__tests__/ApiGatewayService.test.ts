@@ -184,7 +184,6 @@ describe('ApiGatewayService reconcile', () => {
     captured.hostPreference = '127.0.0.1'
     captured.portPreference = 25555
     expect(service.createPairingOffer()).toMatchObject({
-      success: true,
       hostname: 'desktop',
       port: 24444,
       addresses: ['192.168.1.8']

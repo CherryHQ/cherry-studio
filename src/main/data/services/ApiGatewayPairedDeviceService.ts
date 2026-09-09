@@ -2,8 +2,12 @@ import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type ApiGatewayPairedDeviceRow, apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { ApiGatewayPairedDevice } from '@shared/data/types/apiGatewayPairedDevice'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
+import {
+  type ApiGatewayPairedDevice,
+  type ApiGatewayPairedDeviceMetadata,
+  ApiGatewayPairedDeviceMetadataSchema
+} from '@shared/data/types/apiGatewayPairedDevice'
 import { desc, eq } from 'drizzle-orm'
 
 import { timestampToISO } from './utils/rowMappers'
@@ -34,8 +38,15 @@ export class ApiGatewayPairedDeviceService {
       .map(rowToApiGatewayPairedDevice)
   }
 
-  create(input: { name: string; platform: string; tokenHash: string }): ApiGatewayPairedDevice {
-    const [row] = this.db.insert(apiGatewayPairedDeviceTable).values(input).returning().all()
+  create(input: ApiGatewayPairedDeviceMetadata & { tokenHash: string }): ApiGatewayPairedDevice {
+    const metadata = ApiGatewayPairedDeviceMetadataSchema.safeParse({ name: input.name, platform: input.platform })
+    if (!metadata.success) throw toDataApiError(metadata.error, 'create paired device')
+
+    const [row] = this.db
+      .insert(apiGatewayPairedDeviceTable)
+      .values({ ...metadata.data, tokenHash: input.tokenHash })
+      .returning()
+      .all()
     const device = rowToApiGatewayPairedDevice(row)
     notifyDataApiDataChange([{ endpoint: '/api-gateway/paired-devices', kind: 'membership', entityIds: [device.id] }])
     logger.info('Created API Gateway paired device', { id: device.id, platform: device.platform })

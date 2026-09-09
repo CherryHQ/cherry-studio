@@ -11,7 +11,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import type { ApiGatewayPairingOfferResult } from '@shared/types/apiGateway'
+import type { OutputFor } from '@shared/ipc/types'
 import { MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
@@ -40,9 +40,7 @@ const DeviceConnectionsSettings: FC = () => {
 
   const lanEnabled = apiGatewayConfig.host === LAN_HOST
   const connectionReady = lanEnabled && apiGatewayRunning
-  const [pairingOffer, setPairingOffer] = useState<
-    Extract<ApiGatewayPairingOfferResult, { success: true }> | undefined
-  >()
+  const [pairingOffer, setPairingOffer] = useState<OutputFor<'api_gateway.create_pairing_offer'>>()
   const [isCreatingOffer, setIsCreatingOffer] = useState(false)
   const [isUpdatingLan, setIsUpdatingLan] = useState(false)
   const [revokingId, setRevokingId] = useState<string>()
@@ -65,10 +63,6 @@ const DeviceConnectionsSettings: FC = () => {
     setIsCreatingOffer(true)
     try {
       const result = await ipcApi.request('api_gateway.create_pairing_offer')
-      if (!result.success) {
-        toast.error(t('deviceConnections.pairing.error') + result.error)
-        return
-      }
       setPairingOffer(result)
     } catch (error) {
       toast.error(t('deviceConnections.pairing.error') + ((error as Error).message || error))

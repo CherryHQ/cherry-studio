@@ -109,7 +109,6 @@ describe('DeviceConnectionsSettings', () => {
       apiGatewayRunning: true
     })
     requestMock.mockResolvedValue({
-      success: true,
       hostname: 'desktop',
       port: 24444,
       addresses: ['192.168.1.8'],

@@ -66,7 +66,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
     ├── formatters/                  ← output event → SSE wire string
     └── factory/                     ← `MessageConverterFactory`, `StreamAdapterFactory`
 
-src/shared/ipc/schemas/apiGateway.ts      ← start / stop / restart IpcApi contracts
+src/shared/ipc/schemas/apiGateway.ts      ← lifecycle commands, pairing offer, and event contracts
 src/main/ipc/handlers/apiGateway.ts       ← thin lifecycle-service adapters
 src/main/data/services/ApiGatewayPairedDeviceService.ts ← paired-device persistence + token lookup
 src/renderer/hooks/useApiGateway.ts       ← renderer state (config + running + loading) and actions
@@ -305,12 +305,12 @@ cache and config lives in the Preference subsystem.
 | `api_gateway.start` | `{ success } \| { success:false, error }` | `ApiGatewayService.start()` |
 | `api_gateway.stop` | success includes `outcome: 'stopped' \| 'deferred'` | `ApiGatewayService.stop()` |
 | `api_gateway.restart` | `{ success } \| { success:false, error }` | `ApiGatewayService.restart()` |
-| `api_gateway.create_pairing_offer` | active LAN endpoint + one-time code, or `{ success:false, error }` | `ApiGatewayService.createPairingOffer()` |
+| `api_gateway.create_pairing_offer` | active LAN endpoint + one-time code; failures use the standard IpcApi error channel | `ApiGatewayService.createPairingOffer()` |
 
 `api_gateway.required` is a Main-to-renderer event for an Agent session whose
 model must use the gateway while the user's persisted gateway intent is off.
-`api_gateway.pairing_completed` clears an already-consumed QR code in every
-settings window.
+`api_gateway.pairing_completed` is a payload-free signal that clears an
+already-consumed QR code in every settings window.
 
 ### Preferences (`feature.api_gateway.*`)
 
@@ -346,6 +346,8 @@ Paired-device records are SQLite-backed business data in
 `POST /pair`; only its SHA-256 hash is persisted. Renderer-facing DataApi returns
 device metadata only (`GET /api-gateway/paired-devices`) and exposes revocation
 as `DELETE /api-gateway/paired-devices/:id`.
+The owning data service validates device metadata before insertion; the HTTP
+pairing body reuses the same entity-derived metadata schema.
 
 ## Authentication
 

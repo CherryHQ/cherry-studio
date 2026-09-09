@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
 import { loggerService } from '@logger'
-import type { ApiGatewayPairedDevice } from '@shared/data/types/apiGatewayPairedDevice'
+import type { ApiGatewayPairedDevice, ApiGatewayPairedDeviceMetadata } from '@shared/data/types/apiGatewayPairedDevice'
 
 import { isValidToken } from './middleware/auth'
 import { createPairedDeviceToken, hashPairedDeviceToken } from './pairedDeviceToken'
@@ -38,7 +38,7 @@ export class ApiGatewayPairing {
     this.code = null
   }
 
-  consumeCode(candidate: string, device: { name: string; platform: string }): ApiGatewayPairingResult | null {
+  consumeCode(candidate: string, device: ApiGatewayPairedDeviceMetadata): ApiGatewayPairingResult | null {
     if (!this.code || Date.now() > this.expiresAt) return null
     if (!isValidToken(candidate, this.code)) {
       this.failedAttempts += 1

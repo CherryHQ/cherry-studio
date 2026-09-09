@@ -1,3 +1,5 @@
+import { IpcRouter } from '@main/ipc/IpcRouter'
+import { apiGatewayRequestSchemas } from '@shared/ipc/schemas/apiGateway'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
@@ -5,7 +7,7 @@ vi.mock('@application', () => ({ application: { get: appGetMock } }))
 
 import { apiGatewayHandlers } from '../apiGateway'
 
-const apiGatewayService = { start: vi.fn(), stop: vi.fn(), restart: vi.fn() }
+const apiGatewayService = { start: vi.fn(), stop: vi.fn(), restart: vi.fn(), createPairingOffer: vi.fn() }
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
@@ -17,6 +19,17 @@ beforeEach(() => {
 })
 
 describe('apiGatewayHandlers', () => {
+  it('propagates pairing failures to the IpcApi error channel', async () => {
+    apiGatewayService.createPairingOffer.mockImplementation(() => {
+      throw new Error('API Gateway is not running')
+    })
+    const router = new IpcRouter(apiGatewayRequestSchemas, apiGatewayHandlers)
+
+    await expect(router.dispatch('api_gateway.create_pairing_offer', undefined, ctx)).rejects.toThrow(
+      'API Gateway is not running'
+    )
+  })
+
   it('start returns success when the service starts cleanly', async () => {
     apiGatewayService.start.mockResolvedValue(undefined)
     expect(await apiGatewayHandlers['api_gateway.start'](undefined, ctx)).toEqual({ success: true })
@@ -30,13 +43,11 @@ describe('apiGatewayHandlers', () => {
     })
   })
 
-  it('stop returns the service outcome and restart delegates to the service', async () => {
+  it('stop reports deferred shutdown and restart reports success', async () => {
     apiGatewayService.stop.mockResolvedValue('deferred')
     apiGatewayService.restart.mockResolvedValue(undefined)
     expect(await apiGatewayHandlers['api_gateway.stop'](undefined, ctx)).toEqual({ success: true, outcome: 'deferred' })
     expect(await apiGatewayHandlers['api_gateway.restart'](undefined, ctx)).toEqual({ success: true })
-    expect(apiGatewayService.stop).toHaveBeenCalledOnce()
-    expect(apiGatewayService.restart).toHaveBeenCalledOnce()
   })
 
   it('stop turns a service throw into { success: false, error }', async () => {

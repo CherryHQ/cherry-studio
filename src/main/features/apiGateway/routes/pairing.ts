@@ -2,6 +2,7 @@ import { hostname } from 'node:os'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { ApiGatewayPairedDeviceMetadataSchema } from '@shared/data/types/apiGatewayPairedDevice'
 import { app } from 'electron'
 import { Elysia } from 'elysia'
 import * as z from 'zod'
@@ -10,10 +11,7 @@ const logger = loggerService.withContext('PairingRoutes')
 
 const PairBodySchema = z.object({
   code: z.string().min(1, 'Pairing code is required'),
-  device: z.object({
-    name: z.string().trim().min(1).max(64),
-    platform: z.string().trim().min(1).max(32)
-  })
+  device: z.object(ApiGatewayPairedDeviceMetadataSchema.shape)
 })
 
 /**

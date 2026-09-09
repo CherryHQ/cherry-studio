@@ -6,7 +6,9 @@ import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { ApiGatewayConfig, ApiGatewayPairingOfferResult, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
+import type { ApiGatewayPairedDeviceMetadata } from '@shared/data/types/apiGatewayPairedDevice'
+import type { OutputFor } from '@shared/ipc/types'
+import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -267,7 +269,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return this.apiGateway?.isRunning() ?? false
   }
 
-  createPairingOffer(): Exclude<ApiGatewayPairingOfferResult, { success: false }> {
+  createPairingOffer(): OutputFor<'api_gateway.create_pairing_offer'> {
     const endpoint = this.activeEndpoint
     if (!this.isRunning() || !endpoint) throw new Error('API Gateway is not running')
     if (endpoint.host !== '0.0.0.0') throw new Error('LAN access is disabled')
@@ -278,7 +280,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
     if (addresses.length === 0) throw new Error('No reachable LAN address is available')
 
     return {
-      success: true,
       hostname: hostname(),
       port: endpoint.port,
       addresses,
@@ -286,10 +287,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
     }
   }
 
-  pairDevice(code: string, device: { name: string; platform: string }): ApiGatewayPairingResult | null {
+  pairDevice(code: string, device: ApiGatewayPairedDeviceMetadata): ApiGatewayPairingResult | null {
     const result = this.pairing.consumeCode(code, device)
     if (result) {
-      application.get('IpcApiService').broadcast('api_gateway.pairing_completed', { deviceId: result.device.id })
+      application.get('IpcApiService').broadcast('api_gateway.pairing_completed', undefined)
     }
     return result
   }
