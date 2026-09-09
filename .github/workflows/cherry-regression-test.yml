@@ -431,6 +431,11 @@ jobs:
             echo "$name=" >> "$GITHUB_ENV"
           done
 
+      - name: Stop controlled application
+        if: always() && steps.controller-dependencies.outcome == 'success'
+        shell: bash
+        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts cleanup --run-dir "$RUN_DIR"
+
       - name: Generate platform report
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
@@ -453,17 +458,13 @@ jobs:
             ${{ runner.temp }}/cherry-regression/evidence
             ${{ runner.temp }}/cherry-regression/agent-workspace
             ${{ runner.temp }}/cherry-regression/fixtures
+            !${{ runner.temp }}/cherry-regression/fixtures/windows-selection-browser-profile/**
             ${{ runner.temp }}/cherry-regression/release/installation.json
 
       - name: Validate platform result
         if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
         run: pnpm exec tsx scripts/cherry-regression-test/cli.ts gate --run-dir "$RUN_DIR"
-
-      - name: Stop controlled application
-        if: always() && steps.controller-dependencies.outcome == 'success'
-        shell: bash
-        run: pnpm exec tsx scripts/cherry-regression-test/cli.ts cleanup --run-dir "$RUN_DIR"
 
   aggregate:
     needs: [resolve, test]

@@ -4,10 +4,13 @@ import { expect, test } from './fixture'
 import { dismissOnboarding } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
 import {
+  closeExternalText,
   openExternalText,
   selectExternalText,
   sendSystemHotkey
 } from '../../../scripts/cherry-regression-test/system-automation'
+
+test.afterEach(({ app }) => closeExternalText(app.record.platform))
 
 async function configureQuickAssistant(
   page: Parameters<typeof dismissOnboarding>[0],

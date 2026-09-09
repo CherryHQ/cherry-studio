@@ -82,7 +82,8 @@ export async function runAgentFileTask(
   app: RegressionApp,
   page: Page,
   fileName: string,
-  approve: boolean
+  approve: boolean,
+  timeout = 5 * 60_000
 ): Promise<void> {
   const output = join(app.paths.workspace, fileName)
   const promptPath = output.replaceAll('\\', '/')
@@ -118,7 +119,7 @@ export async function runAgentFileTask(
           }
           return outcome
         },
-        { timeout: 5 * 60_000 }
+        { timeout }
       )
       .not.toBe('running')
     if (outcome === 'created') return

@@ -17,12 +17,12 @@ async function ensureAgentModel(
 }
 
 test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWindow: page }) => {
-  test.setTimeout(15 * 60_000)
+  test.setTimeout(20 * 60_000)
   await ensureAgentModel(app, page)
   const name = 'Cherry Regression Claude Agent 31415'
   await createAgent(app, page, { name, permission: 'Full Access', runtime: 'Claude Agent' })
   await selectAgentWorkspace(app, page)
-  await runAgentFileTask(app, page, 'claude-agent-result.txt', false)
+  await runAgentFileTask(app, page, 'claude-agent-result.txt', false, 15 * 60_000)
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)

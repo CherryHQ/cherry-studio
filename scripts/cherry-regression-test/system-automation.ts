@@ -11,6 +11,20 @@ import type { Platform } from './types'
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
 let activeWindowsTextFixturePid: number | undefined
 
+export function closeExternalText(platform: Platform): void {
+  if (platform !== 'windows' || !activeWindowsTextFixturePid) return
+  try {
+    execFileSync('taskkill.exe', ['/PID', String(activeWindowsTextFixturePid), '/T', '/F'], {
+      stdio: 'ignore',
+      timeout: 10_000
+    })
+  } catch {
+    // The browser may have already exited.
+  } finally {
+    activeWindowsTextFixturePid = undefined
+  }
+}
+
 function escapePowerShell(value: string): string {
   return value.replace(/'/g, "''")
 }
@@ -120,6 +134,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       { stdio: 'ignore', timeout: 10_000 }
     )
   } else {
+    closeExternalText(platform)
     const fixtureHtmlPath = join(paths.fixtures, 'windows-selection-fixture.html')
     const browserProfilePath = join(paths.fixtures, 'windows-selection-browser-profile')
     mkdirSync(browserProfilePath, { recursive: true })
@@ -146,10 +161,14 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       '$browserPath = $browserCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1',
       'if (-not $browserPath) { throw "Chrome or Edge was not found" }',
       `$fixtureArgs = @('--user-data-dir="${escapePowerShell(browserProfilePath)}"', '--no-first-run', '--disable-default-apps', '--disable-extensions', '--new-window', '--window-size=800,400', '--window-position=100,100', '"${escapePowerShell(fixtureUrl)}"')`,
-      '$fixture = Start-Process -FilePath $browserPath -ArgumentList $fixtureArgs -PassThru',
-      '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
-      'do { $fixture.Refresh(); if ($fixture.MainWindowHandle -eq 0) { Start-Sleep -Milliseconds 200 } } while ($fixture.MainWindowHandle -eq 0 -and -not $fixture.HasExited -and [DateTime]::UtcNow -lt $deadline)',
-      'if ($fixture.MainWindowHandle -eq 0) { throw "External text window was not found" }',
+      'Start-Process -FilePath $browserPath -ArgumentList $fixtureArgs | Out-Null',
+      '$deadline = [DateTime]::UtcNow.AddSeconds(20)',
+      '$fixture = $null',
+      'do {',
+      '  $fixture = Get-Process chrome,msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Cherry Regression Selection Fixture*" } | Select-Object -First 1',
+      '  if (-not $fixture) { Start-Sleep -Milliseconds 200 }',
+      '} while (-not $fixture -and [DateTime]::UtcNow -lt $deadline)',
+      'if (-not $fixture) { throw "External text window was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
       'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
       'Start-Sleep -Milliseconds 1000',
@@ -160,7 +179,7 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
     const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 15_000
+      timeout: 30_000
     })
     const processId = Number.parseInt(output.trim(), 10)
     if (!Number.isInteger(processId) || processId <= 0) throw new Error('External text process ID was not returned')
