@@ -309,7 +309,7 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('does not forward capabilities for a preset-backed model', () => {
+  it('inherits capabilities and endpoints for a preset-backed model', () => {
     const dto = toCreateModelDto('ppio', {
       id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
       providerId: 'ppio',
@@ -325,10 +325,10 @@ describe('toCreateModelDto', () => {
     } as Model)
 
     expect(dto.capabilities).toBeUndefined()
+    expect(dto.endpointTypes).toBeUndefined()
     expect(dto).toMatchObject({
       providerId: 'ppio',
-      modelId: 'bge-reranker-v2-m3',
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      modelId: 'bge-reranker-v2-m3'
     })
   })
 
@@ -431,4 +431,40 @@ describe('toCreateModelDto', () => {
 
     expect(dto.capabilities).toBeUndefined()
   })
+})
+
+describe('discovered endpoint provenance', () => {
+  const preset = {
+    id: 'doubao::doubao-seed-2-1-pro-260628',
+    apiModelId: 'doubao-seed-2-1-pro-260628',
+    providerId: 'doubao',
+    presetModelId: 'doubao-seed-2-1-pro',
+    name: 'Doubao',
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model
+
+  it('inherits endpoint declarations when adding only from the catalog', async () => {
+    dataApiGetMock.mockResolvedValueOnce({ models: [preset] })
+    const [model] = await fetchProviderCatalogModels('doubao')
+    expect(
+      toCreateModelDto('doubao', model, resolveCreateModelEndpointTypes({ id: 'doubao' }, model))
+    ).not.toHaveProperty('endpointTypes')
+  })
+
+  it.each([undefined, [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]])(
+    'preserves only protocols explicitly reported upstream (%s)',
+    async (endpointTypes) => {
+      listModelsMock.mockResolvedValueOnce([{ ...preset, presetModelId: undefined, endpointTypes }])
+      dataApiGetMock.mockResolvedValueOnce([preset])
+      const [model] = await fetchResolvedProviderModels('doubao')
+      const dto = toCreateModelDto('doubao', model, resolveCreateModelEndpointTypes({ id: 'doubao' }, model))
+      if (endpointTypes) expect(dto.endpointTypes).toEqual(endpointTypes)
+      else expect(dto).not.toHaveProperty('endpointTypes')
+      expect(model.endpointTypes).toEqual(endpointTypes ?? preset.endpointTypes)
+    }
+  )
 })

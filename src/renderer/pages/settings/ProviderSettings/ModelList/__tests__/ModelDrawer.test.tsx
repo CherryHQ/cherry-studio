@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -137,6 +138,42 @@ describe('Model drawers', () => {
 
     useModelsMock.mockReturnValue({ models: [] })
     useProviderPresetMock.mockReturnValue({ data: undefined })
+    vi.mocked(dataApiService.get).mockImplementation(async () => useProviderPresetMock()?.data?.models ?? [])
+  })
+
+  it('waits for exact-ID resolution even when the catalog projection is unavailable', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({ provider: { id: 'ppio', name: 'PPIO' } })
+    const resolved = deferred<any[]>()
+    vi.mocked(dataApiService.get).mockReturnValueOnce(resolved.promise)
+    render(<AddModelDrawer providerId="ppio" open prefill={null} onClose={vi.fn()} />)
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'baai/bge-m3')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+    expect(createModelMock).not.toHaveBeenCalled()
+    await act(async () =>
+      resolved.resolve([{ id: 'ppio::baai/bge-m3', apiModelId: 'baai/bge-m3', presetModelId: 'bge-m3' }])
+    )
+    await waitFor(() => expect(createModelMock).toHaveBeenCalled())
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('capabilities')
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('name')
+  })
+
+  it('keeps the input for retry when exact-ID resolution fails', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({ provider: { id: 'ppio', name: 'PPIO' } })
+    vi.mocked(dataApiService.get).mockRejectedValueOnce(new Error('catalog unavailable'))
+    render(<AddModelDrawer providerId="ppio" open prefill={null} onClose={vi.fn()} />)
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'baai/bge-m3')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.models.manage.operation_failed')
+    expect(screen.getByLabelText('settings.models.add.model_id.label')).toHaveValue('baai/bge-m3')
+    expect(createModelMock).not.toHaveBeenCalled()
+    vi.mocked(dataApiService.get).mockResolvedValueOnce([
+      { id: 'ppio::baai/bge-m3', apiModelId: 'baai/bge-m3', presetModelId: 'bge-m3' }
+    ])
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+    await waitFor(() => expect(createModelMock).toHaveBeenCalled())
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('capabilities')
   })
 
   it('renders the add drawer without the inner panel shell and submits through the local drawer form', async () => {

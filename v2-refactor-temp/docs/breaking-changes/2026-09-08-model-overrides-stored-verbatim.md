@@ -14,6 +14,10 @@ The classification section's reset now hands capabilities and input modalities b
 
 An upgrade migration turns the old add form's "no modality chosen" marker back into "unset", so those models pick up the catalog's input modalities again. A one-time pass on first launch also hands back every stored value that equals today's catalog value, since such a value changed nothing and only blocked future catalog updates.
 
+The one-time cleanup recognizes pre-operation capability snapshots using the same operation completion as model reads. It preserves an explicit empty modality list when the catalog does not declare that field, and commits all cleanup writes in one transaction.
+
+Manual creation resolves the entered model IDs before deciding which fields inherit from the catalog. If that lookup fails, the form preserves the input for retry. Adding a catalog model leaves its endpoint list inherited; only protocols explicitly reported by the remote provider are stored as endpoint overrides during discovery.
+
 The drawer's "Overrides" card lists the fields a catalog model overrides; removing one makes that field follow the catalog again.
 
 Two smaller consequences. Turning an operation off on a catalog model no longer copies the catalog's endpoint list into the model; the list narrows itself while it stays inherited. And the Preferred Endpoint picker only appears once a model declares endpoints, since pinning an undeclared endpoint used to silently write the provider's whole endpoint list into the model.

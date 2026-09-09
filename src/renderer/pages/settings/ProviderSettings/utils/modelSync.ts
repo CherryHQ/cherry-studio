@@ -28,13 +28,15 @@ type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}
 type ProviderPresetPath = Extract<ConcreteApiPaths, `/providers/${string}/preset`>
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
 
+type DiscoveredModel = Model & { reportedEndpointTypes?: RuntimeEndpointType[] }
+
 export function resolveCreateModelEndpointTypes(
   provider: ModelSyncProviderEndpointSource | null | undefined,
-  model: Pick<Model, 'endpointTypes'>
+  model: Pick<DiscoveredModel, 'endpointTypes' | 'presetModelId' | 'reportedEndpointTypes'>
 ): RuntimeEndpointType[] | undefined {
-  if (model.endpointTypes?.length) {
-    return [...model.endpointTypes]
-  }
+  if (model.reportedEndpointTypes?.length) return [...model.reportedEndpointTypes]
+  if (model.presetModelId) return undefined
+  if (model.endpointTypes?.length) return [...model.endpointTypes]
 
   if (!provider || !isNewApiProvider(provider as Provider)) {
     return undefined
@@ -49,11 +51,11 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
 
 export function toCreateModelDto(
   providerId: string,
-  model: Model,
+  model: DiscoveredModel,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
   const modelId = getRawModelId(model)
-  const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
+  const resolvedEndpointTypes = endpointTypes ?? resolveCreateModelEndpointTypes(null, model)
   // A preset-backed row inherits name/group/window from the registry; sending the overlaid
   // values back would store the registry's own baseline as user overrides.
   const isPreset = Boolean(model.presetModelId)
@@ -82,7 +84,7 @@ export function toCreateModelDto(
  * — this layer overlays preset capabilities/limits/pricing that aren't
  * available from the upstream provider SDK.
  */
-async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Model>[]): Promise<Model[]> {
+async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Model>[]): Promise<DiscoveredModel[]> {
   const filteredModels = fetchedModels.filter((model) => !isEmpty(model.name))
   if (filteredModels.length === 0) {
     return []
@@ -124,7 +126,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   ] as const
 
   return filteredModels.map((fetched) => {
-    const base = fetched as Model
+    const base: DiscoveredModel = {
+      ...(fetched as Model),
+      ...(fetched.endpointTypes?.length ? { reportedEndpointTypes: [...fetched.endpointTypes] } : {})
+    }
     const apiId = fetched.apiModelId ?? ''
     // `resolveModels` keys every result by the exact raw id it was sent, so an exact lookup always hits —
     // no fuzzy fallback needed (a slash/dot-stripping fallback used to overlay siblings onto one canonical
@@ -167,7 +172,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<Model[]> {
+export async function fetchResolvedProviderModels(providerId: string): Promise<DiscoveredModel[]> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
     const fetched = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })

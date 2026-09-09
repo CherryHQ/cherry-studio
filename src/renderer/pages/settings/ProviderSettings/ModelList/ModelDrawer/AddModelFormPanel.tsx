@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderPreset } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
@@ -186,7 +187,7 @@ export default function AddModelFormPanel({
   )
 
   const buildCreateModelDto = useCallback(
-    (values: ModelBasicFormState): CreateModelDto | null => {
+    (values: ModelBasicFormState, resolvedModels: Model[]): CreateModelDto | null => {
       if (!provider) {
         return null
       }
@@ -201,7 +202,7 @@ export default function AddModelFormPanel({
       const classifiedCapabilities = buildModelCapabilities(prefill?.model?.capabilities ?? [], classification)
       const classifiedInputModalities = buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification)
       const submittedInputModalities = classifiedInputModalities
-      const isRegistryModel = providerPreset?.models?.some((model) => getModelApiId(model) === modelId) ?? false
+      const isRegistryModel = resolvedModels.some((model) => getModelApiId(model) === modelId && model.presetModelId)
       // A registry-backed row inherits what the form only displays; a custom row owns all of it.
       const inheritsFromRegistry = isRegistryModel || Boolean(prefill?.model?.presetModelId)
       const shouldSubmitCapabilities = classificationTouched || !inheritsFromRegistry
@@ -239,7 +240,6 @@ export default function AddModelFormPanel({
       prefill?.model,
       provider,
       providerId,
-      providerPreset?.models,
       t
     ]
   )
@@ -261,18 +261,24 @@ export default function AddModelFormPanel({
     setSubmitError(null)
 
     try {
+      const resolvedModels = (await dataApiService.get(`/providers/${providerId}/models:resolve`, {
+        query: { ids: splitModelIds(normalizedId) }
+      })) as Model[]
       if (normalizedId.includes(',')) {
         const dtos: CreateModelDto[] = []
         for (const singleId of splitModelIds(normalizedId)) {
-          const dto = buildCreateModelDto({
-            modelId: singleId,
-            name: singleId,
-            group: '',
-            contextWindow: null,
-            maxInputTokens: null,
-            maxOutputTokens: null,
-            endpointTypes: effectiveEndpointTypes
-          })
+          const dto = buildCreateModelDto(
+            {
+              modelId: singleId,
+              name: singleId,
+              group: '',
+              contextWindow: null,
+              maxInputTokens: null,
+              maxOutputTokens: null,
+              endpointTypes: effectiveEndpointTypes
+            },
+            resolvedModels
+          )
 
           if (!dto) return
           dtos.push(dto)
@@ -285,11 +291,14 @@ export default function AddModelFormPanel({
         return
       }
 
-      const dto = buildCreateModelDto({
-        ...formState,
-        modelId: normalizedId,
-        endpointTypes: effectiveEndpointTypes
-      })
+      const dto = buildCreateModelDto(
+        {
+          ...formState,
+          modelId: normalizedId,
+          endpointTypes: effectiveEndpointTypes
+        },
+        resolvedModels
+      )
       if (dto) {
         await createModel(dto)
         onSuccess([createUniqueModelId(dto.providerId, dto.modelId)])
@@ -300,7 +309,7 @@ export default function AddModelFormPanel({
       submitInFlightRef.current = false
       setIsSubmitting(false)
     }
-  }, [buildCreateModelDto, createModel, createModels, effectiveEndpointTypes, formState, onSuccess, t])
+  }, [buildCreateModelDto, createModel, createModels, effectiveEndpointTypes, formState, onSuccess, providerId, t])
 
   const handleOperationCapabilityToggle = useCallback(
     (operationCapability: EditableModelOperationCapability) => {
