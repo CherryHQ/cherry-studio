@@ -1551,7 +1551,7 @@ describe('KnowledgeService', () => {
           data: { source: resolvePath('/Users/me/app.exe'), path: resolvePath('/Users/me/app.exe') as AbsoluteFilePath }
         }
       ])
-    ).rejects.toThrow('Unsupported knowledge file type: /Users/me/app.exe')
+    ).rejects.toThrow(`Unsupported knowledge file type: ${resolvePath('/Users/me/app.exe')}`)
 
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
