@@ -151,6 +151,19 @@ describe('resolveHermesProviderInfo', () => {
       endpointType: 'openai-responses'
     })
   })
+
+  it('reuses a shared Chat host when the model selects OpenAI Responses', () => {
+    expect(
+      resolveHermesProviderInfo(
+        provider({ endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://shared.example/v1' } } }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      apiMode: 'codex_responses',
+      baseUrl: 'https://shared.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
 })
 
 describe('resolvePiProviderInfo', () => {

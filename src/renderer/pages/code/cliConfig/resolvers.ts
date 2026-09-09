@@ -1,6 +1,7 @@
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
 import {
@@ -42,7 +43,7 @@ export function resolveClaudeBaseUrl(provider: Provider): string {
 }
 
 export function resolveCodexBaseUrl(provider: Provider): string {
-  return formatApiHost(provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl)
+  return formatApiHost(resolveEndpointBaseUrl(provider, CODEX_RESPONSES_ENDPOINT))
 }
 
 export function resolveOpenAIBaseUrl(provider: Provider): string {
@@ -77,7 +78,7 @@ function resolveSupportedEndpointType(
   supportedEndpoints: readonly EndpointType[],
   fallbackEndpoint: EndpointType
 ): EndpointType {
-  const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
+  const hasEndpoint = (type: EndpointType) => Boolean(resolveEndpointBaseUrl(provider, type))
   const isSupported = (type: EndpointType | undefined): type is EndpointType =>
     Boolean(type && supportedEndpoints.includes(type))
   const isModelCapable = (type: EndpointType) => !modelEndpointTypes?.length || modelEndpointTypes.includes(type)
@@ -130,7 +131,7 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
     PI_ENDPOINTS,
     'openai-chat-completions'
   )
-  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const rawBaseUrl = resolveEndpointBaseUrl(provider, endpointType)
   const apiByEndpoint: Partial<Record<EndpointType, PiApi>> = {
     'anthropic-messages': 'anthropic-messages',
     'google-generate-content': 'google-generative-ai',
@@ -154,7 +155,7 @@ export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes
     HERMES_ENDPOINTS,
     'openai-chat-completions'
   )
-  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const rawBaseUrl = resolveEndpointBaseUrl(provider, endpointType)
   const apiMode: HermesApiMode =
     endpointType === 'anthropic-messages'
       ? 'anthropic_messages'
