@@ -1109,9 +1109,11 @@ const AgentComposerInner = ({
   useEffect(() => {
     return EventEmitter.on(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, (payload) => {
       const data =
-        typeof payload === 'object' && payload ? (payload as { topicId?: string; token?: ComposerDraftToken }) : null
+        typeof payload === 'object' && payload
+          ? (payload as { topicId?: string; token?: ComposerDraftToken; updateOnly?: boolean })
+          : null
       if (!data?.token || data.topicId !== sessionTopicId) return
-      actionsRef.current.insertToken(data.token)
+      data.updateOnly ? actionsRef.current.insertToken(data.token, true) : actionsRef.current.insertToken(data.token)
     })
   }, [actionsRef, sessionTopicId])
 
