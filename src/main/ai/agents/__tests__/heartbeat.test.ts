@@ -9,22 +9,29 @@ vi.mock('@logger', () => ({
 vi.mock('node:fs/promises', () => ({
   readFile: vi.fn(),
   open: vi.fn(),
-  mkdir: vi.fn()
+  mkdir: vi.fn(),
+  lstat: vi.fn(),
+  unlink: vi.fn()
 }))
 
-import { mkdir, open, readFile } from 'node:fs/promises'
+import { lstat, mkdir, open, readFile, unlink } from 'node:fs/promises'
 
 import { ensureHeartbeatFile, readHeartbeat } from '../heartbeat'
 
 const mockedReadFile = vi.mocked(readFile)
 const mockedOpen = vi.mocked(open)
 const mockedMkdir = vi.mocked(mkdir)
+const mockedLstat = vi.mocked(lstat)
+const mockedUnlink = vi.mocked(unlink)
+
+const regularFile = () => ({ isFile: () => true, isSymbolicLink: () => false })
 
 const errWithCode = (code: string) => Object.assign(new Error(code), { code })
 
 describe('readHeartbeat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockedLstat.mockResolvedValue(regularFile() as never)
   })
 
   it('returns content when file exists', async () => {
@@ -60,6 +67,17 @@ describe('readHeartbeat', () => {
     expect(result).toBeUndefined()
   })
 
+  it('refuses to read through a symlink (lstat, never follows)', async () => {
+    // A pre-existing heartbeat.md symlink would stream whatever it points at
+    // into the model prompt — readHeartbeat must decline it outright.
+    mockedLstat.mockResolvedValue({ isFile: () => false, isSymbolicLink: () => true } as never)
+
+    const result = await readHeartbeat('/workspace')
+
+    expect(result).toBeUndefined()
+    expect(mockedReadFile).not.toHaveBeenCalled()
+  })
+
   it('returns the full content when comments accompany real entries', async () => {
     mockedReadFile.mockResolvedValue('<!-- template header -->\n- real checklist item')
     const result = await readHeartbeat('/workspace')
@@ -76,6 +94,8 @@ describe('readHeartbeat', () => {
 describe('ensureHeartbeatFile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockedLstat.mockResolvedValue(regularFile() as never)
+    mockedUnlink.mockResolvedValue(undefined)
   })
 
   it('resolves without throwing when the retry also hits ENOENT', async () => {
@@ -102,5 +122,36 @@ describe('ensureHeartbeatFile', () => {
 
     await expect(ensureHeartbeatFile('/workspace')).resolves.toBeUndefined()
     expect(mockedMkdir).not.toHaveBeenCalled()
+  })
+
+  it('warns and skips provisioning when a symlink occupies heartbeat.md', async () => {
+    mockedOpen.mockRejectedValueOnce(errWithCode('EEXIST'))
+    mockedLstat.mockResolvedValue({ isFile: () => false, isSymbolicLink: () => true } as never)
+
+    await expect(ensureHeartbeatFile('/workspace')).resolves.toBeUndefined()
+    expect(mockedMkdir).not.toHaveBeenCalled()
+  })
+
+  it('unlinks a zero-byte corpse when the template write fails, so the next sync re-provisions', async () => {
+    const handle = {
+      writeFile: vi.fn().mockRejectedValue(new Error('ENOSPC')),
+      close: vi.fn().mockResolvedValue(undefined)
+    }
+    mockedOpen.mockResolvedValueOnce(handle as never)
+
+    await expect(ensureHeartbeatFile('/workspace')).rejects.toThrow('ENOSPC')
+    expect(handle.close).toHaveBeenCalled()
+    expect(mockedUnlink).toHaveBeenCalledWith(expect.stringContaining('heartbeat.md'))
+  })
+
+  it('does not mask the write error when the corpse unlink also fails', async () => {
+    const handle = {
+      writeFile: vi.fn().mockRejectedValue(new Error('EIO')),
+      close: vi.fn().mockResolvedValue(undefined)
+    }
+    mockedOpen.mockResolvedValueOnce(handle as never)
+    mockedUnlink.mockRejectedValueOnce(new Error('unlink failed'))
+
+    await expect(ensureHeartbeatFile('/workspace')).rejects.toThrow('EIO')
   })
 })

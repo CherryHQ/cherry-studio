@@ -22,7 +22,9 @@ import {
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
-import { clampHeartbeatIntervalMinutes } from '@shared/ai/agentHeartbeat'
+import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
+import { t } from '@main/i18n'
+import { clampHeartbeatIntervalMinutes, isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
@@ -35,6 +37,19 @@ import { ensureHeartbeatFile } from './heartbeat'
 const logger = loggerService.withContext('HeartbeatSchedule')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
+
+/**
+ * Reserved schedule names: exactly the `heartbeat_<agentId>` rows sync can
+ * mint for a live agent. Agent ids include non-uuid builtins ('cherry-support'),
+ * so the check resolves the suffix against the agent table instead of a uuid
+ * pattern. (type, name) is UNIQUE per type — any agent's reserved name is
+ * reserved for everyone, and a plain `heartbeat_daily` is NOT reserved.
+ */
+export function isReservedHeartbeatScheduleName(name: string): boolean {
+  if (!name.startsWith('heartbeat_')) return false
+  const agentId = name.slice('heartbeat_'.length)
+  return agentId.length > 0 && agentService.getAgent(agentId) !== null
+}
 
 export type HeartbeatSyncOutcome =
   | 'created'
@@ -117,21 +132,12 @@ const syncChains = new Map<string, Promise<HeartbeatSyncOutcome>>()
 
 // All unsettled heartbeat work, tracked at module level so the lifecycle
 // drain covers every caller (AgentJobsService, createAgent), not just one.
-const inFlightWork = new Set<Promise<unknown>>()
+const inFlightWork = createInFlightWorkTracker()
 
-function trackWork<T>(work: Promise<T>): Promise<T> {
-  inFlightWork.add(work)
-  const done = () => inFlightWork.delete(work)
-  void work.then(done, done)
-  return work
-}
+const trackWork = inFlightWork.track
 
 /** Wait out all in-flight heartbeat work; loops since settling work can enqueue follow-ups. */
-export async function drainHeartbeatWork(): Promise<void> {
-  while (inFlightWork.size > 0) {
-    await Promise.allSettled([...inFlightWork])
-  }
-}
+export const drainHeartbeatWork: () => Promise<void> = inFlightWork.drain
 
 /**
  * Converge the agent's heartbeat schedule with its configuration. Safe to
@@ -248,7 +254,7 @@ async function runSync(
 
   const config = agent.configuration ?? {}
 
-  if (config.heartbeat_enabled === false) {
+  if (!isHeartbeatEnabled(config)) {
     // Pause instead of delete: zero timer ticks while off, no churn on re-enable.
     // The run-side gate remains as a backstop for rows paused by neither path.
     // An explicit toggle-off also resets a circuit-breaker stop (marker cleared).
@@ -273,7 +279,7 @@ async function runSync(
   // Workspace row before the file: if this throws (a SYSTEM row owns the
   // path), no orphaned heartbeat.md is left behind to wedge future syncs.
   const { workspace, created: workspaceCreated } = agentWorkspaceService.findOrCreateByPathResult(workspacePath, {
-    name: `Heartbeat — ${agent.name}`
+    name: t('agent.heartbeat.workspace_name', { name: agent.name })
   })
   createdWorkspaceId = workspaceCreated ? workspace.id : null
   try {
@@ -311,8 +317,9 @@ async function runSync(
         })
       })
       // Re-arming an enabled interval resets its phase — skip the timer sync
-      // when only the template changed (the armed callback re-reads the row).
-      if (reenable || triggerChanged) jobManager.syncJobScheduleTimerById(row.id)
+      // when only the template changed (the armed callback re-reads the row),
+      // and never re-arm a breaker-paused row: the toggle off/on is the reset.
+      if ((reenable || triggerChanged) && !breakerPaused) jobManager.syncJobScheduleTimerById(row.id)
       touchedScheduleIds.push(row.id)
       if (breakerPaused) {
         logger.info('Heartbeat schedule left paused by the circuit breaker; drift repaired', {
@@ -327,12 +334,24 @@ async function runSync(
 
     const existing = findHeartbeatRow(agentId, rows)
     // A migration-disambiguated duplicate can coexist with the canonical row
-    // and both would fire — converge to one schedule per agent.
-    for (const row of rows) {
-      if (row.id === existing?.id || !matchesHeartbeatIdentity(row, agentId)) continue
-      await jobManager.unregisterJobScheduleById(row.id)
-      logger.info('Removed duplicate heartbeat schedule', { agentId, scheduleId: row.id })
-    }
+    // and both would fire — converge to one schedule per agent. One failure
+    // must not strand the rest: allSettled + per-row logging.
+    const duplicates = rows.filter((row) => row.id !== existing?.id && matchesHeartbeatIdentity(row, agentId))
+    const removals = await Promise.allSettled(
+      duplicates.map(async (row) => {
+        await jobManager.unregisterJobScheduleById(row.id)
+        logger.info('Removed duplicate heartbeat schedule', { agentId, scheduleId: row.id })
+      })
+    )
+    removals.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        logger.warn('Failed to remove duplicate heartbeat schedule', {
+          agentId,
+          scheduleId: duplicates[index].id,
+          error: result.reason
+        })
+      }
+    })
     if (!existing) {
       // (type, name) is UNIQUE: a concurrent sync may have registered this row
       // against a stale snapshot — a benign race, repair the winner in place.
@@ -354,8 +373,9 @@ async function runSync(
       } catch (error) {
         const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
         // Benign only when the (type, name) winner is this agent's heartbeat
-        // row — a foreign row sharing the reserved name must stay untouched.
-        if (!isScheduleNameConflict(error) || !winner || !isHeartbeatRow(winner, agentId)) throw error
+        // row — sentinel OR corrupted-sentinel fallback identity, never a
+        // foreign row sharing the reserved name.
+        if (!isScheduleNameConflict(error) || !winner || !matchesHeartbeatIdentity(winner, agentId)) throw error
         logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
           agentId,
           scheduleId: winner.id

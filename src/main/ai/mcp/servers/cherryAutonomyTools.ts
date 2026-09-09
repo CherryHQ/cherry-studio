@@ -22,6 +22,7 @@ import { agentTaskService as taskService } from '@data/services/AgentTaskService
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
+import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import {
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
@@ -911,7 +912,7 @@ export class CherryAutonomyTools {
         optional_fields: schema.optional
       })),
       channels: channelSummary,
-      heartbeat_enabled: config?.heartbeat_enabled ?? false
+      heartbeat_enabled: isHeartbeatEnabled(config ?? {})
     }
 
     logger.info('Config status queried', { agentId: this.agentId })

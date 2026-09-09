@@ -89,13 +89,16 @@ describe('createAgent', () => {
     expect(onSettled).toHaveBeenCalled()
   })
 
-  it('stays non-fatal when heartbeat provisioning fails, and triggers an eager re-repair', async () => {
+  it('stays non-fatal when heartbeat provisioning fails, and keeps the failure per-agent', async () => {
+    // No whole-population re-repair: the dominant failure is deterministic
+    // (reserved-name conflict, untrusted path), which a retry cannot fix; the
+    // next config save or startup sweep converges this one agent.
     syncHeartbeatSchedule.mockRejectedValue(new Error('disk full'))
 
     await expect(createAgent(request)).resolves.toMatchObject({
       id: '11111111-1111-4111-8111-111111111111'
     })
     expect(removeAgentDataDirectory).not.toHaveBeenCalled()
-    expect(repairHeartbeatSchedules).toHaveBeenCalledTimes(1)
+    expect(repairHeartbeatSchedules).not.toHaveBeenCalled()
   })
 })

@@ -14,6 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -232,10 +233,17 @@ describe('AgentJobsService', () => {
     })
 
     it("refuses another agent's reserved heartbeat schedule name — the UNIQUE index is per type, not per agent", () => {
+      seedAgent(OTHER_AGENT_ID)
       expect(() => service.createTask(AGENT_ID, { ...form, name: `heartbeat_${OTHER_AGENT_ID}` })).toThrow(
         'reserved for the agent heartbeat'
       )
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
+    it('allows a heartbeat_-prefixed name that is not a live agent’s reserved name', () => {
+      const task = service.createTask(AGENT_ID, { ...form, name: 'heartbeat_daily' })
+
+      expect(task.name).toBe('heartbeat_daily')
     })
 
     it('rejects an invalid cron trigger up front — no row, no subscriptions, no timer', () => {
@@ -651,6 +659,47 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${own.id}`)).toBe(false)
       expect(scheduler.has(`schedule:${second.id}`)).toBe(false)
       expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
+    })
+
+    it('deleting an agent also removes the heartbeat workspace row its schedule referenced', async () => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-1',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-agent-1',
+          type: 'user',
+          orderKey: 'ws-hb-1'
+        })
+        .run()
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'ws-user-1', name: 'My workspace', path: '/tmp/user-ws', type: 'user', orderKey: 'ws-user-1' })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-1' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      // Only the heartbeat workspace goes; an unrelated user workspace stays.
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-user-1'])
     })
 
     it('agent deletion fires the cleanup through onAgentDeleted', async () => {

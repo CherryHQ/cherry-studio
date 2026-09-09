@@ -196,13 +196,25 @@ function makeSession(workspacePath: string | null = '/ws/a'): AgentSessionEntity
   } as AgentSessionEntity
 }
 
-function makeSchedule(name: string | null = 'heartbeat', metadata: Record<string, unknown> = {}) {
+function makeSchedule(
+  name: string | null = 'heartbeat',
+  metadata: Record<string, unknown> = {},
+  jobInputTemplate: Record<string, unknown> = {
+    agentId: 'a1',
+    prompt: '__heartbeat__',
+    timeoutMinutes: 2,
+    workspace: { type: 'user', workspaceId: 'ws-1' },
+    reuseRevision: 0
+  }
+) {
   return {
     id: 's1',
     type: 'agent.task',
     name,
     trigger: { kind: 'interval', ms: 60_000 },
-    jobInputTemplate: {},
+    // The live template the workspace-deleted pause guard checks against —
+    // mirrors the enqueue-time input of makeCtx.
+    jobInputTemplate,
     enabled: true,
     nextRun: null,
     lastRun: null,
@@ -361,6 +373,61 @@ describe('runAgentTask', () => {
 
     expect(out).toEqual({ sessionId: null, result: 'Skipped (workspace deleted)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
+    expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
+  })
+
+  it('does not pause when the schedule was repaired onto a new workspace after this job was queued', async () => {
+    // The queued job carries the OLD (deleted) workspace; the live schedule
+    // template already points at the re-provisioned one — pausing would
+    // disable a healthy schedule.
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    const repaired = makeSchedule(
+      'heartbeat',
+      {},
+      {
+        agentId: 'a1',
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'user', workspaceId: 'ws-2' },
+        reuseRevision: 0
+      }
+    )
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(repaired)
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(agentWorkspaceService.getById).mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('Workspace', 'ws-1')
+    })
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (workspace deleted)' })
+    expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
+    expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
+  })
+
+  it('does not pause when the schedule was repurposed into an ordinary task after this job was queued', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    const repurposed = makeSchedule(
+      'heartbeat',
+      {},
+      {
+        agentId: 'a1',
+        prompt: 'run my report',
+        timeoutMinutes: 2,
+        workspace: { type: 'user', workspaceId: 'ws-1' },
+        reuseRevision: 0
+      }
+    )
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(repurposed)
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(agentWorkspaceService.getById).mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('Workspace', 'ws-1')
+    })
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (workspace deleted)' })
     expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
     expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
   })

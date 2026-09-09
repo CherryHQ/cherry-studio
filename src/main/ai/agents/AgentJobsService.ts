@@ -9,8 +9,10 @@ import {
   readTaskSessionReuse,
   writeTaskSessionReuse
 } from '@data/services/AgentTaskService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
+import { createInFlightWorkTracker } from '@main/core/concurrency/inFlightWork'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ScheduledTaskEntity } from '@shared/data/api/schemas/agents'
 import {
@@ -23,11 +25,24 @@ import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { agentTaskJobHandler } from './agentTaskJobHandler'
-import { drainHeartbeatWork, repairHeartbeatSchedules, syncHeartbeatSchedule } from './heartbeatSchedule'
+import {
+  drainHeartbeatWork,
+  isReservedHeartbeatScheduleName,
+  repairHeartbeatSchedules,
+  syncHeartbeatSchedule
+} from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentJobsService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
+
+/**
+ * Quiet window before the startup heartbeat repair pass — lets cold-start IO
+ * settle first, mirroring JobManager's deferred-recovery shape (the repair
+ * writes schedule rows and arms timers, neither of which belongs on the
+ * bootstrap path).
+ */
+const STARTUP_REPAIR_QUIET_WINDOW_MS = 60_000
 
 type AgentTaskJobInputTemplate = {
   agentId: string
@@ -73,15 +88,15 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 @DependsOn(['JobManager'])
 export class AgentJobsService extends BaseService {
   // In-flight schedule work started by this service (deletion sweeps),
-  // drained in onDestroy. Heartbeat work is tracked at its own module level
+  // drained in onStop. Heartbeat work is tracked at its own module level
   // (see drainHeartbeatWork) since createAgent also starts it.
-  private inFlightWork = new Set<Promise<unknown>>()
+  private readonly inFlightWork = createInFlightWorkTracker()
 
   private trackWork(work: Promise<unknown>): void {
-    this.inFlightWork.add(work)
-    const done = () => this.inFlightWork.delete(work)
-    void work.then(done, done)
+    this.inFlightWork.track(work)
   }
+
+  private isShuttingDown = false
 
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
@@ -100,6 +115,16 @@ export class AgentJobsService extends BaseService {
       })
     )
 
+    // The restore path (ensureBuiltinAgent) never goes through createAgent —
+    // the creation event is the seam that covers both.
+    this.registerDisposable(
+      agentService.onAgentCreated(({ agentId }) => {
+        void syncHeartbeatSchedule(agentId).catch((error) => {
+          logger.warn('Failed to provision heartbeat schedule for created agent', { agentId, error })
+        })
+      })
+    )
+
     // The heartbeat schedule is derived state of the agent configuration —
     // re-sync on saves carrying the heartbeat keys, so switch/interval
     // changes take effect on the next tick instead of after a restart.
@@ -109,30 +134,34 @@ export class AgentJobsService extends BaseService {
         if (!configPatch) return
         if (!('heartbeat_enabled' in configPatch) && !('heartbeat_interval' in configPatch)) return
         void syncHeartbeatSchedule(agent.id).catch((error) => {
+          // Failure stays per-agent: the next config save or startup sweep
+          // converges this one agent (the dominant failure is deterministic,
+          // so a whole-population re-repair could not fix it anyway).
           logger.warn('Failed to sync heartbeat schedule after config update', { agentId: agent.id, error })
-          // Eagerly re-run the startup repair so a transient failure does
-          // not leave the agent heartbeat-less until the next launch.
-          void repairHeartbeatSchedules().catch((repairError) => {
-            logger.warn('Heartbeat schedule re-repair failed after config update', { repairError })
-          })
         })
       })
     )
+  }
 
-    // Startup repair pass for migrated rows and producer-less agents (#19203).
-    void repairHeartbeatSchedules().catch((error) => {
-      logger.warn('Heartbeat schedule repair failed at startup', { error })
-    })
+  protected override onAllReady(): void {
+    // Startup repair pass for migrated rows and producer-less agents (#19203) —
+    // scheduled, not run: onAllReady is fire-and-forget for the framework.
+    const handle = setTimeout(() => {
+      if (this.isShuttingDown) return
+      void repairHeartbeatSchedules().catch((error) => {
+        logger.warn('Heartbeat schedule repair failed at startup', { error })
+      })
+    }, STARTUP_REPAIR_QUIET_WINDOW_MS)
+    this.registerDisposable(() => clearTimeout(handle))
   }
 
   protected async onStop(): Promise<void> {
+    this.isShuttingDown = true
     // Drain at stop, not destroy: dependency ordering stops this service
     // before JobManager/DbService, so the work we wait out still has live
     // infrastructure underneath it. Subscriptions stay live until the
     // post-stop disposable cleanup, so loop until quiescent.
-    while (this.inFlightWork.size > 0) {
-      await Promise.allSettled([...this.inFlightWork])
-    }
+    await this.inFlightWork.drain()
     await drainHeartbeatWork()
   }
 
@@ -297,10 +326,27 @@ export class AgentJobsService extends BaseService {
       return template?.agentId === agentId
     })
 
+    // The heartbeat's user workspace row (pointing at the agent data directory)
+    // outlives the agent unless removed here — it renders in the workspace picker.
+    const heartbeatWorkspaceIds = new Set<string>()
+    for (const schedule of schedules) {
+      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+      if (template?.prompt === HEARTBEAT_PROMPT_SENTINEL && template.workspace.type === AGENT_WORKSPACE_TYPE.USER) {
+        heartbeatWorkspaceIds.add(template.workspace.workspaceId)
+      }
+    }
+
     let deleted = 0
     for (const schedule of schedules) {
       if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
         deleted += 1
+      }
+    }
+    for (const workspaceId of heartbeatWorkspaceIds) {
+      try {
+        application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, workspaceId))
+      } catch (error) {
+        logger.warn('Failed to delete heartbeat workspace for removed agent', { agentId, workspaceId, error })
       }
     }
     if (deleted > 0) {
@@ -378,13 +424,14 @@ export class AgentJobsService extends BaseService {
   }
 
   /**
-   * (type, name) is UNIQUE across ALL agents, so every `heartbeat_<agentId>`
-   * name is reserved regardless of which agent the task belongs to — the
-   * self-heal fallback keys on it. Guarded here for the same reason as the
-   * prompt guard.
+   * The reserved names are exactly the `heartbeat_<agentId>` rows heartbeat
+   * sync can mint for a live agent — (type, name) is UNIQUE across ALL agents,
+   * so any agent's reserved name is reserved for everyone. A plain
+   * `heartbeat_daily` collides with nothing and stays allowed. Guarded here
+   * for the same reason as the prompt guard.
    */
   private assertNameNotReserved(name: string | undefined): void {
-    if (name?.startsWith('heartbeat_')) {
+    if (name && isReservedHeartbeatScheduleName(name)) {
       throw new Error(`Name is reserved for the agent heartbeat: ${name}`)
     }
   }

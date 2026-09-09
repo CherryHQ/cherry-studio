@@ -41,6 +41,7 @@ import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
+import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -158,7 +159,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   let effectivePrompt = prompt
 
   if (isHeartbeat) {
-    if (config.heartbeat_enabled === false) {
+    if (!isHeartbeatEnabled(config)) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { result: 'Skipped (disabled)' }
     }
@@ -180,7 +181,22 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
         // Stop tick-and-skip cycles after the user deletes the heartbeat workspace;
         // the next heartbeat sync re-provisions the workspace and re-arms the row.
-        if (scheduleId) {
+        // The pause is guarded by the LIVE schedule template: this job's workspace
+        // came from the enqueue-time snapshot, and the schedule may since have been
+        // repaired onto a new workspace row or repurposed into an ordinary task —
+        // pausing then would disable a healthy schedule.
+        const liveTemplate = scheduleSnapshot?.jobInputTemplate as {
+          agentId?: unknown
+          prompt?: unknown
+          workspace?: { type?: unknown; workspaceId?: unknown } | null
+        } | null
+        const stillTargetsDeletedWorkspace =
+          scheduleSnapshot?.type === 'agent.task' &&
+          liveTemplate?.agentId === agentId &&
+          liveTemplate?.prompt === HEARTBEAT_PROMPT_SENTINEL &&
+          liveTemplate?.workspace?.type === AGENT_WORKSPACE_TYPE.USER &&
+          liveTemplate?.workspace?.workspaceId === workspace.workspaceId
+        if (scheduleId && stillTargetsDeletedWorkspace) {
           try {
             application.get('DbService').withWriteTx((tx) => {
               application.get('JobManager').updateJobScheduleTx(tx, scheduleId, { enabled: false })

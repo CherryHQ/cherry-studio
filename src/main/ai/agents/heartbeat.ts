@@ -1,4 +1,4 @@
-import { mkdir, open, readFile } from 'node:fs/promises'
+import { lstat, mkdir, open, readFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -34,6 +34,14 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
   }
 
   try {
+    // lstat, never stat: a pre-existing symlink at heartbeat.md must NOT be
+    // followed — readFile would happily stream whatever it points at (e.g.
+    // ~/.ssh) straight into the model prompt.
+    const stat = await lstat(resolved)
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      logger.warn(`Heartbeat path is not a regular file; refusing to read: ${resolved}`)
+      return undefined
+    }
     const content = await readFile(resolved, 'utf-8')
     const trimmed = content.trim()
     if (!trimmed) {
@@ -68,7 +76,16 @@ export async function ensureHeartbeatFile(workspacePath: string): Promise<void> 
     logger.info(`Provisioned heartbeat file: ${resolved}`)
     return
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      // The exclusive create never follows a symlink, so something is there.
+      // Leave user content alone, but flag a non-regular occupant (a symlinked
+      // heartbeat.md would make every tick read outside managed storage).
+      const stat = await lstat(resolved).catch(() => null)
+      if (stat && (!stat.isFile() || stat.isSymbolicLink())) {
+        logger.warn(`Heartbeat path is not a regular file; not provisioning: ${resolved}`)
+      }
+      return
+    }
     // Missing workspace directory (migrated/corrupted install or manual deletion): recreate and retry once.
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
@@ -93,6 +110,12 @@ async function writeTemplate(resolved: string): Promise<void> {
   const handle = await open(resolved, 'wx', 0o600)
   try {
     await handle.writeFile(HEARTBEAT_TEMPLATE, 'utf-8')
+  } catch (error) {
+    // A failed write leaves a zero-byte/partial file behind; every later
+    // ensure short-circuits on EEXIST and the heartbeat is silently empty
+    // forever. Drop the corpse so the next sync re-provisions.
+    await unlink(resolved).catch(() => undefined)
+    throw error
   } finally {
     await handle.close()
   }

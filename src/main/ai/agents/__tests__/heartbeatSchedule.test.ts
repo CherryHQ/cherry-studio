@@ -40,6 +40,13 @@ vi.mock('@application', async () => {
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
+// The real resolver reads PreferenceService through the strict application
+// mock; the workspace name only needs a stable, interpolating stand-in.
+vi.mock('@main/i18n', () => ({
+  t: (key: string, params?: Record<string, string>) =>
+    key === 'agent.heartbeat.workspace_name' ? `Heartbeat — ${params?.name}` : key
+}))
+
 // The real handler pulls in the whole runAgentTask execution chain; the sync
 // logic under test only needs SOME registered handler for 'agent.task'.
 vi.mock('../agentTaskJobHandler', () => ({
@@ -400,6 +407,35 @@ describe('heartbeatSchedule', () => {
     expect(scheduler.has(`schedule:${id}`)).toBe(true)
   })
 
+  it('treats a name-conflict winner with a corrupted sentinel as benign (fallback identity)', async () => {
+    // A whitespace-corrupted sentinel on the reserved name is still this
+    // agent's heartbeat row via the self-heal fallback — the create-race path
+    // must repair it in place, not misclassify it as foreign and rethrow.
+    seedAgent(AGENT_ID)
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: DEFAULT_HEARTBEAT_INTERVAL_MINUTES * 60_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__ ',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID, [])
+
+    expect(outcome).toBe('updated')
+    expect(jobScheduleService.getById(id)?.jobInputTemplate).toMatchObject({
+      prompt: '__heartbeat__',
+      workspace: { type: 'user' }
+    })
+    expect(scheduler.has(`schedule:${id}`)).toBe(true)
+  })
+
   it("does not treat a name-conflict winner as benign when it is not this agent's heartbeat row", async () => {
     // A non-heartbeat schedule that happens to share the reserved heartbeat
     // name (manual DB edit, legacy row, future feature) must not be silently
@@ -728,6 +764,7 @@ describe('heartbeatSchedule', () => {
       .set({ enabled: false, metadata: { circuitBreakerPaused: true } })
       .where(eq(jobScheduleTable.id, id))
       .run()
+    const spy = vi.spyOn(jobManager, 'syncJobScheduleTimerById')
 
     const outcome = await syncHeartbeatSchedule(AGENT_ID)
 
@@ -736,7 +773,11 @@ describe('heartbeatSchedule', () => {
     expect(row?.enabled).toBe(false)
     expect(row?.trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
     expect(row?.jobInputTemplate).toMatchObject({ workspace: { type: 'user' } })
-    expect(scheduler.has(`schedule:${id}`)).toBe(false)
+    // The trigger drift is persisted but the timer is NOT re-armed — the row
+    // stays stopped until the user resets via the heartbeat toggle off/on.
+    // (The breaker's own pause disposed the timer; sync must not revive it.)
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
   })
 
   it('keeps the circuit-breaker marker when a capability gate pauses the row', async () => {

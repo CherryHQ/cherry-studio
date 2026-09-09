@@ -2,7 +2,6 @@ import type { PermissionMode } from '@renderer/types/agent'
 import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
 
 export const DEFAULT_PERMISSION_MODE = 'default' as const
-export const DEFAULT_HEARTBEAT_ENABLED = true
 
 const permissionModeParser = AgentPermissionModeSchema.catch(DEFAULT_PERMISSION_MODE)
 
