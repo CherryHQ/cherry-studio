@@ -507,6 +507,46 @@ describe('round-trip', () => {
     expect(roundTripped).toEqual(original)
   })
 
+  it('uses originating tool-call names when restored results have mismatched names', () => {
+    const restored: LanguageModelV3Prompt = [
+      { role: 'user', content: [{ type: 'text', text: 'read the skill' }] },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', toolCallId: 'call-read', toolName: 'read', input: {} },
+          { type: 'tool-call', toolCallId: 'call-skill', toolName: 'skill', input: {} }
+        ]
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-read',
+            toolName: 'skill',
+            output: { type: 'text', value: 'contents' }
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'call-skill',
+            toolName: 'read',
+            output: { type: 'text', value: 'details' }
+          }
+        ]
+      }
+    ]
+
+    const roundTripped = toAISDK(fromAISDK(restored))
+    const toolMessage = roundTripped.find((message) => message.role === 'tool')
+    if (toolMessage?.role !== 'tool') throw new Error('expected a tool message')
+    const results = toolMessage.content.filter((part) => part.type === 'tool-result')
+
+    expect(results.map(({ toolCallId, toolName }) => ({ toolCallId, toolName }))).toEqual([
+      { toolCallId: 'call-read', toolName: 'read' },
+      { toolCallId: 'call-skill', toolName: 'skill' }
+    ])
+  })
+
   it('preserves file parts through round-trip', () => {
     const original: LanguageModelV3Prompt = [
       {

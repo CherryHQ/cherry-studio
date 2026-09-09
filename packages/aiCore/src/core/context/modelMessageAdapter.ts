@@ -55,6 +55,7 @@ export interface ModelMessageIR extends ContextMessage {
  */
 export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
   const ir: ModelMessageIR[] = []
+  const toolCallNames = new Map<string, string>()
 
   for (const msg of messages) {
     if (msg.role === 'system') {
@@ -128,6 +129,7 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
           if (part.type === 'text') {
             textParts.push(part.text)
           } else if (part.type === 'tool-call') {
+            toolCallNames.set(part.toolCallId, part.toolName)
             if (inlineAnsweredIds.has(part.toolCallId)) continue
             toolCalls.push({
               id: part.toolCallId,
@@ -175,16 +177,18 @@ export function fromModelMessages(messages: ModelMessage[]): ModelMessageIR[] {
       let firstOfMessage = true
       for (const part of msg.content) {
         if (part.type === 'tool-result') {
+          const toolName = toolCallNames.get(part.toolCallId) ?? part.toolName
+          const toolResult = toolName === part.toolName ? part : { ...part, toolName }
           // ModelMessage's ToolResultOutput is a structural superset of V3's (extra content[] members);
           // stringifyToolOutput only reads .type/.value, so the cast is safe and matches the V3 adapter's projection.
-          const text = stringifyToolOutput(part.output as LanguageModelV3ToolResultOutput)
+          const text = stringifyToolOutput(toolResult.output as LanguageModelV3ToolResultOutput)
           anchor = {
             role: 'tool',
             content: text,
-            tool_call_id: part.toolCallId,
-            _mmToolContent: [...pending, part],
+            tool_call_id: toolResult.toolCallId,
+            _mmToolContent: [...pending, toolResult],
             _mmOriginalText: text,
-            _mmToolName: part.toolName,
+            _mmToolName: toolResult.toolName,
             ...(firstOfMessage && msg.providerOptions ? { _mmProviderOptions: msg.providerOptions } : {})
           }
           firstOfMessage = false
