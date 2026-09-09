@@ -1060,9 +1060,12 @@ export class WebviewAnnotationController {
     const comment = draft.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
     if (!comment) return
 
+    const updated = Boolean(this.editorAnnotationId)
+    let saved: WebviewAnnotation
     if (this.editorAnnotationId) {
       const annotation = this.annotations.find((item) => item.id === this.editorAnnotationId)
       if (!annotation) return
+      saved = annotation
       annotation.comment = comment
       // Region annotations keep their captured ancestor locator: the editor may
       // have fallen back to <body> when the ancestor no longer resolves.
@@ -1083,16 +1086,18 @@ export class WebviewAnnotationController {
         element: locator,
         ...(this.pendingRegion ? { region: this.pendingRegion } : {})
       }
+      saved = annotation
       this.annotations.push(annotation)
       this.annotationElements.set(annotation.id, editorElement)
-      if (this.sessionId) {
-        this.onStateChange({
-          type: 'editor_saved',
-          sessionId: this.sessionId,
-          requestId,
-          annotation: structuredClone(annotation)
-        })
-      }
+    }
+    if (this.sessionId) {
+      this.onStateChange({
+        type: 'editor_saved',
+        sessionId: this.sessionId,
+        requestId,
+        annotation: structuredClone(saved),
+        updated
+      })
     }
 
     this.observeElementRoot(editorElement)

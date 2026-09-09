@@ -7,7 +7,7 @@ import {
   onWebviewElementChange,
   onWebviewStateChange,
   setWebviewLoaded
-} from '@renderer/utils/webviewStateManager'
+} from '@renderer/services/MiniAppWebviewService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import type { FC } from 'react'

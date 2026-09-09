@@ -65,6 +65,7 @@ function createSessionStore() {
 }
 
 export interface WebviewAnnotationSavedPayload {
+  updated: boolean
   annotation: WebviewAnnotation
   page: { url: string; title: string }
 }
@@ -279,7 +280,11 @@ export function useWebviewAnnotationSession({
         } catch {
           // Page metadata is best-effort; the annotation itself is already saved.
         }
-        onAnnotationSavedRef.current?.({ annotation: guestEvent.annotation, page: { url, title } })
+        onAnnotationSavedRef.current?.({
+          annotation: guestEvent.annotation,
+          updated: guestEvent.updated,
+          page: { url, title }
+        })
         return
       }
 
