@@ -219,9 +219,8 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error('Message deletion is unavailable')
       }
 
-      const optimisticIds = new Set([id])
-      await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
-
+      // Main owns context inheritance and reparenting; wait for its authoritative
+      // refresh to preserve the surviving replies in the group.
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
         invalidateCachedMessageUiStates([id])
@@ -231,7 +230,7 @@ export function useChatWriteActions(params: Params): Result {
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
+    [deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(

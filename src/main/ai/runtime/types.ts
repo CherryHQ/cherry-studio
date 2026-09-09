@@ -5,6 +5,7 @@ import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgro
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -161,9 +162,11 @@ export type AgentRuntimeEvent =
    *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
   | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
-   *  transfers generation ownership and asks the host to open a receive-only transcript turn;
-   *  `finished` releases ownership after the SDK result, independently from turn completion. */
-  | { type: 'autonomous-turn-state'; state: 'started' | 'finished' }
+   *  transfers generation ownership and asks the host to open a receive-only transcript turn,
+   *  carrying why the runtime opened it so the transcript can say so; `finished` releases
+   *  ownership after the SDK result, independently from turn completion. */
+  | { type: 'autonomous-turn-state'; state: 'started'; origin: AutonomousTurnOrigin }
+  | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'error'; error: unknown }
 
 /**
