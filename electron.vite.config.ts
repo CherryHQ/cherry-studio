@@ -148,7 +148,6 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [react()],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')
