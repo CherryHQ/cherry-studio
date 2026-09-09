@@ -123,6 +123,8 @@ export interface ComposerQueuedMessagePayload {
  * approval anchor's identity; no message-parts scanning, no SWR-lagged DB
  * status proxy.
  */
+export type StallReason = 'tool_stall' | 'no_progress'
+
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
   /**
@@ -134,6 +136,10 @@ export interface TopicStatusSnapshotEntry {
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   lastCompletedAt?: number
+  /** True when a stall has been detected (tool stuck too long or no progress). */
+  stalled?: boolean
+  /** Human-readable reason for the stall, suitable for display in the UI. */
+  stalledReason?: StallReason
 }
 
 type AiStreamRegenerateTarget =

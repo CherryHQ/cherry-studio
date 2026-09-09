@@ -17,6 +17,7 @@
 import { loggerService } from '@logger'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import type { Citation } from '@renderer/types/message'
 import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
@@ -1421,6 +1422,33 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 // Main component
 // ============================================================================
 
+/**
+ * Loading placeholder for an active empty message. Owns the `useTopicStreamStatus`
+ * subscription locally so inactive messages never subscribe to topic-level stream
+ * state — activity still flows only through the keyed `useMessageListItemActivityState`
+ * store (see the no-fan-out test in `MessagePartsRenderer.test.tsx`).
+ */
+function MessageLoadingPlaceholder({
+  message,
+  placeholderStatus
+}: {
+  message: MessageListItem
+  placeholderStatus: PlaceholderStatus
+}) {
+  const { stalled, stalledReason } = useTopicStreamStatus(message.topicId)
+  return (
+    <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+      <PlaceholderBlock
+        isProcessing={true}
+        createdAt={message.createdAt}
+        status={placeholderStatus}
+        stalled={stalled}
+        stalledReason={stalledReason}
+      />
+    </AnimatedBlockWrapper>
+  )
+}
+
 interface MessagePartsRendererContentProps extends Props {
   collapseCompletedToolHistory: boolean
   isActiveTurnProcessing: boolean
@@ -1576,11 +1604,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // whose only content is report_artifacts must keep its placeholder until the card can show.
   if (partEntries.length === 0 || (!hasVisibleNonArtifactEntry && !canRenderReportArtifacts)) {
     if (isActiveTurnProcessing) {
-      const placeholder = (
-        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
-        </AnimatedBlockWrapper>
-      )
+      const placeholder = <MessageLoadingPlaceholder message={message} placeholderStatus={placeholderStatus} />
       // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
       // back to it otherwise.
       return (
