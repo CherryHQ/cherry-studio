@@ -62,14 +62,18 @@ export function useCherryAccountSession(enabled = true) {
         if (requestId === requestRef.current) applyStatus(nextStatus)
       } catch (error) {
         if (requestId !== requestRef.current) return
-        const message =
+        let message = t(
           action === 'revoke'
-            ? t('settings.provider.cherry_cloud.logout_failed')
-            : action === 'login' &&
-                error instanceof IpcError &&
-                error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE
-              ? t('error.http.503')
-              : t('settings.provider.cherry_cloud.sign_in_failed')
+            ? 'settings.provider.cherry_cloud.logout_failed'
+            : 'settings.provider.cherry_cloud.sign_in_failed'
+        )
+        if (action === 'login' && error instanceof IpcError) {
+          if (error.code === cherryCloudErrorCodes.UPGRADE_REQUIRED) {
+            message = t('settings.provider.cherry_cloud.upgrade_required')
+          } else if (error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE) {
+            message = t('error.http.503')
+          }
+        }
         toast.error(message)
       } finally {
         setPendingAction((current) => (current === action ? null : current))

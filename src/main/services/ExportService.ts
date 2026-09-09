@@ -28,19 +28,52 @@ export class ExportService {
     } = docx
     const tokens = md.parse(markdown, {})
     const elements: any[] = []
-    let listLevel = 0
+    const listCounters: Array<number | null> = []
+    let quoteLevel = 0
+    const quoteBorder = { left: { style: BorderStyle.SINGLE, size: 3, color: 'CCCCCC' } }
     let currentTable: Table | null = null
     let currentRowCells: TableCell[] = []
     let isHeaderRow = false
     let tableColumnCount = 0
     let tableRows: TableRow[] = [] // Store rows temporarily
 
-    const processInlineTokens = (tokens: any[], isHeaderRow: boolean): (TextRun | ExternalHyperlink)[] => {
+    const inlineText = (tokens: any[]): string =>
+      tokens
+        .map((token) => {
+          switch (token.type) {
+            case 'text':
+            case 'code_inline':
+              return token.content
+            case 'softbreak':
+            case 'hardbreak':
+              return ' '
+            case 'image':
+              return inlineText(token.children)
+            default:
+              return ''
+          }
+        })
+        .join('')
+
+    const processInlineTokens = (
+      tokens: any[],
+      isHeaderRow: boolean,
+      isQuote = false
+    ): (TextRun | ExternalHyperlink)[] => {
       const runs: (TextRun | ExternalHyperlink)[] = []
       let linkRuns: TextRun[] = []
       let linkUrl = ''
       let boldStack = 0 // 跟踪嵌套的粗体标记
       let italicStack = 0 // 跟踪嵌套的斜体标记
+      let strikeStack = 0
+
+      // Off flags are omitted rather than written as `false`: an explicit off overrides the
+      // paragraph style, e.g. the italics of Heading 4.
+      const runFormat = (): Docx.IRunOptions => ({
+        bold: isHeaderRow || boldStack > 0 || undefined,
+        italics: isQuote || italicStack > 0 || undefined,
+        strike: strikeStack > 0 || undefined
+      })
 
       const pushRun = (options: Docx.IRunOptions) => {
         if (linkUrl) {
@@ -76,21 +109,26 @@ export class ExportService {
           case 'em_close':
             italicStack--
             break
+          case 's_open':
+            strikeStack++
+            break
+          case 's_close':
+            strikeStack--
+            break
+          case 'softbreak':
+            pushRun({ text: ' ' })
+            break
+          case 'hardbreak':
+            pushRun({ break: 1 })
+            break
           case 'text':
-            pushRun({
-              text: token.content,
-              bold: isHeaderRow || boldStack > 0,
-              italics: italicStack > 0
-            })
+            pushRun({ text: token.content, ...runFormat() })
+            break
+          case 'image':
+            pushRun({ text: inlineText(token.children), ...runFormat() })
             break
           case 'code_inline':
-            pushRun({
-              text: token.content,
-              font: 'Consolas',
-              size: 20,
-              bold: isHeaderRow || boldStack > 0,
-              italics: italicStack > 0
-            })
+            pushRun({ text: token.content, font: 'Consolas', size: 20, ...runFormat() })
             break
         }
       }
@@ -103,10 +141,9 @@ export class ExportService {
         case 'heading_open':
           // 获取标题级别 (h1 -> h6)
           const level = parseInt(token.tag.slice(1)) as 1 | 2 | 3 | 4 | 5 | 6
-          const headingText = tokens[i + 1].content
           elements.push(
             new Paragraph({
-              text: headingText,
+              children: processInlineTokens(tokens[i + 1].children || [], false),
               heading: HeadingLevel[`HEADING_${level}`],
               spacing: {
                 before: 240,
@@ -119,9 +156,11 @@ export class ExportService {
 
         case 'paragraph_open':
           const inlineTokens = tokens[i + 1].children || []
+          const quoteStyle = quoteLevel > 0 ? { indent: { left: quoteLevel * 720 }, border: quoteBorder } : {}
           elements.push(
             new Paragraph({
-              children: processInlineTokens(inlineTokens, false),
+              children: processInlineTokens(inlineTokens, false, quoteLevel > 0),
+              ...quoteStyle,
               spacing: {
                 before: 120,
                 after: 120
@@ -132,43 +171,57 @@ export class ExportService {
           break
 
         case 'bullet_list_open':
-          listLevel++
+          listCounters.push(null)
+          break
+
+        case 'ordered_list_open':
+          listCounters.push(Number(token.attrGet('start') ?? 1))
           break
 
         case 'bullet_list_close':
-          listLevel--
+        case 'ordered_list_close':
+          listCounters.pop()
           break
 
         case 'list_item_open':
-          const itemInlineTokens = tokens[i + 2].children || []
+          const itemNumber = listCounters[listCounters.length - 1]
+          if (itemNumber != null) {
+            listCounters[listCounters.length - 1] = itemNumber + 1
+          }
+          // Only a leading paragraph is inlined behind the marker; any other first block (code,
+          // quote, nested list) reaches its own handler so container levels stay balanced.
+          const hasLeadParagraph = tokens[i + 1].type === 'paragraph_open'
           elements.push(
             new Paragraph({
               children: [
-                new TextRun({ text: '•', bold: true }),
+                new TextRun({ text: itemNumber == null ? '•' : `${itemNumber}.`, bold: true }),
                 new TextRun({ text: '\t' }),
-                ...processInlineTokens(itemInlineTokens, false)
+                ...(hasLeadParagraph ? processInlineTokens(tokens[i + 2].children || [], false, quoteLevel > 0) : [])
               ],
-              indent: {
-                left: listLevel * 720
-              }
+              indent: { left: (listCounters.length + quoteLevel) * 720 },
+              ...(quoteLevel > 0 ? { border: quoteBorder } : {})
             })
           )
-          i += 3
+          if (hasLeadParagraph) {
+            i += 3
+          }
           break
 
+        case 'code_block':
         case 'fence': // 代码块
-          const codeLines = token.content.split('\n')
+          const codeLines = token.content.replace(/\n$/, '').split('\n')
           elements.push(
             new Paragraph({
               children: codeLines.map(
-                (line) =>
+                (line, index) =>
                   new TextRun({
-                    text: line + '\n',
+                    text: line,
                     font: 'Consolas',
                     size: 20,
-                    break: 1
+                    break: index === 0 ? 0 : 1
                   })
               ),
+              indent: { left: (listCounters.length + quoteLevel) * 720 },
               shading: {
                 type: ShadingType.SOLID,
                 color: 'F5F5F5'
@@ -197,32 +250,11 @@ export class ExportService {
           break
 
         case 'blockquote_open':
-          const quoteText = tokens[i + 2].content
-          elements.push(
-            new Paragraph({
-              children: [
-                new TextRun({
-                  text: quoteText,
-                  italics: true
-                })
-              ],
-              indent: {
-                left: 720
-              },
-              border: {
-                left: {
-                  style: BorderStyle.SINGLE,
-                  size: 3,
-                  color: 'CCCCCC'
-                }
-              },
-              spacing: {
-                before: 120,
-                after: 120
-              }
-            })
-          )
-          i += 3
+          quoteLevel++
+          break
+
+        case 'blockquote_close':
+          quoteLevel--
           break
 
         // 表格处理

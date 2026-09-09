@@ -57,11 +57,11 @@ One thing the harness does **not** currently catch: entry bundles folding into o
 
 ## Scope and residual risk
 
-The harness has been run on macOS (darwin-arm64) only. Proxy inheritance, `process.abort()` behaviour, and kill semantics are the platform-sensitive parts; **the first consumer PR owes a Windows and Linux re-run** before its process ships to users. No production consumer is registered in the generic-layer implementation.
+Proxy inheritance, `process.abort()` behaviour, and kill semantics are platform-sensitive. Existing inference-migration evidence includes macOS (darwin-arm64) and Windows runs; this does not establish release-shaped validation on every platform. Linux remains unverified.
 
-The first production consumer must also verify:
+Production consumers must also verify:
 
-- Its separate named-entry build runs before app startup and packaging; development watches rebuild entries.
+- The separate named-entry build runs before app startup and packaging; entry changes during development require rebuilding the utility bundles (the current build does not watch them).
 - External dependencies follow the main build's externalization policy, and the transitive entry-graph guard rejects main-only imports.
 - The real electron-builder package includes each utility entry, emitted shared/virtual chunks, and required native dependencies in their correct packed or unpacked locations.
 - Entry isolation, readiness, crash recovery, cancellation, and model-file replacement work in the release-shaped package on every supported platform. The fixture's temporary ASAR alone does not establish this.

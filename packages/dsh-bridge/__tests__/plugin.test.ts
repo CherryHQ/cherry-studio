@@ -7,6 +7,7 @@ import path from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import type { AskUserQuestionAnswer, AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -269,10 +270,12 @@ describe('cherry bridge plugin', () => {
         snapshotEvents: () => [
           {
             type: 'tool/call',
+            seq: 7,
             data: { callId: 'exit-plan-call-1', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
           },
           {
             type: 'tool/call',
+            seq: 9,
             data: { callId: 'exit-plan-call-2', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
           }
         ]
@@ -309,9 +312,44 @@ describe('cherry bridge plugin', () => {
     await expect
       .poll(() => host.requests.find((request) => request.method === 'question/ask'))
       .toMatchObject({
-        params: { sessionId: 'session-1', callId: 'exit-plan-call-2' }
+        params: { sessionId: 'session-1', callId: 'exit-plan-call-2', sessionEventSeq: 9 }
       })
     await expect(answer).resolves.toEqual({})
+  })
+
+  it('correlates approval requests with the durable session event', async () => {
+    const host = await startHost((method) => (method === 'approval/ask' ? { outcome: 'rejected' } : {}))
+    const agent = {
+      id: 'session-1',
+      session: { snapshotEvents: () => [{ type: 'approval/asked', seq: 12, data: { id: 'ask-1', toolName: 'bash' } }] }
+    } as unknown as Agent
+    let approvalHandler: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
+    const on = vi.fn((event: string, handler: unknown) => {
+      if (event === 'approval/request') {
+        approvalHandler = handler as (request: ApprovalRequest) => Promise<ApprovalOutcome>
+      }
+      return () => undefined
+    })
+    const ctx = makeContext({ on })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!approvalHandler) throw new Error('approval handler was not registered')
+
+    await expect(
+      approvalHandler({
+        agent,
+        toolName: 'bash',
+        callId: 'call-with-feedback',
+        reason: 'needs approval'
+      } as ApprovalRequest)
+    ).resolves.toBe('rejected')
+    expect(host.requests.find((request) => request.method === 'approval/ask')?.params).toMatchObject({
+      sessionId: 'session-1',
+      sessionEventSeq: 12
+    })
   })
 
   it('rejects an unknown method instead of answering it', async () => {

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.12",
+    "version": "2.0.13",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -462,7 +462,7 @@
     }
   ],
   "providers": {
-    "version": "b990f06965363776",
+    "version": "e47c80cffa19d83b",
     "count": 62,
     "entries": [
       {
@@ -546,8 +546,8 @@
         "name": "AMD GPU Cloud"
       },
       {
-        "id": "jalapeno-cloud",
-        "name": "Jalapeno Cloud"
+        "id": "tokendance",
+        "name": "TokenDance"
       },
       {
         "id": "new-api",
