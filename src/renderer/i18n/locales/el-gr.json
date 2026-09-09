@@ -342,7 +342,6 @@
   "agent.tasks.save": "Αποθήκευση",
   "agent.tasks.schedule.cron": "Έκφραση Cron",
   "agent.tasks.schedule.cronPlaceholder": "Για παράδειγμα, */20 8-12 * * *",
-  "agent.tasks.schedule.custom": "Προσαρμοσμένο πρόγραμμα",
   "agent.tasks.schedule.daily": "Καθημερινά",
   "agent.tasks.schedule.hour": "Ώρα",
   "agent.tasks.schedule.hourly": "Ωριαίος",

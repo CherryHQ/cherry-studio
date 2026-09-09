@@ -342,7 +342,6 @@
   "agent.tasks.save": "Сохранить",
   "agent.tasks.schedule.cron": "Выражение Cron",
   "agent.tasks.schedule.cronPlaceholder": "Например, */20 8-12 * * *",
-  "agent.tasks.schedule.custom": "Пользовательское расписание",
   "agent.tasks.schedule.daily": "Ежедневно",
   "agent.tasks.schedule.hour": "Час",
   "agent.tasks.schedule.hourly": "Почасовой",

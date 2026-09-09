@@ -342,7 +342,6 @@
   "agent.tasks.save": "Lưu",
   "agent.tasks.schedule.cron": "Biểu thức Cron",
   "agent.tasks.schedule.cronPlaceholder": "Ví dụ: */20 8-12 * * *",
-  "agent.tasks.schedule.custom": "Lịch trình tùy chỉnh",
   "agent.tasks.schedule.daily": "Hàng ngày",
   "agent.tasks.schedule.hour": "Giờ",
   "agent.tasks.schedule.hourly": "Hàng giờ",

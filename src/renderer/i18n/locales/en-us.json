@@ -342,7 +342,6 @@
   "agent.tasks.save": "Save",
   "agent.tasks.schedule.cron": "Cron expression",
   "agent.tasks.schedule.cronPlaceholder": "For example, */20 8-12 * * *",
-  "agent.tasks.schedule.custom": "Custom schedule",
   "agent.tasks.schedule.daily": "Daily",
   "agent.tasks.schedule.hour": "Hour",
   "agent.tasks.schedule.hourly": "Hourly",

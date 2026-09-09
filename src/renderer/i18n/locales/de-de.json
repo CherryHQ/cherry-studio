@@ -342,7 +342,6 @@
   "agent.tasks.save": "Speichern",
   "agent.tasks.schedule.cron": "Cron-Ausdruck",
   "agent.tasks.schedule.cronPlaceholder": "Zum Beispiel: */20 8-12 * * *",
-  "agent.tasks.schedule.custom": "Benutzerdefinierter Zeitplan",
   "agent.tasks.schedule.daily": "Täglich",
   "agent.tasks.schedule.hour": "Stunde",
   "agent.tasks.schedule.hourly": "Stündlich",

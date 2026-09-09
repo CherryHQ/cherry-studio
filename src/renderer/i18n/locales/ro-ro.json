@@ -342,7 +342,6 @@
   "agent.tasks.save": "Salvează",
   "agent.tasks.schedule.cron": "Expresie Cron",
   "agent.tasks.schedule.cronPlaceholder": "De exemplu, */20 8-12 * * *",
-  "agent.tasks.schedule.custom": "Program personalizat",
   "agent.tasks.schedule.daily": "Zilnic",
   "agent.tasks.schedule.hour": "Oră",
   "agent.tasks.schedule.hourly": "Orară",

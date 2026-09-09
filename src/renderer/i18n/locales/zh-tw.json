@@ -342,7 +342,6 @@
   "agent.tasks.save": "儲存",
   "agent.tasks.schedule.cron": "Cron 運算式",
   "agent.tasks.schedule.cronPlaceholder": "例如：*/20 8-12 * * *",
-  "agent.tasks.schedule.custom": "自訂排程",
   "agent.tasks.schedule.daily": "每日",
   "agent.tasks.schedule.hour": "小時",
   "agent.tasks.schedule.hourly": "每小時",

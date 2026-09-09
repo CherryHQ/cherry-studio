@@ -342,7 +342,6 @@
   "agent.tasks.save": "保存",
   "agent.tasks.schedule.cron": "Cron 式",
   "agent.tasks.schedule.cronPlaceholder": "例: */20 8-12 * * *",
-  "agent.tasks.schedule.custom": "カスタムスケジュール",
   "agent.tasks.schedule.daily": "毎日",
   "agent.tasks.schedule.hour": "時間",
   "agent.tasks.schedule.hourly": "毎時",
