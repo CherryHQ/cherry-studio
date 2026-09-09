@@ -231,6 +231,13 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
     })
 
+    it("refuses another agent's reserved heartbeat schedule name — the UNIQUE index is per type, not per agent", () => {
+      expect(() => service.createTask(AGENT_ID, { ...form, name: `heartbeat_${OTHER_AGENT_ID}` })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
     it('rejects an invalid cron trigger up front — no row, no subscriptions, no timer', () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
 

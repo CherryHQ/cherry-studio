@@ -72,9 +72,16 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['JobManager'])
 export class AgentJobsService extends BaseService {
-  // Latest repair pass, tracked so onDestroy can wait it out instead of
-  // letting it touch JobManager/DbService after their disposal.
-  private pendingRepair: Promise<void> | null = null
+  // All in-flight heartbeat work (config-save syncs, repair passes), drained
+  // in onDestroy so nothing touches JobManager/DbService after their disposal.
+  private inFlightHeartbeatWork = new Set<Promise<unknown>>()
+
+  private trackHeartbeatWork<T>(work: Promise<T>): Promise<T> {
+    this.inFlightHeartbeatWork.add(work)
+    const done = () => this.inFlightHeartbeatWork.delete(work)
+    work.then(done, done)
+    return work
+  }
 
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
@@ -99,33 +106,41 @@ export class AgentJobsService extends BaseService {
         const configPatch = updates.configuration
         if (!configPatch) return
         if (!('heartbeat_enabled' in configPatch) && !('heartbeat_interval' in configPatch)) return
-        void syncHeartbeatSchedule(agent.id).catch((error) => {
-          logger.warn('Failed to sync heartbeat schedule after config update', { agentId: agent.id, error })
-          // Eagerly re-run the startup repair so a transient failure does not
-          // leave the agent heartbeat-less until the next launch.
-          this.pendingRepair = repairHeartbeatSchedules().catch((repairError) => {
-            logger.warn('Heartbeat schedule re-repair failed after config update', { repairError })
+        this.trackHeartbeatWork(
+          syncHeartbeatSchedule(agent.id).catch((error) => {
+            logger.warn('Failed to sync heartbeat schedule after config update', { agentId: agent.id, error })
+            // Eagerly re-run the startup repair so a transient failure does
+            // not leave the agent heartbeat-less until the next launch.
+            this.trackHeartbeatWork(
+              repairHeartbeatSchedules().catch((repairError) => {
+                logger.warn('Heartbeat schedule re-repair failed after config update', { repairError })
+              })
+            )
           })
-        })
+        )
       })
     )
 
     // Startup repair pass for migrated rows and producer-less agents (#19203).
-    this.pendingRepair = repairHeartbeatSchedules().catch((error) => {
-      logger.warn('Heartbeat schedule repair failed at startup', { error })
-    })
+    this.trackHeartbeatWork(
+      repairHeartbeatSchedules().catch((error) => {
+        logger.warn('Heartbeat schedule repair failed at startup', { error })
+      })
+    )
   }
 
   protected async onDestroy(): Promise<void> {
-    // Wait out the in-flight repair pass — its DB/timer writes must settle
-    // before JobManager and DbService are disposed underneath it.
-    await this.pendingRepair
+    // Drain in-flight heartbeat work — event subscriptions stay live until
+    // disposables are cleaned up after onDestroy, so loop until quiescent.
+    while (this.inFlightHeartbeatWork.size > 0) {
+      await Promise.allSettled([...this.inFlightHeartbeatWork])
+    }
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
     this.assertAgentExists(agentId)
     this.assertPromptNotReserved(form.prompt)
-    this.assertNameNotReserved(agentId, form.name)
+    this.assertNameNotReserved(form.name)
     const channelIds = form.channelIds ?? []
     this.assertChannelsBelongToAgent(agentId, channelIds)
 
@@ -168,7 +183,7 @@ export class AgentJobsService extends BaseService {
     const existing = agentTaskService.getTask(agentId, taskId)
     if (!existing) return null
     this.assertPromptNotReserved(patch.prompt)
-    this.assertNameNotReserved(agentId, patch.name)
+    this.assertNameNotReserved(patch.name)
     if (patch.channelIds !== undefined) {
       this.assertChannelsBelongToAgent(agentId, patch.channelIds)
     }
@@ -364,12 +379,13 @@ export class AgentJobsService extends BaseService {
   }
 
   /**
-   * The reserved `heartbeat_<agentId>` name is heartbeat-row identity for the
-   * self-heal fallback — a user task carrying it would be rewritten as the
-   * heartbeat. Guarded here for the same reason as the prompt guard.
+   * (type, name) is UNIQUE across ALL agents, so every `heartbeat_<agentId>`
+   * name is reserved regardless of which agent the task belongs to — the
+   * self-heal fallback keys on it. Guarded here for the same reason as the
+   * prompt guard.
    */
-  private assertNameNotReserved(agentId: string, name: string | undefined): void {
-    if (name === `heartbeat_${agentId}`) {
+  private assertNameNotReserved(name: string | undefined): void {
+    if (name?.startsWith('heartbeat_')) {
       throw new Error(`Name is reserved for the agent heartbeat: ${name}`)
     }
   }

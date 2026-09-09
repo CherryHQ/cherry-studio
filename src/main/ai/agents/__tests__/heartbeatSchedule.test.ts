@@ -17,6 +17,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentService } from '@data/services/AgentService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
@@ -503,7 +504,9 @@ describe('heartbeatSchedule', () => {
 
     expect(firstOutcome).toBe('created')
     expect(secondOutcome).toBe('updated')
-    expect(events).toEqual(['read', 'first-settled', 'read'])
+    // Two reads per sync (entry + post-commit deletion guard); the second
+    // sync's reads must both come after the first sync fully settled.
+    expect(events).toEqual(['read', 'read', 'first-settled', 'read', 'read'])
     const [row] = heartbeatRows(AGENT_ID)
     expect(row.trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
   })
@@ -520,6 +523,41 @@ describe('heartbeatSchedule', () => {
     expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
     expect(existsSync(path.join(outside, 'heartbeat.md'))).toBe(false)
     rmSync(outside, { recursive: true, force: true })
+  })
+
+  it('pauses a previously-armed row when the runtime loses the heartbeat capability', async () => {
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const [row] = heartbeatRows(AGENT_ID)
+    expect(row.enabled).toBe(true)
+
+    // The agent's type is migrated to a runtime without heartbeat support
+    // (or the capability is revoked) while a schedule row exists.
+    dbh.db.update(agentTable).set({ type: 'dsh' }).where(eq(agentTable.id, AGENT_ID)).run()
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('skipped-capability')
+    expect(jobScheduleService.getById(row.id)?.enabled).toBe(false)
+  })
+
+  it('removes the row when the agent is deleted mid-sync', async () => {
+    // The agent row disappears after sync's existence check but before the
+    // schedule commit — the onAgentDeleted sweep has already run, so the
+    // committed row would be orphaned without the post-commit re-check.
+    seedAgent(AGENT_ID)
+    const original = agentWorkspaceService.findOrCreateByPath.bind(agentWorkspaceService)
+    const spy = vi.spyOn(agentWorkspaceService, 'findOrCreateByPath').mockImplementation((...args) => {
+      dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
+      return original(...args)
+    })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+    spy.mockRestore()
+
+    expect(outcome).toBe('skipped-missing-agent')
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
   })
 
   it('skips an agent type missing from the capabilities table', async () => {

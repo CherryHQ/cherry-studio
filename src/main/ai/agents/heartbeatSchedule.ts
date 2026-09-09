@@ -138,12 +138,42 @@ export function syncHeartbeatSchedule(agentId: string, rows?: JobScheduleSnapsho
   return current
 }
 
+/** Pause (never delete) an enabled heartbeat row; returns its id, null when nothing was paused. */
+function pauseHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]): string | null {
+  const existing = findHeartbeatRow(agentId, rows)
+  if (!existing?.enabled) return null
+  application.get('DbService').withWriteTx((tx) => {
+    application.get('JobManager').updateJobScheduleTx(tx, existing.id, { enabled: false })
+  })
+  application.get('JobManager').syncJobScheduleTimerById(existing.id)
+  logger.info('Heartbeat schedule paused', { agentId, scheduleId: existing.id })
+  return existing.id
+}
+
 async function runSync(
   agentId: string,
   rows: JobScheduleSnapshot[] = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 ): Promise<HeartbeatSyncOutcome> {
   const agent = agentService.getAgent(agentId)
   if (!agent) return 'skipped-missing-agent'
+
+  // The id of any row this sync wrote — the mid-sync deletion guard below
+  // needs it to undo the write.
+  let touchedScheduleId: string | null = null
+  const finalize = async (outcome: HeartbeatSyncOutcome): Promise<HeartbeatSyncOutcome> => {
+    // The agent could be deleted mid-sync, its onAgentDeleted schedule sweep
+    // having already run — a row committed afterwards would be orphaned.
+    if (!touchedScheduleId || agentService.getAgent(agentId)) return outcome
+    const jobManager = application.get('JobManager')
+    await jobManager.unregisterJobScheduleById(touchedScheduleId).catch((error) => {
+      logger.warn('Failed to remove heartbeat schedule for an agent deleted mid-sync', { agentId, error })
+    })
+    logger.info('Removed heartbeat schedule for an agent deleted mid-sync', {
+      agentId,
+      scheduleId: touchedScheduleId
+    })
+    return 'skipped-missing-agent'
+  }
 
   if (!(agent.type in AGENT_RUNTIME_CAPABILITIES)) {
     // Corrupted/legacy/future runtime: without this warn the heartbeat is
@@ -152,28 +182,25 @@ async function runSync(
       agentId,
       type: agent.type
     })
-    return 'skipped-capability'
+    touchedScheduleId = pauseHeartbeatRow(agentId, rows)
+    return finalize('skipped-capability')
   }
 
   // The heartbeat switch only renders for runtimes that support it; honor
-  // the same capability here so a schedule is never armed for, say, dsh.
-  if (AGENT_RUNTIME_CAPABILITIES[agent.type]?.heartbeat !== true) return 'skipped-capability'
+  // the same capability here so a schedule is never armed for, say, dsh —
+  // and a capability removal pauses (never deletes) any previously-armed row.
+  if (AGENT_RUNTIME_CAPABILITIES[agent.type]?.heartbeat !== true) {
+    touchedScheduleId = pauseHeartbeatRow(agentId, rows)
+    return finalize('skipped-capability')
+  }
 
   const config = agent.configuration ?? {}
 
   if (config.heartbeat_enabled === false) {
     // Pause instead of delete: zero timer ticks while off, no churn on re-enable.
     // The run-side gate remains as a backstop for rows paused by neither path.
-    const existing = findHeartbeatRow(agentId, rows)
-    if (existing?.enabled) {
-      application.get('DbService').withWriteTx((tx) => {
-        application.get('JobManager').updateJobScheduleTx(tx, existing.id, { enabled: false })
-      })
-      application.get('JobManager').syncJobScheduleTimerById(existing.id)
-      logger.info('Heartbeat schedule paused', { agentId, scheduleId: existing.id })
-      return 'paused'
-    }
-    return 'skipped-disabled'
+    touchedScheduleId = pauseHeartbeatRow(agentId, rows)
+    return finalize(touchedScheduleId ? 'paused' : 'skipped-disabled')
   }
 
   const intervalMinutes = clampIntervalMinutes(config.heartbeat_interval)
@@ -225,6 +252,7 @@ async function runSync(
       })
     })
     jobManager.syncJobScheduleTimerById(row.id)
+    touchedScheduleId = row.id
     logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
     return 'updated'
   }
@@ -245,8 +273,9 @@ async function runSync(
         })
       )
       jobManager.syncJobScheduleTimerById(id)
+      touchedScheduleId = id
       logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
-      return 'created'
+      return finalize('created')
     } catch (error) {
       const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
       // Benign only when the (type, name) winner is this agent's heartbeat
@@ -256,11 +285,11 @@ async function runSync(
         agentId,
         scheduleId: winner.id
       })
-      return repairRow(winner)
+      return finalize(repairRow(winner))
     }
   }
 
-  return repairRow(existing)
+  return finalize(repairRow(existing))
 }
 
 /**
