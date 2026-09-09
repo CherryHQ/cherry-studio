@@ -29,6 +29,7 @@ interface GitFixture {
 }
 
 let roots: string[] = []
+let gitConfigRoot: string
 const inheritedGitEnvironment = Object.entries(process.env).filter(
   (entry): entry is [string, string] => entry[0].startsWith('GIT_') && entry[1] !== undefined
 )
@@ -41,13 +42,17 @@ function clearGitEnvironment(): void {
 
 beforeAll(() => {
   clearGitEnvironment()
-  process.env.GIT_CONFIG_GLOBAL = os.devNull
+  gitConfigRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'release-git-config-'))
+  const gitConfig = path.join(gitConfigRoot, 'config')
+  fs.writeFileSync(gitConfig, '')
+  process.env.GIT_CONFIG_GLOBAL = gitConfig
   process.env.GIT_CONFIG_NOSYSTEM = '1'
 })
 
 afterAll(() => {
   clearGitEnvironment()
   for (const [key, value] of inheritedGitEnvironment) process.env[key] = value
+  fs.rmSync(gitConfigRoot, { recursive: true, force: true })
 })
 
 function git(cwd: string, ...args: string[]): string {

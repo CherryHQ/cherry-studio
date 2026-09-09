@@ -15,10 +15,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: main
-            projects: --project main
-          - group: renderer
-            projects: --project renderer
           - group: packages
             projects: --project aiCore --project ui --project shared --project provider-registry --project scripts --project preload
     env:
@@ -32,7 +28,7 @@ jobs:
       - run: pnpm install
       - run: pnpm rebuild:node
       - name: Run all tests in group
-        run: pnpm exec vitest run ${{ matrix.projects }} --maxWorkers=2 --minWorkers=1 --silent --reporter=default --reporter=json --outputFile=test-results.json
+        run: pnpm exec vitest run ${{ matrix.projects }} --maxWorkers=4 --minWorkers=1 --silent --reporter=default --reporter=json --outputFile=test-results.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:
