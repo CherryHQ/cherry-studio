@@ -48,7 +48,7 @@ export async function createAgent(
 
   await agentView.getByRole('button', { name: 'Add Agent', exact: true }).click()
   const dialog = page.getByRole('dialog').last()
-  await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill(options.name)
+  await dialog.getByPlaceholder('Enter a name', { exact: true }).fill(options.name)
   await dialog.getByLabel('Runtime mode').getByText(options.runtime, { exact: true }).click()
   if (options.permission) {
     const permission = dialog.getByRole('combobox', { name: 'Permission mode', exact: true })

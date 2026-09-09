@@ -72,7 +72,7 @@ export async function addCherryInModel(page: Page, model: string, tab?: string):
       .catch(() => false)
   )
     return
-  await page.getByRole('button', { name: 'Get model list', exact: true }).click()
+  await page.getByRole('button', { name: 'Sync models', exact: true }).click()
   const drawer = page.locator('[data-slot="page-side-panel"][role="dialog"]:visible').first()
   await expect(drawer).toBeVisible()
   if (tab) {
