@@ -336,10 +336,10 @@ describe('Sidebar resize handle', () => {
   })
 
   it.each([
-    { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false, anchorsHeaderRow: false },
-    { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false, anchorsHeaderRow: true },
-    { name: 'floating', width: 0, isFloating: true, anchorsHeaderRow: true }
-  ])('anchors the account panel to the correct $name header boundary', ({ width, isFloating, anchorsHeaderRow }) => {
+    { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
+    { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },
+    { name: 'floating', width: 0, isFloating: true }
+  ])('anchors the account panel to the $name avatar', ({ name, width, isFloating }) => {
     render(
       <Sidebar
         width={width}
@@ -347,23 +347,21 @@ describe('Sidebar resize handle', () => {
         active={{ activeItem: 'chat' }}
         entries={entries}
         title="User"
-        logo={<span>avatar</span>}
+        logo={<span data-testid={`${name}-avatar`}>avatar</span>}
         onHeaderClick={vi.fn()}
         isFloating={isFloating}
         renderHeaderAnchor={(anchor: ReactElement) => <div data-testid="header-anchor">{anchor}</div>}
+        renderHeaderOverlay={(header: ReactElement) => <div data-testid="header-overlay">{header}</div>}
       />
     )
 
     const anchor = screen.getByTestId('header-anchor')
     const headerAction = screen.getByRole('button', { name: /User$/ })
 
-    if (anchorsHeaderRow) {
-      expect(anchor.firstElementChild).toContainElement(headerAction)
-      expect(anchor.firstElementChild).toHaveClass('px-2')
-    } else {
-      expect(anchor.firstElementChild).toBe(headerAction)
-      expect(anchor.parentElement).toHaveClass('justify-center')
-    }
+    expect(anchor.firstElementChild).toContainElement(screen.getByTestId(`${name}-avatar`))
+    expect(anchor.firstElementChild).not.toBe(headerAction)
+    expect(headerAction).toContainElement(anchor)
+    expect(screen.getByTestId('header-overlay')).toContainElement(headerAction)
   })
 
   it('exposes the account menu state and restores focus to its header trigger', async () => {
@@ -382,9 +380,10 @@ describe('Sidebar resize handle', () => {
           logo={<span>avatar</span>}
           onHeaderClick={() => setOpen(!open)}
           renderHeaderTrigger={(trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
-          renderHeaderAnchor={(anchor: ReactElement) => (
+          renderHeaderAnchor={(anchor: ReactElement) => <PopoverAnchor asChild>{anchor}</PopoverAnchor>}
+          renderHeaderOverlay={(header: ReactElement) => (
             <Popover open={open} onOpenChange={setOpen}>
-              <PopoverAnchor asChild>{anchor}</PopoverAnchor>
+              {header}
               {open ? <PopoverContent>Account settings</PopoverContent> : null}
             </Popover>
           )}

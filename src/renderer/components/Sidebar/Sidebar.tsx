@@ -35,6 +35,7 @@ export interface SidebarProps {
   onHeaderClick?: () => void
   renderHeaderTrigger?: (trigger: React.ReactElement) => React.ReactElement
   renderHeaderAnchor?: (anchor: React.ReactElement) => React.ReactNode
+  renderHeaderOverlay?: (header: React.ReactElement) => React.ReactNode
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
@@ -59,6 +60,7 @@ export function Sidebar({
   onHeaderClick,
   renderHeaderTrigger,
   renderHeaderAnchor,
+  renderHeaderOverlay,
   onEntriesReorder,
   onDismiss
 }: SidebarProps) {
@@ -74,15 +76,19 @@ export function Sidebar({
   const showSearch = Boolean(onSearchClick)
   const logoNode = logo ?? <DefaultLogo title={title} />
 
-  const renderLogo = (size: 'sm' | 'default' = 'default') => (
-    <div
-      className={cn(
-        'flex shrink-0 items-center justify-center overflow-hidden *:h-full *:w-full',
-        size === 'sm' ? 'size-8 rounded-lg' : 'size-6 rounded-lg'
-      )}>
-      {logoNode}
-    </div>
-  )
+  const renderLogo = (size: 'sm' | 'default' = 'default') => {
+    const renderedLogo = (
+      <div
+        className={cn(
+          'flex shrink-0 items-center justify-center overflow-hidden *:h-full *:w-full',
+          size === 'sm' ? 'size-8 rounded-lg' : 'size-6 rounded-lg'
+        )}>
+        {logoNode}
+      </div>
+    )
+
+    return renderHeaderAnchor?.(renderedLogo) ?? renderedLogo
+  }
 
   const renderHeaderIdentity = (size: 'sm' | 'default', showTitle: boolean): React.ReactElement => {
     const content = (
@@ -119,7 +125,6 @@ export function Sidebar({
   }
 
   const withHeaderTrigger = (trigger: React.ReactElement) => renderHeaderTrigger?.(trigger) ?? trigger
-  const withHeaderAnchor = (anchor: React.ReactElement) => renderHeaderAnchor?.(anchor) ?? anchor
 
   const renderHeader = (headerLayout: SidebarVisibleLayout) => {
     const identity = withHeaderTrigger(
@@ -133,11 +138,11 @@ export function Sidebar({
           windowDragClassName,
           headerLayout === 'full' ? 'px-2' : 'justify-center'
         )}>
-        {headerLayout === 'icon' ? withHeaderAnchor(identity) : identity}
+        {identity}
       </div>
     )
 
-    return headerLayout === 'full' ? withHeaderAnchor(header) : header
+    return renderHeaderOverlay?.(header) ?? header
   }
 
   const handleDismiss = useCallback(() => {

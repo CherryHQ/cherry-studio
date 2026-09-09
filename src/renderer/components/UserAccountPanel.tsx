@@ -118,8 +118,8 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
   }
 
   return (
-    <ColFlex className="w-80">
-      <RowFlex className="items-center gap-3 p-4">
+    <ColFlex className="w-72">
+      <RowFlex className="items-center gap-2.5 p-3">
         <Popover
           open={avatarPopoverOpen}
           onOpenChange={(visible) => {
@@ -131,13 +131,13 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
               type="button"
               variant="ghost"
               aria-label={t('common.avatar')}
-              className="group relative size-14 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
+              className="group relative size-12 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
               {isEmoji(avatar) ? (
-                <EmojiAvatar size={56} fontSize={28}>
+                <EmojiAvatar size={48} fontSize={24}>
                   {avatar}
                 </EmojiAvatar>
               ) : (
-                <Avatar className="size-14 rounded-full">
+                <Avatar className="size-12 rounded-full">
                   <AvatarImage src={avatar} className="object-cover" />
                 </Avatar>
               )}
@@ -246,9 +246,9 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
         </ColFlex>
       </RowFlex>
       {isCnEdition || cloudStatus?.phase === 'signed-in' ? (
-        <ColFlex className="gap-3 border-border-subtle border-t px-4 py-3.5">
-          <RowFlex className="items-start gap-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background-subtle text-muted-foreground">
+        <ColFlex className="gap-2 border-border-subtle border-t px-3 py-2.5">
+          <RowFlex className="items-start gap-2.5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-background-subtle text-muted-foreground">
               <Cloud className="size-4" aria-hidden />
             </span>
             <ColFlex className="min-w-0 flex-1 gap-1">

@@ -16,7 +16,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-80 gap-0 p-0 sm:max-w-80">
+      <DialogContent className="w-72 gap-0 p-0 sm:max-w-72">
         <DialogHeader className="sr-only">
           <DialogTitle>{t('settings.general.user_name.label')}</DialogTitle>
         </DialogHeader>

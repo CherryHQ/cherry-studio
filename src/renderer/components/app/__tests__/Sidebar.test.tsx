@@ -240,6 +240,7 @@ vi.mock('../../Sidebar', async () => {
       onHeaderClick,
       renderHeaderTrigger,
       renderHeaderAnchor,
+      renderHeaderOverlay,
       user,
       actions,
       width,
@@ -254,6 +255,7 @@ vi.mock('../../Sidebar', async () => {
       onHeaderClick?: () => void
       renderHeaderTrigger?: (trigger: ReactElement) => ReactElement
       renderHeaderAnchor?: (anchor: ReactElement) => ReactNode
+      renderHeaderOverlay?: (header: ReactElement) => ReactNode
       user?: unknown
       actions?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
       width?: number
@@ -278,18 +280,19 @@ vi.mock('../../Sidebar', async () => {
       const dockedTabs = entries?.filter((entry) => parseEntryKey(entry.key).type === 'mini_app')
       const agentItems = entries?.filter((entry) => parseEntryKey(entry.key).type === 'agent')
       const assistantItems = entries?.filter((entry) => parseEntryKey(entry.key).type === 'assistant')
-      const renderHeader = (layout: 'icon' | 'full', prefix: 'sidebar' | 'floating-sidebar') => {
+      const renderHeader = (_layout: 'icon' | 'full', prefix: 'sidebar' | 'floating-sidebar') => {
+        const renderedLogo = <div data-testid={`${prefix}-logo`}>{logo}</div>
+        const anchoredLogo = renderHeaderAnchor?.(renderedLogo) ?? renderedLogo
         const action = (
           <button type="button" aria-label={title} onClick={onHeaderClick}>
-            <div data-testid={`${prefix}-logo`}>{logo}</div>
+            {anchoredLogo}
             <div data-testid={prefix === 'sidebar' ? 'sidebar-title' : undefined}>{title}</div>
           </button>
         )
         const trigger = renderHeaderTrigger?.(action) ?? action
         const row = <div data-testid={`${prefix}-header`}>{trigger}</div>
 
-        if (!renderHeaderAnchor) return row
-        return layout === 'full' ? renderHeaderAnchor(row) : <div>{renderHeaderAnchor(trigger)}</div>
+        return renderHeaderOverlay?.(row) ?? row
       }
 
       return isFloating ? (

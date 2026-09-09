@@ -138,16 +138,20 @@ export default function Sidebar({
     []
   )
   const renderSidebarHeaderAnchor = useCallback(
-    (anchor: ReactElement) => (
+    (anchor: ReactElement) => <PopoverAnchor asChild>{anchor}</PopoverAnchor>,
+    []
+  )
+  const renderSidebarHeaderOverlay = useCallback(
+    (header: ReactElement) => (
       <Popover open={userMenuOpen} onOpenChange={handleUserMenuOpenChange}>
-        <PopoverAnchor asChild>{anchor}</PopoverAnchor>
+        {header}
         {userMenuOpen ? (
           <PopoverContent
             aria-label={t('settings.general.user_name.label')}
             align="start"
             side="right"
             sideOffset={8}
-            className="w-80 p-0"
+            className="w-72 p-0"
             onClick={(event) => event.stopPropagation()}>
             <UserAccountPanel active={userMenuOpen} />
           </PopoverContent>
@@ -405,6 +409,7 @@ export default function Sidebar({
     onHeaderClick: sidebarUser.onClick,
     renderHeaderTrigger: renderSidebarHeaderTrigger,
     renderHeaderAnchor: renderSidebarHeaderAnchor,
+    renderHeaderOverlay: renderSidebarHeaderOverlay,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <SidebarShellActions
         layout={footerLayout}
