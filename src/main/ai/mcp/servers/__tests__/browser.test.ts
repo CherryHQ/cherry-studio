@@ -409,6 +409,27 @@ describe('CdpBrowserController', () => {
       expect(secondView.webContents.setAudioMuted).toHaveBeenLastCalledWith(true)
     })
 
+    it('keeps a new inactive tab muted when opening in a visible window', async () => {
+      const controller = new CdpBrowserController()
+      await controller.createTab(false, true)
+
+      const result = await controller.open('https://site2.com/', 5000, false, true, true)
+      const { tab } = await (controller as any).getTab(false, result.tabId, false, true)
+
+      expect(tab.view.webContents.isAudioMuted()).toBe(true)
+    })
+
+    it('keeps the active tab muted when navigating a minimized window', async () => {
+      const controller = new CdpBrowserController()
+      const { view } = await controller.createTab(false, true)
+      const window = Array.from(managedWindows.values())[0]
+
+      window.minimize()
+      await controller.open('https://site2.com/', 5000, false, false, false)
+
+      expect(view.webContents.isAudioMuted()).toBe(true)
+    })
+
     it('unmutes the replacement when the active tab closes in a visible window', async () => {
       const controller = new CdpBrowserController()
       const { tabId: firstTabId, view: firstView } = await controller.createTab(false, true)

@@ -648,10 +648,8 @@ export class CdpBrowserController {
     logger.info('Loading URL', { url, windowKey, tabId: actualTabId, privateMode })
     const { webContents } = view
     const windowInfo = this.windows.get(windowKey)
-    const isWindowVisible =
-      windowInfo !== undefined && !windowInfo.window.isDestroyed() && windowInfo.window.isVisible()
-    webContents.setAudioMuted(!isWindowVisible)
     this.touchTab(windowKey, actualTabId)
+    if (windowInfo) this.syncAudioState(windowInfo)
 
     let resolved = false
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
