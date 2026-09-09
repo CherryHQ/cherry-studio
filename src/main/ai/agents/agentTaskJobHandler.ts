@@ -10,7 +10,8 @@
  */
 
 import { application } from '@application'
-import { agentTaskService } from '@data/services/AgentTaskService'
+import { agentTaskService, writeCircuitBreakerPaused } from '@data/services/AgentTaskService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
@@ -74,6 +75,14 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
     })
     try {
       await application.get('JobManager').pauseJobScheduleById(event.scheduleId)
+      // Mark the pause so config-driven convergence (heartbeat sync) does not
+      // silently re-arm a schedule the breaker deliberately stopped.
+      application.get('DbService').withWriteTx((tx) => {
+        const snapshot = jobScheduleService.getByIdTx(tx, event.scheduleId)
+        application
+          .get('JobManager')
+          .updateJobScheduleTx(tx, event.scheduleId, { metadata: writeCircuitBreakerPaused(snapshot?.metadata, true) })
+      })
     } catch (err) {
       logger.error('Failed to pause schedule after consecutive failures', err as Error, {
         scheduleId: event.scheduleId

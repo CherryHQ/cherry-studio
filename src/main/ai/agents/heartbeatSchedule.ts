@@ -14,7 +14,11 @@
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
-import { HEARTBEAT_PROMPT_SENTINEL } from '@data/services/AgentTaskService'
+import {
+  HEARTBEAT_PROMPT_SENTINEL,
+  isCircuitBreakerPaused,
+  writeCircuitBreakerPaused
+} from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { loggerService } from '@logger'
@@ -153,15 +157,24 @@ export function syncHeartbeatSchedule(agentId: string, rows?: JobScheduleSnapsho
 /** Pause (never delete) every enabled heartbeat row; returns the paused ids. */
 function pauseHeartbeatRows(agentId: string, rows: JobScheduleSnapshot[]): string[] {
   // Duplicates can exist (migration disambiguation) — pausing only the first
-  // identity match would leave the rest firing.
+  // identity match would leave the rest firing. An explicit pause is also the
+  // user's reset gesture for a circuit-breaker stop, so clear its marker on
+  // every identity row, already-paused ones included.
   const paused: string[] = []
   for (const row of rows) {
-    if (!matchesHeartbeatIdentity(row, agentId) || !row.enabled) continue
+    if (!matchesHeartbeatIdentity(row, agentId)) continue
+    const clearMarker = isCircuitBreakerPaused(row.metadata)
+    if (!row.enabled && !clearMarker) continue
     application.get('DbService').withWriteTx((tx) => {
-      application.get('JobManager').updateJobScheduleTx(tx, row.id, { enabled: false })
+      application.get('JobManager').updateJobScheduleTx(tx, row.id, {
+        ...(row.enabled ? { enabled: false } : {}),
+        ...(clearMarker ? { metadata: writeCircuitBreakerPaused(row.metadata, false) } : {})
+      })
     })
-    application.get('JobManager').syncJobScheduleTimerById(row.id)
-    paused.push(row.id)
+    if (row.enabled) {
+      application.get('JobManager').syncJobScheduleTimerById(row.id)
+      paused.push(row.id)
+    }
   }
   if (paused.length > 0) logger.info('Heartbeat schedule paused', { agentId, scheduleIds: paused })
   return paused
@@ -276,22 +289,33 @@ async function runSync(
     const repairRow = (row: JobScheduleSnapshot): HeartbeatSyncOutcome => {
       // Repair in place, preserving the schedule name (renaming a migrated row
       // could collide with the UNIQUE index and breaks no behavior that reads it).
+      // A circuit-breaker pause is a stop signal, not drift: repair the row but
+      // keep it disabled until the user resets via the heartbeat toggle off/on.
+      const breakerPaused = !row.enabled && isCircuitBreakerPaused(row.metadata)
+      const reenable = !row.enabled && !breakerPaused
       const triggerChanged = !triggersEqual(row.trigger, trigger)
-      const needsRepair = !row.enabled || triggerChanged || templateDrifted(row.jobInputTemplate, jobInputTemplate)
+      const needsRepair = reenable || triggerChanged || templateDrifted(row.jobInputTemplate, jobInputTemplate)
       if (!needsRepair) return 'noop'
 
       application.get('DbService').withWriteTx((tx) => {
         jobManager.updateJobScheduleTx(tx, row.id, {
-          ...(!row.enabled ? { enabled: true } : {}),
+          ...(reenable ? { enabled: true } : {}),
           ...(triggerChanged ? { trigger } : {}),
           jobInputTemplate
         })
       })
       // Re-arming an enabled interval resets its phase — skip the timer sync
       // when only the template changed (the armed callback re-reads the row).
-      if (!row.enabled || triggerChanged) jobManager.syncJobScheduleTimerById(row.id)
+      if (reenable || triggerChanged) jobManager.syncJobScheduleTimerById(row.id)
       touchedScheduleIds.push(row.id)
-      logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
+      if (breakerPaused) {
+        logger.info('Heartbeat schedule left paused by the circuit breaker; drift repaired', {
+          agentId,
+          scheduleId: row.id
+        })
+      } else {
+        logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
+      }
       return 'updated'
     }
 

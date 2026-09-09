@@ -706,6 +706,73 @@ describe('heartbeatSchedule', () => {
     expect(survivors[0].enabled).toBe(true)
   })
 
+  it('repairs a circuit-breaker-paused row without re-enabling it', async () => {
+    // The breaker pause is a stop signal (3 consecutive failed runs), not
+    // drift — re-arming it on every sync would defeat the cost protection.
+    seedAgent(AGENT_ID, { heartbeat_interval: 45 })
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: 3_600_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    dbh.db
+      .update(jobScheduleTable)
+      .set({ enabled: false, metadata: { circuitBreakerPaused: true } })
+      .where(eq(jobScheduleTable.id, id))
+      .run()
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('updated')
+    const row = jobScheduleService.getById(id)
+    expect(row?.enabled).toBe(false)
+    expect(row?.trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
+    expect(row?.jobInputTemplate).toMatchObject({ workspace: { type: 'user' } })
+    expect(scheduler.has(`schedule:${id}`)).toBe(false)
+  })
+
+  it('resets a circuit-breaker pause through the heartbeat toggle off/on', async () => {
+    // Toggling off clears the marker (the user's deliberate reset gesture);
+    // toggling back on then converges to enabled as usual.
+    seedAgent(AGENT_ID)
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: 3_600_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    dbh.db
+      .update(jobScheduleTable)
+      .set({ enabled: false, metadata: { circuitBreakerPaused: true } })
+      .where(eq(jobScheduleTable.id, id))
+      .run()
+
+    setAgentConfiguration(AGENT_ID, { heartbeat_enabled: false })
+    const offOutcome = await syncHeartbeatSchedule(AGENT_ID)
+    expect(offOutcome).toBe('skipped-disabled')
+    expect(jobScheduleService.getById(id)?.metadata).toMatchObject({ circuitBreakerPaused: false })
+
+    setAgentConfiguration(AGENT_ID, { heartbeat_enabled: true })
+    const onOutcome = await syncHeartbeatSchedule(AGENT_ID)
+    expect(onOutcome).toBe('updated')
+    expect(jobScheduleService.getById(id)?.enabled).toBe(true)
+  })
+
   it('does not seed heartbeat.md when the workspace path is owned by a system row', async () => {
     // Ordering guard: findOrCreateByPath throws for a SYSTEM-owned path — the
     // file must not be provisioned first and orphaned (wedging future syncs).
