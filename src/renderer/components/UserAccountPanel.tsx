@@ -245,11 +245,9 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
         </ColFlex>
       </RowFlex>
       {isCnEdition || cloudStatus?.phase === 'signed-in' ? (
-        <ColFlex className="gap-1 border-border-subtle border-t px-2.5 py-2">
-          <RowFlex className="items-start gap-2">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-background-subtle text-muted-foreground">
-              <Cloud className="size-3.5" aria-hidden />
-            </span>
+        <ColFlex className="border-border-subtle border-t py-1.5">
+          <RowFlex className="min-h-9 items-center gap-2 px-2.5">
+            <Cloud className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             <ColFlex className="min-w-0 flex-1 gap-0.5">
               <RowFlex className="min-w-0 items-center justify-between gap-2">
                 <span className="truncate font-medium text-foreground text-sm">
@@ -276,7 +274,7 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
             </ColFlex>
           </RowFlex>
           {cloudStatusLoadState === 'error' ? (
-            <>
+            <ColFlex className="mt-1 gap-1 px-2.5">
               <div role="alert" className="rounded-md bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
                 {t('error.http.503')}
               </div>
@@ -284,26 +282,30 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
                 <RefreshCw aria-hidden />
                 {t('common.retry')}
               </Button>
-            </>
+            </ColFlex>
           ) : cloudStatus?.phase === 'signed-in' ? (
-            <Button
-              className="w-full justify-start px-2 text-muted-foreground hover:text-foreground"
-              loading={isRevokingSession}
-              onClick={() => void handleCloudLogout()}
-              size="sm"
-              variant="ghost">
-              {!isRevokingSession ? <LogOut aria-hidden /> : null}
-              {t('settings.provider.cherry_cloud.logout')}
-            </Button>
+            <div className="mt-1 border-border-subtle border-t px-1.5 pt-1">
+              <Button
+                className="!text-destructive hover:!text-destructive focus-visible:!text-destructive w-full justify-start px-2"
+                loading={isRevokingSession}
+                onClick={() => void handleCloudLogout()}
+                size="sm"
+                variant="ghost">
+                {!isRevokingSession ? <LogOut aria-hidden /> : null}
+                {t('settings.provider.cherry_cloud.logout')}
+              </Button>
+            </div>
           ) : isAuthorizing ? (
-            <Button
-              className="w-full"
-              loading={isCancellingLogin}
-              onClick={() => void handleCloudLoginCancel()}
-              variant="ghost">
-              {!isCancellingLogin ? <X aria-hidden /> : null}
-              {t('common.cancel')}
-            </Button>
+            <div className="mt-1 px-1.5">
+              <Button
+                className="w-full"
+                loading={isCancellingLogin}
+                onClick={() => void handleCloudLoginCancel()}
+                variant="ghost">
+                {!isCancellingLogin ? <X aria-hidden /> : null}
+                {t('common.cancel')}
+              </Button>
+            </div>
           ) : null}
         </ColFlex>
       ) : null}
