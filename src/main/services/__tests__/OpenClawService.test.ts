@@ -15,6 +15,7 @@ const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
 const broadcastMock = vi.hoisted(() => vi.fn())
 const cacheSetSharedMock = vi.hoisted(() => vi.fn())
+const preferenceGetMock = vi.hoisted(() => vi.fn<(key: string) => unknown>(() => 'en-US'))
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
@@ -106,7 +107,7 @@ vi.mock('@application', () => ({
       if (name === 'BinaryManager') return binaryManagerMock
       if (name === 'IpcApiService') return { broadcast: broadcastMock }
       if (name === 'CacheService') return { setShared: cacheSetSharedMock }
-      if (name === 'PreferenceService') return { get: vi.fn(() => 'en-US') }
+      if (name === 'PreferenceService') return { get: preferenceGetMock }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     getPath: vi.fn()
@@ -214,6 +215,7 @@ describe('OpenClawService gateway status state machine', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     platformMock.isWin = false
+    preferenceGetMock.mockReset().mockReturnValue('en-US')
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
       openclaw: { name: 'openclaw', availability: { source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' } }
     })
@@ -1112,11 +1114,8 @@ describe('OpenClawService gateway status state machine', () => {
 
   describe('gateway port preference sync', () => {
     it('adopts the persisted custom gateway port at readiness', () => {
-      vi.mocked(application.get).mockImplementationOnce(
-        () =>
-          ({
-            get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 18888 : undefined)
-          }) as never
+      preferenceGetMock.mockImplementation((key: string) =>
+        key === 'feature.openclaw.gateway_port' ? 18888 : undefined
       )
 
       ;(service as any).syncGatewayPortFromPreference()
@@ -1125,7 +1124,7 @@ describe('OpenClawService gateway status state machine', () => {
     })
 
     it('keeps the default port when the preference value is not a positive integer', () => {
-      vi.mocked(application.get).mockImplementationOnce(() => ({ get: () => 'en-US' }) as never)
+      preferenceGetMock.mockReturnValue('en-US')
 
       ;(service as any).syncGatewayPortFromPreference()
 
@@ -1134,7 +1133,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('keeps the current port when the preference value exceeds the valid range', () => {
       ;(service as any).gatewayPort = 18888
-      vi.mocked(application.get).mockImplementationOnce(() => ({ get: () => 70000 }) as never)
+      preferenceGetMock.mockReturnValue(70000)
 
       ;(service as any).syncGatewayPortFromPreference()
 
@@ -1143,8 +1142,8 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('adopts a changed custom port while the gateway is idle', () => {
       ;(service as any).gatewayStatus = 'stopped'
-      vi.mocked(application.get).mockImplementationOnce(
-        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      preferenceGetMock.mockImplementation((key: string) =>
+        key === 'feature.openclaw.gateway_port' ? 19999 : undefined
       )
 
       ;(service as any).onGatewayPortPreferenceChanged()
@@ -1156,8 +1155,8 @@ describe('OpenClawService gateway status state machine', () => {
       ;(service as any).gatewayStatus = 'running'
       ;(service as any).gatewayPort = 18888
       // A valid changed preference: without the running guard this would be adopted.
-      vi.mocked(application.get).mockImplementationOnce(
-        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      preferenceGetMock.mockImplementation((key: string) =>
+        key === 'feature.openclaw.gateway_port' ? 19999 : undefined
       )
 
       ;(service as any).onGatewayPortPreferenceChanged()
@@ -1169,8 +1168,8 @@ describe('OpenClawService gateway status state machine', () => {
       ;(service as any).gatewayStatus = 'running'
       ;(service as any).gatewayPort = 18888
       // Preference changed to 19999 mid-run (deferred), then the gateway stopped.
-      vi.mocked(application.get).mockImplementationOnce(
-        () => ({ get: (key: string) => (key === 'feature.openclaw.gateway_port' ? 19999 : undefined) }) as never
+      preferenceGetMock.mockImplementation((key: string) =>
+        key === 'feature.openclaw.gateway_port' ? 19999 : undefined
       )
 
       ;(service as any).setGatewayStatus('stopped')
