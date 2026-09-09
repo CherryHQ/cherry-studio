@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   appGet: vi.fn(),
+  cacheSetShared: vi.fn(),
   getHermesHome: vi.fn(),
   getRawShellEnv: vi.fn(),
   isWin: false,
@@ -64,10 +65,16 @@ describe('HermesDashboardService', () => {
     vi.clearAllMocks()
     mocks.isWin = false
     child = new FakeChild()
-    mocks.appGet.mockReturnValue({
-      getToolSnapshots: vi.fn(async () => ({
-        hermes: { availability: { source: 'system', path: '/usr/local/bin/hermes' } }
-      }))
+    mocks.appGet.mockImplementation((name: string) => {
+      if (name === 'CacheService') return { setShared: mocks.cacheSetShared }
+      if (name === 'BinaryManager') {
+        return {
+          getToolSnapshots: vi.fn(async () => ({
+            hermes: { availability: { source: 'system', path: '/usr/local/bin/hermes' } }
+          }))
+        }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.getHermesHome.mockResolvedValue('/home/test/.hermes')
     mocks.getRawShellEnv.mockResolvedValue({ PATH: '/system/bin' })
@@ -152,10 +159,13 @@ describe('HermesDashboardService', () => {
   })
 
   it('pins the spawned Dashboard to the session Hermes home, replacing inherited variants', async () => {
-    mocks.appGet.mockReturnValue({
-      getToolSnapshots: vi.fn(async () => ({
-        hermes: { availability: { source: 'mise', path: '/managed/bin/hermes' } }
-      }))
+    mocks.appGet.mockImplementation((name: string) => {
+      if (name === 'CacheService') return { setShared: mocks.cacheSetShared }
+      return {
+        getToolSnapshots: vi.fn(async () => ({
+          hermes: { availability: { source: 'mise', path: '/managed/bin/hermes' } }
+        }))
+      }
     })
     mocks.refreshShellEnv.mockResolvedValue({ PATH: '/managed/bin', hermes_home: '/changed/hermes' })
     mocks.getHermesHome.mockResolvedValue('/custom/hermes')
@@ -214,8 +224,11 @@ describe('HermesDashboardService', () => {
   })
 
   it('reports a missing Hermes binary without spawning a process', async () => {
-    mocks.appGet.mockReturnValue({
-      getToolSnapshots: vi.fn(async () => ({ hermes: { availability: { source: 'none' } } }))
+    mocks.appGet.mockImplementation((name: string) => {
+      if (name === 'CacheService') return { setShared: mocks.cacheSetShared }
+      return {
+        getToolSnapshots: vi.fn(async () => ({ hermes: { availability: { source: 'none' } } }))
+      }
     })
 
     await expect(new HermesDashboardService().start()).resolves.toEqual({
@@ -274,7 +287,10 @@ describe('HermesDashboardService', () => {
           resolveSnapshots = resolve
         })
     )
-    mocks.appGet.mockReturnValue({ getToolSnapshots })
+    mocks.appGet.mockImplementation((name: string) => {
+      if (name === 'CacheService') return { setShared: mocks.cacheSetShared }
+      return { getToolSnapshots }
+    })
     const service = new HermesDashboardService()
 
     const starting = service.start()

@@ -9,7 +9,7 @@ import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystu
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
-import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
+import { mergeHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
@@ -39,7 +39,7 @@ import { isEmpty } from 'es-toolkit/compat'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
-import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import { getBaseUrl, getExtraHeaders, getProviderAppHeaders, routeToEndpoint } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCherryCloudProviderConfig } from './cherryCloud'
@@ -64,7 +64,6 @@ interface BuilderContext {
   model: Model
   baseConfig: BaseConfig
   apiKeyOverride?: string
-  sessionId?: string
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
@@ -77,7 +76,6 @@ type ApiKeyBuilderContext = BuilderContext & {
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
-  sessionId?: string
 }
 
 export interface ResolvedProviderAiSdkConfig {
@@ -207,7 +205,6 @@ export async function resolveProviderAiSdkConfig(
     // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
-    sessionId: options?.sessionId,
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -344,7 +341,7 @@ export async function resolveProviderAiSdkConfig(
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
-          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
         }
       }))
     },
@@ -355,7 +352,7 @@ export async function resolveProviderAiSdkConfig(
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
-          headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+          headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
         }
       }))
     },
@@ -418,18 +415,16 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
   }
 }
 
+/**
+ * OpenCode Go/Zen requires `x-opencode-session` on every request. The builder only
+ * declares that; the chat pipeline fills it from the request's conversation.
+ */
 function buildOpenCodeGoConfig(ctx: BuilderContext): ProviderConfig {
   const config =
     ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
-  const providerSettings = config.providerSettings as { headers?: Record<string, string | undefined> }
-  const headers = providerSettings.headers
+  const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
   const hasExplicitSession = Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
-
-  if (ctx.sessionId && !hasExplicitSession) {
-    providerSettings.headers = { 'x-opencode-session': ctx.sessionId, ...headers }
-  }
-
-  return config
+  return hasExplicitSession ? config : { ...config, conversationHeader: 'x-opencode-session' }
 }
 
 /**
@@ -457,7 +452,7 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // The SDK rejects an empty key; the real bearer token is injected per
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'codex-oauth',
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       fetch: buildCodexFetch()
     }
   }
@@ -510,7 +505,7 @@ function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // The SDK rejects an empty key; the real bearer token is injected per
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'grok-cli-oauth',
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       fetch: buildGrokCliFetch()
     }
   }
@@ -556,7 +551,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
       ...ctx.baseConfig,
       name: ctx.actualProvider.id,
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         const signature = generateSignature({
           method: 'POST',
@@ -573,7 +568,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
 function buildCommonOptions(ctx: BuilderContext) {
   const options: Record<string, any> = {
     headers: {
-      ...defaultAppHeaders(),
+      ...getProviderAppHeaders(ctx.actualProvider),
       ...getExtraHeaders(ctx.actualProvider)
     }
   }
@@ -585,7 +580,7 @@ function buildCommonOptions(ctx: BuilderContext) {
 
 function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   const headers: Record<string, string> = {
-    ...defaultAppHeaders(),
+    ...getProviderAppHeaders(ctx.actualProvider),
     ...getExtraHeaders(ctx.actualProvider)
   }
   if (!isEmpty(ctx.baseConfig.apiKey)) {
@@ -669,7 +664,7 @@ function buildVertexConfig(
         // from project+location; a custom host (proxy) passes through untouched.
         ...(ctx.baseConfig.baseURL && { baseURL: ctx.baseConfig.baseURL }),
         ...(creds && { googleCredentials: creds }),
-        headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
       }
     } as ProviderConfig<'google-vertex-maas'>
   }
@@ -731,14 +726,23 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
       endpointType: cherryinEndpointType,
       anthropicBaseURL,
       geminiBaseURL,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
 }
 
-function formatAzureBaseURL(baseURL: string, forAnthropic: boolean): string {
+function formatAzureBaseURL(baseURL: string, forAnthropic: boolean, includeApiVersion = false): string {
   const normalized = baseURL.replace(/\/v1$/, '').replace(/\/openai$/, '')
-  return forAnthropic ? normalized : normalized + '/openai'
+  return forAnthropic ? normalized : `${normalized}/openai${includeApiVersion ? '/v1' : ''}`
+}
+
+function isOfficialAzureOpenAIBaseURL(baseURL: string): boolean {
+  const hostname = new URL(baseURL).hostname
+  return (
+    hostname.endsWith('.openai.azure.com') ||
+    hostname.endsWith('.services.ai.azure.com') ||
+    hostname.endsWith('.cognitiveservices.azure.com')
+  )
 }
 
 function buildAzureConfig(
@@ -755,27 +759,38 @@ function buildAzureConfig(
       providerSettings: {
         ...ctx.baseConfig,
         baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
-        headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+        headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
       }
     }
   }
 
   const apiVersion = ctx.actualProvider.settings?.apiVersion?.trim()
   const isResponsesVariant = ctx.aiSdkProviderId === 'azure-responses'
+  const useDeploymentBasedUrls = Boolean(apiVersion && !isResponsesVariant)
+  const useCustomGatewayV1 = !isOfficialAzureOpenAIBaseURL(ctx.baseConfig.baseURL) && !useDeploymentBasedUrls
 
   const providerSettings: AppProviderSettingsMap['azure'] & {
     apiVersion?: string
     useDeploymentBasedUrls?: boolean
   } = {
     ...ctx.baseConfig,
-    baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false),
-    headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false, useCustomGatewayV1),
+    headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
   }
 
   if (apiVersion) {
     providerSettings.apiVersion = apiVersion
-    if (!isResponsesVariant) {
+    if (useDeploymentBasedUrls) {
       providerSettings.useDeploymentBasedUrls = true
+    }
+  }
+
+  if (useCustomGatewayV1) {
+    // The Azure SDK treats non-Azure hosts as complete URLs, so preserve Cherry's v1/version contract here.
+    providerSettings.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : input)
+      url.searchParams.set('api-version', apiVersion || 'v1')
+      return customFetch(url, init)
     }
   }
 
@@ -834,7 +849,7 @@ function buildOpenResponsesConfig(ctx: BuilderContext): ProviderConfig<'open-res
       name: 'openai',
       apiKey: ctx.baseConfig.apiKey,
       headers: {
-        ...defaultAppHeaders(),
+        ...getProviderAppHeaders(ctx.actualProvider),
         ...getExtraHeaders(ctx.actualProvider),
         // Parity with buildCommonOptions' 'openai' branch — these providers received it before.
         'X-Api-Key': ctx.baseConfig.apiKey
@@ -859,7 +874,7 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
 }
@@ -871,7 +886,7 @@ function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
 }
@@ -882,7 +897,7 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) },
       includeUsage: resolveEndpointDialect(ctx.actualProvider, ctx.endpointType).streamOptions
     }
   }
@@ -922,7 +937,7 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
       ...ctx.baseConfig,
       baseURL,
       endpointType: mapCherryinEndpointType(endpointType),
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      headers: { ...getProviderAppHeaders(ctx.actualProvider), ...getExtraHeaders(ctx.actualProvider) }
     }
   }
 }

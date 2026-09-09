@@ -10,6 +10,7 @@ import path from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -98,6 +99,7 @@ afterEach(() => {
 
 beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
+  MockMainCacheServiceUtils.resetMocks()
   mocks.agentCreate.mockReset()
   mocks.applicationGetPath.mockReset()
   mocks.applicationGetPath.mockReturnValue('/mock/product-manifest.json')

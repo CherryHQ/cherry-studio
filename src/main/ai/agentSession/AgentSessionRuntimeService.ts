@@ -40,6 +40,7 @@ import {
   AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY,
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY } from '@shared/ai/agentSessionTurnOrigin'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
@@ -1682,18 +1683,7 @@ export class AgentSessionRuntimeService extends BaseService {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
         // ephemeral retry status (backoff windows produce no chunks, so this never fires mid-retry).
         this.clearApiRetry(entry)
-        // During a transition A1a is closed, or the receive-only stream is not open yet. Buffer the
-        // chunks so `flush-transition` can replay them into the exact successor stream in order.
-        const execution = entry.runtimeState.execution
-        const turn = this.currentTurn(entry)
-        if (
-          execution.kind === 'steer-transition' ||
-          (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn))
-        ) {
-          this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk: event.chunk })
-          break
-        }
-        if (turn?.controller && this.isTurnLive(entry, turn)) this.enqueueTurnChunk(entry, turn, event.chunk)
+        this.deliverRuntimeChunk(entry, event.chunk)
         break
       }
       case 'tool-approval-request':
@@ -1771,20 +1761,21 @@ export class AgentSessionRuntimeService extends BaseService {
           break
         }
         // Runtime-generated content is already streaming. The autonomous execution state buffers
-        // chunks until its receive-only stream exists and owns any still-unadmitted user turn.
+        // chunks until its receive-only stream exists and owns the current user turn meanwhile — even
+        // an admitted one: dsh runs a queued goal round before the prompt it has already accepted.
         const turn = this.currentTurn(entry)
         const turnLive = turn !== undefined && this.isTurnLive(entry, turn)
-        if (turnLive && turn && isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) break
         if (entry.runtimeState.execution.kind === 'steer-transition') break
         this.applyRuntimeStateEvent(entry, {
           type: 'autonomous-turn-state',
           state: 'started',
+          origin: event.origin,
           deferCurrentTurn: turnLive,
           contextTurn: turn
         })
         this.clearIdleTimer(entry)
         if (turnLive && turn) {
-          this.deferUnadmittedTurnForReceiveOnly(entry, turn)
+          this.deferTurnForReceiveOnly(entry, turn)
         } else {
           this.requestRuntimeLaunch(entry, 'receive-only')
         }
@@ -2310,22 +2301,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleToolApprovalRequest(entry: AgentSessionRuntimeEntry, request: AgentRuntimeToolApprovalRequest): void {
-    const turn = this.currentTurn(entry)
     if (request.presentation === 'stream') {
       const chunk: UIMessageChunk = {
         type: 'tool-approval-request',
         approvalId: request.approvalId,
         toolCallId: request.toolCallId
       }
-      if (
-        entry.runtimeState.execution.kind === 'steer-transition' ||
-        (entry.runtimeState.execution.kind === 'autonomous-turn' &&
-          !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn))
-      ) {
-        this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
-      } else if (turn?.controller && this.isTurnLive(entry, turn)) {
-        this.enqueueTurnChunk(entry, turn, chunk)
-      } else {
+      if (!this.deliverRuntimeChunk(entry, chunk)) {
         logger.warn('Live tool approval request lost its turn stream', {
           sessionId: entry.sessionId,
           approvalId: request.approvalId
@@ -2442,6 +2424,23 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
+  private deliverRuntimeChunk(entry: AgentSessionRuntimeEntry, chunk: UIMessageChunk): boolean {
+    const execution = entry.runtimeState.execution
+    const turn = this.currentTurn(entry)
+    // Approval cards and content share the same handoff while a successor stream is opening.
+    if (
+      execution.kind === 'steer-transition' ||
+      (execution.kind === 'autonomous-turn' && !hasAgentSessionRuntimeOpenStream(entry.runtimeState, turn)) ||
+      (execution.kind === 'turn' && execution.stream === 'unopened' && execution.admission === 'admitted')
+    ) {
+      this.applyRuntimeStateEvent(entry, { type: 'buffer-chunk', chunk })
+      return true
+    }
+    if (!turn?.controller || !this.isTurnLive(entry, turn)) return false
+    this.enqueueTurnChunk(entry, turn, chunk)
+    return true
+  }
+
   private enqueueTurnChunk(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn, chunk: UIMessageChunk): void {
     if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
       turn.activeToolIds.add(chunk.toolCallId)
@@ -2552,11 +2551,13 @@ export class AgentSessionRuntimeService extends BaseService {
             if (this.isCurrentEntry(entry)) {
               this.applyRuntimeStateEvent(entry, { type: 'launch-finished', target })
               if (target === 'receive-only') {
+                // A turn deferred behind this launch (or restored by an abandon) has no stream yet,
+                // whatever its admission: an admitted relaunch reopens the stream without re-sending.
                 const turn = this.currentTurn(entry)
                 if (
                   entry.runtimeState.execution.kind === 'turn' &&
+                  entry.runtimeState.execution.stream === 'unopened' &&
                   turn &&
-                  !isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn) &&
                   this.isTurnLive(entry, turn)
                 ) {
                   this.requestRuntimeLaunch(entry, 'deferred-turn')
@@ -2678,7 +2679,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: entry.modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
@@ -2697,19 +2698,14 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Runtime-generated content can arrive in the narrow window after a user turn's renderer stream
-   * opened but before its prompt was admitted. Detach that empty execution, keep the turn object
+   * Runtime-generated content can arrive after a user turn's renderer stream opened but before the
+   * runtime produced anything for it — the prompt may not be admitted yet, or (dsh) a queued goal
+   * round runs ahead of the admitted prompt. Detach that empty execution, keep the turn object
    * queued, and let the receive-only generation own the connection first.
    */
-  private deferUnadmittedTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
+  private deferTurnForReceiveOnly(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     const execution = entry.runtimeState.execution
-    if (
-      execution.kind !== 'autonomous-turn' ||
-      execution.deferredTurn !== turn ||
-      isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)
-    ) {
-      return
-    }
+    if (execution.kind !== 'autonomous-turn' || execution.deferredTurn !== turn) return
     const suspended = application.get('AiStreamManager').suspendUnadmittedRuntimeTurn(entry.topicId)
     try {
       turn.controller?.close()
@@ -2756,7 +2752,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: turn.modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: turn.assistantMessageId,
         messages,
@@ -2787,6 +2783,7 @@ export class AgentSessionRuntimeService extends BaseService {
     ) {
       return
     }
+    const { origin } = entry.runtimeState.execution
     const { modelId, serviceTier, knowledgeBaseIds, fastMode, trustedNotifyChannels } = this.connectionTarget(entry)
     const syntheticMessage = createSyntheticUserMessage(entry.sessionId)
 
@@ -2814,6 +2811,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     const assistantMessageId = assistantMessage.id
+    // No user message explains this turn; the badge reads the origin off the live session cache.
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(entry.sessionId, assistantMessageId), origin)
     const turnId = crypto.randomUUID()
     const receiveOnlyTurn: AgentSessionTurn = {
       turnId,
@@ -2855,7 +2856,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,
@@ -2971,7 +2972,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId,
       rootSpan,
       request: {
-        chatId: entry.topicId,
+        conversation: { id: extractAgentSessionId(entry.topicId), topicId: entry.topicId },
         trigger: 'submit-message',
         messageId: assistantMessageId,
         messages,

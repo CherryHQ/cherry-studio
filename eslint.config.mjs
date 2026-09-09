@@ -93,6 +93,41 @@ const BAN_DRIZZLE_MIGRATOR = {
     "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
 }
 
+// Utility-process child code (protocol/runtime, entries, smoke entries) is bundled for a
+// separate process that has no lifecycle container, no logger, and no database. Importing a
+// main-only singleton there fails at runtime — or silently drags winston/Drizzle into the
+// child bundle. A resolved-path zone, so relative and aliased specifiers are judged alike;
+// the smoke build's entry-graph guard (scripts/utility-process-smoke/hermeticEntryGuardPlugin.ts)
+// is the transitive backstop (docs/references/utility-process/README.md).
+const UTILITY_CHILD_FILES = [
+  'src/main/core/utilityProcess/protocol/**/*.ts',
+  'src/main/core/utilityProcess/runtime/**/*.ts',
+  'src/main/**/utilityEntries/**/*.ts',
+  'scripts/utility-process-smoke/harness/utilityEntries/**/*.ts'
+]
+const UTILITY_CHILD_ZONE = {
+  target: UTILITY_CHILD_FILES,
+  from: [
+    'src/main/core/application',
+    'src/main/core/lifecycle',
+    'src/main/core/logger',
+    'src/main/core/paths',
+    'src/main/data',
+    'src/main/ipc',
+    'src/main/services/proxy',
+    'src/main/core/utilityProcess/host',
+    'src/main/core/utilityProcess/UtilityProcessManager.ts'
+  ],
+  message:
+    'Utility-process child code runs without the main process singletons. Use the child runtime (serveUtilityProcess) and the protocol layer instead; keep host-only code out of the entry graph.'
+}
+// Resolved against the node project: tsconfig.web.json maps @logger / @data/* to renderer files.
+const mainBoundarySettings = {
+  'import-x/resolver-next': [
+    createTypeScriptImportResolver({ project: path.join(RENDERER_DIRNAME, 'tsconfig.node.json'), alwaysTryTypes: true })
+  ]
+}
+
 // --- barrel / module-boundary rules (naming-conventions.md §6.4) ---
 // An inline custom plugin (like the `lifecycle` plugin below), not no-restricted-paths:
 // full-src barrel closure needs a private boundary per directory at arbitrary depth, which
@@ -606,6 +641,107 @@ export default defineConfig([
       'lifecycle/no-direct-quit': 'warn'
     }
   },
+  // Transaction boundary — a `*Tx` method promises to run entirely on the transaction
+  // handle it was given. Acquiring the DB from the service singleton instead breaks that
+  // promise twice over: the read leaves the caller's transaction, and it inherits
+  // `DbService.getDb()`'s readiness gate, which throws while `onInit()` is still seeding.
+  // v2.0.11 shipped that: an edition filter added to `getNamesByUniqueIdsTx` reached the
+  // singleton three call hops away and aborted startup for upgrading profiles.
+  {
+    files: ['src/main/**/*.{ts,tsx}'],
+    ignores: ['src/main/**/__tests__/**', 'src/main/**/__mocks__/**', 'src/main/**/*.test.*'],
+    plugins: {
+      'tx-boundary': {
+        rules: {
+          'no-ambient-db-in-tx': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow reaching for the DbService singleton, directly or through another service, inside a `*Tx` function.',
+                recommended: true
+              },
+              messages: {
+                ambientDb:
+                  '"{{name}}" inside `{{fn}}` leaves the caller\'s transaction and depends on DbService being ready. Use the `tx` parameter.',
+                serviceEscape:
+                  '`{{name}}` is not a `*Tx` method, so `{{fn}}` cannot know whether it opens its own connection. Call a `*Tx` variant, or a pure helper that takes the row.'
+              }
+            },
+            create(context) {
+              // One entry per function scope; `true` marks a `*Tx` function, so a
+              // callback nested inside one is still governed.
+              const txScopes = []
+
+              const declaredName = (node) => {
+                const parent = node.parent
+                if (parent?.type === 'MethodDefinition' || parent?.type === 'Property') {
+                  return parent.key?.type === 'Identifier' ? parent.key.name : null
+                }
+                if (parent?.type === 'VariableDeclarator') {
+                  return parent.id?.type === 'Identifier' ? parent.id.name : null
+                }
+                return node.id?.type === 'Identifier' ? node.id.name : null
+              }
+
+              const enter = (node) => {
+                const name = declaredName(node)
+                txScopes.push(name?.endsWith('Tx') ? name : null)
+              }
+              const exit = () => txScopes.pop()
+              const enclosingTx = () => txScopes.findLast?.((name) => name !== null) ?? null
+
+              return {
+                FunctionDeclaration: enter,
+                'FunctionDeclaration:exit': exit,
+                FunctionExpression: enter,
+                'FunctionExpression:exit': exit,
+                ArrowFunctionExpression: enter,
+                'ArrowFunctionExpression:exit': exit,
+
+                CallExpression(node) {
+                  const fn = enclosingTx()
+                  if (!fn) return
+
+                  const { callee } = node
+                  if (callee.type !== 'MemberExpression' || callee.property.type !== 'Identifier') return
+                  const method = callee.property.name
+
+                  if (method === 'getDb') {
+                    context.report({ node, messageId: 'ambientDb', data: { name: 'getDb()', fn } })
+                    return
+                  }
+
+                  if (callee.object.type !== 'Identifier') return
+                  const receiver = callee.object.name
+
+                  if (receiver === 'application' && method === 'get' && node.arguments[0]?.value === 'DbService') {
+                    context.report({
+                      node,
+                      messageId: 'ambientDb',
+                      data: { name: "application.get('DbService')", fn }
+                    })
+                    return
+                  }
+
+                  if (receiver.endsWith('Service') && !method.endsWith('Tx')) {
+                    context.report({
+                      node,
+                      messageId: 'serviceEscape',
+                      data: { name: `${receiver}.${method}()`, fn }
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'tx-boundary/no-ambient-db-in-tx': 'warn'
+    }
+  },
   // i18n
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
@@ -686,6 +822,18 @@ export default defineConfig([
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
+    }
+  },
+  {
+    // Child-safe zone: everything that is bundled into a utility process entry. Must come
+    // after the src/main block — flat config replaces a rule wholesale, so the main bans are
+    // repeated here; the child-only fence is the resolved-path zone.
+    files: UTILITY_CHILD_FILES,
+    plugins: { 'import-x': importX },
+    settings: mainBoundarySettings,
+    rules: {
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }],
+      'import-x/no-restricted-paths': ['error', { basePath: RENDERER_DIRNAME, zones: [UTILITY_CHILD_ZONE] }]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).

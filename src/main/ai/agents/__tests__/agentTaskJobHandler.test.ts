@@ -126,7 +126,7 @@ describe('AgentTaskJobHandler', () => {
 
   describe('execute', () => {
     it('delegates to runAgentTask with the JobContext', async () => {
-      vi.mocked(runAgentTask).mockResolvedValueOnce({ sessionId: 'sess-1', result: 'ok' })
+      vi.mocked(runAgentTask).mockResolvedValueOnce({ result: 'ok' })
       const ctx = {
         jobId: 'j1',
         input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE, reuseRevision: 0 }
@@ -134,7 +134,7 @@ describe('AgentTaskJobHandler', () => {
 
       const out = await agentTaskJobHandler.execute(ctx)
 
-      expect(out).toEqual({ sessionId: 'sess-1', result: 'ok' })
+      expect(out).toEqual({ result: 'ok' })
       expect(runAgentTask).toHaveBeenCalledWith(ctx)
     })
 
@@ -142,7 +142,7 @@ describe('AgentTaskJobHandler', () => {
       vi.mocked(jobService.getById).mockReturnValueOnce(makeTerminal('completed', 'j1'))
       vi.mocked(runAgentTask).mockImplementationOnce(async () => {
         expect(agentTaskService.notifyReadModelChange).toHaveBeenCalledWith(['s1'])
-        return { sessionId: 'sess-1', result: 'ok' }
+        return { result: 'ok' }
       })
 
       await agentTaskJobHandler.execute({ jobId: 'j1' } as JobContext<AgentTaskInput>)

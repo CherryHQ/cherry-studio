@@ -168,7 +168,9 @@ export const useNotesMenu = ({
           id: 'notes.rename',
           label: t('notes.rename'),
           icon: <Edit3 size={14} />,
-          onSelect: () => handleStartEdit(node)
+          onSelect: () => {
+            window.requestAnimationFrame(() => handleStartEdit(node))
+          }
         },
         {
           type: 'item',
