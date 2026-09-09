@@ -33,21 +33,9 @@ export type { MessageUiState } from '@renderer/types/message'
 
 export type SelectAllState = boolean | 'indeterminate'
 
-/**
- * Load-all pagination handle for the multi-select "select all" action.
- * Topic/agent history is cursor-paginated server-side, so select-all must
- * page to the end (parts resident) before it can apply and export.
- */
-export interface MessageListSelectAllPagination {
-  /** Whether older pages remain unloaded on the server. */
-  hasOlder: boolean
-  /** True while a requested load-all is still fetching older pages. */
-  isLoading: boolean
-  /** Keep auto-paginating until every page is loaded (idempotent). */
-  start: () => void
-  /** Stop an in-progress load-all, abandoning the remaining pages. */
-  stop: () => void
-}
+// Lives in `@renderer/types/message` so data hooks can import it without
+// reaching into the component layer; re-exported for component consumers.
+export type { MessageListSelectAllPagination } from '@renderer/types/message'
 
 export interface MessageListSelectionState {
   enabled: boolean

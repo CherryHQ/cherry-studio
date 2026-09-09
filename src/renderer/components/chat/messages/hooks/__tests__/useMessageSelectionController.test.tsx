@@ -1,14 +1,8 @@
-<<<<<<< HEAD
-=======
-import type { MessageListItem, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
-import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
-import type { CherryMessagePart } from '@shared/data/types/message'
->>>>>>> 4f58ddeeca (refactor(multi-select): harden and unify select-all pagination)
 import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import type { MessageListItem, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -480,6 +474,34 @@ describe('useMessageSelectionController', () => {
 
       rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
       // The mock cache setter does not re-render; render once more to observe it.
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
+
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['a', 'b'])
+      expect(result.current.selection.selectAllState).toBe(true)
+    })
+
+    it('resets exclusions on a fresh select-all once every page is loaded', () => {
+      const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
+
+      act(() => {
+        result.current.actions.selectMessage?.('a', true)
+      })
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+      rerender({ messages: [message('a')], pagination: { ...handle, isLoading: true } })
+      act(() => {
+        result.current.actions.selectMessage?.('a', false)
+      })
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
+      expect(cacheValues['chat.selected_message_ids']).toEqual(['b'])
+
+      // The user clicks select-all again after landing: the previous cycle's
+      // exclusions must not leak into this fresh "select everything" intent.
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
       rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
 
       expect(cacheValues['chat.selected_message_ids']).toEqual(['a', 'b'])

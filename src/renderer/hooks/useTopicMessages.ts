@@ -17,8 +17,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 import { usePreference } from '@data/hooks/usePreference'
-import type { MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
+import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type {
@@ -170,7 +170,6 @@ export function useTopicMessages(
   // page fetch is detected via the query `error` and abandons load-all
   // instead of retrying on every render; the user can re-trigger select-all.
   const [loadAllRequested, setLoadAllRequested] = useState(false)
-  const startLoadAll = useCallback(() => setLoadAllRequested(true), [])
   const stopLoadAll = useCallback(() => setLoadAllRequested(false), [])
   useEffect(() => {
     stopLoadAll()
@@ -211,14 +210,23 @@ export function useTopicMessages(
   )
   const activeNodeId = pages[0]?.activeNodeId ?? null
 
+  // Errors that predate the load-all are baseline; only a NEW error while paging
+  // abandons it. A retained error would otherwise deadlock a retried select-all
+  // behind the !error gate, so starting also revalidates it away.
+  const loadAllBaselineErrorRef = useRef<Error | undefined>(undefined)
+  const startLoadAll = useCallback(() => {
+    loadAllBaselineErrorRef.current = error
+    setLoadAllRequested(true)
+    if (error) void mutate()
+  }, [error, mutate])
   useEffect(() => {
     if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing && !error) {
       loadNext()
     }
   }, [enabled, error, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext])
-  // A failed page fetch abandons the load-all; the user can re-trigger select-all.
+  // A failed page fetch (new error vs the start baseline) abandons the load-all.
   useEffect(() => {
-    if (error && loadAllRequested) stopLoadAll()
+    if (error && loadAllRequested && error !== loadAllBaselineErrorRef.current) stopLoadAll()
   }, [error, loadAllRequested, stopLoadAll])
   // Fully loaded — reset so first-page revalidation resumes after select-all.
   useEffect(() => {

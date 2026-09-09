@@ -159,12 +159,14 @@ export function useMessageSelectionController({
         setSelectedMessageIds([])
         return
       }
+      // A fresh select-all means "everything" — exclusions only live within
+      // one deferred cycle (recorded after this point, consumed at landing).
+      manualDeselectedRef.current.clear()
       if (hasOlder && startLoadAll) {
         // Unloaded messages have no resident parts — selecting them now would
         // export empty content. Paginate to the end first; the completion
         // effect below applies the selection once every page is resident.
         selectAllPendingRef.current = true
-        manualDeselectedRef.current.clear()
         startLoadAll()
         return
       }
