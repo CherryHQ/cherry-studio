@@ -137,7 +137,6 @@ const MinimalToolbar: FC<Props> = ({
       const loadGeneration = ++addressLoadGenerationRef.current
       const loadOwner = { appId: app.appId, webview, webviewRevision }
       const handleLoadFailure = (error: unknown) => {
-        if (error instanceof Error && /ERR_ABORTED/.test(error.message)) return
         const currentOwner = addressLoadOwnerRef.current
         if (
           addressLoadGenerationRef.current !== loadGeneration ||
@@ -148,8 +147,9 @@ const MinimalToolbar: FC<Props> = ({
         ) {
           return
         }
-        logger.error('Failed to navigate WebView from address bar', error as Error)
         restoreCurrentPageUrl()
+        if (error instanceof Error && /ERR_ABORTED/.test(error.message)) return
+        logger.error('Failed to navigate WebView from address bar', error as Error)
         toast.error(t('miniApp.error.load_failed'))
       }
 

@@ -1,7 +1,9 @@
 import { EventEmitter } from 'node:events'
 
 import { application } from '@application'
+import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { BaseService } from '@main/core/lifecycle'
+import { setupTestDatabase } from '@test-helpers/db'
 import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -112,6 +114,30 @@ describe('Browser session ownership', () => {
 })
 
 describe('Ordinary browser popup lifecycle', () => {
+  it.each([
+    ['file:///tmp/private.html', false],
+    ['javascript:alert(1)', false],
+    ['data:text/html,hello', false],
+    ['http://192.168.1.2/page', true],
+    ['http://localhost:3000/preview', true]
+  ])('validates the page-controlled popup destination %s', (url, allowed) => {
+    const { guest, mock } = createGuest(500)
+    let handler!: Parameters<Electron.WebContents['setWindowOpenHandler']>[0]
+    Object.assign(mock, {
+      getType: () => 'webview',
+      session: session.fromPartition('persist:agent-browser'),
+      isLoadingMainFrame: () => true,
+      setWindowOpenHandler: (next: typeof handler) => {
+        handler = next
+      }
+    })
+    events.emit('web-contents-created', {}, guest)
+    const openTab = vi.mocked(application.get('MainWindowService').openBrowserTab)
+    openTab.mockClear()
+    expect(handler({ url } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
+    expect(openTab.mock.calls.map(([target]) => target)).toEqual(allowed ? [url] : [])
+  })
+
   it('handles guests from any host and stops opening tabs after service shutdown', async () => {
     const { guest, mock } = createGuest(500)
     let handler!: Parameters<Electron.WebContents['setWindowOpenHandler']>[0]
@@ -134,5 +160,47 @@ describe('Ordinary browser popup lifecycle', () => {
     expect(handler({ url } as Electron.HandlerDetails)).toEqual({ action: 'deny' })
     expect(openTab).not.toHaveBeenCalled()
     expect(mock.isDestroyed()).toBe(false)
+  })
+})
+
+describe('Browser data cleanup', () => {
+  setupTestDatabase()
+
+  it('clears persisted favicons and cancels pending captures without deleting history', async () => {
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aetkAAAAASUVORK5CYII=',
+      'base64'
+    )
+    const cache = application.get('CacheService')
+    cache.setPersist('browser.favicons', { 'https://example.com': `data:image/png;base64,${png.toString('base64')}` })
+    browserHistoryService.record({ url: 'https://example.com', title: 'Keep this visit', visitedAt: 1 })
+    const profile = session.fromPartition('persist:agent-browser')
+    vi.mocked(profile.clearCache).mockResolvedValue(undefined)
+    let complete!: (response: Response) => void
+    let signal!: AbortSignal
+    vi.mocked(profile.fetch).mockImplementationOnce((_url, options) => {
+      signal = options!.signal!
+      return new Promise<Response>((resolve) => {
+        complete = resolve
+      })
+    })
+    const { guest, mock } = createGuest(501)
+    Object.assign(mock, { getType: () => 'webview', session: profile, isLoadingMainFrame: () => true })
+    events.emit('web-contents-created', {}, guest)
+    mock.emit('page-favicon-updated', {}, ['https://example.com/icon.png'])
+    const clearing = service.clearData('cache')
+    const cancelled = signal.aborted
+    complete(new Response(png))
+    await clearing
+
+    expect(cancelled).toBe(true)
+    expect(cache.getPersist('browser.favicons')).toEqual({})
+    expect(browserHistoryService.list({ offset: 0, limit: 10 }).items).toMatchObject([{ title: 'Keep this visit' }])
+
+    vi.mocked(profile.fetch).mockResolvedValueOnce(new Response(png))
+    mock.emit('page-favicon-updated', {}, ['https://example.com/new-icon.png'])
+    await vi.waitFor(() =>
+      expect(cache.getPersist('browser.favicons')['https://example.com']).toMatch(/^data:image\/png;base64,/)
+    )
   })
 })

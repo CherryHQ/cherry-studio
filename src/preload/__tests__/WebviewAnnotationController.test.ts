@@ -538,6 +538,10 @@ describe('WebviewAnnotationController interactions', () => {
     internals.openEditor({ mode: 'edit', element: button, annotationId })
     saveEditor(controller, emissions, 'Updated note')
     expect(readSnapshot(controller, emissions)[0].comment).toBe('Updated note')
+    expect(emissions.filter((event) => event.type === 'editor_saved')).toMatchObject([
+      { updated: false, annotation: { id: annotationId, comment: 'Use a clearer label' } },
+      { updated: true, annotation: { id: annotationId, comment: 'Updated note' } }
+    ])
 
     internals.openEditor({ mode: 'edit', element: button, annotationId })
     deleteEditor(controller, emissions)

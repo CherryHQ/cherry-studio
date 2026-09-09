@@ -135,7 +135,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/utils/webviewStateManager', () => ({
+vi.mock('@renderer/services/MiniAppWebviewService', () => ({
   getWebviewElement: (appId: string) => mocks.webviewElements.get(appId) ?? null,
   getWebviewLoaded: () => mocks.webviewLoaded,
   onWebviewElementChange: (appId: string, listener: () => void) => {
