@@ -454,5 +454,21 @@ describe('useMessageSelectionController', () => {
 
       expect(cacheValues['chat.selected_message_ids']).toEqual([])
     })
+
+    it('never reports fully selected while older pages remain unloaded', () => {
+      const { result, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
+
+      act(() => {
+        result.current.actions.selectMessage?.('a', true)
+      })
+      rerender({ messages: [message('a')], hasOlder: true })
+
+      // Every loaded message is ticked, but unloaded pages exist — the
+      // checkbox must not claim "all selected".
+      expect(result.current.selection.selectAllState).toBe('indeterminate')
+
+      rerender({ messages: [message('a')], hasOlder: false })
+      expect(result.current.selection.selectAllState).toBe(true)
+    })
   })
 })

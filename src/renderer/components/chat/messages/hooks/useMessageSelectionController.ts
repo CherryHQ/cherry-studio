@@ -127,8 +127,10 @@ export function useMessageSelectionController({
     () => selectableIds.filter((id) => selectedIdSet.has(id)).length,
     [selectableIds, selectedIdSet]
   )
+  // While older pages remain unloaded, "fully selected" only covers the loaded
+  // pages — show indeterminate so the checkbox never overstates the selection.
   const selectAllState: SelectAllState =
-    selectableIds.length > 0 && selectedSelectableCount === selectableIds.length
+    selectableIds.length > 0 && selectedSelectableCount === selectableIds.length && !hasOlder
       ? true
       : selectedSelectableCount > 0
         ? 'indeterminate'
