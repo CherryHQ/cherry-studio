@@ -109,16 +109,20 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', async (importOriginal) => (
   ...(await importOriginal<typeof UserDataSqliteGuard>()),
   evaluateUserDataSqliteGuard: vi.fn(async () => undefined)
 }))
-vi.mock('@application', () => ({
-  application: {
-    getPath: mocks.getPath,
-    get: (name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
-      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
-      return {}
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  const application = createMockApplication({ IpcApiService: { broadcast: mocks.broadcast } })
+  return {
+    application: {
+      ...application,
+      getPath: mocks.getPath,
+      get: (name: string) => {
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
+        return application.get(name)
+      }
     }
   }
-}))
+})
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({
