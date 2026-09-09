@@ -2809,6 +2809,25 @@ describe('ModelService.reconcileForProvider', () => {
     lookupModelMock.mockClear()
   })
 
+  it('rolls back the first insert chunk when model 501 conflicts with an existing row', () => {
+    dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI')).run()
+    dbh.db.insert(userModelTable).values(modelRow('openai', 'existing')).run()
+    const toAdd = Array.from({ length: 501 }, (_, index) => ({
+      dto: {
+        providerId: 'openai',
+        modelId: index === 500 ? 'existing' : `new-${index}`,
+        name: `Model ${index}`,
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+        supportsStreaming: true
+      }
+    }))
+
+    expect(() => modelService.reconcileForProvider('openai', { toAdd, toRemove: [] })).toThrowError(
+      expect.objectContaining({ code: ErrorCode.CONFLICT })
+    )
+    expect(dbh.db.select({ id: userModelTable.id }).from(userModelTable).all()).toEqual([{ id: 'openai::existing' }])
+  })
+
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer
     // test (T6 in usePullReconcileSubmit.test.ts) covers the aggregation

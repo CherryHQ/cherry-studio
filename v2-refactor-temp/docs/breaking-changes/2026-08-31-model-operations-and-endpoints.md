@@ -12,6 +12,8 @@ Custom models now select one or more operations—text generation, image generat
 
 Adding comma-separated model IDs is atomic: if any model fails validation or creation, none of the models in that submission are added. The form keeps the full input available for correction and retry.
 
+Adding selected models from the provider model list is also atomic, including selections larger than 500 models. Each submission accepts up to 5000 models; an oversized selection or a failed addition leaves all models in that submission unadded.
+
 Official OpenAI embedding/image models and Gemini embedding models retain their native operation routes. Image health checks use the same image route as generation, regardless of the provider's default chat protocol. Cherry Cloud adds the text-generation operation when adapting its feature capability lists, including an explicitly empty feature list.
 
 ## Why this matters to the user
