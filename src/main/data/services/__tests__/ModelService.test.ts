@@ -20,6 +20,7 @@ import {
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { and, eq, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1943,6 +1944,24 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
     expect(result.get(uid1)).toBe('GPT-4o')
     expect(result.get(uid2)).toBe('GPT-4o mini')
     expect(result.has('openai::missing')).toBe(false)
+  })
+
+  it('uses the supplied transaction while DbService is still initializing', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const uid = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: uid, name: 'GPT-4o' }))
+
+    MockMainDbServiceUtils.setDb({
+      select: () => {
+        throw new Error('Database is not initialized, please call init() first!')
+      }
+    })
+
+    try {
+      expect(modelService.getNamesByUniqueIdsTx(dbh.db, [uid]).get(uid)).toBe('GPT-4o')
+    } finally {
+      MockMainDbServiceUtils.setDb(dbh.db)
+    }
   })
 
   it('filters null / undefined / empty inputs and dedupes', async () => {

@@ -851,7 +851,10 @@ class ModelService {
 
     const rows = tx.select().from(userModelTable).where(inArray(userModelTable.id, ids)).all()
 
-    const availableProviderIds = providerService.listAvailableProviderIds(rows.map((row) => row.providerId))
+    const availableProviderIds = providerService.listAvailableProviderIdsTx(
+      tx,
+      rows.map((row) => row.providerId)
+    )
     for (const model of this.enrichRowsFromRegistry(rows.filter((row) => availableProviderIds.has(row.providerId)))) {
       if (model.name) result.set(model.id, model.name)
     }

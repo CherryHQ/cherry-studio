@@ -373,12 +373,15 @@ class ProviderService {
 
   /** Return matching provider IDs available to runtime callers in this application edition. */
   listAvailableProviderIds(providerIds?: Iterable<string>): Set<string> {
+    return this.listAvailableProviderIdsTx(application.get('DbService').getDb(), providerIds)
+  }
+
+  /** Transaction-scoped variant for callers already composing database work. */
+  listAvailableProviderIdsTx(tx: Pick<DbType, 'select'>, providerIds?: Iterable<string>): Set<string> {
     const ids = providerIds ? [...new Set(providerIds)] : undefined
     if (ids?.length === 0) return new Set()
 
-    const rows = application
-      .get('DbService')
-      .getDb()
+    const rows = tx
       .select({
         providerId: userProviderTable.providerId,
         presetProviderId: userProviderTable.presetProviderId
