@@ -1,3 +1,4 @@
+import type * as MiniAppWebviewService from '@renderer/services/MiniAppWebviewService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
@@ -119,14 +120,22 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('@renderer/utils/webviewStateManager', () => ({
-  clearWebviewState: mocks.clearWebviewState,
-  getWebviewLoaded: () => false,
-  setWebviewElement: mocks.setWebviewElement,
-  setWebviewLoaded: vi.fn()
-}))
+vi.mock('@renderer/services/MiniAppWebviewService', async (importOriginal) => {
+  const actual = await importOriginal<typeof MiniAppWebviewService>()
+  return {
+    ...actual,
+    clearWebviewState: mocks.clearWebviewState.mockImplementation(actual.clearWebviewState),
+    setWebviewElement: mocks.setWebviewElement.mockImplementation(actual.setWebviewElement),
+    setWebviewLoaded: vi.fn(actual.setWebviewLoaded)
+  }
+})
 
-import { clearWebviewState, setWebviewElement, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import {
+  clearAllWebviewStates,
+  clearWebviewState,
+  getWebviewElement,
+  setWebviewLoaded
+} from '@renderer/services/MiniAppWebviewService'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
 
@@ -172,8 +181,9 @@ describe('MiniAppTabsPool', () => {
     mocks.closeTab.mockReset()
     mocks.setSplitOpen.mockReset()
     mocks.setSplitMiniAppId.mockReset()
-    mocks.clearWebviewState.mockReset()
-    mocks.setWebviewElement.mockReset()
+    mocks.clearWebviewState.mockClear()
+    clearAllWebviewStates()
+    mocks.setWebviewElement.mockClear()
     mocks.focusHandlers.clear()
     mocks.loadHandlers.clear()
     mocks.contextKeys = []
@@ -191,10 +201,10 @@ describe('MiniAppTabsPool', () => {
     const { unmount } = render(<MiniAppTabsPool />)
     const webview = screen.getByTestId('webview-alpha')
 
-    expect(setWebviewElement).toHaveBeenCalledWith('alpha', webview)
+    expect(getWebviewElement('alpha')).toBe(webview)
 
     unmount()
-    expect(setWebviewElement).toHaveBeenLastCalledWith('alpha', null)
+    expect(getWebviewElement('alpha')).toBeNull()
   })
 
   it('keeps webview.focused set when another pane mounts behind the focused one', () => {

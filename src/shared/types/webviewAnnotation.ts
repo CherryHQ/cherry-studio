@@ -153,6 +153,7 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('editor_saved'),
+      updated: z.boolean(),
       sessionId: z.uuid(),
       requestId: z.uuid(),
       annotation: WebviewAnnotationSchema

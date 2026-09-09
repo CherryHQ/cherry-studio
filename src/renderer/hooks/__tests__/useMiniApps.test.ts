@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -30,7 +30,7 @@ vi.mock('@renderer/hooks/tab', () => ({
       : null
 }))
 
-vi.mock('@renderer/utils/webviewStateManager', () => ({
+vi.mock('@renderer/services/MiniAppWebviewService', () => ({
   clearWebviewState: vi.fn(),
   setWebviewLoaded: vi.fn()
 }))
