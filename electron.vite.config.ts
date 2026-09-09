@@ -67,7 +67,7 @@ const mainExternalDependencies = [
   // targets, not napi sub-packages, so rollup would fail on the .node; production keeps them installed.
   ...Object.keys(pkg.optionalDependencies ?? {})
 ]
-const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
+export const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
 
 export const isMainExternalModule = (id: string) => {
   return mainExternalModules.some((moduleId) => id === moduleId || id.startsWith(`${moduleId}/`))
@@ -120,11 +120,10 @@ export default defineConfig({
     resolve: { alias: mainResolveAlias },
     build: {
       externalizeDeps: {
-        include: ['bufferutil', 'utf-8-validate']
+        include: mainExternalModules
       },
       lib: { entry: resolve(__dirname, 'src/main/main.ts') },
       rolldownOptions: {
-        external: isMainExternalModule,
         output: {
           manualChunks: (id) => {
             // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
