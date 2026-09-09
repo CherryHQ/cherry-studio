@@ -7688,6 +7688,44 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "contextWindow": 1000000,
+      "family": "deepseek",
+      "id": "deepseek-v4-1-flash-beta",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 384000,
+      "metadata": {},
+      "name": "DeepSeek V4.1 Flash Beta",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.007
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.22
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.66
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["high", "xhigh"]
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["high", "xhigh", "none"]
+      }
+    },
+    {
       "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
       "contextWindow": 1000000,
       "family": "deepseek-flash",
@@ -10731,13 +10769,19 @@
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 260000,
-      "id": "mercury-2-5-preview",
+      "family": "mercury",
+      "id": "mercury-2-5",
       "inputModalities": ["text"],
+      "maxOutputTokens": 65536,
       "metadata": {},
-      "name": "Inception: Mercury 2.5 Preview",
+      "name": "Mercury 2.5",
       "outputModalities": ["text"],
       "ownedBy": "inception",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.004
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.04
@@ -10746,6 +10790,15 @@
           "currency": "USD",
           "perMillionTokens": 0.15
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "medium", "high"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "medium", "high"]
       }
     },
     {
@@ -14191,11 +14244,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 14
+          "perMillionTokens": 12
         }
       }
     },
@@ -14898,7 +14951,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1000000,
+      "contextWindow": 262144,
       "family": "nemotron",
       "id": "nemotron-3-super-120b-a12b",
       "inputModalities": ["text"],
@@ -17283,6 +17336,54 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "GPT-Image-2",
+      "outputModalities": ["image"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      }
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "family": "gpt-image",
+      "id": "gpt-image-2-5-flare",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GPT Image 2.5 Flare",
+      "outputModalities": ["image"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      }
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "family": "gpt-image",
+      "id": "gpt-image-2-5-sunburst",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "GPT Image 2.5 Sunburst",
       "outputModalities": ["image"],
       "ownedBy": "openai",
       "pricing": {
@@ -21673,7 +21774,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.14
         },
         "cacheWrite": {
           "currency": "USD",
@@ -21681,11 +21782,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.7
+          "perMillionTokens": 1.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.2
+          "perMillionTokens": 4.4
         }
       },
       "reasoning": {
@@ -21769,41 +21870,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.5
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "high", "max"]
-          }
-        ],
-        "supportedEfforts": ["low", "high", "max"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 1048576,
-      "family": "glm",
-      "id": "glm-5-3-promo-50",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 1048576,
-      "metadata": {},
-      "name": "GLM 5.3 (50% off)",
-      "outputModalities": ["text"],
-      "ownedBy": "zhipu",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.13
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.7
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2.2
         }
       },
       "reasoning": {
@@ -22033,5 +22099,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "926d0ca7e1a69aa5"
+  "version": "92865034030de538"
 }

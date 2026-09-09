@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.12",
+    "version": "2.0.13",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -226,6 +226,19 @@
           "0"
         ],
         "editable": false
+      }
+    },
+    {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
       }
     },
     {
@@ -457,10 +470,6 @@
         "name": "CherryIN"
       },
       {
-        "id": "qwencloud",
-        "name": "QwenCloud"
-      },
-      {
         "id": "silicon",
         "name": "Silicon"
       },
@@ -599,6 +608,10 @@
       {
         "id": "dashscope",
         "name": "Bailian"
+      },
+      {
+        "id": "qwencloud",
+        "name": "QwenCloud"
       },
       {
         "id": "stepfun",
