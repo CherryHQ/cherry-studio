@@ -90,6 +90,11 @@ and its latency logged on completion.
 | `GET /openapi/json` | OpenAPI JSON spec (fully local) |
 | `POST /pair` | One-time LAN pairing code → device token |
 
+`POST /pair` accepts a 32-character lowercase hexadecimal code and caps the
+request body at **4 KiB**, counted from the stream before JSON parsing, including
+requests without `Content-Length`. Oversized requests receive `413` and close
+the connection; other gateway routes do not inherit this limit.
+
 > **Offline note.** `renderDocsPage` points Scalar at a pinned jsDelivr bundle,
 > so `GET /openapi` (the human docs UI) needs network. `GET /openapi/json` — the
 > machine-readable spec that programmatic clients/SDKs consume — is always
@@ -385,7 +390,9 @@ request **path**, so every endpoint speaks its caller's dialect:
 `DataApiError`s (from the data-layer services backing models/knowledge) carry
 their own `status`/`code` and are mapped straight into the selected envelope.
 Built-in Elysia `VALIDATION` / `NOT_FOUND` / `PARSE` codes map to 400/404/400
-(422 for REST validation). Unknown provider/runtime errors are shaped by
+(422 for REST validation). Explicit HTTP responses thrown by custom parsers,
+such as the pairing body's `413`, are preserved through Elysia's `ParseError` wrapper.
+Unknown provider/runtime errors are shaped by
 `transformAnthropicError` / `transformOpenAiError` — **status-driven**: they read
 `statusCode` off the AI-SDK `SerializedError`, so a provider 401/429/… keeps its
 real status and message instead of flattening to 500. Internal-error messages are

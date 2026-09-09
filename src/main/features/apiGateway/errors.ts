@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { ErrorCode, JSONRPC_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { DataApiError } from '@shared/data/api/errors'
-import type { ErrorHandler } from 'elysia'
+import { ElysiaCustomStatusResponse, type ErrorHandler } from 'elysia'
 
 import type { OutputFormat } from './adapters'
 
@@ -372,6 +372,10 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
  * per-group handler would be shadowed by this fallback.
  */
 export function gatewayErrorHandler(ctx: GatewayErrorContext) {
+  // Elysia wraps parser exceptions, including explicit HTTP responses, in ParseError.
+  if (ctx.code === 'PARSE' && ctx.error.cause instanceof ElysiaCustomStatusResponse) {
+    return ctx.error.cause
+  }
   switch (dialectForPath(ctx.request)) {
     case 'anthropic':
       return anthropicErrorHandler(ctx)

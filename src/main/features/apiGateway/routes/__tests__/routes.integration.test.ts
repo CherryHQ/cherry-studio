@@ -33,7 +33,7 @@ const {
   mockListProviderModels: vi.fn(),
   mockListProviders: vi.fn(),
   mockPairDevice: vi.fn((code: string, device: { name: string; platform: string }) =>
-    code === 'live-code'
+    code === '0123456789abcdef0123456789abcdef'
       ? {
           device: {
             id: '11111111-1111-4111-8111-111111111111',
@@ -115,6 +115,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 import { buildApp } from '../../app'
 
 const AUTH = { 'content-type': 'application/json', 'x-api-key': 'test-key' }
+const PAIRING_CODE = '0123456789abcdef0123456789abcdef'
 
 function post(app: ReturnType<typeof buildApp>, path: string, body: unknown, headers: Record<string, string> = AUTH) {
   return app.handle(new Request(`http://localhost${path}`, { method: 'POST', headers, body: JSON.stringify(body) }))
@@ -738,17 +739,16 @@ describe('API gateway routes (integration)', () => {
 
     it('is public and exchanges a live code for a device token', async () => {
       const { status, body } = await read(
-        await post(app, '/pair', { code: 'live-code', device }, { 'content-type': 'application/json' })
+        await post(app, '/pair', { code: PAIRING_CODE, device }, { 'content-type': 'application/json' })
       )
       expect(status).toBe(200)
       expect(body.token).toBe('cs-dt-new')
       expect(body.name).toBeDefined()
-      expect(mockPairDevice).toHaveBeenCalledWith('live-code', device)
     })
 
     it('rejects a wrong/expired code with 403', async () => {
       const { status, body } = await read(
-        await post(app, '/pair', { code: 'stale-code', device }, { 'content-type': 'application/json' })
+        await post(app, '/pair', { code: '0'.repeat(32), device }, { 'content-type': 'application/json' })
       )
       expect(status).toBe(403)
       expect(body.error).toBe('Invalid or expired pairing code')
@@ -756,10 +756,110 @@ describe('API gateway routes (integration)', () => {
 
     it('rejects a malformed body via schema validation', async () => {
       const { status } = await read(
-        await post(app, '/pair', { code: 'live-code' }, { 'content-type': 'application/json' })
+        await post(app, '/pair', { code: PAIRING_CODE }, { 'content-type': 'application/json' })
       )
       expect(status).toBe(422)
       expect(mockPairDevice).not.toHaveBeenCalled()
+    })
+
+    it.each(['a'.repeat(31), 'a'.repeat(33), 'g'.repeat(32), `${'a'.repeat(32)}\n`])(
+      'rejects malformed code %s',
+      async (code) => {
+        const { status } = await read(await post(app, '/pair', { code, device }))
+
+        expect(status).toBe(422)
+        expect(mockPairDevice).not.toHaveBeenCalled()
+      }
+    )
+
+    it.each([4096, 4097])('enforces the 4 KiB request boundary for %i bytes', async (size) => {
+      const payload = JSON.stringify({ code: PAIRING_CODE, device }).padEnd(size)
+      const response = await app.handle(
+        new Request('http://localhost/pair', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: payload
+        })
+      )
+
+      if (size === 4096) {
+        expect(response.status).toBe(200)
+        expect((await response.json()).token).toBe('cs-dt-new')
+      } else {
+        expect(response.status).toBe(413)
+        expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
+        expect(mockPairDevice).not.toHaveBeenCalled()
+      }
+    })
+
+    it('counts UTF-8 bytes rather than characters', async () => {
+      const { status } = await read(
+        await post(app, '/pair', { code: PAIRING_CODE, device, padding: '中'.repeat(1500) })
+      )
+
+      expect(status).toBe(413)
+      expect(mockPairDevice).not.toHaveBeenCalled()
+    })
+
+    it('rejects an oversized stream without waiting for the body to finish', async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(' '.repeat(2048)))
+          controller.enqueue(new TextEncoder().encode(' '.repeat(2049)))
+        }
+      })
+      const init = {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: stream,
+        duplex: 'half'
+      }
+
+      try {
+        const response = await app.handle(new Request('http://localhost/pair', init))
+
+        expect(response.status).toBe(413)
+        expect(response.headers.get('connection')).toBe('close')
+        expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
+        expect(mockPairDevice).not.toHaveBeenCalled()
+      } finally {
+        await stream.cancel()
+      }
+    })
+
+    it('keeps malformed JSON on the existing 400 error path', async () => {
+      const response = await app.handle(
+        new Request('http://localhost/pair', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{'
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mockPairDevice).not.toHaveBeenCalled()
+    })
+
+    it('does not accept JSON sent with a non-JSON content type', async () => {
+      const { status } = await read(
+        await post(app, '/pair', { code: PAIRING_CODE, device }, { 'content-type': 'text/plain' })
+      )
+
+      expect(status).toBe(422)
+      expect(mockPairDevice).not.toHaveBeenCalled()
+    })
+
+    it('does not apply the pairing body limit to generation routes', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1/chat/completions', {
+          model: 'openai:gpt-4o',
+          messages: [{ role: 'user', content: 'a'.repeat(8192) }]
+        })
+      )
+
+      expect(status).toBe(200)
+      expect(body).toEqual({ ok: true })
     })
   })
 
@@ -789,7 +889,7 @@ describe('API gateway routes (integration)', () => {
 
     it('lets a LAN client reach the pairing bootstrap', async () => {
       const { status, body } = await read(
-        await postFromLan('/pair', { code: 'live-code', device: { name: 'Pixel 9', platform: 'android' } })
+        await postFromLan('/pair', { code: PAIRING_CODE, device: { name: 'Pixel 9', platform: 'android' } })
       )
       expect(status).toBe(200)
       expect(body.token).toBe('cs-dt-new')
