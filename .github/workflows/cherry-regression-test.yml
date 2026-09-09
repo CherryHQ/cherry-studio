@@ -75,7 +75,13 @@ jobs:
           cache: pnpm
 
       - name: Install controller dependencies
-        run: pnpm install --frozen-lockfile
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm install --frozen-lockfile && exit 0
+            [[ "$attempt" == "3" ]] && exit 1
+            sleep $((attempt * 15))
+          done
 
       - name: Resolve and validate test reference
         id: ref
@@ -151,7 +157,14 @@ jobs:
         run: echo "NODE_VERSION=$(node -p 'process.versions.node')" >> "$GITHUB_ENV"
 
       - name: Install controller dependencies
-        run: pnpm install --frozen-lockfile
+        id: controller-dependencies
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm install --frozen-lockfile && exit 0
+            [[ "$attempt" == "3" ]] && exit 1
+            sleep $((attempt * 15))
+          done
 
       - name: Define isolated test directory
         shell: bash
@@ -419,7 +432,7 @@ jobs:
           done
 
       - name: Generate platform report
-        if: always()
+        if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
         env:
           CHERRY_TEST_CUSTOM_PROVIDER_API_KEY: ${{ secrets.CHERRY_TEST_CUSTOM_PROVIDER_API_KEY }}
@@ -443,12 +456,12 @@ jobs:
             ${{ runner.temp }}/cherry-regression/release/installation.json
 
       - name: Validate platform result
-        if: always()
+        if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
         run: pnpm exec tsx scripts/cherry-regression-test/cli.ts gate --run-dir "$RUN_DIR"
 
       - name: Stop controlled application
-        if: always()
+        if: always() && steps.controller-dependencies.outcome == 'success'
         shell: bash
         run: pnpm exec tsx scripts/cherry-regression-test/cli.ts cleanup --run-dir "$RUN_DIR"
 
@@ -475,7 +488,13 @@ jobs:
           cache: pnpm
 
       - name: Install controller dependencies
-        run: pnpm install --frozen-lockfile
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            pnpm install --frozen-lockfile && exit 0
+            [[ "$attempt" == "3" ]] && exit 1
+            sleep $((attempt * 15))
+          done
 
       - name: Download platform reports
         continue-on-error: true

@@ -20,7 +20,7 @@ test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWind
   test.setTimeout(15 * 60_000)
   await ensureAgentModel(app, page)
   const name = 'Cherry Regression Claude Agent 31415'
-  await createAgent(app, page, { name, permission: 'Full Access', runtime: 'Advanced: Claude Agent' })
+  await createAgent(app, page, { name, permission: 'Full Access', runtime: 'Claude Agent' })
   await selectAgentWorkspace(app, page)
   await runAgentFileTask(app, page, 'claude-agent-result.txt', false)
 
@@ -34,7 +34,7 @@ test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWind
 test('[A-04] Pi Runtime @pi-runtime', async ({ app, mainWindow: page }) => {
   test.setTimeout(15 * 60_000)
   await ensureAgentModel(app, page)
-  await createAgent(app, page, { name: 'Pi Regression Agent', permission: 'Ask Before Acting', runtime: 'Fast: Pi' })
+  await createAgent(app, page, { name: 'Pi Regression Agent', permission: 'Ask Before Acting', runtime: 'Pi' })
   await selectAgentWorkspace(app, page)
   await runAgentFileTask(app, page, 'pi-agent-result.txt', true)
 })

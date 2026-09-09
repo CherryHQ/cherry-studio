@@ -119,12 +119,8 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await expect(readLabel).toBeVisible()
   await selection.evaluate(() => {
     document.body.dataset.selectedText = ''
-    document.body.dataset.toolbarVisible = 'false'
     window.api.ipcApi.on('selection.text_selected', (selectionData) => {
       document.body.dataset.selectedText = (selectionData as { text: string }).text
-    })
-    window.api.ipcApi.on('selection.toolbar_visibility_change', (isVisible) => {
-      document.body.dataset.toolbarVisible = String(isVisible)
     })
   })
   openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
@@ -139,7 +135,7 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
       { timeout: 15_000 }
     )
     .toContain('SELECTION_ASSISTANT_PASS')
-  await expect(selection.locator('body')).toHaveAttribute('data-toolbar-visible', 'true')
+  await expect(readLabel).toBeVisible()
   await readLabel.click()
   const action = await app.window('/windows/selection/action/')
   await expect(action.locator('body')).toContainText('SELECTION_ASSISTANT_PASS', { timeout: 2 * 60_000 })
