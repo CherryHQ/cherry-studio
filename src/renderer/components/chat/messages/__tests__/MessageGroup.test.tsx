@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   editMessageBlocks: vi.fn(),
   resendUserMessageWithEdit: vi.fn(),
   scrollIntoView: vi.fn(),
+  scrollByWheel: vi.fn(() => false),
   setTimeoutTimer: vi.fn(),
   settings: vi.fn().mockReturnValue({
     multiModelMessageStyle: 'horizontal',
@@ -193,6 +194,11 @@ vi.mock('../list/MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
 }))
 
+vi.mock('../list/ScrollOwnershipContext', () => ({
+  useScrollRuntimeBoundary: () => ({ getScrollContainer: () => null, scrollByWheel: mocks.scrollByWheel }),
+  useScrollRuntimeNavigation: () => () => false
+}))
+
 vi.mock('../MessageListProvider', () => ({
   useMessageListActions: () => mocks.messageListActions(),
   useMessageRenderConfig: () => {
@@ -314,6 +320,7 @@ describe('MessageGroup', () => {
     mocks.messageListSelection.mockReturnValue(undefined)
     mocks.messageListEditingId.mockReturnValue(null)
     mocks.messageListUiSelectors.mockReturnValue({})
+    mocks.scrollByWheel.mockReturnValue(false)
   })
 
   it('renders a clear-context divider and routes clicks through the injected action', () => {
@@ -748,7 +755,7 @@ describe('MessageGroup', () => {
     expect(getComputedStyle(horizontalGroup).overflowY).toBe('hidden')
   })
 
-  it('prevents vertical wheel on non-content areas from bubbling to the outer chat scroll in horizontal layout', () => {
+  it('lets vertical wheel input on non-content areas bubble to the outer chat scroll in horizontal layout', () => {
     const parentWheel = vi.fn()
     const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
 
@@ -775,7 +782,36 @@ describe('MessageGroup', () => {
     const wheelEvent = createEvent.wheel(horizontalGroup, { deltaY: 120 })
     fireEvent(horizontalGroup, wheelEvent)
 
+    expect(wheelEvent.defaultPrevented).toBe(false)
+    expect(parentWheel).toHaveBeenCalledOnce()
+  })
+
+  it('forwards dominant vertical trackpad input with a small horizontal delta to the outer scroll runtime', () => {
+    const parentWheel = vi.fn()
+    mocks.scrollByWheel.mockReturnValue(true)
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 0,
+      scrollWidth: 1000
+    })
+
+    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaX: 2, deltaY: -120 })
+    fireEvent(horizontalGroup, wheelEvent)
+
+    expect(mocks.scrollByWheel).toHaveBeenCalledWith(-120)
+    expect(wheelEvent.defaultPrevented).toBe(true)
     expect(parentWheel).not.toHaveBeenCalled()
+    expect(horizontalGroup.scrollLeft).toBe(0)
   })
 
   it('supports horizontal wheel scrolling on non-content areas in horizontal layout', () => {
@@ -797,6 +833,23 @@ describe('MessageGroup', () => {
     fireEvent(horizontalGroup, wheelEvent)
 
     expect(horizontalGroup.scrollLeft).toBe(160)
+  })
+
+  it('registers horizontal wheel handling as a native non-passive listener', () => {
+    const addEventListenerSpy = vi.spyOn(HTMLElement.prototype, 'addEventListener')
+
+    try {
+      render(
+        <MessageGroup messages={[createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]} />
+      )
+
+      expect(addEventListenerSpy).toHaveBeenCalledWith('wheel', expect.any(Function), {
+        capture: true,
+        passive: false
+      })
+    } finally {
+      addEventListenerSpy.mockRestore()
+    }
   })
 
   it('preserves visible content overflow for non-horizontal layouts', () => {
