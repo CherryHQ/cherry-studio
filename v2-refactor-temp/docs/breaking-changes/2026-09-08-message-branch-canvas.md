@@ -12,7 +12,7 @@ The conversation branch entry is now named Advanced View and opens only as a max
 
 ## Why this matters to the user
 
-Users can read and operate on messages across branches without hovering for a preview. Clicking a message card activates its conversation path, while the existing message actions operate on that message's own history. Empty nodes remain saved when users leave them, and clicking one restores it as the input target without clearing the composer draft.
+Users can read and operate on messages across branches without hovering for a preview. The first message stays vertically centered as its content loads, until the user interacts with the canvas or navigates to another message. Clicking a message card activates its conversation path, while the existing message actions operate on that message's own history. Empty nodes remain saved when users leave them, and clicking one restores it as the input target without clearing the composer draft.
 
 ## What the user should do
 

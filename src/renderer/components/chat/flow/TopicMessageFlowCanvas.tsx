@@ -214,35 +214,51 @@ const TopicMessageFlowCanvas = ({
 
     const center = getNodeCenter(rootNode)
     return {
-      key: `${rootNode.id}:${rootNode.position.x}:${rootNode.position.y}`,
+      id: rootNode.id,
       positionX: rootNode.position.x,
       centerY: center.y
     }
   }, [nodes])
-  const rootFocusKey = rootFocusTarget?.key
+  const rootFocusNodeId = rootFocusTarget?.id
   const rootFocusPositionX = rootFocusTarget?.positionX
   const rootFocusCenterY = rootFocusTarget?.centerY
-  const focusSignature = rootFocusKey ? String(focusKey ?? 'initial') : null
+  const focusSignature = rootFocusNodeId ? String(focusKey ?? 'initial') : null
   const [initialViewport, setInitialViewport] = useState<{ signature: string; viewport: Viewport } | null>(null)
-  const initialViewportSignatureRef = useRef<string | null>(null)
+  const initialFocusRef = useRef<{ signature: string; rootId: string; interrupted: boolean } | null>(null)
   const readyViewport = initialViewport?.signature === focusSignature ? initialViewport.viewport : null
 
+  const handleViewportInteraction = () => {
+    if (initialFocusRef.current) initialFocusRef.current.interrupted = true
+  }
+
   useEffect(() => {
-    if (!layoutReady || !focusSignature || rootFocusPositionX === undefined || rootFocusCenterY === undefined) return
-    if (initialViewportSignatureRef.current === focusSignature) return
+    if (
+      !layoutReady ||
+      !focusSignature ||
+      !rootFocusNodeId ||
+      rootFocusPositionX === undefined ||
+      rootFocusCenterY === undefined
+    )
+      return
 
     let frame = 0
     let cancelled = false
 
     const measure = () => {
       if (cancelled) return
+      const initialFocus = initialFocusRef.current
+      if (
+        initialFocus?.signature === focusSignature &&
+        (initialFocus.interrupted || initialFocus.rootId !== rootFocusNodeId)
+      )
+        return
       const containerHeight = containerRef.current?.clientHeight ?? 0
       if (containerHeight <= 0) {
         frame = window.requestAnimationFrame(measure)
         return
       }
 
-      initialViewportSignatureRef.current = focusSignature
+      initialFocusRef.current = { signature: focusSignature, rootId: rootFocusNodeId, interrupted: false }
       setInitialViewport({
         signature: focusSignature,
         viewport: getRootFocusViewport(containerHeight, rootFocusPositionX, rootFocusCenterY)
@@ -255,10 +271,10 @@ const TopicMessageFlowCanvas = ({
       cancelled = true
       window.cancelAnimationFrame(frame)
     }
-  }, [focusSignature, layoutReady, rootFocusPositionX, rootFocusCenterY])
+  }, [focusSignature, layoutReady, rootFocusNodeId, rootFocusPositionX, rootFocusCenterY])
 
   useEffect(() => {
-    if (!reactFlowInstance || !readyViewport) return
+    if (!reactFlowInstance || !readyViewport || initialFocusRef.current?.interrupted) return
 
     void reactFlowInstance.setViewport(readyViewport, rootFocusOptions)
   }, [reactFlowInstance, readyViewport])
@@ -269,6 +285,7 @@ const TopicMessageFlowCanvas = ({
     const container = containerRef.current
     if (!node || !container?.clientWidth || !container.clientHeight) return
 
+    if (initialFocusRef.current) initialFocusRef.current.interrupted = true
     const viewport = reactFlowInstance.getViewport()
     const composerInset =
       Number.parseFloat(window.getComputedStyle(container).getPropertyValue('--chat-composer-inset')) || 0
@@ -313,6 +330,9 @@ const TopicMessageFlowCanvas = ({
   return (
     <div
       ref={containerRef}
+      onPointerDownCapture={handleViewportInteraction}
+      onWheelCapture={handleViewportInteraction}
+      onKeyDownCapture={handleViewportInteraction}
       className={cn(
         'relative h-full min-h-[320px] overflow-hidden rounded-md border border-border bg-background-subtle',
         className
