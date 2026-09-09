@@ -52,7 +52,6 @@ const imageFile: FileItem = {
 const menuActions: FileContextMenuActions = {
   onRename: vi.fn(),
   onDelete: vi.fn(),
-  onRestore: vi.fn(),
   onShowInFolder: vi.fn()
 }
 
@@ -63,7 +62,6 @@ function fileGridProps(files: FileItem[], width = 400): ComponentProps<typeof Fi
     files,
     onOpen: vi.fn(),
     onDelete: vi.fn(),
-    isTrash: false,
     menuActions,
     scrollRef: { current: scrollElement },
     onLayoutChange: vi.fn(),
@@ -79,6 +77,16 @@ afterEach(() => {
 })
 
 describe('FileGrid layout', () => {
+  it('disables card deletion while a delete request is pending', () => {
+    const onDelete = vi.fn()
+    render(<FileGrid {...fileGridProps([imageFile])} onDelete={onDelete} deleteDisabled />)
+
+    const deleteButton = screen.getByRole('button', { name: 'files.delete.label' })
+    expect(deleteButton).toBeDisabled()
+    fireEvent.click(deleteButton)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it('virtualizes responsive grid rows instead of mounting every file', async () => {
     const files = Array.from({ length: 12 }, (_, index) => ({
       ...imageFile,
@@ -139,5 +147,19 @@ describe('FileGrid image preview', () => {
 
     fireEvent.click(screen.getByText('photo.png'))
     expect(props.onOpen).not.toHaveBeenCalled()
+  })
+})
+
+describe('FileGrid delete actions', () => {
+  it('distinguishes deleting internal files from removing external files from the library', () => {
+    const externalFile: FileItem = { ...imageFile, id: 'external-1', origin: 'external' }
+    const { rerender } = render(<FileGrid {...fileGridProps([imageFile])} />)
+
+    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
+
+    rerender(<FileGrid {...fileGridProps([externalFile])} />)
+
+    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
   })
 })

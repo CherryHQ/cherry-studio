@@ -75,20 +75,25 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptBindingTa
   PromptBindingTab: () => <div data-testid="prompt-binding-tab" />
 }))
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
-  useInfiniteQuery: () => ({
-    pages: [{ items: [], total: 0 }],
-    isLoading: false,
-    isRefreshing: false,
-    error: undefined,
-    hasNext: false,
-    loadNext: vi.fn(),
-    refresh: vi.fn()
-  }),
-  useMutation: useMutationMock,
-  useQuery: useQueryMock
-}))
+vi.mock('@renderer/data/hooks/useDataApi', async () => {
+  const { MockUseDataApi } = await import('@test-mocks/renderer/useDataApi')
+
+  return {
+    ...MockUseDataApi,
+    useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+    useInfiniteQuery: () => ({
+      pages: [{ items: [], total: 0 }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    }),
+    useMutation: useMutationMock,
+    useQuery: useQueryMock
+  }
+})
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock

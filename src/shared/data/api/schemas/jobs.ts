@@ -26,8 +26,12 @@ export const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled'] as con
 /** Active (non-terminal) states: jobs in these states are queued, waiting, or executing. */
 export const ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const satisfies readonly JobStatus[]
 
-export const isTerminalStatus = (status: JobStatus): boolean =>
+export const isTerminalStatus = (status: JobStatus): status is TerminalJobStatus =>
   (TERMINAL_JOB_STATUSES as readonly JobStatus[]).includes(status)
+
+/** Terminal-only status atom — for payloads that can only carry a finished state. */
+export const TerminalJobStatusSchema = z.enum(TERMINAL_JOB_STATUSES)
+export type TerminalJobStatus = z.infer<typeof TerminalJobStatusSchema>
 
 /**
  * Stable error structure crossing the IPC boundary. `code` is an English

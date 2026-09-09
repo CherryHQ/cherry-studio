@@ -1,6 +1,11 @@
 import { loggerService } from '@logger'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
+import { showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
+import { toast } from '@renderer/services/toast'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
@@ -38,7 +43,8 @@ export function usePaintingList({
   historyItems,
   cancelGeneration
 }: UsePaintingListInput) {
-  const { updatePainting, deletePainting, refresh } = usePaintings()
+  const { t } = useTranslation()
+  const { updatePainting, deletePainting, restorePainting, refresh } = usePaintings()
   const historyItemsRef = useRef<PaintingData[]>([])
   const paintingRef = useRef(painting)
   historyItemsRef.current = historyItems
@@ -74,7 +80,7 @@ export function usePaintingList({
   }, [draftDefaults, setCurrentPainting])
 
   const selectNextAfterDelete = useCallback(
-    async (deletedId: string) => {
+    (deletedId: string) => {
       const currentItems = historyItemsRef.current
       const deletedIndex = currentItems.findIndex((item) => item.id === deletedId)
       const nextPainting =
@@ -82,15 +88,13 @@ export function usePaintingList({
           ? (currentItems[deletedIndex + 1] ?? currentItems[deletedIndex - 1])
           : currentItems.find((item) => item.id !== deletedId)
 
-      await refresh()
-
       if (nextPainting) {
         setCurrentPainting(nextPainting)
         return
       }
       add()
     },
-    [add, refresh, setCurrentPainting]
+    [add, setCurrentPainting]
   )
 
   const remove = useCallback(
@@ -99,6 +103,18 @@ export function usePaintingList({
       try {
         await deletePainting(target.id)
       } catch (error) {
+        if (isDataApiNotFoundError(error)) {
+          if (target.id === paintingRef.current.id) {
+            selectNextAfterDelete(target.id)
+          }
+          try {
+            await refresh()
+          } catch (refreshError) {
+            logger.warn('Failed to refresh paintings after stale deletion', refreshError as Error)
+          }
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
         // A rejected DELETE (SQLITE_BUSY / FK / IPC) must surface like the
         // sibling write paths — otherwise the row silently reappears on the
         // next refresh with no toast or log.
@@ -106,13 +122,43 @@ export function usePaintingList({
         presentPaintingGenerateError(error)
         return
       }
-      if (target.id === painting.id) {
-        await selectNextAfterDelete(target.id)
-      } else {
-        await refresh()
+      if (target.id === paintingRef.current.id) {
+        selectNextAfterDelete(target.id)
       }
+      try {
+        await refresh()
+      } catch (error) {
+        logger.warn('Failed to refresh paintings after deletion', error as Error)
+      }
+
+      showRecycleBinUndo({
+        itemName: target.prompt.trim() || target.id,
+        onUndo: async () => {
+          try {
+            await restorePainting(target.id)
+          } catch (error) {
+            if (!isDataApiNotFoundError(error)) throw error
+            try {
+              await refresh()
+            } catch (refreshError) {
+              logger.warn('Failed to refresh paintings after restore', refreshError as Error)
+            }
+            try {
+              await dataApiService.get(`/paintings/${target.id}`)
+              return
+            } catch {
+              throw error
+            }
+          }
+          try {
+            await refresh()
+          } catch (error) {
+            logger.warn('Failed to refresh paintings after restore', error as Error)
+          }
+        }
+      })
     },
-    [cancelGeneration, deletePainting, painting.id, refresh, selectNextAfterDelete]
+    [cancelGeneration, deletePainting, refresh, restorePainting, selectNextAfterDelete, t]
   )
 
   return { add, remove, select, saveCurrent }

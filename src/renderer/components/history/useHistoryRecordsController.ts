@@ -141,14 +141,14 @@ export function useHistoryRecordsController<T>({
     const ids = selectedDeletableIds
     if (ids.length === 0) return
 
-    const deletedIds = await onBulkDelete(ids)
-    if (!deletedIds) return
+    const { succeeded } = await onBulkDelete(ids)
+    if (succeeded.length === 0) return
 
-    const deletedIdSet = new Set(deletedIds)
+    const deletedIdSet = new Set(succeeded)
     setSelectedIds((current) => current.filter((id) => !deletedIdSet.has(id)))
 
-    if (activeRecordId && deletedIds.includes(activeRecordId)) {
-      const nextItem = findAdjacentHistoryRecordAfterBulkDelete(timeSorted, deletedIds, activeRecordId, getId)
+    if (activeRecordId && succeeded.includes(activeRecordId)) {
+      const nextItem = findAdjacentHistoryRecordAfterBulkDelete(timeSorted, succeeded, activeRecordId, getId)
       onActiveRecordChange(nextItem ?? null)
     }
   }, [activeRecordId, getId, onActiveRecordChange, onBulkDelete, selectedDeletableIds, timeSorted])

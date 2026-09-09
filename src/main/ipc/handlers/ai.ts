@@ -18,6 +18,7 @@ import type {
   PersistedToolOutputBlobRef
 } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -155,6 +156,17 @@ function agentTaskNotFound(taskId: string): IpcError {
   return new IpcError(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND, `Task not found: ${taskId}`)
 }
 
+async function restoreAgentSession(sessionId: string) {
+  try {
+    return await application.get('AgentSessionDeliveryService').restoreSession(sessionId)
+  } catch (e) {
+    if (isDataApiError(e) && e.code === ErrorCode.NOT_FOUND) {
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_NOT_FOUND, e.message)
+    }
+    throw e
+  }
+}
+
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   // ── One-shot model calls — AiService owns the provider clients. ──
   // A renderer one-shot call has no topic; it is its own conversation.
@@ -219,8 +231,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.delete': ({ agentId, deleteSessions }) =>
-    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions),
+  'ai.agent.delete': ({ agentId, deleteSessions, permanent }) =>
+    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions, permanent),
   'ai.agent.sessions.delete': ({ agentId }) =>
     application.get('AgentSessionDeliveryService').deleteAgentSessions(agentId),
   'ai.agent.support_session.create': async () => ({ sessionId: createBuiltinSupportSession().id }),
@@ -237,8 +249,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
-  'ai.agent.session.delete': ({ sessionIds }) =>
-    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.session.delete': ({ sessionIds, permanent }) =>
+    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds, permanent),
+  'ai.agent.session.restore': ({ sessionId }) => restoreAgentSession(sessionId),
   'ai.agent.session.reuse_or_create': (input) =>
     application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>

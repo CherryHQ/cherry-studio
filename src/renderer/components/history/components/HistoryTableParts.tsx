@@ -315,7 +315,7 @@ export function HistoryActionsCell<TContext = unknown>({
   onTogglePin
 }: HistoryActionsCellProps<TContext>) {
   const [pendingDeleteAction, setPendingDeleteAction] = useState<ResolvedAction<TContext> | undefined>()
-  const deleteAction = useMemo(() => actions.find(isDeleteAction), [actions])
+  const deleteAction = useMemo(() => findRowDeleteAction(actions), [actions])
   const handleAction = useCallback(
     (action: ResolvedAction<TContext>) => {
       window.requestAnimationFrame(() => {
@@ -357,6 +357,10 @@ export function HistoryActionsCell<TContext = unknown>({
       />
     </>
   )
+}
+
+function findRowDeleteAction<TContext>(actions: readonly ResolvedAction<TContext>[]) {
+  return actions.find(isDeleteAction)
 }
 
 function isDeleteAction<TContext>(action: ResolvedAction<TContext>) {

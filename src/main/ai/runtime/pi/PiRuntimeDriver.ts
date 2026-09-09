@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -7,7 +9,13 @@ import type { Tool } from '@shared/ai/tool'
 import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
+import { listEntries, reclaimStale } from '../orphanSessionReclaim'
+import type {
+  AgentRuntimeConnectInput,
+  AgentRuntimeConnection,
+  AgentSessionRuntimeDriver,
+  OrphanSessionReclaimOptions
+} from '../types'
 import { assertPiProviderUsable } from './modelInjection'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 
@@ -61,4 +69,43 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
     return new PiRuntimeConnection(input).start()
   }
+
+  /**
+   * pi keeps one flat `{timestamp}_{resumeToken}.jsonl` per session generation
+   * (see `resolveResumeTokenSessionFile`), so the token is the stem after the
+   * FIRST `_` — the timestamp pi owns has none, but a token legally can. Every
+   * generation of a claimed token is kept — the connection resumes from the newest.
+   */
+  async reclaimOrphanSessions(
+    keptResumeTokens: ReadonlySet<string>,
+    options: OrphanSessionReclaimOptions
+  ): Promise<{ removed: string[] }> {
+    const sessionDir = application.getPath('feature.agents.pi.sessions')
+    const removed: string[] = []
+
+    for (const entry of await listEntries(sessionDir)) {
+      if (!entry.isFile()) continue
+      const token = piResumeTokenOf(entry.name)
+      if (!token || keptResumeTokens.has(token)) continue
+      const target = path.resolve(sessionDir, entry.name)
+      if (await reclaimStale(target, options)) removed.push(target)
+    }
+
+    return { removed }
+  }
+}
+
+/**
+ * `{timestamp}_{resumeToken}.jsonl` → the token, or null when the name is not pi's.
+ * Splits on the FIRST `_`: pi's timestamp prefix is dash-only, but `_` is a legal
+ * token character, so splitting on the last one truncates the token and would
+ * make a still-claimed session look orphaned.
+ */
+function piResumeTokenOf(fileName: string): string | null {
+  if (!fileName.endsWith('.jsonl')) return null
+  const stem = fileName.slice(0, -'.jsonl'.length)
+  const separator = stem.indexOf('_')
+  if (separator < 0) return null
+  const token = stem.slice(separator + 1)
+  return token.length > 0 ? token : null
 }

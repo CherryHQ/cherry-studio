@@ -4,6 +4,7 @@ import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@d
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -65,6 +66,7 @@ export class AgentSessionDeliveryService extends BaseService {
   private readonly pendingKicks = new Set<string>()
   private readonly inFlight = new Map<Promise<void>, string>()
   private readonly suppressedSessionIds = new Set<string>()
+  private readonly retentionPurgeLocks = new KeyedMutex()
   private isShuttingDown = false
 
   protected override onInit(): void {
@@ -104,9 +106,9 @@ export class AgentSessionDeliveryService extends BaseService {
     return created
   }
 
-  deleteSessions(ids: string[]): Promise<{ deletedIds: string[] }> {
+  deleteSessions(ids: string[], permanent: boolean = false): Promise<{ deletedIds: string[] }> {
     const uniqueIds = [...new Set(ids)]
-    const work = this.deleteSessionsInternal(uniqueIds)
+    const work = this.deleteSessionsInternal(uniqueIds, permanent)
     this.track(
       `delete:${uniqueIds.join(',')}`,
       work.then(() => undefined)
@@ -123,8 +125,12 @@ export class AgentSessionDeliveryService extends BaseService {
     return work
   }
 
-  deleteAgent(agentId: string, deleteSessions: boolean): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
-    const work = this.deleteAgentInternal(agentId, deleteSessions)
+  deleteAgent(
+    agentId: string,
+    deleteSessions: boolean,
+    permanent: boolean = false
+  ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
+    const work = this.deleteAgentInternal(agentId, deleteSessions, permanent)
     this.track(
       `delete-agent:${agentId}`,
       work.then(() => undefined)
@@ -148,6 +154,43 @@ export class AgentSessionDeliveryService extends BaseService {
       work.then(() => undefined)
     )
     return work
+  }
+
+  restoreSession(id: string): Promise<AgentSessionEntity> {
+    const work = this.retentionPurgeLocks.runExclusive(id, () => agentSessionService.restore(id))
+    this.track(
+      `restore:${id}`,
+      work.then(() => undefined)
+    )
+    return work
+  }
+
+  async purgeExpiredSessions(cutoffMs: number, limit: number): Promise<string[]> {
+    const hold = this.pause('trash-purge')
+    try {
+      const sessionIds = agentSessionService.listExpiredTrashIds(cutoffMs, limit)
+      if (sessionIds.length === 0) return []
+
+      const purged = await Promise.all(
+        sessionIds.map((sessionId) =>
+          this.retentionPurgeLocks.runExclusive(sessionId, async () => {
+            if (!agentSessionService.isExpiredTrash(sessionId, cutoffMs)) return []
+
+            await application
+              .get('AiStreamManager')
+              .abortAndDrain(buildAgentSessionTopicId(sessionId), 'agent-session-retention-purge')
+            await this.drainSessionQueues([sessionId])
+
+            return application
+              .get('DbService')
+              .withWriteTx((tx) => agentSessionService.purgeExpiredByIdsTx(tx, [sessionId], cutoffMs))
+          })
+        )
+      )
+      return purged.flat()
+    } finally {
+      hold.dispose()
+    }
   }
 
   kick(sessionId?: string): void {
@@ -241,9 +284,20 @@ export class AgentSessionDeliveryService extends BaseService {
     }
   }
 
-  private async deleteSessionsInternal(ids: string[]): Promise<{ deletedIds: string[] }> {
+  private async drainSessionQueues(sessionIds: readonly string[]): Promise<void> {
+    for (;;) {
+      const queues = sessionIds.flatMap((sessionId) => {
+        const queue = this.kicks.get(sessionId)
+        return queue ? [queue] : []
+      })
+      if (queues.length === 0) return
+      await Promise.allSettled(queues)
+    }
+  }
+
+  private async deleteSessionsInternal(ids: string[], permanent: boolean): Promise<{ deletedIds: string[] }> {
     this.assertWritesAvailable()
-    const result = agentSessionService.deleteByIdsForDelivery(ids)
+    const result = agentSessionService.deleteByIdsForDelivery(ids, { permanent })
     await this.finishDeletion(result.deletedIds, result.deliveryResults)
     return { deletedIds: result.deletedIds }
   }
@@ -263,20 +317,21 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private async deleteAgentInternal(
     agentId: string,
-    deleteSessions: boolean
+    deleteSessions: boolean,
+    permanent: boolean
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     this.assertWritesAvailable()
-    const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions })
-    if (!deleteSessions) {
-      const manager = application.get('AiStreamManager')
-      result.affectedSessionIds.forEach((sessionId) =>
-        manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
-      )
-    }
+    const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions, permanent })
+    const manager = application.get('AiStreamManager')
+    result.affectedSessionIds.forEach((sessionId) =>
+      manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
+    )
+    // Sessions that outlive the agent (trashed or permanently deleted) keep
+    // their queue — kick it so pending deliveries re-evaluate against the gone agent.
     await this.finishDeletion(
       result.affectedSessionIds,
       result.deliveryResults,
-      deleteSessions ? [] : result.affectedSessionIds
+      deleteSessions && !permanent ? [] : result.affectedSessionIds
     )
     return {
       deleted: result.deleted,
@@ -286,7 +341,8 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
     this.assertWritesAvailable()
-    const result = agentSessionService.deleteByAgentIdForDelivery(agentId)
+    // Recycle Bin moves: the only caller is the "clear this agent's sessions" command, which is undoable.
+    const result = agentSessionService.deleteByAgentIdForDelivery(agentId, { permanent: false })
     await this.finishDeletion(result.deletedIds, result.deliveryResults)
     return { deletedIds: result.deletedIds }
   }
@@ -309,10 +365,13 @@ export class AgentSessionDeliveryService extends BaseService {
     for (const deliveryResult of deliveryResults) this.kick(deliveryResult.sessionId)
     retrySessionIds.forEach((sessionId) => this.kick(sessionId))
 
-    const failures = closed.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
-    if (failures.length > 0) {
-      throw new AggregateError(failures, 'One or more deleted Agent Session runtimes failed to close')
-    }
+    closed.forEach((result, index) => {
+      if (result.status !== 'rejected') return
+      logger.error('Failed to close deleted Agent Session runtime', {
+        sessionId: sessionIds[index],
+        error: result.reason
+      })
+    })
   }
 
   private assertWritesAvailable(): void {

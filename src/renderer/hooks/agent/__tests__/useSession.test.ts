@@ -681,6 +681,58 @@ describe('useSessions', () => {
     expect(deleted).toBe(true)
   })
 
+  it('refreshes and reports a stale session without closing its tab or claiming deletion', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: [] })
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+    const deleted = await act(async () => result.current.deleteSession('session-a'))
+
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved')
+    expect(deleted).toBe(false)
+  })
+
+  it('returns a stale outcome without item feedback when a batch owner handles the result', async () => {
+    mockIpcRequest.mockResolvedValue({ deletedIds: [] })
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+    const outcome = await act(async () => result.current.deleteSessionWithOutcome('session-a', { showFeedback: false }))
+
+    expect(outcome).toEqual({ status: 'stale' })
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('returns a failed outcome without item feedback when a batch owner handles the result', async () => {
+    mockIpcRequest.mockRejectedValue(new Error('Delete failed'))
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const outcome = await act(async () => result.current.deleteSessionWithOutcome('session-a', { showFeedback: false }))
+
+    expect(outcome).toEqual({ status: 'failed', error: 'Delete failed' })
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('restores a session through the lifecycle IPC command and refreshes its read models', async () => {
+    const restoredSession = createSession({ id: 'session-a' })
+    mockIpcRequest.mockResolvedValue(restoredSession)
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
+    const restored = await act(async () => result.current.restoreSession('session-a'))
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('ai.agent.session.restore', { sessionId: 'session-a' })
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-a', '/agents/*'])
+    expect(restored).toBe(restoredSession)
+  })
+
   it('keeps a committed session deletion successful when cache refresh fails', async () => {
     mockIpcRequest.mockResolvedValue({ deletedIds: ['session-a'] })
     const { result } = renderHook(() => useSessions('agent-1'))

@@ -95,8 +95,8 @@ const fileManager = {
   batchGetDanglingStates: vi.fn(),
   batchTrash: vi.fn(),
   batchRestore: vi.fn(),
-  batchPermanentDelete: vi.fn(),
-  emptyTrash: vi.fn(),
+  batchPermanentDeleteFromTrash: vi.fn(),
+  batchRemoveFromLibrary: vi.fn(),
   rename: vi.fn(),
   readChunk: vi.fn(),
   open: vi.fn(),
@@ -409,22 +409,22 @@ describe('fileHandlers', () => {
     fileManager.batchGetDanglingStates.mockResolvedValue({ [ids[0]]: 'present' })
     fileManager.batchTrash.mockResolvedValue(batchResult)
     fileManager.batchRestore.mockResolvedValue(batchResult)
-    fileManager.batchPermanentDelete.mockResolvedValue(batchResult)
-    fileManager.emptyTrash.mockResolvedValue(batchResult)
+    fileManager.batchPermanentDeleteFromTrash.mockResolvedValue(batchResult)
+    fileManager.batchRemoveFromLibrary.mockResolvedValue(batchResult)
 
     await expect(fileHandlers['file.batch_get_dangling_states']({ ids }, ctx)).resolves.toEqual({
       [ids[0]]: 'present'
     })
     await expect(fileHandlers['file.batch_trash']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_restore']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.batch_permanent_delete']({ ids }, ctx)).resolves.toBe(batchResult)
-    await expect(fileHandlers['file.empty_trash'](undefined, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.batch_permanent_delete_from_trash']({ ids }, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.batch_remove_from_library']({ ids }, ctx)).resolves.toBe(batchResult)
 
     expect(fileManager.batchGetDanglingStates).toHaveBeenCalledWith({ ids })
     expect(fileManager.batchTrash).toHaveBeenCalledWith(ids)
     expect(fileManager.batchRestore).toHaveBeenCalledWith(ids)
-    expect(fileManager.batchPermanentDelete).toHaveBeenCalledWith(ids)
-    expect(fileManager.emptyTrash).toHaveBeenCalled()
+    expect(fileManager.batchPermanentDeleteFromTrash).toHaveBeenCalledWith(ids)
+    expect(fileManager.batchRemoveFromLibrary).toHaveBeenCalledWith(ids)
   })
 
   it('delegates single-entry commands to FileManager', async () => {

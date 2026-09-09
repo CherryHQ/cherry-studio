@@ -153,6 +153,16 @@ describe('ai.agent.session.delete IPC schema', () => {
   })
 })
 
+describe('ai.agent.session.restore IPC schema', () => {
+  const restoreSession = aiRequestSchemas['ai.agent.session.restore'].input
+
+  it('requires exactly one non-empty Session id', () => {
+    expect(restoreSession.safeParse({ sessionId: 'session-1' }).success).toBe(true)
+    expect(restoreSession.safeParse({ sessionId: '' }).success).toBe(false)
+    expect(restoreSession.safeParse({ sessionId: 'session-1', extra: true }).success).toBe(false)
+  })
+})
+
 describe('ai.agent.support_session.create IPC schema', () => {
   const createSupportSession = aiRequestSchemas['ai.agent.support_session.create'].input
   const createSupportSessionResult = aiRequestSchemas['ai.agent.support_session.create'].output

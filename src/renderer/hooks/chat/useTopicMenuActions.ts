@@ -19,17 +19,19 @@ import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
+type TopicDeleteHandler = (topic: Topic) => void | Promise<void>
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
 
 export interface TopicMenuActionOptions {
   exportMenuOptions: TopicExportMenuOptions
+  isArchiveBlocked: boolean
   isActiveInCurrentTab: boolean
   isRenaming: boolean
   notesPath: string
   onAutoRename: TopicMenuHandler
   onClearMessages: TopicMenuHandler
   onCopyImage?: TopicMenuHandler
-  onDelete: TopicMenuHandler
+  onDelete: TopicDeleteHandler
   onExportImage?: TopicMenuHandler
   assistantMoveTargets?: readonly TopicMoveAssistantTarget[]
   onMoveToAssistant?: TopicMoveToAssistantHandler
@@ -46,6 +48,7 @@ export interface TopicMenuActionOptions {
 
 export function createTopicActionContext({
   exportMenuOptions,
+  isArchiveBlocked,
   isActiveInCurrentTab,
   isRenaming,
   notesPath,
@@ -68,6 +71,7 @@ export function createTopicActionContext({
 }: TopicMenuActionOptions): TopicActionContext {
   return {
     exportMenuOptions,
+    isArchiveBlocked,
     isActiveInCurrentTab,
     isRenaming,
     onAutoRename,
@@ -200,6 +204,7 @@ export function useTopicMenuPreset<TItem>({
 export function useTopicMenuActions(options: TopicMenuActionOptions) {
   const {
     exportMenuOptions,
+    isArchiveBlocked,
     isActiveInCurrentTab,
     isRenaming,
     notesPath,
@@ -224,6 +229,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     () =>
       createTopicActionContext({
         exportMenuOptions,
+        isArchiveBlocked,
         isActiveInCurrentTab,
         isRenaming,
         notesPath,
@@ -246,6 +252,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       }),
     [
       exportMenuOptions,
+      isArchiveBlocked,
       isActiveInCurrentTab,
       isRenaming,
       notesPath,

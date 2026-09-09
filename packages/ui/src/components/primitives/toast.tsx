@@ -3,11 +3,18 @@ import type React from 'react'
 import { createContext, use, useMemo, useSyncExternalStore } from 'react'
 
 import { cn } from '../../lib/utils'
+import { Button } from './button'
 
 export type ToastType = 'error' | 'success' | 'warning' | 'info' | 'loading'
 type StaticToastType = Exclude<ToastType, 'loading'>
 
+export interface ToastAction {
+  label: React.ReactNode
+  onClick: () => void | Promise<void>
+}
+
 export interface ToastConfig {
+  action?: ToastAction
   title?: React.ReactNode
   description?: React.ReactNode
   icon?: React.ReactNode
@@ -319,6 +326,7 @@ const getToastA11yProps = (type: ToastType): Pick<React.HTMLAttributes<HTMLDivEl
 }
 
 const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: ToastStore; toast: ToastRecord }) => {
+  const action = toast.action
   const icon = toast.icon ?? typeIconMap[toast.type]
   const a11yProps = getToastA11yProps(toast.type)
 
@@ -341,6 +349,20 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
           <div className="mt-0.5 break-words text-muted-foreground text-xs leading-5">{toast.description}</div>
         )}
       </div>
+      {action && (
+        <Button
+          type="button"
+          className="shrink-0"
+          size="sm"
+          variant="link"
+          onClick={(event) => {
+            event.stopPropagation()
+            store.remove(toast.key)
+            void action.onClick()
+          }}>
+          {action.label}
+        </Button>
+      )}
       <button
         type="button"
         aria-label={labels.close}

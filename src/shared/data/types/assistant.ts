@@ -159,6 +159,8 @@ export const AssistantSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime(),
+  /** Read-only soft-delete timestamp, present only for trashed assistants. */
+  deletedAt: z.iso.datetime().optional(),
   /**
    * Human-readable model name resolved from the current runtime Model at read
    * time. Read-only embedded field — edits go through `modelId`. Renderer

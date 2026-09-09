@@ -2,8 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   createMock,
-  deleteByAssistantIdMock,
-  deleteByIdsMock,
   deleteMock,
   duplicateMock,
   getByIdMock,
@@ -12,13 +10,12 @@ const {
   moveMock,
   reorderBatchMock,
   reorderMock,
+  restoreMock,
   reuseOrCreatePlaceholderMock,
   setActiveNodeMock,
   updateMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
-  deleteByAssistantIdMock: vi.fn(),
-  deleteByIdsMock: vi.fn(),
   deleteMock: vi.fn(),
   duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
@@ -27,6 +24,7 @@ const {
   moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
+  restoreMock: vi.fn(),
   reuseOrCreatePlaceholderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
   updateMock: vi.fn()
@@ -36,8 +34,6 @@ vi.mock('@data/services/TopicService', () => ({
   topicService: {
     create: createMock,
     delete: deleteMock,
-    deleteByAssistantId: deleteByAssistantIdMock,
-    deleteByIds: deleteByIdsMock,
     duplicate: duplicateMock,
     getById: getByIdMock,
     getLatestActive: getLatestActiveMock,
@@ -45,6 +41,7 @@ vi.mock('@data/services/TopicService', () => ({
     move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
+    restore: restoreMock,
     reuseOrCreatePlaceholder: reuseOrCreatePlaceholderMock,
     setActiveNode: setActiveNodeMock,
     update: updateMock
@@ -58,42 +55,32 @@ describe('topicHandlers', () => {
     vi.clearAllMocks()
   })
 
-  describe('/topics', () => {
-    it('delegates selected topic delete to TopicService', async () => {
-      const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-      deleteByIdsMock.mockResolvedValueOnce(result)
+  describe('trash routing', () => {
+    it('exposes only the permanent Topic purge through DataApi', async () => {
+      await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' }, query: { permanent: true } } as never)
+      expect(deleteMock).toHaveBeenCalledWith('topic-a', { permanent: true })
 
-      await expect(
-        topicHandlers['/topics'].DELETE({
-          query: { ids: 'topic-a,topic-b' }
-        } as never)
-      ).resolves.toEqual(result)
-
-      expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
+      deleteMock.mockClear()
+      await expect(topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' } } as never)).rejects.toThrow()
       expect(deleteMock).not.toHaveBeenCalled()
     })
 
-    it('trims comma-separated topic ids before delegating', async () => {
-      const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-      deleteByIdsMock.mockResolvedValueOnce(result)
+    it('delegates restore to TopicService', async () => {
+      const restored = { id: 'topic-a' }
+      restoreMock.mockReturnValueOnce(restored)
 
-      await expect(
-        topicHandlers['/topics'].DELETE({
-          query: { ids: ' topic-a, , topic-b ' }
-        } as never)
-      ).resolves.toEqual(result)
-
-      expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
+      await expect(topicHandlers['/topics/:id/restore'].POST({ params: { id: 'topic-a' } } as never)).resolves.toEqual(
+        restored
+      )
+      expect(restoreMock).toHaveBeenCalledWith('topic-a')
     })
 
-    it('rejects empty selected topic ids before calling the service', async () => {
-      await expect(
-        topicHandlers['/topics'].DELETE({
-          query: { ids: ' , , ' }
-        } as never)
-      ).rejects.toThrow()
+    it('forwards inTrash to the list query so the Recycle Bin page sees trashed rows', async () => {
+      listByCursorMock.mockResolvedValueOnce({ items: [], nextCursor: null })
 
-      expect(deleteByIdsMock).not.toHaveBeenCalled()
+      await topicHandlers['/topics'].GET({ query: { inTrash: true } } as never)
+
+      expect(listByCursorMock).toHaveBeenCalledWith(expect.objectContaining({ inTrash: true }))
     })
   })
 
@@ -157,22 +144,6 @@ describe('topicHandlers', () => {
       ).rejects.toThrow()
 
       expect(moveMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/assistants/:assistantId/topics', () => {
-    it('delegates assistant-scoped topic delete to TopicService', async () => {
-      const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-      deleteByAssistantIdMock.mockResolvedValueOnce(result)
-
-      await expect(
-        topicHandlers['/assistants/:assistantId/topics'].DELETE({
-          params: { assistantId: 'assistant-1' }
-        } as never)
-      ).resolves.toEqual(result)
-
-      expect(deleteByAssistantIdMock).toHaveBeenCalledWith('assistant-1')
-      expect(deleteByIdsMock).not.toHaveBeenCalled()
     })
   })
 

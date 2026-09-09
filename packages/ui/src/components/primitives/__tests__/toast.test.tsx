@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getToastUtilities, type ToastLabels, ToastProvider, ToastViewport, useToasts } from '../toast'
@@ -30,6 +31,43 @@ describe('Toast', () => {
     expect(screen.getByText('Saved')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'notifications' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('dismisses an actionable toast before running its action without triggering the toast click', async () => {
+    const user = userEvent.setup()
+    const onToastClick = vi.fn()
+    const onAction = vi.fn(() => {
+      expect(toast.getToastQueue().toasts).toHaveLength(0)
+    })
+
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success({
+        action: { label: 'Undo', onClick: onAction },
+        key: 'deleted-item',
+        onClick: onToastClick,
+        title: 'Item deleted'
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+
+    expect(screen.queryByText('Item deleted')).not.toBeInTheDocument()
+    expect(onToastClick).not.toHaveBeenCalled()
+    expect(onAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps actionable toasts in the top-centered viewport', () => {
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.info({ action: { label: 'Undo', onClick: vi.fn() }, title: 'Item deleted' })
+    })
+
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+    // top-5 + left-1/2 is the maintained single-viewport placement contract.
+    expect(screen.getByRole('region', { name: 'notifications' })).toHaveClass('top-5', 'left-1/2')
   })
 
   it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {

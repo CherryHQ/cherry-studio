@@ -6,7 +6,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@cherrystudio/ui'
-import { FolderClosed, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { FolderClosed, Pencil, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { FileItem } from './fileDisplay'
@@ -14,13 +14,12 @@ import type { FileItem } from './fileDisplay'
 export interface FileContextMenuActions {
   onRename: (id: string) => void
   onDelete: (id: string) => void
-  onRestore: (id: string) => void
   onShowInFolder: (id: string) => void
 }
 
 /**
- * Per-file right-click menu. Wraps a file row/card trigger and renders the menu
- * content branched on trash vs. active and internal vs. external origin.
+ * Per-file right-click menu. Wraps a file row/card trigger and renders rename,
+ * show-in-folder, and delete branched on internal vs. external origin.
  *
  * Built on the @cherrystudio/ui ContextMenu primitive (Radix), which provides
  * cursor positioning, click-outside/Escape dismiss, viewport collision, keyboard
@@ -28,59 +27,41 @@ export interface FileContextMenuActions {
  */
 export function FileContextMenu({
   file,
-  isTrash,
   actions,
   children,
-  showRename = true
+  showRename = true,
+  deleteDisabled = false
 }: {
   file: FileItem
-  isTrash: boolean
   actions: FileContextMenuActions
   children: React.ReactNode
   showRename?: boolean
+  deleteDisabled?: boolean
 }) {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <FileContextMenuContent file={file} isTrash={isTrash} actions={actions} showRename={showRename} />
+      <FileContextMenuContent file={file} actions={actions} showRename={showRename} deleteDisabled={deleteDisabled} />
     </ContextMenu>
   )
 }
 
 function FileContextMenuContent({
   file,
-  isTrash,
   actions,
-  showRename
+  showRename,
+  deleteDisabled
 }: {
   file: FileItem
-  isTrash: boolean
   actions: FileContextMenuActions
   showRename: boolean
+  deleteDisabled: boolean
 }) {
   const { t } = useTranslation()
   const canUseFileActions = !file.isMissing
   const canRename = canUseFileActions && showRename
   const canShowInFolder = canUseFileActions
   const hasPrimaryAction = canRename || canShowInFolder
-
-  if (isTrash) {
-    return (
-      <ContextMenuContent className="min-w-32">
-        {!file.isMissing && (
-          <>
-            <ContextMenuItem onSelect={() => actions.onRestore(file.id)}>
-              <ContextMenuItemContent icon={<RotateCcw size={12} />}>{t('files.restore')}</ContextMenuItemContent>
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-          </>
-        )}
-        <ContextMenuItem variant="destructive" onSelect={() => actions.onDelete(file.id)}>
-          <ContextMenuItemContent icon={<Trash2 size={12} />}>{t('files.permanent_delete')}</ContextMenuItemContent>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    )
-  }
 
   return (
     <ContextMenuContent className="min-w-32">
@@ -95,7 +76,7 @@ function FileContextMenuContent({
         </ContextMenuItem>
       )}
       {hasPrimaryAction && <ContextMenuSeparator />}
-      <ContextMenuItem variant="destructive" onSelect={() => actions.onDelete(file.id)}>
+      <ContextMenuItem disabled={deleteDisabled} variant="destructive" onSelect={() => actions.onDelete(file.id)}>
         <ContextMenuItemContent icon={<Trash2 size={12} />}>
           {file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
         </ContextMenuItemContent>

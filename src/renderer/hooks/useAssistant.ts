@@ -16,11 +16,12 @@
  *  - {@link import('./useKnowledgeBase').useKnowledgeBases} for KBs
  */
 
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
 import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
@@ -84,28 +85,25 @@ export function useAssistantApiById(id: string | undefined) {
 }
 
 /**
- * Assistant mutations (create / update / delete) backed by DataApi.
+ * Assistant mutations backed by DataApi, with archive commands routed through IpcApi.
  */
 export function useAssistantMutations() {
+  const invalidate = useInvalidateCache()
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/assistants', {
     refresh: ASSISTANTS_REFRESH_KEYS
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/assistants/:id', {
     refresh: ASSISTANTS_REFRESH_KEYS
   })
-  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/assistants/:id', {
-    refresh: ({ args }) => [
-      ...ASSISTANTS_REFRESH_KEYS,
-      '/pins',
-      ...(args?.query?.deleteTopics === true ? (['/topics'] as ConcreteApiPaths[]) : [])
-    ]
+  const { trigger: restoreTrigger } = useMutation('POST', '/assistants/:id/restore', {
+    refresh: ASSISTANTS_REFRESH_KEYS
   })
   const createTriggerRef = useRef(createTrigger)
   const updateTriggerRef = useRef(updateTrigger)
-  const deleteTriggerRef = useRef(deleteTrigger)
+  const restoreTriggerRef = useRef(restoreTrigger)
   createTriggerRef.current = createTrigger
   updateTriggerRef.current = updateTrigger
-  deleteTriggerRef.current = deleteTrigger
+  restoreTriggerRef.current = restoreTrigger
 
   const createAssistant = useCallback(async (dto: CreateAssistantDto): Promise<Assistant> => {
     const created = await createTriggerRef.current({ body: dto })
@@ -124,22 +122,29 @@ export function useAssistantMutations() {
 
   const deleteAssistant = useCallback(
     async (id: string, options: { deleteTopics?: boolean } = {}): Promise<DeleteAssistantResult> => {
-      const result: DeleteAssistantResult = await deleteTriggerRef.current(
-        options.deleteTopics === true ? { params: { id }, query: { deleteTopics: true } } : { params: { id } }
-      )
+      const deleteTopics = options.deleteTopics === true
+      const result = await ipcApi.request('trash.assistant.archive', { assistantId: id, deleteTopics })
+      await invalidate(deleteTopics ? [...ASSISTANTS_REFRESH_KEYS, '/pins', '/topics'] : ASSISTANTS_REFRESH_KEYS)
       logger.info('Deleted assistant', { id, deleteTopics: options.deleteTopics === true })
       return result
     },
-    []
+    [invalidate]
   )
+
+  const restoreAssistant = useCallback(async (id: string): Promise<Assistant> => {
+    const restored = await restoreTriggerRef.current({ params: { id } })
+    logger.info('Restored assistant', { id })
+    return restored
+  }, [])
 
   return {
     createAssistant,
     updateAssistant,
     deleteAssistant,
+    restoreAssistant,
     isCreating,
     isUpdating,
-    isDeleting
+    isDeleting: false
   }
 }
 

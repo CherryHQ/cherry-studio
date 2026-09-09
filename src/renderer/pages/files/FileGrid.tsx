@@ -46,24 +46,24 @@ export const FileGrid = memo(function FileGrid({
   files,
   onOpen,
   onDelete,
-  isTrash,
   menuActions,
   scrollRef,
   onLayoutChange,
   renamingId,
   onRenameConfirm,
-  onRenameCancel
+  onRenameCancel,
+  deleteDisabled = false
 }: {
   files: FileItem[]
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
-  isTrash: boolean
   menuActions: FileContextMenuActions
   scrollRef: RefObject<HTMLDivElement | null>
   onLayoutChange?: () => void
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
+  deleteDisabled?: boolean
 }) {
   const { t } = useTranslation()
   const columnCount = useGridColumnCount(scrollRef)
@@ -109,7 +109,7 @@ export const FileGrid = memo(function FileGrid({
               const previewUrl = isImage && !file.isMissing ? file.previewUrl : undefined
               const shapeClass = isImage ? 'aspect-square' : 'h-24'
               return (
-                <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
+                <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
                   <div
                     onClick={() => {
                       if (isRenaming || file.isMissing) return
@@ -142,6 +142,7 @@ export const FileGrid = memo(function FileGrid({
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          disabled={deleteDisabled}
                           onClick={(e) => {
                             e.stopPropagation()
                             onDelete(file.id)
