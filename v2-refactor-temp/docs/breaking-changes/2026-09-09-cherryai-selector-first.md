@@ -2,7 +2,7 @@
 title: CherryAI appears first in the model selector
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#20270'
 date: 2026-09-09
 ---
 
