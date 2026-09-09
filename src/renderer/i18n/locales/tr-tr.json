@@ -252,6 +252,8 @@
   "agent.session_delivery.status.consumed": "Kullanıldı",
   "agent.session_delivery.status.delivering": "Teslim ediliyor",
   "agent.session_delivery.status.failed": "Başarısız",
+  "agent.session_turn_origin.background_work": "Arka plan çalışması sonrası devam edildi",
+  "agent.session_turn_origin.goal_round": "Hedef turu {{round}}",
   "agent.settings.permissionMode.title": "İzin Modu",
   "agent.settings.skills.addMore": "Becerileri Yönet",
   "agent.settings.tooling.mcp.toggle": "{{name}} durumunu değiştir",
