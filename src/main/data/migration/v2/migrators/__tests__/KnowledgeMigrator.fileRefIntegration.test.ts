@@ -1,3 +1,5 @@
+import { resolve as resolvePath } from 'node:path'
+
 // Integration tests for `KnowledgeMigrator` reference-integrity guards.
 //
 // Runs FileMigrator → KnowledgeMigrator against a real SQLite DB and then
@@ -41,7 +43,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const MOCK_USER_DATA = '/mock/userData'
+const MOCK_USER_DATA = resolvePath('/mock/userData')
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const FILE_SURVIVOR_ID = '019606a0-0000-7000-8000-000000000401'
 const FILE_SKIPPED_ID = '019606a0-0000-7000-8000-000000000402'

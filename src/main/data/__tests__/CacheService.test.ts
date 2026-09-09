@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url'
+
 /**
  * Tests for CacheService subscription APIs and value-equality semantics.
  *
@@ -69,11 +71,11 @@ const SHARED_TEMPLATE = 'web_search.provider.last_used_key.${providerId}' as con
 // global application mock resolves getPath('app.root') to '/mock/app.root'.
 const trustedEvent = {
   sender: { getType: () => 'window' },
-  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
 } as unknown as IpcMainEvent
 const untrustedEvent = {
   sender: { getType: () => 'webview' },
-  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
 } as unknown as IpcMainEvent
 
 describe('CacheService subscription', () => {

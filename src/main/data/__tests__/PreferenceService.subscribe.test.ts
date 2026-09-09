@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url'
+
 /**
  * Tests for the Preference_Subscribe IPC handler.
  *
@@ -33,11 +35,11 @@ vi.mock('@application', async () => {
 // Sender shapes for the in-handler source-trust gate (validateSender).
 const trustedEvent = {
   sender: { getType: () => 'window' },
-  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
 } as unknown as IpcMainInvokeEvent
 const untrustedEvent = {
   sender: { getType: () => 'webview' },
-  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
 } as unknown as IpcMainInvokeEvent
 
 // Mock lifecycle decorators so `new PreferenceService()` works without the container.

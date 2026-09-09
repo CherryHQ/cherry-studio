@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 
 // Type-only import used to give vi.importActual a generic argument that
 // satisfies @typescript-eslint/consistent-type-imports (which forbids
@@ -23,11 +24,7 @@ vi.mock('node:fs', async () => {
 // module would mean Application.getPath() calls a missing
 // `shouldAutoEnsure` and crashes, defeating the test.
 //
-// The mocked pathMap covers every key the lazy-auto-ensure tests touch.
-// All paths use forward slashes — the global node:path mock joins with
-// '/' (see tests/main.setup.ts:185), and node:path.dirname is left at
-// the actual implementation, which handles forward slashes on every
-// platform.
+// Use native absolute paths so the real path helpers run on every host.
 vi.mock('@main/core/paths/pathRegistry', async () => {
   const actual = await vi.importActual<typeof PathRegistryModule>('@main/core/paths/pathRegistry')
   return {
@@ -35,19 +32,19 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
     buildPathRegistry: () =>
       Object.freeze({
         // Cherry-owned directories (eligible for auto-ensure)
-        'feature.files.data': '/mock/userData/Data/Files',
-        'feature.notes.data': '/mock/userData/Data/Notes',
-        'feature.agents.system_workspaces': '/mock/userData/Data/Agents/system',
-        'cherry.bin': '/mock/home/.cherrystudio/bin',
+        'feature.files.data': resolvePath('/mock/userData/Data/Files'),
+        'feature.notes.data': resolvePath('/mock/userData/Data/Notes'),
+        'feature.agents.system_workspaces': resolvePath('/mock/userData/Data/Agents/system'),
+        'cherry.bin': resolvePath('/mock/home/.cherrystudio/bin'),
         // Cherry-owned files (auto-ensure dirname only)
-        'feature.copilot.token_file': '/mock/home/.cherrystudio/config/.copilot_token',
-        'app.database.file': '/mock/userData/Data/cherrystudio.sqlite',
+        'feature.copilot.token_file': resolvePath('/mock/home/.cherrystudio/config/.copilot_token'),
+        'app.database.file': resolvePath('/mock/userData/Data/cherrystudio.sqlite'),
         // NO_ENSURE — exact key entries (build artifacts)
-        'app.exe_file': '/mock/install/CherryStudio',
-        'app.extra_resources': '/mock/resources',
+        'app.exe_file': resolvePath('/mock/install/CherryStudio'),
+        'app.extra_resources': resolvePath('/mock/resources'),
         // NO_ENSURE — namespace prefixes
-        'external.openclaw.config': '/mock/home/.openclaw',
-        'sys.home': '/mock/home'
+        'external.openclaw.config': resolvePath('/mock/home/.openclaw'),
+        'sys.home': resolvePath('/mock/home')
       })
   }
 })
@@ -75,12 +72,12 @@ describe('Application.getPath', () => {
 
   describe('basic lookup', () => {
     it('returns the registered path when no filename is given', () => {
-      expect(app.getPath('feature.files.data')).toBe('/mock/userData/Data/Files')
+      expect(app.getPath('feature.files.data')).toBe(resolvePath('/mock/userData/Data/Files'))
     })
 
     it('joins a single-segment filename to the registered path', () => {
       // node:path.join is mocked in main.setup.ts to use '/' separator
-      expect(app.getPath('feature.files.data', 'valid.txt')).toBe('/mock/userData/Data/Files/valid.txt')
+      expect(app.getPath('feature.files.data', 'valid.txt')).toBe(resolvePath('/mock/userData/Data/Files/valid.txt'))
     })
   })
 
@@ -90,7 +87,7 @@ describe('Application.getPath', () => {
     // multi-segment filenames; the warning is a developer-facing hint.
 
     it('does not throw when filename is absolute', () => {
-      expect(() => app.getPath('feature.files.data', '/abs/path')).not.toThrow()
+      expect(() => app.getPath('feature.files.data', resolvePath('/abs/path'))).not.toThrow()
     })
 
     it('does not throw when filename contains ".."', () => {
@@ -126,7 +123,7 @@ describe('Application.getPath', () => {
     it('mkdirs the base directory on first access of a directory key', () => {
       app.getPath('feature.notes.data')
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData/Data/Notes', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenCalledWith(resolvePath('/mock/userData/Data/Notes'), { recursive: true })
     })
 
     it('does not mkdir on the second access of the same key (cache hit)', () => {
@@ -141,13 +138,13 @@ describe('Application.getPath', () => {
       // The token file key points to a file; auto-ensure should target
       // its parent directory so the caller can immediately write the file.
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/home/.cherrystudio/config', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenCalledWith(resolvePath('/mock/home/.cherrystudio/config'), { recursive: true })
     })
 
     it('mkdirs path.dirname(base) for a key whose name ends with ".file"', () => {
       app.getPath('app.database.file')
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData/Data', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenCalledWith(resolvePath('/mock/userData/Data'), { recursive: true })
     })
 
     it('does not mkdir for keys in the NO_ENSURE exact list (app.exe_file)', () => {
@@ -161,7 +158,7 @@ describe('Application.getPath', () => {
     })
 
     it('does not mkdir the system-workspace root while a DataApi service only resolves its path', () => {
-      expect(app.getPath('feature.agents.system_workspaces')).toBe('/mock/userData/Data/Agents/system')
+      expect(app.getPath('feature.agents.system_workspaces')).toBe(resolvePath('/mock/userData/Data/Agents/system'))
       expect(fs.mkdirSync).not.toHaveBeenCalled()
     })
 
@@ -178,7 +175,7 @@ describe('Application.getPath', () => {
     it('mkdirs cherry-owned keys not in the NO_ENSURE list', () => {
       app.getPath('cherry.bin')
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/home/.cherrystudio/bin', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenCalledWith(resolvePath('/mock/home/.cherrystudio/bin'), { recursive: true })
     })
 
     it('returns the path even when mkdir throws, and caches the failed attempt', () => {
@@ -188,13 +185,13 @@ describe('Application.getPath', () => {
       })
 
       const result1 = app.getPath('feature.files.data')
-      expect(result1).toBe('/mock/userData/Data/Files')
+      expect(result1).toBe(resolvePath('/mock/userData/Data/Files'))
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
 
       // Failure is cached the same as success — no retry on the next call.
       // This prevents a retry-storm if the FS is unhealthy.
       const result2 = app.getPath('feature.files.data')
-      expect(result2).toBe('/mock/userData/Data/Files')
+      expect(result2).toBe(resolvePath('/mock/userData/Data/Files'))
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
     })
 
@@ -203,7 +200,7 @@ describe('Application.getPath', () => {
       // The filename argument is purely a join — it must NOT change which
       // directory gets ensured (always the registered base, not base/file).
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData/Data/Files', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenCalledWith(resolvePath('/mock/userData/Data/Files'), { recursive: true })
     })
 
     it('isolates the cache per key (two distinct keys each get their own mkdir)', () => {
@@ -212,8 +209,8 @@ describe('Application.getPath', () => {
       // Two distinct keys → two distinct mkdir calls; the cache for one
       // must not suppress the other.
       expect(fs.mkdirSync).toHaveBeenCalledTimes(2)
-      expect(fs.mkdirSync).toHaveBeenNthCalledWith(1, '/mock/userData/Data/Notes', { recursive: true })
-      expect(fs.mkdirSync).toHaveBeenNthCalledWith(2, '/mock/userData/Data/Files', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenNthCalledWith(1, resolvePath('/mock/userData/Data/Notes'), { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenNthCalledWith(2, resolvePath('/mock/userData/Data/Files'), { recursive: true })
     })
 
     it('clears the auto-ensure cache when __setPathMapForTesting is called', () => {

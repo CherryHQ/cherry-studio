@@ -1,3 +1,5 @@
+import { resolve as resolvePath } from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -61,11 +63,11 @@ const bootConfigPersistMock = vi.fn()
 const TASK_ID = '11111111-1111-4111-8111-111111111111'
 
 function stubElectron(opts: ElectronStubOptions = {}) {
-  const { isPackaged = true, exePath = '/mock/exe', userData = '/mock/userData' } = opts
+  const { isPackaged = true, exePath = resolvePath('/mock/exe'), userData = resolvePath('/mock/userData') } = opts
   const getPath = vi.fn((key: string) => {
     if (key === 'exe') return exePath
     if (key === 'userData') return userData
-    return '/mock/unknown'
+    return resolvePath('/mock/unknown')
   })
   vi.doMock('electron', () => ({
     __esModule: true,
@@ -170,32 +172,34 @@ afterEach(() => {
 describe('getNormalizedExecutablePath', () => {
   it('macOS: returns app.getPath("exe") verbatim', async () => {
     stubConstants({ isLinux: false, isWin: false, isPortable: false })
-    stubElectron({ exePath: '/Applications/Cherry Studio.app/Contents/MacOS/Cherry Studio' })
+    stubElectron({ exePath: resolvePath('/Applications/Cherry Studio.app/Contents/MacOS/Cherry Studio') })
     stubBootConfig()
     stubFs()
     const { getNormalizedExecutablePath } = await loadModule()
-    expect(getNormalizedExecutablePath()).toBe('/Applications/Cherry Studio.app/Contents/MacOS/Cherry Studio')
+    expect(getNormalizedExecutablePath()).toBe(
+      resolvePath('/Applications/Cherry Studio.app/Contents/MacOS/Cherry Studio')
+    )
   })
 
   it('Linux without APPIMAGE env: returns app.getPath("exe") verbatim', async () => {
     vi.stubEnv('APPIMAGE', '')
     stubConstants({ isLinux: true, isWin: false, isPortable: false })
-    stubElectron({ exePath: '/usr/bin/cherry-studio' })
+    stubElectron({ exePath: resolvePath('/usr/bin/cherry-studio') })
     stubBootConfig()
     stubFs()
     const { getNormalizedExecutablePath } = await loadModule()
-    expect(getNormalizedExecutablePath()).toBe('/usr/bin/cherry-studio')
+    expect(getNormalizedExecutablePath()).toBe(resolvePath('/usr/bin/cherry-studio'))
   })
 
   it('Linux with APPIMAGE env: returns normalized AppImage path', async () => {
-    vi.stubEnv('APPIMAGE', '/home/alice/Applications/CherryStudio-1.0.0.AppImage')
+    vi.stubEnv('APPIMAGE', resolvePath('/home/alice/Applications/CherryStudio-1.0.0.AppImage'))
     stubConstants({ isLinux: true, isWin: false, isPortable: false })
-    stubElectron({ exePath: '/tmp/.mount_xxxx/usr/bin/cherry-studio' })
+    stubElectron({ exePath: resolvePath('/tmp/.mount_xxxx/usr/bin/cherry-studio') })
     stubBootConfig()
     stubFs()
     const { getNormalizedExecutablePath } = await loadModule()
     // path.join is globally mocked to args.join('/'); path.dirname is real.
-    expect(getNormalizedExecutablePath()).toBe('/home/alice/Applications/cherry-studio.appimage')
+    expect(getNormalizedExecutablePath()).toBe(resolvePath('/home/alice/Applications/cherry-studio.appimage'))
   })
 
   it('Windows non-portable: returns app.getPath("exe") verbatim', async () => {
@@ -230,7 +234,7 @@ describe('isUsableDataDir', () => {
 
   it('returns true for a directory that is readable, writable and searchable', async () => {
     const isUsableDataDir = await loadWithFs() // default statSync → directory, accessSync → ok
-    expect(isUsableDataDir('/some/dir')).toBe(true)
+    expect(isUsableDataDir(resolvePath('/some/dir'))).toBe(true)
   })
 
   it('requests read, write, and execute permission together', async () => {
@@ -240,7 +244,7 @@ describe('isUsableDataDir', () => {
         requestedMode = mode
       }
     })
-    expect(isUsableDataDir('/some/dir')).toBe(true)
+    expect(isUsableDataDir(resolvePath('/some/dir'))).toBe(true)
     // R_OK(4) | W_OK(2) | X_OK(1) = 7
     expect(requestedMode).toBe(7)
   })
@@ -249,7 +253,7 @@ describe('isUsableDataDir', () => {
     const isUsableDataDir = await loadWithFs({
       statSyncImpl: () => ({ isDirectory: () => false, isFile: () => true })
     })
-    expect(isUsableDataDir('/some/file')).toBe(false)
+    expect(isUsableDataDir(resolvePath('/some/file'))).toBe(false)
   })
 
   it('returns false when the directory is not read-writable (accessSync throws)', async () => {
@@ -258,7 +262,7 @@ describe('isUsableDataDir', () => {
         throw new Error('EACCES')
       }
     })
-    expect(isUsableDataDir('/readonly/dir')).toBe(false)
+    expect(isUsableDataDir(resolvePath('/readonly/dir'))).toBe(false)
   })
 
   it('returns false when the directory lacks search (X_OK) permission', async () => {
@@ -267,7 +271,7 @@ describe('isUsableDataDir', () => {
         if (typeof mode === 'number' && mode & 1 /* X_OK */) throw new Error('EACCES')
       }
     })
-    expect(isUsableDataDir('/no-exec/dir')).toBe(false)
+    expect(isUsableDataDir(resolvePath('/no-exec/dir'))).toBe(false)
   })
 
   it('returns false when the path does not exist (statSync throws)', async () => {
@@ -276,7 +280,7 @@ describe('isUsableDataDir', () => {
         throw new Error('ENOENT: no such file or directory')
       }
     })
-    expect(isUsableDataDir('/missing')).toBe(false)
+    expect(isUsableDataDir(resolvePath('/missing'))).toBe(false)
   })
 })
 
@@ -284,57 +288,57 @@ describe('resolveUserDataLocation', () => {
   describe('normal resolution (no pending relocation)', () => {
     it('app.isPackaged=false: appends Dev suffix and ignores BootConfig', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ isPackaged: false, userData: '/mock/userData' })
+      stubElectron({ isPackaged: false, userData: resolvePath('/mock/userData') })
       // BootConfig is populated but should be ignored — the dev branch runs
       // before any BootConfig lookup, isolating dev data from production
       // config that might have been migrated by a packaged build of the app.
-      stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+      stubBootConfig({ 'app.user_data_path': { [resolvePath('/mock/exe')]: resolvePath('/custom/data') } })
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDev')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/mock/userDataDev'))
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
     it('app.isPackaged=false: appends configured dev suffix', async () => {
       vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', 'DevQuito')
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ isPackaged: false, userData: '/mock/userData' })
+      stubElectron({ isPackaged: false, userData: resolvePath('/mock/userData') })
       stubBootConfig()
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDevQuito')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/mock/userDataDevQuito'))
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
     it('app.isPackaged=false: blank configured dev suffix falls back to Dev', async () => {
       vi.stubEnv('CS_DEV_USER_DATA_SUFFIX', '   ')
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ isPackaged: false, userData: '/mock/userData' })
+      stubElectron({ isPackaged: false, userData: resolvePath('/mock/userData') })
       stubBootConfig()
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDev')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/mock/userDataDev'))
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
     it('BootConfig has matching exe with valid path: setPath called with that path', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
+      stubBootConfig({ 'app.user_data_path': { [resolvePath('/mock/exe')]: resolvePath('/custom/data') } })
       stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/custom/data')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/custom/data'))
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
     it('BootConfig has matching exe but path is missing (statSync throws): falls through, no setPath', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
+      stubBootConfig({ 'app.user_data_path': { [resolvePath('/mock/exe')]: resolvePath('/custom/data') } })
       stubFs({
         statSyncImpl: () => {
           throw new Error('ENOENT: no such file or directory')
@@ -347,8 +351,8 @@ describe('resolveUserDataLocation', () => {
 
     it('BootConfig has matching exe but path is a file, not a directory: falls through, no setPath', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
+      stubBootConfig({ 'app.user_data_path': { [resolvePath('/mock/exe')]: resolvePath('/custom/data') } })
       stubFs({ statSyncImpl: () => ({ isDirectory: () => false, isFile: () => true }) })
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
@@ -357,8 +361,8 @@ describe('resolveUserDataLocation', () => {
 
     it('BootConfig has matching exe but path is not writable (accessSync throws): falls through, no setPath', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
+      stubBootConfig({ 'app.user_data_path': { [resolvePath('/mock/exe')]: resolvePath('/custom/data') } })
       stubFs({
         existsSyncImpl: () => true,
         accessSyncImpl: () => {
@@ -372,8 +376,8 @@ describe('resolveUserDataLocation', () => {
 
     it('BootConfig has no matching exe key: falls through, no setPath', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
-      stubBootConfig({ 'app.user_data_path': { '/other/exe': '/custom/data' } })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
+      stubBootConfig({ 'app.user_data_path': { [resolvePath('/other/exe')]: resolvePath('/custom/data') } })
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
@@ -394,7 +398,7 @@ describe('resolveUserDataLocation', () => {
 
     it('BootConfig empty + non-portable: no-op (falls through to Electron default)', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
       stubBootConfig({ 'app.user_data_path': {} })
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
@@ -403,19 +407,19 @@ describe('resolveUserDataLocation', () => {
     })
 
     it('AppImage normalized key matches in BootConfig: setPath called', async () => {
-      vi.stubEnv('APPIMAGE', '/home/alice/Apps/CherryStudio-1.0.0.AppImage')
+      vi.stubEnv('APPIMAGE', resolvePath('/home/alice/Apps/CherryStudio-1.0.0.AppImage'))
       stubConstants({ isLinux: true, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/tmp/.mount_abc/usr/bin/cherry-studio' })
+      stubElectron({ exePath: resolvePath('/tmp/.mount_abc/usr/bin/cherry-studio') })
       // Key matches the *normalized* path, not raw exe.
       stubBootConfig({
         'app.user_data_path': {
-          '/home/alice/Apps/cherry-studio.appimage': '/home/alice/cherry-data'
+          [resolvePath('/home/alice/Apps/cherry-studio.appimage')]: resolvePath('/home/alice/cherry-data')
         }
       })
       stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/home/alice/cherry-data')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/home/alice/cherry-data'))
     })
 
     it('Windows portable normalized key matches in BootConfig: setPath called', async () => {
@@ -439,14 +443,14 @@ describe('resolveUserDataLocation', () => {
   describe('relocation state handling', () => {
     it('resolveUserDataLocation does not execute a pending relocation', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
       const store = stubBootConfig({
-        'app.user_data_path': { '/mock/exe': '/old/data' },
+        'app.user_data_path': { [resolvePath('/mock/exe')]: resolvePath('/old/data') },
         'temp.user_data_relocation': {
           status: 'pending',
           taskId: TASK_ID,
-          from: '/old/data',
-          to: '/new/data',
+          from: resolvePath('/old/data'),
+          to: resolvePath('/new/data'),
           copy: true
         }
       })
@@ -459,18 +463,18 @@ describe('resolveUserDataLocation', () => {
       expect(store['temp.user_data_relocation']).toEqual({
         status: 'pending',
         taskId: TASK_ID,
-        from: '/old/data',
-        to: '/new/data',
+        from: resolvePath('/old/data'),
+        to: resolvePath('/new/data'),
         copy: true
       })
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/old/data')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/old/data'))
     })
 
     it('temp.user_data_relocation is null: no relocation attempted, normal resolution proceeds', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
       stubBootConfig({
-        'app.user_data_path': { '/mock/exe': '/custom/data' },
+        'app.user_data_path': { [resolvePath('/mock/exe')]: resolvePath('/custom/data') },
         'temp.user_data_relocation': null
       })
       stubFs({ existsSyncImpl: () => true, accessSyncImpl: () => undefined })
@@ -479,19 +483,19 @@ describe('resolveUserDataLocation', () => {
       resolveUserDataLocation()
 
       expect(cpSyncMock).not.toHaveBeenCalled()
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/custom/data')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/custom/data'))
     })
 
     it('temp.user_data_relocation is in failed state: no auto-retry, normal resolution proceeds', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ exePath: '/mock/exe' })
+      stubElectron({ exePath: resolvePath('/mock/exe') })
       stubBootConfig({
-        'app.user_data_path': { '/mock/exe': '/old/data' },
+        'app.user_data_path': { [resolvePath('/mock/exe')]: resolvePath('/old/data') },
         'temp.user_data_relocation': {
           status: 'failed',
           taskId: TASK_ID,
-          from: '/old/data',
-          to: '/new/data',
+          from: resolvePath('/old/data'),
+          to: resolvePath('/new/data'),
           copy: true,
           error: 'EACCES',
           failedAt: '2026-04-07T00:00:00.000Z'
@@ -505,19 +509,19 @@ describe('resolveUserDataLocation', () => {
       // cpSync was NOT called — failed states are not auto-retried.
       expect(cpSyncMock).not.toHaveBeenCalled()
       // Normal resolution used the old path.
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/old/data')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/old/data'))
     })
 
     it('app.isPackaged=false: pending relocation is bypassed, dev suffix still applied', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
-      stubElectron({ isPackaged: false, userData: '/mock/userData' })
+      stubElectron({ isPackaged: false, userData: resolvePath('/mock/userData') })
       stubBootConfig({
         'app.user_data_path': {},
         'temp.user_data_relocation': {
           status: 'pending',
           taskId: TASK_ID,
-          from: '/old/data',
-          to: '/new/data',
+          from: resolvePath('/old/data'),
+          to: resolvePath('/new/data'),
           copy: true
         }
       })
@@ -532,7 +536,7 @@ describe('resolveUserDataLocation', () => {
       expect(cpSyncMock).not.toHaveBeenCalled()
       // setPath is still called — but with the Dev suffix, not the
       // relocation target.
-      expect(setPathMock).toHaveBeenCalledWith('userData', '/mock/userDataDev')
+      expect(setPathMock).toHaveBeenCalledWith('userData', resolvePath('/mock/userDataDev'))
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
   })

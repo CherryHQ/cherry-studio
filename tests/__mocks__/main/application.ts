@@ -1,3 +1,5 @@
+import { resolve } from 'node:path'
+
 import { vi } from 'vitest'
 
 import { MockMainCacheServiceExport } from './CacheService'
@@ -135,12 +137,9 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     get: vi.fn((name: string) => container.get(name)),
     getOptional: vi.fn((name: string) => container.getOptional(name)),
     getContainer: vi.fn(() => container),
-    // Deterministic stub for path lookups — returns "/mock/<key>" (or
-    // "/mock/<key>/<filename>") so tests that instantiate services with
-    // class field initializers like `application.getPath('feature.xxx')`
-    // don't blow up. Override per-test with vi.spyOn if you need a
-    // specific value.
-    getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`)),
+    // Keep registry paths absolute on every host, including a drive on Windows.
+    // Override per-test with vi.spyOn when a fixture needs a specific location.
+    getPath: vi.fn((key: string, filename?: string) => resolve('/mock', key, filename ?? '')),
     registerAll: vi.fn(),
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),

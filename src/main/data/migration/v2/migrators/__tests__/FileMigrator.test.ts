@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import os from 'node:os'
+import { resolve as resolvePath } from 'node:path'
 import path from 'node:path'
 
 import { FileEntrySchema } from '@shared/data/types/file'
@@ -34,7 +35,7 @@ import { getAllMigrators } from '../migratorRegistry'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const MOCK_USER_DATA = '/mock/userData'
+const MOCK_USER_DATA = resolvePath('/mock/userData')
 
 /**
  * The path the migrator will actually probe for a given storage name. Built with `path.join`

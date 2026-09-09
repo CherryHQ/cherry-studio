@@ -15,8 +15,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: packages
-            projects: --project aiCore --project ui --project shared --project provider-registry --project scripts --project preload
+          - group: main-1
+            projects: --project main --shard=1/3
+          - group: main-2
+            projects: --project main --shard=2/3
+          - group: main-3
+            projects: --project main --shard=3/3
     env:
       CI: true
     steps:

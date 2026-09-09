@@ -1,3 +1,5 @@
+import { resolve as resolvePath } from 'node:path'
+
 import { BaseService } from '@main/core/lifecycle'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,7 +41,7 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 
 const { AppService } = await import('../AppService')
 
-const autostartDir = '/mock/sys.appdata.autostart'
+const autostartDir = resolvePath('/mock/sys.appdata.autostart')
 const desktopFile = path.join(autostartDir, 'cherry-studio.desktop')
 const linuxFiles = new Set<string>()
 const activeServices: BaseService[] = []
@@ -261,7 +263,7 @@ describe('AppService', () => {
     it('uses the stable AppImage path in the Linux desktop entry', async () => {
       platform.isLinux = true
       platform.isWin = false
-      vi.stubEnv('APPIMAGE', '/opt/CherryStudio.AppImage')
+      vi.stubEnv('APPIMAGE', resolvePath('/opt/CherryStudio.AppImage'))
 
       await new AppService().setAppLaunchOnBoot(true)
 

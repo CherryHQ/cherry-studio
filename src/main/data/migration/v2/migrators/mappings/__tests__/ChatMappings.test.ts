@@ -1,4 +1,5 @@
 import type * as FsPromises from 'node:fs/promises'
+import { resolve as resolvePath } from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import type {
@@ -49,7 +50,7 @@ import {
   transformMessage
 } from '../ChatMappings'
 
-const MIGRATION_FILES_DIR = '/mock/migration-userdata/Data/Files'
+const MIGRATION_FILES_DIR = resolvePath('/mock/migration-userdata/Data/Files')
 
 /** Helper: create a minimal OldMessage stub */
 function msg(id: string, role: 'user' | 'assistant' = 'assistant', extra: Partial<OldMessage> = {}): OldMessage {
@@ -577,7 +578,7 @@ describe('transformBlocksToParts', () => {
   it('transforms image with file path to file:// URL', async () => {
     const { parts } = await transformBlocksToParts([
       block('image', {
-        file: { id: 'abc-123', path: '/Users/test/files/photo.jpg', ext: '.jpg', origin_name: 'photo.jpg' }
+        file: { id: 'abc-123', path: resolvePath('/Users/test/files/photo.jpg'), ext: '.jpg', origin_name: 'photo.jpg' }
       })
     ])
 
@@ -713,7 +714,12 @@ describe('transformBlocksToParts', () => {
   it('transforms file to FileUIPart with path and inferred mediaType', async () => {
     const { parts } = await transformBlocksToParts([
       block('file', {
-        file: { id: 'file-xyz', path: '/Users/test/files/doc.pdf', ext: '.pdf', origin_name: 'document.pdf' }
+        file: {
+          id: 'file-xyz',
+          path: resolvePath('/Users/test/files/doc.pdf'),
+          ext: '.pdf',
+          origin_name: 'document.pdf'
+        }
       })
     ])
 
