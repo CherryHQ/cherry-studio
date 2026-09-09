@@ -41,7 +41,11 @@ vi.mock('@main/utils/markdownParser', () => ({
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
   ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: vi.fn().mockResolvedValue({}),
-  getRawShellEnv: vi.fn().mockResolvedValue({})
+  getRawShellEnv: vi.fn().mockResolvedValue({}),
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
+  hasMiseInPath: () => false,
+  isMiseEnvVar: (key: string) => key.startsWith('MISE_')
 }))
 
 const executeCommandMock = vi.hoisted(() => vi.fn())
