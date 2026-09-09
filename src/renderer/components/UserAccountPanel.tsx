@@ -119,7 +119,7 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
 
   return (
     <ColFlex className="w-64">
-      <RowFlex className="items-center gap-2 p-2">
+      <RowFlex className="items-center gap-2 px-2 py-1">
         <Popover
           open={avatarPopoverOpen}
           onOpenChange={(visible) => {
@@ -179,7 +179,7 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
           </PopoverContent>
         </Popover>
         <ColFlex className="min-w-0 flex-1 gap-0.5">
-          <span className="text-muted-foreground text-xs">{t('settings.general.user_name.label')}</span>
+          <span className="text-muted-foreground text-xs leading-4">{t('settings.general.user_name.label')}</span>
           {isEditingUserName ? (
             <RowFlex className="min-w-0 items-center gap-1">
               <Input
@@ -227,7 +227,7 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
             </RowFlex>
           ) : (
             <RowFlex className="min-w-0 items-center gap-1">
-              <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm">
+              <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-4">
                 {userName || t('settings.general.user_name.placeholder')}
               </span>
               <Tooltip content={t('common.edit')}>
