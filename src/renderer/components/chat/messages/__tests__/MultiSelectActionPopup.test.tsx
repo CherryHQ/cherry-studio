@@ -8,7 +8,7 @@ import MultiSelectActionPopup from '../MultiSelectActionPopup'
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   // Keep the real Checkbox: tri-state and interaction assertions must cover
   // the actual UI primitive, not a locally reimplemented stand-in.
-  const actual = await importOriginal<CherryStudioUi>()
+  const actual = await importOriginal<typeof CherryStudioUi>()
   return {
     ...actual,
     Button: ({ children, disabled, onClick }: any) => (

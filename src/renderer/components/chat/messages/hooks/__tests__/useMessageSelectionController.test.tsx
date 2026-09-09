@@ -456,7 +456,7 @@ describe('useMessageSelectionController', () => {
       })
       // The mount-time initial toggle already stopped idempotently — isolate
       // the stop call that belongs to the exit action itself.
-      handle.stop.mockClear()
+      vi.mocked(handle.stop).mockClear()
       act(() => {
         result.current.actions.toggleMultiSelectMode?.(false)
       })
