@@ -603,10 +603,8 @@ const exportImageAssets = async (
   toast.warning(i18n.t('chat.topics.export.image_mode.write_failed', { count: failed.length }))
 }
 
-const exportTopicMessagesAsMarkdown = async (
+export const exportTopicAsMarkdown = async (
   topic: Topic,
-  fileTitle: string,
-  loadMessages: () => ReturnType<typeof getTopicMessages>,
   exportReasoning?: boolean,
   excludeCitations?: boolean,
   chooseImageMode?: ImageModeChooser
@@ -621,8 +619,8 @@ const exportTopicMessagesAsMarkdown = async (
   const markdownExportPath = await preferenceService.get('data.export.markdown.path')
   if (!markdownExportPath) {
     try {
-      const fileName = removeSpecialCharactersForFileName(fileTitle) + '.md'
-      const messages = await loadMessages()
+      const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
+      const messages = await getTopicMessages(topic.id)
       const built = await buildMarkdownWithImages(
         messages ?? [],
         (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
@@ -643,8 +641,8 @@ const exportTopicMessagesAsMarkdown = async (
   } else {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const fileName = removeSpecialCharactersForFileName(fileTitle) + ` ${timestamp}.md`
-      const messages = await loadMessages()
+      const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
+      const messages = await getTopicMessages(topic.id)
       const built = await buildMarkdownWithImages(
         messages ?? [],
         (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
@@ -663,36 +661,6 @@ const exportTopicMessagesAsMarkdown = async (
     }
   }
 }
-
-export const exportTopicAsMarkdown = async (
-  topic: Topic,
-  exportReasoning?: boolean,
-  excludeCitations?: boolean,
-  chooseImageMode?: ImageModeChooser
-): Promise<void> =>
-  exportTopicMessagesAsMarkdown(
-    topic,
-    topic.name,
-    () => getTopicMessages(topic.id),
-    exportReasoning,
-    excludeCitations,
-    chooseImageMode
-  )
-
-export const exportTopicBranchAsMarkdown = async (
-  topic: Topic,
-  branch: { nodeId: string; name: string },
-  exportReasoning?: boolean,
-  chooseImageMode?: ImageModeChooser
-): Promise<void> =>
-  exportTopicMessagesAsMarkdown(
-    topic,
-    `${topic.name} - ${branch.name}`,
-    () => getTopicMessages(topic.id, { nodeId: branch.nodeId, includeSiblings: false }),
-    exportReasoning,
-    undefined,
-    chooseImageMode
-  )
 
 export const exportMessageAsMarkdown = async (
   message: ExportableMessage,

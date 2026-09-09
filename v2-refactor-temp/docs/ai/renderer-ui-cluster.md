@@ -35,13 +35,16 @@ Renders `CherryMessagePart[]` by dispatching on `part.type`. The per-
 type renderers live in `Blocks/` (one component per type). Adding a new
 part type means adding one switch arm + one renderer component.
 
-Beat-loader visibility uses `useIsActiveTurnTarget(message)` — the
-single predicate covering "DB status says streaming AND this is the
-turn-target message AND nothing else has rendered yet". See
+Beat-loader visibility uses the keyed activity snapshot from
+`useMessageListItemActivityState(message)` — the single predicate covering
+"DB status says streaming AND this is the turn-target message AND nothing
+else has rendered yet". See
 [Renderer Transport](./renderer-transport-cluster.md) for the
 classifier consolidation.
 
-Commit `6ba5cd20c refactor(v2-chat): extract useIsActiveTurnTarget`.
+Commit `6ba5cd20c refactor(v2-chat): extract useIsActiveTurnTarget`; that
+hook was later folded into `KeyedMessageActivityStore` so leaves subscribe
+per message instead of per topic.
 
 ### `V2Contexts.ts`
 
@@ -107,8 +110,9 @@ assistant streams in.
   move optimistic turn out of the authoritative cache`.
 - Overlay is disposed only after DB refresh resolves (`.finally`).
 - The classification of "is this message the active turn target" lives
-  exclusively in `useIsActiveTurnTarget` — duplicating that logic in
-  consumers caused the Phase-2 regression.
+  exclusively in `deriveMessageActivityState`, owned by
+  `KeyedMessageActivityStore` — duplicating that logic in consumers caused
+  the Phase-2 regression.
 
 ## Validation
 
