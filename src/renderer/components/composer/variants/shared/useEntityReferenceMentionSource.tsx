@@ -109,10 +109,7 @@ function settlePendingReferenceToken(
     ) {
       return
     }
-    if (
-      expectedReferenceId &&
-      (payload as Record<string, unknown>).referenceRequestId !== expectedReferenceId
-    ) {
+    if (expectedReferenceId && (payload as Record<string, unknown>).referenceRequestId !== expectedReferenceId) {
       return
     }
   }
