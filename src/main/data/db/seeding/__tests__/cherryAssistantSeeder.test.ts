@@ -12,12 +12,12 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { setupSeederTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull, sql } from 'drizzle-orm'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-function builtinAgents(db: ReturnType<typeof setupSeederTestDatabase>['db']) {
+function builtinAgents(db: ReturnType<typeof setupTestDatabase>['db']) {
   return db
     .select()
     .from(agentTable)
@@ -26,7 +26,7 @@ function builtinAgents(db: ReturnType<typeof setupSeederTestDatabase>['db']) {
 }
 
 describe('CherryAssistantSeeder', () => {
-  const dbh = setupSeederTestDatabase()
+  const dbh = setupTestDatabase()
 
   beforeEach(() => {
     vi.mocked(app.getPreferredSystemLanguages).mockReturnValue(['en-US'])

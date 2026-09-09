@@ -1,11 +1,11 @@
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { TranslateLanguageSeeder } from '@data/db/seeding/seeders/translateLanguageSeeder'
 import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
-import { setupSeederTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
 describe('TranslateLanguageSeeder', () => {
-  const dbh = setupSeederTestDatabase()
+  const dbh = setupTestDatabase()
 
   it('should insert all builtin languages into empty table', async () => {
     const seed = new TranslateLanguageSeeder()

@@ -66,12 +66,7 @@ export class MockMainDbService {
     return MockMainDbService.instance
   }
 
-  public getDb = vi.fn(() => {
-    if (!this._isReady) {
-      throw new Error('Database is not initialized, please call init() first!')
-    }
-    return this.db
-  })
+  public getDb = vi.fn(() => this.db)
 
   /**
    * Write transaction mock. Mirrors `DbService.withWriteTx`: when a real

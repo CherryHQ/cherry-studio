@@ -3,12 +3,12 @@ import { hashObject } from '@data/db/seeding/hashObject'
 import { BuiltinMcpServerSeeder } from '@data/db/seeding/seeders/builtinMcpServerSeeder'
 import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { setupSeederTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 describe('BuiltinMcpServerSeeder', () => {
-  const dbh = setupSeederTestDatabase()
+  const dbh = setupTestDatabase()
 
   const insert = (values: Partial<typeof mcpServerTable.$inferInsert> & { name: string }) =>
     dbh.db.insert(mcpServerTable).values(values)

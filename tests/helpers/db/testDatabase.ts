@@ -16,8 +16,6 @@ import { truncateAll } from './internal/truncate'
 export interface TestDatabaseOptions {
   /** Seeders to run after schema init. Default: none. */
   seeders?: ISeeder[]
-  /** Whether production code may access the database through DbService after setup. Default: true. */
-  dbServiceReady?: boolean
 }
 
 export interface TestDatabaseHandle {
@@ -78,7 +76,6 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
       )
     }
     activeHarnessCount += 1
-    MockMainDbServiceUtils.setIsReady(false)
 
     tempDir = mkdtempSync(join(tmpdir(), 'cs-test-db-'))
     const dbPath = join(tempDir, 'test.db')
@@ -108,7 +105,7 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
 
     // Route production services to this real DB.
     MockMainDbServiceUtils.setDb(db)
-    MockMainDbServiceUtils.setIsReady(options.dbServiceReady ?? true)
+    MockMainDbServiceUtils.setIsReady(true)
   })
 
   beforeEach(() => {
@@ -153,9 +150,4 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
       return sqlite
     }
   }
-}
-
-/** Register a database harness that matches the DbService startup window used by seeders. */
-export function setupSeederTestDatabase(options: Omit<TestDatabaseOptions, 'dbServiceReady'> = {}): TestDatabaseHandle {
-  return setupTestDatabase({ ...options, dbServiceReady: false })
 }

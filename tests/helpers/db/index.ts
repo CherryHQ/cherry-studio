@@ -1,3 +1,3 @@
-export { setupSeederTestDatabase, setupTestDatabase } from './testDatabase'
+export { setupTestDatabase } from './testDatabase'
 export type { TestDatabaseHandle, TestDatabaseOptions } from './testDatabase'
 export { rootRow, withRoot } from './messageTree'

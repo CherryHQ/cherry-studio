@@ -1,7 +1,7 @@
 import { preferenceTable } from '@data/db/schemas/preference'
 import { seeders } from '@data/db/seeding/seederRegistry'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
-import { setupSeederTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
@@ -12,7 +12,7 @@ const PASTE_PREFERENCE_SEEDERS = seeders.filter(
 )
 
 describe('LongTextPastePreferenceUpgradeSeeder', () => {
-  const dbh = setupSeederTestDatabase()
+  const dbh = setupTestDatabase()
 
   const readPreference = async (key: string) => {
     const [row] = await dbh.db
