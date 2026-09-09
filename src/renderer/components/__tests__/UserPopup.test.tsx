@@ -34,9 +34,6 @@ vi.mock('@cherrystudio/ui', () => {
     AvatarImage: ({ src, ...props }: { src?: string; [key: string]: unknown }) => (
       <img data-testid="avatar-image" src={src} alt="" {...props} />
     ),
-    Badge: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
-      <span {...props}>{children}</span>
-    ),
     Button: ({ children, loading, ...props }: { children?: ReactNode; loading?: boolean; [key: string]: unknown }) => (
       <button type="button" aria-busy={loading || undefined} disabled={loading || undefined} {...props}>
         {children}
@@ -338,7 +335,7 @@ describe('UserPopup', () => {
     await user.click(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' }))
     act(() => mocks.statusListener?.({ phase: 'signed-in', displayName: '189****1942' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('189****1942')
+    expect(await screen.findByRole('status')).toHaveTextContent(/^189\*\*\*\*1942$/)
     expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.logout' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
   })
@@ -362,8 +359,7 @@ describe('UserPopup', () => {
     showUserPopup()
 
     const logoutButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' })
-    expect(screen.getByRole('status')).toHaveTextContent('Sora')
-    expect(screen.getByText('settings.provider.cherry_cloud.logged_in')).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent(/^Sora$/)
     await user.click(logoutButton)
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.session.revoke')

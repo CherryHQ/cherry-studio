@@ -1,7 +1,6 @@
 import {
   Avatar,
   AvatarImage,
-  Badge,
   Button,
   ColFlex,
   EmojiAvatar,
@@ -246,21 +245,17 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
         </ColFlex>
       </RowFlex>
       {isCnEdition || cloudStatus?.phase === 'signed-in' ? (
-        <ColFlex className="gap-2 border-border-subtle border-t px-2.5 py-2">
+        <ColFlex className="gap-1 border-border-subtle border-t px-2.5 py-2">
           <RowFlex className="items-start gap-2">
             <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-background-subtle text-muted-foreground">
               <Cloud className="size-3.5" aria-hidden />
             </span>
-            <ColFlex className="min-w-0 flex-1 gap-1">
+            <ColFlex className="min-w-0 flex-1 gap-0.5">
               <RowFlex className="min-w-0 items-center justify-between gap-2">
                 <span className="truncate font-medium text-foreground text-sm">
                   {t('settings.provider.cherry_cloud.title')}
                 </span>
-                {cloudStatus?.phase === 'signed-in' ? (
-                  <Badge className="border-success-border bg-success-subtle px-1.5 py-0 text-[10px] text-success-subtle-foreground leading-4">
-                    {t('settings.provider.cherry_cloud.logged_in')}
-                  </Badge>
-                ) : cloudStatusLoadState !== 'error' ? (
+                {cloudStatus?.phase !== 'signed-in' && cloudStatusLoadState !== 'error' ? (
                   <Button
                     aria-label={isAuthorizing ? t('settings.provider.cherry_cloud.signing_in') : undefined}
                     className="shrink-0"
@@ -273,9 +268,9 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
                   </Button>
                 ) : null}
               </RowFlex>
-              {cloudStatus?.phase === 'signed-in' && cloudStatus.displayName ? (
-                <span role="status" className="truncate text-muted-foreground text-xs">
-                  {cloudStatus.displayName}
+              {cloudStatus?.phase === 'signed-in' ? (
+                <span role="status" className="truncate text-muted-foreground text-xs leading-4">
+                  {cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')}
                 </span>
               ) : null}
             </ColFlex>
@@ -295,6 +290,7 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
               className="w-full justify-start px-2 text-muted-foreground hover:text-foreground"
               loading={isRevokingSession}
               onClick={() => void handleCloudLogout()}
+              size="sm"
               variant="ghost">
               {!isRevokingSession ? <LogOut aria-hidden /> : null}
               {t('settings.provider.cherry_cloud.logout')}
