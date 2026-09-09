@@ -20,6 +20,7 @@ import {
   getRawShellEnv,
   getShellEnv,
   hasMiseInPath,
+  isMiseEnvVar,
   refreshShellEnv
 } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -146,7 +147,7 @@ export async function getClaudeCodeLoginShellEnvironment(
   // redirected to Cherry's data dir (#19738). A user mise installation
   // may be visible only as a shims directory in PATH without MISE_* vars.
   const rawShellEnv = await getRawShellEnv()
-  const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+  const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => isMiseEnvVar(key))
   const hasUserMise =
     rawMiseEntries.length > 0 ||
     hasMiseInPath(getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>))
@@ -155,14 +156,22 @@ export async function getClaudeCodeLoginShellEnvironment(
     // Cherry-only MISE keys, then restore the user's values.
     const { getBinaryExecutionEnv, getBinaryShimsDir } = await import('@main/utils/binaryEnv')
     const cherryMiseEnv = getBinaryExecutionEnv()
-    const rawMiseKeysUpper = new Set(rawMiseEntries.map(([k]) => k.toUpperCase()))
+    const isWindows = isWin
+    const rawMiseKeysNormalized = new Set(rawMiseEntries.map(([k]) => (isWindows ? k.toUpperCase() : k)))
     for (const key of Object.keys(cherryMiseEnv)) {
-      if (!rawMiseKeysUpper.has(key.toUpperCase())) {
-        const existingKey = Object.keys(stripped).find((k) => k.toUpperCase() === key.toUpperCase())
+      const normalizedKey = isWindows ? key.toUpperCase() : key
+      if (!rawMiseKeysNormalized.has(normalizedKey)) {
+        const existingKey = Object.keys(stripped).find((k) =>
+          isWindows ? k.toUpperCase() === key.toUpperCase() : k === key
+        )
         if (existingKey) delete stripped[existingKey]
       }
     }
     for (const [key, value] of rawMiseEntries) {
+      if (isWindows) {
+        const existingKey = Object.keys(stripped).find((k) => k.toLowerCase() === key.toLowerCase() && k !== key)
+        if (existingKey) delete stripped[existingKey]
+      }
       stripped[key] = value
     }
     const shimsDir = getBinaryShimsDir()

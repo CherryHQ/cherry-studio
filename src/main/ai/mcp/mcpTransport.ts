@@ -15,7 +15,7 @@ import { getBinaryExecutionEnv, getBinarySearchDirs, getBinaryShimsDir, mergePat
 import { getBundledGitDir } from '@main/utils/bundledGit'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getPathFromEnvironment, getRawShellEnv, hasMiseInPath } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, hasMiseInPath, isMiseEnvVar } from '@main/utils/shellEnv'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import { redactDeep } from '@shared/utils/redaction'
@@ -168,7 +168,7 @@ async function createStdio(
   // getBinarySearchDirs() (getBinaryShimsDir) resolve against Cherry's data dir
   // instead of the default user location, matching DSH/Pi branching.
   const rawShellEnv = await getRawShellEnv()
-  const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => key.toUpperCase().startsWith('MISE_'))
+  const hasUserMiseVars = Object.keys(rawShellEnv).some((key) => isMiseEnvVar(key))
   const rawPath = getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>) ?? ''
   const hasUserMiseInPath = hasMiseInPath(rawPath)
   const hasUserMiseEnv = hasUserMiseVars || hasUserMiseInPath

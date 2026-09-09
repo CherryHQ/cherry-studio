@@ -25,6 +25,16 @@ export function hasMiseInPath(pathValue: string | undefined): boolean {
   return pathValue.split(delimiter).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
 }
 
+export function isMiseEnvVar(key: string): boolean {
+  return isWin ? key.toUpperCase().startsWith('MISE_') : key.startsWith('MISE_')
+}
+
+export function getMiseEnvEntries(env: Record<string, string | undefined>): Array<[string, string]> {
+  return Object.entries(env).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined && isMiseEnvVar(entry[0])
+  )
+}
+
 /**
  * Ensures Cherry-managed tool directories are appended to the user's PATH while
  * preserving the original key casing and avoiding duplicate segments.

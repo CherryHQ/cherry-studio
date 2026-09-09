@@ -35,7 +35,7 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
-import { getPathFromEnvironment, getRawShellEnv, getShellEnv, hasMiseInPath } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, getShellEnv, hasMiseInPath, isMiseEnvVar } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -122,7 +122,7 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
   const managedShimsDir = getBinaryShimsDir()
   const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
   const callerOwnsMiseEnvironment =
-    Object.keys(definedEnv).some((key) => key.toUpperCase().startsWith('MISE_')) ||
+    Object.keys(definedEnv).some((key) => isMiseEnvVar(key)) ||
     hasMiseInPath(getPathFromEnvironment(definedEnv as Record<string, string | undefined>))
 
   if (callerOwnsMiseEnvironment) {
@@ -374,7 +374,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // isolated value redirects it to the wrong data dir (#19738).
       const rawShellEnvForBash = await getRawShellEnv()
       const rawMiseEnvForBash = Object.fromEntries(
-        Object.entries(rawShellEnvForBash).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+        Object.entries(rawShellEnvForBash).filter(([key]) => isMiseEnvVar(key))
       )
       const hasUserMiseForBash =
         Object.keys(rawMiseEnvForBash).length > 0 ||
@@ -386,10 +386,22 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         spawnHook: (context) => {
           const merged = mergePiBashExecutionEnv(context.env)
           if (hasUserMiseForBash) {
-            const rawMiseKeysUpper = new Set(Object.keys(rawMiseEnvForBash).map((k) => k.toUpperCase()))
+            const isWindows = process.platform === 'win32'
+            const rawMiseKeysNormalized = new Set(
+              Object.keys(rawMiseEnvForBash).map((k) => (isWindows ? k.toUpperCase() : k))
+            )
             for (const key of Object.keys(cherryMiseEnvForBash)) {
-              if (!rawMiseKeysUpper.has(key.toUpperCase())) {
-                const existingKey = Object.keys(merged).find((k) => k.toUpperCase() === key.toUpperCase())
+              const normalizedKey = isWindows ? key.toUpperCase() : key
+              if (!rawMiseKeysNormalized.has(normalizedKey)) {
+                const existingKey = Object.keys(merged).find((k) =>
+                  isWindows ? k.toUpperCase() === key.toUpperCase() : k === key
+                )
+                if (existingKey) delete merged[existingKey]
+              }
+            }
+            if (isWindows) {
+              for (const key of Object.keys(rawMiseEnvForBash)) {
+                const existingKey = Object.keys(merged).find((k) => k.toLowerCase() === key.toLowerCase() && k !== key)
                 if (existingKey) delete merged[existingKey]
               }
             }

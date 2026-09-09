@@ -30,7 +30,8 @@ vi.mock('@main/utils/shellEnv', () => ({
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
   hasMiseInPath: (pathValue?: string) =>
-    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
+    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
+  isMiseEnvVar: (key: string) => key.startsWith('MISE_')
 }))
 
 const { createTransport } = await import('../mcpTransport')

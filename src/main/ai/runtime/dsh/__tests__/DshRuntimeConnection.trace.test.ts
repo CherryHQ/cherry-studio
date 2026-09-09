@@ -157,7 +157,8 @@ vi.mock('@main/utils/shellEnv', () => ({
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
   hasMiseInPath: (pathValue?: string) =>
-    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
+    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
+  isMiseEnvVar: (key: string) => key.startsWith('MISE_')
 }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')
@@ -232,17 +233,23 @@ describe('DshRuntimeConnection tracing', () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
 
-    expect(env.PATH).toContain('/opt/homebrew/bin')
-    expect(env.PATH).toContain('/usr/bin')
-    expect(env.PATH).toContain('/mock/feature.binary.data/shims')
+    const pathValue = env.PATH as string
+    const normalizedPath = pathValue.replace(/\\/g, '/')
+    expect(normalizedPath).toContain('/opt/homebrew/bin')
+    expect(normalizedPath).toContain('/usr/bin')
+    expect(normalizedPath).toContain('/mock/feature.binary.data/shims')
+    expect(normalizedPath.indexOf('/opt/homebrew/bin')).toBeLessThan(
+      normalizedPath.indexOf('/mock/feature.binary.data')
+    )
+    expect(normalizedPath.indexOf('/usr/bin')).toBeLessThan(normalizedPath.indexOf('/mock/feature.binary.data'))
     expect(env).toMatchObject({
-      HOME: '/Users/tester',
-      MISE_DATA_DIR: '/mock/feature.binary.data',
-      MISE_CONFIG_DIR: path.normalize('/mock/feature.binary.data/config'),
-      MISE_CACHE_DIR: path.normalize('/mock/feature.binary.data/cache'),
-      MISE_STATE_DIR: path.normalize('/mock/feature.binary.data/state'),
-      MISE_SHIMS_DIR: path.normalize('/mock/feature.binary.data/shims')
+      HOME: '/Users/tester'
     })
+    expect(env.MISE_DATA_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data')
+    expect(env.MISE_CONFIG_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data/config')
+    expect(env.MISE_CACHE_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data/cache')
+    expect(env.MISE_STATE_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data/state')
+    expect(env.MISE_SHIMS_DIR?.replace(/\\/g, '/')).toBe('/mock/feature.binary.data/shims')
     expect(env).not.toHaveProperty('CHERRY_TEST_SECRET')
     expect(env).not.toHaveProperty('SECRET')
     await connection.close()
