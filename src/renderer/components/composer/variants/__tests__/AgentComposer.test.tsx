@@ -2883,8 +2883,16 @@ describe('AgentComposer', () => {
       item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
     })
 
-    // Simulate an edit that replaces the pending token before its request resolves.
-    nodes[0].attrs.payload = { entityType: 'session', id: 's2', name: 'Another Session', agentId: 'agent-1' }
+    // Simulate replacing the pending token with a new request for the same Session before the
+    // original request resolves. Matching only entityType/id would let the stale response settle
+    // into (or delete) the newly inserted reference.
+    nodes[0].attrs.payload = {
+      entityType: 'session',
+      id: 's1',
+      name: 'Session One',
+      agentId: 'agent-1',
+      referenceRequestId: 'new-request'
+    }
     await act(async () => {
       resolveMessages?.({
         items: [
