@@ -10,6 +10,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
+import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-subagent'
@@ -62,6 +63,61 @@ export function apply(ctx: Context): void {
   const sessionTools = new Map<string, Set<string>>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
   const pendingCommands = new Map<string, AbortController>()
+  const invalidEscalations = new WeakMap<Agent, number>()
+
+  const isFullAccess = (agent: Agent) =>
+    ctx.get('sandboxPolicy')?.resolve({ session: agent.session }).mode === 'danger-full-access'
+
+  ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
+    const assembly = await next()
+    if (!context.agent || !isFullAccess(context.agent)) return assembly
+    return {
+      ...assembly,
+      tools: assembly.tools.map((tool) => {
+        if (tool.name !== 'bash' && tool.name !== 'pwsh') return tool
+        const properties = { ...(tool.parameters.properties as Record<string, unknown>) }
+        delete properties.sandbox_permissions
+        delete properties.justification
+        return {
+          ...tool,
+          description: `${tool.description}\nThis session already has full access. Omit sandbox_permissions and justification; no wider mode exists.`,
+          parameters: { ...tool.parameters, properties }
+        }
+      })
+    }
+  })
+
+  ctx.on('tools/result', (exec, result) => {
+    const agent = exec.agent
+    if (!agent || !result.isError || (exec.name !== 'bash' && exec.name !== 'pwsh') || !isFullAccess(agent)) return
+    if (
+      !/^sandbox escalation to "(?:workspace-write|danger-full-access)" is not strictly wider than this call's current "danger-full-access" mode$/.test(
+        result.error.message
+      )
+    )
+      return
+    const attempts = (invalidEscalations.get(agent) ?? 0) + 1
+    invalidEscalations.set(agent, attempts)
+    if (attempts === 1) {
+      agent.inject(
+        createUserMessage({
+          content: [
+            {
+              type: 'text',
+              text: 'The command did not execute: this session already has danger-full-access. Remove sandbox_permissions and justification and use the current permissions. Repeating this invalid escalation will stop the current turn.'
+            }
+          ],
+          source: { kind: 'plugin', plugin: 'cherry-bridge' }
+        })
+      )
+    }
+  })
+
+  ctx.on('agent/pre-step', async ({ agent, step }, next) => {
+    if (step === 1) invalidEscalations.delete(agent)
+    if ((invalidEscalations.get(agent) ?? 0) >= 2) return { kind: 'reject' }
+    return next()
+  })
 
   const link: BridgeLink = connectBridgeLink({ socketPath, onRequest: handleRequest })
   // The host destroys the socket unless this is the first request and the token matches.
