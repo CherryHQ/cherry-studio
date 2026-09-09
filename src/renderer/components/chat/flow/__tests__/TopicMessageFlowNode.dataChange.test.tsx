@@ -1,23 +1,14 @@
 import { dataApiService } from '@data/DataApiService'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentProps, ReactNode } from 'react'
+import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
+import type { Topic } from '@renderer/types/topic'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import type { ComponentProps } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 vi.unmock('@data/hooks/useDataApi')
-vi.mock('@xyflow/react', () => ({ Handle: () => null, Position: { Bottom: 'bottom', Top: 'top' } }))
-vi.mock('@cherrystudio/ui', async () => {
-  const React = await import('react')
-  const Context = React.createContext(false)
-  return {
-    Popover: ({ children, open }: { children: ReactNode; open: boolean }) => <Context value={open}>{children}</Context>,
-    PopoverAnchor: ({ children }: { children: ReactNode }) => children,
-    PopoverContent: ({ children }: { children: ReactNode }) => (React.use(Context) ? <div>{children}</div> : null)
-  }
-})
-vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
-  MessageContentProvider: ({ children }: { children: ReactNode }) => children
-}))
+vi.mock('@xyflow/react', () => ({ Handle: () => null, Position: { Left: 'left', Right: 'right' } }))
+vi.mock('@renderer/components/chat/messages/frame/MessageMenuBar', () => ({ default: () => null }))
 vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
   default: ({ message }: { message: { stats?: { contextTokens?: number } } }) => (
     <div>Context tokens: {message.stats?.contextTokens ?? 'unknown'}</div>
@@ -33,7 +24,7 @@ const service = dataApiService as typeof dataApiService & {
 
 beforeEach(() => service._resetMockState())
 
-it('refreshes an open by-ID preview after its ancestor deletion changes context', async () => {
+it('refreshes a saved message card after its ancestor deletion changes context', async () => {
   let stats: { contextTokens?: number } = { contextTokens: 42 }
   vi.mocked(dataApiService.get).mockImplementation(
     async () =>
@@ -65,10 +56,11 @@ it('refreshes an open by-ID preview after its ancestor deletion changes context'
   } as ComponentProps<typeof TopicMessageFlowNode>
   render(
     <SWRConfig value={{ provider: () => new Map() }}>
-      <TopicMessageFlowNode {...props} />
+      <MessageContentProvider messages={[]} partsByMessageId={{}} topic={{ id: 'topic' } as Topic}>
+        <TopicMessageFlowNode {...props} />
+      </MessageContentProvider>
     </SWRConfig>
   )
-  fireEvent.mouseEnter(screen.getByText('Follow-up').closest('[data-message-id]')!)
   await screen.findByText('Context tokens: 42')
   stats = {}
   await act(async () => service._emitDataChange([{ endpoint: '/messages/:id', entityIds: ['unrelated'] }]))
