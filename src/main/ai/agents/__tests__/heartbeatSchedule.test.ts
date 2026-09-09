@@ -573,6 +573,22 @@ describe('heartbeatSchedule', () => {
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
   })
 
+  it('rolls back a newly created workspace row when schedule registration fails', async () => {
+    // Same orphan rule, later failure point: the register throws after the
+    // workspace insert (and after the file seeded) — the workspace row must
+    // not survive a sync that produced no schedule.
+    seedAgent(AGENT_ID)
+    const spy = vi.spyOn(jobManager, 'registerJobScheduleTx').mockImplementationOnce(() => {
+      throw new Error('register blew up')
+    })
+
+    await expect(syncHeartbeatSchedule(AGENT_ID)).rejects.toThrow('register blew up')
+    spy.mockRestore()
+
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
+  })
+
   it('does not re-arm the timer when only the job-input template drifted', async () => {
     // Re-arming an enabled interval resets its phase — a template-only repair
     // must leave the cadence untouched (the armed callback re-reads the row).

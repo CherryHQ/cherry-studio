@@ -117,6 +117,24 @@ function templateDrifted(current: unknown, target: HeartbeatJobInputTemplate): b
 // Per-agent sync chains — the serialization behind the export below.
 const syncChains = new Map<string, Promise<HeartbeatSyncOutcome>>()
 
+// All unsettled heartbeat work, tracked at module level so the lifecycle
+// drain covers every caller (AgentJobsService, createAgent), not just one.
+const inFlightWork = new Set<Promise<unknown>>()
+
+function trackWork<T>(work: Promise<T>): Promise<T> {
+  inFlightWork.add(work)
+  const done = () => inFlightWork.delete(work)
+  void work.then(done, done)
+  return work
+}
+
+/** Wait out all in-flight heartbeat work; loops since settling work can enqueue follow-ups. */
+export async function drainHeartbeatWork(): Promise<void> {
+  while (inFlightWork.size > 0) {
+    await Promise.allSettled([...inFlightWork])
+  }
+}
+
 /**
  * Converge the agent's heartbeat schedule with its configuration. Safe to
  * call repeatedly and from any context (event handlers, startup, agent
@@ -135,7 +153,7 @@ export function syncHeartbeatSchedule(agentId: string, rows?: JobScheduleSnapsho
     if (syncChains.get(agentId) === current) syncChains.delete(agentId)
   }
   current.then(settled, settled)
-  return current
+  return trackWork(current)
 }
 
 /** Pause (never delete) an enabled heartbeat row; returns its id, null when nothing was paused. */
@@ -224,83 +242,83 @@ async function runSync(
   })
   try {
     await ensureHeartbeatFile(workspacePath)
+    const trigger: Trigger = { kind: 'interval', ms: intervalMinutes * 60_000 }
+    const jobInputTemplate: HeartbeatJobInputTemplate = {
+      agentId,
+      prompt: HEARTBEAT_PROMPT_SENTINEL,
+      timeoutMinutes: DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
+      workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: workspace.id },
+      reuseRevision: 0
+    }
+
+    const jobManager = application.get('JobManager')
+    const scheduleName = `heartbeat_${agentId}`
+
+    // The repair branch is shared by the create-race fallback below, so it is
+    // factored into a local that both paths can reach.
+    const repairRow = (row: JobScheduleSnapshot): HeartbeatSyncOutcome => {
+      // Repair in place, preserving the schedule name (renaming a migrated row
+      // could collide with the UNIQUE index and breaks no behavior that reads it).
+      const triggerChanged = !triggersEqual(row.trigger, trigger)
+      const needsRepair = !row.enabled || triggerChanged || templateDrifted(row.jobInputTemplate, jobInputTemplate)
+      if (!needsRepair) return 'noop'
+
+      application.get('DbService').withWriteTx((tx) => {
+        jobManager.updateJobScheduleTx(tx, row.id, {
+          ...(!row.enabled ? { enabled: true } : {}),
+          ...(triggerChanged ? { trigger } : {}),
+          jobInputTemplate
+        })
+      })
+      // Re-arming an enabled interval resets its phase — skip the timer sync
+      // when only the template changed (the armed callback re-reads the row).
+      if (!row.enabled || triggerChanged) jobManager.syncJobScheduleTimerById(row.id)
+      touchedScheduleId = row.id
+      logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
+      return 'updated'
+    }
+
+    const existing = findHeartbeatRow(agentId, rows)
+    if (!existing) {
+      // (type, name) is UNIQUE: a concurrent sync may have registered this row
+      // against a stale snapshot — a benign race, repair the winner in place.
+      try {
+        const { id } = application.get('DbService').withWriteTx((tx) =>
+          jobManager.registerJobScheduleTx(tx, {
+            type: AGENT_TASK_TYPE,
+            // Per-agent name, as above — never a shared literal.
+            name: scheduleName,
+            trigger,
+            jobInputTemplate,
+            catchUpPolicy: { kind: 'skip-missed' }
+          })
+        )
+        jobManager.syncJobScheduleTimerById(id)
+        touchedScheduleId = id
+        logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
+        return finalize('created')
+      } catch (error) {
+        const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
+        // Benign only when the (type, name) winner is this agent's heartbeat
+        // row — a foreign row sharing the reserved name must stay untouched.
+        if (!isScheduleNameConflict(error) || !winner || !isHeartbeatRow(winner, agentId)) throw error
+        logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
+          agentId,
+          scheduleId: winner.id
+        })
+        return finalize(repairRow(winner))
+      }
+    }
+
+    return finalize(repairRow(existing))
   } catch (error) {
-    // A workspace row created by this call would be orphaned (no heartbeat
-    // row points at it) when file provisioning fails — roll it back.
-    if (workspaceCreated) {
+    // A workspace row created by this call is orphaned (no heartbeat row
+    // points at it) when provisioning fails before the schedule commits.
+    if (workspaceCreated && !touchedScheduleId) {
       application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, workspace.id))
     }
     throw error
   }
-  const trigger: Trigger = { kind: 'interval', ms: intervalMinutes * 60_000 }
-  const jobInputTemplate: HeartbeatJobInputTemplate = {
-    agentId,
-    prompt: HEARTBEAT_PROMPT_SENTINEL,
-    timeoutMinutes: DEFAULT_AGENT_TASK_TIMEOUT_MINUTES,
-    workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: workspace.id },
-    reuseRevision: 0
-  }
-
-  const jobManager = application.get('JobManager')
-  const scheduleName = `heartbeat_${agentId}`
-
-  // The repair branch is shared by the create-race fallback below, so it is
-  // factored into a local that both paths can reach.
-  const repairRow = (row: JobScheduleSnapshot): HeartbeatSyncOutcome => {
-    // Repair in place, preserving the schedule name (renaming a migrated row
-    // could collide with the UNIQUE index and breaks no behavior that reads it).
-    const triggerChanged = !triggersEqual(row.trigger, trigger)
-    const needsRepair = !row.enabled || triggerChanged || templateDrifted(row.jobInputTemplate, jobInputTemplate)
-    if (!needsRepair) return 'noop'
-
-    application.get('DbService').withWriteTx((tx) => {
-      jobManager.updateJobScheduleTx(tx, row.id, {
-        ...(!row.enabled ? { enabled: true } : {}),
-        ...(triggerChanged ? { trigger } : {}),
-        jobInputTemplate
-      })
-    })
-    // Re-arming an enabled interval resets its phase — skip the timer sync
-    // when only the template changed (the armed callback re-reads the row).
-    if (!row.enabled || triggerChanged) jobManager.syncJobScheduleTimerById(row.id)
-    touchedScheduleId = row.id
-    logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
-    return 'updated'
-  }
-
-  const existing = findHeartbeatRow(agentId, rows)
-  if (!existing) {
-    // (type, name) is UNIQUE: a concurrent sync may have registered this row
-    // against a stale snapshot — a benign race, repair the winner in place.
-    try {
-      const { id } = application.get('DbService').withWriteTx((tx) =>
-        jobManager.registerJobScheduleTx(tx, {
-          type: AGENT_TASK_TYPE,
-          // Per-agent name, as above — never a shared literal.
-          name: scheduleName,
-          trigger,
-          jobInputTemplate,
-          catchUpPolicy: { kind: 'skip-missed' }
-        })
-      )
-      jobManager.syncJobScheduleTimerById(id)
-      touchedScheduleId = id
-      logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
-      return finalize('created')
-    } catch (error) {
-      const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
-      // Benign only when the (type, name) winner is this agent's heartbeat
-      // row — a foreign row sharing the reserved name must stay untouched.
-      if (!isScheduleNameConflict(error) || !winner || !isHeartbeatRow(winner, agentId)) throw error
-      logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
-        agentId,
-        scheduleId: winner.id
-      })
-      return finalize(repairRow(winner))
-    }
-  }
-
-  return finalize(repairRow(existing))
 }
 
 /**
@@ -309,7 +327,11 @@ async function runSync(
  * agents created while the producer was missing (#19203). Per-agent failures
  * are isolated — one broken agent must not block the rest.
  */
-export async function repairHeartbeatSchedules(): Promise<void> {
+export function repairHeartbeatSchedules(): Promise<void> {
+  return trackWork(runRepairPass())
+}
+
+async function runRepairPass(): Promise<void> {
   const { agents } = agentService.listAgents()
   // Snapshot rows once — a per-agent scan would make this O(agents × schedules).
   // Identity is per-agent, so mid-pass inserts for one agent never affect another.

@@ -23,7 +23,7 @@ import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 
 import { DEFAULT_AGENT_TASK_TIMEOUT_MINUTES } from './agentTaskDefaults'
 import { agentTaskJobHandler } from './agentTaskJobHandler'
-import { repairHeartbeatSchedules, syncHeartbeatSchedule } from './heartbeatSchedule'
+import { drainHeartbeatWork, repairHeartbeatSchedules, syncHeartbeatSchedule } from './heartbeatSchedule'
 
 const logger = loggerService.withContext('AgentJobsService')
 
@@ -72,9 +72,9 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['JobManager'])
 export class AgentJobsService extends BaseService {
-  // All in-flight schedule work this service started (deletion sweeps,
-  // heartbeat syncs/repairs), drained in onDestroy so nothing touches
-  // JobManager/DbService after their disposal.
+  // In-flight schedule work started by this service (deletion sweeps),
+  // drained in onDestroy. Heartbeat work is tracked at its own module level
+  // (see drainHeartbeatWork) since createAgent also starts it.
   private inFlightWork = new Set<Promise<unknown>>()
 
   private trackWork(work: Promise<unknown>): void {
@@ -108,27 +108,21 @@ export class AgentJobsService extends BaseService {
         const configPatch = updates.configuration
         if (!configPatch) return
         if (!('heartbeat_enabled' in configPatch) && !('heartbeat_interval' in configPatch)) return
-        this.trackWork(
-          syncHeartbeatSchedule(agent.id).catch((error) => {
-            logger.warn('Failed to sync heartbeat schedule after config update', { agentId: agent.id, error })
-            // Eagerly re-run the startup repair so a transient failure does
-            // not leave the agent heartbeat-less until the next launch.
-            this.trackWork(
-              repairHeartbeatSchedules().catch((repairError) => {
-                logger.warn('Heartbeat schedule re-repair failed after config update', { repairError })
-              })
-            )
+        void syncHeartbeatSchedule(agent.id).catch((error) => {
+          logger.warn('Failed to sync heartbeat schedule after config update', { agentId: agent.id, error })
+          // Eagerly re-run the startup repair so a transient failure does
+          // not leave the agent heartbeat-less until the next launch.
+          void repairHeartbeatSchedules().catch((repairError) => {
+            logger.warn('Heartbeat schedule re-repair failed after config update', { repairError })
           })
-        )
+        })
       })
     )
 
     // Startup repair pass for migrated rows and producer-less agents (#19203).
-    this.trackWork(
-      repairHeartbeatSchedules().catch((error) => {
-        logger.warn('Heartbeat schedule repair failed at startup', { error })
-      })
-    )
+    void repairHeartbeatSchedules().catch((error) => {
+      logger.warn('Heartbeat schedule repair failed at startup', { error })
+    })
   }
 
   protected async onDestroy(): Promise<void> {
@@ -137,6 +131,7 @@ export class AgentJobsService extends BaseService {
     while (this.inFlightWork.size > 0) {
       await Promise.allSettled([...this.inFlightWork])
     }
+    await drainHeartbeatWork()
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
