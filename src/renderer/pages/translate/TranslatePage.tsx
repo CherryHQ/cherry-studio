@@ -269,6 +269,7 @@ const TranslatePage: FC = () => {
   const pdfHandleRef = useRef<PdfTranslationHandle | null>(null)
   const pdfTextCacheRef = useRef<{ filePath: string; text: string } | null>(null)
   const pdfTextRequestIdRef = useRef(0)
+  const textRequestIdRef = useRef(0)
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
 
@@ -544,7 +545,8 @@ const TranslatePage: FC = () => {
       return
     }
 
-    await translateTextContent(translateInput, true)
+    const requestId = ++textRequestIdRef.current
+    await translateTextContent(translateInput, true, () => textRequestIdRef.current === requestId)
   }, [
     babelDoc.availability,
     babelDoc.installing,
@@ -589,12 +591,14 @@ const TranslatePage: FC = () => {
           return
         }
         resetPdfMode()
+        textRequestIdRef.current += 1
         if (isTranslating) cancel()
         smoothReset('')
         setRestoredPdf({ output: { outputPath: files.target.path, fileName: history.targetText }, key: history.id })
         setPdfFile({ name: history.sourceText, path: files.source.path })
       } else {
         resetPdfMode()
+        textRequestIdRef.current += 1
         if (isTranslating) cancel()
         setTranslateInput(history.sourceText)
         smoothReset(history.targetText)

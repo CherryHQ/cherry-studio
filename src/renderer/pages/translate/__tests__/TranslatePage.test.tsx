@@ -1792,6 +1792,37 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
   })
 
+  it('drops a pending bidirectional detection when text history is reused so the old text cannot translate over the restored entry', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    let resolveDetection!: (language: string) => void
+    translateCoreMock.detectLanguage.mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetection = resolve
+      })
+    )
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'source A' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('source A'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-null-target-history' }))
+    await act(async () => resolveDetection('zh-cn'))
+
+    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('hello')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('你好')
+    expect(MockUseCacheUtils.getCacheValue('translate.detecting')).toBe(false)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeInTheDocument())
+  })
+
   it('clears queued text when opening PDF history and keeps it cleared after closing the PDF', async () => {
     const user = userEvent.setup()
     MockUsePreferenceUtils.setMultiplePreferenceValues({
