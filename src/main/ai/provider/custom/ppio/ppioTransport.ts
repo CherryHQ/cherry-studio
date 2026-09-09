@@ -1,10 +1,4 @@
-import {
-  combineHeaders,
-  createJsonResponseHandler,
-  type FetchFunction,
-  getFromApi,
-  postJsonToApi
-} from '@ai-sdk/provider-utils'
+import { createJsonResponseHandler, type FetchFunction, getFromApi, postJsonToApi } from '@ai-sdk/provider-utils'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
@@ -20,7 +14,11 @@ import {
   submittedImageTransportSubmission,
   type TaskImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
+import {
+  combineImageTransportHeaders,
+  createImageTransportErrorResponseHandler,
+  withImageTransportRequestTimeout
+} from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 import { resolvePpioImageProtocol } from './ppioImageBinding'
 
@@ -29,9 +27,21 @@ export const DEFAULT_PPIO_BASE_URL = 'https://api.ppio.com'
 const ppioSubmitResultSchema = z.object({ task_id: z.string().min(1) }).passthrough()
 const ppioSyncResultSchema = z
   .object({
-    images: z.array(
-      z.union([z.string().min(1), z.object({ image_url: z.string().optional(), url: z.string().optional() })])
-    )
+    images: z
+      .array(
+        z.union([
+          z.string().min(1),
+          z
+            .object({ image_url: z.string().min(1).optional(), url: z.string().min(1).optional() })
+            .transform((image, ctx) => {
+              if (image.image_url) return image.image_url
+              if (image.url) return image.url
+              ctx.addIssue({ code: 'custom', message: 'PPIO image result requires a URL' })
+              return z.NEVER
+            })
+        ])
+      )
+      .min(1)
   })
   .passthrough()
 const ppioTaskResultSchema = z
@@ -46,8 +56,6 @@ const ppioTaskResultSchema = z
     images: z.array(z.object({ image_url: z.string().min(1) }).passthrough()).optional()
   })
   .passthrough()
-
-type PpioSyncResult = z.infer<typeof ppioSyncResultSchema>
 
 /** The resolved registry descriptor, bound once before submission. */
 export type PpioModelDescriptor = ImageTransportDescriptor
@@ -93,7 +101,11 @@ class PpioTransport implements TaskImageGenerationTransport<PpioBag> {
     const descriptor = this.modelDescriptor
     const requestParams = this.buildRequestParams(input)
     const url = `${this.baseURL}${descriptor.endpoint}`
-    const headers = combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers)
+    const headers = combineImageTransportHeaders(
+      { Authorization: `Bearer ${this.apiKey}` },
+      this.headers,
+      input.headers
+    )
 
     if (descriptor.isSync) {
       const result = await withImageTransportRequestTimeout(
@@ -109,7 +121,7 @@ class PpioTransport implements TaskImageGenerationTransport<PpioBag> {
             successfulResponseHandler: createJsonResponseHandler(ppioSyncResultSchema)
           })
       )
-      return completedImageTransportSubmission(this.extractSyncImageUrls(result.value), 'PPIO')
+      return completedImageTransportSubmission(result.value.images, 'PPIO')
     }
 
     const result = await withImageTransportRequestTimeout({ url, timeoutMs: 120_000, signal: input.signal }, (signal) =>
@@ -267,15 +279,6 @@ class PpioTransport implements TaskImageGenerationTransport<PpioBag> {
     }
   }
 
-  private extractSyncImageUrls(result: PpioSyncResult): string[] {
-    return result.images
-      .map((image) => {
-        if (typeof image === 'string') return image
-        return image.image_url ?? image.url
-      })
-      .filter((url): url is string => typeof url === 'string' && url.length > 0)
-  }
-
   private async query(
     taskId: string,
     context: ImageTransportTaskContext<PpioBag, AbortSignal>
@@ -287,7 +290,11 @@ class PpioTransport implements TaskImageGenerationTransport<PpioBag> {
       (signal) =>
         getFromApi({
           url,
-          headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, context.headers),
+          headers: combineImageTransportHeaders(
+            { Authorization: `Bearer ${this.apiKey}` },
+            this.headers,
+            context.headers
+          ),
           abortSignal: signal,
           fetch: this.fetch,
           failedResponseHandler: createImageTransportErrorResponseHandler('PPIO API error'),

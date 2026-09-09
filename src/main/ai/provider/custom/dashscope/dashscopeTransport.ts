@@ -1,5 +1,4 @@
 import {
-  combineHeaders,
   createJsonResponseHandler,
   type FetchFunction,
   getFromApi,
@@ -20,7 +19,11 @@ import {
   submittedImageTransportSubmission,
   type TaskImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
+import {
+  combineImageTransportHeaders,
+  createImageTransportErrorResponseHandler,
+  withImageTransportRequestTimeout
+} from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 import { resolveDashScopeImageProtocol } from './dashscopeImageBinding'
 
@@ -413,7 +416,7 @@ class DashScopeTransport implements TaskImageGenerationTransport<DashScopeProvid
       (signal) =>
         postJsonToApi({
           url,
-          headers: combineHeaders(
+          headers: combineImageTransportHeaders(
             { Authorization: `Bearer ${this.apiKey}` },
             this.headers,
             input.headers,
@@ -456,7 +459,11 @@ class DashScopeTransport implements TaskImageGenerationTransport<DashScopeProvid
       (signal) =>
         getFromApi({
           url,
-          headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, context.headers),
+          headers: combineImageTransportHeaders(
+            { Authorization: `Bearer ${this.apiKey}` },
+            this.headers,
+            context.headers
+          ),
           abortSignal: signal,
           fetch: this.fetch,
           failedResponseHandler: createImageTransportErrorResponseHandler('DashScope API error'),
@@ -493,7 +500,11 @@ class DashScopeTransport implements TaskImageGenerationTransport<DashScopeProvid
     await withImageTransportRequestTimeout({ url, timeoutMs: 10_000 }, (signal) =>
       postToApi({
         url,
-        headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, context.headers),
+        headers: combineImageTransportHeaders(
+          { Authorization: `Bearer ${this.apiKey}` },
+          this.headers,
+          context.headers
+        ),
         body: { content: '', values: {} },
         abortSignal: signal,
         fetch: this.fetch,

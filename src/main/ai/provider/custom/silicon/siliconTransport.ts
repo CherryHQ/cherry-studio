@@ -1,4 +1,4 @@
-import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
+import { createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
@@ -8,7 +8,7 @@ import {
   type ImageTransportInputSupport,
   type ImmediateImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
+import { combineImageTransportHeaders, createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 
 export interface SiliconTransportSettings {
@@ -24,12 +24,7 @@ export function siliconImageLimits(modelId: string) {
 
 const siliconImageResponseSchema = z
   .object({
-    images: z
-      .array(z.object({ url: z.string().min(1).optional(), b64_json: z.string().min(1).optional() }).passthrough())
-      .optional(),
-    data: z
-      .array(z.object({ url: z.string().min(1).optional(), b64_json: z.string().min(1).optional() }).passthrough())
-      .optional()
+    images: z.array(z.object({ url: z.string().min(1) }).passthrough()).min(1)
   })
   .passthrough()
 
@@ -72,17 +67,14 @@ class SiliconTransport implements ImmediateImageGenerationTransport<VendorBag> {
     const url = this.settings.url({ path: '/images/generations', modelId: input.modelId })
     const response = await postJsonToApi({
       url,
-      headers: combineHeaders(this.settings.headers(), input.headers),
+      headers: combineImageTransportHeaders(this.settings.headers(), input.headers),
       body,
       abortSignal: input.signal,
       fetch: this.settings.fetch,
       failedResponseHandler: createImageTransportErrorResponseHandler(),
       successfulResponseHandler: createJsonResponseHandler(siliconImageResponseSchema)
     })
-    const items = response.value.images ?? response.value.data ?? []
-    const images = items
-      .map((item) => item.b64_json ?? item.url)
-      .filter((image): image is string => image !== undefined)
+    const images = response.value.images.map((item) => item.url)
     return completedImageTransportSubmission(images, 'SiliconFlow')
   }
 }

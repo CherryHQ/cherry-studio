@@ -25,11 +25,16 @@ describe('OVMS response boundary', () => {
     })
   })
 
-  it.each([{}, { data: [] }, { data: [{}] }, { data: [{ b64_json: '' }] }, { data: [{ b64_json: 42 }] }])(
-    'rejects missing or malformed image results: %j',
-    async (body) => {
-      const transport = createOvmsTransport({ fetch: async () => Response.json(body) })
-      await expect(transport.submit(input)).rejects.toThrow()
-    }
-  )
+  it.each([
+    {},
+    { data: [] },
+    { data: [{}] },
+    { data: [{ b64_json: '' }] },
+    { data: [{ b64_json: 42 }] },
+    { data: [{ url: 'https://images.example/not-supported.png' }] },
+    { data: [{ b64_json: 'AQID' }, {}] }
+  ])('rejects missing or malformed image results: %j', async (body) => {
+    const transport = createOvmsTransport({ fetch: async () => Response.json(body) })
+    await expect(transport.submit(input)).rejects.toThrow()
+  })
 })

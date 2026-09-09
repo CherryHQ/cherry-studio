@@ -196,7 +196,17 @@ async function cancelRemoteTask<P>(
 }
 
 function isRetryableQueryError(error: unknown): boolean {
-  return APICallError.isInstance(error) && error.isRetryable
+  if (APICallError.isInstance(error)) return error.isRetryable
+  if (error instanceof TypeError) {
+    return error.message.toLowerCase() === 'fetch failed' || error.message.toLowerCase() === 'failed to fetch'
+  }
+  // Electron network failures are not always wrapped by provider-utils; config, TLS and policy errors stay terminal.
+  return (
+    error instanceof Error &&
+    /^net::ERR_(CONNECTION_(CLOSED|RESET|REFUSED|ABORTED|FAILED|TIMED_OUT)|TIMED_OUT|NETWORK_CHANGED|NAME_(NOT_RESOLVED|RESOLUTION_FAILED)|INTERNET_DISCONNECTED|ADDRESS_UNREACHABLE|PROXY_CONNECTION_FAILED|TUNNEL_CONNECTION_FAILED|SOCKS_CONNECTION_(FAILED|HOST_UNREACHABLE))$/.test(
+      error.message
+    )
+  )
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {

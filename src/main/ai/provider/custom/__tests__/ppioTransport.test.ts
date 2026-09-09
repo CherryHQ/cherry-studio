@@ -316,46 +316,30 @@ describe('PpioTransport', () => {
     expect((error as Error).message).toBe(`Image transport request timed out after ${DEFAULT_TIMEOUT / 1000}s`)
   })
 
-  it('supports official Seedream 5.0 Lite sync endpoint and object image results', async () => {
-    const transport = createPpioTransport({
-      apiKey: 'token',
-      modelDescriptor: registryImageDescriptor('ppio', 'seedream-5-0-lite', 'generate')
-    })
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ images: [{ url: 'https://img/a.png' }, { image_url: 'https://img/b.png' }] }), {
-        status: 200
+  // Sync images: https://ppio.com/docs/models/reference-seedream-4.0 (retrieved 2026-09-09).
+  it.each([{}, { url: '' }, { image_url: '' }, { image_url: 42 }, { url: 42 }])(
+    'rejects a malformed sync image even beside a valid one: %j',
+    async (image) => {
+      const descriptor = registryImageDescriptor('ppio', 'seedream-4-0')
+      const transport = createPpioTransport({
+        apiKey: 'token',
+        modelDescriptor: descriptor,
+        fetch: async () => Response.json({ images: ['https://images.example/valid.png', image] })
       })
-    )
-
-    const result = await transport.submit({
-      modelId: 'seedream-5.0-lite',
-      prompt: 'a fox',
-      n: 1,
-      size: '2K',
-      seed: undefined,
-      files: undefined,
-      mask: undefined,
-      modelDescriptor: {
-        id: 'seedream-5.0-lite',
-        endpoint: '/v3/seedream-5.0-lite',
-        isSync: true,
-        mode: 'generate'
-      },
-      providerParams: {
-        addWatermark: false
-      }
-    })
-
-    expect(fetchMock.mock.calls[0][0]).toBe('https://api.ppio.com/v3/seedream-5.0-lite')
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
-    expect(body).toMatchObject({
-      prompt: 'a fox',
-      size: '2K',
-      watermark: false,
-      sequential_image_generation: 'disabled'
-    })
-    expect(result).toEqual({ kind: 'completed', imageUrls: ['https://img/a.png', 'https://img/b.png'] })
-  })
+      await expect(
+        transport.submit({
+          modelId: descriptor.id,
+          prompt: 'a fox',
+          n: 1,
+          size: undefined,
+          seed: undefined,
+          files: undefined,
+          mask: undefined,
+          providerParams: {}
+        })
+      ).rejects.toThrow()
+    }
+  )
 
   it('uses Seedream 4.0 plural images field for edit requests', async () => {
     const transport = createPpioTransport({

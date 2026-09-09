@@ -3,7 +3,7 @@ import type { ImageGenerationMode } from '@shared/data/types/model'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveAihubmixImageBinding } from '../aihubmix/aihubmixImageBinding'
-import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
+import { createAihubmix } from '../aihubmix/aihubmixProvider'
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII='
 const file = { type: 'file' as const, mediaType: 'image/png', data: PNG }
@@ -40,32 +40,62 @@ function model(
   return {
     requests,
     fetch,
-    image: createAihubmixImageModel(modelId, {
+    image: createAihubmix({
       baseURL: 'https://aihubmix.com/v1',
-      resolveApiKey: () => 'sk-test',
-      headers: () => ({ Authorization: 'Bearer sk-test', 'APP-Code': 'MLTG2087' }),
+      apiKey: 'sk-test',
       fetch,
-      binding: binding.binding
-    })
+      imageBinding: binding.binding
+    }).imageModel(modelId)
   }
 }
 
 // Wire contracts: https://docs.aihubmix.com/cn/api/IdeogramAI (retrieved 2026-09-09).
 describe('bound AiHubMix image models', () => {
+  // https://docs.aihubmix.com/cn/api/Image-Gen — Doubao integer seed/max_images bounds, retrieved 2026-09-09.
+  it.each([-2, 2147483648, 0.5])('rejects invalid Doubao seed %s before HTTP instead of omitting it', async (seed) => {
+    const { image, requests } = model('doubao-seedream-4-5', 'generate')
+    await expect(image.doGenerate(options({ seed }))).rejects.toThrow()
+    expect(requests).toHaveLength(0)
+  })
+
+  it.each([0, 16, 0.5])('rejects invalid Doubao maxImages %s before HTTP instead of omitting it', async (maxImages) => {
+    const { image, requests } = model('doubao-seedream-4-5', 'generate')
+    await expect(
+      image.doGenerate(options({ providerOptions: { aihubmix: { sequentialImageGeneration: 'auto', maxImages } } }))
+    ).rejects.toThrow()
+    expect(requests).toHaveLength(0)
+  })
+
+  it.each([-1, 0, 2147483647])('preserves valid Doubao seed %s and explicit false', async (seed) => {
+    const { image, requests } = model('doubao-seedream-4-5', 'generate')
+    await image.doGenerate(options({ seed, providerOptions: { aihubmix: { addWatermark: false } } }))
+    expect(await requests[0].json()).toMatchObject({ seed, watermark: false })
+  })
+
   it.each([
     ['V_2', 'image_file'],
     ['ideogram/V3', 'image']
   ] as const)('converts a remote reference into the %s multipart input', async (modelId, field) => {
-    const download = vi.fn<typeof globalThis.fetch>(
-      async () => new Response(Buffer.from(PNG, 'base64'), { headers: { 'content-type': 'image/png' } })
-    )
-    vi.stubGlobal('fetch', download)
-    const { image, requests } = model(modelId, 'remix')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Unexpected global fetch')))
+    const { image, requests, fetch } = model(modelId, 'remix')
+    const downloads: Request[] = []
+    fetch.mockImplementation(async (url, init) => {
+      const request = new Request(url, init)
+      if (request.method === 'GET') {
+        downloads.push(request)
+        return new Response(Buffer.from(PNG, 'base64'), { headers: { 'content-type': 'image/png' } })
+      }
+      requests.push(request)
+      return Response.json({ data: [{ url: 'https://images.example/output.png' }] })
+    })
     await image.doGenerate(options({ files: [{ type: 'url', url: 'https://images.example/reference.png' }] }))
     const input = (await requests[0].formData()).get(field)
     if (!(input instanceof File)) throw new Error('Missing downloaded reference')
     expect(Buffer.from(await input.arrayBuffer()).toString('base64')).toBe(PNG)
-    expect(new Headers(download.mock.calls[0][1]?.headers).get('Authorization')).toBeNull()
+    expect(downloads).toHaveLength(1)
+    expect(downloads[0].url).toBe('https://images.example/reference.png')
+    expect(downloads[0].headers.get('Authorization')).toBeNull()
+    expect(downloads[0].headers.get('Api-Key')).toBeNull()
   })
 
   it.each(['V_1', 'V_2', 'V_2_TURBO'] as const)(

@@ -17,6 +17,7 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { combineImageTransportHeaders } from '../imageTransportHttp'
 import { type DmxapiCustomImageBinding, type DmxapiImageBinding, resolveDmxapiImageBinding } from './dmxapiImageRouting'
 import { createDmxapiTransport } from './dmxapiTransport'
 
@@ -69,16 +70,15 @@ export function buildDmxapiTransport(
   settings: DmxapiProviderSettings,
   binding: DmxapiCustomImageBinding
 ): ImageGenerationTransport<VendorBag> {
-  const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? settings.baseURL
-  if (!chatBaseURL) {
+  const baseURL = settings.baseURL
+  if (!baseURL) {
     throw new Error('DMXAPI provider requires a non-empty `baseURL` to build the image transport.')
   }
   return createDmxapiTransport({
     binding,
     apiKey: settings.apiKey ?? '',
-    // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
-    // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
-    baseURL: withoutTrailingApiVersion(chatBaseURL),
+    // Custom image endpoints are host-root paths, while settings.baseURL is the selected image connection.
+    baseURL: withoutTrailingApiVersion(baseURL),
     headers: settings.headers,
     fetch: settings.fetch
   })
@@ -102,6 +102,9 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
 
   const chatBaseURL = settings.endpointBaseURLs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] ?? baseURL
   const compatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(chatBaseURL)}${path}`
+  const imageUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+  const imageHeaders = () =>
+    combineImageTransportHeaders({ Authorization: `Bearer ${resolveApiKey()}` }, settings.headers)
   const nativeBaseURL = withoutTrailingApiVersion(baseURL)
   const anthropicBaseURL =
     settings.endpointBaseURLs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ?? formatApiHost(nativeBaseURL, true)
@@ -176,8 +179,8 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       case 'openai-native':
         return new OpenAIImageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.openai-image`,
-          url: compatUrl,
-          headers: compatHeaders,
+          url: imageUrl,
+          headers: imageHeaders,
           fetch: customFetch
         })
       case 'gemini-native':
@@ -185,8 +188,8 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     }
     return new OpenAICompatibleImageModel(modelId, {
       provider: `${DMXAPI_PROVIDER_NAME}.image`,
-      url: compatUrl,
-      headers: compatHeaders,
+      url: imageUrl,
+      headers: imageHeaders,
       fetch: customFetch
     })
   }

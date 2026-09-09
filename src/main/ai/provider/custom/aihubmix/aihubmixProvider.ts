@@ -19,6 +19,7 @@ import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import { resolveAihubmixChatFamily } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
+import { combineImageTransportHeaders } from '../imageTransportHttp'
 import { type AihubmixImageBinding, resolveAihubmixImageBinding } from './aihubmixImageBinding'
 import { createAihubmixImageModel } from './aihubmixImageModel'
 
@@ -157,10 +158,15 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       ? { kind: 'bound' as const, binding: options.imageBinding }
       : resolveAihubmixImageBinding(modelId, 'generate', undefined)
     if (resolution.kind === 'unavailable') throw new Error(resolution.message)
+    const isGoogle = resolution.binding.kind === 'google-imagen' || resolution.binding.kind === 'google-gemini'
     return createAihubmixImageModel(modelId, {
-      baseURL: chatBaseURL,
+      baseURL: isGoogle ? geminiBaseURL : baseURL,
       resolveApiKey,
-      headers: authHeaders,
+      headers: () =>
+        combineImageTransportHeaders(
+          { Authorization: `Bearer ${resolveApiKey()}`, ...APP_CODE_HEADER },
+          options.headers
+        ),
       fetch: customFetch,
       binding: resolution.binding
     })

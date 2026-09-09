@@ -1,10 +1,4 @@
-import {
-  combineHeaders,
-  createJsonResponseHandler,
-  type FetchFunction,
-  getFromApi,
-  postJsonToApi
-} from '@ai-sdk/provider-utils'
+import { createJsonResponseHandler, type FetchFunction, getFromApi, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
@@ -17,7 +11,7 @@ import {
   submittedImageTransportSubmission,
   type TaskImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
+import { combineImageTransportHeaders, createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 
 /**
@@ -105,7 +99,7 @@ class AihubmixFluxTransport implements TaskImageGenerationTransport<AihubmixFlux
     const url = `${this.settings.apiRoot}/v1/models/bfl/${input.modelId}/predictions`
     const response = await postJsonToApi({
       url,
-      headers: combineHeaders(
+      headers: combineImageTransportHeaders(
         { Authorization: `Bearer ${this.settings.apiKey}` },
         this.settings.headers,
         input.headers
@@ -126,7 +120,7 @@ class AihubmixFluxTransport implements TaskImageGenerationTransport<AihubmixFlux
     const url = `${this.settings.apiRoot}/v1/tasks/${encodeURIComponent(taskId)}`
     const response = await getFromApi({
       url,
-      headers: combineHeaders(
+      headers: combineImageTransportHeaders(
         { Authorization: `Bearer ${this.settings.apiKey}` },
         this.settings.headers,
         context.headers

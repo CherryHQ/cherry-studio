@@ -36,6 +36,15 @@ export async function resolveSdkImageConfig(
     }
   }
   applyHttpTrace(config, undefined, model)
+  const imageFetch = config.providerSettings.fetch
+  if (!imageFetch) throw new Error('Resolved image configuration requires an injected fetch')
+  config.providerSettings.fetch = (input, init) => {
+    if (!(init?.body instanceof FormData)) return imageFetch(input, init)
+    // The resolved provider/call headers cannot supply the boundary owned by FormData serialization.
+    const headers = new Headers(init.headers)
+    headers.delete('content-type')
+    return imageFetch(input, { ...init, headers })
+  }
   // Both compatible config builders use the instance ID as `name`; image models read its first segment.
   let actualProviderId =
     config.providerId === 'openai-compatible' || config.providerId === 'github-copilot-openai-compatible'

@@ -33,10 +33,9 @@ function wireOptions(options: ImageModelV3CallOptions): ImageModelV3CallOptions[
 }
 
 function googleImageModel(modelId: string, opts: CreateAihubmixImageModelOptions): ImageModelV3 {
-  const apiRoot = opts.baseURL.replace(/\/v1\/?$/, '')
   const google = createGoogleGenerativeAI({
     apiKey: opts.resolveApiKey(),
-    baseURL: `${apiRoot}/gemini/v1beta`,
+    baseURL: opts.baseURL,
     headers: opts.headers(),
     fetch: opts.fetch,
     name: 'aihubmix.google'

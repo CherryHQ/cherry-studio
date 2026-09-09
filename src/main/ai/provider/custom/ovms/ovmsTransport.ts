@@ -1,4 +1,4 @@
-import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
+import { createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
@@ -8,7 +8,7 @@ import {
   type ImageTransportInputSupport,
   type ImmediateImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
+import { combineImageTransportHeaders, createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 
 /** Single-shot OVMS protocol; keep its existing /images/generations endpoint during the execution refactor. */
 
@@ -22,7 +22,7 @@ export interface OvmsTransportSettings {
 
 const ovmsImageResponseSchema = z
   .object({
-    data: z.array(z.object({ b64_json: z.string().min(1).optional(), url: z.string().min(1).optional() }).passthrough())
+    data: z.array(z.object({ b64_json: z.string().min(1) }).passthrough()).min(1)
   })
   .passthrough()
 
@@ -57,7 +57,7 @@ class OvmsTransport implements ImmediateImageGenerationTransport<VendorBag> {
 
     const response = await postJsonToApi({
       url: `${this.baseURL}/images/generations`,
-      headers: combineHeaders(this.headers, input.headers),
+      headers: combineImageTransportHeaders(this.headers, input.headers),
       body: requestBody,
       abortSignal: input.signal,
       fetch: this.fetch,
@@ -65,17 +65,8 @@ class OvmsTransport implements ImmediateImageGenerationTransport<VendorBag> {
       successfulResponseHandler: createJsonResponseHandler(ovmsImageResponseSchema)
     })
 
-    const base64s = response.value.data
-      .filter((item): item is typeof item & { b64_json: string } => item.b64_json !== undefined)
-      .map((item) => `data:image/png;base64,${item.b64_json}`)
-    if (base64s.length > 0) {
-      return completedImageTransportSubmission(base64s, 'OVMS')
-    }
-
-    const urls = response.value.data
-      .filter((item): item is typeof item & { url: string } => item.url !== undefined)
-      .map((item) => item.url)
-    return completedImageTransportSubmission(urls, 'OVMS')
+    const images = response.value.data.map((item) => `data:image/png;base64,${item.b64_json}`)
+    return completedImageTransportSubmission(images, 'OVMS')
   }
 }
 

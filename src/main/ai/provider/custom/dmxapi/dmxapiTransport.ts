@@ -1,5 +1,5 @@
 import { APICallError } from '@ai-sdk/provider'
-import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
+import { createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
@@ -11,7 +11,7 @@ import {
   type ImageTransportInputSupport,
   type ImmediateImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
+import { combineImageTransportHeaders, createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 import type { DmxapiCustomImageBinding } from './dmxapiImageRouting'
 
@@ -35,21 +35,11 @@ export interface DmxapiTransportSettings {
   fetch?: FetchFunction
 }
 
-/**
- * Markdown image syntax `![alt](url)` + plain URL fallback. Seedream's
- * Responses-API answers carry one or more image URLs inside
- * `output[0].content[0].text` as markdown links; this extracts them.
- */
 const MARKDOWN_IMAGE_RE = /!\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g
-const PLAIN_URL_RE = /https?:\/\/[^\s,'"<>)]+/g
 
-function extractUrlsFromText(text: string): string[] {
+function extractMarkdownImages(text: string): string[] {
   const urls = new Set<string>()
-  let match: RegExpExecArray | null
-  while ((match = MARKDOWN_IMAGE_RE.exec(text)) !== null) urls.add(match[1])
-  if (urls.size === 0) {
-    while ((match = PLAIN_URL_RE.exec(text)) !== null) urls.add(match[0])
-  }
+  for (const match of text.matchAll(MARKDOWN_IMAGE_RE)) urls.add(match[1])
   return Array.from(urls)
 }
 
@@ -57,26 +47,47 @@ const dmxapiAsyncResultSchema = z
   .object({
     extra: z
       .object({
-        output: z.object({ results: z.array(z.object({ url: z.string().min(1) }).passthrough()) }).passthrough()
+        output: z
+          .object({
+            task_status: z.literal('SUCCEEDED'),
+            results: z.array(z.object({ url: z.string().min(1) }).passthrough()).min(1)
+          })
+          .passthrough()
       })
       .passthrough()
   })
   .passthrough()
-const responseContentSchema = z
-  .object({ text: z.string().optional(), image: z.string().min(1).optional(), type: z.string().optional() })
-  .passthrough()
-const responseOutputSchema = z
-  .object({
-    content: z.array(responseContentSchema).optional(),
-    message: z
-      .object({ content: z.array(responseContentSchema).optional() })
-      .passthrough()
-      .optional()
+const seedreamTextSchema = z
+  .string()
+  .min(1)
+  .transform((text, ctx) => {
+    const urls = extractMarkdownImages(text)
+    if (urls.length > 0) return urls
+    ctx.addIssue({ code: 'custom', message: 'Seedream output requires a Markdown image link' })
+    return z.NEVER
   })
-  .passthrough()
-const dmxapiResponsesSchema = z
-  .object({ output: z.union([responseOutputSchema, z.array(responseOutputSchema)]) })
-  .passthrough()
+const dmxapiSeedreamResponseSchema = z.object({
+  status: z.literal('completed'),
+  output: z
+    .array(
+      z.object({
+        type: z.literal('message'),
+        status: z.literal('completed'),
+        content: z.array(z.object({ type: z.literal('output_text'), text: seedreamTextSchema })).min(1)
+      })
+    )
+    .min(1)
+})
+const dmxapiWanResponseSchema = z.object({
+  output: z
+    .array(
+      z.object({
+        type: z.literal('message'),
+        content: z.array(z.object({ type: z.literal('image'), text: z.url({ protocol: /^https?$/ }) })).min(1)
+      })
+    )
+    .min(1)
+})
 class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProviderParams> {
   private readonly apiKey: string
   private readonly baseURL: string
@@ -178,9 +189,12 @@ class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProvide
       abortSignal: input.signal,
       fetch: this.fetch,
       failedResponseHandler: createImageTransportErrorResponseHandler(),
-      successfulResponseHandler: createJsonResponseHandler(dmxapiResponsesSchema)
+      successfulResponseHandler: createJsonResponseHandler(dmxapiSeedreamResponseSchema)
     })
-    return completedImageTransportSubmission(parseResponsesApiOutput(response.value), 'DMXAPI responses image')
+    return completedImageTransportSubmission(
+      response.value.output.flatMap((entry) => entry.content.flatMap((part) => part.text)),
+      'DMXAPI Seedream image'
+    )
   }
 
   /** Responses API with DashScope-style `input.messages` (alibaba wan family). */
@@ -215,13 +229,16 @@ class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProvide
       abortSignal: input.signal,
       fetch: this.fetch,
       failedResponseHandler: createImageTransportErrorResponseHandler(),
-      successfulResponseHandler: createJsonResponseHandler(dmxapiResponsesSchema)
+      successfulResponseHandler: createJsonResponseHandler(dmxapiWanResponseSchema)
     })
-    return completedImageTransportSubmission(parseResponsesApiOutput(response.value), 'DMXAPI responses image')
+    return completedImageTransportSubmission(
+      response.value.output.flatMap((entry) => entry.content.map((part) => part.text)),
+      'DMXAPI Wan image'
+    )
   }
 
   private requestHeaders(headers: ImageGenerationSubmitInput<DmxapiProviderParams>['headers']) {
-    return combineHeaders(
+    return combineImageTransportHeaders(
       {
         Accept: 'application/json',
         'User-Agent': 'DMXAPI/1.0.0 (https://www.dmxapi.com)',
@@ -239,19 +256,6 @@ class DmxapiTransport implements ImmediateImageGenerationTransport<DmxapiProvide
 
 function parseDmxapiAsyncResults(data: z.infer<typeof dmxapiAsyncResultSchema>): string[] {
   return data.extra.output.results.map((result) => result.url)
-}
-
-function parseResponsesApiOutput(data: z.infer<typeof dmxapiResponsesSchema>): string[] {
-  const list = Array.isArray(data.output) ? data.output : [data.output]
-  const urls: string[] = []
-  for (const entry of list) {
-    const parts = entry.content ?? entry.message?.content ?? []
-    for (const part of parts) {
-      if (part.image) urls.push(part.image)
-      else if (typeof part.text === 'string') urls.push(...extractUrlsFromText(part.text))
-    }
-  }
-  return urls
 }
 
 export function createDmxapiTransport(settings: DmxapiTransportSettings): DmxapiTransport {

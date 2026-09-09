@@ -523,7 +523,6 @@ describe('AiService', () => {
       }
     ])
 
-    expect(mockDownloadImageAsBase64).toHaveBeenCalledWith('https://example.com/image.png')
     expect(downloaded).toEqual([
       {
         data: Buffer.from('url-base64', 'base64'),

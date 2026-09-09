@@ -1,10 +1,4 @@
-import {
-  combineHeaders,
-  createJsonResponseHandler,
-  type FetchFunction,
-  getFromApi,
-  postJsonToApi
-} from '@ai-sdk/provider-utils'
+import { createJsonResponseHandler, type FetchFunction, getFromApi, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
@@ -18,7 +12,11 @@ import {
   submittedImageTransportSubmission,
   type TaskImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
+import {
+  combineImageTransportHeaders,
+  createImageTransportErrorResponseHandler,
+  withImageTransportRequestTimeout
+} from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 
 /**
@@ -121,9 +119,14 @@ class ModelscopeTransport implements TaskImageGenerationTransport<ModelscopeProv
       (signal) =>
         postJsonToApi({
           url,
-          headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers, {
-            'X-ModelScope-Async-Mode': 'true'
-          }),
+          headers: combineImageTransportHeaders(
+            { Authorization: `Bearer ${this.apiKey}` },
+            this.headers,
+            input.headers,
+            {
+              'X-ModelScope-Async-Mode': 'true'
+            }
+          ),
           body,
           abortSignal: signal,
           fetch: this.fetch,
@@ -144,9 +147,14 @@ class ModelscopeTransport implements TaskImageGenerationTransport<ModelscopeProv
       (signal) =>
         getFromApi({
           url,
-          headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, context.headers, {
-            'X-ModelScope-Task-Type': 'image_generation'
-          }),
+          headers: combineImageTransportHeaders(
+            { Authorization: `Bearer ${this.apiKey}` },
+            this.headers,
+            context.headers,
+            {
+              'X-ModelScope-Task-Type': 'image_generation'
+            }
+          ),
           abortSignal: signal,
           fetch: this.fetch,
           failedResponseHandler: createImageTransportErrorResponseHandler('ModelScope API error'),

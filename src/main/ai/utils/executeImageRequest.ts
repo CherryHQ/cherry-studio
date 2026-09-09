@@ -5,6 +5,7 @@ import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 
@@ -15,6 +16,7 @@ import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from '../pro
 import { buildSdkImageOptions, resolveSdkImageConfig } from '../provider/imageSdk'
 import type { AppProviderSettingsMap } from '../types'
 import { resolveImageRequestSize } from './aiSdkNativeBindings'
+import { customFetch } from './customFetch'
 import { splitParamValues } from './imageOptions'
 import type { prepareImageExecution } from './prepareImageRequest'
 import { createModelUsageCaptureContext, createProviderCallHandler } from './usageCapture'
@@ -75,14 +77,22 @@ async function executeDirectImageRequest(prepared: PreparedImageExecution, sourc
   const { request, provider, model, target } = prepared
   const signal = request.requestOptions?.signal
   const { sdkConfig, credentialReceipt } = await resolveSdkImageConfig(provider, model, target, request.apiKeyOverride)
+  const sdkRequest =
+    target.kind === 'sdk'
+      ? {
+          ...request,
+          inputImages: request.inputImages
+            ? await Promise.all(request.inputImages.map((image) => downloadSdkImageInput(image, signal)))
+            : undefined,
+          mask: request.mask ? await downloadSdkImageInput(request.mask, signal) : undefined
+        }
+      : request
   const imageParams = {
-    ...buildSdkImageOptions(request, sdkConfig, signal),
+    ...buildSdkImageOptions(sdkRequest, sdkConfig, signal),
     experimental_download: async (downloads) => {
       return Promise.all(
         downloads.map(async ({ url }) => {
-          if (signal?.aborted) return null
-          const downloaded = await downloadImageAsBase64(url.toString())
-          if (signal?.aborted) return null
+          const downloaded = await downloadImageAsBase64(url.toString(), { signal, fetch: customFetch })
           if (!downloaded) return null
           return {
             data: Buffer.from(downloaded.data, 'base64'),
@@ -101,12 +111,24 @@ async function executeDirectImageRequest(prepared: PreparedImageExecution, sourc
     source,
     messageRef: null
   })
-  const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
-    ...imageParams,
-    onProviderCall: createProviderCallHandler(imageUsageContext)
-  })
+  try {
+    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+      ...imageParams,
+      onProviderCall: createProviderCallHandler(imageUsageContext)
+    })
+    if (signal?.aborted) throw new DOMException('Image generation aborted', 'AbortError')
+    return { result, sdkConfig }
+  } catch (error) {
+    if (signal?.aborted) throw new DOMException('Image generation aborted', 'AbortError')
+    throw error
+  }
+}
 
-  return { result, sdkConfig }
+async function downloadSdkImageInput(image: string, signal: AbortSignal | undefined): Promise<string> {
+  if (image.startsWith('data:')) return image
+  const downloaded = await downloadImageAsBase64(image, { signal, fetch: customFetch })
+  if (!downloaded) throw createPaintingGenerateError('IMAGE_RETRY_REQUIRED')
+  return `data:${downloaded.media_type};base64,${downloaded.data}`
 }
 
 /** Scratch copies belong to the Job, never to the caller's output retention policy. */

@@ -1,7 +1,9 @@
 import { APICallError } from '@ai-sdk/provider'
 import {
+  combineHeaders,
   type FetchFunction,
   isAbortError,
+  normalizeHeaders,
   readResponseWithSizeLimit,
   type ResponseHandler
 } from '@ai-sdk/provider-utils'
@@ -20,6 +22,11 @@ const errorPayloadSchema = z
 export interface ImageTransportHttpSettings {
   headers?: Record<string, string | undefined>
   fetch?: FetchFunction
+}
+
+/** Normalize each layer before merging so earlier spellings cannot override later values. */
+export function combineImageTransportHeaders(...headers: Parameters<typeof combineHeaders>) {
+  return combineHeaders(...headers.map((layer) => normalizeHeaders(layer)))
 }
 
 /**

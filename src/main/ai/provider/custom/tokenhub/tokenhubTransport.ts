@@ -1,10 +1,4 @@
-import {
-  combineHeaders,
-  createJsonResponseHandler,
-  type FetchFunction,
-  getFromApi,
-  postJsonToApi
-} from '@ai-sdk/provider-utils'
+import { createJsonResponseHandler, type FetchFunction, getFromApi, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
@@ -19,7 +13,11 @@ import {
   submittedImageTransportSubmission,
   type TaskImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler, withImageTransportRequestTimeout } from '../imageTransportHttp'
+import {
+  combineImageTransportHeaders,
+  createImageTransportErrorResponseHandler,
+  withImageTransportRequestTimeout
+} from '../imageTransportHttp'
 import { fileToDataUrl } from '../transportUtils'
 import { resolveTokenhubImageProtocol } from './tokenhubImageBinding'
 
@@ -172,7 +170,11 @@ class TokenhubTransport implements TaskImageGenerationTransport<VendorBag> {
     input = { ...input, modelId: descriptor.id }
     const bag = input.providerParams
     const url = `${this.baseURL}${descriptor.endpoint}`
-    const headers = combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, input.headers)
+    const headers = combineImageTransportHeaders(
+      { Authorization: `Bearer ${this.apiKey}` },
+      this.headers,
+      input.headers
+    )
 
     if (family === 'vidu') {
       const response = await withImageTransportRequestTimeout(
@@ -221,7 +223,11 @@ class TokenhubTransport implements TaskImageGenerationTransport<VendorBag> {
       (signal) =>
         getFromApi({
           url,
-          headers: combineHeaders({ Authorization: `Bearer ${this.apiKey}` }, this.headers, context.headers),
+          headers: combineImageTransportHeaders(
+            { Authorization: `Bearer ${this.apiKey}` },
+            this.headers,
+            context.headers
+          ),
           abortSignal: signal,
           fetch: this.fetch,
           failedResponseHandler: createImageTransportErrorResponseHandler('TokenHub API error'),

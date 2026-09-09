@@ -63,11 +63,11 @@ async function execute(modelId: string, mode: ImageGenerationMode, paramValues: 
   if (target.kind === 'unavailable') throw new Error(target.message)
   if (target.scheduling !== 'direct') throw new Error('AiHubMix must preserve direct scheduling')
   const { sdkConfig } = await resolveSdkImageConfig(provider, model, target, undefined)
-  return generateImage<AppProviderSettingsMap>(
-    sdkConfig.providerId,
-    sdkConfig.providerSettings,
-    buildSdkImageOptions(prepared, sdkConfig, undefined)
-  )
+  return generateImage<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+    ...buildSdkImageOptions(prepared, sdkConfig, undefined),
+    experimental_download: async (downloads) =>
+      downloads.map(() => ({ data: Buffer.from(PNG, 'base64'), mediaType: 'image/png' }))
+  })
 }
 
 // Contracts: https://docs.aihubmix.com/cn/api/Image-Gen and /cn/api/IdeogramAI (retrieved 2026-09-09).
@@ -136,6 +136,10 @@ describe('AiHubMix prepared request execution', () => {
   })
 
   it('recognizes the served Ideogram API ID rather than its canonical catalog ID', async () => {
+    vi.mocked(net.fetch).mockImplementation(async (input, init) => {
+      requests.push(new Request(input, init))
+      return Response.json({ data: [{ url: 'https://images.example/ideogram.png' }] })
+    })
     await execute('ideogram/V3', 'generate', { seed: 0 })
     expect(requests[0].url).toBe('https://aihubmix.example/ideogram/v1/ideogram-v3/generate')
     expect((await requests[0].formData()).get('seed')).toBe('0')

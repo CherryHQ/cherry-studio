@@ -1,4 +1,4 @@
-import { combineHeaders, createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
+import { createJsonResponseHandler, type FetchFunction, postJsonToApi } from '@ai-sdk/provider-utils'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import * as z from 'zod'
 
@@ -8,7 +8,7 @@ import {
   type ImageTransportInputSupport,
   type ImmediateImageGenerationTransport
 } from '../imageTransport'
-import { createImageTransportErrorResponseHandler } from '../imageTransportHttp'
+import { combineImageTransportHeaders, createImageTransportErrorResponseHandler } from '../imageTransportHttp'
 
 /** Single-shot Ollama image protocol: top-level dimensions/steps and nested options.seed. */
 const ollamaImageResponseSchema = z.object({ image: z.string().min(1) }).passthrough()
@@ -43,7 +43,7 @@ class OllamaTransport implements ImmediateImageGenerationTransport<VendorBag> {
     const steps = input.providerParams.numInferenceSteps
     const response = await postJsonToApi({
       url: `${this.baseURL}/generate`,
-      headers: combineHeaders(this.headers, input.headers),
+      headers: combineImageTransportHeaders(this.headers, input.headers),
       body: {
         model: input.modelId,
         prompt: input.prompt ?? '',

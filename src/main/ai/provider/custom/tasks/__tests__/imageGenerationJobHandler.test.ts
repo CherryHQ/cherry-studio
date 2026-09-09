@@ -206,7 +206,10 @@ describe('imageGenerationJobHandler.execute', () => {
     )
     expect(ctx.reportProgress).toHaveBeenCalledWith(50, { stage: 'polling' })
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
-    expect(downloadMock).toHaveBeenCalledWith('https://cdn.example.com/a.png')
+    expect(downloadMock).toHaveBeenCalledWith(
+      'https://cdn.example.com/a.png',
+      expect.objectContaining({ signal: ctx.signal })
+    )
     expect(recordRequestMock).toHaveBeenCalledWith({
       requestId: 'custom-image:img-job-1',
       context: expect.objectContaining({
@@ -374,10 +377,14 @@ describe('imageGenerationJobHandler.execute', () => {
     submitMock.mockResolvedValue({ kind: 'completed', imageUrls: [inline, 'https://cdn.example.com/b.png'] })
     createInternalEntryMock.mockResolvedValueOnce({ id: 'file-inline' }).mockResolvedValueOnce({ id: 'file-b' })
 
-    const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
+    const ctx = createCtx()
+    const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
     expect(result.files).toEqual([{ id: 'file-inline' }, { id: 'file-b' }])
     expect(downloadMock).toHaveBeenCalledTimes(1)
-    expect(downloadMock).toHaveBeenCalledWith('https://cdn.example.com/b.png')
+    expect(downloadMock).toHaveBeenCalledWith(
+      'https://cdn.example.com/b.png',
+      expect.objectContaining({ signal: ctx.signal })
+    )
     expect(createInternalEntryMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ source: 'base64', data: inline })

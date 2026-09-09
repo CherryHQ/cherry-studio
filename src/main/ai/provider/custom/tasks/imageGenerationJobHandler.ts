@@ -2,6 +2,7 @@ import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
+import { customFetch } from '@main/ai/utils/customFetch'
 import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { JobHandler } from '@main/core/job/types'
@@ -156,9 +157,9 @@ async function readImageFile(fileId: string): Promise<ImageModelV3File> {
 
 /** Resolve a transport result to a base64 data URL: inline `data:` results (from
  *  `b64_json`-style responses) are used as-is; anything else is downloaded. */
-async function resolveImageDataUrl(url: string): Promise<Base64String | null> {
+async function resolveImageDataUrl(url: string, signal: AbortSignal): Promise<Base64String | null> {
   if (url.startsWith('data:')) return url as Base64String
-  const downloaded = await downloadImageAsBase64(url)
+  const downloaded = await downloadImageAsBase64(url, { signal, fetch: customFetch })
   if (!downloaded) return null
   return `data:${downloaded.media_type || 'image/png'};base64,${downloaded.data}`
 }
@@ -173,7 +174,8 @@ async function downloadAndPersistImageUrls(
   const files: FileEntry[] = []
   for (const url of urls) {
     if (signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
-    const data = await resolveImageDataUrl(url)
+    const data = await resolveImageDataUrl(url, signal)
+    if (signal.aborted) throw new DOMException('Image generation aborted', 'AbortError')
     if (!data) continue
     files.push(await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy }))
   }

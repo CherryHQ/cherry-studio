@@ -52,6 +52,127 @@ function request(paramValues: ParamValues, overrides: Partial<AiImageRequest> = 
 }
 
 describe('canonical request to actual SDK image model', () => {
+  // https://developers.openai.com/api/reference/resources/images/methods/edit — multipart form, retrieved 2026-09-09.
+  it.each(['openai', 'openai-compatible', 'aihubmix', 'dmxapi'])(
+    'keeps %s SDK multipart boundaries despite provider and per-call Content-Type headers',
+    async (adapterFamily) => {
+      const provider = makeProvider({
+        id: `multipart-${adapterFamily}`,
+        presetProviderId: adapterFamily,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        settings: { extraHeaders: { 'CONTENT-TYPE': 'application/json', 'x-provider': 'preserved' } },
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://image.example/v1', adapterFamily }
+        }
+      })
+      const model = makeModel({
+        id: `${provider.id}::gpt-image-1`,
+        providerId: provider.id,
+        apiModelId: 'gpt-image-1',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      })
+      const target = resolveImageExecutionTarget(provider, model, 'generate', undefined)
+      if (target.kind === 'unavailable') throw new Error(target.message)
+      const { sdkConfig } = await resolveSdkImageConfig(provider, model, target, undefined)
+      const result = await generateImage<AppProviderSettingsMap>(
+        sdkConfig.providerId,
+        sdkConfig.providerSettings,
+        buildSdkImageOptions(
+          request(
+            {},
+            {
+              inputImages: [`data:image/png;base64,${PNG}`],
+              requestOptions: { headers: { 'Content-Type': 'application/json', 'x-call': 'preserved' } }
+            }
+          ),
+          sdkConfig,
+          undefined
+        )
+      )
+      expect(requests).toHaveLength(1)
+      expect(requests[0].headers.get('content-type')).toMatch(/^multipart\/form-data; boundary=/)
+      expect(requests[0].headers.get('x-provider')).toBe('preserved')
+      expect(requests[0].headers.get('x-call')).toBe('preserved')
+      expect(requests[0].headers.get('authorization')).toBe('Bearer image-key')
+      const body = await requests[0].formData()
+      const reference = [...body.values()].find((value) => value instanceof File)
+      if (!(reference instanceof File)) throw new Error('Missing multipart image input')
+      expect(Buffer.from(await reference.arrayBuffer()).toString('base64')).toBe(PNG)
+      expect(result.images[0].base64).toBe(PNG)
+    }
+  )
+
+  // Endpoint ownership is an application contract: the selected endpoint cannot be replaced by chat configuration.
+  it.each(['aihubmix', 'dmxapi'] as const)('keeps %s image requests on their selected host', async (adapterFamily) => {
+    const provider = makeProvider({
+      id: `split-${adapterFamily}`,
+      presetProviderId: adapterFamily,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat.example/v1', adapterFamily },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example/v1', adapterFamily }
+      }
+    })
+    const model = makeModel({
+      id: `${provider.id}::gpt-image-1`,
+      providerId: provider.id,
+      apiModelId: 'gpt-image-1',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+    const target = resolveImageExecutionTarget(provider, model, 'generate', undefined)
+    if (target.kind === 'unavailable') throw new Error(target.message)
+    const { sdkConfig } = await resolveSdkImageConfig(provider, model, target, undefined)
+    await generateImage<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      buildSdkImageOptions(request({}), sdkConfig, undefined)
+    )
+    expect(new URL(requests[0].url).origin).toBe('https://images.example')
+  })
+
+  it.each(['aihubmix', 'dmxapi'] as const)(
+    'keeps %s Google images on the explicit Google endpoint',
+    async (adapterFamily) => {
+      vi.mocked(net.fetch).mockImplementation(async (input, init) => {
+        requests.push(new Request(input, init))
+        return Response.json({
+          candidates: [
+            {
+              content: { role: 'model', parts: [{ inlineData: { mimeType: 'image/png', data: PNG } }] },
+              finishReason: 'STOP'
+            }
+          ]
+        })
+      })
+      const provider = makeProvider({
+        id: `split-${adapterFamily}`,
+        presetProviderId: adapterFamily,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://chat.example/v1', adapterFamily },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://google.example/custom/v1beta', adapterFamily }
+        }
+      })
+      const model = makeModel({
+        id: `${provider.id}::gemini-3.1-flash-image-preview`,
+        providerId: provider.id,
+        apiModelId: 'gemini-3.1-flash-image-preview',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+      const target = resolveImageExecutionTarget(provider, model, 'generate', undefined)
+      if (target.kind === 'unavailable') throw new Error(target.message)
+      const { sdkConfig } = await resolveSdkImageConfig(provider, model, target, undefined)
+      await generateImage<AppProviderSettingsMap>(
+        sdkConfig.providerId,
+        sdkConfig.providerSettings,
+        buildSdkImageOptions(request({}), sdkConfig, undefined)
+      )
+      expect(requests[0].url).toBe(
+        'https://google.example/custom/v1beta/models/gemini-3.1-flash-image-preview:generateContent'
+      )
+    }
+  )
+
   // https://doc.dmxapi.com/gpt-image.html — retrieved 2026-09-09.
   it('delivers DMXAPI native GPT options to the OpenAI SDK for edits', async () => {
     const { sdkConfig } = await configuration('dmxapi', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'gpt-image-1.5')

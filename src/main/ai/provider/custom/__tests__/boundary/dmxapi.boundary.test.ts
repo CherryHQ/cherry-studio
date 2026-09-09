@@ -21,7 +21,14 @@ const cases = [
     modelId: 'doubao-seedream-5.0-lite',
     path: '/v1/responses',
     response: {
-      output: [{ content: [{ type: 'output_text', text: '![Image 1](https://image.example/seedream.png)' }] }]
+      status: 'completed',
+      output: [
+        {
+          type: 'message',
+          status: 'completed',
+          content: [{ type: 'output_text', text: '![Image 1](https://image.example/seedream.png)' }]
+        }
+      ]
     },
     urls: ['https://image.example/seedream.png'],
     body: { model: 'doubao-seedream-5.0-lite', input: 'a fox', stream: false }
@@ -30,7 +37,7 @@ const cases = [
   {
     modelId: 'wan2.6-t2i',
     path: '/v1/responses',
-    response: { output: [{ content: [{ type: 'image', text: 'https://image.example/wan.png' }] }] },
+    response: { output: [{ type: 'message', content: [{ type: 'image', text: 'https://image.example/wan.png' }] }] },
     urls: ['https://image.example/wan.png'],
     body: { model: 'wan2.6-t2i', input: { messages: [{ role: 'user', content: [{ text: 'a fox' }] }] } }
   }
@@ -87,7 +94,9 @@ describe('DMXAPI custom protocol boundary', () => {
         baseURL: 'https://gateway.example/v1',
         fetch: async (url, init) => {
           requests.push(new Request(url, init))
-          return Response.json({ output: [{ content: [{ type: 'image', text: 'https://image.example/wan.png' }] }] })
+          return Response.json({
+            output: [{ type: 'message', content: [{ type: 'image', text: 'https://image.example/wan.png' }] }]
+          })
         }
       },
       binding.binding

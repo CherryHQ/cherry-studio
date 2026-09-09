@@ -31,6 +31,39 @@ const config = {
 }
 
 describe('AiHubMix response boundary (Ideogram branches)', () => {
+  it.each([
+    { data: [{ url: 'https://img/ok.png' }, {}] },
+    { data: [{ url: 'https://img/ok.png' }, { is_image_safe: true }] },
+    { data: [{ url: 'https://img/ok.png' }, { is_image_safe: 'false' }] },
+    { data: [{ url: 'https://img/ok.png' }, { url: 42 }] },
+    { output: { b64_json: [{ bytesBase64: 'AQID' }] } }
+  ])('rejects malformed Ideogram results rather than silently filtering them: %j', async (response) => {
+    await expect(
+      runWithResponse(response, (fetch) =>
+        createAihubmixImageModel('ideogram/V3', {
+          ...config,
+          fetch,
+          binding: { kind: 'ideogram-v3', operation: 'generate' }
+        }).doGenerate(opts({}))
+      )
+    ).rejects.toThrow()
+  })
+
+  it.each([{}, { data: [] }, { data: [{ url: 'https://img/ok.png' }, {}] }, { data: [{ b64_json: 42 }] }])(
+    'rejects malformed Doubao image results: %j',
+    async (response) => {
+      await expect(
+        runWithResponse(response, (fetch) =>
+          createAihubmixImageModel('doubao-seedream-5.0-lite', {
+            ...config,
+            fetch,
+            binding: { kind: 'doubao' }
+          }).doGenerate(opts({}))
+        )
+      ).rejects.toThrow()
+    }
+  )
+
   it('ideogram/V3 generate → data[].url', async () => {
     const response = { data: [{ url: 'https://img/v3a.png' }, { url: 'https://img/v3b.png' }] }
     const result = await runWithResponse(response, (fetch) =>
@@ -43,11 +76,8 @@ describe('AiHubMix response boundary (Ideogram branches)', () => {
     expect(result.images).toEqual(['https://img/v3a.png', 'https://img/v3b.png'])
   })
 
-  it('ideogram/V3 generate → drops data[] items that carry no usable url', async () => {
-    // AiHubMix is an aggregator gateway and Ideogram can flag an image
-    // (`is_image_safe: false`), so a `data[]` entry may arrive without a `url`.
-    // The V_1/V_2 path in this same file already filters those out; the V3
-    // branch must too, otherwise `undefined` leaks into `images`.
+  // https://developer.ideogram.ai/api-reference/generate-images/generate-v3 — retrieved 2026-09-09.
+  it('omits explicitly moderated Ideogram images, without treating arbitrary missing URLs as moderation', async () => {
     const response = { data: [{ url: 'https://img/ok.png' }, { is_image_safe: false, resolution: '1024x1024' }] }
     const result = await runWithResponse(response, (fetch) =>
       createAihubmixImageModel('ideogram/V3', {

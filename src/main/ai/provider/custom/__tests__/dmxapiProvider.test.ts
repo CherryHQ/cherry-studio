@@ -26,7 +26,16 @@ describe('DMXAPI thin image adapter', () => {
         headers: { 'x-provider': 'cherry' },
         fetch: async (url, init) => {
           requests.push(new Request(url, init))
-          return Response.json({ output: [{ content: [{ text: '![Image 1](https://image.example/out.png)' }] }] })
+          return Response.json({
+            status: 'completed',
+            output: [
+              {
+                type: 'message',
+                status: 'completed',
+                content: [{ type: 'output_text', text: '![Image 1](https://image.example/out.png)' }]
+              }
+            ]
+          })
         }
       })
       const result = await provider
