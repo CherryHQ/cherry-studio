@@ -35,7 +35,7 @@ function makeScope(overrides: {
   request?: Partial<RequestScope['request']>
 }): RequestScope {
   return {
-    request: overrides.request ?? { mcpToolIds: [] },
+    request: { conversation: { id: 'test' }, mcpToolIds: [], ...overrides.request },
     signal: undefined,
     registry: {} as never,
     assistant: overrides.assistant as Assistant | undefined,

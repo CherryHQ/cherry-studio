@@ -147,10 +147,7 @@ describe('TokenhubTransport', () => {
     await transport.submit({ ...baseInput, modelId: 'hy-image-v3', modelDescriptor: HUNYUAN, prompt: 'x' })
 
     expect(globalFetch).not.toHaveBeenCalled()
-    const headers = lastRequest(providerFetch as unknown as MockInstance<typeof fetch>).init.headers as Record<
-      string,
-      string
-    >
+    const headers = lastRequest(providerFetch).init.headers as Record<string, string>
     expect(headers['X-App']).toBe('cherry')
     expect(headers.Authorization).toBe('Bearer token')
   })

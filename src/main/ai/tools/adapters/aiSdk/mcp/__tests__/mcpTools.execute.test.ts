@@ -144,7 +144,7 @@ describe('mcpTools execute wrapper', () => {
     callTool.mockResolvedValue({
       isError: false,
       content: [{ type: 'text', text: 'should not run' }]
-    } as McpCallToolResponse)
+    })
     await syncMcpToolsToRegistry(reg)
 
     const invoke = createToolInvokeTool(reg, new Set([tool.id]), new Set([tool.id]))
@@ -152,10 +152,13 @@ describe('mcpTools execute wrapper', () => {
     if (!execute) throw new Error('expected tool_invoke to have an execute fn')
 
     await expect(
-      execute({ name: tool.id, params: { query: 'hello', unexpected: true } }, {
-        toolCallId: 'outer-1',
-        messages: []
-      } as never)
+      execute(
+        { name: tool.id, params: { query: 'hello', unexpected: true } },
+        {
+          toolCallId: 'outer-1',
+          messages: []
+        }
+      )
     ).rejects.toThrow(/Invalid params/)
     expect(callTool).not.toHaveBeenCalled()
   })

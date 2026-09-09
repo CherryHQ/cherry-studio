@@ -82,5 +82,5 @@ export function createTokenhubProvider(settings: TokenhubProviderSettings = {}):
   provider.imageModel = (modelId: string) =>
     createImageGenerationModel(modelId, { provider: TOKENHUB_PROVIDER_NAME, transport })
 
-  return provider as TokenhubProvider
+  return provider
 }

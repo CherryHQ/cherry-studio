@@ -193,7 +193,7 @@ function setupMoonshotRegistryData() {
   mockReadModels.mockReturnValue({
     version: '1.0',
     models: [{ id: 'kimi-k2-7-code', name: 'Kimi K2.7 Code', capabilities: ['reasoning'] }]
-  } as ReturnType<typeof readModelRegistry>)
+  })
 
   mockReadProviderModels.mockReturnValue({
     version: '1.0',
@@ -208,7 +208,7 @@ function setupMoonshotRegistryData() {
         }
       }
     ]
-  } as ReturnType<typeof readProviderModelRegistry>)
+  })
 
   mockReadProviders.mockReturnValue({
     version: '1.0',

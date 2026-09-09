@@ -152,7 +152,8 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
 }
 
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
-  if (APICallError.isInstance(error as unknown)) return serializeNestedProviderError(error) as SerializedError
+  const unknownError: unknown = error
+  if (APICallError.isInstance(unknownError)) return serializeNestedProviderError(unknownError) as SerializedError
 
   // 统一所有可能的错误字段
   const serializedError: SerializedError = {

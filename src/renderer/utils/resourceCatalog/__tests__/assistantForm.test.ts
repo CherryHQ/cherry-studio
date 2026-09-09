@@ -160,7 +160,7 @@ describe('diffAssistantUpdate', () => {
         maxTokens: Number.MAX_SAFE_INTEGER + 1,
         enableMaxTokens: false,
         temperature: 0.7
-      } as AssistantSettings
+      }
     })
     const baseline = initialAssistantFormState(assistant)
 
@@ -382,7 +382,7 @@ describe('context-management override (P2-D)', () => {
       settings: {
         ...DEFAULT_ASSISTANT_SETTINGS,
         contextSettings: { truncateThreshold: 4000, compress: { enabled: true } }
-      } as AssistantSettings
+      }
     })
     const baseline = initialAssistantFormState(assistant)
     expect(baseline.contextCompressThresholdPercent).toBeNull()

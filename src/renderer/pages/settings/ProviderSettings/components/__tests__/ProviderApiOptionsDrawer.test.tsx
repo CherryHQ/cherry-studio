@@ -19,7 +19,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as any
+  }
   HTMLElement.prototype.hasPointerCapture ??= () => false
   HTMLElement.prototype.releasePointerCapture ??= () => {}
   HTMLElement.prototype.setPointerCapture ??= () => {}

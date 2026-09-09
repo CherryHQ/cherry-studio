@@ -6,10 +6,8 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
-import type { AppEdition } from '@shared/types/appEdition'
-
 const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' as AppEdition },
+  applicationEdition: { current: 'cn' },
   migrationOrigin: { current: false }
 }))
 

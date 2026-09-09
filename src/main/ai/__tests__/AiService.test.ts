@@ -619,7 +619,7 @@ describe('AiService', () => {
         providerSettings: {},
         modelId: 'test-model'
       }
-    } as never)
+    })
     mockGenerateImage.mockResolvedValue({ images: [] })
     mockApplicationGet.mockImplementation((name: string) =>
       name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
@@ -1465,7 +1465,7 @@ describe('AiService tool approval', () => {
       assistant: undefined,
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
       fileAttachments: []
-    } as never)
+    })
 
     await service.streamText({
       conversation: { id: 'conversation-1', topicId: 'topic-1' },
@@ -1492,7 +1492,7 @@ describe('AiService tool approval', () => {
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
     mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback]).mockReturnValueOnce([keyFallback])
-    mockCreateRetryableWrap.mockReturnValue(((model: unknown) => model) as never)
+    mockCreateRetryableWrap.mockReturnValue((model: unknown) => model)
     mockReadRetryPolicy.mockReturnValue({
       enabled: false,
       maxAttempts: 3,
@@ -1512,7 +1512,7 @@ describe('AiService tool approval', () => {
       assistant: undefined,
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
       fileAttachments: []
-    } as never)
+    })
 
     await service.streamText({
       conversation: { id: 'conversation-1', topicId: 'topic-1' },
@@ -1554,7 +1554,7 @@ describe('AiService tool approval', () => {
     const service = createService()
     const primaryRepair = vi.fn().mockResolvedValue(null)
     const fallbackRepair = vi.fn().mockResolvedValue(null)
-    mockCreateRetryableWrap.mockReturnValueOnce(((model: unknown) => model) as never)
+    mockCreateRetryableWrap.mockReturnValueOnce((model: unknown) => model)
     vi.spyOn(service as unknown as AiServicePrivate, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
@@ -1567,7 +1567,7 @@ describe('AiService tool approval', () => {
       hookParts: [],
       assistant: undefined,
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
-    } as never)
+    })
 
     await service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' } as never)
 
@@ -1605,7 +1605,7 @@ describe('AiService tool approval', () => {
       hookParts: [],
       assistant: undefined,
       nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
-    } as never)
+    })
 
     await service.generateText({
       uniqueModelId: 'test-provider::test-model',

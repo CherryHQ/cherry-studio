@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
   vi.hoisted(() => ({
-    appEditionState: { current: 'global' as 'global' | 'cn' },
+    appEditionState: { current: 'global' },
     netFetchMock: vi.fn(),
     releaseNotesCheckMock: vi.fn(),
     releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,

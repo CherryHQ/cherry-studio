@@ -147,7 +147,7 @@ describe('prepareChatMessages — routing', () => {
   })
 
   it('does not OCR a stale retained attachment when the effective messages are text-only', async () => {
-    const message = userMessage([{ type: 'text', text: 'text only' } as CherryMessagePart])
+    const message = userMessage([{ type: 'text', text: 'text only' }])
 
     const out = await prepareChatMessages([message] as UIMessage[], {
       attachments: [{ fileEntryId: 'stale-entry', handle: 'stale.png', displayName: 'stale.png' }],

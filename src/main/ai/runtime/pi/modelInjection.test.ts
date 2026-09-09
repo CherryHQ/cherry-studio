@@ -890,7 +890,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }, { kind: 'toggle' }],
           selectableEfforts: ['low', 'high', 'max', 'none']
         }
-      } as Partial<Model>)
+      })
     )
 
     expect(getSupportedThinkingLevels(piModel)).toEqual(['off', 'low', 'high', 'max'])
@@ -907,7 +907,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'high', 'max'] }],
           selectableEfforts: ['low', 'high', 'max']
         }
-      } as Partial<Model>)
+      })
     )
 
     expect(getSupportedThinkingLevels(piModel)).not.toContain('off')
@@ -926,7 +926,7 @@ describe('pi thinking level ladder', () => {
           controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'] }],
           selectableEfforts: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']
         }
-      } as Partial<Model>),
+      }),
       makeProvider({
         id: 'openai-codex',
         defaultChatEndpoint: 'openai-responses',
@@ -969,7 +969,7 @@ describe('pi thinking level ladder', () => {
       makeModel({
         capabilities: ['reasoning'],
         reasoning: { controls: [{ kind: 'toggle' }], selectableEfforts: ['none', 'auto'] }
-      } as Partial<Model>)
+      })
     )
 
     expect(piModel).not.toHaveProperty('thinkingLevelMap')

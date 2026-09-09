@@ -143,14 +143,14 @@ describe('getTopicMessages', () => {
         activeNodeId: 'follow-up',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
       .mockResolvedValueOnce({
         items: [{ message: searched }],
         nextCursor: undefined,
         activeNodeId: 'follow-up',
         assistantId: 'assistant-1',
         rootId: 'root'
-      } as never)
+      })
 
     const messages = await getTopicMessages('topic-a')
 

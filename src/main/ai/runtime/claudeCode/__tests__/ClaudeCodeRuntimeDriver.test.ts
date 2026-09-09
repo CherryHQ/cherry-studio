@@ -467,7 +467,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -530,7 +530,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'stale-token'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -2079,7 +2079,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2148,7 +2148,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'deepseek::deepseek-chat' as any
+      modelId: 'deepseek::deepseek-chat'
     })
     const events = connection.events[Symbol.asyncIterator]()
 

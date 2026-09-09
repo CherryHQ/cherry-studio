@@ -109,7 +109,7 @@ describe('createRetryableWrap', () => {
 
     await wrap!(makeFakeLanguageModel('gpt-4', vi.fn().mockRejectedValue(makeApiError(401)))).doGenerate({
       prompt: []
-    } as never)
+    })
 
     expect(onFallbackActivated).toHaveBeenCalledOnce()
     expect(onFallbackActivated).toHaveBeenCalledWith(expect.objectContaining({ model: fallback, repairToolCall }))
@@ -131,8 +131,8 @@ describe('createRetryableWrap', () => {
     })
     const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
 
-    await wrapped.doGenerate({ prompt: [] } as never)
-    await wrapped.doGenerate({ prompt: [] } as never)
+    await wrapped.doGenerate({ prompt: [] })
+    await wrapped.doGenerate({ prompt: [] })
 
     expect(activations).toEqual(['primary', 'fallback', 'primary'])
   })

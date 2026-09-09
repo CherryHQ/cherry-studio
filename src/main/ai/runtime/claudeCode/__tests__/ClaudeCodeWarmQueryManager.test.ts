@@ -128,10 +128,10 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const manager = new ClaudeCodeWarmQueryManager()
     startupMock.mockResolvedValueOnce(warmQuery()).mockResolvedValueOnce(warmQuery())
 
-    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
-    await manager.prewarm({ key: 'session-2', options: { model: 'sonnet' } as any })
-    const first = await manager.consume({ key: 'session-1', options: { model: 'sonnet' } as any })
-    const second = await manager.consume({ key: 'session-2', options: { model: 'sonnet' } as any })
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } })
+    await manager.prewarm({ key: 'session-2', options: { model: 'sonnet' } })
+    const first = await manager.consume({ key: 'session-1', options: { model: 'sonnet' } })
+    const second = await manager.consume({ key: 'session-2', options: { model: 'sonnet' } })
 
     expect(first?.processDiagnostics).not.toBe(second?.processDiagnostics)
     expect(first?.processDiagnostics.reference).not.toBe(second?.processDiagnostics.reference)
@@ -425,12 +425,12 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     await manager.prewarm({
       key: 'session-1',
-      options: { model: 'sonnet' } as any,
+      options: { model: 'sonnet' },
       connectionRebuildSignature: 'session-generation-1'
     })
     const consumed = await manager.consume({
       key: 'session-1',
-      options: { model: 'sonnet' } as any,
+      options: { model: 'sonnet' },
       connectionRebuildSignature: 'session-generation-2'
     })
 

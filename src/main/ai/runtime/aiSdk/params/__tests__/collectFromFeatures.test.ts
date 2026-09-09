@@ -8,7 +8,7 @@ import type { RequestScope } from '../scope'
 
 function makeScope(): RequestScope {
   return {
-    request: { mcpToolIds: [] },
+    request: { conversation: { id: 'test' }, mcpToolIds: [] },
     signal: new AbortController().signal,
     registry: {} as never,
     assistant: undefined,
