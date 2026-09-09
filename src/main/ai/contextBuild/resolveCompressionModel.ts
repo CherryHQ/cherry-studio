@@ -1,7 +1,7 @@
 /**
  * Resolve a Cherry-side compression-model selector (`<providerId>::<modelId>`
  * UniqueModelId) into a `LanguageModelV3` via the SAME path the agent uses:
- * Provider+Model rows (DataApi) → `providerToAiSdkConfig` → `createExecutor`
+ * Provider+Model rows (DataApi) → `resolveSdkConfig` → `createExecutor`
  * → `executor.languageModel(modelId)`.
  *
  * Returns `null` (never throws) on any failure — the compress feature treats
@@ -10,11 +10,14 @@
 import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { providerToAiSdkConfig } from '@main/ai/provider/config'
+import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
+import type { ConversationRef } from '../types'
 import { resolveContextWindow } from './resolveContextWindow'
 
 const logger = loggerService.withContext('resolveCompressionModel')
@@ -36,7 +39,10 @@ export interface CompressionModelDescriptor {
   readonly contextWindow: number | null
 }
 
-export async function resolveCompressionModel(modelIdRaw: string): Promise<CompressionModelDescriptor | null> {
+export async function resolveCompressionModel(
+  modelIdRaw: string,
+  conversation: ConversationRef
+): Promise<CompressionModelDescriptor | null> {
   if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
     logger.warn('compression modelId is not a valid UniqueModelId', { modelIdRaw })
     return null
@@ -59,18 +65,24 @@ export async function resolveCompressionModel(modelIdRaw: string): Promise<Compr
   }
 
   try {
-    const config = await providerToAiSdkConfig(provider, model)
-    // ai-core's createExecutor type accepts only the registered union of
-    // provider ids; the union match was already validated by `providerToAiSdkConfig`.
+    const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
+    // App provider extensions are registered beyond the executor's built-in type union.
     const executor = await createExecutor(
-      config.providerId as Parameters<typeof createExecutor>[0],
-      config.providerSettings as Parameters<typeof createExecutor>[1]
+      sdkConfig.providerId as Parameters<typeof createExecutor>[0],
+      sdkConfig.providerSettings as Parameters<typeof createExecutor>[1]
     )
-    // languageModel() prepends the providerId (`${providerId}:${modelId}`), so it needs the
-    // BARE modelId — fall back to the parsed `modelId`, not the composite `model.id`
-    // (`||` also covers an empty apiModelId).
-    const languageModel = await executor.languageModel(model.apiModelId || modelId)
-    return { languageModel, contextWindow: resolveContextWindow(model.contextWindow) }
+    const languageModel = await executor.languageModel(sdkConfig.modelId)
+    return {
+      languageModel: sdkConfig.conversationHeader
+        ? wrapLanguageModel({
+            model: languageModel,
+            middleware: defaultSettingsMiddleware({
+              settings: { headers: { [sdkConfig.conversationHeader]: conversation.id } }
+            })
+          })
+        : languageModel,
+      contextWindow: resolveContextWindow(model.contextWindow)
+    }
   } catch (error) {
     logger.warn('compression model resolution failed', {
       providerId,
