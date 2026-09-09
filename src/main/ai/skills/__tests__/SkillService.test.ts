@@ -2299,13 +2299,27 @@ describe('SkillService', () => {
       })
     })
 
-    it('sanitizes the folder name so a tampered part cannot escape the mirror root', async () => {
-      // A crafted folderName reaching the read path must resolve inside the mirror root
-      // (missing there), never to ../../SKILL.md outside it.
+    it('contains the folder name so a tampered part cannot escape the mirror root', async () => {
+      // Decoy at the escape target: without containment, '../../outside' would resolve
+      // here and read this SKILL.md.
+      const escapeTarget = path.join(mirrorRoot, '..', '..', 'outside')
+      await fs.promises.mkdir(escapeTarget, { recursive: true })
+      await fs.promises.writeFile(path.join(escapeTarget, 'SKILL.md'), 'escaped secret')
+
       await expect(new SkillService().readSkillMdByFolderName('../../outside')).resolves.toEqual({
         status: 'missing'
       })
-      expect(fs.existsSync(path.join(mirrorRoot, '..', '..', 'outside'))).toBe(false)
+    })
+
+    it('reads adopt-path folder names the installer never sanitized', async () => {
+      const skillDir = path.join(mirrorRoot, 'pdf.tools')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'dots are legal')
+
+      await expect(new SkillService().readSkillMdByFolderName('pdf.tools')).resolves.toEqual({
+        status: 'found',
+        content: 'dots are legal'
+      })
     })
 
     it('reports error when the descriptor exists but cannot be read', async () => {

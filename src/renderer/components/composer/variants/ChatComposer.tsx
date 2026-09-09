@@ -1552,9 +1552,8 @@ const ChatComposerInner = ({
     [skillsLauncher, toolsRegistry]
   )
 
-  // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
-  // it with the current (possibly stale) closure, so an externally installed/removed skill would
-  // otherwise only appear on the next open (mirrors the MCP status panel).
+  // Keep an already-open skills submenu in sync once a refresh resolves — its opening closure
+  // is stale, so external installs/removals would otherwise wait for the next open.
   const updateQuickPanelList = quickPanel?.updateList
   useEffect(() => {
     if (!skillsPanelVisible || !updateQuickPanelList) return
@@ -1562,8 +1561,7 @@ const ChatComposerInner = ({
   }, [skillsPanelVisible, skillItems, updateQuickPanelList])
 
   // A skill uninstalled while its chip sits in a cached draft must not survive into a later send
-  // (main would fail the turn on the unreadable SKILL.md). Validate once per draft restore; token
-  // round-trips within a session (input history) keep their tokens verbatim.
+  // (main would fail the turn). Validate once per restore; in-session round-trips keep tokens.
   const [shouldValidateSkills, setShouldValidateSkills] = useState(getCachedSkillTokens(initialDraft.tokens).length > 0)
   useEffect(() => {
     if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return

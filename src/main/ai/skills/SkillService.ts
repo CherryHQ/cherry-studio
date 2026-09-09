@@ -107,11 +107,15 @@ export class SkillService {
    * `LocalSkill.filename`) is the storage identity the renderer attaches; unlike
    * `readFile(skillId, …)` it needs no catalog row, so a chat turn whose skill was
    * uninstalled mid-flight still gets the same found/missing/error verdict (#19773).
-   * Sanitized like every install-side folder name — a tampered part must not steer
-   * the path outside the mirror root.
+   * Containment, not name rewriting: reconcile adopts agent-authored directories under
+   * their original (never install-sanitized) names, so a rename-style guard would turn
+   * legitimate attachments into guaranteed turn failures.
    */
   async readSkillMdByFolderName(folderName: string): Promise<SkillMdReadState> {
-    return this.readSkillMdState(this.getMirrorPath(sanitizeFolderName(folderName)))
+    const root = path.resolve(this.getMirrorRoot())
+    const target = path.resolve(this.getMirrorPath(folderName))
+    if (target !== root && !target.startsWith(root + path.sep)) return { status: 'missing' }
+    return this.readSkillMdState(target)
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
