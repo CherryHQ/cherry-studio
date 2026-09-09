@@ -847,11 +847,15 @@ describe('scheduled task frequency conversion', () => {
     expect(triggerToFormState({ kind: 'cron', expr: '0,30 9 * * *' }).kind).toBe('cron')
   })
 
-  it.each(['61 8-12 * * *', 'not a cron expression'])('rejects an invalid Cron expression: %s', (value) => {
-    expect(formStateToTrigger({ kind: 'cron', value, weekday: '1', timeoutMinutes })).toBeNull()
-  })
+  it.each(['61 8-12 * * *', 'not a cron expression', '0 0 31 2 *'])(
+    'rejects an invalid or non-running Cron expression: %s',
+    (value) => {
+      expect(formStateToTrigger({ kind: 'cron', value, weekday: '1', timeoutMinutes })).toBeNull()
+    }
+  )
 
-  it.each(['* * * * * *', '0 0 31 2 *'])('keeps a scheduler-compatible Cron expression editable: %s', (value) => {
+  it('keeps a valid six-field Cron expression editable', () => {
+    const value = '* * * * * *'
     expect(formStateToTrigger({ kind: 'cron', value, weekday: '1', timeoutMinutes })).toEqual({
       kind: 'cron',
       expr: value

@@ -225,8 +225,7 @@ function isValidCronExpression(value: string): boolean {
   let cron: Cron | undefined
   try {
     cron = new Cron(expression, { paused: true })
-    cron.nextRun()
-    return true
+    return cron.nextRun() !== null
   } catch {
     return false
   } finally {
@@ -1272,7 +1271,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspaces?.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId)
-  const trigger = formStateToTrigger(schedule)
+  const trigger = useMemo(() => formStateToTrigger(schedule), [schedule])
 
   const handleSave = useCallback(async () => {
     setSubmitted(true)
