@@ -1,5 +1,5 @@
 ---
-description: Reusable build, approval, sandbox, and packaging regression checks for the embedded DSH runtime
+description: Build and packaging regression commands with manual approval and sandbox checks for the embedded DSH runtime
 sources:
   - packages/dsh-bridge
   - src/main/ai/runtime/dsh
@@ -26,19 +26,7 @@ pnpm build
 
 The bridge runtime is generated under `packages/dsh-bridge/dist/runtime/`; the application build is under `out/`. This does not produce an installer. Rebuild the bridge after changing its plugin, entry list, or dependencies before running the integration tests.
 
-## Example 1: Offline Approval and Sandbox Feedback
-
-```sh
-pnpm exec vitest run --project main src/main/ai/runtime/dsh/__tests__/runtimeUpgrade.test.ts src/main/ai/runtime/dsh/__tests__/sandboxEscalation.test.ts
-```
-
-These tests launch the built runtime using the real SDK, authenticated Cherry bridge, and a local HTTP model fixture. Approval coverage verifies that rejection feedback reaches the next model step and that rejected tools do not execute. A harmless non-empty skill directory exercises skill plugin activation.
-
-Sandbox coverage verifies session-aware shell schemas and actionable tool errors for paired, unpaired, and repeated escalation parameters, including two calls in one model response. The guard rejects invalid parameters without a forced `blocked` turn; the model can correct them or report the issue normally. This is not same-mode escalation as a no-op and does not impose a general retry limit.
-
-Workspaces, compositions, and logs are temporary and cleaned up afterward. No real API key or production data is needed. These tests do not establish compatibility with logs from older SDK versions.
-
-## Example 2: Bridge, Adapter, and Packaging Regression
+## Example 1: Bridge, Adapter, and Packaging Regression
 
 ```sh
 pnpm --filter @cherrystudio/dsh-bridge exec tsc --noEmit
@@ -48,9 +36,9 @@ pnpm exec vitest run --project scripts scripts/__tests__/dsh-runtime-packaging.t
 pnpm lint
 ```
 
-These suites cover approval and cancellation, missing-workspace denial, session workspace mismatch, stream and trace projection, developer-role compatibility against a local HTTP fixture, real PNG processing through the bundled attachment API, and runtime packaging rules, SDK dependency-graph exclusions, normalized fail-closed plugin settings, and Full Access shell-parameter feedback. The packaging suite does not launch an installed application.
+These suites cover approval and cancellation, missing-workspace denial, session workspace mismatch, stream and trace projection, developer-role compatibility against a local HTTP fixture, real PNG processing through the bundled attachment API, runtime packaging rules, SDK dependency-graph exclusions, and normalized fail-closed plugin settings. They do not include end-to-end current-turn rejection feedback or Full Access shell-parameter probes; verify those scenarios below. The packaging suite does not launch an installed application.
 
-## Example 3: Manual Model and UI Checks
+## Example 2: Manual Model and UI Checks
 
 Use an isolated test profile and a disposable workspace. Start the built application with `pnpm start`, select DSH for a test agent, and configure a test model. The following examples can incur model charges; they are not part of the offline suite.
 
@@ -58,6 +46,8 @@ Use an isolated test profile and a disposable workspace. Start the built applica
 | --- | --- | --- |
 | Streaming and cancellation | Ask for a long numbered list; cancel midway | Text streams normally, cancellation ends the turn, and a subsequent message works |
 | File approval | Ask to create `upgrade-smoke.txt` containing `hello`; reject approval, then retry and approve | Rejection leaves no file; approval creates it only in the test workspace |
+| Rejection feedback | Reject a tool with a reason, then repeat without a reason; separately approve a tool | The next model step receives the rejection reason in the current turn, not as a queued message; approval does not inject rejection feedback |
+| Full Access parameters | Request a harmless shell command with paired, unpaired, empty, and repeated escalation parameters; include two calls in one response | Invalid parameters produce corrective tool errors without execution or a forced `blocked` turn; a corrected call and subsequent prompt work. This is not same-mode escalation as a no-op or a general retry limit |
 | Plan review | Enable plan mode and ask for a plan to create the file, without implementing it | No write occurs during planning; the review question appears and accepts an answer |
 | Cold resume | Complete a short conversation, close the app, reopen that session, and continue | History and workspace remain consistent; no unintended autonomous turn starts |
 | Images and MCP | Attach a small PNG; call a test MCP tool that returns text and an image | No missing-export error; text and image references are displayed correctly |
