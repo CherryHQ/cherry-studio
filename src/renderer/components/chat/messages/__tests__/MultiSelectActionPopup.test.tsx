@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MultiSelectActionPopup from '../MultiSelectActionPopup'
@@ -12,7 +13,9 @@ vi.mock('@cherrystudio/ui', () => ({
   Checkbox: ({ checked, disabled, onCheckedChange, ...props }: any) => (
     <input
       type="checkbox"
-      data-state={checked === true ? 'checked' : checked === 'indeterminate' ? 'indeterminate' : 'unchecked'}
+      // Forward the raw prop so assertions cover what the popup passes to the Checkbox,
+      // not behavior reimplemented by this stand-in.
+      data-state={String(checked)}
       checked={checked === true}
       disabled={disabled}
       onChange={(event) => onCheckedChange?.(event.target.checked)}
@@ -123,10 +126,10 @@ describe('MultiSelectionPopup', () => {
     })
 
     it.each([
-      [false, 'unchecked'],
+      [false, 'false'],
       ['indeterminate', 'indeterminate'],
-      [true, 'checked']
-    ] as const)('reflects the %s select-all state', (selectAllState, expectedState) => {
+      [true, 'true']
+    ] as const)('passes the %s select-all state to the checkbox', (selectAllState, expectedState) => {
       render(<MultiSelectActionPopup {...popupProps()} selectAllState={selectAllState} onToggleSelectAll={vi.fn()} />)
 
       expect(screen.getByRole('checkbox')).toHaveAttribute('data-state', expectedState)
@@ -136,8 +139,9 @@ describe('MultiSelectionPopup', () => {
       ['from unchecked', false, true],
       ['from indeterminate', 'indeterminate', true],
       ['from checked', true, false]
-    ] as const)('toggles %s', (_label, selectAllState, expectedChecked) => {
+    ] as const)('toggles %s', async (_label, selectAllState, expectedChecked) => {
       const onToggleSelectAll = vi.fn()
+      const user = userEvent.setup()
       render(
         <MultiSelectActionPopup
           {...popupProps()}
@@ -146,7 +150,7 @@ describe('MultiSelectionPopup', () => {
         />
       )
 
-      fireEvent.click(screen.getByRole('checkbox'))
+      await user.click(screen.getByRole('checkbox'))
 
       expect(onToggleSelectAll).toHaveBeenCalledWith(expectedChecked)
     })
