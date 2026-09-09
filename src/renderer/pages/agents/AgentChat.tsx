@@ -1,6 +1,7 @@
 import { Checkbox, ConfirmDialog } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
+import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
@@ -132,6 +133,7 @@ interface AgentChatLayoutProps {
   centerSurface?: ConversationCenterSlot | null
   className?: string
   conversationState: 'pending' | 'ready' | 'unavailable'
+  streamingLayers: MessageStreamingLayers
   isMessageHistoryLoading: boolean
   messages: CherryUIMessage[]
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -513,6 +515,7 @@ const AgentChat = ({
       'multi-select-mode': Boolean(!centerSurface && sessionSnapshot && isMultiSelectMode)
     }),
     conversationState,
+    streamingLayers: runtime.streamingLayers,
     isMessageHistoryLoading: runtimeIsLoading,
     messages: sessionSnapshot ? runtime.uiMessages : EMPTY_MESSAGES,
     onFileNavigationRequestChange,
@@ -696,6 +699,7 @@ function AgentChatLayout({
   centerSurface,
   className,
   conversationState,
+  streamingLayers,
   isMessageHistoryLoading,
   messages,
   onFileNavigationRequestChange,
@@ -720,6 +724,7 @@ function AgentChatLayout({
     <AgentRightPane.Scope
       model={model}
       conversationState={conversationState}
+      streamingLayers={streamingLayers}
       isMessageHistoryLoading={isMessageHistoryLoading}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}

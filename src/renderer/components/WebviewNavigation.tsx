@@ -74,6 +74,7 @@ export function WebviewNavigation({
   onAnnotationSaved,
   toolbarActions
 }: Props) {
+  const webview = webviewRef.current
   const { t } = useTranslation()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
@@ -195,7 +196,16 @@ export function WebviewNavigation({
       if (checkTimeout) clearTimeout(checkTimeout)
       detachListeners?.()
     }
-  }, [isHostActive, scheduleNavigationUpdate, target.id, updateCurrentPageUrl, updateNavigationState, webviewRef])
+  }, [
+    isHostActive,
+    scheduleNavigationUpdate,
+    target.id,
+    updateCurrentPageUrl,
+    updateNavigationState,
+    webview,
+    webviewRevision,
+    webviewRef
+  ])
 
   const handleGoBack = useCallback(() => {
     try {

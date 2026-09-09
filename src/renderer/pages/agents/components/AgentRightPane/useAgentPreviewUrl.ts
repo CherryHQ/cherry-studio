@@ -3,7 +3,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { useEffect, useMemo, useState } from 'react'
 
 import {
-  type AgentPreviewUrlSource,
+  type AgentPreviewUrlCandidate,
   findAgentPreviewUrlCandidates,
   findAgentPreviewUrlInOutput
 } from './agentRightPaneProjection'
@@ -18,7 +18,7 @@ export function useAgentPreviewUrl(
   sessionId: string | undefined,
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
-): { source: AgentPreviewUrlSource | null; url: string | null } {
+): { source: AgentPreviewUrlCandidate | null; url: string | null } {
   const candidates = useMemo(
     () => (enabled && sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []),
     [enabled, messages, partsByMessageId, sessionId]
