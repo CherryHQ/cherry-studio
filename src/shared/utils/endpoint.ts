@@ -74,7 +74,9 @@ export function resolveCanonicalEndpoint(
   // the chat transport; only a dedicated primary endpoint or another explicit
   // operation-only capability should force a non-chat route.
   const chatPrimaryImageCapability =
-    endpointTypes.length > 0 && !hasDeclaredDedicatedEndpoint && capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
+    endpointTypes.length > 0 &&
+    !hasDeclaredDedicatedEndpoint &&
+    capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
   const nonChat =
     Boolean(hasDeclaredDedicatedEndpoint) || (isNonChatModel({ ...model, capabilities }) && !chatPrimaryImageCapability)
   const isAllowed = (endpointType: EndpointType | undefined): endpointType is EndpointType =>

@@ -178,9 +178,7 @@ describe('resolveCanonicalEndpoint', () => {
     expect(resolveCanonicalEndpoint(sharedHostProvider, responsesModel).endpointType).toBe(
       ENDPOINT_TYPE.OPENAI_RESPONSES
     )
-    expect(resolveEndpointBaseUrl(sharedHostProvider, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(
-      'https://relay.example/v1'
-    )
+    expect(resolveEndpointBaseUrl(sharedHostProvider, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('https://relay.example/v1')
   })
 
   it('returns the configured gateway route and its provider-options key together', () => {

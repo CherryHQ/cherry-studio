@@ -192,7 +192,9 @@ describe('DeepSeek Harness config transaction', () => {
       }
     })
 
-    expect(resolveDeepSeekHarnessEndpoint(sharedHostProvider, model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }))).toEqual({
+    expect(
+      resolveDeepSeekHarnessEndpoint(sharedHostProvider, model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }))
+    ).toEqual({
       endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
       protocol: 'openai-responses',
       baseUrl: 'https://proxy.example/v1'
