@@ -686,6 +686,7 @@
   "chat.mcp.warning.gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm",
   "chat.message.editing_current": "Thông báo này đang được chỉnh sửa trong trình soạn thảo",
   "chat.message.flow.actions_unavailable": "Đợi thao tác hiện tại hoàn tất",
+  "chat.message.flow.continue_branch": "Tiếp tục nhánh này",
   "chat.message.flow.continue_here": "Tiếp tục từ đây",
   "chat.message.flow.copy_topic.created": "Đã sao chép sang một cuộc trò chuyện mới",
   "chat.message.flow.copy_topic.label": "Sao chép thành Cuộc trò chuyện mới",

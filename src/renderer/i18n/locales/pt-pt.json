@@ -686,6 +686,7 @@
   "chat.mcp.warning.gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
   "chat.message.editing_current": "Esta mensagem está a ser editada no compositor",
   "chat.message.flow.actions_unavailable": "Aguarde que a operação atual termine",
+  "chat.message.flow.continue_branch": "Continuar este ramo",
   "chat.message.flow.continue_here": "Continuar a partir daqui",
   "chat.message.flow.copy_topic.created": "Copiado para uma nova conversa",
   "chat.message.flow.copy_topic.label": "Copiar como Nova Conversa",

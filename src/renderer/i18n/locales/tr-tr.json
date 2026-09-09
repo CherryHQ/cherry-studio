@@ -686,6 +686,7 @@
   "chat.mcp.warning.gemini_web_search": "Gemini, yerel web arama araçlarının ve işlev çağrısının aynı anda kullanılmasını desteklemiyor",
   "chat.message.editing_current": "Bu mesaj, mesaj düzenleyicide düzenleniyor",
   "chat.message.flow.actions_unavailable": "Geçerli işlemin tamamlanmasını bekleyin",
+  "chat.message.flow.continue_branch": "Bu dala devam et",
   "chat.message.flow.continue_here": "Buradan devam et",
   "chat.message.flow.copy_topic.created": "Yeni bir konuşmaya kopyalandı",
   "chat.message.flow.copy_topic.label": "Yeni Konuşma Olarak Kopyala",

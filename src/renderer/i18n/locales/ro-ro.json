@@ -686,6 +686,7 @@
   "chat.mcp.warning.gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor",
   "chat.message.editing_current": "Acest mesaj este editat în compozitor",
   "chat.message.flow.actions_unavailable": "Așteaptă finalizarea operațiunii curente",
+  "chat.message.flow.continue_branch": "Continuă această ramură",
   "chat.message.flow.continue_here": "Continuă de aici",
   "chat.message.flow.copy_topic.created": "Copiat într-o conversație nouă",
   "chat.message.flow.copy_topic.label": "Copiază ca o nouă conversație",

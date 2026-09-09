@@ -8,7 +8,7 @@ date: 2026-09-08
 
 ## What changed
 
-The conversation branch entry is now named Advanced View and opens only as a maximized canvas, starting with the first message on the left and branching to the right, beneath a single header with the topic title, sidebar toggle, assistant, and model selector. Message cards display the producing assistant's avatar, name, and model, plus Markdown content with streaming updates and a maximum height; longer messages scroll inside the card while its header and existing actions remain visible. Assistant cards expose a small continuation plus button centered on their right edge, and the minimap has a visible viewport outline.
+The conversation branch entry is now named Advanced View and opens only as a maximized canvas, starting with the first message on the left and branching to the right, beneath a single header with the topic title, sidebar toggle, assistant, and model selector. Message cards display the producing assistant's avatar, name, and model, plus Markdown content with streaming updates and a maximum height; longer messages scroll inside the card while its header and existing actions remain visible. Assistant cards expose a small continuation plus button centered on their right edge, and the minimap uses distinct colors for user and assistant messages across branches with a visible viewport outline.
 
 ## Why this matters to the user
 

@@ -57,9 +57,8 @@ const proOptions: ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdge
 }
 
 function getMiniMapNodeColor(node: TopicMessageFlowNodeModel) {
-  const data = node.data
-
-  if (data.isActive || data.isOnActivePath) return 'var(--primary)'
+  if (node.data.role === 'user') return 'var(--chart-1)'
+  if (node.data.role === 'assistant') return 'var(--chart-2)'
   return 'var(--foreground-tertiary)'
 }
 

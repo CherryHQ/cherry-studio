@@ -686,6 +686,7 @@
   "chat.mcp.warning.gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函式呼叫",
   "chat.message.editing_current": "此訊息正在編輯器中編輯",
   "chat.message.flow.actions_unavailable": "請等待目前操作完成",
+  "chat.message.flow.continue_branch": "繼續此分支",
   "chat.message.flow.continue_here": "從這裡繼續",
   "chat.message.flow.copy_topic.created": "已複製到新對話",
   "chat.message.flow.copy_topic.label": "複製為新對話",
