@@ -1872,12 +1872,13 @@ export class MessageService {
 
       const reparentedIds = this.reparentChildrenTx(tx, targets)
       let newActiveNodeId: string | null | undefined
-
-      if (topic.activeNodeId && targetIds.includes(topic.activeNodeId)) {
-        newActiveNodeId = this.resolveActiveNodeFallbackTx(tx, target.parentId)
-      }
+      const activeNodeRemoved = Boolean(topic.activeNodeId && targetIds.includes(topic.activeNodeId))
 
       tx.delete(messageTable).where(inArray(messageTable.id, targetIds)).run()
+
+      if (activeNodeRemoved) {
+        newActiveNodeId = this.resolveActiveNodeFallbackTx(tx, target.topicId, target.parentId)
+      }
 
       if (newActiveNodeId !== undefined) {
         const topicService = getDataService('TopicService')
@@ -1912,7 +1913,8 @@ export class MessageService {
    *
    * When the deleted message(s) include the topic's activeNodeId, it will be
    * automatically updated based on activeNodeStrategy:
-   * - 'parent' (default): Use the remaining context reply, falling back to the parent
+   * - 'parent' (default): Descend from the remaining context reply, or from the parent,
+   *   to the newest surviving leaf — null when only the virtual root is left
    * - 'clear': Sets activeNodeId to null
    *
    * All operations are performed within a transaction for consistency.
@@ -1968,16 +1970,15 @@ export class MessageService {
       let contextChangedIds: string[] = []
       let newActiveNodeId: string | null | undefined
 
-      // The virtual root is structural and never a valid active node.
-      const parentFallback = this.resolveActiveNodeFallbackTx(tx, message.parentId)
+      // Where the fallback starts descending once the rows are gone.
+      let fallbackAnchorId: string | null = message.parentId
+      let activeNodeRemoved: boolean
 
       if (cascade) {
         deletedIds = [id, ...descendantIds]
 
         // Check if activeNodeId is affected
-        if (topic.activeNodeId && deletedIds.includes(topic.activeNodeId)) {
-          newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
-        }
+        activeNodeRemoved = Boolean(topic.activeNodeId && deletedIds.includes(topic.activeNodeId))
 
         // The self-FK is ON DELETE CASCADE, so deleting the target removes its whole
         // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
@@ -2018,6 +2019,7 @@ export class MessageService {
         // Match the displayed chronological order: next, or previous at the end.
         const contextIndex = group.findIndex((member) => member.id === id)
         const successor = contextIndex < 0 ? undefined : (group[contextIndex + 1] ?? group[contextIndex - 1])
+        if (successor) fallbackAnchorId = successor.id
         if (isContextReply) {
           contextChangedIds = this.getDescendantIdsTx(tx, id)
           this.clearContextAnchorsTx(tx, contextChangedIds)
@@ -2027,14 +2029,19 @@ export class MessageService {
         deletedIds = [id]
 
         // Check if activeNodeId is affected
-        if (topic.activeNodeId === id) {
-          newActiveNodeId = activeNodeStrategy === 'clear' ? null : (successor?.id ?? parentFallback)
-        }
+        activeNodeRemoved = topic.activeNodeId === id
 
         // Hard delete this message
         tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })
+      }
+
+      if (activeNodeRemoved) {
+        newActiveNodeId =
+          activeNodeStrategy === 'clear'
+            ? null
+            : this.resolveActiveNodeFallbackTx(tx, message.topicId, fallbackAnchorId)
       }
 
       const topicService = getDataService('TopicService')
@@ -2112,17 +2119,24 @@ export class MessageService {
     }
   }
 
-  private resolveActiveNodeFallbackTx(tx: DbOrTx, parentId: string | null): string | null {
-    if (!parentId) return null
+  /**
+   * Where the conversation lands once its active node is gone: the newest leaf
+   * under `anchorId`, the same descent branch navigation performs. Stopping at
+   * the anchor would truncate the view while surviving replies hang below it.
+   * Null when only the virtual root survives. Call after the rows are deleted.
+   */
+  private resolveActiveNodeFallbackTx(tx: DbOrTx, topicId: string, anchorId: string | null): string | null {
+    if (!anchorId) return null
 
-    const [parent] = tx
+    const leafId = this.resolveNewestLeafIdTx(tx, topicId, anchorId)
+    const [leaf] = tx
       .select({ role: messageTable.role })
       .from(messageTable)
-      .where(and(eq(messageTable.id, parentId), isNull(messageTable.deletedAt)))
+      .where(and(eq(messageTable.id, leafId), isNull(messageTable.deletedAt)))
       .limit(1)
       .all()
 
-    return !parent || parent.role === 'root' ? null : parentId
+    return !leaf || leaf.role === 'root' ? null : leafId
   }
 
   private reparentChildrenTx(
@@ -2421,7 +2435,16 @@ export class MessageService {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
-    const [leaf] = db.all<{ id: string }>(sql`
+    const pathRows = this.getPathRowsToNodeTx(db, this.resolveNewestLeafIdTx(db, topicId, nodeId), { topicId })
+    return pathRows.map(rowToMessage)
+  }
+
+  /**
+   * Leaf with the greatest `created_at` in `nodeId`'s live subtree, or `nodeId`
+   * itself when it has no live children.
+   */
+  private resolveNewestLeafIdTx(tx: DbOrTx, topicId: string, nodeId: string): string {
+    const [leaf] = tx.all<{ id: string }>(sql`
       WITH RECURSIVE subtree AS (
         SELECT id, created_at FROM message
           WHERE id = ${nodeId} AND topic_id = ${topicId} AND deleted_at IS NULL
@@ -2438,9 +2461,7 @@ export class MessageService {
       ORDER BY s.created_at DESC
       LIMIT 1
     `)
-
-    const pathRows = this.getPathRowsToNodeTx(db, leaf?.id ?? nodeId, { topicId })
-    return pathRows.map(rowToMessage)
+    return leaf?.id ?? nodeId
   }
 }
 
