@@ -128,6 +128,13 @@ export interface AiStreamRequest extends AiChatRequest {
    * consumers fall back to scanning `messages`.
    */
   retainedContext?: RetainedContext
+  /**
+   * Skills attached to this turn by folder name (= `LocalSkill.filename`), read from the hidden
+   * `data-skill-scope` part. Each SKILL.md is fetched from the mirror root at request-build time
+   * and inlined into the system prompt; a missing or unreadable file fails the turn instead of
+   * silently dropping the instructions (#19773). Main-internal, same boundary as `retainedContext`.
+   */
+  skillFolderNames?: string[]
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
   /**
    * Attribution for callers with no assistant to derive it from. Neutral on purpose:

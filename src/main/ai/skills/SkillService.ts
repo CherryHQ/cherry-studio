@@ -51,6 +51,9 @@ const BUILTIN_VERSION_FILE = '.version'
  * Skill library metadata lives in `agent_global_skill`. Per-agent enablement
  * state lives in the `agent_skill` join table.
  */
+/** Three-state SKILL.md read result: found / missing (no file) / error (exists but unreadable). */
+export type SkillMdReadState = { status: 'found'; content: string } | { status: 'missing' } | { status: 'error' }
+
 export class SkillService {
   private readonly installer: SkillInstaller
   // Serializes every library mutation — install / uninstall / builtin sync / reconcile — so a
@@ -97,6 +100,16 @@ export class SkillService {
     const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
+  }
+
+  /**
+   * Read a skill's SKILL.md from the mirror root by folder name. Folder name (=
+   * `LocalSkill.filename`) is the storage identity the renderer attaches; unlike
+   * `readFile(skillId, …)` it needs no catalog row, so a chat turn whose skill was
+   * uninstalled mid-flight still gets the same found/missing/error verdict (#19773).
+   */
+  async readSkillMdByFolderName(folderName: string): Promise<SkillMdReadState> {
+    return this.readSkillMdState(this.getMirrorPath(folderName))
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
@@ -1024,9 +1037,7 @@ export class SkillService {
    * for deletion: `found` (content), `missing` (no SKILL.md at all — ENOENT for both casings), or
    * `error` (a descriptor exists but reading it threw — EACCES / EIO / atomic-replace window).
    */
-  private async readSkillMdState(
-    dir: string
-  ): Promise<{ status: 'found'; content: string } | { status: 'missing' } | { status: 'error' }> {
+  private async readSkillMdState(dir: string): Promise<SkillMdReadState> {
     let sawError = false
     for (const variant of ['SKILL.md', 'skill.md']) {
       try {

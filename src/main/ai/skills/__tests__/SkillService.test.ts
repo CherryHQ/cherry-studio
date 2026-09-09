@@ -2257,4 +2257,61 @@ describe('SkillService', () => {
       await expect(fs.promises.readFile(path.join(destDir, 'SKILL.md'), 'utf-8')).resolves.toContain('name: x')
     })
   })
+
+  describe('readSkillMdByFolderName', () => {
+    let restoreGetPath: () => void
+    let mirrorRoot: string
+
+    beforeEach(async () => {
+      const root = await createTempDir('skill-md-read-')
+      mirrorRoot = path.join(root, '.claude', 'skills')
+      await fs.promises.mkdir(mirrorRoot, { recursive: true })
+      // The fallback keeps every other path key inside the temp root — SkillInstaller's
+      // constructor resolves one and would try to mkdir a non-existent /mock.
+      const spy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        if (key === 'feature.agents.claude.skills') return filename ? path.join(mirrorRoot, filename) : mirrorRoot
+        return path.join(root, 'mock', key, filename ?? '')
+      })
+      restoreGetPath = () => spy.mockRestore()
+    })
+
+    afterEach(() => {
+      restoreGetPath()
+    })
+
+    it('returns the descriptor content for a mirrored skill', async () => {
+      const skillDir = path.join(mirrorRoot, 'pdf-tools')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'Be concise with PDFs.')
+
+      await expect(new SkillService().readSkillMdByFolderName('pdf-tools')).resolves.toEqual({
+        status: 'found',
+        content: 'Be concise with PDFs.'
+      })
+    })
+
+    it('reports missing when the folder has no SKILL.md in either casing', async () => {
+      await fs.promises.mkdir(path.join(mirrorRoot, 'gone'), { recursive: true })
+
+      await expect(new SkillService().readSkillMdByFolderName('gone')).resolves.toEqual({ status: 'missing' })
+      await expect(new SkillService().readSkillMdByFolderName('never-installed')).resolves.toEqual({
+        status: 'missing'
+      })
+    })
+
+    it('reports error when the descriptor exists but cannot be read', async () => {
+      const skillDir = path.join(mirrorRoot, 'locked')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      const descriptor = path.join(skillDir, 'SKILL.md')
+      await fs.promises.writeFile(descriptor, 'secret')
+      // chmod 000 makes the read throw EACCES — the "exists but unreadable" third state.
+      await fs.promises.chmod(descriptor, 0o000)
+
+      try {
+        await expect(new SkillService().readSkillMdByFolderName('locked')).resolves.toEqual({ status: 'error' })
+      } finally {
+        await fs.promises.chmod(descriptor, 0o644)
+      }
+    })
+  })
 })

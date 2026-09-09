@@ -36,7 +36,7 @@ import {
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { getKnowledgeBaseIdsFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, getSkillFolderNamesFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
@@ -474,6 +474,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         toCompactionSink(subscriber)
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
+      const skillFolderNames = getSkillFolderNamesFromParts(userMessage.data.parts ?? [])
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(
@@ -483,6 +484,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           history,
           placeholder.id,
           knowledgeBaseIds,
+          skillFolderNames,
           turnOptions.reasoningEffort,
           turnOptions.serviceTier,
           turnOptions.fastMode === true,
@@ -573,6 +575,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         history,
         target.id,
         getKnowledgeBaseIdsFromParts(parent.data.parts ?? []),
+        getSkillFolderNamesFromParts(parent.data.parts ?? []),
         turnOptions.reasoningEffort,
         turnOptions.serviceTier,
         turnOptions.fastMode === true,
@@ -667,6 +670,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const knowledgeBaseIds = anchor.parentId
       ? getKnowledgeBaseIdsFromParts(messageService.getById(anchor.parentId).data.parts ?? [])
       : undefined
+    const skillFolderNames = anchor.parentId
+      ? getSkillFolderNamesFromParts(messageService.getById(anchor.parentId).data.parts ?? [])
+      : undefined
 
     // Apply decisions to DB parts and flip status to `pending` so resolveCompactedHistory sees the approved state.
     const beforeParts = anchor.data.parts ?? []
@@ -725,6 +731,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               history,
               anchor.id,
               knowledgeBaseIds,
+              skillFolderNames,
               anchor.data.turnOptions?.reasoningEffort,
               anchor.data.turnOptions?.serviceTier,
               anchor.data.turnOptions?.fastMode === true,
@@ -826,6 +833,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               history,
               placeholder.id,
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
+              getSkillFolderNamesFromParts(userMessage.data.parts ?? []),
               req.reasoningEffort,
               req.serviceTier,
               req.fastMode,
@@ -1085,6 +1093,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     history: CherryUIMessage[],
     messageId: string,
     knowledgeBaseIds: string[] | undefined,
+    skillFolderNames: string[] | undefined,
     reasoningEffort: AiStreamRequest['reasoningEffort'],
     serviceTier: AiStreamRequest['serviceTier'],
     fastMode: boolean,
@@ -1098,6 +1107,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       messages: history,
       messageId,
       knowledgeBaseIds,
+      ...(skillFolderNames?.length ? { skillFolderNames } : {}),
       reasoningEffort,
       serviceTier,
       fastMode,
