@@ -43,7 +43,7 @@ const SESSION_TRACKER_MAX_SIZE = 500
  * succession. Debouncing prevents each fragment from triggering a separate
  * agent round-trip and avoids concurrent stream interleaving.
  */
-const MESSAGE_BATCH_DELAY_MS = 8000
+const MESSAGE_BATCH_DELAY_MS = 1000
 // Cap a sender's debounce extension so another sender in the conversation cannot wait forever.
 const MESSAGE_BATCH_MAX_DELAY_MS = 16000
 
@@ -120,7 +120,7 @@ export class ChannelMessageHandler {
 
   /**
    * Stop channel intake and immediately flush the buffered debounce batches (not waiting out
-   * the 8 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
+   * the 1 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
    * writers. No resume() — dispose your own hold. There is no release compensation: intake
    * dropped while quiesced is not replayable.
    *
@@ -233,7 +233,10 @@ export class ChannelMessageHandler {
         existing.messages.push(message)
         existing.resolvers.push({ resolve, reject })
         clearTimeout(existing.timer)
-        existing.timer = setTimeout(() => this.flushBatch(batchKey), Math.max(0, existing.deadline - Date.now()))
+        existing.timer = setTimeout(
+          () => this.flushBatch(batchKey),
+          Math.min(MESSAGE_BATCH_DELAY_MS, Math.max(0, existing.deadline - Date.now()))
+        )
         logger.debug('Message appended to pending batch', {
           batchKey,
           batchSize: existing.messages.length

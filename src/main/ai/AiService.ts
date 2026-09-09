@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import {
   type AiPlugin,
@@ -51,6 +53,7 @@ import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
+import { applyHttpTrace } from './observability'
 import { resolveProviderAiSdkConfig } from './provider/config'
 import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
@@ -59,6 +62,7 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
+import { resolveSdkConfig } from './provider/sdkConfig'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import {
   Agent,
@@ -73,7 +77,8 @@ import { type MessageRuntimeTimingSink, WebContentsListener } from './streamMana
 import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
-  AiBaseRequest,
+  AiChatRequest,
+  AiRequest,
   AiStreamRequest,
   AiTransportOptions,
   AppProviderSettingsMap,
@@ -234,11 +239,15 @@ export interface AiRequestOptions extends AiTransportOptions {
 }
 
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
-export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
+export type AsInProcess<T extends AiRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
-  usageContext?: InProcessUsageContext
   /** Trusted in-process classification for remote token analytics. */
   tokenUsageSource?: TokenUsageSource
+}
+
+/** Chat requests additionally carry the turn's correlation and the stream manager's sinks. */
+export type AsInProcessChat<T extends AiChatRequest> = AsInProcess<T> & {
+  usageContext?: InProcessUsageContext
   runtimeTimingSink?: MessageRuntimeTimingSink
   /**
    * Emits compaction lifecycle events as `data-compaction-anchor` chunks.
@@ -249,9 +258,7 @@ export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
 }
 
 /** Non-streaming text generation request — pure transport data. */
-export interface AiGenerateRequest extends AiBaseRequest {
-  /** Stable conversation identity used for provider routing and request tracing. */
-  chatId?: string
+export interface AiGenerateRequest extends AiChatRequest {
   system?: string
   prompt?: string
   messages?: ModelMessage[]
@@ -266,7 +273,7 @@ export interface AiGenerateResult {
 }
 
 /** Image generation request. */
-export interface AiImageRequest extends AiBaseRequest {
+export interface AiImageRequest extends AiRequest {
   prompt: string
   /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
   inputImages?: string[]
@@ -330,7 +337,7 @@ function resolveImageRequestSize(size: string | undefined): string | undefined {
 }
 
 /** Embedding request. */
-export interface AiEmbedRequest extends AiBaseRequest {
+export interface AiEmbedRequest extends AiRequest {
   values: string[]
 }
 
@@ -340,7 +347,7 @@ export interface AiEmbedResult {
   usage?: EmbeddingModelUsage
 }
 
-export interface AiRerankRequest extends AiBaseRequest {
+export interface AiRerankRequest extends AiRequest {
   query: string
   documents: string[]
   topN?: number
@@ -366,13 +373,13 @@ export interface AiRerankResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
 export class AiService extends BaseService {
-  // Per-request AbortControllers for the `ai.image.generate` route, paired with the
-  // `ai.image.abort` route. Key is the renderer-generated requestId. Entries are
-  // self-cleaning via `runImageRequest`'s `finally` block; abort on an unknown id is
-  // a no-op.
+  // Per-request AbortControllers for the cancellable one-shot routes (`ai.image.generate`,
+  // `ai.text.generate`), paired with their `*.abort` routes. Key is the renderer-generated
+  // requestId. Entries are self-cleaning via `runWithAbort`'s `finally` block; abort on an
+  // unknown id is a no-op.
   // TODO(abort-registry): collapse with MCP/stream/LAN registries once
   // the shared `ipcHandleWithAbort` helper lands.
-  private readonly imageRequests = new Map<string, AbortController>()
+  private readonly requests = new Map<string, AbortController>()
 
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
@@ -535,10 +542,10 @@ export class AiService extends BaseService {
    * the stream itself.
    */
   async streamText(
-    request: AsInProcess<AiStreamRequest>,
+    request: AsInProcessChat<AiStreamRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<ReadableStream<UIMessageChunk>> {
-    logger.info('streamText started', { chatId: request.chatId })
+    logger.info('streamText started', { chatId: request.conversation.topicId })
     const signal = request.requestOptions?.signal
     if (!signal) {
       throw new Error('streamText requires requestOptions.signal — no AbortController was attached by the caller')
@@ -552,8 +559,8 @@ export class AiService extends BaseService {
       })
     }
 
-    if (isAgentSessionTopic(request.chatId)) {
-      throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
+    if (isAgentSessionTopic(request.conversation.topicId)) {
+      throw new Error(`Agent session stream ${request.conversation.topicId} requires an agent-session runtime request`)
     }
 
     const repairUsagePlugins: { current?: AiPlugin[] } = {}
@@ -646,7 +653,11 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
-        diagnosticContext: { chatId: request.chatId, messageId: request.messageId, assistantId: request.assistantId },
+        diagnosticContext: {
+          chatId: request.conversation.topicId,
+          messageId: request.messageId,
+          assistantId: request.assistantId
+        },
         fallbacks: buildFallbackModels({
           request,
           assistant,
@@ -719,10 +730,35 @@ export class AiService extends BaseService {
     return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage, source))
   }
 
+  // ── Request-scoped cancellation ──
+
+  /** Run `operation` under a registry entry keyed by the renderer-supplied `requestId`. */
+  private async runWithAbort<T>(requestId: string, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController()
+    this.requests.set(requestId, controller)
+    try {
+      return await operation(controller.signal)
+    } finally {
+      this.requests.delete(requestId)
+    }
+  }
+
+  /** Abort the in-flight request for `requestId`; a no-op on an unknown id. */
+  abortRequest(requestId: string): void {
+    this.requests.get(requestId)?.abort()
+  }
+
   // ── Non-streaming text generation (agent.generate) ──
 
+  /** Cancellable variant of {@link generateText}, paired with the `ai.text.abort` route. */
+  async runTextRequest(requestId: string, request: AsInProcess<AiGenerateRequest>): Promise<AiGenerateResult> {
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateText({ ...request, requestOptions: { ...request.requestOptions, signal } })
+    )
+  }
+
   async generateText(
-    request: AsInProcess<AiGenerateRequest>,
+    request: AsInProcessChat<AiGenerateRequest>,
     extraFeatures: readonly RequestFeature[] = []
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
@@ -840,25 +876,13 @@ export class AiService extends BaseService {
 
   /**
    * Run an image request under an abort registry entry keyed by the renderer-supplied
-   * `requestId`, so `ai.image.abort` can cancel it. Self-cleaning via `finally`; the
-   * `ai.image.generate` handler delegates here (the registry is service state).
+   * `requestId`, so `ai.image.abort` can cancel it. The `ai.image.generate` handler
+   * delegates here (the registry is service state).
    */
   async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
-    const controller = new AbortController()
-    this.imageRequests.set(requestId, controller)
-    try {
-      return await this.generateImage({
-        ...payload,
-        requestOptions: { ...payload.requestOptions, signal: controller.signal }
-      })
-    } finally {
-      this.imageRequests.delete(requestId)
-    }
-  }
-
-  /** Abort the in-flight image request for `requestId`; a no-op on an unknown id. */
-  abortImage(requestId: string): void {
-    this.imageRequests.get(requestId)?.abort()
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateImage({ ...payload, requestOptions: { ...payload.requestOptions, signal } })
+    )
   }
 
   async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
@@ -879,7 +903,7 @@ export class AiService extends BaseService {
 
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart. Decide this before `buildAgentParamsFor` selects a serving key:
+    // a restart. Decide this before `resolveTransportFor` selects a serving key:
     // the job handler is the single selection owner for this path. A transport
     // builds its own request envelope per model, so it receives the canonical
     // camelCase `vendorBag` directly (native n/size/seed travel via the job
@@ -891,7 +915,7 @@ export class AiService extends BaseService {
       return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
     }
 
-    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt } = await this.resolveTransportFor(request)
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -1102,7 +1126,7 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1142,14 +1166,7 @@ export class AiService extends BaseService {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
     const signal = request.requestOptions?.signal
 
-    const {
-      sdkConfig,
-      credentialReceipt,
-      options = {},
-      provider,
-      model,
-      assistant
-    } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.resolveTransportFor(request)
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1159,8 +1176,9 @@ export class AiService extends BaseService {
       messageRef: null
     })
     const retryPolicy = readRetryPolicy()
-    const headers = options.headers
-      ? (Object.fromEntries(Object.entries(options.headers).filter(([, value]) => value !== undefined)) as Record<
+    const callerHeaders = request.requestOptions?.headers
+    const headers = callerHeaders
+      ? (Object.fromEntries(Object.entries(callerHeaders).filter(([, value]) => value !== undefined)) as Record<
           string,
           string
         >)
@@ -1235,7 +1253,7 @@ export class AiService extends BaseService {
   // ── API validation ──
 
   /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
-  async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
+  async checkModel(request: AiRequest & { timeout?: number }): Promise<{ latency: number }> {
     const { provider, model } = this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
@@ -1342,7 +1360,14 @@ export class AiService extends BaseService {
     } else {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
+      probe = this.generateText({
+        ...probeRequest,
+        // A health check has no topic; each probe is its own conversation.
+        conversation: { id: `check:${randomUUID()}` },
+        system: 'test',
+        prompt: 'hi',
+        reasoningEffort: 'none'
+      })
     }
 
     try {
@@ -1355,8 +1380,21 @@ export class AiService extends BaseService {
 
   // ── Shared agent parameter resolution ──
 
+  /** Transport resolution shared by every modality: provider, model, credential, wire model id. */
+  private async resolveTransportFor(request: AsInProcess<AiRequest>) {
+    const { provider, model, assistant } = this.getProviderAndModel(request)
+    const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
+      provider,
+      model,
+      resolveEffectiveEndpoint(provider, model),
+      request.apiKeyOverride
+    )
+    applyHttpTrace(sdkConfig.providerSettings, { modelName: model.name ?? model.id })
+    return { provider, model, assistant, sdkConfig, credentialReceipt }
+  }
+
   private async buildAgentParamsFor(
-    request: AsInProcess<AiBaseRequest> & { chatId?: string },
+    request: AsInProcessChat<AiChatRequest> & { messageId?: string },
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
     getRepairUsagePlugins?: () => AiPlugin[]
@@ -1401,7 +1439,7 @@ export class AiService extends BaseService {
   }
 
   /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
-  private getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
+  private getProviderAndModel(request: AiRequest) {
     let assistant: Assistant | undefined
     if (request.assistantId) {
       try {

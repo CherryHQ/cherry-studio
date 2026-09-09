@@ -48,7 +48,11 @@ import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
 type PrivacyChoiceAction = () => void | Promise<void>
+interface OnboardingPageProps {
+  enableCherryAccountLogin?: boolean
+}
 
+const ENABLE_CHERRY_ACCOUNT_LOGIN = false
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
@@ -69,7 +73,9 @@ function OnboardingProviderSettings() {
   return <RouterProvider router={router} />
 }
 
-export default function OnboardingPage() {
+export default function OnboardingPage({
+  enableCherryAccountLogin = ENABLE_CHERRY_ACCOUNT_LOGIN
+}: OnboardingPageProps) {
   const { t } = useTranslation()
   const appEdition = getAppEdition()
   const [language, setLanguage] = usePreference('app.language')
@@ -94,13 +100,14 @@ export default function OnboardingPage() {
   const cloudStatusRef = useRef<CherryCloudStatus | null>(null)
   const hasRoutedCloudLoginRef = useRef(false)
   const isCnEdition = appEdition === 'cn'
+  const shouldUseCherryAccountLogin = isCnEdition && enableCherryAccountLogin
   const {
     status: cloudStatus,
     login: handleCherryCloudLogin,
     cancelLogin: handleCherryCloudLoginCancel,
     isCancellingLogin: isCancellingCloudLogin,
     isAuthorizing: isCloudAuthorizing
-  } = useCherryAccountSession(isCnEdition)
+  } = useCherryAccountSession(shouldUseCherryAccountLogin)
   cloudStatusRef.current = cloudStatus
   const eligibleProviderIds = new Set(
     enabledProviders.filter((provider) => !isManagedCherryProviderId(provider.id)).map((provider) => provider.id)
@@ -269,7 +276,7 @@ export default function OnboardingPage() {
   }
 
   useEffect(() => {
-    if (!isCnEdition || cloudStatus?.phase !== 'signed-in') {
+    if (!shouldUseCherryAccountLogin || cloudStatus?.phase !== 'signed-in') {
       hasRoutedCloudLoginRef.current = false
       setShowNoCloudModelsDialog(false)
       return
@@ -296,7 +303,13 @@ export default function OnboardingPage() {
           setStep(canContinueProviderSetup ? 'select-model' : 'provider')
         }
       })
-  }, [canContinueProviderSetup, cloudStatus, completeWithCloudAgentModel, isCnEdition, isProviderSetupLoading])
+  }, [
+    canContinueProviderSetup,
+    cloudStatus,
+    completeWithCloudAgentModel,
+    isProviderSetupLoading,
+    shouldUseCherryAccountLogin
+  ])
 
   const runAfterPrivacyChoice = useCallback(
     async (action: PrivacyChoiceAction) => {
@@ -373,8 +386,8 @@ export default function OnboardingPage() {
     }
   }, [addApiKey, syncProviderModels, t, updateProvider])
 
-  const isPrimaryLoginPending = isCnEdition ? isCloudAuthorizing : isLoggingIn
-  const primaryLoginLabel = isCnEdition
+  const isPrimaryLoginPending = shouldUseCherryAccountLogin ? isCloudAuthorizing : isLoggingIn
+  const primaryLoginLabel = shouldUseCherryAccountLogin
     ? cloudStatus?.phase === 'signed-in'
       ? t('settings.provider.cherry_cloud.logged_in')
       : isCloudAuthorizing
@@ -435,14 +448,18 @@ export default function OnboardingPage() {
                       size="lg"
                       className="h-11 w-full rounded-xl"
                       loading={isPrimaryLoginPending}
-                      disabled={isUpdatingPrivacy || (isCnEdition && cloudStatus?.phase === 'signed-in')}
+                      disabled={
+                        isUpdatingPrivacy || (shouldUseCherryAccountLogin && cloudStatus?.phase === 'signed-in')
+                      }
                       onClick={() =>
-                        void runAfterPrivacyChoice(isCnEdition ? handleCherryCloudLogin : handleCherryInLogin)
+                        void runAfterPrivacyChoice(
+                          shouldUseCherryAccountLogin ? handleCherryCloudLogin : handleCherryInLogin
+                        )
                       }>
                       {!isPrimaryLoginPending && <LogIn size={16} />}
                       {primaryLoginLabel}
                     </Button>
-                    {isCnEdition && cloudStatus?.phase === 'authorizing' ? (
+                    {shouldUseCherryAccountLogin && cloudStatus?.phase === 'authorizing' ? (
                       <Button
                         type="button"
                         variant="outline"

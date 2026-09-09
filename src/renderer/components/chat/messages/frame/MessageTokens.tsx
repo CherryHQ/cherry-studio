@@ -1,21 +1,16 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
-import type { MessageStats } from '@shared/data/types/message'
 import type { FC, MouseEvent } from 'react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
-import { getMessageModelTokensPerSecond } from './messagePerformance'
+import { getMessageModelTokensPerSecond, getMessageTokenUsage } from './messagePerformance'
 import MessageTokenDetailsCard from './MessageTokenDetailsCard'
 
 interface MessageTokensProps {
   message: MessageListItem
-}
-
-function getTotalTokens(stats: MessageStats): number {
-  return stats.totalTokens ?? (stats.inputTokens ?? 0) + (stats.outputTokens ?? 0)
 }
 
 function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () => void }) {
@@ -159,8 +154,11 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
     return null
   }
 
-  const totalTokens = getTotalTokens(stats)
-  const tokenLabel = t('chat.message.token_details.tokens', { value: compactFormatter.format(totalTokens) })
+  const totalTokens = getMessageTokenUsage(stats).totalTokens
+  const tokenLabel = t('chat.message.token_details.tokens', {
+    value:
+      totalTokens === undefined ? t('chat.message.token_details.unavailable') : compactFormatter.format(totalTokens)
+  })
   const locateMessage = () => actions.locateMessage?.(message.id, false)
 
   if (message.role === 'user') {

@@ -29,19 +29,25 @@ type CachedEgressRegion = {
  * detections, including those arriving via the system.get_ip_country IPC.
  */
 class RegionService {
-  private inflight: Promise<string> | null = null
+  private inflight = new Map<string | null, { promise: Promise<string> }>()
 
   /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
   async getCountry(): Promise<string> {
-    const cached = this.getCachedCountry()
-    if (cached) return cached
-    const proxyKey = application.get('ProxyService').appliedProxyKey
+    try {
+      return await this.getDetectedCountry()
+    } catch {
+      return DEFAULT_COUNTRY
+    }
+  }
 
-    // Dedup concurrent detections — callers share one in-flight request.
-    this.inflight ??= this.detectAndCache(proxyKey).finally(() => {
-      this.inflight = null
-    })
-    return this.inflight
+  /** True only when the egress country is successfully detected as China. */
+  async isInChina(): Promise<boolean> {
+    try {
+      const country = await this.getDetectedCountry()
+      return country.toLowerCase() === 'cn'
+    } catch {
+      return false
+    }
   }
 
   /** The cached country for the proxy in effect, or null; never detects. */
@@ -51,20 +57,40 @@ class RegionService {
     return cached && cached.proxyKey === proxyKey ? cached.country : null
   }
 
-  /** True when the egress country resolves to China. */
-  async isInChina(): Promise<boolean> {
-    const country = await this.getCountry()
-    return country.toLowerCase() === 'cn'
+  private async getDetectedCountry(): Promise<string> {
+    const cached = this.getCachedCountry()
+    if (cached) return cached
+
+    const proxyKey = application.get('ProxyService').appliedProxyKey
+
+    // Dedup concurrent detections for the active proxy — callers share one in-flight request.
+    const current = this.inflight.get(proxyKey)
+    if (current) {
+      return current.promise
+    }
+
+    const inflight = {
+      promise: this.detectAndCache(proxyKey)
+    }
+    inflight.promise = inflight.promise.finally(() => {
+      if (this.inflight.get(proxyKey) === inflight) {
+        this.inflight.delete(proxyKey)
+      }
+    })
+    this.inflight.set(proxyKey, inflight)
+    return inflight.promise
   }
 
   private async detectAndCache(proxyKey: string | null): Promise<string> {
     try {
       const country = await this.fetchCountry()
-      application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
+      if (application.get('ProxyService').appliedProxyKey === proxyKey) {
+        application.get('CacheService').set<CachedEgressRegion>(CACHE_KEY, { country, proxyKey }, CACHE_TTL)
+      }
       return country
     } catch (error) {
       logger.error('Failed to get IP address information:', error as Error)
-      return DEFAULT_COUNTRY
+      throw error
     }
   }
 
