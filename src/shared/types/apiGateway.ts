@@ -5,6 +5,18 @@ export type ApiGatewayConfig = {
   apiKey: string | null
 }
 
+/** Main-owned pairing offer embedded directly in the mobile app's QR payload. */
+export type ApiGatewayPairingOfferResult =
+  | {
+      success: true
+      hostname: string
+      port: number
+      addresses: string[]
+      code: string
+      expiresAt: number
+    }
+  | { success: false; error: string }
+
 /** Result of an API-gateway start/restart IPC call. */
 export type ApiGatewayStatusResult = { success: true } | { success: false; error: string }
 

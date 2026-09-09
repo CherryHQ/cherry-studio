@@ -33,6 +33,7 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
   '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
   '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
+  '/settings/device-connections': { icon: '📱', labelKey: 'deviceConnections.title' },
   '/settings/file-processing': {
     icon: '📄',
     labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'

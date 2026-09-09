@@ -1,7 +1,11 @@
 import { application } from '@application'
 import type { apiGatewayRequestSchemas } from '@shared/ipc/schemas/apiGateway'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
+import type {
+  ApiGatewayPairingOfferResult,
+  ApiGatewayStatusResult,
+  ApiGatewayStopResult
+} from '@shared/types/apiGateway'
 
 /**
  * API-gateway handlers delegating to the ApiGatewayService lifecycle service. Each service method
@@ -25,8 +29,17 @@ async function stopGateway(): Promise<ApiGatewayStopResult> {
   }
 }
 
+async function createPairingOffer(): Promise<ApiGatewayPairingOfferResult> {
+  try {
+    return application.get('ApiGatewayService').createPairingOffer()
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
+
 export const apiGatewayHandlers: IpcHandlersFor<typeof apiGatewayRequestSchemas> = {
   'api_gateway.start': () => toStatusResult(() => application.get('ApiGatewayService').start()),
   'api_gateway.stop': stopGateway,
-  'api_gateway.restart': () => toStatusResult(() => application.get('ApiGatewayService').restart())
+  'api_gateway.restart': () => toStatusResult(() => application.get('ApiGatewayService').restart()),
+  'api_gateway.create_pairing_offer': createPairingOffer
 }

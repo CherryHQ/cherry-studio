@@ -11,6 +11,7 @@ import {
   FileCode,
   HardDrive,
   Info,
+  MonitorSmartphone,
   Package,
   Palette,
   PictureInPicture2,
@@ -51,6 +52,11 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     icon: createElement(FileBox)
   },
   { route: '/settings/api-gateway', titleKey: 'apiGateway.title', icon: createElement(GatewayIcon) },
+  {
+    route: '/settings/device-connections',
+    titleKey: 'deviceConnections.title',
+    icon: createElement(MonitorSmartphone)
+  },
   {
     route: '/settings/mcp',
     titleKey: 'agent.settings.toolsMcp.mcp.tab',

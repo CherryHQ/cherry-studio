@@ -4,6 +4,7 @@ sources:
   - src/main/features/apiGateway
   - src/renderer/hooks/useApiGateway.ts
   - src/renderer/pages/settings/ToolSettings/ApiGatewaySettings
+  - src/renderer/pages/settings/DeviceConnectionsSettings
 ---
 
 # API Gateway Reference
@@ -40,8 +41,10 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
 ├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
+├── ApiGatewayPairing.ts             ← single-use LAN pairing codes → hashed device records
+├── pairedDeviceToken.ts             ← device-token generation + hashing
 ├── middleware/
-│   └── auth.ts                      ← `authorizeApiRequest` (x-api-key | Bearer, timing-safe)
+│   └── auth.ts                      ← desktop API-key auth + the separate paired-device guard
 ├── routes/
 │   ├── messages.ts                  ← POST /v1/messages, POST /v1/messages/count_tokens (Anthropic)
 │   ├── chat.ts                      ← POST /v1/chat/completions (OpenAI Chat)
@@ -50,6 +53,8 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 │   ├── models.ts                    ← GET  /v1/models
 │   ├── knowledge.ts                 ← GET/POST /v1/knowledge-bases[/search|/:id]
 │   ├── mcp.ts                       ← MCP catalog + Streamable HTTP proxy
+│   ├── pairing.ts                   ← POST /pair (public LAN pairing bootstrap)
+│   ├── providerExport.ts            ← GET /v1/export/providers (paired-device provider export)
 │   └── schemas.ts                   ← loose Zod body schemas (validate only what the gateway needs)
 ├── tokens/                          ← Anthropic/Gemini token estimation and wire-tool projections
 ├── utils/
@@ -63,8 +68,10 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 
 src/shared/ipc/schemas/apiGateway.ts      ← start / stop / restart IpcApi contracts
 src/main/ipc/handlers/apiGateway.ts       ← thin lifecycle-service adapters
+src/main/data/services/ApiGatewayPairedDeviceService.ts ← paired-device persistence + token lookup
 src/renderer/hooks/useApiGateway.ts       ← renderer state (config + running + loading) and actions
-src/renderer/pages/settings/ToolSettings/ApiGatewaySettings/   ← settings UI
+src/renderer/pages/settings/ToolSettings/ApiGatewaySettings/   ← API client settings UI
+src/renderer/pages/settings/DeviceConnectionsSettings/         ← LAN pairing and paired-device access UI
 ```
 
 ## HTTP surface
@@ -81,6 +88,7 @@ and its latency logged on completion.
 | `GET /health` | Health check (`{ status, timestamp, version }`) |
 | `GET /openapi` | Scalar API docs UI (front-end assets load from a CDN — see note) |
 | `GET /openapi/json` | OpenAPI JSON spec (fully local) |
+| `POST /pair` | One-time LAN pairing code → device token |
 
 > **Offline note.** `renderDocsPage` points Scalar at a pinned jsDelivr bundle,
 > so `GET /openapi` (the human docs UI) needs network. `GET /openapi/json` — the
@@ -110,6 +118,7 @@ guard, described below.
 | `GET /v1/mcps` | Cherry REST | active MCP server catalog with gateway URLs |
 | `GET /v1/mcps/:id` | Cherry REST | one active server plus its warmed tool catalog |
 | `POST /v1/mcps/:id/mcp` | MCP Streamable HTTP | initialize/session request or sessionless one-shot JSON-RPC |
+| `GET /v1/export/providers` | Cherry mobile export | enabled providers + enabled credentials/models; paired-device Bearer token only |
 
 The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 (split on the **first** `:`), e.g. `anthropic:claude-sonnet-4-6`.
@@ -117,10 +126,27 @@ The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 Gemini routes carry a separate local auth guard because Gemini clients use
 `x-goog-api-key` or `?key=`. The `/v1` scoped guard must not intercept `/v1beta`.
 
+The provider-export route also carries a separate local guard and is mounted
+before the broad `/v1` group. Its credential-bearing response is available only
+to a paired device token, never the desktop gateway API key, and is marked
+`Cache-Control: no-store`.
+
 The MCP proxy validates browser `Origin` as loopback-only to prevent DNS
 rebinding. Native clients normally send no `Origin`. Live sessions are bounded
 and owned by `McpSessionStore`; GET carries server push and DELETE terminates a
 session.
+
+### LAN exposure is confined to pairing + export
+
+Enabling LAN access binds the single listener to `0.0.0.0`, so the generation,
+MCP, and knowledge routes would otherwise be reachable from the network — an
+exposed MCP proxy is remote tool execution, and every `/v1` request would carry
+the desktop API key in cleartext. A root `onRequest` guard (`lanGuard.ts`)
+screens each request by its socket peer: loopback and in-process callers are
+unrestricted, but a **non-loopback (LAN) peer may reach only `POST /pair` and
+`GET /v1/export/providers`** — everything else returns `403`. The desktop's own
+consumers are unaffected because `gatewayClientOrigin` maps `0.0.0.0` back to
+`127.0.0.1`, so they always connect over loopback.
 
 ## Request flow (generation routes)
 
@@ -249,8 +275,8 @@ running state.
 |---|---|
 | `onInit` | Subscribe to `feature.api_gateway.enabled`; IpcApi handlers live in `src/main/ipc/handlers/apiGateway.ts`. |
 | `onReady` | Read the persisted desired state and flush the reconciler. |
-| `onActivate` | `ensureValidApiKey()` → `new ApiGateway()` → `start()` → publish `running = true`. On failure, tears down partial state and republishes `false`. |
-| `onDeactivate` | `stop()` the server, publish `running = false`. |
+| `onActivate` | Snapshot host/port, `ensureValidApiKey()` → `new ApiGateway({ host, port })` → `start()` → publish `running = true`. On failure, tears down partial state and republishes `false`. |
+| `onDeactivate` | Clear the live pairing code, `stop()` the server, publish `running = false`. |
 
 `ensureValidApiKey()` generates a `cs-sk-<uuid>` key into
 `feature.api_gateway.api_key` the first time it is missing.
@@ -279,9 +305,12 @@ cache and config lives in the Preference subsystem.
 | `api_gateway.start` | `{ success } \| { success:false, error }` | `ApiGatewayService.start()` |
 | `api_gateway.stop` | success includes `outcome: 'stopped' \| 'deferred'` | `ApiGatewayService.stop()` |
 | `api_gateway.restart` | `{ success } \| { success:false, error }` | `ApiGatewayService.restart()` |
+| `api_gateway.create_pairing_offer` | active LAN endpoint + one-time code, or `{ success:false, error }` | `ApiGatewayService.createPairingOffer()` |
 
 `api_gateway.required` is a Main-to-renderer event for an Agent session whose
 model must use the gateway while the user's persisted gateway intent is off.
+`api_gateway.pairing_completed` clears an already-consumed QR code in every
+settings window.
 
 ### Preferences (`feature.api_gateway.*`)
 
@@ -304,8 +333,19 @@ the three IpcApi actions plus `setApiGatewayConfig`. Main owns writes to the
 `enabled` key inside start/stop so persisted intent and runtime state cannot diverge. The
 `ApiGatewaySettings` page renders the status indicator, start/stop/restart
 controls, port input, server URL, the (copy/regenerate) API key, an
-`Authorization` header example, and a link to `…/openapi`. All strings live
-under the `apiGateway` i18n namespace.
+`Authorization` header example, and a link to `…/openapi`.
+
+The separate `DeviceConnectionsSettings` page owns LAN exposure, mobile pairing,
+and access revocation. It asks Main for one atomic pairing offer, renders the QR,
+and uses DataApi to list or revoke paired devices. Its strings live under the
+`deviceConnections` i18n namespace; the page reuses the gateway lifecycle as its
+current HTTP host without exposing device management as an API-client setting.
+
+Paired-device records are SQLite-backed business data in
+`api_gateway_paired_device`. The raw `cs-dt-…` token is returned once by
+`POST /pair`; only its SHA-256 hash is persisted. Renderer-facing DataApi returns
+device metadata only (`GET /api-gateway/paired-devices`) and exposes revocation
+as `DELETE /api-gateway/paired-devices/:id`.
 
 ## Authentication
 
@@ -322,6 +362,11 @@ under the `apiGateway` i18n namespace.
 The `/v1beta` guard passes Gemini's `x-goog-api-key` / `?key=` token as a third
 candidate to the same timing-safe comparison and shapes guard failures in the
 Google error envelope.
+
+Paired-device authentication is deliberately separate. A `cs-dt-…` Bearer
+token is hashed and looked up only by the local guard on
+`GET /v1/export/providers`; it does not grant access to the existing `/v1` or
+`/v1beta` routes. Future mobile-only endpoints opt into this guard explicitly.
 
 ## Error handling
 
@@ -365,6 +410,9 @@ streaming `buildStreamErrorFrame`.
   so a generation client gets back the protocol it spoke.
 - **Auth key is the persisted preference.** `feature.api_gateway.api_key`, compared
   timing-safe; auto-generated on first activation.
+- **Paired tokens are endpoint-scoped.** They authorize only the provider-export
+  route today, are stored as hashes, and never become a fallback credential for
+  existing gateway routes.
 
 ## Related references
 
@@ -373,5 +421,6 @@ streaming `buildStreamErrorFrame`.
   (`SseListener`, `WebContentsListener`).
 - [Service Lifecycle](../lifecycle/README.md) — `BaseService`, `Activatable`,
   `@ServicePhase`, `serviceRegistry.ts`.
-- [Data Layer](../data/README.md) — Preference (`feature.api_gateway.*`) and Cache
-  (`feature.api_gateway.running`) systems; `ProviderService`, `KnowledgeBaseService`.
+- [Data Layer](../data/README.md) — Preference (`feature.api_gateway.*`), Cache
+  (`feature.api_gateway.running`), paired-device DataApi records, and the
+  `ProviderService` / `KnowledgeBaseService` owners.

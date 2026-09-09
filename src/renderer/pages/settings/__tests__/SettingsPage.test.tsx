@@ -63,6 +63,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
+        'deviceConnections.title': '设备互联',
         'selection.name': '划词助手',
         'settings.appearance.title': '外观',
         'settings.channels.title': '频道',
@@ -128,6 +129,15 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/general' })
     fireEvent.click(localModelsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
+  })
+
+  it('exposes device connections as its own settings destination', () => {
+    render(<SettingsPage />)
+
+    const deviceConnectionsItem = screen.getByRole('button', { name: '设备互联' })
+    fireEvent.click(deviceConnectionsItem)
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/device-connections' })
   })
 
   it('keeps document processing and OCR together in tools and dependencies in the system group', () => {

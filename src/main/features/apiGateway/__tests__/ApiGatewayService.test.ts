@@ -19,13 +19,22 @@ const { mockStart, mockStop, mockSetShared, mockGetActiveUsageContext, mockPrefe
     mockPreferenceSet: vi.fn(async () => {}),
     captured: {
       prefHandler: undefined as ((enabled: boolean) => void) | undefined,
-      enabledPreference: false
+      enabledPreference: false,
+      hostPreference: '127.0.0.1',
+      portPreference: 23333
     }
   })
 )
 
 vi.mock('../server', () => ({
   ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
+}))
+
+vi.mock('node:os', () => ({
+  hostname: () => 'desktop',
+  networkInterfaces: () => ({
+    en0: [{ address: '192.168.1.8', family: 'IPv4', internal: false }]
+  })
 }))
 
 vi.mock('@application', async () => {
@@ -39,8 +48,8 @@ vi.mock('@application', async () => {
       get: vi.fn((key: string) => (key.endsWith('api_key') ? 'existing-key' : false)),
       getMultiple: vi.fn(() => ({
         enabled: captured.enabledPreference,
-        host: '127.0.0.1',
-        port: 23333,
+        host: captured.hostPreference,
+        port: captured.portPreference,
         apiKey: 'existing-key'
       })),
       set: mockPreferenceSet
@@ -59,6 +68,8 @@ beforeEach(() => {
   BaseService.resetInstances()
   captured.prefHandler = undefined
   captured.enabledPreference = false
+  captured.hostPreference = '127.0.0.1'
+  captured.portPreference = 23333
   mockPreferenceSet.mockReset()
   mockPreferenceSet.mockResolvedValue(undefined)
   startResolvers = []
@@ -157,6 +168,27 @@ describe('ApiGatewayService reconcile', () => {
     await ready
 
     expect(service.isActivated).toBe(true)
+  })
+
+  it('builds pairing offers from the endpoint snapshot that actually started', async () => {
+    captured.enabledPreference = true
+    captured.hostPreference = '0.0.0.0'
+    captured.portPreference = 24444
+    const service = new ApiGatewayService()
+
+    const ready = service._doInit()
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+    startResolvers[0]()
+    await ready
+
+    captured.hostPreference = '127.0.0.1'
+    captured.portPreference = 25555
+    expect(service.createPairingOffer()).toMatchObject({
+      success: true,
+      hostname: 'desktop',
+      port: 24444,
+      addresses: ['192.168.1.8']
+    })
   })
 
   // The command and the persisted intent must land together: a stop whose preference write never

@@ -8,6 +8,7 @@ import { Elysia } from 'elysia'
 import { v4 as uuidv4 } from 'uuid'
 
 import { gatewayErrorHandler } from './errors'
+import { screenLanRequest } from './lanGuard'
 import { McpSessionStore } from './McpSessionStore'
 import { authorizeApiRequest } from './middleware/auth'
 import {
@@ -24,6 +25,8 @@ import { knowledgeRoutes } from './routes/knowledge'
 import { createMcpRoutes } from './routes/mcp'
 import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
+import { pairingRoutes } from './routes/pairing'
+import { providerExportRoutes } from './routes/providerExport'
 import { responsesRoutes } from './routes/responses'
 
 const logger = loggerService.withContext('ApiGateway')
@@ -103,6 +106,17 @@ export function buildApp({
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       })
     )
+    // Confine LAN (non-loopback) callers to the pairing + provider-export routes;
+    // loopback and in-process callers are unrestricted. Runs before request-id
+    // stamping so a rejected LAN request short-circuits cheaply.
+    .onRequest(({ request, set }) => {
+      const failure = screenLanRequest(request, new URL(request.url).pathname)
+      if (failure) {
+        set.status = 403
+        return failure
+      }
+      return undefined
+    })
     // Stamp a request id and record the start time for latency logging.
     .onRequest(({ set }) => {
       set.headers['x-request-id'] = uuidv4()
@@ -162,6 +176,7 @@ export function buildApp({
           health: 'GET /health',
           docs: `GET ${OPENAPI_PATH}`,
           docs_json: `GET ${OPENAPI_PATH}/json`,
+          provider_export: 'GET /v1/export/providers',
           chat_completions: 'POST /v1/chat/completions',
           messages: 'POST /v1/messages',
           generate_content: 'POST /v1beta/models/{model}:generateContent',
@@ -173,6 +188,12 @@ export function buildApp({
       }),
       { detail: { tags: [DOC_TAGS.cherry], summary: 'API Info', description: DOC_DESCRIPTIONS.info } }
     )
+    // Public LAN pairing bootstrap — mounted before `v1Routes` (like `/v1beta`)
+    // so its `scoped` auth guard cannot reach it: a pairing caller has no token yet.
+    .use(pairingRoutes)
+    // Credential-bearing mobile export has a device-token-only local guard. It is
+    // registered before the broad `/v1` guard so the desktop API key cannot reach it.
+    .use(providerExportRoutes)
     // Gemini routes carry their own self-contained (`local`) auth guard and are
     // mounted BEFORE `v1Routes` on purpose: `v1Routes`' `scoped` guard exports to
     // the app scope and would otherwise intercept `/v1beta` requests (its guard
