@@ -289,6 +289,33 @@ describe('useAgentSessionParts', () => {
     ])
   })
 
+  it('labels a runtime-started message from the live turn-origin cache', () => {
+    // The persisted row carries nothing that explains the turn; the badge reads the session cache.
+    const row = {
+      id: 'message-1',
+      sessionId: 'session-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'Round work' }] },
+      searchableText: '',
+      status: 'success',
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      runtimeResumeToken: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    } as AgentSessionMessageEntity
+    mockAgentSessionPartsDataApi([{ items: [row] }])
+    MockUseCacheUtils.setSharedCacheValue('agent.session.turn_origin.session-1.message-1', {
+      kind: 'goal-round',
+      round: 2
+    })
+
+    const { result } = renderHook(() => useAgentSessionParts('session-1'))
+
+    expect(result.current.messages[0].metadata?.turnOrigin).toEqual({ kind: 'goal-round', round: 2 })
+  })
+
   it('reprojects only the message whose live flow parts changed', () => {
     const rowFor = (id: string): AgentSessionMessageEntity =>
       ({

@@ -34,6 +34,7 @@ import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -244,6 +245,7 @@ export function useAgentMessageListProviderValue({
     errorActions,
     exportActions,
     getMessageActivityState,
+    messageActivityStore,
     headerCapabilities,
     leafCapabilities,
     menuConfig,
@@ -271,6 +273,15 @@ export function useAgentMessageListProviderValue({
 
   const resolvePath = useMemo<MessageListActions['resolvePath']>(
     () => (workspacePath ? (path) => requireWorkspaceFilePath(workspacePath, path) : undefined),
+    [workspacePath]
+  )
+
+  const isDirectory = useCallback<NonNullable<MessageListActions['isDirectory']>>(
+    async (path) => {
+      const resolvedPath = requireWorkspaceFilePath(workspacePath, path)
+      const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(resolvedPath))
+      return metadata?.kind === 'directory'
+    },
     [workspacePath]
   )
 
@@ -369,6 +380,7 @@ export function useAgentMessageListProviderValue({
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
+      messageActivityStore,
       getMessageActivityState,
       ...pickMessageLeafState(leafCapabilities)
     }),
@@ -381,6 +393,7 @@ export function useAgentMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageNavigation,
       messageItems,
+      messageActivityStore,
       messageTail,
       normalInteractionsEnabled,
       displayPartsByMessageId,
@@ -405,6 +418,7 @@ export function useAgentMessageListProviderValue({
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
       resolvePath,
+      isDirectory,
       openPath,
       openArtifactFile,
       openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
@@ -427,6 +441,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,

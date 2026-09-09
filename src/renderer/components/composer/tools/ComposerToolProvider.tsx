@@ -1,4 +1,4 @@
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { ensureComposerFileTokenSourceIds } from '@renderer/utils/message/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -32,7 +32,11 @@ export interface ComposerToolState {
  * Used to register composer launchers.
  */
 export interface ComposerToolsRegistryApi {
-  registerLaunchers: (toolKey: string, entries: ComposerToolLauncher[]) => () => void
+  registerLaunchers: (
+    toolKey: string,
+    entries: ComposerToolLauncher[],
+    footerActions?: ComposerToolFooterAction[]
+  ) => () => void
 }
 
 /**
@@ -40,6 +44,7 @@ export interface ComposerToolsRegistryApi {
  */
 export interface ComposerToolLaunchersApi {
   getLaunchers: () => ComposerToolLauncher[]
+  getFooterActions: (panelSymbol: string) => ComposerToolFooterAction[]
   version: number
 }
 
@@ -144,7 +149,9 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   const selectableKnowledgeBases = initialState?.selectableKnowledgeBases ?? EMPTY_KNOWLEDGE_BASES
 
   // Composer launcher registry (stored in refs to avoid re-renders)
-  const launcherRegistryRef = useRef(new Map<string, { entries: ComposerToolLauncher[] }>())
+  const launcherRegistryRef = useRef(
+    new Map<string, { entries: ComposerToolLauncher[]; footerActions: ComposerToolFooterAction[] }>()
+  )
   const [launcherVersion, setLauncherVersion] = useState(0)
   const launcherVersionRef = useRef(launcherVersion)
   launcherVersionRef.current = launcherVersion
@@ -157,16 +164,27 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     return allEntries
   }, [])
 
-  const registerLaunchers = useCallback((toolKey: string, entries: ComposerToolLauncher[]) => {
-    const registration = { entries }
-    launcherRegistryRef.current.set(toolKey, registration)
-    setLauncherVersion((version) => version + 1)
-    return () => {
-      if (launcherRegistryRef.current.get(toolKey) !== registration) return
-      launcherRegistryRef.current.delete(toolKey)
-      setLauncherVersion((version) => version + 1)
-    }
+  const getComposerToolFooterActions = useCallback((panelSymbol: string) => {
+    const allEntries: ComposerToolFooterAction[] = []
+    launcherRegistryRef.current.forEach((registration) => {
+      allEntries.push(...registration.footerActions.filter((action) => action.panelSymbol === panelSymbol))
+    })
+    return allEntries.sort((left, right) => left.order - right.order)
   }, [])
+
+  const registerLaunchers = useCallback(
+    (toolKey: string, entries: ComposerToolLauncher[], footerActions: ComposerToolFooterAction[] = []) => {
+      const registration = { entries, footerActions }
+      launcherRegistryRef.current.set(toolKey, registration)
+      setLauncherVersion((version) => version + 1)
+      return () => {
+        if (launcherRegistryRef.current.get(toolKey) !== registration) return
+        launcherRegistryRef.current.delete(toolKey)
+        setLauncherVersion((version) => version + 1)
+      }
+    },
+    []
+  )
 
   // Stabilize parent actions (prevent dispatch context updates from parent action reference changes)
   const actionsRef = useRef(actions)
@@ -222,19 +240,21 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
   const triggersApi = useMemo<ComposerToolLaunchersApi>(
     () => ({
       getLaunchers: getComposerToolLaunchers,
+      getFooterActions: getComposerToolFooterActions,
       version: launcherVersion
     }),
-    [getComposerToolLaunchers, launcherVersion]
+    [getComposerToolFooterActions, getComposerToolLaunchers, launcherVersion]
   )
 
   const stableTriggersApi = useMemo<ComposerToolLaunchersApi>(
     () => ({
       getLaunchers: getComposerToolLaunchers,
+      getFooterActions: getComposerToolFooterActions,
       get version() {
         return launcherVersionRef.current
       }
     }),
-    [getComposerToolLaunchers]
+    [getComposerToolFooterActions, getComposerToolLaunchers]
   )
 
   // Dispatch Context Value (stable references)

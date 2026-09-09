@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
-import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { MIN_COMPRESS_THRESHOLD_PERCENT, MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,28 +17,9 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async (importOriginal) => ({
+  ...(await importOriginal<typeof CherryStudioUi>()),
   Divider: () => <hr />,
-  EditableNumber: ({
-    value,
-    onChange,
-    ...props
-  }: {
-    value: number | null
-    onChange: (value: number | null) => void
-    'aria-label'?: string
-    placeholder?: string
-  }) => (
-    <input
-      aria-label={props['aria-label']}
-      placeholder={props.placeholder}
-      defaultValue={value ?? ''}
-      onBlur={(event) => {
-        const raw = event.currentTarget.value
-        onChange(raw === '' ? null : Number(raw))
-      }}
-    />
-  ),
   Switch: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <input
       type="checkbox"
@@ -46,8 +28,8 @@ vi.mock('@cherrystudio/ui', () => ({
       onChange={(event) => onCheckedChange(event.currentTarget.checked)}
     />
   ),
-  InfoTooltip: ({ content, iconProps }: { content: string; iconProps: { 'aria-label': string } }) => (
-    <span aria-label={iconProps['aria-label']} data-tooltip-content={content} />
+  InfoTooltip: ({ content, ariaLabel }: { content: string; ariaLabel: string }) => (
+    <span aria-label={ariaLabel} data-tooltip-content={content} />
   )
 }))
 
@@ -69,7 +51,8 @@ describe('ContextManagementSettings', () => {
       'chat.context_settings.max_messages': null,
       'chat.context_settings.truncate_threshold': 50_000,
       'chat.context_settings.compress.enabled': true,
-      'chat.context_settings.compress.model_id': null
+      'chat.context_settings.compress.model_id': null,
+      'chat.context_settings.compress.threshold_percent': 80
     }
   })
 
@@ -133,12 +116,15 @@ describe('ContextManagementSettings', () => {
     fireEvent.blur(input)
     expect(setter).toHaveBeenLastCalledWith(80_000)
 
-    // Not ignored — clamped. The value doubles as fs_read's per-call output cap,
-    // so anything below the floor makes persisted output permanently unreadable.
+    // A negative is clamped up to the floor like any other below-floor value:
+    // the threshold doubles as fs_read's per-call output cap, so anything lower
+    // makes persisted output unreadable.
     fireEvent.change(input, { target: { value: '-5' } })
     fireEvent.blur(input)
     expect(setter).toHaveBeenLastCalledWith(MIN_TRUNCATE_THRESHOLD)
 
+    // A below-floor value is not ignored but clamped. It doubles as fs_read's
+    // per-call output cap, so anything lower makes persisted output unreadable.
     fireEvent.change(input, { target: { value: '1' } })
     fireEvent.blur(input)
     expect(setter).toHaveBeenLastCalledWith(MIN_TRUNCATE_THRESHOLD)
@@ -151,5 +137,30 @@ describe('ContextManagementSettings', () => {
     prefs.state['chat.context_settings.compress.enabled'] = false
     rerender(<ContextManagementSettings />)
     expect(screen.queryByTestId('compress-model-selector')).not.toBeInTheDocument()
+  })
+
+  it('writes the compaction trigger and clamps it into range', () => {
+    render(<ContextManagementSettings />)
+    const input = screen.getByLabelText('settings.models.context_management.compress_threshold')
+    const setter = prefs.setters['chat.context_settings.compress.threshold_percent']
+
+    fireEvent.change(input, { target: { value: '60' } })
+    fireEvent.blur(input)
+    expect(setter).toHaveBeenLastCalledWith(60)
+
+    // A trigger of 0 would fold on every step; 250 could never fire.
+    fireEvent.change(input, { target: { value: '0' } })
+    fireEvent.blur(input)
+    expect(setter).toHaveBeenLastCalledWith(MIN_COMPRESS_THRESHOLD_PERCENT)
+
+    fireEvent.change(input, { target: { value: '250' } })
+    fireEvent.blur(input)
+    expect(setter).toHaveBeenLastCalledWith(100)
+  })
+
+  it('hides the compaction trigger while compression is off', () => {
+    prefs.state['chat.context_settings.compress.enabled'] = false
+    render(<ContextManagementSettings />)
+    expect(screen.queryByLabelText('settings.models.context_management.compress_threshold')).not.toBeInTheDocument()
   })
 })

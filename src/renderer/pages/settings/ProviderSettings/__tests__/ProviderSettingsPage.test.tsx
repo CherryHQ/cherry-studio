@@ -189,6 +189,36 @@ describe('ProviderSettingsPage', () => {
     })
   })
 
+  it('holds a first-visit deep link until providers load instead of consuming it blind', () => {
+    searchMock = { id: 'anthropic' }
+    useProvidersMock.mockReturnValue({
+      providers: [],
+      hasLoaded: false,
+      isLoading: true,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined)
+    })
+    const view = render(<ProviderSettingsPage />)
+
+    // No providers yet: the param must survive (no strip navigation) and the
+    // fallback must not claim the first slot
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(screen.getByText(i18n.t('common.loading'))).toBeInTheDocument()
+
+    useProvidersMock.mockReturnValue({
+      providers,
+      hasLoaded: true,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined)
+    })
+    view.rerender(<ProviderSettingsPage />)
+
+    expect(screen.getByText('provider-setting-anthropic')).toBeInTheDocument()
+    expect(screen.getByTestId('selected-provider-id')).toHaveTextContent('anthropic')
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider', search: {}, replace: true })
+  })
+
   it('does not select CherryAI when it is remembered or requested by URL', async () => {
     MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'cherryai')
     searchMock = { id: 'cherryai' }
@@ -203,6 +233,25 @@ describe('ProviderSettingsPage', () => {
     })
     expect(screen.getByTestId('selected-provider-id')).toHaveTextContent('openai')
     expect(screen.queryByText('provider-setting-cherryai')).not.toBeInTheDocument()
+  })
+
+  it('falls back when the remembered provider is no longer returned', async () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'openai')
+    useProvidersMock.mockReturnValue({
+      providers: [
+        { id: 'zhipu', name: 'ZhiPu', isEnabled: true },
+        { id: 'custom-provider', name: 'Custom Provider', isEnabled: true }
+      ],
+      hasLoaded: true,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined)
+    })
+
+    render(<ProviderSettingsPage />)
+
+    expect(await screen.findByText('provider-setting-zhipu')).toBeInTheDocument()
+    expect(screen.queryByText('provider-setting-openai')).not.toBeInTheDocument()
   })
 
   it('passes a stable provider selector to deep-link import across rerenders', () => {

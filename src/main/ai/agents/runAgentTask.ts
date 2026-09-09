@@ -17,9 +17,10 @@
  * a reusing fire stands down when that session already has a turn in flight.
  * Admission is enforced under the stream manager's per-topic dispatch lock.
  *
- * Either way the session used by a fire is recorded in `job.output.sessionId`
- * for the run log; the reuse pointer is read from the constrained relation,
- * never from there (job rows are GC'd).
+ * Either way the session used by a fire is recorded in `job.metadata.sessionId`
+ * before the run starts, so the run log keeps the link when the fire fails,
+ * times out, or is cancelled; the reuse pointer is read from the constrained
+ * relation, never from there (job rows are GC'd).
  */
 
 import { application } from '@application'
@@ -27,6 +28,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import {
+  HEARTBEAT_PROMPT_SENTINEL,
   normalizeTaskSessionReuseRevision,
   readTaskSessionReuse,
   type TaskSessionReuse
@@ -44,9 +46,6 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 
 const logger = loggerService.withContext('runAgentTask')
 
-const HEARTBEAT_PROMPT_SENTINEL = '__heartbeat__'
-const HEARTBEAT_TASK_NAME = 'heartbeat'
-
 export type AgentTaskInput = {
   agentId: string
   prompt: string
@@ -57,10 +56,6 @@ export type AgentTaskInput = {
 }
 
 export type AgentTaskOutput = {
-  /** Session this fire ran in — created fresh, or the sticky one under
-   *  `reuseSession`. Persisted to `jobTable.output` purely as an audit trail;
-   *  continuity is driven by the schedule's reuse pointer, never by this. */
-  sessionId: string | null
   /** First 200 chars of the assistant reply, or a status marker for skipped runs. */
   result: string
 }
@@ -157,19 +152,20 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   const config = agent.configuration ?? {}
 
-  const isHeartbeat = taskName === HEARTBEAT_TASK_NAME && prompt === HEARTBEAT_PROMPT_SENTINEL
+  // Identity is the reserved prompt, not the schedule name — see HEARTBEAT_PROMPT_SENTINEL.
+  const isHeartbeat = prompt === HEARTBEAT_PROMPT_SENTINEL
 
   let effectivePrompt = prompt
 
   if (isHeartbeat) {
     if (config.heartbeat_enabled === false) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
-      return { sessionId: null, result: 'Skipped (disabled)' }
+      return { result: 'Skipped (disabled)' }
     }
     switch (workspace.type) {
       case AGENT_WORKSPACE_TYPE.SYSTEM:
         logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
-        return { sessionId: null, result: 'Skipped (no file)' }
+        return { result: 'Skipped (no file)' }
       case AGENT_WORKSPACE_TYPE.USER:
         break
       default: {
@@ -187,7 +183,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
           scheduleId,
           workspaceId: workspace.workspaceId
         })
-        return { sessionId: null, result: 'Skipped (workspace deleted)' }
+        return { result: 'Skipped (workspace deleted)' }
       }
       throw error
     }
@@ -198,7 +194,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     const content = await readHeartbeat(workspacePath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
-      return { sessionId: null, result: 'Skipped (no file)' }
+      return { result: 'Skipped (no file)' }
     }
     effectivePrompt = [
       '[Heartbeat]',
@@ -311,6 +307,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   try {
     let rebound = false
     while (true) {
+      await ctx.patchMetadata({ sessionId: session.id })
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: effectivePrompt }],
@@ -327,7 +324,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       }
       if (started.reason === 'busy') {
         completionActive = false
-        return { sessionId: session.id, result: 'Skipped (session busy)' }
+        return { result: 'Skipped (session busy)' }
       }
       if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
       rebound = true
@@ -365,10 +362,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     dispose()
   }
 
-  return {
-    sessionId: session.id,
-    result: resultText.slice(0, 200) || 'Completed'
-  }
+  return { result: resultText.slice(0, 200) || 'Completed' }
 }
 
 async function notifyTaskError(

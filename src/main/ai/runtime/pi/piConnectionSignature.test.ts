@@ -1,4 +1,6 @@
+import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -13,15 +15,22 @@ const mocks = vi.hoisted(() => ({
   findMcp: vi.fn(),
   listTools: vi.fn(),
   findBySessionId: vi.fn(),
-  getTurnTrustedNotifyChannels: vi.fn()
+  preferenceGet: vi.fn(),
+  getTurnTrustedNotifyChannels: vi.fn(),
+  usesPiGateway: vi.fn(),
+  gatewayFingerprint: 'gateway-1'
 }))
 
 vi.mock('@application', () => ({
   application: {
-    get: (name: string) =>
-      name === 'AgentSessionRuntimeService'
-        ? { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
-        : { listTools: mocks.listTools }
+    get: (name: string) => {
+      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
+      if (name === 'McpCatalogService') return { listTools: mocks.listTools }
+      if (name === 'AgentSessionRuntimeService') {
+        return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+      }
+      throw new Error(`Unexpected service: ${name}`)
+    }
   }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
@@ -41,7 +50,11 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     getSkillDirectory: mocks.getSkillDirectory
   }
 }))
-
+vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentApiGateway>()),
+  gatewayCredentialsFingerprint: () => mocks.gatewayFingerprint
+}))
+vi.mock('@main/ai/runtime/pi/modelInjection', () => ({ usesPiGateway: mocks.usesPiGateway }))
 const { capturePiConnectionSnapshot } = await import('./piConnectionSignature')
 
 const agent = {
@@ -70,7 +83,10 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
+  mocks.preferenceGet.mockReturnValue(null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
+  mocks.usesPiGateway.mockReturnValue(false)
+  mocks.gatewayFingerprint = 'gateway-1'
 })
 
 describe('capturePiConnectionSnapshot', () => {
@@ -99,7 +115,17 @@ describe('capturePiConnectionSnapshot', () => {
       () => mocks.listLocalSkillPaths.mockResolvedValueOnce(['/workspace/.agents/skills/review']),
       () => mocks.findMcp.mockReturnValueOnce({ id: 'mcp-1', name: 'server', updatedAt: 2 }),
       () => mocks.listTools.mockReturnValueOnce([{ name: 'changed' }]),
-      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id })
+      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id }),
+      // Rebuild fact: a language change must invalidate the warm connection so the new
+      // language instruction is baked into the next system prompt.
+      () =>
+        mocks.getAgent.mockReturnValueOnce({
+          ...agent,
+          configuration: { ...agent.configuration, language: 'Thai' }
+        }),
+      // Rebuild fact via the global preference alone: the Agent is unchanged, only
+      // `agent.language` moves — this input is not hashed through agent.configuration.
+      () => mocks.preferenceGet.mockReturnValueOnce('English')
     ]
 
     for (const mutate of mutations) {
@@ -173,5 +199,22 @@ describe('capturePiConnectionSnapshot', () => {
     await expect(capturePiConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.toMatchObject({
       linkedChannel: null
     })
+  })
+
+  it('rebuilds a Cloud route when the gateway connection identity changes', async () => {
+    mocks.usesPiGateway.mockReturnValue(true)
+    mocks.getProvider.mockResolvedValue({ id: CHERRY_CLOUD_PROVIDER_ID })
+    mocks.getModel.mockResolvedValue({
+      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      group: CHERRY_CLOUD_MODEL_GROUP
+    })
+    const captureCloud = () =>
+      capturePiConnectionSnapshot('session-1', agent.id, `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`)
+    const initialSignature = (await captureCloud()).signature
+
+    mocks.gatewayFingerprint = 'gateway-2'
+
+    expect((await captureCloud()).signature).not.toBe(initialSignature)
   })
 })

@@ -3,7 +3,7 @@
  * Each icon supports: <Icon /> (auto light/dark), <Icon variant="light" />, <Icon variant="dark" />, <Icon.Avatar />, Icon.colorPrimary
  * Do not edit manually
  *
- * Generated at: 2026-08-28T10:59:52.157Z
+ * Generated at: 2026-09-09T05:39:46.708Z
  * Total icons: 160
  */
 export { MinTop3Icon as MinTop3 } from './3min-top'
@@ -148,6 +148,7 @@ export { TesseractJsIcon as TesseractJs } from './tesseract-js'
 export { ThinkAnyIcon as ThinkAny } from './think-any'
 export { TngIcon as Tng } from './tng'
 export { TogetherIcon as Together } from './together'
+export { TokendanceIcon as Tokendance } from './tokendance'
 export { TwitterIcon as Twitter } from './twitter'
 export { UpstageIcon as Upstage } from './upstage'
 export { VercelIcon as Vercel } from './vercel'

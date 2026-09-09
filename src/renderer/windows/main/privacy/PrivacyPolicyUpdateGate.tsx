@@ -8,6 +8,7 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
 import { toast } from '@renderer/services/toast'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { useCallback, useState } from 'react'
@@ -19,14 +20,14 @@ const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 
 export function PrivacyPolicyUpdateGate() {
   const { t } = useTranslation()
-  const [policyVersion, setPolicyVersion] = usePreference('app.privacy.policy_version', PESSIMISTIC_PREFERENCE_OPTIONS)
-  const [dataCollectionEnabled, setDataCollectionEnabled] = usePreference(
+  const [, setPolicyVersion] = usePreference('app.privacy.policy_version', PESSIMISTIC_PREFERENCE_OPTIONS)
+  const [, setDataCollectionEnabled] = usePreference(
     'app.privacy.data_collection.enabled',
     PESSIMISTIC_PREFERENCE_OPTIONS
   )
   const [showPolicy, setShowPolicy] = useState(false)
   const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
-  const open = dataCollectionEnabled && policyVersion !== LATEST_PRIVACY_POLICY_VERSION
+  const open = useIsPrivacyUpdateRequired()
 
   const acknowledge = useCallback(async () => {
     setIsUpdatingPrivacy(true)

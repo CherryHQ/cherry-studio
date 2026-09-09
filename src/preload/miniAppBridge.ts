@@ -176,8 +176,10 @@ contextBridge.exposeInMainWorld('cherry', {
   ai: {
     // The APP's own label. Attaching an id to the returned promise would depend on
     // contextBridge preserving custom properties across worlds — unverified.
-    chat: async (params: unknown, opts: { onChunk?: (c: string) => void; callId?: string } = {}) =>
-      callStreaming('ai.chat', gateChat(params), opts.onChunk ?? (() => {}), gateCallId(opts.callId)),
+    chat: async (params: unknown, opts?: { onChunk?: (c: string) => void; callId?: string } | null) => {
+      const { onChunk, callId } = opts ?? {}
+      return callStreaming('ai.chat', gateChat(params), onChunk ?? (() => {}), gateCallId(callId))
+    },
     cancel: async (callId: string) => call('ai.cancel', { callId: gateCallId(callId) }),
     getCapabilities: async (params?: { model?: unknown } | null) => {
       // `?? {}`, not a default parameter or an `=== undefined` test: a default fills in for
@@ -206,11 +208,13 @@ contextBridge.exposeInMainWorld('cherry', {
     list: async () => call('file.list'),
     delete: async (name: string) => call('file.delete', { name: gateName(name) }),
     usage: async () => call('file.usage'),
-    export: async (name: string, opts: { suggestedName?: string } = {}) =>
-      call('file.export', {
+    export: async (name: string, opts?: { suggestedName?: string } | null) => {
+      const { suggestedName } = opts ?? {}
+      return call('file.export', {
         name: gateName(name),
-        ...(opts.suggestedName === undefined ? {} : { suggestedName: gateName(opts.suggestedName) })
+        ...(suggestedName === undefined ? {} : { suggestedName: gateName(suggestedName) })
       })
+    }
   },
   app: {
     getInfo: async () => call('app.getInfo'),

@@ -15,6 +15,8 @@ import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
+import { download } from '@renderer/utils/download'
+import { formatFileSize } from '@renderer/utils/file'
 import { Check, ChevronsLeft, Copy } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
@@ -25,6 +27,16 @@ import type { TraceNode } from './traceNode'
 import { convertTime } from './TraceTree'
 
 const logger = loggerService.withContext('SpanDetail')
+
+/**
+ * Payloads above this size skip Shiki highlighting and render a truncated
+ * preview first. `JSON.stringify` of a multi-MB span is fast enough, but
+ * full Shiki tokenization + `CodeViewer` token arrays of that size freeze the
+ * UI (issue #19564). Plain virtualized rows stay smooth.
+ */
+export const SPAN_DETAIL_LARGE_CONTENT_CHARS = 100_000
+/** Preview length, deliberately tied to the large threshold so the preview itself is never large. */
+export const SPAN_DETAIL_PREVIEW_CHARS = SPAN_DETAIL_LARGE_CONTENT_CHARS
 
 interface SpanDetailProps {
   node: TraceNode
@@ -46,8 +58,27 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   // Switching to a span that lacks the current tab (e.g. an AI span while on a header tab) falls back.
   const safeTab = tabs.some((tab) => tab.value === activeTab) ? activeTab : (tabs[0]?.value ?? 'inputs')
   // Derive synchronously so the code block never lingers on the previous tab's content.
-  const { content, contentLanguage } = useMemo(() => formatTabData(node, tabs, safeTab), [node, tabs, safeTab])
-  const copied = copiedContent?.nodeId === node.id && copiedContent.tab === safeTab && copiedContent.content === content
+  const formatted = useMemo(() => formatTabData(node, tabs, safeTab), [node, tabs, safeTab])
+  const { content: fullContent, contentLanguage, isLarge } = formatted
+  // Keyed expansion: a new span/tab derives collapsed synchronously on the first
+  // render, so an expanded payload never flashes its full text via a post-render
+  // `useEffect` reset (which runs after the full payload already rendered once).
+  const contentKey = `${node.id}-${safeTab}`
+  const [expandedContentKey, setExpandedContentKey] = useState<string | null>(null)
+  const showFullLargeContent = expandedContentKey === contentKey
+  // Preview slice is cheap; the full string stays in `formatted` for expand/download.
+  // Copy always uses the full content so collapsed previews never silently copy partial text.
+  const content = isLarge && !showFullLargeContent ? fullContent.slice(0, SPAN_DETAIL_PREVIEW_CHARS) : fullContent
+  // `formatted.fullLength` is a char count; `formatFileSize` expects bytes, so
+  // measure UTF-8 bytes (memoized, large-only) instead of passing chars as bytes.
+  const fullSizeLabel = useMemo(() => {
+    if (!isLarge) return ''
+    return formatFileSize(new TextEncoder().encode(fullContent).length)
+  }, [isLarge, fullContent])
+  // Large payloads render as plain virtualized text (no Shiki worker) in both preview and full modes.
+  const highlight = !isLarge
+  const copied =
+    copiedContent?.nodeId === node.id && copiedContent.tab === safeTab && copiedContent.content === fullContent
 
   const usedTime = convertTime((node.endTime || Date.now()) - node.startTime)
   const rows: SpanDetailRow[] = [
@@ -61,14 +92,42 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   ]
 
   const handleCopy = async () => {
-    if (!content) return
+    if (!fullContent) return
     try {
-      await navigator.clipboard.writeText(content)
-      setCopiedContent({ nodeId: node.id, tab: safeTab, content })
+      await navigator.clipboard.writeText(fullContent)
+      setCopiedContent({ nodeId: node.id, tab: safeTab, content: fullContent })
     } catch (error) {
       logger.error('Failed to copy span detail content', error as Error)
       toast.error(t('common.copy_failed'))
     }
+  }
+
+  const handleDownload = () => {
+    if (!fullContent) return
+    const blob = new Blob([fullContent], {
+      type: contentLanguage === 'json' ? 'application/json' : 'text/plain'
+    })
+    const url = URL.createObjectURL(blob)
+    const filename = `trace-${node.id}-${safeTab}.${contentLanguage === 'json' ? 'json' : 'txt'}`
+    const fail = (error: unknown) => {
+      logger.error('Failed to download span detail content', error as Error)
+      toast.error(t('common.save_failed'))
+      URL.revokeObjectURL(url)
+    }
+    try {
+      // Blob URLs take the helper's synchronous anchor-click path; guard the
+      // async fetch path it also exposes.
+      const result = download(url, filename)
+      if (result instanceof Promise) {
+        result.catch(fail)
+        return
+      }
+    } catch (error) {
+      fail(error)
+      return
+    }
+    // Defer revocation so the download isn't aborted in browsers that resolve it asynchronously.
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
   return (
@@ -90,6 +149,31 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
         ))}
       </FieldGroup>
 
+      {isLarge && (
+        <div className="mb-2 flex min-w-0 shrink-0 items-center gap-2 rounded-md border border-border-subtle bg-background-subtle px-2 py-1.5 text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate">
+            {/* Generic wording: this banner serves every tab (inputs/outputs/headers/raw). */}
+            {showFullLargeContent ? fullSizeLabel : `${t('error.truncatedBadge')} · ${fullSizeLabel}`}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-2 text-xs"
+            onClick={() => setExpandedContentKey((prev) => (prev === contentKey ? null : contentKey))}>
+            {showFullLargeContent ? t('common.collapse') : t('common.expand')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-2 text-xs"
+            onClick={handleDownload}>
+            {t('common.download')}
+          </Button>
+        </div>
+      )}
+
       <Tabs value={safeTab} onValueChange={setActiveTab} className="min-h-0 flex-1 gap-2 overflow-hidden">
         <div className="flex min-w-0 shrink-0 items-center gap-2">
           <div className="min-w-0 flex-1 overflow-x-auto">
@@ -108,7 +192,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
               size="icon-sm"
               className={copied ? 'text-success hover:text-success' : 'text-muted-foreground hover:text-foreground'}
               aria-label={t('common.copy')}
-              disabled={!content}
+              disabled={!fullContent}
               onClick={() => void handleCopy()}>
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </Button>
@@ -117,16 +201,16 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
         <TabsContent
           value={safeTab}
           className="min-h-0 flex-1 overflow-hidden rounded-md border border-border-subtle bg-popover">
-          {/* key remounts the viewer per tab so no fragment of the previous tab's content lingers. */}
+          {/* key remounts the viewer per tab/mode so no fragment of the previous content lingers. */}
           <CodeViewer
-            key={safeTab}
+            key={`${contentKey}-${showFullLargeContent ? 'full' : 'preview'}`}
             value={content}
-            language={contentLanguage}
+            language={highlight ? contentLanguage : 'text'}
             expanded={false}
             height="100%"
             wrapped
             fontSize={12}
-            options={{ lineNumbers: false }}
+            options={{ lineNumbers: false, highlight }}
             className="selectable h-full [&_.shiki-scroller]:overflow-x-hidden"
           />
         </TabsContent>
@@ -155,27 +239,62 @@ function formatDate(timestamp: number | null): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${date.getMilliseconds().toString().padStart(3, '0')}`
 }
 
+/** Formatted tab payload. `content` is always the FULL text; the caller slices the preview. */
+export interface FormattedTabData {
+  content: string
+  contentLanguage: 'json' | 'text'
+  fullLength: number
+  isLarge: boolean
+}
+
 /** Resolve the active tab's payload (with the ERROR-exception override) and format it as JSON or text. */
-function formatTabData(
-  node: TraceNode,
-  tabs: SpanTab[],
-  activeTab: string
-): { content: string; contentLanguage: 'json' | 'text' } {
+export function formatTabData(node: TraceNode, tabs: SpanTab[], activeTab: string): FormattedTabData {
   let data: unknown = tabs.find((tab) => tab.value === activeTab)?.data
   if (activeTab === 'outputs' && node.status === 'ERROR') {
     const exception = Array.isArray(node.events) ? node.events.find((e) => e.name === 'exception') : undefined
     if (exception) data = exception
   }
+  let formatted: string
+  let contentLanguage: 'json' | 'text' = 'text'
+  // Fast path: strings already over budget skip JSON.parse + pretty-print — the
+  // indented rewrite would only expand them further while blocking the main thread.
+  // `looksJson` is a heuristic (no parse validation): it only affects the download
+  // file extension, since large payloads always render as plain text.
+  if (typeof data === 'string' && data.length > SPAN_DETAIL_LARGE_CONTENT_CHARS) {
+    const looksJson = data.startsWith('{') || data.startsWith('[')
+    return {
+      content: data,
+      contentLanguage: looksJson ? 'json' : 'text',
+      fullLength: data.length,
+      isLarge: true
+    }
+  }
   if (typeof data === 'string' && (data.startsWith('{') || data.startsWith('['))) {
     try {
-      return { content: JSON.stringify(JSON.parse(data), null, 2), contentLanguage: 'json' }
+      formatted = JSON.stringify(JSON.parse(data), null, 2)
+      contentLanguage = 'json'
     } catch {
       // Not JSON; render the raw string as text.
+      formatted = data
     }
   } else if (data && typeof data === 'object') {
-    return { content: JSON.stringify(data, null, 2), contentLanguage: 'json' }
+    try {
+      formatted = JSON.stringify(data, null, 2)
+      contentLanguage = 'json'
+    } catch {
+      // Circular / unserializable payloads must never break the viewer.
+      formatted = String(data)
+      contentLanguage = 'text'
+    }
+  } else {
+    formatted = String(data ?? '')
   }
-  return { content: String(data ?? ''), contentLanguage: 'text' }
+  return {
+    content: formatted,
+    contentLanguage,
+    fullLength: formatted.length,
+    isLarge: formatted.length > SPAN_DETAIL_LARGE_CONTENT_CHARS
+  }
 }
 
 export default SpanDetail

@@ -1,7 +1,7 @@
 import type { ReasoningSupport } from '../schemas/model'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
-import { modeWire } from './wires'
+import { EFFORT, modeWire } from './wires'
 
 const toggleSupport: ReasoningSupport = {
   controls: [{ kind: 'toggle', default: true }]
@@ -9,7 +9,11 @@ const toggleSupport: ReasoningSupport = {
 
 const chatWire: ReasoningWireProfile = modeWire('thinking.type', { off: 'disabled', auto: 'enabled' })
 
-const responsesWire: ReasoningWireProfile = modeWire('reasoningEffort', { off: 'none', auto: 'medium' })
+const responsesWire: ReasoningWireProfile = modeWire(
+  'reasoningEffort',
+  { off: 'none', auto: EFFORT },
+  { autoEffort: 'medium' }
+)
 
 // MiMo's Anthropic-compatible API enables thinking by default. Omitting the
 // auto mode preserves that default without making the Anthropic SDK inject a
@@ -19,6 +23,7 @@ const anthropicWire: ReasoningWireProfile = modeWire('thinking.type', { off: 'di
 export default defineProvider({
   id: 'mimo',
   name: 'Xiaomi MiMo',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

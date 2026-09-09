@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'aimlapi',
   name: 'AI/ML API',
+  availableInEditions: ['global'],
   baseUrl: 'https://api.aimlapi.com/v1',
   anthropic: 'https://api.aimlapi.com',
   website: {

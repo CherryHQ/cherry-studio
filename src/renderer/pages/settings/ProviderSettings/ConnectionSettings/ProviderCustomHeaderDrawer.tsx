@@ -100,6 +100,21 @@ function rowsToHeadersObject(rows: HeaderRow[]): Record<string, string> {
   return out
 }
 
+/**
+ * Build an `extraHeaders` merge patch that fully replaces the stored headers.
+ *
+ * PATCH /providers/:providerId applies `providerSettings` with JSON Merge Patch
+ * semantics: keys absent from the patch are kept, so deletions must be expressed
+ * as explicit `null` values (see ProviderService.applyJsonMergePatch).
+ */
+function buildExtraHeadersReplacementPatch(
+  previous: Record<string, string>,
+  next: Record<string, string>
+): Record<string, string | null> {
+  const removed = Object.keys(previous).filter((key) => !Object.hasOwn(next, key))
+  return { ...next, ...Object.fromEntries(removed.map((key) => [key, null])) }
+}
+
 /** Parse JSON object for custom headers; primitive values coerced to strings. */
 function parseHeadersJsonDraft(raw: string): { ok: true; headers: Record<string, string> } | { ok: false } {
   const t = trim(raw)
@@ -315,7 +330,10 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       await updateProvider({
         endpointConfigs: nextEndpointConfigs,
         defaultChatEndpoint,
-        providerSettings: { ...provider.settings, extraHeaders: parsedHeaders }
+        providerSettings: {
+          ...provider.settings,
+          extraHeaders: buildExtraHeadersReplacementPatch(sourceHeaders, parsedHeaders)
+        }
       })
     } catch (error) {
       // Surface the failure and keep the drawer open so the user can retry
@@ -348,6 +366,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     provider,
     providerId,
     rows,
+    sourceHeaders,
     syncProviderModels,
     t,
     updateProvider
@@ -533,7 +552,11 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                         size="icon"
                         className={customHeaderDrawerClasses.removeIconButton}
                         onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
-                        aria-label={t('common.delete')}>
+                        aria-label={
+                          row.key.trim()
+                            ? t('settings.provider.delete.header', { key: row.key.trim() })
+                            : t('common.delete')
+                        }>
                         <Trash2 aria-hidden />
                       </Button>
                     </div>

@@ -35,6 +35,7 @@ export function createResourcePaneCapability<TScope extends ResourcePaneCapabili
 } = {}): RightPanelCapability<TScope> {
   return {
     component: ResourcePaneRightPanel,
+    widthPreset: 'navigation-list',
     resolve: (scope) => ({
       id: RESOURCE_PANE_TAB,
       instanceKey,

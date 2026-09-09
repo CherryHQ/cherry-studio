@@ -15,8 +15,9 @@ const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
 const deleteProviderMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
-const { providerEditorDrawerSpy } = vi.hoisted(() => ({
-  providerEditorDrawerSpy: vi.fn()
+const { providerEditorDrawerSpy, providerEditorModuleState } = vi.hoisted(() => ({
+  providerEditorDrawerSpy: vi.fn(),
+  providerEditorModuleState: { loaded: false }
 }))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
@@ -119,12 +120,22 @@ vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
   )
 }))
 
-vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
-  default: (props: any) => {
-    providerEditorDrawerSpy(props)
-    return <div data-testid="provider-editor-drawer" data-open={props.open ? 'true' : 'false'} />
+vi.mock('../ProviderList/ProviderEditorDrawer', () => {
+  providerEditorModuleState.loaded = true
+
+  return {
+    default: (props: any) => {
+      providerEditorDrawerSpy(props)
+      return (
+        <div data-testid="provider-editor-drawer" data-open={props.open ? 'true' : 'false'}>
+          <button type="button" onClick={props.onClose}>
+            close-provider-editor
+          </button>
+        </div>
+      )
+    }
   }
-}))
+})
 
 // The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
 // the gated action (as if the user confirmed) and assert the delete flow.
@@ -198,6 +209,23 @@ describe('ProviderList', () => {
     )
   })
 
+  it('loads the provider editor only when the user opens it', async () => {
+    const user = userEvent.setup()
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(providerEditorModuleState.loaded).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+
+    expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
+    expect(providerEditorModuleState.loaded).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'close-provider-editor' }))
+
+    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
+  })
+
   it('filters providers by search text and forwards selection', () => {
     const onSelectProvider = vi.fn()
 
@@ -238,7 +266,8 @@ describe('ProviderList', () => {
     expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
   })
 
-  it('offers only safe canonical preset sources to the custom provider editor', () => {
+  it('offers only safe canonical preset sources to the custom provider editor', async () => {
+    const user = userEvent.setup()
     const canonicalOpenAI = {
       ...providers[0],
       presetProviderId: 'openai',
@@ -271,15 +300,19 @@ describe('ProviderList', () => {
 
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        presetSources: [canonicalOpenAI, canonicalNewApi],
-        onSelectPreset: expect.any(Function)
-      })
-    )
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+
+    await waitFor(() => {
+      expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          presetSources: [canonicalOpenAI, canonicalNewApi],
+          onSelectPreset: expect.any(Function)
+        })
+      )
+    })
   })
 
-  it('triggers add and reorder actions', () => {
+  it('triggers add and reorder actions', async () => {
     const reorderableProviders = [
       { ...providers[0], isEnabled: true },
       { ...providers[1], isEnabled: true }
@@ -293,9 +326,9 @@ describe('ProviderList', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     expect(useReorderMock).toHaveBeenCalledWith('/providers', { revalidateOnSuccess: false })
-    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: /添加/i })[0])
-    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
+    expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
     expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])

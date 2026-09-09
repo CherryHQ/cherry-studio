@@ -145,7 +145,7 @@ export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema
 // Raw, user-typed delimiter in escaped form (e.g. "\\n\\n"); unescaped by the splitter.
 export const KnowledgeChunkSeparatorSchema = z.string()
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
-export const KnowledgeDocumentCountSchema = z.number().int().positive()
+export const KnowledgeDocumentCountSchema = z.number().int().min(0)
 export const KnowledgeBaseIdSchema = z.uuidv4()
 export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)

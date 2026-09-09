@@ -32,4 +32,11 @@ describe('getFileTokenPresentation image previewUrl', () => {
     const result = getFileTokenPresentation(imageAttachment(), 'image', 'https://example.com/a.png')
     expect(result.previewUrl).toBe('https://example.com/a.png')
   })
+
+  // The message-editing round-trip rebuilds attachments from a stored `file://` URL and has no path.
+  it('previews a path-less attachment from its own previewUrl', () => {
+    const editRoundTrip = imageAttachment({ path: undefined, previewUrl: 'file:///tmp/image.png' })
+
+    expect(getFileTokenPresentation(editRoundTrip, 'image').previewUrl).toBeDefined()
+  })
 })
