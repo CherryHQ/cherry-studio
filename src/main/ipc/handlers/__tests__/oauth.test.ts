@@ -42,7 +42,10 @@ describe('oauthHandlers', () => {
       accountId: 'codex-account'
     })
     expect(appGetMock).toHaveBeenCalledWith('OAuthRuntimeService')
-    expect(runtimeService.signIn).toHaveBeenCalledWith('codex', 'request-1')
+    expect(runtimeService.signIn).toHaveBeenCalledWith('codex', 'request-1', {
+      oauthServer: undefined,
+      apiHost: undefined
+    })
   })
 
   it('maps sign_in cancellation to a stable IPC error', async () => {

@@ -45,10 +45,10 @@ Three pieces, all keyed by `providerId`:
   rather than taking by injection — the `OAuthTokenStore` interface is the seam
   a future consumer would inject through (see "Extending").
 - **Transports** — how the authorization code comes back:
-  - `LoopbackCallbackTransport` — spins a localhost HTTP server (Codex, Grok).
+  - `LoopbackCallbackTransport` — spins a localhost HTTP server (Codex, Grok, CherryIN).
   - `DeepLinkCallbackTransport` — waits for a `cherrystudio://` deep link, then
     pushes the result point-to-point to the initiator window via
-    `IpcApiService.send('oauth.deep_link_result', …)` (CherryIN). The OAuth token
+    `IpcApiService.send('oauth.deep_link_result', …)`. The OAuth token
     never crosses to the renderer — only the side-effect API keys do.
 - **`providers/<id>.ts`** — one file per login provider: its client/urls/scope/
   transport plus optional behavior hooks. **`providerDefinitions.ts`** is the
@@ -86,7 +86,7 @@ provider also touches:
    `'api-key'` is not.
 3. **Settings UI** — an entry in `providerSpecificSettingsRegistry.tsx`. Loopback
    providers reuse the shared `LoginOauthPanel` (pass `i18nNs`, `showAccountId`);
-   deep-link providers currently need a bespoke panel (`CherryInOauth.tsx`).
+   CherryIN retains its bespoke panel for API keys and balance.
 4. **i18n** — `settings.provider.<ns>.*` keys; complete every locale and validation step in the [i18n workflow](../../../../../docs/references/i18n/README.md#translation-completion-in-pull-requests).
 5. **Chat runtime** — `src/main/ai/provider/config.ts` (`buildXxxConfig` /
    `buildXxxFetch`) + per-provider request shaping. This is a *separate axis*
@@ -113,3 +113,11 @@ worth doing until a real second consumer appears (YAGNI):
   a `device-code` transport for Copilot. Do this only when a second *self-driven*
   (non-SDK) OAuth consumer needs the shared refresh/expiry/secure-storage path.
   MCP is not that consumer — it is SDK-driven and rightly owns its own flow.
+
+## CherryIN HTTP callback
+
+CherryIN uses `http://127.0.0.1:29873/oauth/callback`. Register this exact URI in
+Hydra before releasing the client, retaining `cherrystudio://oauth/callback`
+for older releases. The listener must bind before the browser opens.
+`oauth.sign_in` returns provisioned API keys to its caller after token storage;
+access and refresh tokens remain in the main process.

@@ -35,6 +35,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
   const { t } = useTranslation()
 
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [balanceInfo, setBalanceInfo] = useState<CherryInBalance | null>(null)
@@ -102,6 +103,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   }, [fetchData])
 
   const handleOAuthLogin = useCallback(async () => {
+    setIsLoggingIn(true)
     try {
       await oauthWithCherryIn(
         async (apiKeys: string) => {
@@ -124,6 +126,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     } catch (error) {
       logger.error('OAuth error:', error as Error)
       toast.error(t('settings.provider.oauth.error'))
+    } finally {
+      setIsLoggingIn(false)
     }
   }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
 
@@ -199,7 +203,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 </div>
               </div>
             </div>
-            <Button variant="emphasis" onClick={handleOAuthLogin}>
+            <Button variant="emphasis" onClick={handleOAuthLogin} disabled={isLoggingIn}>
               {t('settings.provider.oauth.cherryIn.login_button')}
             </Button>
           </div>

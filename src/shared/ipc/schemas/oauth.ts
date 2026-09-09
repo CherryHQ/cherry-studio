@@ -12,11 +12,12 @@ import { defineRoute } from '../define'
  * the runtime. Adding a provider needs no new route and no new service — only a
  * provider definition entry — so the IPC surface stays flat as the set grows.
  *
- * Two flow shapes share this surface: a loopback callback (Codex, Grok CLI,
- * via `sign_in`) and a deep-link callback (CherryIN, via `start_deep_link_flow`
+ * Two flow shapes share this surface: a loopback callback (Codex, Grok CLI, CherryIN,
+ * via `sign_in`) and a deep-link callback (via `start_deep_link_flow`
  * whose outcome arrives out-of-band on the `oauth.deep_link_result` event).
  *
- * `sign_in`/`get_account` return the account superset (just the account id);
+ * `sign_in` may also return provisioned API keys; OAuth tokens stay in main.
+ * `get_account` returns only the account id;
  * providers without an account concept resolve `{ accountId: null }`.
  *
  * `check_external_login` covers the other login shape — providers whose
@@ -28,6 +29,8 @@ import { defineRoute } from '../define'
 /** The account a provider associates with the session (Codex's ChatGPT id), or null. */
 const oauthAccountSchema = z.object({ accountId: z.string().nullable() })
 
+const oauthSignInResultSchema = oauthAccountSchema.extend({ apiKeys: z.string().optional() })
+
 const signInAttachResultSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('not-found') }),
   z.object({ status: z.literal('completed'), account: oauthAccountSchema })
@@ -38,7 +41,10 @@ const providerInput = z.object({ providerId: z.string() })
 const signInObservationInput = providerInput.extend({ requestId: z.string().min(1) })
 
 export const oauthRequestSchemas = {
-  'oauth.sign_in': defineRoute({ input: signInObservationInput, output: oauthAccountSchema }),
+  'oauth.sign_in': defineRoute({
+    input: signInObservationInput.extend({ oauthServer: z.string().optional(), apiHost: z.string().optional() }),
+    output: oauthSignInResultSchema
+  }),
   'oauth.sign_in.attach': defineRoute({ input: signInObservationInput, output: signInAttachResultSchema }),
   'oauth.cancel_sign_in': defineRoute({ input: signInObservationInput, output: z.void() }),
   'oauth.has_token': defineRoute({ input: providerInput, output: z.boolean() }),

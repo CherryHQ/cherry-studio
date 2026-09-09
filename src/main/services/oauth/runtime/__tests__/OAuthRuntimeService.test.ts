@@ -1,3 +1,4 @@
+import { shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => {
@@ -20,6 +21,7 @@ const h = vi.hoisted(() => {
     // One controllable fake OAuth client shared by every provider definition.
     clientMock,
     transportMock: {
+      ready: Promise.resolve(),
       tryAcquire: vi.fn(() => true),
       waitForAuthorizationCode: vi
         .fn<(state: string, signal: AbortSignal) => Promise<string>>()
@@ -72,7 +74,8 @@ vi.mock('../providerDefinitions', () => ({
         config: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' }
       },
       createClient: (context?: { signal?: AbortSignal }) => h.createClientMock(context),
-      extractAccountId: () => null
+      extractAccountId: () => null,
+      afterPersistTokens: (tokenData: unknown, context: unknown) => h.afterPersistMock(tokenData, context)
     },
     cherryin: {
       providerId: 'cherryin',
@@ -117,8 +120,36 @@ describe('OAuthRuntimeService', () => {
     h.transportMock.tryAcquire.mockReset().mockReturnValue(true)
     h.transportMock.waitForAuthorizationCode.mockReset().mockResolvedValue('auth-code')
     h.transportMock.close.mockReset()
+    h.transportMock.ready = Promise.resolve()
     service = new TestOAuthRuntimeService()
     service.initializeForTest()
+  })
+
+  it('does not open the browser until the callback port is listening', async () => {
+    let listening!: () => void
+    h.transportMock.ready = new Promise<void>((resolve) => {
+      listening = resolve
+    })
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'token' })
+    const login = service.signIn('codex', 'ready-test')
+    await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledOnce())
+    expect(shell.openExternal).not.toHaveBeenCalled()
+    listening()
+    await expect(login).resolves.toEqual({ accountId: null })
+    expect(shell.openExternal).toHaveBeenCalledWith('https://auth/x')
+  })
+
+  it('returns provisioned API keys after loopback login without exposing OAuth tokens', async () => {
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'private-token', refresh_token: 'private-refresh' })
+    h.afterPersistMock.mockImplementation(async (_tokens, context) => {
+      expect(context.apiHost).toBe('https://open.cherryin.dev')
+      expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ accessToken: 'private-token' })
+      return { apiKeys: 'provisioned-key' }
+    })
+    await expect(service.signIn('codex', 'http-login', { apiHost: 'https://open.cherryin.dev' })).resolves.toEqual({
+      accountId: null,
+      apiKeys: 'provisioned-key'
+    })
   })
 
   it('returns a still-valid token without refreshing', async () => {

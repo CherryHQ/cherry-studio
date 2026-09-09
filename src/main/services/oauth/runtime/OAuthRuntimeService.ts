@@ -14,6 +14,7 @@ import type {
   OAuthAccount,
   OAuthRuntimeProviderContext,
   OAuthRuntimeProviderDefinition,
+  OAuthSignInResult,
   OAuthTokenCredentials,
   OAuthTokenStore
 } from './types'
@@ -34,8 +35,9 @@ type ActiveSignIn = {
     controller: AbortController
     phase: 'discovery' | 'callback' | 'exchange' | 'persist'
     requestIds: Set<string>
+    context?: OAuthRuntimeProviderContext
   }
-  promise: Promise<OAuthAccount>
+  promise: Promise<OAuthSignInResult>
 }
 
 /**
@@ -166,10 +168,11 @@ export class OAuthRuntimeService extends BaseService {
     definition: OAuthRuntimeProviderDefinition,
     transport: LoopbackCallbackTransport,
     operation: ActiveSignIn['operation']
-  ): Promise<OAuthAccount> => {
+  ): Promise<OAuthSignInResult> => {
+    const context = operation.context ?? {}
     const signal = AbortSignal.any([operation.controller.signal, AbortSignal.timeout(SIGN_IN_TIMEOUT_MS)])
     try {
-      const client = await definition.createClient({ signal })
+      const client = await definition.createClient({ ...context, signal })
       if (operation.controller.signal.aborted) {
         throw new OAuthSignInCancelledError(definition.providerId)
       }
@@ -177,6 +180,9 @@ export class OAuthRuntimeService extends BaseService {
 
       operation.phase = 'callback'
       const codePromise = transport.waitForAuthorizationCode(state, signal)
+      void codePromise.catch(() => undefined)
+      await transport.ready
+      if (signal.aborted) throw new OAuthSignInCancelledError(definition.providerId)
       await shell.openExternal(authUrl)
       const code = await codePromise
 
@@ -190,10 +196,13 @@ export class OAuthRuntimeService extends BaseService {
       // token and force a full re-auth.
       operation.phase = 'persist'
       await this.persistTokens(definition, tokenData)
-      await definition.afterPersistTokens?.(tokenData, {})
+      const result = await definition.afterPersistTokens?.(tokenData, context)
       providerService.update(definition.providerId, { isEnabled: true })
       this.logger.info(`${definition.providerId} sign-in succeeded`)
-      return this.getAccount(definition.providerId)
+      return {
+        ...(await this.getAccount(definition.providerId)),
+        ...(result?.apiKeys ? { apiKeys: result.apiKeys } : {})
+      }
     } catch (error) {
       if (this.isSignInCancellable(operation.phase) && operation.controller.signal.aborted) {
         this.logger.info(`${definition.providerId} sign-in cancelled`)
@@ -206,13 +215,23 @@ export class OAuthRuntimeService extends BaseService {
     }
   }
 
-  public signIn = (providerId: string, requestId: string): Promise<OAuthAccount> => {
+  public signIn = (
+    providerId: string,
+    requestId: string,
+    context: OAuthRuntimeProviderContext = {}
+  ): Promise<OAuthSignInResult> => {
     if (this.stopping) {
       return Promise.reject(new OAuthServiceError('OAuth runtime is stopping'))
     }
 
     const existing = this.activeSignIns.get(providerId)
     if (existing) {
+      if (
+        existing.operation.context?.oauthServer !== context.oauthServer ||
+        existing.operation.context?.apiHost !== context.apiHost
+      ) {
+        return Promise.reject(new OAuthServiceError('A sign-in for another server is already in progress'))
+      }
       existing.operation.requestIds.add(requestId)
       return existing.promise
     }
@@ -229,7 +248,8 @@ export class OAuthRuntimeService extends BaseService {
       const operation: ActiveSignIn['operation'] = {
         controller: new AbortController(),
         phase: 'discovery',
-        requestIds: new Set([requestId])
+        requestIds: new Set([requestId]),
+        context
       }
       const activeSignIn: ActiveSignIn = {
         operation,

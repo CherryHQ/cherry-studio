@@ -11,6 +11,7 @@ import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { net } from 'electron'
 
 import { oauthProviderDefinitions } from '../providerDefinitions'
+import { cherryInOAuthProvider } from '../providers/cherryin'
 
 function discoveryResponse(authorizationEndpoint: string, tokenEndpoint: string): Response {
   return {
@@ -77,5 +78,36 @@ describe('Grok OIDC discovery host-pinning', () => {
     await oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()
     await oauthProviderDefinitions[GROK_CLI_PROVIDER_ID].createClient()
     expect(net.fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('CherryIN HTTP callback contract', () => {
+  it('uses the registered loopback URI for both authorization and token exchange', async () => {
+    const client = cherryInOAuthProvider.createClient({ oauthServer: 'https://open.cherryin.dev' })
+    const request = client.createAuthorizationRequest()
+    const url = new URL(request.authUrl)
+    expect(url.origin).toBe('https://open.cherryin.dev')
+    expect(url.searchParams.get('redirect_uri')).toBe('http://127.0.0.1:29873/oauth/callback')
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+    expect(request.state).not.toBe('')
+    expect(cherryInOAuthProvider.transport.config).toMatchObject({
+      hosts: ['127.0.0.1'],
+      port: 29873,
+      path: '/oauth/callback'
+    })
+    vi.mocked(net.fetch).mockImplementationOnce(async (_url, options) => {
+      const body = new URLSearchParams(String(options?.body))
+      expect(body.get('redirect_uri')).toBe(url.searchParams.get('redirect_uri'))
+      expect(body.get('code_verifier')).toBe(request.codeVerifier)
+      expect(body.get('code')).toBe('test-code')
+      return new Response(JSON.stringify({ access_token: 'test-token' }))
+    })
+    await expect(client.exchangeCode('test-code', request.codeVerifier)).resolves.toMatchObject({
+      access_token: 'test-token'
+    })
+  })
+
+  it('rejects an untrusted authorization host before opening a browser', () => {
+    expect(() => cherryInOAuthProvider.createClient({ oauthServer: 'https://evil.example' })).toThrow(/Unauthorized/)
   })
 })

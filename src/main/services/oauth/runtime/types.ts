@@ -1,5 +1,9 @@
 import type { PkceOAuthClient } from './PkceOAuthClient'
 
+export interface OAuthSignInResult extends OAuthAccount {
+  apiKeys?: string
+}
+
 export interface OAuthAccount {
   /** Provider account id associated with the OAuth session, when available. */
   accountId: string | null
