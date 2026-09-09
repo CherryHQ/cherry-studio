@@ -268,7 +268,8 @@ describe('useAgentMessageListProviderValue', () => {
       isMultiSelectMode: true,
       selectedMessageIds: ['user-1'],
       selectAllState: 'indeterminate',
-      selectAllDisabled: false
+      selectAllDisabled: false,
+      isSelectAllLoading: false
     })
     expect(useMessageExportActionsMock).toHaveBeenCalledWith({
       topicName: 'Agent session'

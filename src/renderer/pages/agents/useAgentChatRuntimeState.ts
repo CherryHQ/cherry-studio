@@ -108,6 +108,8 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  loadAllOlder?: () => void
+  isLoadingAll?: boolean
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
@@ -135,6 +137,8 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
+    loadAllOlder,
+    isLoadingAll,
     refresh,
     seedReservedMessages,
     deleteMessage: deleteSessionMessage
@@ -305,6 +309,8 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
+    loadAllOlder,
+    isLoadingAll,
     isPending,
     stop,
     sendMessage,

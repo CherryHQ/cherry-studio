@@ -75,6 +75,8 @@ interface HomeMessageListParams {
   isMessagesStale?: boolean
   loadOlder?: () => void
   hasOlder?: boolean
+  loadAllOlder?: () => void
+  isLoadingAll?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
@@ -93,6 +95,8 @@ export function useHomeMessageListProviderValue({
   isMessagesStale = false,
   loadOlder,
   hasOlder = false,
+  loadAllOlder,
+  isLoadingAll,
   openCitationsPanel,
   imageActionConsumer,
   onBindRuntime,
@@ -248,7 +252,10 @@ export function useHomeMessageListProviderValue({
     streamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,
-    persistDiagnosis
+    persistDiagnosis,
+    hasOlder,
+    loadAllOlder,
+    isLoadingAll
   })
 
   useEffect(() => {

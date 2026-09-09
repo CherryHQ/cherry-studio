@@ -26,6 +26,8 @@ interface AgentChatMainProps {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  loadAllOlder?: () => void
+  isLoadingAll?: boolean
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage: (messageId: string) => Promise<void>
@@ -45,6 +47,8 @@ export default function AgentChatMain({
   isLoading,
   hasOlder,
   loadOlder,
+  loadAllOlder,
+  isLoadingAll,
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
@@ -68,6 +72,8 @@ export default function AgentChatMain({
           isLoading={isLoading}
           hasOlder={hasOlder}
           loadOlder={loadOlder}
+          loadAllOlder={loadAllOlder}
+          isLoadingAll={isLoadingAll}
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
           deleteMessage={agentId ? deleteMessage : undefined}

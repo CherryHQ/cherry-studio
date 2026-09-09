@@ -10,7 +10,7 @@
  * messages. Row fields carry identity, role, status, and timestamps.
  */
 
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
@@ -81,7 +81,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
-  const { pages, isLoading, hasNext, loadNext, mutate } = useConversationHistoryQuery(
+  const { pages, isLoading, isRefreshing, hasNext, loadNext, mutate } = useConversationHistoryQuery(
     '/agent-sessions/:sessionId/messages',
     {
       params: { sessionId },
@@ -248,6 +248,18 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [mutate, sessionId]
   )
 
+  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
+  // page — same pattern as `useTopics({ loadAll: true })`.
+  const [loadAllRequested, setLoadAllRequested] = useState(false)
+  useEffect(() => {
+    setLoadAllRequested(false)
+  }, [sessionId])
+  useEffect(() => {
+    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing) {
+      loadNext()
+    }
+  }, [enabled, loadAllRequested, hasNext, isLoading, isRefreshing, loadNext])
+
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
       await deleteMessageTrigger({ params: { sessionId, messageId } })
@@ -260,6 +272,8 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     isLoading: enabled && isLoading,
     hasOlder: hasNext,
     loadOlder: loadNext,
+    loadAllOlder: () => setLoadAllRequested(true),
+    isLoadingAll: enabled && loadAllRequested && hasNext,
     refresh: refreshMessages,
     seedReservedMessages,
     deleteMessage

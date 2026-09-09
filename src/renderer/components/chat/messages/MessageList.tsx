@@ -900,6 +900,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         isMultiSelectMode={isMultiSelectMode}
         selectAllState={selection?.selectAllState}
         selectAllDisabled={selection?.selectAllDisabled}
+        isSelectAllLoading={selection?.isSelectAllLoading}
         onToggleSelectAll={actions.toggleSelectAllMessages}
         deleteDisabledReason={
           selectedMessageIds

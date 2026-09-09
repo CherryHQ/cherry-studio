@@ -141,6 +141,14 @@ export interface UseTopicMessagesResult {
   /** Whether older pages remain on the server. */
   hasOlder: boolean
   /**
+   * Keep auto-paginating until the oldest page is loaded. Used by the
+   * multi-select "select all" action, which needs every message (and its
+   * parts) resident before it can select and export the whole topic.
+   */
+  loadAllOlder: () => void
+  /** True while a requested load-all is still fetching older pages. */
+  isLoadingAll: boolean
+  /**
    * SWR mutator for the underlying infinite cache entry. Exposed so
    * `useTopicMessagesCache` can apply optimistic writes via the updater
    * form (`mutate((pages) => next, { revalidate: false })`).
@@ -190,6 +198,18 @@ export function useTopicMessages(
     [pages, topicId]
   )
   const activeNodeId = pages[0]?.activeNodeId ?? null
+
+  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
+  // page — same pattern as `useTopics({ loadAll: true })`.
+  const [loadAllRequested, setLoadAllRequested] = useState(false)
+  useEffect(() => {
+    setLoadAllRequested(false)
+  }, [topicId])
+  useEffect(() => {
+    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing) {
+      loadNext()
+    }
+  }, [enabled, loadAllRequested, hasNext, isLoading, isRefreshing, loadNext])
 
   // On remount with stale SWR cache, SWR may expose cached data while it
   // revalidates. Track freshness per topic so the loading gate blocks stale
@@ -270,6 +290,8 @@ export function useTopicMessages(
     activeNodeId,
     loadOlder: loadNext,
     hasOlder: hasNext,
+    loadAllOlder: useCallback(() => setLoadAllRequested(true), []),
+    isLoadingAll: enabled && loadAllRequested && hasNext,
     mutate: mutate
   }
 }

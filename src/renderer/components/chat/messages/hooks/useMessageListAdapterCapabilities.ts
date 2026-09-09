@@ -21,6 +21,10 @@ interface UseMessageListAdapterCapabilitiesOptions {
   deleteMessage?: MessageListActions['deleteMessage']
   diagnosticReport?: ErrorDetailContentProps['diagnosticReport']
   persistDiagnosis?: ErrorDetailContentProps['onDiagnosisComplete']
+  /** Whether older message pages are still unloaded; enables load-all for select-all. */
+  hasOlder?: boolean
+  loadAllOlder?: () => void
+  isLoadingAll?: boolean
 }
 
 /**
@@ -36,7 +40,10 @@ export function useMessageListAdapterCapabilities({
   streamingLayers,
   deleteMessage,
   diagnosticReport,
-  persistDiagnosis
+  persistDiagnosis,
+  hasOlder,
+  loadAllOlder,
+  isLoadingAll
 }: UseMessageListAdapterCapabilitiesOptions) {
   const messageActivity = useMessageActivityState(topicId, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
@@ -52,7 +59,10 @@ export function useMessageListAdapterCapabilities({
     partsByMessageId,
     deleteMessage,
     saveTextFile: exportActions.saveTextFile,
-    copyRichContent: leafCapabilities.copyRichContent
+    copyRichContent: leafCapabilities.copyRichContent,
+    hasOlder,
+    loadAllOlder,
+    isLoadingAll
   })
 
   return {

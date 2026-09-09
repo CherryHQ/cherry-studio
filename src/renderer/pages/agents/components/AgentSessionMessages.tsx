@@ -33,6 +33,10 @@ type Props = {
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
+  /** Keep auto-paginating until every older page is loaded (select-all support). */
+  loadAllOlder?: () => void
+  /** True while a requested load-all is still fetching older pages. */
+  isLoadingAll?: boolean
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
@@ -52,6 +56,8 @@ const AgentSessionMessages = ({
   isLoading,
   hasOlder = false,
   loadOlder,
+  loadAllOlder,
+  isLoadingAll,
   onOpenCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
@@ -124,6 +130,8 @@ const AgentSessionMessages = ({
     isLoading,
     hasOlder,
     loadOlder,
+    loadAllOlder,
+    isLoadingAll,
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
     openArtifactFile,

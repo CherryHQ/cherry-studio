@@ -28,6 +28,12 @@ interface UseMessageSelectionControllerParams {
   deleteMessage?: MessageListActions['deleteMessage']
   saveTextFile?: MessageListActions['saveTextFile']
   copyRichContent?: MessageListActions['copyRichContent']
+  /** Whether older message pages are still unloaded (server-side pagination). */
+  hasOlder?: boolean
+  /** Keep auto-paginating until every page is loaded; required to select-all across a paginated topic. */
+  loadAllOlder?: () => void
+  /** True while a requested load-all is still fetching older pages. */
+  isLoadingAll?: boolean
 }
 
 interface MessageSelectionController {
@@ -49,7 +55,10 @@ export function useMessageSelectionController({
   partsByMessageId,
   deleteMessage,
   saveTextFile,
-  copyRichContent
+  copyRichContent,
+  hasOlder = false,
+  loadAllOlder,
+  isLoadingAll = false
 }: UseMessageSelectionControllerParams): MessageSelectionController {
   const { t } = useTranslation()
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
@@ -71,6 +80,7 @@ export function useMessageSelectionController({
 
   useEffect(() => {
     toggleMultiSelectMode(false)
+    selectAllPendingRef.current = false
     return () => {
       toggleMultiSelectMode(false)
     }
@@ -102,6 +112,13 @@ export function useMessageSelectionController({
   const latestSelectableIdsRef = useRef(selectableIds)
   latestSelectableIdsRef.current = selectableIds
 
+  // Set while a select-all is waiting for load-all pagination to finish.
+  const selectAllPendingRef = useRef(false)
+
+  const performSelectAll = useCallback(() => {
+    setSelectedMessageIds(latestSelectableIdsRef.current)
+  }, [setSelectedMessageIds])
+
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const selectedSelectableCount = useMemo(
     () => selectableIds.filter((id) => selectedIdSet.has(id)).length,
@@ -114,13 +131,34 @@ export function useMessageSelectionController({
         ? 'indeterminate'
         : false
   const selectAllDisabled = selectableIds.length === 0
+  const isSelectAllLoading = isLoadingAll && selectAllPendingRef.current
 
   const toggleSelectAllMessages = useCallback(
     (checked: boolean) => {
-      setSelectedMessageIds(checked ? latestSelectableIdsRef.current : [])
+      if (!checked) {
+        selectAllPendingRef.current = false
+        setSelectedMessageIds([])
+        return
+      }
+      if (hasOlder && loadAllOlder) {
+        // Unloaded messages have no resident parts — selecting them now would
+        // export empty content. Paginate to the end first; the completion
+        // effect below applies the selection once every page is resident.
+        selectAllPendingRef.current = true
+        loadAllOlder()
+        return
+      }
+      performSelectAll()
     },
-    [setSelectedMessageIds]
+    [hasOlder, loadAllOlder, performSelectAll, setSelectedMessageIds]
   )
+
+  // Load-all finished (no pages left) — apply the deferred select-all.
+  useEffect(() => {
+    if (!selectAllPendingRef.current || isLoadingAll || hasOlder) return
+    selectAllPendingRef.current = false
+    performSelectAll()
+  }, [hasOlder, isLoadingAll, performSelectAll])
 
   const resolveMessageIds = useCallback(
     (messageIds?: readonly string[]) => {
@@ -244,9 +282,10 @@ export function useMessageSelectionController({
       isMultiSelectMode: isMultiSelectMode ?? false,
       selectedMessageIds: selectedIds,
       selectAllState,
-      selectAllDisabled
+      selectAllDisabled,
+      isSelectAllLoading
     }),
-    [isMultiSelectMode, selectAllDisabled, selectAllState, selectedIds]
+    [isMultiSelectMode, isSelectAllLoading, selectAllDisabled, selectAllState, selectedIds]
   )
 
   const actions = useMemo<MessageSelectionController['actions']>(

@@ -39,6 +39,8 @@ export interface MessageListSelectionState {
   selectedMessageIds?: readonly string[]
   selectAllState?: SelectAllState
   selectAllDisabled?: boolean
+  /** True while select-all is waiting for older message pages to finish loading. */
+  isSelectAllLoading?: boolean
 }
 
 export interface MessageListRuntime {
