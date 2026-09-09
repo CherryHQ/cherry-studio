@@ -102,7 +102,12 @@ describe('ModelService edition availability', () => {
     expect(modelService.getNamesByUniqueIdsTx(dbh.db, ['global-only::hidden-model'])).toEqual(new Map())
   })
 
-  it('rejects every direct read and write path for an unavailable persisted provider before mutation', async () => {
+  /**
+   * Editions ship one database, so the rule withholds the model from every surface
+   * without withholding the row: a write still lands, and switching back to the
+   * global edition brings the model back with the edit on it.
+   */
+  it('withholds the model from reads while leaving the row writable', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'global-only',
       presetProviderId: 'global-only',
@@ -111,27 +116,16 @@ describe('ModelService edition availability', () => {
     })
     await dbh.db.insert(userModelTable).values(modelRow('global-only', 'hidden-model', 'a0'))
 
-    const calls: Array<[string, () => unknown]> = [
-      ['getByKey', () => modelService.getByKey('global-only', 'hidden-model')],
-      ['create', () => modelService.create([{ dto: { providerId: 'global-only', modelId: 'new-model' } }])],
-      ['update', () => modelService.update('global-only', 'hidden-model', { name: 'changed' })],
-      [
-        'bulkUpdate',
-        () =>
-          modelService.bulkUpdate([{ providerId: 'global-only', modelId: 'hidden-model', patch: { name: 'changed' } }])
-      ],
-      ['reconcileForProvider', () => modelService.reconcileForProvider('global-only', { toAdd: [], toRemove: [] })],
-      ['delete', () => modelService.delete('global-only', 'hidden-model')],
-      ['bulkDelete', () => modelService.bulkDelete([{ providerId: 'global-only', modelId: 'hidden-model' }])]
-    ]
+    expect(() => modelService.getByKey('global-only', 'hidden-model')).toThrowError(
+      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+    )
+    expect(modelService.list({}).map((model) => model.id)).toEqual([])
 
-    for (const [, invoke] of calls) {
-      expect(invoke).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
-    }
+    modelService.update('global-only', 'hidden-model', { name: 'changed' })
 
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'global-only'))
     expect(rows).toHaveLength(1)
-    expect(rows[0].name).toBe('hidden-model')
+    expect(rows[0].name).toBe('changed')
   })
 
   it('keeps every persisted model available for users migrated from v1', async () => {

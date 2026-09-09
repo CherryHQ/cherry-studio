@@ -111,7 +111,6 @@ describe('ProviderService read-time registry merge (#17096)', () => {
         { providerId: `${retiredId}-copy`, keyId: `${retiredId}-copy-key` }
       ]) {
         const operations = [
-          () => providerService.assertAvailable(providerId),
           () => providerService.update(providerId, { name: 'Still retired' }),
           () => providerService.resolveApiKey(providerId),
           () => providerService.getApiKeys(providerId),

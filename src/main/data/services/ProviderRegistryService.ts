@@ -1151,7 +1151,6 @@ class ProviderRegistryService {
    * @returns Array of fully resolved Model objects
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
-    getDataService('ProviderService').assertAvailable(providerId)
     const loader = this.getLoader()
     const providerContext = this.getEffectiveProviderContext(providerId)
     const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
@@ -1331,7 +1330,6 @@ class ProviderRegistryService {
    * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
    */
   getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
-    getDataService('ProviderService').assertAvailable(providerId)
     const { presetModel, registryOverride } = this.lookupModel(providerId, modelId)
     // Override wins — lets vendor-exclusive overrides declare their own
     // imageGeneration block without polluting the global models.json.

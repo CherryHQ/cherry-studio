@@ -15,6 +15,10 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
 
+// This file exercises CRUD, not edition scoping: pin the edition so preset apps that
+// declare a region stay visible. Edition behaviour is covered by the edition tests.
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
+
 /** Every row the service maps today is a site row; narrow so site-only fields can be asserted. */
 function expectSite(app: MiniApp): SiteMiniApp {
   if (app.kind !== 'site') throw new Error(`Expected a site mini app, got kind=${app.kind}`)

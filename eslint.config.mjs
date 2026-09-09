@@ -559,6 +559,55 @@ export default defineConfig([
       'filepath-brand/no-as-filepath': process.env.CI ? 'error' : 'warn'
     }
   },
+  // Edition brand integrity — `as EditionDecision` forges the proof that the edition
+  // rule ran. The decision is what row → domain mappers require, so forging one is the
+  // single way to surface an entity this build withholds. `editionPolicy.ts` is the
+  // sanctioned producer and is exempt.
+  {
+    files: ['src/main/**/*.ts'],
+    ignores: [
+      'src/main/data/services/editionPolicy.ts',
+      'src/main/**/__tests__/**',
+      'src/main/**/__mocks__/**',
+      'src/main/**/*.test.*'
+    ],
+    plugins: {
+      'edition-brand': {
+        rules: {
+          'no-as-edition-decision': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow `as EditionDecision` casts. The decision is the proof that the edition rule was applied to an entity; only EditionScope.resolve may produce one.',
+                recommended: true
+              },
+              messages: {
+                noAsDecision:
+                  '`as EditionDecision` forges the proof that the edition rule ran, which is the only way an entity this build withholds reaches a mapper. Obtain it from the entity\'s `EditionScope.resolve(row)` and handle the `null` (withheld) case.'
+              }
+            },
+            create(context) {
+              function checkAssertion(node) {
+                const ann = node.typeAnnotation
+                if (ann?.type !== 'TSTypeReference' || ann.typeName?.type !== 'Identifier') return
+                if (ann.typeName.name === 'EditionDecision') {
+                  context.report({ node, messageId: 'noAsDecision' })
+                }
+              }
+              return {
+                TSAsExpression: checkAssertion,
+                TSTypeAssertion: checkAssertion
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'edition-brand/no-as-edition-decision': process.env.CI ? 'error' : 'warn'
+    }
+  },
   // Application lifecycle - all quit-related APIs and events are managed by Application.ts
   {
     files: ['src/main/**/*.{ts,tsx,js,jsx}'],

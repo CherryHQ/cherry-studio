@@ -21,6 +21,7 @@ import {
   miniAppTable
 } from '@data/db/schemas/miniApp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import { defineEditionScope, type EditionDecision, type EditionScopedEntry } from '@data/services/editionPolicy'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -99,7 +100,39 @@ type InstallationExtras = {
 }
 
 /** Convert a DB row to the public MiniApp DTO. */
-function rowToMiniApp(row: MiniAppRow & InstallationExtras): MiniApp {
+
+/**
+ * Mini apps are edition-scoped by their preset identity, reusing the provider rule
+ * verbatim. The preset's `supportedRegions` is the catalog's statement of which
+ * editions ship the app — read here as a build-time fact, not as the runtime region
+ * the renderer detects. Region detection stays where it is: it curates ordering and
+ * relevance for a user who travels, and a user-flippable setting cannot carry this.
+ *
+ * A user-authored app (`presetMiniAppId === null`) has no catalog identity, and the
+ * `supported_regions` column is left untouched — editions share one database.
+ */
+const EDITION_BY_REGION = { CN: 'cn', Global: 'global' } as const
+
+const miniAppScope = defineEditionScope<Pick<MiniAppRow, 'presetMiniAppId'>, EditionScopedEntry>({
+  lookup: (row) => {
+    const preset = row.presetMiniAppId
+      ? PRESETS_MINI_APPS.find((candidate) => candidate.id === row.presetMiniAppId)
+      : undefined
+    return {
+      entry: { availableInEditions: preset?.supportedRegions?.map((region) => EDITION_BY_REGION[region]) },
+      scoped: row.presetMiniAppId !== null
+    }
+  }
+})
+
+function rowToMiniApp(
+  row: MiniAppRow & InstallationExtras,
+  // Type-level gate, deliberately unread: a mini app renders entirely from its row, so
+  // the decision carries no data — it is here so a mini app this build withholds cannot
+  // be materialized, and a new read path that skips `miniAppScope` fails to compile.
+  // oxlint-disable-next-line no-unused-vars
+  _decision: EditionDecision<EditionScopedEntry>
+): MiniApp {
   const clean = nullsToUndefined(row)
   const presetMiniAppId = clean.presetMiniAppId ?? null
   // An uploaded logo's file id lives in the ref table (single source of truth);
@@ -156,8 +189,9 @@ export class MiniAppService {
   /** Get a miniapp by appId. Throws NOT_FOUND if absent. */
   getByAppId(appId: string): MiniApp {
     const [row] = joinedMiniApp().where(eq(miniAppTable.appId, appId)).limit(1).all()
-    if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
-    return rowToMiniApp(row)
+    const decision = row && miniAppScope.resolve(row)
+    if (!row || !decision) throw DataApiErrorFactory.notFound('MiniApp', appId)
+    return rowToMiniApp(row, decision)
   }
 
   /**
@@ -168,7 +202,10 @@ export class MiniAppService {
     const where = query.status !== undefined ? eq(miniAppTable.status, query.status) : undefined
     const rows = joinedMiniApp().where(where).orderBy(asc(miniAppTable.orderKey)).all()
 
-    const items = rows.map(rowToMiniApp)
+    const items = rows.flatMap((row) => {
+      const decision = miniAppScope.resolve(row)
+      return decision ? [rowToMiniApp(row, decision)] : []
+    })
     items.sort((a, b) => {
       const order = (s: MiniAppStatus) => (s === 'pinned' ? 0 : s === 'enabled' ? 1 : 2)
       const diff = order(a.status) - order(b.status)
@@ -221,7 +258,10 @@ export class MiniAppService {
     logger.info('Created custom miniapp', { appId: row.appId, orderKey: row.orderKey })
     // Only site rows are created here (the custom-site form is the sole entry), so
     // there is no installation row to join — say so explicitly.
-    return rowToMiniApp({ ...row, version: null, manifestJson: null, aiModelId: null, aiQuickModelId: null })
+    const created = { ...row, version: null, manifestJson: null, aiModelId: null, aiQuickModelId: null }
+    const decision = miniAppScope.resolve(created)
+    if (!decision) throw DataApiErrorFactory.notFound('MiniApp', row.appId)
+    return rowToMiniApp(created, decision)
   }
 
   /**

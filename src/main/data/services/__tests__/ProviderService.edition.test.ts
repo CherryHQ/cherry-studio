@@ -1,5 +1,8 @@
+// Side-effect import: registers ProviderRegistryService in the data-service registry,
+// which the edition scope looks up.
+import '@data/services/ProviderRegistryService'
+
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AppEdition } from '@shared/types/appEdition'
@@ -55,7 +58,13 @@ describe('ProviderService edition availability', () => {
     migrationOrigin.current = false
   })
 
-  it('makes a persisted global-only provider unavailable to every runtime read and mutation in China', async () => {
+  /**
+   * Editions ship one database — seeders and migrators populate both identically —
+   * so the rule decides what this build surfaces, never what the profile stores.
+   * The row, its name and its API keys survive untouched, and switching back to the
+   * global edition restores the provider with everything still on it.
+   */
+  it('withholds a persisted global-only provider from every surface in China', async () => {
     await dbh.db.insert(userProviderTable).values([
       {
         providerId: 'global-only',
@@ -72,35 +81,15 @@ describe('ProviderService edition availability', () => {
       }
     ])
 
-    const displayMetadataSpy = vi.spyOn(providerRegistryService, 'getProviderDisplayMetadata')
     expect(providerService.list({}).map((provider) => provider.id)).toEqual(['custom-provider'])
-    expect(displayMetadataSpy).toHaveBeenCalledTimes(2)
-    displayMetadataSpy.mockRestore()
     expect(providerService.listAvailableProviderIds()).toEqual(new Set(['custom-provider']))
     expect(providerService.listAvailableProviderIds(['global-only', 'custom-provider'])).toEqual(
       new Set(['custom-provider'])
     )
     expect(providerService.isAvailableByProviderId('global-only')).toBe(false)
-
-    const calls: Array<() => unknown> = [
-      () => providerService.assertAvailable('global-only'),
-      () => providerService.getByProviderId('global-only'),
-      () => providerService.resolveApiKey('global-only'),
-      () => providerService.getApiKeys('global-only'),
-      () => providerService.getAuthConfig('global-only'),
-      () => providerService.addApiKey('global-only', 'new-secret'),
-      () => providerService.replaceApiKeys('global-only', []),
-      () => providerService.updateApiKey('global-only', 'key-1', { label: 'Changed' }),
-      () => providerService.deleteApiKey('global-only', 'key-1'),
-      () => providerService.update('global-only', { name: 'Changed' }),
-      () => providerService.move('global-only', { position: 'last' }),
-      () => providerService.reorder([{ id: 'global-only', anchor: { position: 'last' } }]),
-      () => providerService.delete('global-only')
-    ]
-
-    for (const invoke of calls) {
-      expect(invoke).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
-    }
+    expect(() => providerService.getByProviderId('global-only')).toThrowError(
+      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+    )
 
     const [persisted] = await dbh.db
       .select()
@@ -108,22 +97,6 @@ describe('ProviderService edition availability', () => {
       .where(eq(userProviderTable.providerId, 'global-only'))
     expect(persisted.name).toBe('Global only')
     expect(persisted.apiKeys).toEqual([{ id: 'key-1', key: 'secret', isEnabled: true }])
-  })
-
-  it('enforces edition availability in provider-backed registry reads', async () => {
-    await dbh.db.insert(userProviderTable).values({
-      providerId: 'global-only',
-      presetProviderId: 'global-only',
-      name: 'Global only',
-      orderKey: 'a0'
-    })
-
-    expect(() => providerRegistryService.resolveModels('global-only', ['model'])).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
-    )
-    expect(() => providerRegistryService.getImageGenerationSupport('global-only', 'model')).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
-    )
   })
 
   it('rejects creating a provider from a preset unavailable in the current edition', async () => {
@@ -152,6 +125,27 @@ describe('ProviderService edition availability', () => {
     })
 
     expect(providerService.getByProviderId('global-only').id).toBe('global-only')
+  })
+
+  /**
+   * Withholding needs a positive statement in the catalog. Treating an unlisted
+   * preset as withheld would make every provider the catalog drops disappear from
+   * the profiles still using it — and would leave a partially readable registry
+   * silently revoking providers instead of reporting a problem.
+   */
+  it('keeps a provider the catalog does not list, while still withholding a listed one', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      {
+        providerId: 'not-in-catalog',
+        presetProviderId: 'not-in-catalog',
+        name: 'Dropped from the catalog',
+        orderKey: 'a0'
+      },
+      { providerId: 'global-only', presetProviderId: 'global-only', name: 'Global only', orderKey: 'a1' }
+    ])
+
+    expect(providerService.list({}).map((provider) => provider.id)).toEqual(['not-in-catalog'])
+    expect(providerService.getByProviderId('not-in-catalog').id).toBe('not-in-catalog')
   })
 
   it('keeps every persisted provider available for users migrated from v1', async () => {
