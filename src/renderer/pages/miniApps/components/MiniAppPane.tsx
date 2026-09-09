@@ -12,7 +12,7 @@ import {
   onWebviewElementChange,
   onWebviewStateChange,
   setWebviewLoaded
-} from '@renderer/utils/webviewStateManager'
+} from '@renderer/services/MiniAppWebviewService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar, { type SplitMode } from './MinimalToolbar'

@@ -48,7 +48,7 @@ vi.mock('../WebviewSearch', () => ({
   }
 }))
 
-vi.mock('@renderer/utils/webviewStateManager', () => ({
+vi.mock('@renderer/services/MiniAppWebviewService', () => ({
   getWebviewElement: () => mocks.element,
   getWebviewLoaded: () => mocks.loaded,
   onWebviewElementChange: (_appId: string, listener: () => void) => {
