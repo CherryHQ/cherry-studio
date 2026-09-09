@@ -14,7 +14,7 @@
  * settings patch when at least one returned non-null.
  */
 import type { AssistantSettings } from '@renderer/types/assistant'
-import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
+import { deriveThinkingOptions, resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -38,8 +38,36 @@ export function canModelUseAssistantWebSearch(model: Model, provider: Provider |
 
 export function reconcileReasoningEffortForModel(
   nextModel: Model,
-  currentEffort: ReasoningEffortOption | undefined
+  currentEffort: ReasoningEffortOption | undefined,
+  assistantId?: string,
+  reasoningEffortByModel?: Record<string, string>
 ): ReasoningEffortPatch | null {
+  // Per-model preference: restore the user's last choice for this exact model id if available.
+  // Preserves the intent of d841980947 while adapting to the descriptor-driven vocabulary
+  // introduced in main (deriveThinkingOptions / resolveReasoningEffortForModel).
+  if (assistantId !== undefined && reasoningEffortByModel) {
+    const pref = reasoningEffortByModel[nextModel.id]
+    if (pref !== undefined) {
+      const prefOption = pref as ReasoningEffortOption
+      const supported = deriveThinkingOptions(nextModel)
+      // If the model declares a vocabulary, only restore the pref when it's natively supported.
+      // Fixed / non-reasoning models have supported === undefined and fall through to the
+      // standard clearing logic below.
+      if (supported?.includes(prefOption)) {
+        if (currentEffort !== prefOption) {
+          return { reasoning_effort: prefOption }
+        }
+        return null
+      }
+      // Handle legacy 'none' -> undefined normalization for older stored values:
+      // if pref is 'none' and current is undefined, consider them equivalent when the vocab
+      // does not contain 'none' (treated as cleared).
+      if (pref === 'none' && currentEffort === undefined && !supported?.includes('none' as ReasoningEffortOption)) {
+        return null
+      }
+    }
+  }
+
   const nextEffort = resolveReasoningEffortForModel(nextModel, currentEffort)
   if (nextEffort === currentEffort) return null
   return { reasoning_effort: nextEffort }

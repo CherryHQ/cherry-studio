@@ -126,3 +126,33 @@ describe('reconcile reasoning effort (descriptor-driven, #16598)', () => {
     expect(resolveReasoningEffortForModel(reasoningModel(TOGGLE_ONLY), 'high')).toBe('auto')
   })
 })
+
+describe('reconcile reasoning effort (per-model preference, #15226)', () => {
+  const assistantId = 'assistant-1'
+  const modelId = 'provider::model'
+
+  it('restores the saved preference when the next model supports it', () => {
+    expect(
+      reconcileReasoningEffortForModel(reasoningModel(EFFORT_MAX), 'low', assistantId, { [modelId]: 'high' })
+    ).toEqual({
+      reasoning_effort: 'high'
+    })
+  })
+
+  it('patches nothing when the saved preference already matches the current effort', () => {
+    expect(
+      reconcileReasoningEffortForModel(reasoningModel(EFFORT_MAX), 'high', assistantId, { [modelId]: 'high' })
+    ).toBeNull()
+  })
+
+  it('ignores a saved preference the next vocabulary does not support', () => {
+    expect(
+      reconcileReasoningEffortForModel(reasoningModel(TOGGLE_ONLY), 'high', assistantId, { [modelId]: 'medium' })
+    ).toEqual({ reasoning_effort: 'auto' })
+  })
+
+  it('falls back to standard reconciliation when no preference is recorded for the model', () => {
+    expect(reconcileReasoningEffortForModel(reasoningModel(TOGGLE_BUDGET), 'high', assistantId, {})).toBeNull()
+    expect(reconcileReasoningEffortForModel(reasoningModel(TOGGLE_BUDGET), 'high')).toBeNull()
+  })
+})
