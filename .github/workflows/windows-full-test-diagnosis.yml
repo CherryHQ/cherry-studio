@@ -1,0 +1,41 @@
+name: Windows Full Test Diagnosis
+
+on:
+  push:
+    branches: [codex/windows-full-test-diagnosis]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: main
+            projects: --project main
+          - group: renderer
+            projects: --project renderer
+          - group: packages
+            projects: --project aiCore --project ui --project shared --project provider-registry --project scripts --project preload
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v5
+      - run: pnpm install
+      - run: pnpm rebuild:node
+      - name: Run all tests in group
+        run: pnpm exec vitest run ${{ matrix.projects }} --maxWorkers=2 --minWorkers=1 --silent --reporter=default --reporter=json --outputFile=test-results.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-test-results-${{ matrix.group }}
+          path: test-results.json
+          retention-days: 3
