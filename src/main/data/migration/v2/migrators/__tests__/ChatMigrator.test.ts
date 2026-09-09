@@ -119,6 +119,53 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a1')?.parentId).toBe('u1')
   })
 
+  it('preserves the useful response as the terminal active node', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const b3 = block('b3', 'a2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('a1', 'assistant', ['b2'], { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', ['b3'], { askId: 'u1', useful: true })
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2, b3])
+
+    expect(result?.topic.activeNodeId).toBe('a2')
+  })
+
+  it('keeps active-node fallback within the terminal group when the useful response is skipped', async () => {
+    const blocks = [block('b1', 'u1'), block('b2', 'a1'), block('b3', 'a2'), block('b4', 'u2'), block('b5', 'a3')]
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('a1', 'assistant', ['b2'], { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', ['b3'], { askId: 'u1' }),
+      msg('u2', 'user', ['b4']),
+      msg('a3', 'assistant', ['b5'], { askId: 'u2' }),
+      msg('a4', 'assistant', ['missing-block'], { askId: 'u2', foldSelected: true, useful: true })
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), blocks)
+
+    expect(result?.topic.activeNodeId).toBe('a3')
+  })
+
+  it('links a later user to a surviving sibling when the useful response is skipped', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const b4 = block('b4', 'u2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('a1', 'assistant', ['b2'], { askId: 'u1' }),
+      msg('a2', 'assistant', ['missing-block'], { askId: 'u1', useful: true }),
+      msg('u2', 'user', ['b4'])
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2, b4])
+
+    expect(toMsgMap(result?.messages ?? []).get('u2')?.parentId).toBe('a1')
+  })
+
   it('derives v1 topic activity from imported user creation and assistant completion times', async () => {
     const b1 = block('b1', 'u1')
     const b2 = block('b2', 'a1')

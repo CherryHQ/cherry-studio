@@ -29,7 +29,6 @@ import type {
 } from '@shared/types/lanTransfer'
 import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type { SkillFileNode, SkillResult } from '@shared/types/skill'
-import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { CommandId } from '@shared/utils/command'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
@@ -45,8 +44,6 @@ type ShortcutRegistrationConflictPayload = {
 
 // Custom APIs for renderer
 const api = {
-  setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
-  setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
@@ -234,19 +231,6 @@ const api = {
 
     // Get all shared cache entries from Main for initialization sync
     getAllShared: (): Promise<Record<string, CacheEntry>> => ipcRenderer.invoke(IpcChannel.Cache_GetAllShared)
-  },
-
-  // StorageMonitorService related APIs (main-process disk-space watcher)
-  storageMonitor: {
-    // Pull the current disk-space health to seed initial state on mount
-    getHealth: (): Promise<StorageHealth> => ipcRenderer.invoke(IpcChannel.StorageMonitor_GetHealth),
-
-    // Subscribe to health transitions (ok <-> low) pushed from Main
-    onHealthChange: (callback: (health: StorageHealth) => void) => {
-      const listener = (_: any, health: StorageHealth) => callback(health)
-      ipcRenderer.on(IpcChannel.StorageMonitor_HealthChanged, listener)
-      return () => ipcRenderer.off(IpcChannel.StorageMonitor_HealthChanged, listener)
-    }
   },
 
   // PreferenceService related APIs

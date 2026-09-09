@@ -47,6 +47,7 @@ function createJobSnapshot(overrides: JobSnapshotInput): JobSnapshot {
     error: null,
     parentId: null,
     cancelRequested: false,
+    cancelRequestedAt: null,
     metadata: {},
     timeoutMs: null,
     createdAt: '2026-04-08T00:00:00.000Z',

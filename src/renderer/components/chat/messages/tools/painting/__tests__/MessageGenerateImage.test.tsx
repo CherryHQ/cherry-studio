@@ -155,4 +155,20 @@ describe('MessageGenerateImageToolTitle', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ status: 'pending', response: undefined })} />)
     expect(screen.getByTestId('spinner')).toHaveTextContent('chat.input.tools.generate_image.generating')
   })
+
+  it('renders the denied outcome and rejection reason instead of a perpetual spinner', () => {
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={toolResponse({
+          status: 'cancelled',
+          response: undefined,
+          approval: { approved: false, reason: 'Use the approved image provider instead' }
+        })}
+      />
+    )
+
+    expect(screen.getByText('agent.toolPermission.decisionDenied')).toBeInTheDocument()
+    expect(screen.getByText('Use the approved image provider instead')).toBeInTheDocument()
+    expect(screen.queryByTestId('spinner')).not.toBeInTheDocument()
+  })
 })

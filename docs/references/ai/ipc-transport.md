@@ -37,6 +37,20 @@ persists the result. Stopping generation is a separate path — the request's
 `abortSignal` requests `ai.stream.abort`. Conflating the two would resurrect the v1
 "unmount → cancel → upstream abort → lost reply" bug class.
 
+## User Stop
+
+`useChatWithHistory.stop()` starts `ai.stream.abort` before calling AI SDK's
+`stop()`, then awaits both. This establishes Main's topic admission barrier
+before local stream consumption ends and the UI can retry. The transport's
+request `abortSignal` covers a stream opened
+by `sendMessages`, but its abort callback sends IPC without exposing Main's
+completion to the hook; a stream returned by `reconnectToStream()` has no
+original request signal at all. The explicit idempotent IPC therefore covers
+both paths and makes the hook's Stop promise resolve only after Main has crossed
+the topic teardown barrier: terminal persistence is settled and, for an Agent
+session, its runtime generation — including a pending connection attempt — is
+closed before a retry is admitted.
+
 Per-topic chunks arrive through `ipcApi.on('ai.stream.chunk', ...)`, filtered
 by `topicId`.
 

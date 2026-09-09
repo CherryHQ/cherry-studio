@@ -1,6 +1,6 @@
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
@@ -69,5 +69,34 @@ describe('PromptPopup', () => {
     expect(setSelectionRange).toHaveBeenCalledWith('Keep this text'.length, 'Keep this text'.length)
     expect(textarea.selectionStart).toBe('Keep this text'.length)
     expect(textarea.selectionEnd).toBe('Keep this text'.length)
+  })
+
+  it('does not resolve while an IME composition confirms its candidate with Enter', async () => {
+    render(<PopupHost />)
+
+    let result: string | null | undefined
+    act(() => {
+      void PromptPopup.show({
+        title: 'Rename topic',
+        message: '',
+        defaultValue: 'issue'
+      }).then((value) => {
+        result = value
+      })
+    })
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    // Confirming a CJK candidate types Enter while the input still holds the raw pinyin.
+    fireEvent.change(textarea, { target: { value: "dui'bi" } })
+    fireEvent.keyDown(textarea, { key: 'Enter', isComposing: true })
+    expect(result).toBeUndefined()
+    // Legacy fallback: browsers that don't expose isComposing report keyCode 229.
+    fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229 })
+    expect(result).toBeUndefined()
+
+    // Composition ends, the composed text lands in the input, and Enter commits it.
+    fireEvent.change(textarea, { target: { value: '对比' } })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    await waitFor(() => expect(result).toBe('对比'))
   })
 })

@@ -129,8 +129,8 @@ single-surface action local when no cross-surface contract is needed.
 Command behavior is covered in these directories and service tests:
 
 ```bash
-pnpm test src/shared/utils/command src/renderer/components/command src/renderer/hooks/command
-pnpm test src/main/services/__tests__/CommandService.test.ts \
+pnpm exec vitest run src/shared/utils/command src/renderer/components/command src/renderer/hooks/command
+pnpm exec vitest run src/main/services/__tests__/CommandService.test.ts \
   src/main/services/__tests__/ShortcutService.test.ts \
   src/main/services/__tests__/AppMenuService.test.ts \
   src/main/services/__tests__/nativePopupMenu.test.ts

@@ -222,7 +222,7 @@ describe('Topics helpers', () => {
     ])
   })
 
-  it('builds assistant display groups with pinned/known/unlinked buckets', () => {
+  it('keeps pinned topics inside their assistant display group', () => {
     const groupTopic = createTopicDisplayGroupResolver({
       assistantById: new Map([
         ['assistant-1', { id: 'assistant-1', name: 'Research' }],
@@ -232,9 +232,9 @@ describe('Topics helpers', () => {
       mode: 'assistant'
     })
 
-    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, assistantId: undefined }))).toEqual({
-      id: 'topic:pinned',
-      label: 'Pinned'
+    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, assistantId: 'assistant-1' }))).toEqual({
+      id: 'topic:assistant:assistant-1',
+      label: 'Research'
     })
     expect(groupTopic(createTopic({ id: 'unlinked', assistantId: undefined }))).toEqual({
       id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
@@ -250,13 +250,15 @@ describe('Topics helpers', () => {
     })
   })
 
-  it('sorts assistant display groups by pinned, assistant rank, then unknown while preserving group order', () => {
+  it('sorts assistant groups by rank with pinned topics first inside each assistant', () => {
     const topics = [
       createTopic({ id: 'assistant-b-1', assistantId: 'assistant-b' }),
       createTopic({ id: 'unknown-1', assistantId: 'missing-assistant' }),
       createTopic({ id: 'default-1', assistantId: undefined }),
       createTopic({ id: 'assistant-a-1', assistantId: 'assistant-a' }),
-      createTopic({ id: 'pinned-1', assistantId: 'missing-assistant', pinned: true }),
+      createTopic({ id: 'pinned-a', assistantId: 'assistant-a', pinned: true }),
+      createTopic({ id: 'pinned-b', assistantId: 'assistant-b', pinned: true }),
+      createTopic({ id: 'pinned-unknown', assistantId: 'missing-assistant', pinned: true }),
       createTopic({ id: 'assistant-b-2', assistantId: 'assistant-b' })
     ]
 
@@ -268,7 +270,16 @@ describe('Topics helpers', () => {
         ]),
         mode: 'assistant'
       }).map((topic) => topic.id)
-    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1', 'default-1'])
+    ).toEqual([
+      'pinned-a',
+      'assistant-a-1',
+      'pinned-b',
+      'assistant-b-1',
+      'assistant-b-2',
+      'pinned-unknown',
+      'unknown-1',
+      'default-1'
+    ])
   })
 
   it('sorts assistant group topics by raw persisted orderKey ascending when available', () => {

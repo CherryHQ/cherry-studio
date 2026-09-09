@@ -6,14 +6,15 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Switch,
   Tooltip
 } from '@cherrystudio/ui'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
-import type { Prompt } from '@shared/data/types/prompt'
+import type { Prompt, PromptVisibility } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
-import { type FC, useCallback, useEffect, useRef, useState } from 'react'
+import { type FC, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const QUICK_PHRASE_POLISH_SYSTEM_PROMPT = [
@@ -38,22 +39,32 @@ const QUICK_PHRASE_GENERATION_SYSTEM_PROMPT = [
 interface FormData {
   title: string
   content: string
+  visibility: PromptVisibility
 }
 
 interface PromptEditDialogProps {
   open: boolean
   prompt?: Prompt | null
+  defaultVisibility?: PromptVisibility
   saving?: boolean
-  onSave: (data: { title: string; content: string }) => Promise<void>
+  onSave: (data: { title: string; content: string; visibility: PromptVisibility }) => Promise<void>
   onCancel: () => void
 }
 
-const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onSave, onCancel }) => {
+const PromptEditDialog: FC<PromptEditDialogProps> = ({
+  open,
+  prompt,
+  defaultVisibility = 'global',
+  saving,
+  onSave,
+  onCancel
+}) => {
   const { t } = useTranslation()
-  const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
+  const [formData, setFormData] = useState<FormData>({ title: '', content: '', visibility: defaultVisibility })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
+  const visibilitySwitchId = useId()
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
 
   const isEdit = !!prompt
@@ -69,30 +80,33 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
     if (open) {
       setFormData({
         title: prompt?.title ?? '',
-        content: prompt?.content ?? ''
+        content: prompt?.content ?? '',
+        visibility: prompt?.visibility ?? defaultVisibility
       })
     } else {
       setIsSubmitting(false)
     }
-  }, [open, prompt])
+  }, [defaultVisibility, open, prompt])
 
-  const handleOk = useCallback(async () => {
-    if (!canSave) {
-      return
-    }
-
+  const submit = useCallback(async () => {
     try {
       setIsSubmitting(true)
       await onSave({
         title: formData.title,
-        content: formData.content
+        content: formData.content,
+        visibility: formData.visibility
       })
     } catch {
       // Parent mutation handlers surface the error; keep the modal usable.
     } finally {
       setIsSubmitting(false)
     }
-  }, [canSave, formData, onSave])
+  }, [formData, onSave])
+
+  const handleOk = useCallback(async () => {
+    if (!canSave) return
+    await submit()
+  }, [canSave, submit])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -144,8 +158,8 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
           aria-label={t('library.config.prompt.insert_variable')}
           onClick={handleInsertVariable}
           disabled={isSaving}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border-subtle p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-          <BracesVariableIcon size={10} />
+          className="flex size-6 min-h-0 items-center justify-center rounded-md border border-border-subtle p-0 text-muted-foreground! shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+          <BracesVariableIcon className="size-3" />
         </Button>
       </Tooltip>
     </>
@@ -158,7 +172,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
           <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
             {t('settings.prompts.titleLabel')}
             <Input
@@ -178,6 +192,21 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
             actions={promptActions}
             resetPreviewKey={resetPreviewKey}
           />
+
+          <div className="flex items-center gap-2">
+            <label htmlFor={visibilitySwitchId} className="font-medium text-muted-foreground text-sm">
+              {t('settings.prompts.visibility.global.label')}
+            </label>
+            <Switch
+              id={visibilitySwitchId}
+              size="sm"
+              checked={formData.visibility === 'global'}
+              disabled={isSaving}
+              onCheckedChange={(checked) =>
+                setFormData((current) => ({ ...current, visibility: checked ? 'global' : 'restricted' }))
+              }
+            />
+          </div>
         </div>
 
         <DialogFooter>

@@ -68,16 +68,29 @@ async function resolveDefaultApplicationName(targetPath: AbsoluteFilePath): Prom
   if (isWin) {
     const extension = path.extname(targetPath)
     if (!extension) return null
-    return execute('powershell.exe', [
+    const encodedName = await execute('powershell.exe', [
       '-NoLogo',
       '-NoProfile',
       '-NonInteractive',
       '-EncodedCommand',
       createWindowsLookupCommand(extension)
     ])
+    return encodedName ? decodeBase64Utf8(encodedName) : null
   }
   if (isLinux) return resolveLinuxDefaultApplicationName(targetPath)
   return null
+}
+
+function decodeBase64Utf8(value: string): string | null {
+  const bytes = Buffer.from(value, 'base64')
+  if (bytes.toString('base64') !== value) return null
+
+  try {
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes).trim()
+    return decoded || null
+  } catch {
+    return null
+  }
 }
 
 function createWindowsLookupCommand(extension: string): string {
@@ -85,7 +98,8 @@ function createWindowsLookupCommand(extension: string): string {
   const script = [
     WINDOWS_DEFAULT_APPLICATION_SCRIPT,
     `$extension = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${extensionBase64}'))`,
-    '[AssociationQuery]::GetFriendlyAppName($extension)'
+    '$name = [AssociationQuery]::GetFriendlyAppName($extension)',
+    'if ($name) { [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($name)) }'
   ].join('\n')
   return Buffer.from(script, 'utf16le').toString('base64')
 }
@@ -135,6 +149,6 @@ async function execute(command: string, args: string[]): Promise<string | null> 
     timeout: LOOKUP_TIMEOUT_MS,
     windowsHide: true
   })
-  const value = stdout.trim().replaceAll('\0', '')
+  const value = stdout.replaceAll('\0', '').trim()
   return value || null
 }

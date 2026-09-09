@@ -6,10 +6,9 @@
  * configuration) lives here, not on sessions.
  */
 
-import { loggerService } from '@logger'
-import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { ipcApi } from '@renderer/ipc'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
+import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
 import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
@@ -23,8 +22,6 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
-const logger = loggerService.withContext('useAgent')
-
 type UpdateAgentModelInput = {
   agentId: string
   modelId: UniqueModelId
@@ -72,10 +69,12 @@ export const useAgent = (id: string | null) => {
  */
 export const useAgents = (options: { enabled?: boolean } = {}) => {
   const { t } = useTranslation()
+  const enabled = options.enabled ?? true
   const { data, isLoading, error, refetch } = useQuery('/agents', {
-    enabled: options.enabled ?? true,
+    enabled,
     query: { limit: AGENTS_MAX_LIMIT }
   })
+  useDataChange(enabled ? '/agents' : [], () => void refetch())
   const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
   const invalidate = useInvalidateCache()
 
@@ -97,12 +96,7 @@ export const useAgents = (options: { enabled?: boolean } = {}) => {
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
-        await ipcApi.request('ai.agent.delete', { agentId: id, deleteSessions: false })
-        try {
-          await Promise.all([invalidate('/agents'), invalidate('/agent-sessions'), invalidate('/pins')])
-        } catch (error) {
-          logger.warn('Failed to refresh after deleting Agent', error as Error, { agentId: id })
-        }
+        await deleteAgentAndRefresh(id, invalidate)
         toast.success(t('common.delete_success'))
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))

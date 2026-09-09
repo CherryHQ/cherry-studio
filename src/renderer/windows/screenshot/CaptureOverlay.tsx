@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { ScreenshotInitData } from '@shared/types/screenshot'
-import type { Dispatch, FC, RefObject } from 'react'
+import type { DetectedWindow, ScreenshotInitData } from '@shared/types/screenshot'
+import type { Dispatch, FC, MouseEvent as ReactMouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
@@ -25,6 +25,7 @@ import { initialState, overlayReducer } from './reducer'
 import type { OverlayAction, OverlayState, SelectionRect } from './types'
 import { findWindowAtPoint } from './utils/findWindowAtPoint'
 import { generateSelectionPng } from './utils/generateBlob'
+import { isPointInSelection } from './utils/isPointInSelection'
 
 const logger = loggerService.withContext('CaptureOverlay')
 
@@ -35,6 +36,8 @@ const logger = loggerService.withContext('CaptureOverlay')
 const CaptureOverlay: FC = () => {
   const initData = useWindowInitData<ScreenshotInitData>()
   const [imageLoaded, setImageLoaded] = useState(false)
+  /** Pushed by main once the enumeration finishes; empty until then, which snaps to the display. */
+  const [snapTargets, setSnapTargets] = useState<DetectedWindow[]>([])
   const [mouseInWindow, setMouseInWindow] = useState(true)
   const imageRef = useRef<HTMLImageElement | null>(null)
   /** Held outside the load effect so the session-ended handler can revoke it too. */
@@ -146,6 +149,7 @@ const CaptureOverlay: FC = () => {
     imageRef.current = null
     setImageLoaded(false) // nothing may be drawn until the new capture has decoded
     setMouseInWindow(true)
+    setSnapTargets([]) // the previous session's targets are stale the moment it ends
     readyReportedRef.current = false
     resetOcr() // result state + the request generation, so no late result lands here
   }, [mediaId, resetAnnotations, resetOcr])
@@ -153,6 +157,8 @@ const CaptureOverlay: FC = () => {
   // Dropping imageLoaded unmounts the whole overlay body, which is what disposes the
   // toolbar's transient state (active panel, measured layout) and the text editor.
   const contentVisible = imageLoaded && !!imageRef.current
+
+  useIpcOn('screenshot.snap_targets', ({ windows }) => setSnapTargets(windows))
 
   // Another display's overlay took over; drop our selection but keep the capture.
   useIpcOn('screenshot.reset_overlay', () => {
@@ -227,6 +233,26 @@ const CaptureOverlay: FC = () => {
     void ipcApi.request('screenshot.cancel')
   }, [])
 
+  /**
+   * Double-click inside a settled selection confirms it, the convention every other
+   * screenshot tool follows.
+   *
+   * On the root rather than the capture canvas, so a double-click landing on a layer
+   * above it — the OCR text, a rendered annotation — confirms too instead of being
+   * swallowed. Controls that overlap the selection stop the event themselves, the way
+   * they already do for pointerdown. Suppressed while a tool is active: a double-click
+   * there is part of drawing, not an intent to confirm.
+   */
+  const handleDoubleClick = useCallback(
+    (e: ReactMouseEvent) => {
+      if (state.phase !== 'selected' || annotation.state.activeTool !== null) return
+      // The overlay covers the whole display, so viewport coordinates are already logical ones.
+      if (!isPointInSelection(e.clientX, e.clientY, state.selection)) return
+      void handleExport('commit')
+    },
+    [state.phase, state.selection, annotation.state.activeTool, handleExport]
+  )
+
   if (!initData) return null
 
   const { display } = initData
@@ -236,6 +262,7 @@ const CaptureOverlay: FC = () => {
   return (
     <div
       onPointerDownCapture={handlePointerDownCapture}
+      onDoubleClick={handleDoubleClick}
       style={{
         // The window is already on screen before the capture decodes; the gate keeps the
         // user from seeing (and clicking through) a half-built overlay.
@@ -254,7 +281,7 @@ const CaptureOverlay: FC = () => {
           logicalWidth={logicalWidth}
           logicalHeight={logicalHeight}
           mouseInWindow={mouseInWindow}
-          windows={initData.windows}
+          windows={snapTargets}
           annotation={annotation}
           annotationCanvasRef={annotationCanvasRef}
           ocr={ocr}
@@ -295,7 +322,7 @@ function OverlayContent({
   logicalWidth: number
   logicalHeight: number
   mouseInWindow: boolean
-  windows: ScreenshotInitData['windows']
+  windows: DetectedWindow[]
   annotation: ReturnType<typeof useAnnotation>
   annotationCanvasRef: RefObject<HTMLCanvasElement | null>
   ocr: ReturnType<typeof useOcr>

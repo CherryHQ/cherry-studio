@@ -1,3 +1,4 @@
+import { MockLanguageModelV3 } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockPrefGet = vi.fn()
@@ -5,7 +6,11 @@ vi.mock('@application', () => ({
   application: { get: () => ({ get: mockPrefGet }) }
 }))
 
-const mockResolveCompressionModel = vi.fn(async (id: string) => ({ id }) as never)
+const CONVERSATION = { id: 'conversation-1' }
+const mockResolveCompressionModel = vi.fn(async (id: string) => ({
+  languageModel: new MockLanguageModelV3({ modelId: id }),
+  contextWindow: null
+}))
 // Lazy wrapper so the hoisted vi.mock factory doesn't read the const before it initializes.
 vi.mock('../resolveCompressionModel', () => ({
   resolveCompressionModel: (id: string) => mockResolveCompressionModel(id)
@@ -22,6 +27,7 @@ const setPrefs = (
     maxMessages: number | null
     compressEnabled: boolean
     modelId: string | null
+    thresholdPercent: number
   }> = {}
 ) => {
   const map: Record<string, unknown> = {
@@ -31,7 +37,8 @@ const setPrefs = (
     // resolver an `undefined` no real request can produce.
     'chat.context_settings.max_messages': over.maxMessages ?? null,
     'chat.context_settings.compress.enabled': over.compressEnabled ?? true,
-    'chat.context_settings.compress.model_id': 'modelId' in over ? over.modelId : null
+    'chat.context_settings.compress.model_id': 'modelId' in over ? over.modelId : null,
+    'chat.context_settings.compress.threshold_percent': 'thresholdPercent' in over ? over.thresholdPercent : 80
   }
   mockPrefGet.mockImplementation((k: string) => map[k])
 }
@@ -43,14 +50,14 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
 
   it('falls back to the request model id when compress.model_id is null', async () => {
     setPrefs({ modelId: null })
-    await resolveRequestContextSettings(model)
-    expect(mockResolveCompressionModel).toHaveBeenCalledWith('openai::gpt-4o')
+    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
+    expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
   })
 
   it('uses an explicit compress.model_id when set', async () => {
     setPrefs({ modelId: 'anthropic::claude-x' })
-    await resolveRequestContextSettings(model)
-    expect(mockResolveCompressionModel).toHaveBeenCalledWith('anthropic::claude-x')
+    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
+    expect(compressionModel?.languageModel.modelId).toBe('anthropic::claude-x')
   })
 
   // The assistant override's schema is `z.string().min(1)`, so clearing it there
@@ -61,20 +68,20 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
   // compression off; blank must read as "no pick" and use the current model.
   it.each([[''], ['   ']])('treats a blank compress.model_id (%j) as "use the current model"', async (blank) => {
     setPrefs({ modelId: blank })
-    await resolveRequestContextSettings(model)
-    expect(mockResolveCompressionModel).toHaveBeenCalledWith('openai::gpt-4o')
+    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
+    expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
   })
 
   it('does not resolve a compression model when compression is disabled', async () => {
     setPrefs({ compressEnabled: false })
-    const { compressionModel } = await resolveRequestContextSettings(model)
+    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
     expect(mockResolveCompressionModel).not.toHaveBeenCalled()
     expect(compressionModel).toBeNull()
   })
 
   it('does not resolve a compression model when context-build is disabled', async () => {
     setPrefs({ enabled: false })
-    const { compressionModel } = await resolveRequestContextSettings(model)
+    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
     expect(mockResolveCompressionModel).not.toHaveBeenCalled()
     expect(compressionModel).toBeNull()
   })
@@ -85,13 +92,15 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
 
   it('lets an assistant compress.modelId beat the global pick', async () => {
     setPrefs({ modelId: 'openai::global-compressor' })
-    await resolveRequestContextSettings(model, { compress: { modelId: 'anthropic::assistant-compressor' } })
-    expect(mockResolveCompressionModel).toHaveBeenCalledWith('anthropic::assistant-compressor')
+    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION, {
+      compress: { modelId: 'anthropic::assistant-compressor' }
+    })
+    expect(compressionModel?.languageModel.modelId).toBe('anthropic::assistant-compressor')
   })
 
   it('lets an assistant disable compression while global keeps it on', async () => {
     setPrefs({ compressEnabled: true })
-    const { contextSettings, compressionModel } = await resolveRequestContextSettings(model, {
+    const { contextSettings, compressionModel } = await resolveRequestContextSettings(model, CONVERSATION, {
       compress: { enabled: false }
     })
     expect(contextSettings.compress.enabled).toBe(false)
@@ -101,14 +110,16 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
 
   it('lets an assistant enable compression while global has it off', async () => {
     setPrefs({ compressEnabled: false })
-    const { contextSettings } = await resolveRequestContextSettings(model, { compress: { enabled: true } })
+    const { contextSettings, compressionModel } = await resolveRequestContextSettings(model, CONVERSATION, {
+      compress: { enabled: true }
+    })
     expect(contextSettings.compress.enabled).toBe(true)
-    expect(mockResolveCompressionModel).toHaveBeenCalledWith('openai::gpt-4o')
+    expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
   })
 
   it('applies an assistant truncateThreshold override', async () => {
     setPrefs({ truncate: 100_000 })
-    const { contextSettings } = await resolveRequestContextSettings(model, { truncateThreshold: 4000 })
+    const { contextSettings } = await resolveRequestContextSettings(model, CONVERSATION, { truncateThreshold: 4000 })
     expect(contextSettings.truncateThreshold).toBe(4000)
   })
 
@@ -117,14 +128,61 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
     ['undefined override', undefined]
   ])('inherits globals for %s (identical to no override)', async (_label, override) => {
     setPrefs({ modelId: 'openai::global-compressor', truncate: 100_000 })
-    const { contextSettings } = await resolveRequestContextSettings(model, override)
+    const { contextSettings } = await resolveRequestContextSettings(model, CONVERSATION, override)
     expect(contextSettings.compress.modelId).toBe('openai::global-compressor')
     expect(contextSettings.truncateThreshold).toBe(100_000)
   })
 
   it('does not let an assistant modelId of null override the global explicit pick (?? passthrough)', async () => {
     setPrefs({ modelId: 'openai::global-compressor' })
-    await resolveRequestContextSettings(model, { compress: { modelId: null } })
-    expect(mockResolveCompressionModel).toHaveBeenCalledWith('openai::global-compressor')
+    const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION, {
+      compress: { modelId: null }
+    })
+    expect(compressionModel?.languageModel.modelId).toBe('openai::global-compressor')
+  })
+
+  it('reads the compaction trigger from the global preference, and lets an assistant override it', async () => {
+    setPrefs({ thresholdPercent: 60 })
+    const { contextSettings } = await resolveRequestContextSettings(model, CONVERSATION)
+    expect(contextSettings.compress.thresholdPercent).toBe(60)
+
+    const overridden = await resolveRequestContextSettings(model, CONVERSATION, { compress: { thresholdPercent: 95 } })
+    expect(overridden.contextSettings.compress.thresholdPercent).toBe(95)
+  })
+
+  // The generated preference schema carries no min/max, so a hand-edited config
+  // can park the trigger at 0 — which would fold on every step — or at NaN,
+  // which compares false against every estimate and folds forever.
+  it.each([
+    ['zero', 0, 20],
+    ['above 100', 250, 100],
+    ['not a number', Number.NaN, 80]
+  ])('clamps an out-of-range global trigger (%s)', async (_label, stored, expected) => {
+    setPrefs({ thresholdPercent: stored })
+    const { contextSettings } = await resolveRequestContextSettings(model, CONVERSATION)
+    expect(contextSettings.compress.thresholdPercent).toBe(expected)
+  })
+
+  // The assistant layer is a JSON settings column that production never
+  // `.parse()`s, so a migration artifact or a direct DB edit reaches the
+  // trigger unchecked — clamping the globals alone leaves this path open.
+  it.each([
+    ['zero', 0, 20],
+    ['above 100', 250, 100],
+    ['not a number', Number.NaN, 80]
+  ])('clamps an out-of-range assistant trigger (%s)', async (_label, stored, expected) => {
+    setPrefs({ thresholdPercent: 80 })
+    const { contextSettings } = await resolveRequestContextSettings(model, CONVERSATION, {
+      compress: { thresholdPercent: stored }
+    })
+    expect(contextSettings.compress.thresholdPercent).toBe(expected)
+  })
+
+  it('inherits the global trigger when the assistant stores none', async () => {
+    setPrefs({ thresholdPercent: 55 })
+    const { contextSettings } = await resolveRequestContextSettings(model, CONVERSATION, {
+      compress: { enabled: true }
+    })
+    expect(contextSettings.compress.thresholdPercent).toBe(55)
   })
 })

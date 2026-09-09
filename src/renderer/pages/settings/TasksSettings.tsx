@@ -67,7 +67,6 @@ import {
   SettingDescription,
   SettingDivider,
   SettingGroup,
-  SettingsContentBody,
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
@@ -87,11 +86,12 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useTheme } from '@renderer/hooks/useTheme'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
-import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { ScheduledTaskEntity, ScheduledTaskListItem, TaskRunLogEntity } from '@shared/data/types/agent'
 import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
@@ -99,11 +99,18 @@ import {
   ArrowLeft,
   ArrowRight,
   Bot,
+  CalendarCheck2,
   CalendarClock,
+  CalendarFold,
   ChevronDown,
   ChevronRight,
+  CircleCheck,
   CircleSlash,
+  CircleStop,
+  CircleX,
+  Clock3,
   Folder,
+  Loader2,
   MoreHorizontal,
   PencilLine,
   Play,
@@ -189,17 +196,27 @@ const parseScheduleDate = (value: string) => {
   return Number.isNaN(date.getTime()) ? undefined : date
 }
 
-const parseTime = (value: string) => {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
-  if (!match) return null
-  const hour = Number(match[1])
-  const minute = Number(match[2])
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
-  return { hour, minute }
+// Canonical value for the time presets: a sorted, deduped 'HH:MM,HH:MM…' list
+// sharing one minute — per-entry minutes would cross-product into extra cron firings.
+const parseTimes = (value: string): { hours: string[]; minute: string } | null => {
+  const matches = value.split(',').map((part) => /^(\d{1,2}):(\d{2})$/.exec(part.trim()))
+  if (matches.some((match) => match === null)) return null
+
+  const minute = matches[0]![2]
+  if (Number(minute) > 59 || matches.some((match) => match![2] !== minute)) return null
+
+  const hours = matches.map((match) => Number(match![1]))
+  if (hours.some((hour) => hour > 23)) return null
+
+  const uniqueSorted = [...new Set(hours)].sort((a, b) => a - b)
+  return { hours: uniqueSorted.map((hour) => String(hour).padStart(2, '0')), minute }
 }
 
-const formatTime = (hour: number, minute: number) =>
-  `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+const formatTimes = (hours: string[], minute: string) =>
+  [...new Set(hours)]
+    .sort()
+    .map((hour) => `${hour}:${minute}`)
+    .join(',')
 
 export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 'timeoutMinutes'> {
   if (trigger.kind === 'interval') {
@@ -229,15 +246,23 @@ export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 't
   }
 
   const minute = Number(minutePart)
-  const hour = Number(hourPart)
+  const hourParts = hourPart.split(',')
   const hasValidTime =
-    Number.isInteger(minute) && minute >= 0 && minute <= 59 && Number.isInteger(hour) && hour >= 0 && hour <= 23
+    Number.isInteger(minute) &&
+    minute >= 0 &&
+    minute <= 59 &&
+    hourParts.every((part) => /^\d{1,2}$/.test(part) && Number(part) <= 23)
 
   if (!hasValidTime || dayOfMonth !== '*' || month !== '*') {
     return { kind: 'cron', value: trigger.expr, weekday: '1' }
   }
 
-  const value = formatTime(hour, minute)
+  // Canonical form: sorted, deduped (matches parseTimes/formatTimes so the UI
+  // multi-select never disagrees with the value it renders).
+  const value = formatTimes(
+    hourParts.map((part) => part.padStart(2, '0')),
+    String(minute).padStart(2, '0')
+  )
   if (dayOfWeek === '*') return { kind: 'daily', value, weekday: '1' }
   if (dayOfWeek === '1-5') return { kind: 'weekdays', value, weekday: '1' }
   if (/^[0-6]$/.test(dayOfWeek)) return { kind: 'weekly', value, weekday: dayOfWeek }
@@ -263,9 +288,9 @@ export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null 
     return expr ? { kind: 'cron', expr } : null
   }
 
-  const time = parseTime(schedule.value)
-  if (!time) return null
-  const prefix = `${time.minute} ${time.hour} * *`
+  const times = parseTimes(schedule.value)
+  if (!times || times.hours.length === 0) return null
+  const prefix = `${Number(times.minute)} ${times.hours.map(Number).join(',')} * *`
 
   if (schedule.kind === 'daily') return { kind: 'cron', expr: `${prefix} *` }
   if (schedule.kind === 'weekdays') return { kind: 'cron', expr: `${prefix} 1-5` }
@@ -280,7 +305,7 @@ function scheduleForKind(kind: ScheduleKind, current: ScheduleFormState): Schedu
     case 'daily':
     case 'weekdays':
     case 'weekly':
-      return { ...current, kind, value: parseTime(current.value) ? current.value : '09:00' }
+      return { ...current, kind, value: parseTimes(current.value) ? current.value : '09:00' }
     case 'interval':
     case 'once':
     case 'cron':
@@ -351,19 +376,128 @@ function getTaskStatusLabel(status: string, t: TFunction) {
   return labels[status] ?? status
 }
 
+function getTaskScheduleStatusIconPresentation(status: ScheduledTaskEntity['status']) {
+  switch (status) {
+    case 'active':
+      return {
+        Icon: CalendarClock,
+        wrapperClassName: 'bg-info-subtle text-info-subtle-foreground',
+        iconClassName: 'text-info-subtle-foreground'
+      }
+    case 'paused':
+      return {
+        Icon: CalendarFold,
+        wrapperClassName: 'bg-warning-subtle text-warning-subtle-foreground',
+        iconClassName: 'text-warning-subtle-foreground'
+      }
+    case 'completed':
+      return {
+        Icon: CalendarCheck2,
+        wrapperClassName: 'bg-success-subtle text-success-subtle-foreground',
+        iconClassName: 'text-success-subtle-foreground'
+      }
+  }
+}
+
+const TaskScheduleStatusIcon: FC<{ status: ScheduledTaskEntity['status'] }> = ({ status }) => {
+  const { Icon, wrapperClassName, iconClassName } = getTaskScheduleStatusIconPresentation(status)
+
+  return (
+    <div className={cn('flex size-10 shrink-0 items-center justify-center rounded-lg', wrapperClassName)}>
+      <Icon size={20} aria-hidden className={iconClassName} />
+    </div>
+  )
+}
+
+function formatTaskCardTime(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+const TaskRunSummaryLine: FC<{ summary: NonNullable<ScheduledTaskListItem['runSummary']> }> = ({ summary }) => {
+  const { t } = useTranslation()
+
+  if (summary.status === 'queued') {
+    return (
+      <span className="flex items-center gap-1.5 text-muted-foreground">
+        <Clock3 aria-hidden className="size-3" />
+        {t('agent.tasks.runSummary.queued')}
+      </span>
+    )
+  }
+
+  if (summary.status === 'running') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <Loader2 aria-hidden className="size-3 text-foreground motion-safe:animate-spin" />
+        {t('agent.tasks.runSummary.running')}
+      </span>
+    )
+  }
+
+  const time = formatTaskCardTime(summary.finishedAt)
+  if (summary.status === 'completed') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <CircleCheck aria-hidden className="size-3 text-foreground" />
+        {t('agent.tasks.runSummary.completed', { time })}
+      </span>
+    )
+  }
+  if (summary.status === 'failed') {
+    return (
+      <span className="flex items-center gap-1.5 text-foreground">
+        <CircleX aria-hidden className="size-3 text-foreground" />
+        {t('agent.tasks.runSummary.failed', { time })}
+      </span>
+    )
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-foreground">
+      <CircleStop aria-hidden className="size-3 text-foreground" />
+      {t('agent.tasks.runSummary.cancelled', { time })}
+    </span>
+  )
+}
+
+const TaskCardRunStatus: FC<{ task: ScheduledTaskListItem }> = ({ task }) => {
+  const { t } = useTranslation()
+  const nextRun = task.status === 'active' ? task.nextRun : null
+
+  if (!task.runSummary && !nextRun) return null
+
+  return (
+    <div className="flex flex-col items-end gap-0.5 whitespace-nowrap text-xs">
+      {task.runSummary && <TaskRunSummaryLine summary={task.runSummary} />}
+      {nextRun && (
+        <span className="text-muted-foreground">
+          {t('agent.tasks.nextRun')} · {formatTaskCardTime(nextRun)}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function getTriggerSummary(trigger: Trigger, t: TFunction) {
   const schedule = triggerToFormState(trigger)
+  // Time presets may hold a comma-joined list; space it out for display.
+  const time = schedule.value.split(',').join(', ')
   switch (schedule.kind) {
     case 'hourly':
       return t('agent.tasks.schedule.summary.hourly')
     case 'daily':
-      return t('agent.tasks.schedule.summary.daily', { time: schedule.value })
+      return t('agent.tasks.schedule.summary.daily', { time })
     case 'weekdays':
-      return t('agent.tasks.schedule.summary.weekdays', { time: schedule.value })
+      return t('agent.tasks.schedule.summary.weekdays', { time })
     case 'weekly':
       return t('agent.tasks.schedule.summary.weekly', {
         weekday: getWeekdayLabel(schedule.weekday, t),
-        time: schedule.value
+        time
       })
     case 'interval':
       return t('agent.tasks.schedule.summary.interval', { count: Number(schedule.value) })
@@ -374,40 +508,69 @@ function getTriggerSummary(trigger: Trigger, t: TFunction) {
   }
 }
 
-const TaskTimeSelect: FC<{
+export const TaskTimeSelect: FC<{
   value: string
   disabled?: boolean
   onChange: (value: string) => void
 }> = ({ value, disabled, onChange }) => {
   const { t } = useTranslation()
-  const { hour, minute } = parseTime(value) ?? { hour: 9, minute: 0 }
-  const hourValue = String(hour).padStart(2, '0')
-  const minuteValue = String(minute).padStart(2, '0')
+  // An empty preset means the user cleared every hour; render no selection so the
+  // UI agrees with the empty form value (which blocks saving until repopulated).
+  // A non-empty value that fails to parse is unexpected, so fall back to the
+  // default selection rather than rendering a blank, uneditable control.
+  const { hours, minute } =
+    parseTimes(value) ?? (value === '' ? { hours: [], minute: '00' } : { hours: ['09'], minute: '00' })
+
+  // The minute is encoded inside the comma-joined value, so clearing the last
+  // hour would otherwise discard it (formatTimes([], '30') === ''). Track the
+  // last committed minute in state so re-picking an hour after clearing every
+  // selection keeps the minute the user did not edit (e.g. 18:30 -> clear 18 ->
+  // pick 20 yields 20:30, not 20:00). While no hour is selected the minute
+  // stays a local preview only: the form value remains '' and saving is blocked.
+  // Seed the retained minute from the mounted value: lastValue starts equal to
+  // value, so the update block below never runs on the first render and a
+  // fresh/remounted selector loading a non-zero-minute schedule would otherwise
+  // fall back to 00 once every hour is cleared.
+  const [rememberedMinute, setRememberedMinute] = useState(() => {
+    const parsed = parseTimes(value)
+    return parsed && parsed.hours.length > 0 ? parsed.minute : '00'
+  })
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    const parsed = parseTimes(value)
+    if (parsed && parsed.hours.length > 0) setRememberedMinute(parsed.minute)
+  }
+  const displayMinute = hours.length > 0 ? minute : rememberedMinute
 
   return (
     <RowFlex role="group" aria-label={t('agent.tasks.schedule.time')} className="items-center gap-2">
-      <Select
-        value={hourValue}
+      <Combobox
+        multiple
+        searchable={false}
+        width={160}
+        aria-label={t('agent.tasks.schedule.hours')}
+        placeholder={t('agent.tasks.schedule.hours')}
         disabled={disabled}
-        onValueChange={(nextHour) => onChange(`${nextHour}:${minuteValue}`)}>
-        <SelectTrigger aria-label={t('agent.tasks.schedule.hour')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {SCHEDULE_HOURS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+        options={SCHEDULE_HOURS.map((hour) => ({ value: hour, label: hour }))}
+        value={hours}
+        onChange={(next) => {
+          if (Array.isArray(next)) onChange(formatTimes(next, displayMinute))
+        }}
+      />
       <InputGroupText aria-hidden="true">:</InputGroupText>
       <Select
-        value={minuteValue}
+        value={displayMinute}
         disabled={disabled}
-        onValueChange={(nextMinute) => onChange(`${hourValue}:${nextMinute}`)}>
+        onValueChange={(nextMinute) => {
+          if (hours.length === 0) {
+            // No hour selected: the minute cannot live in the value string, so
+            // keep it only as the preview for the next hour selection.
+            setRememberedMinute(nextMinute)
+            return
+          }
+          onChange(formatTimes(hours, nextMinute))
+        }}>
         <SelectTrigger aria-label={t('agent.tasks.schedule.minute')}>
           <SelectValue />
         </SelectTrigger>
@@ -671,8 +834,8 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         header: t('agent.tasks.logs.duration'),
         meta: { width: 80 },
         cell: ({ getValue, row }) => {
-          const value = getValue() as number
-          if (row.original.status === 'running') return '-'
+          const value = getValue() as number | null
+          if (value == null || row.original.status === 'running') return '-'
           if (value < 1000) return `${value}ms`
           if (value < 60_000) return `${(value / 1000).toFixed(1)}s`
           return `${(value / 60_000).toFixed(1)}m`
@@ -1474,185 +1637,192 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <SettingsContentBody className="min-h-0 flex-1 overflow-hidden pt-4" innerClassName="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <SettingTitle className="shrink-0">
-            <span>{t('settings.scheduledTasks.title')}</span>
-          </SettingTitle>
-          <CollapsibleSearchBar
-            onSearch={setSearchQuery}
-            value={searchQuery}
-            placeholder={t('settings.scheduledTasks.searchPlaceholder')}
-            tooltip={t('settings.scheduledTasks.search')}
-            clearLabel={t('common.clear')}
-            maxWidth={220}
-            collapsedSize={30}
-            style={{ borderRadius: 8 }}
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {tasks.length > 0 && (
-            <>
-              <Select value={agentFilter} onValueChange={setAgentFilter}>
-                <SelectTrigger
-                  className="h-8 min-w-32 bg-transparent"
-                  aria-label={t('settings.scheduledTasks.filterAgent')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allAgents')}</SelectItem>
-                    {agents.map((agent) => (
-                      <SelectItem key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger
-                  className="h-8 min-w-32 bg-transparent"
-                  aria-label={t('settings.scheduledTasks.filterStatus')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allStatuses')}</SelectItem>
-                    <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
-                    <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
-                    <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" size="sm" className="shrink-0">
-                <Plus size={12} className="lucide-custom" />
-                {t('settings.scheduledTasks.newTask')}
-                <ChevronDown size={12} className="text-primary-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-40">
-              <DropdownMenuGroup>
-                <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
-                  <PencilLine />
-                  {t('settings.scheduledTasks.manualCreate')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
-                  <Bot />
-                  {t('settings.scheduledTasks.agentCreate')}
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-4">
+        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <SettingTitle className="shrink-0">
+              <span>{t('settings.scheduledTasks.title')}</span>
+            </SettingTitle>
+            <CollapsibleSearchBar
+              onSearch={setSearchQuery}
+              value={searchQuery}
+              placeholder={t('settings.scheduledTasks.searchPlaceholder')}
+              tooltip={t('settings.scheduledTasks.search')}
+              clearLabel={t('common.clear')}
+              maxWidth={220}
+              collapsedSize={30}
+              style={{ borderRadius: 8 }}
+            />
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {tasks.length > 0 && (
+              <>
+                <Select value={agentFilter} onValueChange={setAgentFilter}>
+                  <SelectTrigger
+                    className="h-8 min-w-32 bg-transparent"
+                    aria-label={t('settings.scheduledTasks.filterAgent')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allAgents')}</SelectItem>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger
+                    className="h-8 min-w-32 bg-transparent"
+                    aria-label={t('settings.scheduledTasks.filterStatus')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value={ALL_TASKS_FILTER}>{t('settings.scheduledTasks.allStatuses')}</SelectItem>
+                      <SelectItem value="active">{t('agent.tasks.status.active')}</SelectItem>
+                      <SelectItem value="paused">{t('agent.tasks.status.paused')}</SelectItem>
+                      <SelectItem value="completed">{t('agent.tasks.status.completed')}</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" className="shrink-0">
+                  <Plus size={12} className="lucide-custom" />
+                  {t('settings.scheduledTasks.newTask')}
+                  <ChevronDown size={12} className="text-primary-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-40">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
+                    <PencilLine />
+                    {t('settings.scheduledTasks.manualCreate')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
+                    <Bot />
+                    {t('settings.scheduledTasks.agentCreate')}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pt-4 pb-3 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
-        {tasks.length === 0 ? (
-          <EmptyState
-            preset={agents.length === 0 ? 'no-agent' : 'no-result'}
-            icon={agents.length === 0 ? undefined : CalendarClock}
-            title={
-              agents.length === 0
-                ? t('settings.scheduledTasks.noAgentsTitle')
-                : t('settings.scheduledTasks.noTasksTitle')
-            }
-            description={
-              agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
-            }
-            actionLabel={agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : undefined}
-            className="py-20"
-            onAction={agents.length === 0 ? () => openRoute('/app/agents') : undefined}
-          />
-        ) : (
-          <>
-            {filteredTasks.length === 0 && hasActiveFilters ? (
-              <EmptyState
-                preset="no-result"
-                title={t('settings.scheduledTasks.noMatchesTitle')}
-                description={t('settings.scheduledTasks.noMatches')}
-                actionLabel={t('settings.scheduledTasks.clearFilters')}
-                className="py-20"
-                onAction={clearFilters}
-              />
-            ) : (
-              <ItemGroup className="gap-3">
-                {filteredTasks.map((task) => (
-                  <Item
-                    key={task.id}
-                    asChild
-                    variant="outline"
-                    className="rounded-xl border-border bg-card transition-[border-color,box-shadow] hover:border-border-strong hover:bg-card hover:shadow-sm">
-                    <Link
-                      to="/settings/scheduled-tasks/$taskId"
-                      params={{ taskId: task.id }}
-                      style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                        <CalendarClock size={20} aria-hidden className="text-foreground-tertiary" />
-                      </div>
-                      <ItemContent className="min-w-0">
-                        <ItemTitle className="truncate">{task.name}</ItemTitle>
-                        <ItemDescription className="truncate text-xs leading-4">
-                          {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
-                          {getTriggerSummary(task.trigger, t)}
-                        </ItemDescription>
-                      </ItemContent>
-                      <ItemActions className="shrink-0">
-                        <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
-                        <ChevronRight size={16} className="text-foreground-tertiary" />
-                      </ItemActions>
-                    </Link>
-                  </Item>
-                ))}
-              </ItemGroup>
-            )}
-            {pageCount > 1 && (
-              <Pagination aria-label={t('settings.scheduledTasks.paginationLabel')} className="pt-4">
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      href="#"
-                      aria-disabled={!hasPrev}
-                      aria-label={t('common.previous')}
-                      tabIndex={hasPrev ? undefined : -1}
-                      className={hasPrev ? undefined : 'pointer-events-none opacity-40'}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        prevPage()
-                      }}>
-                      {t('common.previous')}
-                    </PaginationPrevious>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <SettingDescription className="mt-0 px-2 tabular-nums">
-                      {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
-                    </SettingDescription>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <PaginationNext
-                      href="#"
-                      aria-disabled={!hasNext}
-                      aria-label={t('common.next')}
-                      tabIndex={hasNext ? undefined : -1}
-                      className={hasNext ? undefined : 'pointer-events-none opacity-40'}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        nextPage()
-                      }}>
-                      {t('common.next')}
-                    </PaginationNext>
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            )}
-          </>
-        )}
-      </div>
+      <Scrollbar className="min-h-0 flex-1 px-6 pt-4 pb-3">
+        <div className="mx-auto w-full max-w-3xl">
+          {tasks.length === 0 ? (
+            <EmptyState
+              preset={agents.length === 0 ? 'no-agent' : 'no-result'}
+              icon={agents.length === 0 ? undefined : CalendarClock}
+              title={
+                agents.length === 0
+                  ? t('settings.scheduledTasks.noAgentsTitle')
+                  : t('settings.scheduledTasks.noTasksTitle')
+              }
+              description={
+                agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
+              }
+              actionLabel={agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : undefined}
+              className="py-20"
+              onAction={agents.length === 0 ? () => openRoute('/app/agents') : undefined}
+            />
+          ) : (
+            <>
+              {filteredTasks.length === 0 && hasActiveFilters ? (
+                <EmptyState
+                  preset="no-result"
+                  title={t('settings.scheduledTasks.noMatchesTitle')}
+                  description={t('settings.scheduledTasks.noMatches')}
+                  actionLabel={t('settings.scheduledTasks.clearFilters')}
+                  className="py-20"
+                  onAction={clearFilters}
+                />
+              ) : (
+                <ItemGroup className="gap-3">
+                  {filteredTasks.map((task) => (
+                    <Item
+                      key={task.id}
+                      asChild
+                      variant="outline"
+                      className="rounded-xl border-border bg-card transition-[border-color,box-shadow] hover:border-border-strong hover:bg-card hover:shadow-sm">
+                      <Link
+                        to="/settings/scheduled-tasks/$taskId"
+                        params={{ taskId: task.id }}
+                        style={{ backgroundColor: 'var(--settings-group-background, var(--card))' }}>
+                        <TaskScheduleStatusIcon status={task.status} />
+                        <ItemContent className="min-w-0">
+                          <ItemTitle className="min-w-0 max-w-full">
+                            <span className="truncate">{task.name}</span>
+                            <Badge variant="secondary" className="shrink-0">
+                              {getTaskStatusLabel(task.status, t)}
+                            </Badge>
+                          </ItemTitle>
+                          <ItemDescription className="truncate text-xs leading-4">
+                            {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
+                            {getTriggerSummary(task.trigger, t)}
+                          </ItemDescription>
+                        </ItemContent>
+                        <ItemActions className="ml-auto shrink-0">
+                          <TaskCardRunStatus task={task} />
+                          <ChevronRight size={16} className="text-foreground-tertiary" />
+                        </ItemActions>
+                      </Link>
+                    </Item>
+                  ))}
+                </ItemGroup>
+              )}
+              {pageCount > 1 && (
+                <Pagination aria-label={t('settings.scheduledTasks.paginationLabel')} className="pt-4">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        href="#"
+                        aria-disabled={!hasPrev}
+                        aria-label={t('common.previous')}
+                        tabIndex={hasPrev ? undefined : -1}
+                        className={hasPrev ? undefined : 'pointer-events-none opacity-40'}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          prevPage()
+                        }}>
+                        {t('common.previous')}
+                      </PaginationPrevious>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <SettingDescription className="mt-0 px-2 tabular-nums">
+                        {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
+                      </SettingDescription>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext
+                        href="#"
+                        aria-disabled={!hasNext}
+                        aria-label={t('common.next')}
+                        tabIndex={hasNext ? undefined : -1}
+                        className={hasNext ? undefined : 'pointer-events-none opacity-40'}
+                        onClick={(event) => {
+                          event.preventDefault()
+                          nextPage()
+                        }}>
+                        {t('common.next')}
+                      </PaginationNext>
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </>
+          )}
+        </div>
+      </Scrollbar>
 
       <TaskFormDialog
         open={createOpen}
@@ -1660,7 +1830,7 @@ const TasksSettings: FC = () => {
         onOpenChange={setCreateOpen}
         onCreate={async (agentId, request) => Boolean(await handleCreate(agentId, request))}
       />
-    </SettingsContentBody>
+    </div>
   )
 }
 

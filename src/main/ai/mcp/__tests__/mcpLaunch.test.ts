@@ -98,4 +98,16 @@ describe('resolveLaunchCommand', () => {
     expect(unresolved.command).toBe('my-server')
     expect(logger.warn).toHaveBeenCalled()
   })
+
+  it('normalizes surrounding whitespace before resolving or falling back', async () => {
+    const launch = await resolve('  my-server  ', ['--stdio'])
+
+    expect(commandMock.findCommandInShellEnv).toHaveBeenCalledWith('my-server', { PATH: '/usr/bin' })
+    expect(launch.command).toBe('my-server')
+  })
+
+  it('rejects a command that is empty after normalization', async () => {
+    await expect(resolve('   ')).rejects.toThrow(/MCP stdio command cannot be empty/)
+    expect(commandMock.findCommandInShellEnv).not.toHaveBeenCalled()
+  })
 })

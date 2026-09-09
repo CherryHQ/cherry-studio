@@ -248,6 +248,25 @@ describe('ModelService.update', () => {
     expect(row.parameters).toEqual(params)
   })
 
+  it('records an explicitly empty input-modality update as user-owned', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'legacy-custom', {
+        inputModalities: [],
+        inputModalitiesExplicit: false
+      })
+    )
+
+    modelService.update('openai', 'legacy-custom', { inputModalities: [] })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'legacy-custom')))
+
+    expect(row).toMatchObject({ inputModalities: [], inputModalitiesExplicit: true })
+  })
+
   it('throws NOT_FOUND when model does not exist', async () => {
     let err: unknown
     try {
@@ -1035,6 +1054,45 @@ describe('ModelService.list — registry enrichment', () => {
     })
   })
 
+  it("keeps a sparse GPT-6 Astra row on a custom provider's Chat endpoint", async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('custom-provider', 'Custom Provider'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
+      }
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('custom-provider', 'openai/gpt-6-astra', {
+        presetModelId: 'gpt-6-astra',
+        name: null,
+        capabilities: null,
+        endpointTypes: null,
+        supportsStreaming: null
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-6-astra',
+        name: 'GPT-6 Astra',
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+        endpointTypes: ['openai-responses']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'custom-provider' })
+
+    expect(model).toMatchObject({
+      apiModelId: 'openai/gpt-6-astra',
+      presetModelId: 'gpt-6-astra',
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    expect(model.endpointTypes).toBeUndefined()
+  })
+
   it('hydrates same-canonical variants through their exact API model ID', async () => {
     const apiModelId = 'deepseek-v4-flash-202605'
     await dbh.db.insert(userProviderTable).values(providerRow('tokenhub', 'TokenHub'))
@@ -1119,24 +1177,34 @@ describe('ModelService.list — registry enrichment', () => {
     expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
   })
 
-  it('hydrates missing limits and pricing when a custom model later gains a registry match', async () => {
+  it('hydrates missing registry metadata when a custom model later gains a registry match', async () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
-    await dbh.db.insert(userModelTable).values(
-      modelRow('openai', 'future-model', {
-        presetModelId: null,
-        name: 'Future Model',
-        contextWindow: null,
-        maxInputTokens: null,
-        maxOutputTokens: 4096,
-        pricing: null
-      })
-    )
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'future-model',
+          name: 'Future Model',
+          maxOutputTokens: 4096
+        }
+      }
+    ])
     const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+    expect(storedBeforeRegistryUpdate).toMatchObject({
+      description: null,
+      inputModalities: null,
+      inputModalitiesExplicit: false,
+      outputModalities: null
+    })
 
     lookupModelMock.mockReturnValue({
       presetModel: {
         id: 'future-model',
         name: 'Future Model (registry)',
+        description: 'Registry description',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        inputModalities: ['text'],
+        outputModalities: ['text'],
         contextWindow: 128_000,
         maxInputTokens: 120_000,
         maxOutputTokens: 16_384,
@@ -1146,7 +1214,14 @@ describe('ModelService.list — registry enrichment', () => {
         }
       },
       registryOverride: {
-        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 }
+        inputModalities: ['text', 'image'],
+        outputModalities: ['image'],
+        endpointTypes: ['openai-responses'],
+        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 },
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } },
+          topP: { supported: false, range: { min: 0, max: 1 } }
+        }
       },
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
@@ -1157,14 +1232,138 @@ describe('ModelService.list — registry enrichment', () => {
     expect(model).toMatchObject({
       presetModelId: null,
       name: 'Future Model',
+      description: 'Registry description',
+      capabilities: [],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
       contextWindow: 256_000,
       maxInputTokens: 120_000,
       maxOutputTokens: 4096,
+      parameterSupport: expect.objectContaining({
+        temperature: expect.objectContaining({ supported: false }),
+        topP: expect.objectContaining({ supported: false })
+      }),
       pricing: {
         input: { perMillionTokens: 5 },
         output: { perMillionTokens: 15 }
       }
     })
+    expect(model.endpointTypes).toBeUndefined()
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
+  it('preserves explicit custom description and modalities during registry enrichment', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'future-model',
+          name: 'Future Model',
+          description: 'Custom description',
+          inputModalities: ['audio'],
+          outputModalities: ['video'],
+          parameterSupport: {
+            temperature: { supported: true, range: { min: 0, max: 2 } },
+            maxTokens: true,
+            stopSequences: true,
+            systemMessage: true
+          }
+        }
+      }
+    ])
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+    expect(storedBeforeRegistryUpdate).toMatchObject({ inputModalitiesExplicit: true })
+
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'future-model',
+        name: 'Future Model (registry)',
+        description: 'Registry description',
+        inputModalities: ['text'],
+        outputModalities: ['text']
+      },
+      registryOverride: {
+        inputModalities: ['text', 'image'],
+        outputModalities: ['image'],
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } }
+        }
+      },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(model).toMatchObject({
+      presetModelId: null,
+      name: 'Future Model',
+      description: 'Custom description',
+      inputModalities: ['audio'],
+      outputModalities: ['video'],
+      parameterSupport: expect.objectContaining({
+        temperature: { supported: true, range: { min: 0, max: 2 } }
+      })
+    })
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
+  it('hydrates legacy implicit empty input modalities without mutating the stored row', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'legacy-model', {
+        inputModalities: [],
+        inputModalitiesExplicit: false
+      })
+    )
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'legacy-model',
+        name: 'Legacy Model',
+        inputModalities: ['text', 'image']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(model.inputModalities).toEqual(['text', 'image'])
+    expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
+  })
+
+  it('preserves an explicitly empty custom input-modality list', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'explicit-empty-model',
+          inputModalities: []
+        }
+      }
+    ])
+    const storedBeforeRegistryUpdate = dbh.db.select().from(userModelTable).get()
+    expect(storedBeforeRegistryUpdate).toMatchObject({ inputModalities: [], inputModalitiesExplicit: true })
+
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'explicit-empty-model',
+        name: 'Explicit Empty Model',
+        inputModalities: ['text', 'image']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'openai' })
+    const storedAfterRegistryUpdate = dbh.db.select().from(userModelTable).get()
+
+    expect(model.inputModalities).toEqual([])
     expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
   })
 

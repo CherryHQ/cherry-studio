@@ -7,15 +7,21 @@ import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { pinTable } from '@data/db/schemas/pin'
+import { promptBindingTable, promptTable } from '@data/db/schemas/prompt'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
 import { pinService } from '@data/services/PinService'
+import { promptService } from '@data/services/PromptService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
-import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
+import {
+  type ImportAssistantDto,
+  type ListAssistantsQuery,
+  ListAssistantsQuerySchema
+} from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -686,7 +692,11 @@ describe('AssistantDataService', () => {
       }
       expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
-        details: { fieldErrors: { modelId: expect.any(Array) } }
+        details: {
+          fieldErrors: {
+            modelId: ["Model 'cherryai::qwen' is unavailable in this edition or not registered in user_model"]
+          }
+        }
       })
 
       const rows = await dbh.db.select().from(assistantTable)
@@ -742,6 +752,41 @@ describe('AssistantDataService', () => {
   })
 
   describe('createFromImport', () => {
+    it('imports contextual prompts as restricted bindings in legacy array order', async () => {
+      const result = assistantDataService.createFromImport({
+        name: 'Imported assistant',
+        prompt: 'legacy prompt',
+        regularPhrases: [
+          { title: 'First', content: 'first content' },
+          { title: 'Second', content: 'second content' }
+        ]
+      })
+
+      const importedPrompts = promptService.listBoundToTarget({ type: 'assistant', id: result.id })
+      expect(importedPrompts.map((prompt) => [prompt.title, prompt.content, prompt.visibility])).toEqual([
+        ['First', 'first content', 'restricted'],
+        ['Second', 'second content', 'restricted']
+      ])
+    })
+
+    it('rolls back the Assistant, group, prompts, and bindings when phrase creation fails', async () => {
+      const invalidImport = {
+        name: 'Failed import',
+        prompt: 'legacy prompt',
+        groupName: 'new group',
+        regularPhrases: [
+          { title: 'Valid', content: 'valid content' },
+          { title: '', content: 'invalid title' }
+        ]
+      } as ImportAssistantDto
+
+      expect(() => assistantDataService.createFromImport(invalidImport)).toThrow()
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(groupTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+    })
+
     it('creates a long-named legacy group and assigns it to the imported assistant', async () => {
       const groupName = 'x'.repeat(65)
 
@@ -775,6 +820,79 @@ describe('AssistantDataService', () => {
       expect(matchingGroups).toHaveLength(1)
       expect(first.groupId).toBe(existingGroupId)
       expect(second.groupId).toBe(existingGroupId)
+    })
+  })
+
+  describe('duplicate', () => {
+    it('atomically copies Assistant state, relations, and contextual prompt order', async () => {
+      const groupId = '11111111-1111-4111-8111-111111111111'
+      await seedAssistantGroup(groupId, 'work')
+      await seedMcpServer()
+      await seedKnowledgeBase()
+      await seedAssistantRow({
+        id: 'ast-source',
+        name: 'Source',
+        prompt: 'system prompt',
+        description: 'description',
+        modelId: 'openai::gpt-4',
+        groupId
+      })
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-source', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantKnowledgeBaseTable).values({ assistantId: 'ast-source', knowledgeBaseId: 'kb-1' })
+      const first = promptService.create({
+        title: 'First',
+        content: 'first',
+        visibility: 'restricted',
+        bindingTarget: { type: 'assistant', id: 'ast-source' }
+      })
+      const second = promptService.create({
+        title: 'Second',
+        content: 'second',
+        visibility: 'restricted',
+        bindingTarget: { type: 'assistant', id: 'ast-source' }
+      })
+      promptService.reorderBinding({ type: 'assistant', id: 'ast-source' }, second.id, { position: 'first' })
+
+      const duplicate = assistantDataService.duplicate('ast-source', { name: 'Source copy' })
+
+      expect(duplicate).toMatchObject({
+        name: 'Source copy',
+        prompt: 'system prompt',
+        emoji: '🌟',
+        description: 'description',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        modelId: 'openai::gpt-4',
+        groupId,
+        mcpServerIds: ['srv-1'],
+        knowledgeBaseIds: ['kb-1']
+      })
+      expect(duplicate.id).not.toBe('ast-source')
+      expect(
+        promptService.listBoundToTarget({ type: 'assistant', id: duplicate.id }).map((prompt) => prompt.id)
+      ).toEqual([second.id, first.id])
+      expect(
+        (await dbh.db.select().from(promptBindingTable))
+          .filter((binding) => binding.targetId === duplicate.id)
+          .every((binding) => binding.orderKey.length > 0)
+      ).toBe(true)
+    })
+
+    it('rolls back the copied Assistant when binding cloning fails', async () => {
+      await seedAssistantRow({ id: 'ast-source', name: 'Source' })
+      const cloneSpy = vi.spyOn(promptService, 'cloneBindingsForTargetTx').mockImplementationOnce(() => {
+        throw new Error('binding clone failed')
+      })
+
+      try {
+        expect(() => assistantDataService.duplicate('ast-source', { name: 'Source copy' })).toThrow(
+          'binding clone failed'
+        )
+        expect((await dbh.db.select({ id: assistantTable.id }).from(assistantTable)).map((row) => row.id)).toEqual([
+          'ast-source'
+        ])
+      } finally {
+        cloneSpy.mockRestore()
+      }
     })
   })
 
@@ -1157,7 +1275,11 @@ describe('AssistantDataService', () => {
       }
       expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
-        details: { fieldErrors: { modelId: expect.any(Array) } }
+        details: {
+          fieldErrors: {
+            modelId: ["Model 'cherryai::qwen' is unavailable in this edition or not registered in user_model"]
+          }
+        }
       })
 
       // Row name stays unchanged — modelId validation runs before the column write.
@@ -1243,7 +1365,23 @@ describe('AssistantDataService', () => {
 
       const pinRows = await dbh.db.select().from(pinTable)
       expect(pinRows).toHaveLength(0)
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([{ endpoint: '/pins', kind: 'membership' }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/pins', kind: 'membership' }])
+    })
+
+    it('should remove prompt bindings for the deleted assistant', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      const promptId = '550e8400-e29b-41d4-a716-446655440020'
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db
+        .insert(promptBindingTable)
+        .values({ promptId, targetType: 'assistant', targetId: 'ast-1', orderKey: 'a0' })
+
+      assistantDataService.delete('ast-1')
+
+      expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
     })
 
     it('should delete assistant topics atomically when requested', async () => {

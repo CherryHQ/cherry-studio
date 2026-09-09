@@ -1,5 +1,6 @@
 import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { cacheService } from '@data/CacheService'
 import {
   getQuoteTooltipContent,
   QUOTE_TOOLTIP_BODY_CLASS_NAME,
@@ -40,10 +41,11 @@ const tokenRemoveIconClassName = 'size-[0.95em] shrink-0 text-current'
 const TOKEN_POPOVER_OPEN_DELAY_MS = 120
 const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 const TOKEN_TOOLTIP_DELAY_MS = 300
+const PASTED_TEXT_PREVIEW_CACHE_TTL_MS = 5 * 60 * 1000
 type TokenPopoverOpenReason = 'keyboard' | 'pointer'
 const tokenPreviewHeaderClassName =
   'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--border-subtle)_0,var(--border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
-const pastedTextPreviewCache = new Map<string, Promise<string>>()
+const pastedTextPreviewCacheKey = (path: string) => `composer:pasted-text-preview:${path}`
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <ToolCase className={tokenIconClassName} />,
@@ -65,6 +67,7 @@ export interface ComposerTokenProps {
   token: ChatTokenView
   readOnly?: boolean
   readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
+  imageIconPreview?: boolean
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -81,7 +84,6 @@ export interface ReadOnlyComposerFileTokenPreview {
 }
 
 interface FileComposerTokenProps extends ComposerTokenProps {
-  imageIconPreview?: boolean
   tooltipActions?: ReactNode
 }
 
@@ -255,7 +257,8 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   if (!link) {
     return renderActiveComposerTokenElement({
       ...props,
-      icon: tokenIconByKind.link
+      icon: tokenIconByKind.link,
+      colorClassName: 'text-link'
     })
   }
 
@@ -276,6 +279,7 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   // The chip only shows the truncated label; hover must surface the full url the label stands for.
   const chipElement = renderActiveComposerTokenElement({
     ...props,
+    colorClassName: 'text-link',
     className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
     icon: props.readOnly ? (
       <span
@@ -313,13 +317,14 @@ function shouldShowFileTokenPopover(file: ComposerAttachment | undefined) {
 }
 
 function readPastedTextPreview(path: string) {
-  let request = pastedTextPreviewCache.get(path)
+  const cacheKey = pastedTextPreviewCacheKey(path)
+  let request = cacheService.getCasual<Promise<string>>(cacheKey)
   if (!request) {
     request = window.api.fs.readText(path).catch((error) => {
-      pastedTextPreviewCache.delete(path)
+      cacheService.deleteCasual(cacheKey)
       throw error
     })
-    pastedTextPreviewCache.set(path, request)
+    cacheService.setCasual(cacheKey, request, PASTED_TEXT_PREVIEW_CACHE_TTL_MS)
   }
   return request
 }
@@ -780,7 +785,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[1.4] transition-[color,box-shadow,border-color]',
         'group-focus-visible:border-primary',
         (props.readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
         canOpenFilePreview && 'cursor-pointer',

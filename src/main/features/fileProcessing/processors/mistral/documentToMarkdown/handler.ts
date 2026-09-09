@@ -44,7 +44,7 @@ export const mistralDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'
           executionContext.reportProgress(45)
 
           const response = await executeExtraction(executionContextWithSignal, document, {
-            tableFormat: 'html'
+            tableFormat: 'markdown'
           })
           executionContext.reportProgress(85)
 

@@ -1,19 +1,15 @@
 import { ScreenCaptureError, ScreenCapturePermissionError } from '@main/services/screenshot/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { monitorAll, windowAll, getMediaAccessStatus } = vi.hoisted(() => ({
+const { monitorAll, getMediaAccessStatus } = vi.hoisted(() => ({
   monitorAll: vi.fn(),
-  windowAll: vi.fn(),
   getMediaAccessStatus: vi.fn()
 }))
 
 // Mock the LOADER, not 'node-screenshots': the package is reached through require(), which vi.mock
 // cannot intercept. Being reachable as a plain ESM import is the whole reason the loader is separate.
 vi.mock('@main/services/screenshot/nativeCaptureBackend', () => ({
-  loadNativeCaptureBackend: () => ({
-    Monitor: { all: () => monitorAll() },
-    Window: { all: () => windowAll() }
-  })
+  loadNativeCaptureBackend: () => ({ Monitor: { all: () => monitorAll() } })
 }))
 vi.mock('electron', () => ({
   systemPreferences: { getMediaAccessStatus: () => getMediaAccessStatus() },
@@ -21,7 +17,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('@main/core/platform', () => ({ isMac: true }))
 
-const { captureAllMonitors, listWindows } = await import('@main/services/screenshot/screenCapture')
+const { captureAllMonitors } = await import('@main/services/screenshot/screenCapture')
 
 const toPng = vi.fn<(copyOutputData: boolean) => Promise<Buffer>>(async () => Buffer.from([1]))
 
@@ -40,7 +36,6 @@ const makeMonitor = (id: number) => ({
 describe('screenCapture', () => {
   beforeEach(() => {
     monitorAll.mockReset()
-    windowAll.mockReset()
     getMediaAccessStatus.mockReset()
     toPng.mockClear()
   })
@@ -98,33 +93,6 @@ describe('screenCapture', () => {
     // A serial loop finishes display 1 — encode included — before display 2 is sampled,
     // so the "frozen instant" the overlay presents differs per display.
     expect(peakInFlight).toBe(2)
-  })
-
-  it('keeps enumerating windows when one disappears mid-read', () => {
-    const alive = {
-      pid: () => 1,
-      title: () => 'A',
-      appName: () => 'App',
-      x: () => 0,
-      y: () => 0,
-      width: () => 10,
-      height: () => 10,
-      isMinimized: () => false
-    }
-    const dying = {
-      pid: () => 2,
-      title: () => {
-        throw new Error('window closed')
-      },
-      appName: () => 'Gone',
-      x: () => 0,
-      y: () => 0,
-      width: () => 10,
-      height: () => 10,
-      isMinimized: () => false
-    }
-    windowAll.mockReturnValue([dying, alive])
-    expect(listWindows().map((w) => w.pid)).toEqual([1])
   })
 
   it('captures every monitor keyed by its own id', async () => {

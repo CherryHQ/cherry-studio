@@ -210,6 +210,15 @@ describe('useChatRuntimeState', () => {
     expect(sent).toBe(false)
   })
 
+  it('keeps sendMessage stable across runtime rerenders', () => {
+    const view = render(<RuntimeHost topicId="topic-1" />)
+    const sendMessage = latestRuntime?.sendMessage
+
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+
+    expect(latestRuntime?.sendMessage).toBe(sendMessage)
+  })
+
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {
     const view = render(<ActivityHarness mode="visible" topicId="topic-1" />)
 

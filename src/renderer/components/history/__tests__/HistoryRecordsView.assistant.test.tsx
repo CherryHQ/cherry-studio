@@ -15,6 +15,7 @@ import jaJP from '../../../i18n/locales/ja-jp.json'
 import ptPT from '../../../i18n/locales/pt-pt.json'
 import roRO from '../../../i18n/locales/ro-ro.json'
 import ruRU from '../../../i18n/locales/ru-ru.json'
+import trTR from '../../../i18n/locales/tr-tr.json'
 import viVN from '../../../i18n/locales/vi-vn.json'
 import zhCN from '../../../i18n/locales/zh-cn.json'
 import zhTW from '../../../i18n/locales/zh-tw.json'
@@ -1491,38 +1492,26 @@ describe('HistoryRecordsView locale resources', () => {
       'title'
     ]
     const originalLocaleResources = [enUS, zhCN, zhTW]
-    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, viVN]
+    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, trTR, viVN]
 
     for (const resource of runtimeLocaleResources) {
       for (const key of requiredGlobalKeys) {
-        expect(getNestedValue(resource, key)).toEqual(expect.any(String))
+        expect(resource[key]).toEqual(expect.any(String))
       }
 
-      const records = getNestedValue(resource, 'history.records') as Record<string, unknown>
       for (const key of requiredRuntimeRecordKeys) {
-        const value = getNestedValue(records, key)
+        const value = resource[`history.records.${key}`]
         expect(value).toEqual(expect.any(String))
         expect(value).not.toMatch(/^\[to be translated]/)
       }
     }
 
     for (const resource of originalLocaleResources) {
-      const history = getNestedValue(resource, 'history') as Record<string, unknown>
-      const records = getNestedValue(resource, 'history.records') as Record<string, unknown>
-
-      expect(history.records).toBeTypeOf('object')
-      expect(history.v2).toBeUndefined()
+      // The `history.v2.*` namespace was renamed to `history.records.*`; no key may go back.
+      expect(Object.keys(resource).filter((key) => key.startsWith('history.v2.'))).toEqual([])
       for (const key of requiredRecordKeys) {
-        expect(getNestedValue(records, key)).toEqual(expect.any(String))
+        expect(resource[`history.records.${key}`]).toEqual(expect.any(String))
       }
     }
   })
 })
-
-function getNestedValue(source: Record<string, unknown>, key: string) {
-  return key.split('.').reduce<unknown>((value, segment) => {
-    if (!value || typeof value !== 'object') return undefined
-
-    return (value as Record<string, unknown>)[segment]
-  }, source)
-}

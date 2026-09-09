@@ -14,6 +14,7 @@ const createReasoningDelta = (text: string, id = 'reason_0'): UIMessageChunk => 
 interface GatewayUsage {
   inputTokens?: number
   outputTokens?: number
+  cacheReadTokens?: number
 }
 
 const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: GatewayUsage): UIMessageChunk => {
@@ -23,7 +24,10 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
           stats: {
             totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
             inputTokens: usage.inputTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0
+            outputTokens: usage.outputTokens ?? 0,
+            ...(usage.cacheReadTokens !== undefined
+              ? { inputTokenDetails: { cacheReadTokens: usage.cacheReadTokens } }
+              : {})
           }
         }
       : undefined
@@ -146,14 +150,28 @@ describe('AiSdkToOpenAiSse', () => {
   })
 
   describe('Usage Tracking', () => {
-    it('projects prompt/completion tokens onto the terminal usage', async () => {
+    it('projects cached prompt tokens onto the terminal usage without adding them to totals', async () => {
       const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([
         createTextDelta('hi'),
-        createFinish('stop', { inputTokens: 12, outputTokens: 7 })
+        createFinish('stop', { inputTokens: 12, outputTokens: 7, cacheReadTokens: 9 })
       ])
       const events = await collectEvents(adapter.transform(stream))
-      expect(events.at(-1)!.usage).toMatchObject({ prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 })
+      expect(events.at(-1)!.usage).toEqual({
+        prompt_tokens: 12,
+        completion_tokens: 7,
+        total_tokens: 19,
+        prompt_tokens_details: { cached_tokens: 9 }
+      })
+    })
+
+    it('omits prompt token details when the provider does not report cache usage', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
+      const events = await collectEvents(
+        adapter.transform(createMockStream([createFinish('stop', { inputTokens: 12, outputTokens: 7 })]))
+      )
+
+      expect(events.at(-1)!.usage).toEqual({ prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 })
     })
   })
 
@@ -186,6 +204,26 @@ describe('AiSdkToOpenAiSse', () => {
         function: { name: 'test', arguments: JSON.stringify({ arg: 'value' }) }
       })
       expect(response.usage).toMatchObject({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 })
+    })
+
+    it('preserves an explicit zero cached-token count', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([
+        createTextDelta('Hello world'),
+        createFinish('stop', { inputTokens: 10, outputTokens: 20, cacheReadTokens: 0 })
+      ])
+      const reader = adapter.transform(stream).getReader()
+      while (!(await reader.read()).done) {
+        /* drain to populate state */
+      }
+      reader.releaseLock()
+
+      expect(adapter.buildNonStreamingResponse().usage).toEqual({
+        prompt_tokens: 10,
+        completion_tokens: 20,
+        total_tokens: 30,
+        prompt_tokens_details: { cached_tokens: 0 }
+      })
     })
   })
 

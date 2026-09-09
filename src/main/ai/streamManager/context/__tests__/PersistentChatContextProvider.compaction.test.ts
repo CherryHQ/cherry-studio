@@ -8,9 +8,17 @@
  */
 
 import type * as AiCore from '@cherrystudio/ai-core'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import { createUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { MockLanguageModelV3 } from 'ai/test'
 import { estimateTokenCount } from 'tokenx'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { makeProvider } from '../../../__tests__/fixtures'
+import type * as RequestContextSettingsModule from '../../../contextBuild/resolveRequestContextSettings'
+import type { RequestScope } from '../../../runtime/aiSdk/params/scope'
+import { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 
 // vi.hoisted() ensures these vi.fn() instances are available when vi.mock factories run
 // (vi.mock calls are hoisted to the top of the file by Vitest's transform).
@@ -207,9 +215,14 @@ function fakeMsgWithContextTokens(
   return { ...fakeMsg(id, role, text), stats: { contextTokens } }
 }
 
-function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }) {
+function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }, thresholdPercent = 80) {
   mockResolveRequestContextSettings.mockResolvedValue({
-    contextSettings: { enabled: true, truncateThreshold: 0.9, maxMessages: null, compress: { enabled: true } },
+    contextSettings: {
+      enabled: true,
+      truncateThreshold: 0.9,
+      maxMessages: null,
+      compress: { enabled: true, thresholdPercent }
+    },
     compressionModel
   })
 }
@@ -460,6 +473,57 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     await makeHistory('u3', [DEFAULT_MODEL_ID], { maxOutputTokens: 2000 })
 
     expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The trigger is configurable, and this lane must honour it — the in-loop hook
+  // going green on its own would hide a regression here.
+  it('2c. folds at a configured trigger the default would not have reached', async () => {
+    const MID = 'token '.repeat(300) // 5 x 300 = 1500: under the default 3200, over 40%'s 1600... just under
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn(undefined, 30) // trigger = 30% of 4000 = 1200 < ~1500
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+  })
+
+  // The mirror of 2c: the same history under the default 80% trigger (3200)
+  // stays untouched, so 2c is proving the setting and not just the history size.
+  it('2c-bis. leaves that same history alone at the default trigger', async () => {
+    const MID = 'token '.repeat(300)
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', MID))
+    )
+    compressionOn()
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
+  // The keep budget is a fraction of the TRIGGER (0.375x), not of the window
+  // (the old 0.3x). Sized against the window it OVERSHOOTS a low trigger, and a
+  // history that is over the trigger but still fits the budget leaves nothing to
+  // snap: `planKeepBoundary` returns null and this lane silently stops folding
+  // while the in-loop hook carries on alone.
+  //
+  // 5 x ~200 = ~1000 tokens at a 20% trigger on a 4000 window:
+  //   trigger      = 800   → over budget, must fold
+  //   keep (0.375x)= 300   → snaps a boundary, folds the head
+  //   keep (old .3x window) = 1200 → whole history fits, boundary null, no fold
+  it('2d. still snaps a keep boundary at a trigger below the old window-relative budget', async () => {
+    const SMALL = 'token '.repeat(200)
+    mockGetPathToNode.mockReturnValue(
+      ['u1', 'a1', 'u2', 'a2', 'u3'].map((id, i) => fakeMsg(id, i % 2 === 0 ? 'user' : 'assistant', SMALL))
+    )
+    compressionOn(undefined, 20)
+
+    await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).toHaveBeenCalled()
+    expect(mockSetCompactionSummary).toHaveBeenCalled()
   })
 
   // The same history on the same model, but an endpoint that puts no max_tokens
@@ -793,7 +857,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     }
   })
 
-  it("2e. threads the assistant's context-settings override into the request-settings resolver (P2-D)", async () => {
+  it('2e. preserves over-budget history when the assistant disables compression', async () => {
     const OVERRIDE = { truncateThreshold: 4000, compress: { enabled: false } }
     const { resolveAssistantModelId } = await import('../modelResolution')
     // Once: prepareDispatch calls it a single time; reverts to the undefined-assistant
@@ -808,13 +872,25 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       emoji: '🤖',
       settings: { contextSettings: OVERRIDE }
     })
-    mockGetPathToNode.mockReturnValue([fakeMsg('u1', 'user', 'hello')])
-    compressionOn()
-
-    await makeHistory('u1')
-
-    // resolveCompactedHistory forwards the override as the resolver's 2nd arg.
-    expect(mockResolveRequestContextSettings).toHaveBeenCalledWith(expect.anything(), OVERRIDE)
+    const path = [
+      fakeMsg('u1', 'user', 'token '.repeat(5000)),
+      fakeMsg('a1', 'assistant', 'old answer'),
+      fakeMsg('u2', 'user', 'new question')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    const actual = await vi.importActual<typeof RequestContextSettingsModule>(
+      '../../../contextBuild/resolveRequestContextSettings'
+    )
+    mockResolveRequestContextSettings.mockImplementationOnce(actual.resolveRequestContextSettings)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.context_settings.enabled', true)
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.context_settings.compress.enabled', true)
+    try {
+      const { messages } = await makeHistory('u2')
+      expect(messages.map((message) => message.id)).toEqual(['u1', 'a1', 'u2'])
+      expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+    } finally {
+      MockMainPreferenceServiceUtils.resetMocks()
+    }
   })
 
   it('3. existing marker, under budget → apply marker, no new summarization', async () => {
@@ -1043,15 +1119,24 @@ const estimateModelMessages = (messages: Array<{ content: unknown }>) =>
   messages.reduce((sum, m) => sum + estimateMessageTokens(m), 0)
 
 /** A scope shaped like the real RequestScope, sized to the turn-start window. */
-function inLoopScope(contextWindow: number) {
+function inLoopScope(contextWindow: number): RequestScope {
   return {
-    request: { chatId: 'topic-1' },
-    model: { id: 'openai::gpt-4o', contextWindow },
-    // Read only to pick the per-dialect media cost table (`resolveModelTokenDialect`).
-    provider: { id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} },
-    contextSettings: { enabled: true, compress: { enabled: true } },
-    compressionModel: { id: 'compression-model' }
-  } as any
+    request: { conversation: { id: 'topic-1', topicId: 'topic-1' } },
+    model: makeModel(DEFAULT_MODEL_ID, contextWindow),
+    provider: makeProvider({ id: 'openai', defaultChatEndpoint: 'openai-chat-completions', endpointConfigs: {} }),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: { languageModel: new MockLanguageModelV3({ modelId: 'compression-model' }), contextWindow },
+    signal: undefined,
+    registry: new ToolRegistry(),
+    mcpToolIds: new Set(),
+    capabilities: undefined,
+    sdkConfig: { providerId: 'openai', providerOptionsKey: 'openai', providerSettings: {}, modelId: 'gpt-4o' },
+    endpointType: 'openai-chat-completions',
+    aiSdkProviderId: 'openai',
+    reasoningProfile: { format: 'none', wire: { disabled: true } },
+    reasoning: { kind: 'omit', selection: 'default', emissions: [] },
+    requestContext: { requestId: 'request-1' }
+  }
 }
 
 describe('in-loop vs turn-start compaction — no double-compact', () => {
@@ -1098,6 +1183,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
     // The served history is under 0.8×window by construction.
     expect(estimateModelMessages(modelMessages)).toBeLessThan(Math.floor(WINDOW * 0.8))
 
+    expect(inLoopCompactionFeature.applies!(inLoopScope(WINDOW))).toBe(true)
     const prepareStep = inLoopCompactionFeature.contributeHooks!(inLoopScope(WINDOW)).prepareStep!
     const result = await prepareStep({ messages: modelMessages } as any)
 
@@ -1130,6 +1216,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
     ] as any[]
     expect(estimateModelMessages(grownPrompt)).toBeGreaterThanOrEqual(Math.floor(WINDOW * 0.8))
 
+    expect(inLoopCompactionFeature.applies!(inLoopScope(WINDOW))).toBe(true)
     const prepareStep = inLoopCompactionFeature.contributeHooks!(inLoopScope(WINDOW)).prepareStep!
     const result = await prepareStep({ messages: grownPrompt } as any)
 

@@ -12,6 +12,7 @@ import JaJP from './locales/ja-jp.json'
 import ptPT from './locales/pt-pt.json'
 import roRO from './locales/ro-ro.json'
 import RuRu from './locales/ru-ru.json'
+import trTR from './locales/tr-tr.json'
 import viVN from './locales/vi-vn.json'
 import ZhCn from './locales/zh-cn.json'
 import ZhTw from './locales/zh-tw.json'
@@ -29,7 +30,8 @@ const locales = Object.fromEntries(
     ['fr-FR', frFR],
     ['pt-PT', ptPT],
     ['ro-RO', roRO],
-    ['vi-VN', viVN]
+    ['vi-VN', viVN],
+    ['tr-TR', trTR]
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
@@ -47,13 +49,11 @@ export const getAppLanguage = (): LanguageVarious => {
   return (Object.keys(locales).includes(appLocale) ? appLocale : defaultLanguage) as LanguageVarious
 }
 
-export const getI18n = (language: LanguageVarious = getAppLanguage()): Record<string, any> => {
-  return locales[language]
-}
-
 /**
- * Get translation by key path (e.g., 'dialog.save_file')
+ * Get translation by key (e.g., 'dialog.save_file')
  * This is a simplified version for main process, similar to i18next's t() function.
+ *
+ * Catalogs are flat, so the dotted key is looked up literally — there is no path walk.
  *
  * Resolution order: `language` (defaults to the current app language), then the
  * en-US catalog, then the key itself. Supports i18next-style `{{var}}`
@@ -66,18 +66,13 @@ export const getI18n = (language: LanguageVarious = getAppLanguage()): Record<st
  * one translation per requested language, independent of `app.language`.
  */
 export const t = (key: string, params?: Record<string, string | number>, language?: LanguageVarious): string => {
-  const resolve = (translation: any): string | undefined => {
-    let result: any = translation
-    for (const k of key.split('.')) {
-      result = result?.[k]
-      if (result === undefined) {
-        return undefined
-      }
-    }
+  const resolve = (translation: Record<string, string>): string | undefined => {
+    const result = translation[key]
     return typeof result === 'string' && !result.startsWith('[to be translated]') ? result : undefined
   }
 
-  const value = resolve(getI18n(language).translation) ?? resolve(locales[defaultLanguage].translation)
+  const value =
+    resolve(locales[language ?? getAppLanguage()].translation) ?? resolve(locales[defaultLanguage].translation)
   if (value === undefined) {
     return key
   }

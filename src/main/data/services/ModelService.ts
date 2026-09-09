@@ -26,6 +26,7 @@ import {
   type ResolvedReasoningProfile,
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
+import { providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -114,6 +115,12 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
   }
 
   throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI default model cannot be modified')
+}
+
+function assertProvidersAvailable(providerIds: Iterable<string>): void {
+  for (const providerId of new Set(providerIds)) {
+    providerService.assertAvailable(providerId)
+  }
 }
 
 /**
@@ -219,6 +226,16 @@ export interface CreateModelInput {
   registryData?: CreateModelRegistryData
 }
 
+interface ProviderModelReconcilePayload {
+  toAdd: CreateModelInput[]
+  toRemove: string[]
+}
+
+interface ProviderModelReconcileResult {
+  models: Model[]
+  deletedIds: string[]
+}
+
 type NewUserModelInput = Omit<InsertUserModelRow, 'orderKey'>
 
 function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHandlers {
@@ -280,6 +297,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     group: dto.group ?? null,
     capabilities: (dto.capabilities ?? []) as ModelCapability[],
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
+    inputModalitiesExplicit: dto.inputModalities !== undefined,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
     contextWindow: dto.contextWindow ?? null,
@@ -344,6 +362,7 @@ function presetDeltaToNewUserModel(
     group: fields.has('group') ? (dto.group ?? null) : null,
     capabilities: fields.has('capabilities') ? ((dto.capabilities ?? null) as ModelCapability[] | null) : null,
     inputModalities: fields.has('inputModalities') ? ((dto.inputModalities ?? null) as Modality[] | null) : null,
+    inputModalitiesExplicit: fields.has('inputModalities'),
     outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
     endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
     contextWindow: fields.has('contextWindow') ? (dto.contextWindow ?? null) : null,
@@ -540,6 +559,7 @@ class ModelService {
         ;(updates as Record<string, unknown>)[dbKey] = value
       }
     }
+    if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
     return updates
   }
 
@@ -626,6 +646,12 @@ class ModelService {
   list(query: ListModelsQuery): Model[] {
     const db = application.get('DbService').getDb()
 
+    if (query.providerId && !providerService.isAvailableByProviderId(query.providerId)) {
+      return []
+    }
+
+    const availableProviderIds = query.providerId ? undefined : providerService.listAvailableProviderIds()
+
     const conditions: SQL[] = []
 
     if (query.providerId) {
@@ -643,7 +669,9 @@ class ModelService {
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
       .all()
 
-    let models = this.enrichRowsFromRegistry(rows)
+    let models = this.enrichRowsFromRegistry(
+      availableProviderIds ? rows.filter((row) => availableProviderIds.has(row.providerId)) : rows
+    )
 
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
     if (query.capability !== undefined) {
@@ -713,6 +741,17 @@ class ModelService {
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        if (model.description === undefined && registryModel?.description !== undefined) {
+          updates.description = registryModel.description
+        }
+        const hasExplicitInputModalities =
+          row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
+        if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
+          updates.inputModalities = registryModel.inputModalities
+        }
+        if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {
+          updates.outputModalities = registryModel.outputModalities
+        }
         if (model.contextWindow === undefined && registryModel?.contextWindow !== undefined) {
           updates.contextWindow = registryModel.contextWindow
         }
@@ -721,6 +760,9 @@ class ModelService {
         }
         if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
           updates.maxOutputTokens = registryModel.maxOutputTokens
+        }
+        if (model.parameterSupport === undefined && registryModel?.parameterSupport !== undefined) {
+          updates.parameterSupport = registryModel.parameterSupport
         }
         if (model.pricing === undefined && registryModel?.pricing !== undefined) {
           updates.pricing = registryModel.pricing
@@ -765,22 +807,23 @@ class ModelService {
    *
    * Foreign services call this inside their own transaction when they need a
    * soft fallback instead of a thrown not-found error. The caller owns the
-   * domain-specific validation message; this method only returns the row.
+   * domain-specific validation message. Providers unavailable in the current
+   * edition are treated as missing before the row is enriched.
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
     const [row] = tx.select().from(userModelTable).where(eq(userModelTable.id, id)).limit(1).all()
-    return row ? this.enrichRowsFromRegistry([row])[0] : null
+    return row && providerService.isAvailableByProviderId(row.providerId) ? this.enrichRowsFromRegistry([row])[0] : null
   }
 
-  /** Check model existence without resolving a registry-backed runtime model. */
+  /** Check model existence under a provider available in the current edition. */
   existsByIdTx(tx: Pick<DbType, 'select'>, id: string): boolean {
     const [row] = tx
-      .select({ id: userModelTable.id })
+      .select({ id: userModelTable.id, providerId: userModelTable.providerId })
       .from(userModelTable)
       .where(eq(userModelTable.id, id))
       .limit(1)
       .all()
-    return Boolean(row)
+    return row !== undefined && providerService.isAvailableByProviderId(row.providerId)
   }
 
   /**
@@ -808,7 +851,8 @@ class ModelService {
 
     const rows = tx.select().from(userModelTable).where(inArray(userModelTable.id, ids)).all()
 
-    for (const model of this.enrichRowsFromRegistry(rows)) {
+    const availableProviderIds = providerService.listAvailableProviderIds(rows.map((row) => row.providerId))
+    for (const model of this.enrichRowsFromRegistry(rows.filter((row) => availableProviderIds.has(row.providerId)))) {
       if (model.name) result.set(model.id, model.name)
     }
     return result
@@ -818,6 +862,8 @@ class ModelService {
    * Get a model by composite key (providerId + modelId)
    */
   getByKey(providerId: string, modelId: string): Model {
+    providerService.assertAvailable(providerId)
+
     const db = application.get('DbService').getDb()
 
     const [row] = db
@@ -855,6 +901,7 @@ class ModelService {
    */
   create(items: CreateModelInput[]): Model[] {
     if (items.length === 0) return []
+    assertProvidersAvailable(items.map(({ dto }) => dto.providerId))
     for (const { dto } of items) {
       assertManagedCherryAiDefaultModelMutationAllowed(
         dto.providerId,
@@ -913,6 +960,7 @@ class ModelService {
    * Update an existing model
    */
   update(providerId: string, modelId: string, dto: UpdateModelDto): Model {
+    providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
     const db = application.get('DbService').getDb()
@@ -960,6 +1008,7 @@ class ModelService {
    */
   bulkUpdate(items: Array<{ providerId: string; modelId: string; patch: UpdateModelDto }>): Model[] {
     if (items.length === 0) return []
+    assertProvidersAvailable(items.map((item) => item.providerId))
 
     const db = application.get('DbService').getDb()
 
@@ -1020,61 +1069,19 @@ class ModelService {
    * one. Pins for removed models are purged in the same transaction.
    */
   reconcileForProvider(providerId: string, payload: { toAdd: CreateModelInput[]; toRemove: string[] }): Model[] {
+    providerService.assertAvailable(providerId)
     if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
       return this.list({ providerId })
     }
 
     const db = application.get('DbService').getDb()
-    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const removalFilter = this.filterReconcileRemovals(providerId, payload.toRemove, db)
     const toRemove = removalFilter.toRemove
-
-    let actuallyDeleted = 0
-    const deletedIds: string[] = []
-    const rows = withSqliteErrors(
-      () =>
-        db.transaction((tx) => {
-          if (toRemove.length > 0) {
-            for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
-              const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
-              const deletedRows = tx
-                .delete(userModelTable)
-                .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
-                .returning({ id: userModelTable.id })
-                .all()
-              actuallyDeleted += deletedRows.length
-              deletedIds.push(...deletedRows.map((row) => row.id))
-
-              if (deletedRows.length > 0) {
-                pinService.purgeForEntitiesTx(
-                  tx,
-                  'model',
-                  deletedRows.map((row) => row.id)
-                )
-              }
-            }
-          }
-
-          if (values.length > 0) {
-            // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
-            const INSERT_CHUNK_SIZE = 500
-            for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
-              insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
-                pkColumn: userModelTable.id,
-                scope: eq(userModelTable.providerId, providerId)
-              })
-            }
-          }
-
-          return tx
-            .select()
-            .from(userModelTable)
-            .where(eq(userModelTable.providerId, providerId))
-            .orderBy(asc(userModelTable.orderKey))
-            .all() as UserModelRow[]
-        }),
-      createModelsSqliteHandlers(values)
-    )
+    const result = this.applyProviderModelReconcile(providerId, {
+      toAdd: payload.toAdd,
+      toRemove
+    })
+    const actuallyDeleted = result.deletedIds.length
 
     if (actuallyDeleted < toRemove.length) {
       // Stale renderer state — caller's toRemove referenced IDs that no longer
@@ -1089,9 +1096,7 @@ class ModelService {
       })
     }
 
-    if (actuallyDeleted > 0) pinService.notifyPurged()
-
-    const deletedPresetBackedIds = deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
+    const deletedPresetBackedIds = result.deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
     if (deletedPresetBackedIds.length > 0) {
       logger.info('Deleted preset-backed models during reconcile', {
         providerId,
@@ -1102,17 +1107,68 @@ class ModelService {
 
     logger.info('Reconciled provider models', {
       providerId,
-      added: values.length,
+      added: payload.toAdd.length,
       removed: actuallyDeleted
     })
 
-    return this.enrichRowsFromRegistry(rows)
+    return result.models
+  }
+
+  private applyProviderModelReconcile(
+    providerId: string,
+    payload: ProviderModelReconcilePayload
+  ): ProviderModelReconcileResult {
+    const dbService = application.get('DbService')
+    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const deletedIds: string[] = []
+    const rows = withSqliteErrors(
+      () =>
+        dbService.withWriteTx((tx) => {
+          for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+            const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+            const deletedRows = tx
+              .delete(userModelTable)
+              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+              .returning({ id: userModelTable.id })
+              .all()
+            deletedIds.push(...deletedRows.map((row) => row.id))
+            if (deletedRows.length > 0) {
+              pinService.purgeForEntitiesTx(
+                tx,
+                'model',
+                deletedRows.map((row) => row.id)
+              )
+            }
+          }
+
+          // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
+          const INSERT_CHUNK_SIZE = 500
+          for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
+            insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
+              pkColumn: userModelTable.id,
+              scope: eq(userModelTable.providerId, providerId)
+            })
+          }
+
+          return tx
+            .select()
+            .from(userModelTable)
+            .where(eq(userModelTable.providerId, providerId))
+            .orderBy(asc(userModelTable.orderKey))
+            .all() as UserModelRow[]
+        }),
+      createModelsSqliteHandlers(values)
+    )
+
+    if (deletedIds.length > 0) pinService.notifyPurged()
+    return { models: this.enrichRowsFromRegistry(rows), deletedIds }
   }
 
   /**
    * Delete a model
    */
   delete(providerId: string, modelId: string): void {
+    providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
     const uniqueModelId = createUniqueModelId(providerId, modelId)
@@ -1145,6 +1201,7 @@ class ModelService {
    */
   bulkDelete(items: { providerId: string; modelId: string }[]): void {
     if (items.length === 0) return
+    assertProvidersAvailable(items.map((item) => item.providerId))
 
     const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
 

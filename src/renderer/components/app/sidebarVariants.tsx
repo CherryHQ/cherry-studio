@@ -39,11 +39,11 @@ export interface SidebarVariantContext {
   assistantIconType: AssistantIconType
   agentIconType: AssistantIconType
   defaultModelId: string | null
-  isRequiredApp: (id: SidebarAppId) => boolean
-  openApp: (id: SidebarAppId) => void
-  openMiniApp: (id: string) => void
-  openAgent: (id: string) => void
-  openAssistant: (id: string) => void
+  visibleAppCount: number
+  openApp: (id: SidebarAppId, options?: { inNewTab?: boolean }) => void
+  openMiniApp: (id: string, options?: { inNewTab?: boolean }) => void
+  openAgent: (id: string, options?: { inNewTab?: boolean }) => void
+  openAssistant: (id: string, options?: { inNewTab?: boolean }) => void
   removeApp: (id: SidebarAppId) => void
   removeMiniApp: (id: string) => void
   removeAgent: (id: string) => void
@@ -71,18 +71,21 @@ const appVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 
     // the preference.
     if (!path || !Icon) return null
 
+    const isLastApp = ctx.visibleAppCount <= 1
+
     return {
       key: getSidebarFavoriteKey(item),
       label: ctx.t(getSidebarIconLabelKey(id)),
       renderIcon: (size) => <Icon size={size} strokeWidth={1.6} />,
       isActive: (active) => active.activeItem === id,
       onOpen: () => ctx.openApp(id),
+      onOpenNewTab: () => ctx.openApp(id, { inNewTab: true }),
       contextMenuItems: [
         {
           type: 'item',
           id: `sidebar.remove-app.${id}`,
           label: ctx.t('launchpad.unpin_from_sidebar'),
-          enabled: !ctx.isRequiredApp(id),
+          enabled: !isLastApp,
           onSelect: () => ctx.removeApp(id)
         }
       ]
@@ -110,6 +113,7 @@ const miniAppVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { ty
       renderIcon: (_size, miniAppSize) => <MiniAppIcon tab={tab} size={miniAppSize} />,
       isActive: (active) => active.activeTabId === app.appId,
       onOpen: () => ctx.openMiniApp(app.appId),
+      onOpenNewTab: () => ctx.openMiniApp(app.appId, { inNewTab: true }),
       contextMenuItems: [
         {
           type: 'item',
@@ -144,6 +148,7 @@ const agentVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type
       // only navigates the conversation the interceptor resolves.
       isActive: () => false,
       onOpen: () => ctx.openAgent(agent.id),
+      onOpenNewTab: () => ctx.openAgent(agent.id, { inNewTab: true }),
       contextMenuItems: [
         {
           type: 'item',
@@ -177,6 +182,7 @@ const assistantVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { 
       // Active-state highlight stays on the built-in assistants app entry.
       isActive: () => false,
       onOpen: () => ctx.openAssistant(assistant.id),
+      onOpenNewTab: () => ctx.openAssistant(assistant.id, { inNewTab: true }),
       contextMenuItems: [
         {
           type: 'item',

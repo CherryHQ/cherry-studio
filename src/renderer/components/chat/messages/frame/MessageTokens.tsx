@@ -1,21 +1,16 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
-import type { MessageStats } from '@shared/data/types/message'
-import type { FC } from 'react'
+import type { FC, MouseEvent } from 'react'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageListActions, useMessageListMeta } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
-import { getMessageModelTokensPerSecond } from './messagePerformance'
+import { getMessageModelTokensPerSecond, getMessageTokenUsage } from './messagePerformance'
 import MessageTokenDetailsCard from './MessageTokenDetailsCard'
 
 interface MessageTokensProps {
   message: MessageListItem
-}
-
-function getTotalTokens(stats: MessageStats): number {
-  return stats.totalTokens ?? (stats.inputTokens ?? 0) + (stats.outputTokens ?? 0)
 }
 
 function UserMessageTokens({ label, onLocate }: { label: string; onLocate: () => void }) {
@@ -38,11 +33,12 @@ function AssistantMessageTokens({
   message: MessageListItem
   onLocate: () => void
 }) {
-  const [showAllDetails, setShowAllDetails] = useState(false)
+  const [showMoreDetails, setShowMoreDetails] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [isDetailsDismissed, setIsDetailsDismissed] = useState(false)
   const contentId = useId()
   const messageKind = useMessageListMeta().aiUsageMessageKind ?? 'chat'
-  const { pages, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
+  const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
     enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
     query: {
       messageKind,
@@ -53,10 +49,47 @@ function AssistantMessageTokens({
     limit: 200
   })
   const records = useInfiniteFlatItems(pages)
+  const isDetailsVisible = isDetailsOpen && !isDetailsDismissed
   const requestedPageCountRef = useRef(1)
+  const pointerDownPositionRef = useRef<{ x: number; y: number } | undefined>(undefined)
+  const handleDetailsOpenChange = (open: boolean) => {
+    if (open && isDetailsDismissed) return
+    setIsDetailsOpen(open)
+  }
+  const handleMouseDown = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) return
+
+    pointerDownPositionRef.current = { x: event.clientX, y: event.clientY }
+    setIsDetailsDismissed(true)
+    setIsDetailsOpen(false)
+  }
+  const handleMouseBoundary = (event: MouseEvent<HTMLButtonElement>) => {
+    const pointerDownPosition = pointerDownPositionRef.current
+    if (!pointerDownPosition) {
+      setIsDetailsDismissed(false)
+      return
+    }
+
+    const movedDistance = Math.hypot(event.clientX - pointerDownPosition.x, event.clientY - pointerDownPosition.y)
+    if (movedDistance < 2) return
+
+    pointerDownPositionRef.current = undefined
+    setIsDetailsDismissed(false)
+  }
+  const handleLocate = (event: MouseEvent<HTMLButtonElement>) => {
+    if (event.detail === 0) {
+      setIsDetailsDismissed(true)
+      setIsDetailsOpen(false)
+    }
+    onLocate()
+  }
+  const handleBlur = () => {
+    pointerDownPositionRef.current = undefined
+    setIsDetailsDismissed(false)
+  }
 
   useEffect(() => {
-    if (!isDetailsOpen) {
+    if (!showMoreDetails || !isDetailsVisible) {
       requestedPageCountRef.current = pages.length
       return
     }
@@ -64,18 +97,20 @@ function AssistantMessageTokens({
 
     requestedPageCountRef.current = pages.length + 1
     loadNext()
-  }, [hasNext, isDetailsOpen, isRefreshing, loadNext, pages.length])
+  }, [hasNext, isDetailsVisible, isRefreshing, loadNext, pages.length, showMoreDetails])
 
   return (
-    <HoverCard open={isDetailsOpen} onOpenChange={setIsDetailsOpen} openDelay={200} closeDelay={100}>
+    <HoverCard open={isDetailsVisible} onOpenChange={handleDetailsOpenChange} openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
         <button
           type="button"
-          aria-describedby={showAllDetails ? contentId : undefined}
+          aria-describedby={isDetailsVisible ? contentId : undefined}
           className="message-tokens cursor-pointer select-text text-right text-muted-foreground text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
-          onFocus={() => setShowAllDetails(true)}
-          onBlur={() => setShowAllDetails(false)}
-          onClick={onLocate}>
+          onBlur={handleBlur}
+          onMouseDown={handleMouseDown}
+          onMouseEnter={handleMouseBoundary}
+          onMouseLeave={handleMouseBoundary}
+          onClick={handleLocate}>
           {label}
         </button>
       </HoverCardTrigger>
@@ -86,7 +121,13 @@ function AssistantMessageTokens({
         sideOffset={8}
         collisionPadding={12}
         className="w-[28rem] max-w-(--radix-hover-card-content-available-width) p-0">
-        <MessageTokenDetailsCard message={message} records={records} showAllDetails={showAllDetails} />
+        <MessageTokenDetailsCard
+          message={message}
+          records={records}
+          showMoreDetails={showMoreDetails}
+          isLoadingDetails={isLoading || isRefreshing}
+          onShowMoreDetailsChange={setShowMoreDetails}
+        />
       </HoverCardContent>
     </HoverCard>
   )
@@ -113,8 +154,11 @@ const MessageTokens: FC<MessageTokensProps> = ({ message }) => {
     return null
   }
 
-  const totalTokens = getTotalTokens(stats)
-  const tokenLabel = t('chat.message.token_details.tokens', { value: compactFormatter.format(totalTokens) })
+  const totalTokens = getMessageTokenUsage(stats).totalTokens
+  const tokenLabel = t('chat.message.token_details.tokens', {
+    value:
+      totalTokens === undefined ? t('chat.message.token_details.unavailable') : compactFormatter.format(totalTokens)
+  })
   const locateMessage = () => actions.locateMessage?.(message.id, false)
 
   if (message.role === 'user') {

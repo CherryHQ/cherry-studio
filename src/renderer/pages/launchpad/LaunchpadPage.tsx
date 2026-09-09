@@ -1,10 +1,18 @@
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
-import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
+import agentsIcon from '@renderer/assets/images/apps/launchpad-agents.svg'
+import assistantsIcon from '@renderer/assets/images/apps/launchpad-assistants.svg'
+import codeToolsIcon from '@renderer/assets/images/apps/launchpad-code-tools.svg'
+import dshIcon from '@renderer/assets/images/apps/launchpad-dsh.svg'
+import filesIcon from '@renderer/assets/images/apps/launchpad-files.svg'
+import knowledgeIcon from '@renderer/assets/images/apps/launchpad-knowledge.svg'
+import miniAppIcon from '@renderer/assets/images/apps/launchpad-mini-app.svg'
+import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
+import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
+import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
-import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -12,7 +20,7 @@ import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
+import { getSidebarMenuPath } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -21,34 +29,52 @@ import { useTranslation } from 'react-i18next'
 const BASE_URL = 'https://www.cherry-ai.com/'
 const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
 
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
+const APP_ICON_TILE_CLASS =
+  'flex size-14 items-center justify-center rounded-2xl border border-border-subtle bg-transparent'
+const APP_ICON_FRAME_CLASS =
+  'relative flex size-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl select-none'
+const APP_ICON_CLASS = 'size-[50px] object-contain'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
-  assistants: 'linear-gradient(135deg, #1F2937, #374151)',
-  agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
-  paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
-  translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
-  mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
-  knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
-  files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
-  code_tools: 'linear-gradient(135deg, #4B5563, #6B7280)',
-  notes: 'linear-gradient(135deg, #F97316, #FB923C)'
+const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
+  assistants: assistantsIcon,
+  agents: agentsIcon,
+  paintings: paintingsIcon,
+  translate: translateIcon,
+  mini_app: miniAppIcon,
+  knowledge: knowledgeIcon,
+  files: filesIcon,
+  code_tools: codeToolsIcon,
+  notes: notesIcon
 }
 
 export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const {
+    pinned,
+    openedKeepAliveMiniApps,
+    currentMiniAppId,
+    miniAppShow,
+    updateAppStatus,
+    hideMiniApp,
+    removeCustomMiniApp,
+    reorderMiniAppsByStatus
+  } = useMiniApps()
+  const { appFavorites, miniAppFavoriteIds, setAppPinned, toggleMiniApp } = useSidebarFavorites()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
   const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
+  const miniAppFavoriteIdSet = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+  const openedMiniAppIdSet = useMemo(
+    () => new Set(openedKeepAliveMiniApps.map((app) => app.appId)),
+    [openedKeepAliveMiniApps]
+  )
 
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)
@@ -93,11 +119,14 @@ export default function LaunchpadPage() {
     void navigateToUrl(path)
   }
 
-  const openMiniApp = (app: MiniAppType) => {
-    if (shouldSuppressLaunchClick(app.appId)) return
+  const openMiniApp = useCallback(
+    (appId: string) => {
+      if (shouldSuppressLaunchClick(appId)) return
 
-    void navigateToUrl(`/app/mini-app/${app.appId}`)
-  }
+      void navigateToUrl(`/app/mini-app/${appId}`)
+    },
+    [navigateToUrl, shouldSuppressLaunchClick]
+  )
 
   const openDeepSeekHarness = () => {
     void navigateToUrl(DEEPSEEK_HARNESS_URL)
@@ -113,7 +142,8 @@ export default function LaunchpadPage() {
 
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (!visibleSidebarFavoriteSet.has(favorite) || REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
+      if (!visibleSidebarFavoriteSet.has(favorite)) return
+      if (visibleSidebarFavoriteSet.size <= 1) return
       setAppPinned(favorite, false)
     },
     [setAppPinned, visibleSidebarFavoriteSet]
@@ -122,13 +152,14 @@ export default function LaunchpadPage() {
   const getAppContextMenuItems = useCallback(
     (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
       const isPinned = visibleSidebarFavoriteSet.has(favorite)
+      const isLastPinned = isPinned && visibleSidebarFavoriteSet.size <= 1
 
       return [
         {
           type: 'item',
           id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
           label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-          enabled: !isPinned || !REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite),
+          enabled: !isLastPinned,
           onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
@@ -141,15 +172,13 @@ export default function LaunchpadPage() {
   const appMenuItems = useMemo(
     () =>
       orderedAppIds.flatMap((favorite) => {
-        const Icon = SIDEBAR_ICON_COMPONENTS[favorite]
-        if (!Icon || !getSidebarMenuPath(favorite, defaultPaintingProvider)) return []
+        if (!getSidebarMenuPath(favorite, defaultPaintingProvider)) return []
 
         return [
           {
             id: favorite,
-            icon: <Icon size={32} />,
+            iconSrc: APP_ICON_SOURCES[favorite],
             text: t(getSidebarIconLabelKey(favorite)),
-            bgColor: APP_ICON_BACKGROUNDS[favorite],
             menuItems: getAppContextMenuItems(favorite)
           }
         ]
@@ -205,10 +234,10 @@ export default function LaunchpadPage() {
         onClick={() => openLaunchpadItem(item.id)}
         className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
         <span className="relative flex size-14 items-center justify-center">
-          <span
-            className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
-            style={{ background: item.bgColor }}>
-            {item.icon}
+          <span className={APP_ICON_TILE_CLASS}>
+            <span className={APP_ICON_FRAME_CLASS}>
+              <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
+            </span>
           </span>
         </span>
         <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
@@ -222,7 +251,20 @@ export default function LaunchpadPage() {
     <div
       key={app.appId}
       className={`${LAUNCHPAD_ITEM_CLASS} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 hover:scale-105 active:scale-95`}>
-      <App app={app} size={56} variant="launchpad" onOpen={openMiniApp} />
+      <App
+        app={app}
+        size={56}
+        variant="launchpad"
+        onOpen={openMiniApp}
+        onUpdateStatus={updateAppStatus}
+        onHide={hideMiniApp}
+        onRemoveCustom={removeCustomMiniApp}
+        onToggleSidebarFavorite={toggleMiniApp}
+        isPinned
+        isSidebarFavorite={miniAppFavoriteIdSet.has(app.appId)}
+        isOpened={openedMiniAppIdSet.has(app.appId)}
+        isActive={miniAppShow && currentMiniAppId === app.appId}
+      />
     </div>
   )
 
@@ -250,15 +292,10 @@ export default function LaunchpadPage() {
                 type="button"
                 onClick={openDeepSeekHarness}
                 className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
-                <span className="flex size-14 items-center justify-center rounded-2xl border border-border-subtle bg-muted shadow-none dark:shadow-sm">
-                  <ProviderAvatarPrimitive
-                    providerId="deepseek"
-                    providerName="DeepSeek"
-                    logo="icon:deepseek"
-                    size={52}
-                    className="rounded-xl [&_[data-slot=avatar-fallback]]:bg-transparent"
-                    iconStyle={{ transform: 'scale(1.2)' }}
-                  />
+                <span className={APP_ICON_TILE_CLASS}>
+                  <span className={APP_ICON_FRAME_CLASS}>
+                    <img src={dshIcon} alt="" className={APP_ICON_CLASS} draggable={false} />
+                  </span>
                 </span>
                 <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
                   {t('launchpad.deepseek_harness_shortcut')}

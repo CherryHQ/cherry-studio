@@ -9,8 +9,6 @@ import * as z from 'zod'
 import { defineRoute } from '../define'
 import { operationResultSchema } from './common'
 
-const deepSeekHarnessStatusSchema = z.enum(['stopped', 'starting', 'running', 'error'])
-
 export const deepSeekHarnessRequestSchemas = {
   'deepseek_harness.start': defineRoute({
     input: z
@@ -31,9 +29,5 @@ export const deepSeekHarnessRequestSchemas = {
   'deepseek_harness.stop': defineRoute({
     input: z.void(),
     output: operationResultSchema
-  }),
-  'deepseek_harness.get_status': defineRoute({
-    input: z.void(),
-    output: z.object({ status: deepSeekHarnessStatusSchema, url: z.string().url().optional() })
   })
 }

@@ -56,7 +56,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   }, [providers, normalizedSearch, t, toolName, resolveMeta, providerConfigs])
 
   const handleMoveToTop = (provider: Provider) => {
-    if (providers[0]?.id === provider.id) return
+    if (providerActionsDisabled || providers[0]?.id === provider.id) return
     const nextProviders = [provider, ...providers.filter((candidate) => candidate.id !== provider.id)]
     void Promise.resolve(onReorder(nextProviders)).catch(() => undefined)
   }
@@ -81,10 +81,11 @@ export const ConfigList: FC<ConfigListProps> = ({
       visibleItems={displayedProviders}
       getId={(p) => p.id}
       onReorder={onReorder}
+      disabled={providerActionsDisabled}
       gap="0.5rem"
       itemStyle={{ cursor: 'default' }}
       renderItem={(provider, _index, { dragging }) => {
-        const onMoveToTop = providers[0]?.id === provider.id ? undefined : handleMoveToTop
+        const onMoveToTop = providerActionsDisabled || providers[0]?.id === provider.id ? undefined : handleMoveToTop
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           return (
             <OwnLoginCard

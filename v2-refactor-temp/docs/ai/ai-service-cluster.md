@@ -8,15 +8,15 @@
 | `src/main/ai/types/requests.ts` | 83 | `AiBaseRequest`, `AiStreamRequest`, `AiTransportOptions`, `ListModelsRequest` |
 | `src/main/ai/types/merged.ts` | 102 | `AppProviderSettingsMap` extension type merging |
 | `src/main/ai/types/providerConfig.ts` | 45 | `ProviderConfig`, `ProviderCapabilities`, `CompletionsResult` |
-| `src/main/ai/types/index.ts` | — | Re-export barrel (`providerConfig` + `merged`) |
+| `src/main/ai/types/index.ts` | — | Re-export barrel (`approval` + `merged` + `providerConfig` + `requests` + `sampling`) |
 | Tests | `__tests__/AiService.test.ts` (114) | Lifecycle + IPC handler smoke tests |
 
 ## Intent
 
 `AiService` is the lifecycle-owned IPC owner for the `Ai_*` channel
 namespace. It is intentionally thin — it routes IPC calls into the
-shared building blocks (`Agent`, `buildAgentParams`, `dispatchStreamRequest`,
-`translateService`) and is not where business logic lives. Adding a new
+shared building blocks (`Agent`, `buildAgentParams`, `dispatchStreamRequest`)
+and is not where business logic lives. Adding a new
 LLM-driven IPC entry should be one IPC line in `registerIpcHandlers()`
 plus a method.
 
@@ -29,10 +29,14 @@ plus a method.
 | `Ai_EmbedMany` | `ipcHandle` | `embedMany(request)` |
 | `Ai_GenerateImage` | `ipcOn` (MessagePort) | port-based abort, no main-side registry |
 | `Ai_ListModels` | `ipcHandle` | `listModels(request)` |
-| `Ai_Translate_Open` | `ipcHandle` | `translateService.translate(request)` — see [translate-on-main.md](./translate-on-main.md) |
 | `Ai_ToolApproval_Respond` | `ipcHandle` | applies decision, dispatches `continue-conversation` when all decided |
 | `Ai_Stream_Open` / `Ai_Stream_Attach` / `Ai_Stream_Abort` | `ipcHandle` | proxied to `AiStreamManager` (the manager registers these in its own lifecycle) |
 | `Ai_EstimateTokens` | `ipcHandle` | thin forwarder to the [`token-estimator-p0`](./token-estimator-p0.md) pure module |
+
+Text translation no longer belongs to this legacy channel set. The IpcApi
+`translate.open` handler delegates to `translateService.open`; see the
+canonical [Text Translation](../../../docs/references/ai/translation.md)
+reference.
 
 ## Key changes
 

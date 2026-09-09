@@ -389,13 +389,40 @@ describe('AutoBackupService', () => {
     expect(service.getStateSnapshot().pendingNotifications).toEqual([])
   })
 
-  it('keeps the last result in snapshots while the next backup is running', () => {
+  it('publishes the latest state per backup type', () => {
     ;(service as any).emit({ type: 'webdav', status: 'succeeded', timestamp: 123 })
     ;(service as any).emit({ type: 'webdav', status: 'running' })
 
-    expect(service.getStateSnapshot().events.filter((event) => event.type === 'webdav')).toMatchObject([
-      { status: 'succeeded', timestamp: 123 },
-      { status: 'running' }
-    ])
+    expect(MockMainCacheServiceExport.cacheService.getShared('backup.auto_sync.state.webdav')).toMatchObject({
+      type: 'webdav',
+      status: 'running'
+    })
+  })
+
+  it('forwards data.backup.webdav.allow_self_signed_tls into the backup config', async () => {
+    preferences['data.backup.webdav.allow_self_signed_tls'] = true
+    await recreateService()
+    await vi.advanceTimersByTimeAsync(61_000)
+
+    expect(legacyBackupManager.backupToWebdav).toHaveBeenCalled()
+    // Both webdav and nutstore schedules hit backupToWebdav; select by host,
+    // not by call order.
+    const config = vi
+      .mocked(legacyBackupManager.backupToWebdav)
+      .mock.calls.map(([, callConfig]) => callConfig as { webdavHost?: string; allowSelfSignedTls?: boolean })
+      .find((callConfig) => callConfig.webdavHost === 'https://example.com/dav')
+    expect(config?.allowSelfSignedTls).toBe(true)
+  })
+
+  it('defaults the flag to false in the config when the preference is unset (fail-closed)', async () => {
+    delete preferences['data.backup.webdav.allow_self_signed_tls']
+    await recreateService()
+    await vi.advanceTimersByTimeAsync(61_000)
+
+    const config = vi
+      .mocked(legacyBackupManager.backupToWebdav)
+      .mock.calls.map(([, callConfig]) => callConfig as { webdavHost?: string; allowSelfSignedTls?: boolean })
+      .find((callConfig) => callConfig.webdavHost === 'https://example.com/dav')
+    expect(config?.allowSelfSignedTls).toBe(false)
   })
 })

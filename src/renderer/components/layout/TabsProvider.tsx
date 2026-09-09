@@ -1,6 +1,9 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import {
+  type CloseConversationTabs,
+  CloseConversationTabsContext,
+  findClosableConversationTabIds,
   type OpenTabOptions,
   TabsContext,
   type TabsContextValue,
@@ -482,6 +485,21 @@ export function TabsProvider({
 
   const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
 
+  const closeConversationTabsStateRef = useRef({ tabs, activeTabId, closeTabs })
+  useLayoutEffect(() => {
+    closeConversationTabsStateRef.current = { tabs, activeTabId, closeTabs }
+  }, [tabs, activeTabId, closeTabs])
+
+  const closeConversationTabs = useCallback<CloseConversationTabs>((appId, keys) => {
+    const {
+      tabs: latestTabs,
+      activeTabId: latestActiveTabId,
+      closeTabs: closeLatestTabs
+    } = closeConversationTabsStateRef.current
+    const tabIds = findClosableConversationTabIds(latestTabs, latestActiveTabId, appId, keys)
+    if (tabIds.length > 0) closeLatestTabs(tabIds)
+  }, [])
+
   /**
    * Open a Tab - reuses existing tab or creates new one
    */
@@ -662,5 +680,9 @@ export function TabsProvider({
     reorderTabs
   }
 
-  return <TabsContext value={value}>{children}</TabsContext>
+  return (
+    <CloseConversationTabsContext value={closeConversationTabs}>
+      <TabsContext value={value}>{children}</TabsContext>
+    </CloseConversationTabsContext>
+  )
 }

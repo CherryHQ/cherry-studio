@@ -6,6 +6,7 @@ import 'dayjs/locale/ja'
 import 'dayjs/locale/pt'
 import 'dayjs/locale/ro'
 import 'dayjs/locale/ru'
+import 'dayjs/locale/tr'
 import 'dayjs/locale/vi'
 import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/zh-tw'
@@ -36,7 +37,8 @@ const localeLoaders = {
   'pt-PT': () => import('./locales/pt-pt.json'),
   'ro-RO': () => import('./locales/ro-ro.json'),
   'ru-RU': () => import('./locales/ru-ru.json'),
-  'vi-VN': () => import('./locales/vi-vn.json')
+  'vi-VN': () => import('./locales/vi-vn.json'),
+  'tr-TR': () => import('./locales/tr-tr.json')
 } satisfies Record<LanguageVarious, () => Promise<unknown>>
 
 export const getLanguage = async () => {
@@ -60,7 +62,8 @@ const dayjsLocaleMap: Record<string, string> = {
   'fr-FR': 'fr',
   'pt-PT': 'pt',
   'ro-RO': 'ro',
-  'vi-VN': 'vi'
+  'vi-VN': 'vi',
+  'tr-TR': 'tr'
 }
 
 export const setDayjsLocale = (language: string) => {
@@ -89,6 +92,8 @@ const doInit = async (): Promise<void> => {
       // Load only the exact locale code (e.g. `zh-CN`), never the bare base
       // (`zh`), which has no pack and would trigger a doomed extra fetch.
       load: 'currentOnly',
+      // Catalogs are flat: `settings.provider.title` is one literal key, not a path.
+      keySeparator: false,
       // Drop i18next's internal setTimeout(0) so init settles without a
       // macrotask (keeps fake-timer tests deterministic). Renamed `initAsync`
       // in i18next v24, and the compat alias is removed in v26 — rename when

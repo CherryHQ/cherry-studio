@@ -8,12 +8,12 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
 import { atomicWriteFile, remove } from '@main/utils/file'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { crossPlatformSpawn, removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel, UniqueModelId } from '@shared/data/types/model'
 import {
@@ -41,6 +41,7 @@ const openclawConfigPath = (): AbsoluteFilePath =>
 const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.json.bak')
 const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18790
+const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
 const OPENCLAW_SCHEMA_CAPTURE_LIMIT_BYTES = 32 * 1024 * 1024
@@ -315,6 +316,13 @@ export interface OpenClawModelConfig {
     output: number
     cacheRead?: number
     cacheWrite?: number
+    tieredPricing?: Array<{
+      input: number
+      output: number
+      cacheRead: number
+      cacheWrite: number
+      range: [number, number] | [number]
+    }>
   }
   [key: string]: unknown
 }
@@ -383,22 +391,103 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
 export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+  // Bumped by every setGatewayStatus; probes discard results from an older generation.
+  private gatewayTransitionId = 0
 
   public get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.gatewayPort}/ws`
   }
 
   protected async onInit(): Promise<void> {
-    // IPC handlers migrated to IpcApi (openclaw.*)
+    application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
+  }
+
+  protected async onReady(): Promise<void> {
+    // Align the probe port with the persisted preference so external gateways on a
+    // custom port are detected before any sync/start runs this session.
+    this.syncGatewayPortFromPreference()
+    this.registerDisposable(
+      application
+        .get('PreferenceService')
+        .subscribeChange('feature.openclaw.gateway_port', () => this.onGatewayPortPreferenceChanged())
+    )
+    // Report a gateway that died without telling us; registerInterval is lifecycle-cleaned.
+    this.registerInterval(() => this.probeGatewayTick(), GATEWAY_PROBE_INTERVAL_MS)
+  }
+
+  private syncGatewayPortFromPreference(): void {
+    const port = application.get('PreferenceService').get('feature.openclaw.gateway_port')
+    if (Number.isInteger(port) && port >= 1 && port <= 65535) this.gatewayPort = port
+  }
+
+  private onGatewayPortPreferenceChanged(): void {
+    // While a gateway runs on the old port, repointing would mislabel it stopped;
+    // adopt the new port once the gateway is idle (the next start/sync uses it anyway).
+    if (this.gatewayStatus === 'stopped' || this.gatewayStatus === 'error') this.syncGatewayPortFromPreference()
   }
 
   protected async onStop(): Promise<void> {
     await this.stopGateway()
+  }
+
+  /** Single gateway-status-transition point for the main-owned shared snapshot. */
+  private setGatewayStatus(status: GatewayStatus, options?: { force?: boolean }): void {
+    if (!options?.force && this.gatewayStatus === status) return
+    this.gatewayStatus = status
+    this.gatewayTransitionId++
+    // Becoming idle is the moment a port preference change deferred during a run takes effect.
+    if (status === 'stopped' || status === 'error') this.syncGatewayPortFromPreference()
+    application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
+  }
+
+  /**
+   * Generation snapshot for mid-flight probes: a monotonic transition counter
+   * (covers stop→start cycles that revisit the same status) plus the port,
+   * which can change without a transition via syncConfig.
+   */
+  private gatewayGeneration(): { transitionId: number; port: number } {
+    return { transitionId: this.gatewayTransitionId, port: this.gatewayPort }
+  }
+
+  private gatewayGenerationChanged(before: { transitionId: number; port: number }): boolean {
+    return this.gatewayTransitionId !== before.transitionId || this.gatewayPort !== before.port
+  }
+
+  /** Apply a fresh probe result against the pre-probe status (generation already verified by callers). */
+  private reconcileGatewayStatus(health: HealthInfo['status'], statusBefore: GatewayStatus): void {
+    if (health === 'healthy' && statusBefore !== 'running') {
+      logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
+      this.setGatewayStatus('running')
+    } else if (health === 'unhealthy' && statusBefore === 'running') {
+      logger.warn(`Gateway on port ${this.gatewayPort} is no longer reachable, marking as stopped`)
+      this.setGatewayStatus('stopped')
+    }
+  }
+
+  /**
+   * One periodic probe tick: liveness of the gateway this service believes is
+   * running, so a death nobody reported surfaces as an event. Discovery of a
+   * gateway this service never started is a read-time concern — `getStatus()`
+   * probes for it — so an idle service does no background IO.
+   */
+  private async probeGatewayTick(): Promise<void> {
+    if (this.gatewayStatus !== 'running') return
+    const generationBefore = this.gatewayGeneration()
+    const statusBefore = this.gatewayStatus
+    try {
+      const { status } = await this.checkGatewayHealth()
+      // Any transition or port change that completed mid-probe invalidates its result.
+      if (this.gatewayGenerationChanged(generationBefore)) return
+      this.reconcileGatewayStatus(status, statusBefore)
+    } catch (error) {
+      // Unreachable gateways surface as an unhealthy result, not an exception; only
+      // unexpected errors land here.
+      logger.warn('OpenClaw gateway health probe failed', error as Error)
+    }
   }
 
   /** Resolve the same live executable path the management UI reports. */
@@ -663,12 +752,12 @@ export class OpenClawService extends BaseService {
    * Start the OpenClaw Gateway
    */
   public async startGateway(port?: number): Promise<OperationResult> {
-    this.gatewayPort = port ?? DEFAULT_GATEWAY_PORT
-
-    // Prevent concurrent startup calls
+    // Guard before touching the port so a concurrent-start rejection cannot repoint
+    // it, and an omitted port keeps the preference-synced value instead of the default.
     if (this.gatewayStatus === 'starting') {
       return { success: false, message: 'Gateway is already starting' }
     }
+    if (port !== undefined) this.gatewayPort = port
 
     try {
       const runtime = await this.resolveOpenClawRuntime()
@@ -700,14 +789,14 @@ export class OpenClawService extends BaseService {
         }
       }
 
-      this.gatewayStatus = 'starting'
+      this.setGatewayStatus('starting')
 
       await this.startAndWaitForGateway(runtime.path, runtime.env)
-      this.gatewayStatus = 'running'
+      this.setGatewayStatus('running')
       logger.info(`Gateway started on port ${this.gatewayPort}`)
       return { success: true }
     } catch (error) {
-      this.gatewayStatus = 'error'
+      this.setGatewayStatus('error')
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to start gateway:', error as Error)
       return { success: false, message: errorMessage }
@@ -728,12 +817,16 @@ export class OpenClawService extends BaseService {
     // On Windows, avoid detached: true as it creates a visible console window.
     // Instead, use windowsHide: true without detached - proc.unref() ensures
     // the parent can exit independently.
+    // Copy before stripping: removeEnvProxy mutates in place, and shellEnv is reused
+    // for other OpenClaw commands. OpenClaw's undici EnvHttpProxyAgent rejects socks5://.
+    const env = { ...shellEnv }
+    removeEnvProxy(env)
     const proc = crossPlatformSpawn(openclawPath, args, {
       // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
       // version BinaryManager installed and reports. This is OpenClaw's documented kill
       // switch, scoped to the gateway process we spawn.
       env: {
-        ...shellEnv,
+        ...env,
         OPENCLAW_CONFIG_PATH: openclawConfigPath(),
         OPENCLAW_NO_AUTO_UPDATE: '1'
       },
@@ -812,22 +905,25 @@ export class OpenClawService extends BaseService {
    * Kills all openclaw processes to ensure clean shutdown.
    */
   public async stopGateway(): Promise<OperationResult> {
+    const transitionBefore = this.gatewayTransitionId
     try {
       this.killAllOpenClawProcesses()
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {
-        this.gatewayStatus = 'error'
+        this.setGatewayStatus('error')
         return { success: false, message: 'Failed to stop gateway' }
       }
 
-      this.gatewayStatus = 'stopped'
+      this.setGatewayStatus('stopped')
+      // A no-op stop (already stopped) still confirms the terminal state to the renderer.
+      if (this.gatewayTransitionId === transitionBefore) this.setGatewayStatus('stopped', { force: true })
       logger.info('Gateway stopped')
       return { success: true }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('Failed to stop gateway:', error as Error)
-      this.gatewayStatus = 'error'
+      this.setGatewayStatus('error')
       return { success: false, message: errorMessage }
     }
   }
@@ -891,13 +987,12 @@ export class OpenClawService extends BaseService {
       return { status: this.gatewayStatus, port: this.gatewayPort }
     }
 
+    const generationBefore = this.gatewayGeneration()
+    const statusBefore = this.gatewayStatus
     const { status } = await this.checkGatewayHealth()
-    if (status === 'healthy' && this.gatewayStatus !== 'running') {
-      logger.info(`Detected externally running gateway on port ${this.gatewayPort}`)
-      this.gatewayStatus = 'running'
-    } else if (status === 'unhealthy' && this.gatewayStatus === 'running') {
-      logger.warn(`Gateway on port ${this.gatewayPort} is no longer reachable, marking as stopped`)
-      this.gatewayStatus = 'stopped'
+    // Any transition or port change that completed mid-probe invalidates its result.
+    if (!this.gatewayGenerationChanged(generationBefore)) {
+      this.reconcileGatewayStatus(status, statusBefore)
     }
 
     return {
@@ -1152,6 +1247,39 @@ export class OpenClawService extends BaseService {
     if (pricing.cacheWrite?.perMillionTokens != null && isUsd(pricing.cacheWrite.currency)) {
       cost.cacheWrite = pricing.cacheWrite.perMillionTokens
     }
+    if (pricing.inputTokenTiers?.length) {
+      const baseRates = {
+        input: cost.input,
+        output: cost.output,
+        cacheRead: cost.cacheRead ?? cost.input,
+        cacheWrite: cost.cacheWrite ?? cost.input
+      }
+      const tieredPricing: NonNullable<NonNullable<OpenClawModelConfig['cost']>['tieredPricing']> = [
+        { ...baseRates, range: [0, pricing.inputTokenTiers[0].minInputTokens] }
+      ]
+
+      for (const [index, tier] of pricing.inputTokenTiers.entries()) {
+        if (
+          tier.input.perMillionTokens === null ||
+          tier.output.perMillionTokens === null ||
+          !isUsd(tier.input.currency) ||
+          !isUsd(tier.output.currency) ||
+          (tier.cacheRead && !isUsd(tier.cacheRead.currency)) ||
+          (tier.cacheWrite && !isUsd(tier.cacheWrite.currency))
+        ) {
+          return cost
+        }
+        const nextTier = pricing.inputTokenTiers[index + 1]
+        tieredPricing.push({
+          input: tier.input.perMillionTokens,
+          output: tier.output.perMillionTokens,
+          cacheRead: tier.cacheRead?.perMillionTokens ?? tier.input.perMillionTokens,
+          cacheWrite: tier.cacheWrite?.perMillionTokens ?? tier.input.perMillionTokens,
+          range: nextTier ? [tier.minInputTokens, nextTier.minInputTokens] : [tier.minInputTokens]
+        })
+      }
+      cost.tieredPricing = tieredPricing
+    }
     return cost
   }
 
@@ -1254,6 +1382,7 @@ export class OpenClawService extends BaseService {
       )
       const supportsProviderField = (field: string) => schemaSupportsPath(configSchema, [...providerSchemaPath, field])
       const supportsModelField = (field: string) => schemaSupportsPath(configSchema, [...modelSchemaPath, field])
+      const supportsTieredPricing = schemaSupportsPath(configSchema, [...modelSchemaPath, 'cost', 'tieredPricing'])
 
       const openclawProvider: OpenClawProviderConfig = {
         ...existingProviderOverrides,
@@ -1263,6 +1392,11 @@ export class OpenClawService extends BaseService {
         models: provider.models.map((m) => {
           const synced = m as OpenClawSyncModel
           const existing = existingModelMap.get(m.id)
+          let cost = synced.cost
+          if (cost && !supportsTieredPricing) {
+            cost = { ...cost }
+            delete cost.tieredPricing
+          }
           return {
             ...(supportsModelField('maxTokens') && synced.maxTokens !== undefined
               ? { maxTokens: synced.maxTokens }
@@ -1271,7 +1405,7 @@ export class OpenClawService extends BaseService {
               ? { reasoning: synced.reasoning }
               : {}),
             ...(supportsModelField('input') && synced.input ? { input: synced.input } : {}),
-            ...(supportsModelField('cost') && synced.cost ? { cost: synced.cost } : {}),
+            ...(supportsModelField('cost') && cost ? { cost } : {}),
             ...(supportsModelField('contextWindow') ? { contextWindow: synced.contextWindow ?? 128000 } : {}),
             ...pickSchemaSupportedProperties(configSchema, modelSchemaPath, existing),
             id: m.id,

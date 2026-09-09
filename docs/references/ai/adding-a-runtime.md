@@ -174,7 +174,7 @@ These are the choices nothing enforces:
   [pi driver resource boundary](./agent-session-runtime.md#pi-driver-resource-boundary)
   for the concrete enforcement pattern.
 - **Permission posture matches the trust roots.** `claude-code` defaults to
-  `default`, with its SDK brokering tool execution. An in-process
+  `auto`, with its SDK brokering tool execution. An in-process
   runtime may default to `acceptEdits` only when automatic writes are confined
   to canonical user-selected roots; shell, external paths, third-party tools,
   symlink escapes, and Cherry approval-required mutations must remain gated.

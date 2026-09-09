@@ -12,6 +12,7 @@
  */
 
 import { Button, Scrollbar, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { ArrowDown } from 'lucide-react'
 import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,13 +30,15 @@ export const MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX = 6
 export const MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX = 12
 const MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX = 24
 const KEYBOARD_SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'])
-const KEYBOARD_ACTIVATION_SELECTOR = 'button,a,input,textarea,select,[role="button"]'
+const KEYBOARD_SCROLL_OWNER_SELECTOR =
+  'input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="combobox"],[role="listbox"],[role="slider"],[role="spinbutton"]'
+const KEYBOARD_FOCUS_OWNER_SELECTOR = `${KEYBOARD_SCROLL_OWNER_SELECTOR},button,a[href],summary,[tabindex]:not([tabindex="-1"])`
 
 function isKeyboardScrollIntent(event: KeyboardEvent, scroller: HTMLElement): boolean {
-  if (KEYBOARD_SCROLL_KEYS.has(event.key)) return true
-  if (event.key !== ' ' && event.key !== 'Spacebar') return false
   const target = event.target instanceof HTMLElement ? event.target : null
-  return target === scroller || !target?.closest(KEYBOARD_ACTIVATION_SELECTOR)
+  if (KEYBOARD_SCROLL_KEYS.has(event.key)) return !target?.closest(KEYBOARD_SCROLL_OWNER_SELECTOR)
+  if (event.key !== ' ' && event.key !== 'Spacebar') return false
+  return target === scroller || !hasIndependentKeyboardFocusOwner(target, scroller)
 }
 
 function getKeyboardScrollDelta(event: KeyboardEvent): number {
@@ -51,6 +54,22 @@ function getEventTargetElement(target: EventTarget | null): HTMLElement | null {
 
 function findNestedScroller(target: EventTarget | null, scroller: HTMLElement): HTMLElement | null {
   return findNearestVerticalScrollContainer(getEventTargetElement(target), scroller)
+}
+
+function hasIndependentKeyboardFocusOwner(target: EventTarget | null, scroller: HTMLElement): boolean {
+  const owner = getEventTargetElement(target)?.closest(KEYBOARD_FOCUS_OWNER_SELECTOR)
+  return owner instanceof HTMLElement && owner !== scroller
+}
+
+function focusScrollerForKeyboard(scroller: HTMLElement): void {
+  scroller.focus({ preventScroll: true })
+}
+
+function isDocumentFocusUnowned(ownerDocument: Document): boolean {
+  const { activeElement } = ownerDocument
+  return (
+    activeElement === ownerDocument.body || activeElement === ownerDocument.documentElement || activeElement === null
+  )
 }
 
 export type { MessageVirtualListHandle }
@@ -137,6 +156,7 @@ export function MessageVirtualList<T>({
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { beginScrollbarDrag, endScrollbarDrag, scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
+  const { armAutoscrollCandidate, confirmAutoscroll, dismissAutoscroll } = runtime
   // Latch the captured node like TabRouter does: a background tab detaches the
   // ref (element === null) while its DOM node lives on, and clearing this state
   // would unmount the virtualizer below — discarding virtua's measurements and
@@ -160,6 +180,11 @@ export function MessageVirtualList<T>({
       if (event.deltaY === 0) return
       const target = event.target instanceof Element ? event.target : null
       if (findVerticalWheelConsumer(target, event.deltaY, scrollerElement)) return
+      if (
+        isDocumentFocusUnowned(scrollerElement.ownerDocument) &&
+        !hasIndependentKeyboardFocusOwner(event.target, scrollerElement)
+      )
+        focusScrollerForKeyboard(scrollerElement)
       onWheel(event)
     }
     scrollerElement.addEventListener('wheel', handleWheel, { passive: true })
@@ -177,11 +202,14 @@ export function MessageVirtualList<T>({
     if (!scrollerElement) return
     const ownerDocument = scrollerElement.ownerDocument
     const onPointerDown = (event: PointerEvent) => {
+      const nestedScroller = findNestedScroller(event.target, scrollerElement)
       pointerGestureRef.current = {
-        nestedScroller: findNestedScroller(event.target, scrollerElement),
+        nestedScroller,
         pointerType: event.pointerType,
         lastClientY: event.clientY
       }
+      if (!nestedScroller && !hasIndependentKeyboardFocusOwner(event.target, scrollerElement))
+        focusScrollerForKeyboard(scrollerElement)
       if (event.target === scrollerElement) beginScrollbarDrag()
     }
     const onPointerMove = (event: PointerEvent) => {
@@ -208,22 +236,98 @@ export function MessageVirtualList<T>({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || !isKeyboardScrollIntent(event, scrollerElement)) return
       const nestedScroller = findNestedScroller(event.target, scrollerElement)
-      if (nestedScroller && canConsumeVerticalWheel(nestedScroller, getKeyboardScrollDelta(event))) return
-      markUserInput()
+      const delta = getKeyboardScrollDelta(event)
+      if (nestedScroller && canConsumeVerticalWheel(nestedScroller, delta)) return
+      markUserInput(delta < 0 ? 'up' : 'down')
     }
+    let focusedVirtualDescendant: Node | null = null
+    const restoreFocusAfterOwnerRemoval = () => {
+      const focusOwner = focusedVirtualDescendant
+      if (!focusOwner || (focusOwner.isConnected && scrollerElement.contains(focusOwner))) return
+      focusedVirtualDescendant = null
+
+      if (scrollerElement.isConnected && ownerDocument.hasFocus() && isDocumentFocusUnowned(ownerDocument))
+        focusScrollerForKeyboard(scrollerElement)
+    }
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target
+      focusedVirtualDescendant =
+        target instanceof Node && target !== scrollerElement && scrollerElement.contains(target) ? target : null
+    }
+    const onFocusOut = (event: FocusEvent) => {
+      const target = event.target
+      if (!(target instanceof Node) || target !== focusedVirtualDescendant) return
+      queueMicrotask(() => {
+        if (focusedVirtualDescendant !== target) return
+        if (target.isConnected && scrollerElement.contains(target)) {
+          focusedVirtualDescendant = null
+          return
+        }
+        restoreFocusAfterOwnerRemoval()
+      })
+    }
+    const focusOwnerObserver = new MutationObserver(restoreFocusAfterOwnerRemoval)
+    focusOwnerObserver.observe(scrollerElement, { childList: true, subtree: true })
     scrollerElement.addEventListener('pointerdown', onPointerDown, { passive: true })
     scrollerElement.addEventListener('pointermove', onPointerMove, { passive: true })
     ownerDocument.addEventListener('pointerup', onPointerEnd, { passive: true })
     ownerDocument.addEventListener('pointercancel', onPointerEnd, { passive: true })
+    scrollerElement.addEventListener('focusin', onFocusIn)
+    scrollerElement.addEventListener('focusout', onFocusOut)
     scrollerElement.addEventListener('keydown', onKeyDown)
+    // Chromium middle-click autoscroll synthesizes scrollTop without wheel or
+    // pointer drag events. The runtime owns the candidate/confirmed lifecycle
+    // so freeze suppression is time-bounded and not latched on a swallowed
+    // dismissal click.
+    const onCapturedScroll = (event: Event) => {
+      if (event.target !== scrollerElement) return
+      confirmAutoscroll()
+    }
+    const onAutoscrollMouseDown = (event: MouseEvent) => {
+      const isMiddle = event.button === 1
+      const insideScroller = scrollerElement.contains(event.target as Node)
+      if (isMiddle && insideScroller) {
+        const target = event.target instanceof Element ? event.target : null
+        if (target?.closest('a,button,[role="button"]')) return
+        armAutoscrollCandidate()
+        return
+      }
+      dismissAutoscroll()
+    }
+    const onKeyDownAutoscrollDismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dismissAutoscroll()
+    }
+    const onWindowBlur = () => dismissAutoscroll()
+    // Single document-level listener covers both inside and outside clicks;
+    // a separate scroller listener would double-fire for inside clicks.
+    ownerDocument.addEventListener('mousedown', onAutoscrollMouseDown, { passive: true })
+    ownerDocument.addEventListener('keydown', onKeyDownAutoscrollDismiss)
+    ownerDocument.addEventListener('scroll', onCapturedScroll, { capture: true, passive: true })
+    ownerDocument.defaultView?.addEventListener('blur', onWindowBlur)
     return () => {
+      dismissAutoscroll()
+      focusOwnerObserver.disconnect()
       scrollerElement.removeEventListener('pointerdown', onPointerDown)
       scrollerElement.removeEventListener('pointermove', onPointerMove)
       ownerDocument.removeEventListener('pointerup', onPointerEnd)
       ownerDocument.removeEventListener('pointercancel', onPointerEnd)
+      scrollerElement.removeEventListener('focusin', onFocusIn)
+      scrollerElement.removeEventListener('focusout', onFocusOut)
       scrollerElement.removeEventListener('keydown', onKeyDown)
+      ownerDocument.removeEventListener('mousedown', onAutoscrollMouseDown)
+      ownerDocument.removeEventListener('keydown', onKeyDownAutoscrollDismiss)
+      ownerDocument.removeEventListener('scroll', onCapturedScroll, { capture: true })
+      ownerDocument.defaultView?.removeEventListener('blur', onWindowBlur)
     }
-  }, [beginScrollbarDrag, endScrollbarDrag, markUserInput, scrollerElement])
+  }, [
+    armAutoscrollCandidate,
+    beginScrollbarDrag,
+    confirmAutoscroll,
+    dismissAutoscroll,
+    endScrollbarDrag,
+    markUserInput,
+    scrollerElement
+  ])
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom()
@@ -241,9 +345,11 @@ export function MessageVirtualList<T>({
       <Scrollbar
         ref={setScrollerRef}
         data-message-virtual-list-scroller
-        className={className}
-        style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', overflowAnchor: 'none' }}>
-        <div ref={runtime.contentRef} style={{ paddingBottom: bottomPadding }}>
+        tabIndex={0}
+        role="region"
+        aria-label={t('globalSearch.groups.message')}
+        className={cn('min-h-0 flex-1 overflow-y-auto overflow-x-hidden [overflow-anchor:none]', className)}>
+        <div ref={runtime.contentRef}>
           <ScrollOwnershipProvider
             scrollContainerRef={runtime.scrollerRef}
             requestReadingControl={requestDisclosureReadingControl}

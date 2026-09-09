@@ -1,6 +1,7 @@
 import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { clampSurrogateBoundary } from '@shared/utils/text'
@@ -153,6 +154,8 @@ class FeishuAdapter extends ChannelAdapter {
   private readonly domain: FeishuDomain
   private readonly streams = new Map<string, FeishuStreamSession>()
   private readonly chatReactions = new Map<string, ChatReaction>()
+  private readonly lastDropNotificationAt = new Map<string, number>()
+  private static readonly DROP_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
@@ -228,7 +231,8 @@ class FeishuAdapter extends ChannelAdapter {
         this.log.info('Feishu WebSocket reconnected')
       },
       reject: (event) => {
-        this.log.debug('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
+        this.log.warn('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
+        this.notifyDrop(event.chatId)
       },
       error: (error) => {
         this.log.error('Feishu channel error', { error: error.message, code: error.code })
@@ -440,7 +444,8 @@ class FeishuAdapter extends ChannelAdapter {
 
   private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {
     if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(message.chatId)) {
-      this.log.debug('Dropping message from unauthorized chat', { chatId: message.chatId })
+      this.log.warn('Dropping message from unauthorized chat', { chatId: message.chatId })
+      this.notifyDrop(message.chatId)
       return
     }
 
@@ -462,7 +467,10 @@ class FeishuAdapter extends ChannelAdapter {
     }
 
     const { images, files } = await this.downloadResources(message)
-    if (!text && images.length === 0 && files.length === 0) return
+    if (!text && images.length === 0 && files.length === 0) {
+      this.log.warn('Dropping message with no text and no resources', { chatId: message.chatId })
+      return
+    }
     this.emit('message', {
       chatId: message.chatId,
       ...conversation,
@@ -529,6 +537,31 @@ class FeishuAdapter extends ChannelAdapter {
     }
 
     return { images, files }
+  }
+
+  private shouldNotifyDrop(chatId: string): boolean {
+    const now = Date.now()
+    const last = this.lastDropNotificationAt.get(chatId) ?? 0
+    if (now - last < FeishuAdapter.DROP_NOTIFICATION_COOLDOWN_MS) {
+      this.log.debug('Suppressing duplicate drop notification', { chatId })
+      return false
+    }
+    this.lastDropNotificationAt.set(chatId, now)
+    if (this.lastDropNotificationAt.size > 1000) {
+      const oldest = [...this.lastDropNotificationAt.entries()].sort((a, b) => a[1] - b[1]).slice(0, 500)
+      for (const [key] of oldest) this.lastDropNotificationAt.delete(key)
+    }
+    return true
+  }
+
+  private notifyDrop(chatId: string): void {
+    if (!this.shouldNotifyDrop(chatId)) return
+    this.sendMessage(chatId, t('common.channel_message_dropped'), replyOptions()).catch((err) => {
+      this.log.debug('Failed to send drop notification to channel', {
+        chatId,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    })
   }
 
   private getChannel(): Lark.LarkChannel {

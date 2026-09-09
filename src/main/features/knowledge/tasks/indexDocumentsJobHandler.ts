@@ -33,6 +33,9 @@ const logger = loggerService.withContext('Knowledge:IndexDocumentsJobHandler')
 // Chunks per embedMany call while rebuilding an item's material. Small enough to
 // surface incremental progress, large enough to not multiply request overhead.
 const EMBEDDING_PROGRESS_BATCH_SIZE = 10
+const EMPTY_INDEXABLE_TEXT_ERROR =
+  'No indexable text was extracted. Check the source, OCR, or document processing settings, then reindex.'
+
 /**
  * How long the final percentage lingers after the job exits. The list's item status
  * is polled, so deleting the key at completion time blanks the percentage while the
@@ -94,14 +97,15 @@ export function createIndexDocumentsJobHandler(
       const documents = await readItemDocuments(ctx, readableItem)
       const chunked = await chunkItemDocuments(base, documents, ctx.signal)
       if (chunked.chunks.length === 0) {
-        // Deliberate: the item still completes (an empty material is written) so the
-        // UI doesn't show a stuck/failed item, but leave a trace — an image-only PDF
-        // or failed extraction would otherwise look indexed while matching nothing.
-        logger.warn('Knowledge item produced no indexable text; it will complete with an empty index', {
+        // Completing here would make a scanned/image-only PDF look searchable while
+        // persisting an empty material. Reject before embedding or replacement so the
+        // normal settlement path exposes a failed, reindexable item with this reason.
+        logger.warn('Knowledge item produced no indexable text; failing indexing', {
           baseId: ctx.input.baseId,
           itemId: ctx.input.itemId,
           jobId: ctx.jobId
         })
+        throw new Error(EMPTY_INDEXABLE_TEXT_ERROR)
       }
 
       // Mark embedding separately so the UI reflects the current long-running phase.

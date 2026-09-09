@@ -11,6 +11,7 @@ import {
   useMessageListActions,
   useMessageListSelection,
   useMessageListUi,
+  useMessagePriorCitationParts,
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageMenuConfig, type MessageListItem } from '../types'
@@ -67,7 +68,11 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const messageParts = useMessageParts(message.id)
-  const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
+  const priorCitationParts = useMessagePriorCitationParts(message.id)
+  const messageForExport = useMemo(
+    () => createMessageExportView(message, messageParts, priorCitationParts),
+    [message, messageParts, priorCitationParts]
+  )
 
   const mainTextContent = useMemo(() => getComposerTextFromParts(messageParts), [messageParts])
 
@@ -79,8 +84,7 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isSelectedForContext = !!message.isActiveBranch
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-  const showMessageTokens =
-    renderConfig.showEstimatedTokens && variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
+  const showMessageTokens = variant === 'footer' && (!isBubbleStyle || isAssistantMessage)
   const isUserBubbleStyleMessage = variant === 'footer' && isBubbleStyle && isUserMessage
 
   const actionContext = useMemo<MessageMenuBarActionContext>(
@@ -156,7 +160,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       <div
         data-ui="part:message-actions"
         className={classNames(
-          'menubar flex flex-row items-center justify-end gap-1.5',
+          'menubar flex select-none flex-row items-center justify-end gap-1.5',
           isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',
           (isLastMessage || forceVisible) && 'show'
         )}>

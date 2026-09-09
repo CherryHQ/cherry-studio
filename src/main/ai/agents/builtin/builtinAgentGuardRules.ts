@@ -80,5 +80,16 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
       reason:
         'Headless channel or scheduled turns cannot run shell commands for Cherry Support. Keep only a sanitized local draft using the structured file tools.'
     }
+  },
+  {
+    // The result is useful only when AgentChat can present its user-owned review dialog.
+    id: 'support-diagnostic-draft',
+    appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
+    match: { tool: 'mcp__assistant__prepare_diagnostic_report' },
+    headless: {
+      predicate: 'either',
+      reason:
+        'Headless channel or scheduled turns cannot present a diagnostic report for user review. Ask the user to open the feedback entry in Cherry Studio instead.'
+    }
   }
 ]

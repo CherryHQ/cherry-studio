@@ -1,27 +1,41 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
+import { describe, expect, it } from 'vitest'
 
 import { readAndParseDraftFile, validateCliConfigDraftForWrite } from '../draftFiles'
-import { parseTomlOrThrow } from '../file'
+import { type CliConfigReadFiles, parseTomlOrThrow, parseYamlOrThrow } from '../file'
 import type { CliConfigFileDraft } from '../types'
 
-describe('readAndParseDraftFile (secret redaction on parse failure)', () => {
-  beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-        file: {
-          readExternal: vi.fn(async () => 'api_key = "sk-ant-real-secret"\nbroken=====')
-        }
-      }
-    })
-  })
+function readWith(target: CliConfigTarget, content: string | null): CliConfigReadFiles {
+  return new Map([[target, { path: `/resolved${target}`, content }]])
+}
 
-  it('does not leak the raw secret from a malformed TOML file into the thrown error', async () => {
-    await expect(readAndParseDraftFile('kimi-config', parseTomlOrThrow)).rejects.toThrow(
+describe('readAndParseDraftFile (secret redaction on parse failure)', () => {
+  it('does not leak the raw secret from a malformed TOML file into the thrown error', () => {
+    const read = readWith('kimi-config', 'api_key = "sk-ant-real-secret"\nbroken=====')
+    expect(() => readAndParseDraftFile('kimi-config', parseTomlOrThrow, undefined, read)).toThrow(
       /Failed to parse .*api_key = "<redacted>"/s
     )
-    await expect(readAndParseDraftFile('kimi-config', parseTomlOrThrow)).rejects.not.toThrow(/sk-ant-real-secret/)
+    expect(() => readAndParseDraftFile('kimi-config', parseTomlOrThrow, undefined, read)).not.toThrow(
+      /sk-ant-real-secret/
+    )
+  })
+
+  it('does not leak the raw secret from a malformed YAML file into the thrown error', () => {
+    const read = readWith('hermes-config', 'api_key: sk-ant-real-secret\n  malformed: yaml')
+    expect(() => readAndParseDraftFile('hermes-config', parseYamlOrThrow, undefined, read)).toThrow(/Failed to parse/)
+    expect(() => readAndParseDraftFile('hermes-config', parseYamlOrThrow, undefined, read)).not.toThrow(
+      /sk-ant-real-secret/
+    )
+  })
+})
+
+describe('parseYamlOrThrow', () => {
+  it.each(['', '# user comment\n', 'null\n', '~\n'])('treats %j as an empty mapping', (content) => {
+    expect(parseYamlOrThrow(content)).toEqual({})
+  })
+
+  it.each(['- a\n', 'plain scalar\n'])('rejects non-mapping YAML roots: %j', (content) => {
+    expect(() => parseYamlOrThrow(content)).toThrow('invalid YAML root: expected an object')
   })
 })
 
@@ -37,6 +51,20 @@ describe('validateCliConfigDraftForWrite (secret redaction when editing config t
       }
     ]
     expect(() => validateCliConfigDraftForWrite(files)).toThrow(/api_key = "<redacted>"/)
+    expect(() => validateCliConfigDraftForWrite(files)).not.toThrow(/sk-ant-real-secret/)
+  })
+
+  it('validates YAML drafts before writing', () => {
+    const files: CliConfigFileDraft[] = [
+      {
+        target: 'hermes-config',
+        label: 'Hermes config',
+        path: '/resolved-hermes/config.yaml',
+        language: 'yaml',
+        content: 'api_key: sk-ant-real-secret\n  malformed: yaml'
+      }
+    ]
+    expect(() => validateCliConfigDraftForWrite(files)).toThrow(/<redacted>/)
     expect(() => validateCliConfigDraftForWrite(files)).not.toThrow(/sk-ant-real-secret/)
   })
 })
