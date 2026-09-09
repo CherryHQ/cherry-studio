@@ -1,4 +1,4 @@
-import sharp from 'sharp'
+const MAX_IMAGE_EDIT_INPUT_PIXELS = 100_000_000
 
 /** Prepare upload copies without changing stored originals or remote image URLs. */
 export async function normalizeImageEditInputs(images: readonly string[], signal?: AbortSignal): Promise<string[]> {
@@ -18,7 +18,9 @@ export async function normalizeImageEditInputs(images: readonly string[], signal
       continue
     }
 
-    const pipeline = sharp(bytes)
+    const sharp = (await import('sharp')).default
+    signal?.throwIfAborted()
+    const pipeline = sharp(bytes, { limitInputPixels: MAX_IMAGE_EDIT_INPUT_PIXELS })
     const metadata = await pipeline.metadata()
     signal?.throwIfAborted()
     if (!metadata.gainMap) {
@@ -26,8 +28,9 @@ export async function normalizeImageEditInputs(images: readonly string[], signal
       continue
     }
 
-    // Default sharp output discards the gain map and converts the SDR base to sRGB.
-    const output = await pipeline.autoOrient().jpeg({ quality: 95, chromaSubsampling: '4:4:4' }).toBuffer()
+    // Preserve the original pixel coordinates and display orientation so paired masks still align.
+    if (metadata.orientation) pipeline.withExif({ IFD0: { Orientation: String(metadata.orientation) } })
+    const output = await pipeline.jpeg({ quality: 95, chromaSubsampling: '4:4:4' }).toBuffer()
     signal?.throwIfAborted()
     normalized.push(`data:image/jpeg;base64,${output.toString('base64')}`)
   }
