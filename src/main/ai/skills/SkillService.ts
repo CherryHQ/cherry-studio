@@ -107,9 +107,11 @@ export class SkillService {
    * `LocalSkill.filename`) is the storage identity the renderer attaches; unlike
    * `readFile(skillId, …)` it needs no catalog row, so a chat turn whose skill was
    * uninstalled mid-flight still gets the same found/missing/error verdict (#19773).
+   * Sanitized like every install-side folder name — a tampered part must not steer
+   * the path outside the mirror root.
    */
   async readSkillMdByFolderName(folderName: string): Promise<SkillMdReadState> {
-    return this.readSkillMdState(this.getMirrorPath(folderName))
+    return this.readSkillMdState(this.getMirrorPath(sanitizeFolderName(folderName)))
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {

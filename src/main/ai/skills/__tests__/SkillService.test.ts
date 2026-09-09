@@ -2299,6 +2299,15 @@ describe('SkillService', () => {
       })
     })
 
+    it('sanitizes the folder name so a tampered part cannot escape the mirror root', async () => {
+      // A crafted folderName reaching the read path must resolve inside the mirror root
+      // (missing there), never to ../../SKILL.md outside it.
+      await expect(new SkillService().readSkillMdByFolderName('../../outside')).resolves.toEqual({
+        status: 'missing'
+      })
+      expect(fs.existsSync(path.join(mirrorRoot, '..', '..', 'outside'))).toBe(false)
+    })
+
     it('reports error when the descriptor exists but cannot be read', async () => {
       const skillDir = path.join(mirrorRoot, 'locked')
       await fs.promises.mkdir(skillDir, { recursive: true })

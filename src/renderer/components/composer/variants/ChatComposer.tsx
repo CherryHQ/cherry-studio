@@ -661,9 +661,8 @@ const ChatComposerInner = ({
     getComposerTokenIds(draftTokens ?? [], 'skill').size > 0 ||
     rootPanelVisible ||
     skillsPanelVisible
-  // Chat attaches by explicit user pick, so per-agent enablement is meaningless here — read the
-  // global installed list. `useAvailableSkills` would filter it to nothing: without an agentId it
-  // reports `isEnabled: false` for every row, and its builder skips disabled skills.
+  // Chat attaches by explicit user pick, so per-agent enablement is meaningless — the library-wide
+  // switch still applies. (`useAvailableSkills` is unusable: no agentId → isEnabled false → empty.)
   const {
     skills: installedSkills,
     loading: isAvailableSkillsLoading,
@@ -672,11 +671,13 @@ const ChatComposerInner = ({
   } = useInstalledSkills(undefined, { enabled: skillsDataEnabled })
   const availableSkills = useMemo<LocalSkill[]>(
     () =>
-      installedSkills.map((skill) => ({
-        name: skill.name,
-        description: skill.description ?? undefined,
-        filename: skill.folderName
-      })),
+      installedSkills
+        .filter((skill) => skill.isGlobalEnabled !== false)
+        .map((skill) => ({
+          name: skill.name,
+          description: skill.description ?? undefined,
+          filename: skill.folderName
+        })),
     [installedSkills]
   )
   const skillByFilename = useMemo(
@@ -1560,10 +1561,9 @@ const ChatComposerInner = ({
     updateQuickPanelList(skillItems)
   }, [skillsPanelVisible, skillItems, updateQuickPanelList])
 
-  // A skill uninstalled while its chip sits in a cached draft must not survive into a later send:
-  // the main process would fail the whole turn on the unreadable SKILL.md. Validate once per draft
-  // restore (mirrors AgentComposer's shouldValidateSkills gate, minus the workspace dimension chat
-  // does not have); in-session token round-trips (input history) keep their tokens verbatim.
+  // A skill uninstalled while its chip sits in a cached draft must not survive into a later send
+  // (main would fail the turn on the unreadable SKILL.md). Validate once per draft restore; token
+  // round-trips within a session (input history) keep their tokens verbatim.
   const [shouldValidateSkills, setShouldValidateSkills] = useState(getCachedSkillTokens(initialDraft.tokens).length > 0)
   useEffect(() => {
     if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
