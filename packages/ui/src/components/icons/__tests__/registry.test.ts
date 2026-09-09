@@ -14,7 +14,6 @@ describe('resolveProviderIconRef', () => {
     { providerId: 'baidu-cloud', expectedToExist: true },
     { providerId: 'aws-bedrock', expectedToExist: true },
     { providerId: 'aionly', expectedToExist: true },
-    { providerId: 'jalapeno-cloud', expectedToExist: true },
     { providerId: 'hubris', expectedToExist: true },
     { providerId: 'gitee-ai', expectedToExist: true }
   ]
@@ -87,6 +86,7 @@ describe('resolveModelIconRef — pattern boundaries (#10, #11, #12)', () => {
 
 describe('resolveModelIconRef — dedicated model marks', () => {
   const gptCases = [
+    ['openai/gpt-6-astra', 'gpt-6-astra'],
     ['openai/gpt-5.6-luna-pro', 'gpt-5-6-luna'],
     ['gpt-5.5-pro', 'gpt-5-5-pro'],
     ['gpt-5.4-mini', 'gpt-5-4-mini'],

@@ -1,5 +1,6 @@
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type {
@@ -215,6 +216,8 @@ export interface CherryUIMessageMetadata {
   stats?: MessageStats
   /** Trusted cross-session sender attribution and durable delivery lifecycle. */
   delivery?: AgentSessionDelivery
+  /** Why a runtime opened this assistant turn with no user message (goal round, background work). */
+  turnOrigin?: AutonomousTurnOrigin
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
@@ -578,8 +581,6 @@ export interface TreeNode {
   isContextBoundary?: boolean
   /** Whether this is an empty successful user leaf awaiting composer input. */
   isAwaitingInput?: boolean
-  /** Whether the message contains any persisted content parts. */
-  hasContent: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

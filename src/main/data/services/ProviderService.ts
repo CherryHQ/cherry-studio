@@ -13,6 +13,7 @@ import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/us
 import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
+import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata } from '@data/services/ProviderRegistryService'
@@ -67,11 +68,11 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 }
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
-type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
+export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
   const availableInEditions = provider.availableInEditions
-  return !availableInEditions || availableInEditions.includes(getAppEdition())
+  return isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
 function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
@@ -84,7 +85,14 @@ function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMet
   return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
 }
 
-function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
+/**
+ * Edition availability of a persisted provider, decided from the identity columns
+ * alone: static registry metadata, the build-time edition, and the preboot v1-origin
+ * flag. Callers that already hold `providerId` / `presetProviderId` — anything reading
+ * inside someone else's transaction — must use this instead of a service method that
+ * opens its own connection.
+ */
+export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
   return getAvailableProviderMetadata(row) !== null
 }
 

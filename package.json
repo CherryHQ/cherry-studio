@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.12",
+  "version": "2.0.13",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -151,6 +151,7 @@
     "sharp": "0.35.3",
     "smol-toml": "^1.7.0",
     "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",
+    "systeminformation": "5.33.8",
     "tar": "^7.5.11",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
@@ -201,6 +202,7 @@
     "@codemirror/view": "6.39.16",
     "@dagrejs/dagre": "^3.0.0",
     "@deepseek-ai/dsh-compaction-basic": "0.1.0-rc.7",
+    "@deepseek-ai/dsh-goal": "0.1.0-rc.7",
     "@deepseek-ai/dsh-llm": "0.1.0-rc.7",
     "@deepseek-ai/dsh-llm-retry": "0.1.0-rc.7",
     "@deepseek-ai/dsh-plan-mode": "0.1.0-rc.7",

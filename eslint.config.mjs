@@ -641,6 +641,107 @@ export default defineConfig([
       'lifecycle/no-direct-quit': 'warn'
     }
   },
+  // Transaction boundary — a `*Tx` method promises to run entirely on the transaction
+  // handle it was given. Acquiring the DB from the service singleton instead breaks that
+  // promise twice over: the read leaves the caller's transaction, and it inherits
+  // `DbService.getDb()`'s readiness gate, which throws while `onInit()` is still seeding.
+  // v2.0.11 shipped that: an edition filter added to `getNamesByUniqueIdsTx` reached the
+  // singleton three call hops away and aborted startup for upgrading profiles.
+  {
+    files: ['src/main/**/*.{ts,tsx}'],
+    ignores: ['src/main/**/__tests__/**', 'src/main/**/__mocks__/**', 'src/main/**/*.test.*'],
+    plugins: {
+      'tx-boundary': {
+        rules: {
+          'no-ambient-db-in-tx': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow reaching for the DbService singleton, directly or through another service, inside a `*Tx` function.',
+                recommended: true
+              },
+              messages: {
+                ambientDb:
+                  '"{{name}}" inside `{{fn}}` leaves the caller\'s transaction and depends on DbService being ready. Use the `tx` parameter.',
+                serviceEscape:
+                  '`{{name}}` is not a `*Tx` method, so `{{fn}}` cannot know whether it opens its own connection. Call a `*Tx` variant, or a pure helper that takes the row.'
+              }
+            },
+            create(context) {
+              // One entry per function scope; `true` marks a `*Tx` function, so a
+              // callback nested inside one is still governed.
+              const txScopes = []
+
+              const declaredName = (node) => {
+                const parent = node.parent
+                if (parent?.type === 'MethodDefinition' || parent?.type === 'Property') {
+                  return parent.key?.type === 'Identifier' ? parent.key.name : null
+                }
+                if (parent?.type === 'VariableDeclarator') {
+                  return parent.id?.type === 'Identifier' ? parent.id.name : null
+                }
+                return node.id?.type === 'Identifier' ? node.id.name : null
+              }
+
+              const enter = (node) => {
+                const name = declaredName(node)
+                txScopes.push(name?.endsWith('Tx') ? name : null)
+              }
+              const exit = () => txScopes.pop()
+              const enclosingTx = () => txScopes.findLast?.((name) => name !== null) ?? null
+
+              return {
+                FunctionDeclaration: enter,
+                'FunctionDeclaration:exit': exit,
+                FunctionExpression: enter,
+                'FunctionExpression:exit': exit,
+                ArrowFunctionExpression: enter,
+                'ArrowFunctionExpression:exit': exit,
+
+                CallExpression(node) {
+                  const fn = enclosingTx()
+                  if (!fn) return
+
+                  const { callee } = node
+                  if (callee.type !== 'MemberExpression' || callee.property.type !== 'Identifier') return
+                  const method = callee.property.name
+
+                  if (method === 'getDb') {
+                    context.report({ node, messageId: 'ambientDb', data: { name: 'getDb()', fn } })
+                    return
+                  }
+
+                  if (callee.object.type !== 'Identifier') return
+                  const receiver = callee.object.name
+
+                  if (receiver === 'application' && method === 'get' && node.arguments[0]?.value === 'DbService') {
+                    context.report({
+                      node,
+                      messageId: 'ambientDb',
+                      data: { name: "application.get('DbService')", fn }
+                    })
+                    return
+                  }
+
+                  if (receiver.endsWith('Service') && !method.endsWith('Tx')) {
+                    context.report({
+                      node,
+                      messageId: 'serviceEscape',
+                      data: { name: `${receiver}.${method}()`, fn }
+                    })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'tx-boundary/no-ambient-db-in-tx': 'warn'
+    }
+  },
   // i18n
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
