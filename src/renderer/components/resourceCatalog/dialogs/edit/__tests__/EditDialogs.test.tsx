@@ -1207,7 +1207,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original instructions',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     await waitFor(() =>
@@ -1574,7 +1575,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original prompt',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
@@ -1596,7 +1598,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('You are a Prompt Generator.'),
       content: 'Alpha Assistant',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
       'Create a useful system prompt from the supplied name or title.'

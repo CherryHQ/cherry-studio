@@ -1,57 +1,136 @@
-import { describe, expect, it, vi } from 'vitest'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { generateText } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveCompressionModel } from '../resolveCompressionModel'
 
-vi.mock('@main/data/services/ProviderService', () => ({
-  providerService: { getByProviderId: vi.fn() }
+const { providerLookup, modelLookup, providerConfig } = vi.hoisted(() => ({
+  providerLookup: vi.fn(),
+  modelLookup: vi.fn(),
+  providerConfig: vi.fn()
 }))
-vi.mock('@main/data/services/ModelService', () => ({
-  modelService: { getByKey: vi.fn() }
+vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: providerLookup } }))
+vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: modelLookup } }))
+vi.mock('@main/ai/provider/config', () => ({
+  resolveProviderAiSdkConfig: async (...args: unknown[]) => ({
+    config: await providerConfig(...args),
+    credentialReceipt: { attribution: 'unknown' }
+  })
 }))
-vi.mock('@main/ai/provider/config', () => ({ providerToAiSdkConfig: vi.fn() }))
-vi.mock('@cherrystudio/ai-core', () => ({ createExecutor: vi.fn() }))
+
+const CONVERSATION = { id: 'conversation-1', topicId: 'topic-1' }
 
 describe('resolveCompressionModel', () => {
+  beforeEach(() => {
+    providerLookup.mockReturnValue(makeProvider({ id: 'opencode' }))
+    modelLookup.mockReturnValue(
+      makeModel({ id: 'opencode::small', providerId: 'opencode', apiModelId: 'small', contextWindow: 8_000 })
+    )
+    providerConfig.mockResolvedValue({
+      providerId: 'openai-compatible',
+      providerSettings: { name: 'opencode', baseURL: 'https://provider.test/v1' }
+    })
+  })
+
   it('returns null for a non-UniqueModelId string', async () => {
-    expect(await resolveCompressionModel('not-a-unique-id')).toBeNull()
+    expect(await resolveCompressionModel('not-a-unique-id', CONVERSATION)).toBeNull()
   })
 
   it('returns null when provider/model lookup throws', async () => {
-    const { providerService } = await import('@main/data/services/ProviderService')
-    vi.mocked(providerService.getByProviderId).mockRejectedValueOnce(new Error('no such provider'))
-    expect(await resolveCompressionModel('ghost::model-x')).toBeNull()
+    providerLookup.mockImplementationOnce(() => {
+      throw new Error('no such provider')
+    })
+    expect(await resolveCompressionModel('ghost::model-x', CONVERSATION)).toBeNull()
   })
 
-  // The summarize call is issued against the COMPRESSOR, so callers need its
-  // window — budgeting by the chat model's window overflows an explicitly
-  // picked small compressor (e.g. 8k compressor while chatting on 128k).
-  it('carries the compressor own contextWindow in the descriptor', async () => {
-    const { providerService } = await import('@main/data/services/ProviderService')
-    const { modelService } = await import('@main/data/services/ModelService')
-    const { providerToAiSdkConfig } = await import('@main/ai/provider/config')
-    const { createExecutor } = await import('@cherrystudio/ai-core')
-
-    vi.mocked(providerService.getByProviderId).mockReturnValue({ id: 'p' } as never)
-    vi.mocked(modelService.getByKey).mockReturnValue({ apiModelId: 'small', contextWindow: 8_000 } as never)
-    vi.mocked(providerToAiSdkConfig).mockResolvedValue({ providerId: 'openai', providerSettings: {} } as never)
-    const languageModel = { id: 'lm' }
-    vi.mocked(createExecutor).mockResolvedValue({ languageModel: async () => languageModel } as never)
-
-    const descriptor = await resolveCompressionModel('p::small')
-    expect(descriptor).toEqual({ languageModel, contextWindow: 8_000 })
+  it('budgets the summary against the compressor own window', async () => {
+    expect((await resolveCompressionModel('opencode::small', CONVERSATION))?.contextWindow).toBe(8_000)
   })
 
   it('reports a null window when the compressor row declares none', async () => {
-    const { providerService } = await import('@main/data/services/ProviderService')
-    const { modelService } = await import('@main/data/services/ModelService')
-    const { providerToAiSdkConfig } = await import('@main/ai/provider/config')
-    const { createExecutor } = await import('@cherrystudio/ai-core')
-
-    vi.mocked(providerService.getByProviderId).mockReturnValue({ id: 'p' } as never)
-    vi.mocked(modelService.getByKey).mockReturnValue({ apiModelId: 'x', contextWindow: undefined } as never)
-    vi.mocked(providerToAiSdkConfig).mockResolvedValue({ providerId: 'openai', providerSettings: {} } as never)
-    vi.mocked(createExecutor).mockResolvedValue({ languageModel: async () => ({ id: 'lm' }) } as never)
-
-    expect((await resolveCompressionModel('p::x'))?.contextWindow).toBeNull()
+    modelLookup.mockReturnValue(makeModel({ contextWindow: undefined }))
+    expect((await resolveCompressionModel('opencode::small', CONVERSATION))?.contextWindow).toBeNull()
   })
+
+  it.each([
+    [undefined, 'small'],
+    ['', 'small'],
+    ['wire-small', 'wire-small']
+  ])(
+    'addresses the summary model using the configured wire id or unique-id fallback (%j)',
+    async (apiModelId, expectedModelId) => {
+      modelLookup.mockReturnValue(makeModel({ id: 'opencode::small', providerId: 'opencode', apiModelId }))
+      const outgoing: unknown[] = []
+      providerConfig.mockResolvedValue({
+        providerId: 'openai-compatible',
+        providerSettings: {
+          name: 'opencode',
+          baseURL: 'https://provider.test/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            outgoing.push(JSON.parse(String(init?.body)).model)
+            return Response.json({
+              id: 'summary-1',
+              created: 0,
+              model: 'small',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'SUMMARY' }, finish_reason: 'stop' }]
+            })
+          }
+        }
+      })
+      const descriptor = await resolveCompressionModel('opencode::small', CONVERSATION)
+      expect(descriptor).not.toBeNull()
+      const summary = await generateText({ model: descriptor!.languageModel, prompt: 'Summarize.' })
+      expect(summary.text).toBe('SUMMARY')
+      expect(outgoing).toEqual([expectedModelId])
+    }
+  )
+
+  it('normalizes a Gemini listing id before handing the compressor to the SDK', async () => {
+    providerLookup.mockReturnValue(
+      makeProvider({ id: 'google', defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT })
+    )
+    modelLookup.mockReturnValue(
+      makeModel({
+        id: 'google::models/gemini-flash-latest',
+        providerId: 'google',
+        apiModelId: 'models/gemini-flash-latest'
+      })
+    )
+    providerConfig.mockResolvedValue({ providerId: 'google', providerSettings: { apiKey: 'test' } })
+    const descriptor = await resolveCompressionModel('google::models/gemini-flash-latest', CONVERSATION)
+    expect(descriptor?.languageModel.modelId).toBe('gemini-flash-latest')
+  })
+
+  it.each([undefined, 'configured-session'])(
+    'sends a summary with the owning conversation or explicit provider session %j',
+    async (explicitSession) => {
+      const outgoing: Headers[] = []
+      providerConfig.mockResolvedValue({
+        providerId: 'openai-compatible',
+        conversationHeader: explicitSession ? undefined : 'x-opencode-session',
+        providerSettings: {
+          name: 'opencode',
+          baseURL: 'https://provider.test/v1',
+          headers: explicitSession ? { 'X-OpenCode-Session': explicitSession } : {},
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            outgoing.push(new Headers(init?.headers))
+            return Response.json({
+              id: 'summary-1',
+              created: 0,
+              model: 'small',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'SUMMARY' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+            })
+          }
+        }
+      })
+      const descriptor = await resolveCompressionModel('opencode::small', CONVERSATION)
+      expect(descriptor).not.toBeNull()
+      const summary = await generateText({ model: descriptor!.languageModel, prompt: 'Summarize this conversation.' })
+      expect(summary.text).toBe('SUMMARY')
+      expect(outgoing).toHaveLength(1)
+      expect(outgoing[0].get('x-opencode-session')).toBe(explicitSession ?? CONVERSATION.id)
+    }
+  )
 })

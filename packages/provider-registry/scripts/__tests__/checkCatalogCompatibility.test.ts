@@ -28,11 +28,23 @@ describe('provider-registry wire compatibility', () => {
     await expect(checkCatalogCompatibility()).resolves.toBeUndefined()
   })
 
-  it('rejects catalog data that the frozen validator cannot parse', async () => {
+  // Vocabulary growth is what used to force a schema-version bump; the frozen validator now
+  // drops the member it does not know instead of failing the document.
+  it('accepts a catalog carrying vocabulary the frozen validator does not know', async () => {
     const dataDirectory = copyCatalog()
     const modelsPath = path.join(dataDirectory, 'models.json')
     const models = JSON.parse(readFileSync(modelsPath, 'utf8'))
-    models.models[0].capabilities.push('future-incompatible-capability')
+    models.models[0].capabilities.push('future-capability')
+    writeFileSync(modelsPath, JSON.stringify(models))
+
+    await expect(checkCatalogCompatibility({ dataDirectory })).resolves.toBeUndefined()
+  })
+
+  it('rejects structurally incompatible data', async () => {
+    const dataDirectory = copyCatalog()
+    const modelsPath = path.join(dataDirectory, 'models.json')
+    const models = JSON.parse(readFileSync(modelsPath, 'utf8'))
+    models.models = { 'gpt-5': {} }
     writeFileSync(modelsPath, JSON.stringify(models))
 
     await expect(checkCatalogCompatibility({ dataDirectory })).rejects.toThrow('models.json')

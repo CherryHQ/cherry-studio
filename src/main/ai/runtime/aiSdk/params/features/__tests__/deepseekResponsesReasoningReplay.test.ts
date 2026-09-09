@@ -80,7 +80,7 @@ describe('deepseekResponsesReasoningReplay', () => {
       expect(assistant.content[1]).toEqual({ type: 'text', text: 'answer' })
     })
 
-    it('leaves reasoning parts with a native OpenAI round-trip alone', async () => {
+    it('tags item-backed reasoning for raw passback but preserves encrypted reasoning', async () => {
       const prompt: LanguageModelV3Prompt = [
         {
           role: 'assistant',
@@ -94,7 +94,7 @@ describe('deepseekResponsesReasoningReplay', () => {
       expect(result[0].content[0]).toEqual({
         type: 'reasoning',
         text: 'a',
-        providerOptions: { openai: { itemId: 'rs_1' } }
+        providerOptions: { openai: { itemId: 'rs_1', rawReasoningContent: true } }
       })
       expect(result[0].content[1]).toEqual({
         type: 'reasoning',

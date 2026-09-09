@@ -16,16 +16,20 @@
  * - `turn/end` → sink callback with the wire reason
  * - `compaction/start|summary|end` → host compaction runtime events via the sink
  * - `llm/retry` / `llm/retry-started` → failed-attempt accounting and retry timing
- * - content with no host-opened turn → autonomous-turn lifecycle (goal rounds)
+ * - `user/message` (entering batch) → classifies the turn as host-prompted or autonomous
+ * - content with no host-opened turn → autonomous-turn lifecycle
  */
-// The dsh-compaction-basic / dsh-llm-retry / dsh-plan-mode imports load their SessionEventMap merges.
+// The dsh-compaction-basic / dsh-llm-retry / dsh-plan-mode imports load their SessionEventMap
+// merges; dsh-goal loads its MessageSourceMap merge.
 import type {} from '@deepseek-ai/dsh-compaction-basic'
-import type { CallId, ContentBlock, TokenUsage } from '@deepseek-ai/dsh-llm'
+import type {} from '@deepseek-ai/dsh-goal'
+import type { CallId, ContentBlock, MessageSource, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type { SessionEvent, SessionEventMap, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
@@ -60,12 +64,20 @@ export interface DshStreamSink {
   onApiRetry(retry: AgentSessionApiRetryInfo): void
   /** Compaction lifecycle (`compaction/start|end`) mapped to host runtime events. */
   onCompaction(event: DshCompactionRuntimeEvent): void
-  /** A runtime-started turn (goal round): `started` fires before the turn's first chunk,
-   *  `finished` before its `onTurnEnd` — the host opens/settles a receive-only stream. */
-  onAutonomousTurnState(state: 'started' | 'finished'): void
+  /** A runtime-started turn: `started` fires before the turn's first chunk with why the runtime
+   *  opened it, `finished` before its `onTurnEnd` — the host opens/settles a receive-only stream. */
+  onAutonomousTurnState(event: { state: 'started'; origin: AutonomousTurnOrigin } | { state: 'finished' }): void
   /** Committed `plan/mode` fold (last one wins). `false` after an approved exit —
    *  the connection re-opens its policy since Cherry's stored mode is not rewritten. */
   onPlanMode(active: boolean): void
+}
+
+/**
+ * An automatic goal-round continuation, which the `goal-round-driver` queues without user input.
+ * Round 0 is the goal statement itself, not a driven round.
+ */
+function isGoalRoundSource(source: MessageSource): source is Extract<MessageSource, { kind: 'goal' }> {
+  return source.kind === 'goal' && source.round > 0
 }
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
@@ -126,18 +138,34 @@ export class DshStreamAdapter {
   private turnActive = false
   /** The current turn was opened by runtime content (a goal round), not a host prompt. */
   private autonomousTurn = false
+  /** A host prompt is queued but no turn has claimed it yet — dsh may run other turns first. */
+  private hostPromptPending = false
+  /** `beginTurn()` opened the current turn for the host (as opposed to leaving a runtime turn alone). */
+  private hostClaimedTurn = false
+  /** Why the runtime opened the current turn on its own, read off its entering batch. */
+  private turnOrigin?: AutonomousTurnOrigin
+  /** Still reading the open turn's entering `user/message` batch; later input never reclassifies. */
+  private enteringTurn = false
 
   constructor(private readonly sink: DshStreamSink) {}
 
   /** Mark the next turn as host-prompted; called by the connection before each bridge prompt. */
   beginTurn(): void {
+    this.hostPromptPending = true
+    // A runtime-started turn is already under way (classified from its entering batch, or open):
+    // the prompt queues behind it in dsh, so it must not take over that turn's stream.
+    if (this.turnOrigin !== undefined || (this.turnActive && this.autonomousTurn)) return
     this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
+    this.hostClaimedTurn = true
   }
 
   /** Roll back a `beginTurn()` whose prompt never reached the runtime. */
   abortTurn(): void {
+    this.hostPromptPending = false
+    if (!this.hostClaimedTurn) return
+    this.hostClaimedTurn = false
     this.turnActive = false
     this.autonomousTurn = false
   }
@@ -153,12 +181,37 @@ export class DshStreamAdapter {
     this.handleToolCall({ callId: callId as CallId, name: toolName, arguments: JSON.stringify(input) })
   }
 
-  /** Content with no host-opened turn = the runtime started its own (goal-round) turn. */
+  /** Content with no host-opened turn = the runtime started its own turn. */
   private ensureTurnOpen(): void {
     if (this.turnActive) return
-    this.sink.onAutonomousTurnState('started')
+    // A turn whose entering batch never reached us (bridge-first approval, legacy log) is still
+    // runtime-started; the neutral reason is the honest fallback.
+    this.sink.onAutonomousTurnState({ state: 'started', origin: this.turnOrigin ?? { kind: 'background-work' } })
     this.turnActive = true
     this.autonomousTurn = true
+  }
+
+  // Entering context can surround the claimed prompt; once claimed, host ownership is final.
+  private classifyEnteringMessage(source: MessageSource): void {
+    if (source.kind === 'user') {
+      // The host's queued prompt was claimed by this turn. A `user` message dsh raised on its own
+      // is left to open an autonomous turn, as before.
+      if (!this.hostPromptPending) return
+      this.hostPromptPending = false
+      this.enteringTurn = false
+      this.turnOrigin = undefined
+      this.turnActive = true
+      this.autonomousTurn = false
+      return
+    }
+    this.turnOrigin = isGoalRoundSource(source)
+      ? { kind: 'goal-round', round: source.round }
+      : { kind: 'background-work' }
+    // Not the host's turn even if a prompt is queued: dsh runs this one first, so it must open its
+    // own receive-only stream rather than consume the one the host's prompt will own.
+    this.turnActive = false
+    this.autonomousTurn = false
+    this.hostClaimedTurn = false
   }
 
   handleEvent(event: SessionEvent): void {
@@ -169,9 +222,16 @@ export class DshStreamAdapter {
         // Host turns clear in beginTurn, before cross-channel events can race. Preserve a bridge-first
         // synthetic call here; an ordinary autonomous turn is still inactive and clears normally.
         if (!this.turnActive) this.startedTools.clear()
+        this.turnOrigin = undefined
+        this.enteringTurn = true
         this.resetStepTiming()
         return
+      case 'user/message':
+        if (this.enteringTurn) this.classifyEnteringMessage(event.data.source)
+        return
       case 'step/start':
+        // dsh appends the entering batch inside step 1 only; later steps carry mid-turn input.
+        if (event.data.step > 1) this.enteringTurn = false
         this.startProviderAttempt(event.data, true)
         return
       case 'assistant/chunk':
@@ -192,6 +252,9 @@ export class DshStreamAdapter {
         return
       case 'turn/end': {
         this.flushPendingProviderUsage()
+        this.turnOrigin = undefined
+        this.enteringTurn = false
+        this.hostClaimedTurn = false
         // A turn that never carried content (a stale goal round rejected at pre-step)
         // has nothing to settle — surfacing it would fabricate an empty host turn.
         if (!this.turnActive) return
@@ -199,7 +262,7 @@ export class DshStreamAdapter {
         if (this.autonomousTurn) {
           this.autonomousTurn = false
           // Ownership release must precede the terminal turn-complete (host contract).
-          this.sink.onAutonomousTurnState('finished')
+          this.sink.onAutonomousTurnState({ state: 'finished' })
         }
         this.sink.onTurnEnd(event.data.reason)
         return
@@ -228,10 +291,9 @@ export class DshStreamAdapter {
         this.sink.onPlanMode(event.data.active)
         return
       default:
-        // user/message, todo/write, request/*, approval/*,
-        // compaction/prune, session/end-seed, and merge-extended types the union
-        // does not know: the unknown-event MUST-refuse rule applies to log
-        // reconstruction (the runtime's job), not here.
+        // todo/write, request/*, approval/*, compaction/prune, session/end-seed,
+        // and merge-extended types the union does not know: the unknown-event
+        // MUST-refuse rule applies to log reconstruction (the runtime's job), not here.
         return
     }
   }

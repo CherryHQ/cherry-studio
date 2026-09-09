@@ -132,7 +132,15 @@ function TopicMessageFlowMessage({ data }: { data: TopicMessageFlowNodeModel['da
     params: { id: data.messageId },
     swrOptions: { keepPreviousData: false }
   })
-  useDataChange('/messages/:id', () => void refetch(), { routeParams: { id: data.messageId } })
+  useDataChange(
+    '/messages/:id',
+    (effects) => {
+      if (effects.some((effect) => !effect.entityIds || effect.entityIds.includes(data.messageId))) {
+        void refetch()
+      }
+    },
+    { routeParams: { id: data.messageId } }
+  )
 
   const liveMessage = messages.find((message) => message.id === data.messageId)
   const message = useMemo(() => {
