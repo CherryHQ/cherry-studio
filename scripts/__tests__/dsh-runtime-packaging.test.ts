@@ -24,6 +24,18 @@ describe('DSH runtime packaging', () => {
     expect(fileCount).toBeLessThan(200)
   })
 
+  it('does not collect the unused SDK umbrella into the production dependency graph', () => {
+    const lock = parse(readFileSync(path.join(projectRoot, 'pnpm-lock.yaml'), 'utf8')) as {
+      packages: Record<string, unknown>
+      snapshots: Record<string, { dependencies?: Record<string, string> }>
+    }
+    const clients = Object.entries(lock.snapshots).filter(([key]) => key.startsWith('@deepseek-ai/dsh-sdk-client@'))
+    expect(clients.length).toBeGreaterThan(0)
+    for (const [, snapshot] of clients) expect(snapshot.dependencies).not.toHaveProperty('@deepseek-ai/dsh')
+    expect(Object.keys(lock.packages).some((key) => key.startsWith('@deepseek-ai/dsh@'))).toBe(false)
+    expect(Object.keys(lock.packages).some((key) => key.startsWith('@deepseek-ai/dsh-web-frontend@'))).toBe(false)
+  })
+
   it('unpacks only the JS bundles and native runtime packages', () => {
     const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
       asarUnpack: string[]

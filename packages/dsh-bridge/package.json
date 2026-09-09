@@ -62,7 +62,6 @@
     "@deepseek-ai/dsh-home-paths": "0.1.2-rc.1",
     "@deepseek-ai/dsh-invariants": "0.1.2-rc.1",
     "@deepseek-ai/dsh-jobs": "0.1.2-rc.1",
-    "@deepseek-ai/dsh-jobs-local": "0.1.2-rc.1",
     "@deepseek-ai/dsh-launch-environment": "0.1.2-rc.1",
     "@deepseek-ai/dsh-llm": "0.1.2-rc.1",
     "@deepseek-ai/dsh-llm-deepseek": "0.1.2-rc.1",

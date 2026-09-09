@@ -2,6 +2,9 @@ packages:
   - 'packages/*'
 
 overrides:
+  # Temporary: the SDK umbrella is only needed without dshBin; Cherry always supplies its bundled runtime.
+  # Remove when upstream makes this optional/peer (PR #20214, discussion_r3965278746).
+  '@deepseek-ai/dsh-sdk-client@0.1.2-rc.1>@deepseek-ai/dsh': '-'
   picomatch: '4.0.4'
   'concurrently>shell-quote': '1.8.4'
   fast-xml-parser: '>=5.10.1'
@@ -96,7 +99,6 @@ patchedDependencies:
   # Version-pinned: hunk targets a content-hashed dist chunk; bumps hard-fail install until key+hunk are re-derived.
   streamdown@2.5.0: patches/streamdown@2.5.0.patch
   app-builder-lib@26.15.6: patches/app-builder-lib@26.15.6.patch
-  # rc.7's pi-ai schema drops developer-role compatibility even though its underlying pi-ai model supports it.
   '@earendil-works/pi-ai@0.80.6': patches/@earendil-works__pi-ai@0.80.6.patch
 
 allowBuilds:

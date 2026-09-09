@@ -7,7 +7,6 @@ export const DSH_RUNTIME_ENTRY_NAMES = {
   '@deepseek-ai/dsh-system-prompt': 'system-prompt',
   '@deepseek-ai/dsh-tools': 'tools',
   '@deepseek-ai/dsh-agent': 'agent',
-  '@deepseek-ai/dsh-jobs-local': 'jobs-local',
   '@deepseek-ai/dsh-invariants': 'invariants',
   '@deepseek-ai/dsh-session/invariant': 'session-invariant',
   '@deepseek-ai/dsh-agent/invariant': 'agent-invariant',
