@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import type { FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -5,9 +6,11 @@ interface Props {
   disabled: boolean
   onDisabledClick?: () => void
   sendMessage: () => void
+  /** Resolved send shortcut label (e.g. "Enter", "⌘Enter") shown in the tooltip. */
+  shortcutLabel?: string
 }
 
-const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }) => {
+const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, shortcutLabel }) => {
   const { t } = useTranslation()
 
   const handleClick = () => {
@@ -30,7 +33,7 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
     sendMessage()
   }
 
-  return (
+  const button = (
     <i
       data-ui="chat.composer.action.send"
       className="iconfont icon-ic_send"
@@ -50,6 +53,12 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }
       }}
     />
   )
+
+  if (shortcutLabel) {
+    return <Tooltip content={`${t('chat.input.send')} (${shortcutLabel})`}>{button}</Tooltip>
+  }
+
+  return button
 }
 
 export default SendMessageButton

@@ -1405,7 +1405,7 @@ const AgentComposerInner = ({
             sendKey: getComposerShortcutLabel(sendMessageShortcut),
             steerKey: getComposerShortcutLabel(resolvedSteerShortcut)
           })
-        : t('agent.input.placeholder', { key: getComposerShortcutLabel(sendMessageShortcut) }),
+        : t('agent.input.placeholder'),
     [isStreaming, resolvedSteerShortcut, sendMessageShortcut, t]
   )
 
@@ -1863,9 +1863,7 @@ const MissingAgentHomeComposerInner = ({
   const handleBlockedSend = useCallback(() => {
     toast.error(selectAgentMessage)
   }, [selectAgentMessage])
-  const placeholderText = t('agent.input.placeholder', {
-    key: getComposerShortcutLabel(sendMessageShortcut)
-  })
+  const placeholderText = t('agent.input.placeholder')
   const controlSlots = renderAgentToolbarControls({
     agent: undefined,
     selectAgentLabel: selectAgentMessage,
