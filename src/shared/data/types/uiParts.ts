@@ -18,6 +18,7 @@
  * - data-compaction-anchor (timeline anchor for completed runtime compaction)
  * - data-agent-task-event (Claude Agent SDK task lifecycle event)
  * - data-knowledge-scope (knowledge bases available to this user turn)
+ * - data-skill-scope (skills attached to this user turn; main reads their SKILL.md)
  * - data-clear (context boundary marker)
  * - data-code (code blocks)
  * - data-retry (transient model-retry/fallback status; shown live, never persisted)
@@ -98,6 +99,14 @@ export interface KnowledgeScopePartData {
   baseIds: string[]
 }
 
+/**
+ * Skills attached to a user message, identified by mirror folder name (= `LocalSkill.filename`).
+ * Hidden from the transcript; the main process reads each SKILL.md at request build time.
+ */
+export interface SkillScopePartData {
+  skills: string[]
+}
+
 /** Context boundary marker. Hidden from both the transcript and the model. */
 export type ClearPartData = Record<string, never>
 
@@ -146,6 +155,7 @@ export type CherryDataPartTypes = {
   'conversation-reset': ConversationResetPartData
   'agent-task-event': AgentTaskEventPartData
   'knowledge-scope': KnowledgeScopePartData
+  'skill-scope': SkillScopePartData
   clear: ClearPartData
   code: CodePartData
   retry: RetryPartData
@@ -332,6 +342,10 @@ export const KnowledgeScopePartDataSchema: z.ZodType<KnowledgeScopePartData> = z
   baseIds: z.array(z.string().min(1))
 })
 
+export const SkillScopePartDataSchema: z.ZodType<SkillScopePartData> = z.strictObject({
+  skills: z.array(z.string().min(1))
+})
+
 // Table-driven dispatch — part `type` → schema. First match wins.
 const SCHEMA_BY_PART_TYPE: ReadonlyArray<readonly [(t: string) => boolean, z.ZodTypeAny]> = [
   [(t) => t === 'text', CherryTextMetaSchema],
@@ -349,6 +363,7 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 }
 
 const KNOWLEDGE_SCOPE_PART_TYPE = 'data-knowledge-scope'
+const SKILL_SCOPE_PART_TYPE = 'data-skill-scope'
 const CLEAR_CONTEXT_PART_TYPE = 'data-clear'
 
 export type ClearContextPart = Extract<CherryMessagePart, { type: typeof CLEAR_CONTEXT_PART_TYPE }>
@@ -398,6 +413,33 @@ export function getKnowledgeBaseIdsFromParts(parts: readonly CherryMessagePart[]
 
     const result = KnowledgeScopePartDataSchema.safeParse(part.data)
     if (result.success) return Array.from(new Set(result.data.baseIds))
+  }
+  return undefined
+}
+
+/** Replace the aggregate skill scope part while preserving every content part. */
+export function withSkillScopePart(parts: CherryMessagePart[], folderNames: readonly string[]): CherryMessagePart[] {
+  const contentParts = parts.filter((part) => part.type !== SKILL_SCOPE_PART_TYPE)
+  const uniqueFolderNames = Array.from(new Set(folderNames.filter(Boolean)))
+  if (uniqueFolderNames.length === 0) return contentParts
+
+  return [
+    ...contentParts,
+    {
+      type: SKILL_SCOPE_PART_TYPE,
+      data: { skills: uniqueFolderNames }
+    } as CherryMessagePart
+  ]
+}
+
+/** Read the last valid aggregate skill scope. Missing or malformed parts yield `undefined`. */
+export function getSkillFolderNamesFromParts(parts: readonly CherryMessagePart[]): string[] | undefined {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index]
+    if (part.type !== SKILL_SCOPE_PART_TYPE || !('data' in part)) continue
+
+    const result = SkillScopePartDataSchema.safeParse(part.data)
+    if (result.success) return Array.from(new Set(result.data.skills))
   }
   return undefined
 }

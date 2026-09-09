@@ -11,12 +11,15 @@ import {
   createClearContextPart,
   type DiagnosisResult,
   getKnowledgeBaseIdsFromParts,
+  getSkillFolderNamesFromParts,
   hasClearContextPart,
   isBlankUserTurn,
   KnowledgeScopePartDataSchema,
   readCherryMeta,
+  SkillScopePartDataSchema,
   withCherryMeta,
-  withKnowledgeScopePart
+  withKnowledgeScopePart,
+  withSkillScopePart
 } from '../uiParts'
 
 const diagnosis: DiagnosisResult = {
@@ -151,6 +154,58 @@ describe('knowledge scope parts', () => {
         { type: 'data-knowledge-scope', data: { baseIds: [42] } } as unknown as CherryMessagePart
       ])
     ).toBeUndefined()
+  })
+})
+
+describe('skill scope parts', () => {
+  it('validates, deduplicates, and replaces the aggregate scope part', () => {
+    const parts = withSkillScopePart(
+      [
+        { type: 'text', text: 'hello' },
+        { type: 'data-skill-scope', data: { skills: ['old'] } }
+      ] as CherryMessagePart[],
+      ['pdf-tools', 'mermaid-style', 'pdf-tools']
+    )
+
+    expect(parts).toEqual([
+      { type: 'text', text: 'hello' },
+      { type: 'data-skill-scope', data: { skills: ['pdf-tools', 'mermaid-style'] } }
+    ])
+    expect(getSkillFolderNamesFromParts(parts)).toEqual(['pdf-tools', 'mermaid-style'])
+  })
+
+  it('removes the scope part when the selection is empty', () => {
+    const parts = withSkillScopePart(
+      [
+        { type: 'text', text: 'hello' },
+        { type: 'data-skill-scope', data: { skills: ['pdf-tools'] } }
+      ] as CherryMessagePart[],
+      []
+    )
+
+    expect(parts).toEqual([{ type: 'text', text: 'hello' }])
+    expect(getSkillFolderNamesFromParts(parts)).toBeUndefined()
+  })
+
+  it('rejects malformed scope data at the read boundary', () => {
+    expect(SkillScopePartDataSchema.safeParse({ skills: [''] }).success).toBe(false)
+    expect(SkillScopePartDataSchema.safeParse({ baseIds: ['pdf-tools'] }).success).toBe(false)
+    expect(
+      getSkillFolderNamesFromParts([
+        { type: 'data-skill-scope', data: { skills: [42] } } as unknown as CherryMessagePart
+      ])
+    ).toBeUndefined()
+  })
+
+  it('reads the last valid scope when several scope parts exist', () => {
+    const parts = [
+      { type: 'data-skill-scope', data: { skills: ['stale'] } },
+      { type: 'text', text: 'hello' },
+      { type: 'data-skill-scope', data: { skills: ['fresh'] } }
+    ] as CherryMessagePart[]
+
+    expect(getSkillFolderNamesFromParts(parts)).toEqual(['fresh'])
+    expect(getSkillFolderNamesFromParts([{ type: 'text', text: 'hello' } as CherryMessagePart])).toBeUndefined()
   })
 })
 
