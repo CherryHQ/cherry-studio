@@ -547,14 +547,14 @@ const tokenDanceFetcher: ModelFetcher = {
         const endpointTypes = normalizeEndpointTypes(m.supported_protocols)
         if (!endpointTypes) return undefined
 
-        const impliedCapability = endpointDefaultOperationCapability(endpointTypes[0])
+        const endpointOperations = new Set(endpointTypes.map(endpointDefaultOperationCapability))
 
         return toModel(m.id, provider, {
           name: m.name || m.id,
           description: m.description,
           contextWindow: m.context_length,
           endpointTypes,
-          ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+          capabilities: MODEL_OPERATION_CAPABILITIES.filter((operation) => endpointOperations.has(operation))
         })
       })
       .filter((model): model is Partial<Model> => Boolean(model))

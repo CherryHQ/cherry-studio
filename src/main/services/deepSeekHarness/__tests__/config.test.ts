@@ -163,6 +163,44 @@ describe('DeepSeek Harness config transaction', () => {
     ).toMatchObject({ endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
   })
 
+  it('ignores a served preference outside the model declaration', () => {
+    expect(
+      resolveDeepSeekHarnessEndpoint(
+        provider(),
+        model({
+          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+          preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+      )
+    ).toEqual({
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      protocol: 'anthropic-messages',
+      baseUrl: 'https://api.anthropic.com'
+    })
+    expect(() =>
+      resolveDeepSeekHarnessEndpoint(
+        provider(),
+        model({
+          endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+          preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        })
+      )
+    ).toThrow('has no DeepSeek Harness compatible endpoint')
+  })
+
+  it('honors a declared provider default ahead of declaration order', () => {
+    expect(
+      resolveDeepSeekHarnessEndpoint(
+        provider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES }),
+        model({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      )
+    ).toEqual({
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
+    })
+  })
+
   it('uses the selected OpenAI endpoint regardless of developer-role support', () => {
     const openAiFirstProvider = provider({
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,

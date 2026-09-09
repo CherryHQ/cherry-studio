@@ -83,16 +83,13 @@ function resolveSupportedEndpointType(
   const isSupported = (type: EndpointType | undefined): type is EndpointType =>
     Boolean(type && supportedEndpoints.includes(type))
 
-  const preferredEndpoint = model?.preferredEndpointType
-  if (
-    isSupported(preferredEndpoint) &&
-    hasEndpoint(preferredEndpoint) &&
-    (!model?.endpointTypes?.length || model.endpointTypes.includes(preferredEndpoint))
-  ) {
-    return preferredEndpoint
-  }
+  const preferredEndpoint = [model?.preferredEndpointType, provider.defaultChatEndpoint].find(
+    (type): type is EndpointType =>
+      isSupported(type) && hasEndpoint(type) && (!model?.endpointTypes?.length || model.endpointTypes.includes(type))
+  )
 
   return (
+    preferredEndpoint ??
     model?.endpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
     (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
       ? provider.defaultChatEndpoint

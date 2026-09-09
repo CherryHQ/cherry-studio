@@ -205,6 +205,23 @@ describe('listModels — TokenDance protocol routing', () => {
     expect(new Headers(call.headers).get('x-app-url')).toBe('app://cherryai.com.cn')
   })
 
+  it.each([
+    ['openai:image-generations', 'openai:chat-completions', 'anthropic:messages'],
+    ['anthropic:messages', 'openai:chat-completions', 'openai:image-generations']
+  ])('retains all operations when the first protocol is %s', async (...supportedProtocols) => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'multi-operation-model', supported_protocols: supportedProtocols }] }
+    })
+
+    const models = await listModels(makeTokenDanceProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].capabilities).toEqual(
+      expect.arrayContaining([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION])
+    )
+    expect(models[0].capabilities).toHaveLength(2)
+  })
+
   it('uses the TokenDance fetcher for copied providers', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {

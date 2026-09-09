@@ -3,9 +3,38 @@ import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { resolveGeminiBaseUrl, resolveHermesProviderInfo, resolvePiProviderInfo } from '../resolvers'
+import {
+  resolveGeminiBaseUrl,
+  resolveHermesProviderInfo,
+  resolveOpenCodeNpmInfo,
+  resolvePiProviderInfo
+} from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
+
+describe.each([
+  ['OpenCode', resolveOpenCodeNpmInfo],
+  ['Pi', resolvePiProviderInfo],
+  ['Hermes', resolveHermesProviderInfo]
+] as const)('%s endpoint precedence', (_name, resolve) => {
+  it.each([undefined, 'openai-responses'] as const)(
+    'honors a declared provider default when the preference is %s',
+    (preferredEndpointType) => {
+      expect(
+        resolve(
+          provider({
+            defaultChatEndpoint: 'anthropic-messages',
+            endpointConfigs: {
+              'openai-chat-completions': { baseUrl: 'https://chat.example' },
+              'anthropic-messages': { baseUrl: 'https://anthropic.example' }
+            }
+          }),
+          { endpointTypes: ['openai-chat-completions', 'anthropic-messages'], preferredEndpointType }
+        ).endpointType
+      ).toBe('anthropic-messages')
+    }
+  )
+})
 
 describe('resolveGeminiBaseUrl', () => {
   it('uses a dedicated google-generate-content baseUrl verbatim', () => {

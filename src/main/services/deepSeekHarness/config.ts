@@ -349,18 +349,15 @@ export function resolveDeepSeekHarnessEndpoint(
     Boolean(endpoint && DIRECT_ENDPOINTS.includes(endpoint as (typeof DIRECT_ENDPOINTS)[number]))
   const hasBaseUrl = (endpoint: EndpointType): boolean => Boolean(provider.endpointConfigs?.[endpoint]?.baseUrl)
   const declaredModelEndpoints = model.endpointTypes?.length ? model.endpointTypes.filter(isSupported) : undefined
-  // The user's pin outranks declaration order, as everywhere else in endpoint resolution.
-  const pinnedEndpoint =
-    isSupported(model.preferredEndpointType) && hasBaseUrl(model.preferredEndpointType)
-      ? model.preferredEndpointType
-      : undefined
+  const preferredEndpoint = [model.preferredEndpointType, provider.defaultChatEndpoint].find(
+    (endpoint): endpoint is (typeof DIRECT_ENDPOINTS)[number] =>
+      isSupported(endpoint) &&
+      hasBaseUrl(endpoint) &&
+      (!declaredModelEndpoints || declaredModelEndpoints.includes(endpoint))
+  )
   const endpoint =
-    pinnedEndpoint ??
-    (declaredModelEndpoints
-      ? declaredModelEndpoints.find(hasBaseUrl)
-      : isSupported(provider.defaultChatEndpoint) && hasBaseUrl(provider.defaultChatEndpoint)
-        ? provider.defaultChatEndpoint
-        : DIRECT_ENDPOINTS.find(hasBaseUrl))
+    preferredEndpoint ??
+    (declaredModelEndpoints ? declaredModelEndpoints.find(hasBaseUrl) : DIRECT_ENDPOINTS.find(hasBaseUrl))
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
   const rawBaseUrl = provider.endpointConfigs?.[endpoint]?.baseUrl
