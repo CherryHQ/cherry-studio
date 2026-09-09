@@ -9,8 +9,10 @@ import { useTranslation } from 'react-i18next'
 import DetailHeader from '../components/DetailHeader'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
-import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
-import KnowledgeItemNoteContentPanel from '../panels/dataSource/KnowledgeItemNoteContentPanel'
+
+// Item detail views are loaded when an item is opened, not with the page.
+const KnowledgeItemChunkDetailPanel = lazy(() => import('../panels/dataSource/KnowledgeItemChunkDetailPanel'))
+const KnowledgeItemNoteContentPanel = lazy(() => import('../panels/dataSource/KnowledgeItemNoteContentPanel'))
 
 const RagConfigPanel = lazy(() => import('../panels/ragConfig/RagConfigPanel'))
 const RecallTestPanel = lazy(() => import('../panels/recallTest/RecallTestPanel'))
@@ -84,11 +86,13 @@ const KnowledgePageDetailSection = () => {
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {selectedItemId ? (
-          selectedItemView === 'content' ? (
-            <KnowledgeItemNoteContentPanel itemId={selectedItemId} onBack={closeItemChunks} />
-          ) : (
-            <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
-          )
+          <Suspense fallback={null}>
+            {selectedItemView === 'content' ? (
+              <KnowledgeItemNoteContentPanel itemId={selectedItemId} onBack={closeItemChunks} />
+            ) : (
+              <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
+            )}
+          </Suspense>
         ) : filePreview ? (
           <section
             aria-label={filePreview.fileName}

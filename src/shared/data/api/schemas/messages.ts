@@ -271,8 +271,10 @@ export type MessageSchemas = {
     /**
      * Delete a message
      * - cascade=true: deletes message and all descendants
-     * - cascade=false: reparents children to grandparent
-     * - activeNodeStrategy='parent' (default): sets activeNodeId to parent if affected
+     * - cascade=false: an active grouped reply transfers children to the next live sibling
+     *   (previous at the end); otherwise reparents children to the parent.
+     * - activeNodeStrategy='parent' (default): uses that sibling, or the parent, if the active node is deleted.
+     *   Surviving descendants retain their active node; grouped context deletion clears their context anchors.
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
      * - awaitingInputOnly=true: rejects unless the target is an awaiting-input user leaf
      */

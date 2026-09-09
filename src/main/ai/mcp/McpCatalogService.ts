@@ -15,6 +15,7 @@ import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
+const emptyToolsRetryCacheKey = (serverId: string) => `mcp:tools-empty-retry:${serverId}`
 const PREWARM_CONCURRENCY = 3
 const EMPTY_TOOLS_RETRY_MS = 5 * 60 * 1000
 const FAILED_TOOLS_RETRY_MS = 30 * 1000
@@ -81,8 +82,6 @@ export class McpCatalogService extends BaseService {
   /** Single-flights `warmToolsCache` refreshes per serverId so concurrent sessions warming
    *  the same server at once don't each open a connection to it. */
   private readonly warmRefreshInFlight = new Map<string, Promise<void>>()
-  /** Avoid re-probing a genuinely empty or recently failed server on every session build. */
-  private readonly emptyCacheRetryAt = new Map<string, number>()
 
   /**
    * Fires when a server's `mcp.tools.<serverId>` shared-cache **content** actually changes
@@ -106,7 +105,6 @@ export class McpCatalogService extends BaseService {
 
   protected async onInit(): Promise<void> {
     this.prewarmCancelled = false
-    this.emptyCacheRetryAt.clear()
     this.registerDisposable(
       application.get('McpRuntimeService').onToolListChanged(({ serverId }) => {
         void this.refreshTools(serverId).catch((error) => {
@@ -135,7 +133,7 @@ export class McpCatalogService extends BaseService {
    * single point drive `onToolsCacheUpdated`.
    *
    * Backoff state is maintained here too, so clearing or replacing the shared cache cannot
-   * leave a stale retry deadline behind. Change detection compares effective content
+   * leave a stale retry backoff marker behind. Change detection compares effective content
    * (`undefined` reads as `[]`, so first-write of an empty list is not a "change"): consumers
    * debounce on it because a spurious fire makes the SDK re-list and active sessions rebuild
    * their host-side tool metadata and policy snapshot. Stringify order-sensitivity is fine —
@@ -147,9 +145,9 @@ export class McpCatalogService extends BaseService {
     const previous = cacheService.getShared(cacheKey) as McpTool[] | undefined
     cacheService.setShared(cacheKey, tools)
     if (tools.length === 0 && emptyRetryMs > 0) {
-      this.emptyCacheRetryAt.set(serverId, Date.now() + emptyRetryMs)
+      cacheService.set(emptyToolsRetryCacheKey(serverId), true, emptyRetryMs)
     } else {
-      this.emptyCacheRetryAt.delete(serverId)
+      cacheService.delete(emptyToolsRetryCacheKey(serverId))
     }
     if (JSON.stringify(previous ?? []) !== JSON.stringify(tools)) {
       this._onToolsCacheUpdated.fire({ serverId })
@@ -305,13 +303,8 @@ export class McpCatalogService extends BaseService {
   public async warmToolsCache(serverId: string): Promise<void> {
     const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
     if (cached !== undefined && cached.length > 0) return
-    const retryAt = this.emptyCacheRetryAt.get(serverId) ?? 0
-    const now = Date.now()
-    if (cached !== undefined && retryAt > now) {
-      logger.debug('Skipping MCP tools warm during retry backoff', {
-        serverId,
-        remainingMs: retryAt - now
-      })
+    if (cached !== undefined && application.get('CacheService').has(emptyToolsRetryCacheKey(serverId))) {
+      logger.debug('Skipping MCP tools warm during retry backoff', { serverId })
       return
     }
     let refresh = this.warmRefreshInFlight.get(serverId)
