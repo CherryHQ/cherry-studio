@@ -4,26 +4,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MultiSelectActionPopup from '../MultiSelectActionPopup'
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, disabled, onClick }: any) => (
-    <button type="button" disabled={disabled} onClick={onClick}>
-      {children}
-    </button>
-  ),
-  Checkbox: ({ checked, disabled, onCheckedChange, ...props }: any) => (
-    <input
-      type="checkbox"
-      // Forward the raw prop so assertions cover what the popup passes to the Checkbox,
-      // not behavior reimplemented by this stand-in.
-      data-state={String(checked)}
-      checked={checked === true}
-      disabled={disabled}
-      onChange={(event) => onCheckedChange?.(event.target.checked)}
-      {...props}
-    />
-  ),
-  Tooltip: ({ children, content }: any) => <span data-tooltip-content={content}>{children}</span>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  // Keep the real Checkbox: tri-state and interaction assertions must cover
+  // the actual UI primitive, not a locally reimplemented stand-in.
+  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  return {
+    ...actual,
+    Button: ({ children, disabled, onClick }: any) => (
+      <button type="button" disabled={disabled} onClick={onClick}>
+        {children}
+      </button>
+    ),
+    Tooltip: ({ children, content }: any) => <span data-tooltip-content={content}>{children}</span>
+  }
+})
 
 vi.mock('@renderer/components/icons/CopyIcon', () => ({
   default: () => <span data-testid="copy-icon" />
@@ -126,10 +120,10 @@ describe('MultiSelectionPopup', () => {
     })
 
     it.each([
-      [false, 'false'],
+      [false, 'unchecked'],
       ['indeterminate', 'indeterminate'],
-      [true, 'true']
-    ] as const)('passes the %s select-all state to the checkbox', (selectAllState, expectedState) => {
+      [true, 'checked']
+    ] as const)('renders the real checkbox in %s state', (selectAllState, expectedState) => {
       render(<MultiSelectActionPopup {...popupProps()} selectAllState={selectAllState} onToggleSelectAll={vi.fn()} />)
 
       expect(screen.getByRole('checkbox')).toHaveAttribute('data-state', expectedState)

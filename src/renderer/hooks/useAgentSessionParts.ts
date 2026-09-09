@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import type { MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
@@ -81,6 +82,16 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
+  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
+  // page — same pattern as `useTopics({ loadAll: true })`. A failed page
+  // fetch abandons the request instead of retrying on every render; the
+  // user can re-trigger select-all.
+  const [loadAllRequested, setLoadAllRequested] = useState(false)
+  const startLoadAll = useCallback(() => setLoadAllRequested(true), [])
+  const stopLoadAll = useCallback(() => setLoadAllRequested(false), [])
+  useEffect(() => {
+    stopLoadAll()
+  }, [sessionId, stopLoadAll])
   const { pages, isLoading, isRefreshing, hasNext, loadNext, mutate } = useConversationHistoryQuery(
     '/agent-sessions/:sessionId/messages',
     {
@@ -91,6 +102,9 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       enabled,
       swrOptions: {
         keepPreviousData: false,
+        // Paging to the end must not revalidate the first page on every step;
+        // restored once the load-all finishes.
+        revalidateFirstPage: !loadAllRequested,
         ...(!fetchOnMount && {
           revalidateIfStale: false,
           revalidateOnMount: false
@@ -248,20 +262,15 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [mutate, sessionId]
   )
 
-  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
-  // page — same pattern as `useTopics({ loadAll: true })`.
-  const [loadAllRequested, setLoadAllRequested] = useState(false)
-  const requestLoadAll = useCallback(() => setLoadAllRequested(true), [])
-  useEffect(() => {
-    setLoadAllRequested(false)
-  }, [sessionId])
   useEffect(() => {
     if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing) {
-      // A failed page fetch would otherwise retry on every render — abandon
-      // the load-all instead; the user can re-trigger select-all.
-      void Promise.resolve(loadNext()).catch(() => setLoadAllRequested(false))
+      void Promise.resolve(loadNext()).catch(stopLoadAll)
     }
-  }, [enabled, loadAllRequested, hasNext, isLoading, isRefreshing, loadNext])
+  }, [enabled, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext, stopLoadAll])
+  // Fully loaded — reset so first-page revalidation resumes after select-all.
+  useEffect(() => {
+    if (loadAllRequested && !hasNext) stopLoadAll()
+  }, [hasNext, loadAllRequested, stopLoadAll])
 
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
@@ -270,13 +279,22 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [deleteMessageTrigger, sessionId]
   )
 
+  const selectAllPagination = useMemo<MessageListSelectAllPagination>(
+    () => ({
+      hasOlder: hasNext,
+      isLoading: enabled && loadAllRequested && hasNext,
+      start: startLoadAll,
+      stop: stopLoadAll
+    }),
+    [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
+  )
+
   return {
     messages,
     isLoading: enabled && isLoading,
     hasOlder: hasNext,
     loadOlder: loadNext,
-    loadAllOlder: requestLoadAll,
-    isLoadingAll: enabled && loadAllRequested && hasNext,
+    selectAllPagination,
     refresh: refreshMessages,
     seedReservedMessages,
     deleteMessage

@@ -1,3 +1,9 @@
+<<<<<<< HEAD
+=======
+import type { MessageListItem, MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
+import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
+import type { CherryMessagePart } from '@shared/data/types/message'
+>>>>>>> 4f58ddeeca (refactor(multi-select): harden and unify select-all pagination)
 import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -373,61 +379,63 @@ describe('useMessageSelectionController', () => {
   describe('select-all with server-side pagination', () => {
     interface PaginationProps {
       messages: MessageListItem[]
-      hasOlder?: boolean
-      loadAllOlder?: () => void
-      isLoadingAll?: boolean
+      pagination?: MessageListSelectAllPagination
     }
 
     const renderPaginatedController = (
       initialMessages: MessageListItem[],
-      pagination: Omit<PaginationProps, 'messages'>
-    ) =>
-      renderHook(
-        ({ messages, hasOlder, loadAllOlder, isLoadingAll }: PaginationProps) =>
+      pagination?: Partial<MessageListSelectAllPagination>
+    ) => {
+      const handle: MessageListSelectAllPagination = {
+        hasOlder: false,
+        isLoading: false,
+        start: vi.fn(),
+        stop: vi.fn(),
+        ...pagination
+      }
+      const utils = renderHook(
+        ({ messages, pagination }: PaginationProps) =>
           useMessageSelectionController({
             topicId: 'topic-1',
             messages,
             partsByMessageId: {},
-            hasOlder,
-            loadAllOlder,
-            isLoadingAll
+            selectAllPagination: pagination
           }),
-        { initialProps: { messages: initialMessages, ...pagination } }
+        { initialProps: { messages: initialMessages, pagination: handle } }
       )
+      return { ...utils, handle }
+    }
 
     it('defers select-all and starts load-all when older pages remain', () => {
-      const loadAllOlder = vi.fn()
-      const { result } = renderPaginatedController([message('a')], { hasOlder: true, loadAllOlder })
+      const { result, handle } = renderPaginatedController([message('a')], { hasOlder: true })
 
       act(() => {
         result.current.actions.toggleSelectAllMessages?.(true)
       })
 
-      expect(loadAllOlder).toHaveBeenCalledTimes(1)
+      expect(handle.start).toHaveBeenCalledTimes(1)
       expect(cacheValues['chat.selected_message_ids']).toEqual([])
     })
 
     it('applies the deferred select-all once every page is loaded', () => {
-      const loadAllOlder = vi.fn()
-      const { result, rerender } = renderPaginatedController([message('a')], { hasOlder: true, loadAllOlder })
+      const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
 
       act(() => {
         result.current.actions.toggleSelectAllMessages?.(true)
       })
       // Pagination in flight: selection stays deferred and the loading flag is on.
-      rerender({ messages: [message('a')], hasOlder: true, loadAllOlder, isLoadingAll: true })
+      rerender({ messages: [message('a')], pagination: { ...handle, isLoading: true } })
       expect(result.current.selection.isSelectAllLoading).toBe(true)
       expect(cacheValues['chat.selected_message_ids']).toEqual([])
 
       // Last page arrives: no pages remain, so the pending select-all applies.
-      rerender({ messages: [message('a'), message('b')], hasOlder: false, loadAllOlder, isLoadingAll: false })
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
       expect(result.current.selection.isSelectAllLoading).toBe(false)
       expect(cacheValues['chat.selected_message_ids']).toEqual(['a', 'b'])
     })
 
     it('drops the deferred select-all when toggled off while loading', () => {
-      const loadAllOlder = vi.fn()
-      const { result, rerender } = renderPaginatedController([message('a')], { hasOlder: true, loadAllOlder })
+      const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
 
       act(() => {
         result.current.actions.toggleSelectAllMessages?.(true)
@@ -435,14 +443,13 @@ describe('useMessageSelectionController', () => {
       act(() => {
         result.current.actions.toggleSelectAllMessages?.(false)
       })
-      rerender({ messages: [message('a'), message('b')], hasOlder: false, loadAllOlder, isLoadingAll: false })
+      rerender({ messages: [message('a'), message('b')], pagination: handle })
 
       expect(cacheValues['chat.selected_message_ids']).toEqual([])
     })
 
-    it('drops the deferred select-all when multi-select mode is exited mid-load', () => {
-      const loadAllOlder = vi.fn()
-      const { result, rerender } = renderPaginatedController([message('a')], { hasOlder: true, loadAllOlder })
+    it('drops the deferred select-all and stops paging when multi-select mode is exited mid-load', () => {
+      const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
 
       act(() => {
         result.current.actions.toggleSelectAllMessages?.(true)
@@ -450,24 +457,43 @@ describe('useMessageSelectionController', () => {
       act(() => {
         result.current.actions.toggleMultiSelectMode?.(false)
       })
-      rerender({ messages: [message('a'), message('b')], hasOlder: false, loadAllOlder, isLoadingAll: false })
+      rerender({ messages: [message('a'), message('b')], pagination: handle })
 
+      // Exiting multi-select stops an in-progress load-all (the mount-time
+      // initial toggle also stops idempotently, so "at least once").
+      expect(handle.stop).toHaveBeenCalled()
+      expect(cacheValues['chat.selected_message_ids']).toEqual([])
+    })
+
+    it('drops the pending select-all when load-all is abandoned mid-flight', () => {
+      const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
+
+      act(() => {
+        result.current.actions.toggleSelectAllMessages?.(true)
+      })
+      // Pagination starts, then a failed page fetch abandons it: loading
+      // falls back to false while older pages still remain.
+      rerender({ messages: [message('a')], pagination: { ...handle, isLoading: true } })
+      rerender({ messages: [message('a')], pagination: handle })
+
+      // The user pages to the end manually — the stale select-all must not fire.
+      rerender({ messages: [message('a'), message('b')], pagination: { ...handle, hasOlder: false } })
       expect(cacheValues['chat.selected_message_ids']).toEqual([])
     })
 
     it('never reports fully selected while older pages remain unloaded', () => {
-      const { result, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
+      const { result, handle, rerender } = renderPaginatedController([message('a')], { hasOlder: true })
 
       act(() => {
         result.current.actions.selectMessage?.('a', true)
       })
-      rerender({ messages: [message('a')], hasOlder: true })
+      rerender({ messages: [message('a')], pagination: handle })
 
       // Every loaded message is ticked, but unloaded pages exist — the
       // checkbox must not claim "all selected".
       expect(result.current.selection.selectAllState).toBe('indeterminate')
 
-      rerender({ messages: [message('a')], hasOlder: false })
+      rerender({ messages: [message('a')], pagination: { ...handle, hasOlder: false } })
       expect(result.current.selection.selectAllState).toBe(true)
     })
   })

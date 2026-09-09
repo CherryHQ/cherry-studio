@@ -5,7 +5,11 @@ import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent'
-import type { MessageListActions, MessageStreamingLayers } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListActions,
+  MessageListSelectAllPagination,
+  MessageStreamingLayers
+} from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
@@ -33,10 +37,8 @@ type Props = {
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
-  /** Keep auto-paginating until every older page is loaded (select-all support). */
-  loadAllOlder?: () => void
-  /** True while a requested load-all is still fetching older pages. */
-  isLoadingAll?: boolean
+  /** Load-all handle for the multi-select "select all" action. */
+  selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
@@ -56,8 +58,7 @@ const AgentSessionMessages = ({
   isLoading,
   hasOlder = false,
   loadOlder,
-  loadAllOlder,
-  isLoadingAll,
+  selectAllPagination,
   onOpenCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
@@ -130,8 +131,7 @@ const AgentSessionMessages = ({
     isLoading,
     hasOlder,
     loadOlder,
-    loadAllOlder,
-    isLoadingAll,
+    selectAllPagination,
     openCitationsPanel: onOpenCitationsPanel,
     openAgentToolFlow,
     openArtifactFile,

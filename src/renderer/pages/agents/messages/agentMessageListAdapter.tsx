@@ -18,6 +18,7 @@ import {
   type MessageListMeta,
   type MessageListProviderValue,
   type MessageListRuntime,
+  type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
   type MessageStreamingLayers
@@ -97,8 +98,7 @@ interface AgentMessageListParams {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
-  loadAllOlder?: () => void
-  isLoadingAll?: boolean
+  selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
@@ -156,8 +156,7 @@ export function useAgentMessageListProviderValue({
   isLoading,
   hasOlder = false,
   loadOlder,
-  loadAllOlder,
-  isLoadingAll,
+  selectAllPagination,
   openCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
@@ -267,9 +266,7 @@ export function useAgentMessageListProviderValue({
     deleteMessage,
     diagnosticReport,
     persistDiagnosis,
-    hasOlder,
-    loadAllOlder,
-    isLoadingAll
+    selectAllPagination
   })
 
   const openPath = useCallback(

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 import { usePreference } from '@data/hooks/usePreference'
+import type { MessageListSelectAllPagination } from '@renderer/components/chat/messages/types'
 import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
@@ -141,13 +142,10 @@ export interface UseTopicMessagesResult {
   /** Whether older pages remain on the server. */
   hasOlder: boolean
   /**
-   * Keep auto-paginating until the oldest page is loaded. Used by the
-   * multi-select "select all" action, which needs every message (and its
-   * parts) resident before it can select and export the whole topic.
+   * Load-all handle for the multi-select "select all" action: pages to the
+   * end (so parts are resident for export) with start/stop control.
    */
-  loadAllOlder: () => void
-  /** True while a requested load-all is still fetching older pages. */
-  isLoadingAll: boolean
+  selectAllPagination: MessageListSelectAllPagination
   /**
    * SWR mutator for the underlying infinite cache entry. Exposed so
    * `useTopicMessagesCache` can apply optimistic writes via the updater
@@ -166,6 +164,16 @@ export function useTopicMessages(
   // `limit` is part of the SWR infinite key, so toggling the preference
   // mid-session swaps to a fresh cache entry instead of mixing page sizes.
   const pageSize = messageNavigation === 'anchor' ? ANCHOR_RAIL_PAGE_SIZE : PAGE_SIZE
+  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
+  // page — same pattern as `useTopics({ loadAll: true })`. A failed page
+  // fetch abandons the request instead of retrying on every render; the
+  // user can re-trigger select-all.
+  const [loadAllRequested, setLoadAllRequested] = useState(false)
+  const startLoadAll = useCallback(() => setLoadAllRequested(true), [])
+  const stopLoadAll = useCallback(() => setLoadAllRequested(false), [])
+  useEffect(() => {
+    stopLoadAll()
+  }, [stopLoadAll, topicId])
   const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useConversationHistoryQuery(
     '/topics/:topicId/messages',
     {
@@ -175,6 +183,9 @@ export function useTopicMessages(
       enabled,
       swrOptions: {
         dedupingInterval: 0,
+        // Paging to the end must not revalidate the first page on every step
+        // (same as `useTopics({ loadAll: true })`); restored once finished.
+        revalidateFirstPage: !loadAllRequested,
         ...(!fetchOnMount && {
           revalidateIfStale: false,
           revalidateOnMount: false
@@ -199,19 +210,15 @@ export function useTopicMessages(
   )
   const activeNodeId = pages[0]?.activeNodeId ?? null
 
-  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
-  // page — same pattern as `useTopics({ loadAll: true })`.
-  const [loadAllRequested, setLoadAllRequested] = useState(false)
-  useEffect(() => {
-    setLoadAllRequested(false)
-  }, [topicId])
   useEffect(() => {
     if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing) {
-      // A failed page fetch would otherwise retry on every render — abandon
-      // the load-all instead; the user can re-trigger select-all.
-      void Promise.resolve(loadNext()).catch(() => setLoadAllRequested(false))
+      void Promise.resolve(loadNext()).catch(stopLoadAll)
     }
-  }, [enabled, loadAllRequested, hasNext, isLoading, isRefreshing, loadNext])
+  }, [enabled, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext, stopLoadAll])
+  // Fully loaded — reset so first-page revalidation resumes after select-all.
+  useEffect(() => {
+    if (loadAllRequested && !hasNext) stopLoadAll()
+  }, [hasNext, loadAllRequested, stopLoadAll])
 
   // On remount with stale SWR cache, SWR may expose cached data while it
   // revalidates. Track freshness per topic so the loading gate blocks stale
@@ -283,6 +290,16 @@ export function useTopicMessages(
 
   const isStale = enabled && (readyTopicId !== topicId || !pagesBelongToTopic)
 
+  const selectAllPagination = useMemo<MessageListSelectAllPagination>(
+    () => ({
+      hasOlder: hasNext,
+      isLoading: enabled && loadAllRequested && hasNext,
+      start: startLoadAll,
+      stop: stopLoadAll
+    }),
+    [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
+  )
+
   return {
     uiMessages,
     siblingsMap: branchProjection.siblingsMap,
@@ -292,8 +309,7 @@ export function useTopicMessages(
     activeNodeId,
     loadOlder: loadNext,
     hasOlder: hasNext,
-    loadAllOlder: useCallback(() => setLoadAllRequested(true), []),
-    isLoadingAll: enabled && loadAllRequested && hasNext,
+    selectAllPagination,
     mutate: mutate
   }
 }
