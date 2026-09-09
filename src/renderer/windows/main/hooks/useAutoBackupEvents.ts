@@ -1,8 +1,8 @@
-import { cacheService } from '@data/CacheService'
-import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { useEffect, useEffectEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { cacheService } from '@data/CacheService'
+import { useSharedCacheSelector } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { setBackupSyncState } from '@renderer/services/BackupService'

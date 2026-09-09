@@ -1,7 +1,7 @@
-import { cacheService } from '@data/CacheService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { cacheService } from '@data/CacheService'
 import { toast } from '@renderer/services/toast'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 
