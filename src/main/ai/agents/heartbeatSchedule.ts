@@ -150,16 +150,21 @@ export function syncHeartbeatSchedule(agentId: string, rows?: JobScheduleSnapsho
   return trackWork(current)
 }
 
-/** Pause (never delete) an enabled heartbeat row; returns its id, null when nothing was paused. */
-function pauseHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]): string | null {
-  const existing = findHeartbeatRow(agentId, rows)
-  if (!existing?.enabled) return null
-  application.get('DbService').withWriteTx((tx) => {
-    application.get('JobManager').updateJobScheduleTx(tx, existing.id, { enabled: false })
-  })
-  application.get('JobManager').syncJobScheduleTimerById(existing.id)
-  logger.info('Heartbeat schedule paused', { agentId, scheduleId: existing.id })
-  return existing.id
+/** Pause (never delete) every enabled heartbeat row; returns the paused ids. */
+function pauseHeartbeatRows(agentId: string, rows: JobScheduleSnapshot[]): string[] {
+  // Duplicates can exist (migration disambiguation) — pausing only the first
+  // identity match would leave the rest firing.
+  const paused: string[] = []
+  for (const row of rows) {
+    if (!matchesHeartbeatIdentity(row, agentId) || !row.enabled) continue
+    application.get('DbService').withWriteTx((tx) => {
+      application.get('JobManager').updateJobScheduleTx(tx, row.id, { enabled: false })
+    })
+    application.get('JobManager').syncJobScheduleTimerById(row.id)
+    paused.push(row.id)
+  }
+  if (paused.length > 0) logger.info('Heartbeat schedule paused', { agentId, scheduleIds: paused })
+  return paused
 }
 
 async function runSync(
@@ -171,21 +176,24 @@ async function runSync(
 
   // The ids of anything this sync wrote — the mid-sync deletion guard below
   // needs them to undo the writes.
-  let touchedScheduleId: string | null = null
+  const touchedScheduleIds: string[] = []
   let createdWorkspaceId: string | null = null
   const finalize = async (outcome: HeartbeatSyncOutcome): Promise<HeartbeatSyncOutcome> => {
     // The agent could be deleted mid-sync, its onAgentDeleted schedule sweep
     // having already run — a row committed afterwards would be orphaned, as
     // would a workspace this sync created.
-    if ((!touchedScheduleId && !createdWorkspaceId) || agentService.getAgent(agentId)) return outcome
-    if (touchedScheduleId) {
-      const jobManager = application.get('JobManager')
-      await jobManager.unregisterJobScheduleById(touchedScheduleId).catch((error) => {
+    if (touchedScheduleIds.length === 0 && !createdWorkspaceId) return outcome
+    if (agentService.getAgent(agentId)) return outcome
+    const jobManager = application.get('JobManager')
+    for (const scheduleId of touchedScheduleIds) {
+      await jobManager.unregisterJobScheduleById(scheduleId).catch((error) => {
         logger.warn('Failed to remove heartbeat schedule for an agent deleted mid-sync', { agentId, error })
       })
+    }
+    if (touchedScheduleIds.length > 0) {
       logger.info('Removed heartbeat schedule for an agent deleted mid-sync', {
         agentId,
-        scheduleId: touchedScheduleId
+        scheduleIds: touchedScheduleIds
       })
     }
     if (createdWorkspaceId) {
@@ -208,7 +216,7 @@ async function runSync(
       agentId,
       type: agent.type
     })
-    touchedScheduleId = pauseHeartbeatRow(agentId, rows)
+    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows))
     return finalize('skipped-capability')
   }
 
@@ -216,7 +224,7 @@ async function runSync(
   // the same capability here so a schedule is never armed for, say, dsh —
   // and a capability removal pauses (never deletes) any previously-armed row.
   if (capabilities.heartbeat !== true) {
-    touchedScheduleId = pauseHeartbeatRow(agentId, rows)
+    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows))
     return finalize('skipped-capability')
   }
 
@@ -225,8 +233,8 @@ async function runSync(
   if (config.heartbeat_enabled === false) {
     // Pause instead of delete: zero timer ticks while off, no churn on re-enable.
     // The run-side gate remains as a backstop for rows paused by neither path.
-    touchedScheduleId = pauseHeartbeatRow(agentId, rows)
-    return finalize(touchedScheduleId ? 'paused' : 'skipped-disabled')
+    touchedScheduleIds.push(...pauseHeartbeatRows(agentId, rows))
+    return finalize(touchedScheduleIds.length > 0 ? 'paused' : 'skipped-disabled')
   }
 
   const intervalMinutes = clampHeartbeatIntervalMinutes(config.heartbeat_interval)
@@ -282,7 +290,7 @@ async function runSync(
       // Re-arming an enabled interval resets its phase — skip the timer sync
       // when only the template changed (the armed callback re-reads the row).
       if (!row.enabled || triggerChanged) jobManager.syncJobScheduleTimerById(row.id)
-      touchedScheduleId = row.id
+      touchedScheduleIds.push(row.id)
       logger.info('Heartbeat schedule repaired', { agentId, scheduleId: row.id, intervalMinutes })
       return 'updated'
     }
@@ -310,7 +318,7 @@ async function runSync(
           })
         )
         jobManager.syncJobScheduleTimerById(id)
-        touchedScheduleId = id
+        touchedScheduleIds.push(id)
         logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
         return finalize('created')
       } catch (error) {
@@ -330,7 +338,7 @@ async function runSync(
   } catch (error) {
     // A workspace row created by this call is orphaned (no heartbeat row
     // points at it) when provisioning fails before the schedule commits.
-    if (createdWorkspaceId && !touchedScheduleId) {
+    if (createdWorkspaceId && touchedScheduleIds.length === 0) {
       application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, createdWorkspaceId))
     }
     throw error

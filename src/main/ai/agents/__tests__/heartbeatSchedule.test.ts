@@ -267,6 +267,34 @@ describe('heartbeatSchedule', () => {
     expect(scheduler.has(`schedule:${row.id}`)).toBe(false)
   })
 
+  it('pauses ALL duplicate heartbeat rows when the heartbeat is disabled', async () => {
+    // Migration disambiguation can leave two identity-matching rows; pausing
+    // only the first would keep the duplicate firing on the disabled path.
+    seedAgent(AGENT_ID, { heartbeat_enabled: false })
+    for (const name of [`heartbeat_${AGENT_ID}`, 'heartbeat_legacy_disambiguated']) {
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name,
+        trigger: { kind: 'interval', ms: 3_600_000 },
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'system' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+    }
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('paused')
+    for (const row of heartbeatRows(AGENT_ID)) {
+      expect(row.enabled).toBe(false)
+    }
+  })
+
   it('resumes and repairs a paused row on re-enable', async () => {
     seedAgent(AGENT_ID)
     await syncHeartbeatSchedule(AGENT_ID)
