@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { isMac } from '@renderer/utils/platform'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { HistoryRecordDescriptor } from '../historyRecordsDescriptor'
@@ -22,9 +23,41 @@ export function HistoryRecordsContent<T>({
   toolbarLeading
 }: HistoryRecordsContentProps<T>) {
   const { t } = useTranslation()
+  const contentRef = useRef<HTMLElement>(null)
+  const { selectionDisabled, toggleSelectAll } = controller
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        selectionDisabled ||
+        !(isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) ||
+        event.shiftKey ||
+        event.altKey ||
+        event.key.toLowerCase() !== 'a'
+      )
+        return
+
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+      if (target !== document.body && !contentRef.current?.contains(target)) return
+      if (target.isContentEditable) return
+      if (
+        !target.closest('[data-history-selection-checkbox], [data-history-record-title]') &&
+        target.closest('a[href], button, input, select, textarea, [role="button"], [role="menuitem"]')
+      )
+        return
+
+      event.preventDefault()
+      toggleSelectAll(true)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [selectionDisabled, toggleSelectAll])
 
   return (
     <section
+      ref={contentRef}
       className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-card-foreground"
       aria-label={t('history.records.shortTitle')}>
       <HistoryTopBar
@@ -57,6 +90,7 @@ export function HistoryRecordsContent<T>({
         selectionDisabled={controller.selectionDisabled}
         onToggleSelection={controller.toggleSelection}
         onToggleSelectAll={controller.toggleSelectAll}
+        onTogglePin={controller.handleTogglePin}
       />
     </section>
   )

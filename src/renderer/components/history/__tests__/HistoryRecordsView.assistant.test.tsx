@@ -1,3 +1,4 @@
+import type * as PlatformModule from '@renderer/utils/platform'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
@@ -21,6 +22,7 @@ import zhCN from '../../../i18n/locales/zh-cn.json'
 import zhTW from '../../../i18n/locales/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
+  isMac: false,
   cancelTopicRenaming: vi.fn(),
   clearTopicMessagesTrigger: vi.fn(),
   deleteTopic: vi.fn(),
@@ -44,9 +46,17 @@ const hookMocks = vi.hoisted(() => ({
   useUpdateSession: vi.fn()
 }))
 
+vi.mock('@renderer/utils/platform', async (importOriginal) => ({
+  ...(await importOriginal<typeof PlatformModule>()),
+  get isMac() {
+    return hookMocks.isMac
+  }
+}))
+
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  return MockCherrystudioUI
+  const { Checkbox } = await import('../../../../../packages/ui/src/components/primitives/checkbox')
+  return { ...MockCherrystudioUI, Checkbox }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -430,6 +440,7 @@ let assistantHistoryLoaded = false
 
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(async () => {
+    hookMocks.isMac = false
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
     MockUseDataApiUtils.resetMocks()
     hookMocks.clearTopicMessagesTrigger.mockReset().mockResolvedValue({ deletedIds: ['message-alpha'] })
@@ -495,6 +506,129 @@ describe('HistoryRecordsView assistant mode', () => {
       assistantHistoryLoaded = true
     }
   }, 60_000)
+
+  it('selects a checkbox interval without changing selections outside it', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory({
+      topics: ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'].map((name, index) =>
+        createTopic({ id: name, name, updatedAt: `2026-05-${20 - index}T08:00:00.000Z` })
+      )
+    })
+    const boxes = screen.getAllByRole('checkbox').slice(1)
+    await user.click(boxes[4])
+    await user.click(boxes[0])
+    await user.keyboard('{Shift>}')
+    await user.click(boxes[2])
+    await user.keyboard('{/Shift}')
+    expect(boxes.map((box) => box.getAttribute('aria-checked'))).toEqual(['true', 'true', 'true', 'false', 'true'])
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBePartiallyChecked()
+    await user.keyboard('{Shift>}')
+    await user.click(boxes[1])
+    await user.keyboard('{/Shift}')
+    expect(boxes.map((box) => box.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true', 'false', 'true'])
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.keyboard('{Shift>}')
+    await user.click(boxes[4])
+    await user.click(boxes[2])
+    await user.keyboard('{/Shift}')
+    expect(boxes.map((box) => box.getAttribute('aria-checked'))).toEqual(['false', 'false', 'true', 'true', 'true'])
+  })
+
+  it('selects all filtered unpinned topics with Ctrl+A while preserving search text selection', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory({
+      pinnedIds: ['pinned'],
+      topics: [
+        createTopic({ id: 'alpha', name: 'Match alpha' }),
+        createTopic({ id: 'beta', name: 'Match beta' }),
+        createTopic({ id: 'pinned', name: 'Match pinned' }),
+        createTopic({ id: 'other', name: 'Other' })
+      ]
+    })
+    const search = screen.getByRole('searchbox')
+    await user.type(search, 'Match')
+    await user.keyboard('{Control>}a{/Control}')
+    expect(search).toHaveProperty('selectionStart', 0)
+    expect(search).toHaveProperty('selectionEnd', 5)
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).not.toBeChecked()
+    const boxes = screen.getAllByRole('checkbox').slice(1)
+    await user.click(boxes.find((box) => !box.hasAttribute('disabled'))!)
+    await user.keyboard('{Control>}a{/Control}')
+    expect(
+      boxes.filter((box) => !box.hasAttribute('disabled')).every((box) => box.getAttribute('aria-checked') === 'true')
+    ).toBe(true)
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
+    expect(screen.getByRole('button', { name: /Batch Delete/ })).toHaveTextContent('Batch Delete (2)')
+    await user.keyboard('{Control>}a{/Control}')
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
+  })
+
+  it.each([false, true])('selects all from a focused title using the platform shortcut (isMac=%s)', async (isMac) => {
+    hookMocks.isMac = isMac
+    const user = userEvent.setup()
+    const { onRecordSelect } = setupAssistantHistory()
+    const header = screen.getByRole('checkbox', { name: 'Select all' })
+    header.focus()
+    await user.keyboard('{Control>}{Meta>}a{/Meta}{/Control}')
+    expect(header).not.toBeChecked()
+    await user.keyboard(isMac ? '{Control>}a{/Control}' : '{Meta>}a{/Meta}')
+    expect(header).not.toBeChecked()
+    screen.getByRole('button', { name: 'Alpha topic' }).focus()
+    await user.keyboard(isMac ? '{Meta>}a{/Meta}' : '{Control>}a{/Control}')
+    expect(header).toBeChecked()
+    expect(onRecordSelect).not.toHaveBeenCalled()
+  })
+
+  it('drops a filtered-out range anchor and ignores modified or outside shortcuts', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory({
+      topics: [
+        createTopic({ id: 'a', name: 'Old anchor', updatedAt: '2026-05-20T08:00:00.000Z' }),
+        createTopic({ id: 'b', name: 'Match first', updatedAt: '2026-05-19T08:00:00.000Z' }),
+        createTopic({ id: 'c', name: 'Match last', updatedAt: '2026-05-18T08:00:00.000Z' })
+      ]
+    })
+    await user.click(screen.getAllByRole('checkbox')[1])
+    await user.type(screen.getByRole('searchbox'), 'Match')
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getAllByRole('checkbox')[2])
+    await user.keyboard('{/Shift}')
+    expect(screen.getAllByRole('checkbox')[1]).not.toBeChecked()
+    expect(screen.getAllByRole('checkbox')[2]).toBeChecked()
+    await user.keyboard('{Control>}{Shift>}a{/Shift}{/Control}')
+    await user.keyboard('{Control>}{Alt>}a{/Alt}{/Control}')
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBePartiallyChecked()
+    render(<input aria-label="Outside history" />)
+    await user.click(screen.getByRole('textbox', { name: 'Outside history' }))
+    await user.keyboard('{Control>}a{/Control}')
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBePartiallyChecked()
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    await user.keyboard('{Control>}a{/Control}')
+    expect(screen.getByRole('checkbox', { name: 'Select all' })).toBeChecked()
+  })
+
+  it('keeps the checkbox anchor when another topic is pinned', async () => {
+    const user = userEvent.setup()
+    setupAssistantHistory({
+      topics: ['Alpha', 'Beta', 'Gamma', 'Delta'].map((name, index) =>
+        createTopic({ id: name, name, updatedAt: `2026-05-${20 - index}T08:00:00.000Z` })
+      )
+    })
+    hookMocks.togglePin.mockImplementationOnce(async () => {
+      hookMocks.usePins.mockReturnValue({ pinnedIds: ['Beta'], togglePin: hookMocks.togglePin })
+    })
+    await user.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    await user.click(
+      within(screen.getByRole('row', { name: /Select Beta/ })).getByRole('button', { name: 'Pin Conversation' })
+    )
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByRole('checkbox', { name: 'Select Delta' }))
+    await user.keyboard('{/Shift}')
+    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).not.toBeChecked()
+  })
 
   it('selects a topic when the history title is clicked', () => {
     const { onClose, onRecordSelect } = setupAssistantHistory({ pinnedIds: ['topic-alpha'] })

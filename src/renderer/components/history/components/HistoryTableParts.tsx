@@ -140,6 +140,7 @@ export const HistoryTableHeader = ({
         checked={selectedState}
         disabled={selectionDisabled}
         aria-label={selectAllLabel}
+        data-history-selection-checkbox
         onCheckedChange={(checked) => onToggleAll(Boolean(checked))}
         onClick={(event) => event.stopPropagation()}
       />
@@ -169,7 +170,7 @@ interface HistorySelectionCellProps {
   checked: boolean
   disabled?: boolean
   label: string
-  onCheckedChange: (checked: boolean) => void
+  onCheckedChange: (checked: boolean, selectRange?: boolean) => void
 }
 
 export const HistorySelectionCell = ({
@@ -184,8 +185,11 @@ export const HistorySelectionCell = ({
       checked={checked}
       disabled={disabled}
       aria-label={label}
-      onCheckedChange={(nextChecked) => onCheckedChange(Boolean(nextChecked))}
-      onClick={(event) => event.stopPropagation()}
+      data-history-selection-checkbox
+      onClick={(event) => {
+        event.stopPropagation()
+        onCheckedChange(!checked, event.shiftKey)
+      }}
     />
   </div>
 )
@@ -197,6 +201,7 @@ interface HistoryTitleButtonProps {
 
 export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) => (
   <span
+    data-history-record-title
     role="button"
     tabIndex={0}
     className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
@@ -435,7 +440,7 @@ interface HistoryRecordRowProps {
   unpinLabel: string
   onAction: (action: ResolvedAction) => void | Promise<void>
   onOpen?: () => void
-  onSelectedChange: (checked: boolean) => void
+  onSelectedChange: (checked: boolean, selectRange?: boolean) => void
   onTogglePin?: () => void | Promise<void>
 }
 
