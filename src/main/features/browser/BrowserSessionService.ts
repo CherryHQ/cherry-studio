@@ -1,6 +1,8 @@
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
@@ -36,6 +38,7 @@ export class BrowserSessionService extends BaseService {
   private readonly shutdown = new AbortController()
   private dataOperation?: Promise<unknown>
   private readonly faviconTasks = new Set<Promise<void>>()
+  private faviconCapture = new AbortController()
   readonly agentBrowser = new AgentBrowserRegistry()
   private readonly agentServers = new Set<BrowserServer>()
   private readonly servers = new Set<BrowserServer>()
@@ -60,7 +63,7 @@ export class BrowserSessionService extends BaseService {
       guest.setWindowOpenHandler((details) => {
         if (!this.agentBrowser.handlePopup(guest, details) && guest.session === ordinary && !details.postBody) {
           try {
-            application.get('MainWindowService').openBrowserTab(details.url)
+            application.get('MainWindowService').openBrowserTab(sanitizeRemoteUrl(details.url, undefined, true))
           } catch (error) {
             logger.warn('Blocked unsupported browser popup', { error })
           }
@@ -70,11 +73,12 @@ export class BrowserSessionService extends BaseService {
       const release =
         guest.session === ordinary
           ? trackBrowserHistory(guest, true, (url, candidates, signal) => {
+              if (this.faviconCapture.signal.aborted) return
               const task = captureBrowserFavicon(
                 guest,
                 url,
                 candidates,
-                AbortSignal.any([signal, this.shutdown.signal])
+                AbortSignal.any([signal, this.shutdown.signal, this.faviconCapture.signal])
               )
               this.faviconTasks.add(task)
               void task.finally(() => this.faviconTasks.delete(task))
@@ -163,8 +167,17 @@ export class BrowserSessionService extends BaseService {
   clearData(kind: 'site_data' | 'cache'): Promise<void> {
     return this.runDataOperation(async () => {
       const profile = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
-      if (kind === 'cache') await profile.clearCache()
-      else {
+      if (kind === 'cache') {
+        this.faviconCapture.abort()
+        try {
+          await Promise.allSettled(this.faviconTasks)
+          await profile.clearCache()
+          application.get('CacheService').deletePersist('browser.favicons')
+          notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
+        } finally {
+          this.faviconCapture = new AbortController()
+        }
+      } else {
         await profile.clearStorageData()
         await profile.cookies.flushStore()
         profile.flushStorageData()
