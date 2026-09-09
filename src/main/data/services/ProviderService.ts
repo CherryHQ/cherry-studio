@@ -68,7 +68,7 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 }
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
-type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
+export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
   const availableInEditions = provider.availableInEditions
@@ -85,7 +85,14 @@ function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMet
   return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
 }
 
-function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
+/**
+ * Edition availability of a persisted provider, decided from the identity columns
+ * alone: static registry metadata, the build-time edition, and the preboot v1-origin
+ * flag. Callers that already hold `providerId` / `presetProviderId` — anything reading
+ * inside someone else's transaction — must use this instead of a service method that
+ * opens its own connection.
+ */
+export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
   return getAvailableProviderMetadata(row) !== null
 }
 
@@ -373,15 +380,12 @@ class ProviderService {
 
   /** Return matching provider IDs available to runtime callers in this application edition. */
   listAvailableProviderIds(providerIds?: Iterable<string>): Set<string> {
-    return this.listAvailableProviderIdsTx(application.get('DbService').getDb(), providerIds)
-  }
-
-  /** Transaction-scoped variant for callers already composing database work. */
-  listAvailableProviderIdsTx(tx: Pick<DbType, 'select'>, providerIds?: Iterable<string>): Set<string> {
     const ids = providerIds ? [...new Set(providerIds)] : undefined
     if (ids?.length === 0) return new Set()
 
-    const rows = tx
+    const rows = application
+      .get('DbService')
+      .getDb()
       .select({
         providerId: userProviderTable.providerId,
         presetProviderId: userProviderTable.presetProviderId
