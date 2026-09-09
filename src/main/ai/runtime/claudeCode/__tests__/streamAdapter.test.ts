@@ -793,6 +793,57 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
   })
 
+  it('keeps a Bash result as text even when the output is legal JSON', () => {
+    const { adapter, parts } = createAdapter()
+    const json = JSON.stringify({ results: [{ id: 1, title: 'A', url: 'https://a.com/x' }] })
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { content: [{ type: 'tool_use', id: 'bash-1', name: 'Bash', input: { command: 'cat a.json' } }] }
+    } as any)
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { content: [{ type: 'tool_result', tool_use_id: 'bash-1', content: json, is_error: false }] }
+    } as any)
+
+    expect(parts.at(-1)).toMatchObject({ type: 'tool-output-available', toolCallId: 'bash-1', output: json })
+  })
+
+  it('keeps a shell tool all-text block result as text even when it is legal JSON', () => {
+    const { adapter, parts } = createAdapter()
+    const json = JSON.stringify({
+      content: [{ type: 'text', text: 'command output' }],
+      metadata: { type: 'mcp', serverName: 'looks-like-mcp' }
+    })
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: { content: [{ type: 'tool_use', id: 'bash-2', name: 'BashOutput', input: { bash_id: 'b1' } }] }
+    } as any)
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [
+          { type: 'tool_result', tool_use_id: 'bash-2', content: [{ type: 'text', text: json }], is_error: false }
+        ]
+      }
+    } as any)
+
+    expect(parts.at(-1)).toMatchObject({ type: 'tool-output-available', toolCallId: 'bash-2', output: json })
+  })
+
   it('maps streamed MCP tool use and result blocks', () => {
     const { adapter, parts } = createAdapter()
 
