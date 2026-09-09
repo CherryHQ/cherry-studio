@@ -253,6 +253,19 @@ describe('buildCompactReplay', () => {
 
       expect(result).toEqual([{ topicId: 'topic-1', chunk: { type: 'text-start', id: 'p2' } }])
     })
+
+    it('drops orphan tool-input-delta whose start was evicted', () => {
+      const result = buildCompactReplay([
+        { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'orphan' } as UIMessageChunk },
+        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
+        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } as UIMessageChunk }
+      ])
+
+      expect(result).toEqual([
+        { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
+        { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } }
+      ])
+    })
   })
 
   describe('mergeDeltaPayload segmentation', () => {
