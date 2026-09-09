@@ -19,6 +19,7 @@ import { jobScheduleTable } from '@data/db/schemas/job'
 import { agentService } from '@data/services/AgentService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { loggerService } from '@logger'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -619,6 +620,62 @@ describe('heartbeatSchedule', () => {
 
     expect(outcome).toBe('skipped-capability')
     expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+  })
+
+  it('warns for a runtime name colliding with an Object prototype key', async () => {
+    // "constructor" passes an `in` membership test via the prototype chain —
+    // the diagnostic warn must still fire (hasOwn), not a silent skip.
+    seedAgent(AGENT_ID, {}, 'constructor')
+    const warnSpy = vi.spyOn(loggerService.withContext('HeartbeatSchedule'), 'warn').mockImplementation(() => undefined)
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+
+    expect(outcome).toBe('skipped-capability')
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Agent runtime missing from the capabilities table; heartbeat not armed',
+      expect.objectContaining({ agentId: AGENT_ID })
+    )
+    warnSpy.mockRestore()
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(0)
+  })
+
+  it('converges duplicate heartbeat rows for one agent to a single schedule', async () => {
+    // A migration-disambiguated row (renamed by the v1→v2 UNIQUE handling)
+    // can coexist with the canonical one — without convergence both fire.
+    seedAgent(AGENT_ID, { heartbeat_interval: 45 })
+    jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: 'heartbeat_legacy_disambiguated',
+      trigger: { kind: 'interval', ms: 3_600_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: 7_200_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        prompt: '__heartbeat__',
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+    await syncHeartbeatSchedule(AGENT_ID)
+
+    const survivors = heartbeatRows(AGENT_ID)
+    expect(survivors).toHaveLength(1)
+    expect(survivors[0].trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
+    expect(survivors[0].enabled).toBe(true)
   })
 
   it('does not seed heartbeat.md when the workspace path is owned by a system row', async () => {

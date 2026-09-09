@@ -57,17 +57,24 @@ function isHeartbeatRow(row: { jobInputTemplate: unknown }, agentId: string): bo
   return template.agentId === agentId && template.prompt === HEARTBEAT_PROMPT_SENTINEL
 }
 
+/** Self-heal identity: whitespace-corrupted sentinel + reserved name + agentId. */
+function matchesFallbackIdentity(row: JobScheduleSnapshot, agentId: string): boolean {
+  // Free-text prompt = user task on the reserved name — never rewrite it.
+  if (row.name !== `heartbeat_${agentId}`) return false
+  const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
+  if (template?.agentId !== agentId) return false
+  return typeof template.prompt !== 'string' || template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL
+}
+
+/** Heartbeat identity by sentinel prompt, or the corrupted-sentinel fallback. */
+function matchesHeartbeatIdentity(row: JobScheduleSnapshot, agentId: string): boolean {
+  return isHeartbeatRow(row, agentId) || matchesFallbackIdentity(row, agentId)
+}
+
 function findHeartbeatRow(agentId: string, rows: JobScheduleSnapshot[]) {
   return (
     rows.find((row) => isHeartbeatRow(row, agentId)) ??
-    // Self-heal fallback: whitespace-corrupted sentinel still identified by
-    // reserved name + agentId. Free-text prompt = user task — never rewrite.
-    rows.find((row) => {
-      if (row.name !== `heartbeat_${agentId}`) return false
-      const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
-      if (template?.agentId !== agentId) return false
-      return typeof template.prompt !== 'string' || template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL
-    }) ??
+    rows.find((row) => matchesFallbackIdentity(row, agentId)) ??
     null
   )
 }
@@ -188,7 +195,13 @@ async function runSync(
     return 'skipped-missing-agent'
   }
 
-  if (!(agent.type in AGENT_RUNTIME_CAPABILITIES)) {
+  // `in` walks the prototype chain — a type named "constructor" would pass
+  // the membership test and skip the warn, silently disabling the heartbeat.
+  const capabilities = Object.hasOwn(AGENT_RUNTIME_CAPABILITIES, agent.type)
+    ? AGENT_RUNTIME_CAPABILITIES[agent.type]
+    : undefined
+
+  if (!capabilities) {
     // Corrupted/legacy/future runtime: without this warn the heartbeat is
     // silently never armed even though the config save succeeded.
     logger.warn('Agent runtime missing from the capabilities table; heartbeat not armed', {
@@ -202,7 +215,7 @@ async function runSync(
   // The heartbeat switch only renders for runtimes that support it; honor
   // the same capability here so a schedule is never armed for, say, dsh —
   // and a capability removal pauses (never deletes) any previously-armed row.
-  if (AGENT_RUNTIME_CAPABILITIES[agent.type]?.heartbeat !== true) {
+  if (capabilities.heartbeat !== true) {
     touchedScheduleId = pauseHeartbeatRow(agentId, rows)
     return finalize('skipped-capability')
   }
@@ -275,6 +288,13 @@ async function runSync(
     }
 
     const existing = findHeartbeatRow(agentId, rows)
+    // A migration-disambiguated duplicate can coexist with the canonical row
+    // and both would fire — converge to one schedule per agent.
+    for (const row of rows) {
+      if (row.id === existing?.id || !matchesHeartbeatIdentity(row, agentId)) continue
+      await jobManager.unregisterJobScheduleById(row.id)
+      logger.info('Removed duplicate heartbeat schedule', { agentId, scheduleId: row.id })
+    }
     if (!existing) {
       // (type, name) is UNIQUE: a concurrent sync may have registered this row
       // against a stale snapshot — a benign race, repair the winner in place.
