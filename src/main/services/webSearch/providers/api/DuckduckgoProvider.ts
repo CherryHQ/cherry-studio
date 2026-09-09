@@ -1,17 +1,21 @@
 import { loggerService } from '@logger'
-import { isAbortError } from '@main/utils/error'
 import { defaultAppHeaders } from '@main/utils/http'
-import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
+import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { isHttpUrl } from '@shared/utils/url'
 import * as cheerio from 'cheerio'
 import { net } from 'electron'
 
-import { fetchWebSearchContent } from '../../utils/fetchContent'
+import { fetchSearchResultContents } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 
 const SEARCH_ENDPOINT = 'https://html.duckduckgo.com/html/'
 
 const logger = loggerService.withContext('DuckduckgoProvider')
+
+/** DDG serves bot-detection challenges with 200/202, so the body is the only reliable signal. */
+function isAnomalyPage(html: string): boolean {
+  return html.includes('anomaly-modal') || html.includes('anomaly.js')
+}
 
 function decodeResultUrl(href: string): string {
   try {
@@ -22,13 +26,9 @@ function decodeResultUrl(href: string): string {
       return href
     }
 
-    const encodedUrl = url.searchParams.get('uddg')
-    if (!encodedUrl) {
-      return href
-    }
-
-    const decoded = decodeURIComponent(encodedUrl)
-    return decoded.startsWith('http') ? decoded : href
+    // URLSearchParams already percent-decoded the target; decoding again would corrupt it.
+    const target = url.searchParams.get('uddg')
+    return target?.startsWith('http') ? target : href
   } catch {
     return href
   }
@@ -80,49 +80,30 @@ export class DuckduckgoProvider extends BaseWebSearchProvider {
 
     const html = await response.text()
     const searchItems = parseSearchItems(html)
+
+    // Challenge interstitials carry no .result blocks, so gate on a zero parse to
+    // avoid flagging results that merely mention the anomaly markers.
+    if (searchItems.length === 0 && isAnomalyPage(html)) {
+      throw new Error('Duckduckgo search blocked by a bot-detection challenge page')
+    }
+
     const validItems = searchItems.filter((item) => isHttpUrl(item.url)).slice(0, config.maxResults)
 
     if (validItems.length === 0) {
       logger.warn('Duckduckgo search returned no usable results', { query, parsed: searchItems.length })
     }
 
-    const settledResults = await Promise.allSettled(
-      validItems.map((item) => fetchWebSearchContent(item.url, { signal }))
+    const results = await fetchSearchResultContents(
+      validItems.map((item) => item.url),
+      { query, providerLabel: 'Duckduckgo', signal }
     )
-
-    const rejectedResults = settledResults.filter((item): item is PromiseRejectedResult => item.status === 'rejected')
-
-    const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
-
-    if (abortResult && signal?.aborted) {
-      throw abortResult.reason
-    }
-
-    if (rejectedResults.length > 0) {
-      logger.warn('Some Duckduckgo content fetches failed', {
-        query,
-        failedCount: rejectedResults.length,
-        totalCount: validItems.length
-      })
-    }
-
-    const fulfilledResults = settledResults.filter(
-      (item): item is PromiseFulfilledResult<WebSearchResult> => item.status === 'fulfilled'
-    )
-
-    if (fulfilledResults.length === 0 && rejectedResults.length > 0) {
-      throw rejectedResults[0].reason
-    }
 
     return {
       query,
       providerId: this.provider.id,
       capability: 'searchKeywords',
       inputs: [query],
-      results: fulfilledResults
-        .map((item) => item.value)
-        .filter((item) => item.content.trim().length > 0)
-        .map((item) => ({ ...item, sourceInput: query }))
+      results: results.map((item) => ({ ...item, sourceInput: query }))
     }
   }
 }

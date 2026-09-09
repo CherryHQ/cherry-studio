@@ -2168,6 +2168,63 @@ describe('main web search API providers', () => {
       ])
     })
 
+    it('percent-decodes redirect targets exactly once', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Ffile%2520name&amp;rut=r1">Encoded Target</a></h2></div>`,
+          'text/html'
+        )
+      )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('hello', runtimeConfig)
+
+      expect(result.results[0].url).toBe('https://example.com/file%20name')
+    })
+
+    it('throws when the search page is a bot-detection challenge instead of returning empty results', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          '<div class="anomaly-modal">Unusual traffic detected</div><form id="challenge-form" action="/anomaly.js"></form>',
+          'text/html',
+          200
+        )
+      )
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(/bot-detection challenge/)
+      expect(fetchRemoteTextMock).not.toHaveBeenCalled()
+    })
+
+    it('does not mistake results mentioning the anomaly markers for a challenge page', async () => {
+      fetchMock.mockResolvedValueOnce(
+        createTextResponse(
+          `<div class="result"><h2 class="result__title"><a class="result__a" href="https://example.org/anomaly-modal">Anomaly modal docs</a></h2></div>`,
+          'text/html'
+        )
+      )
+      fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
+
+      const provider = createProviderDriver(
+        DuckduckgoProvider,
+        createProvider({ id: 'duckduckgo', name: 'DuckDuckGo', apiKeys: [], apiHost: '' })
+      )
+
+      const result = await provider.searchKeywords('anomaly modal', runtimeConfig)
+
+      expect(result.results).toHaveLength(1)
+      expect(result.results[0].url).toBe('https://example.org/anomaly-modal')
+    })
+
     it('caps parsed results at the configured max results', async () => {
       fetchMock.mockResolvedValueOnce(createTextResponse(loadFixtureText('duckduckgo-search.html'), 'text/html'))
       fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
