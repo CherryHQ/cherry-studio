@@ -546,6 +546,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(warmRequest?.notificationContext).toEqual(notificationContext)
   })
 
+  it('includes the materialized trace generation in the prewarm connection signature', async () => {
+    const trace = {
+      topicId: 'agent-session:session-1',
+      traceId: '0'.repeat(32),
+      rootSpanId: '1'.repeat(16),
+      sessionId: 'session-1',
+      turnId: ''
+    }
+    mocks.prepareTrace.mockResolvedValue({
+      generation: 1,
+      env: { TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` }
+    })
+
+    const traced = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1', trace)
+    mocks.prepareTrace.mockResolvedValue(undefined)
+    const untraced = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(traced?.traceGeneration).toBe(1)
+    expect(traced?.connectionRebuildSignature).not.toBe(untraced?.connectionRebuildSignature)
+  })
+
   it('captures provider and model facts from the route materialized before a connect-time edit', async () => {
     const materializedProvider = {
       id: 'provider-1',

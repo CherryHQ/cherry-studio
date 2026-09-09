@@ -9,7 +9,7 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
-import type { AgentSessionUsageCapture } from '../types'
+import type { AgentRuntimeTraceContext, AgentSessionUsageCapture } from '../types'
 import {
   createClaudeCodeProcessDiagnostics,
   createSpawnClaudeCodeProcess,
@@ -196,11 +196,35 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   async prewarmAgentSession(sessionId: string): Promise<void> {
     try {
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
-      const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
+      const trace = this.getAgentSessionTraceContext(sessionId)
+      const warmRequest = trace
+        ? await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId, trace)
+        : await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
-      await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
+      // The real builder materializes trace env before calculating the connection signature. Keep
+      // the legacy fallback for mocked/older builders, but never re-open the trace window after a
+      // request already carries its generation — doing so would change options without changing
+      // the signature and make every traced warm process look stale at consume time.
+      const request = warmRequest.traceGeneration === undefined
+        ? await this.withTraceEnv(sessionId, warmRequest)
+        : warmRequest
+      await this.prewarm(request)
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
+    }
+  }
+
+  private getAgentSessionTraceContext(sessionId: string): AgentRuntimeTraceContext | undefined {
+    const traceBridge = application.get('ClaudeCodeTraceBridgeService')
+    if (!traceBridge.isTraceModeEnabled()) return undefined
+
+    const traceId = agentSessionService.ensureTraceId(sessionId)
+    return {
+      topicId: buildAgentSessionTopicId(sessionId),
+      traceId,
+      rootSpanId: deriveRootSpanId(traceId),
+      sessionId,
+      turnId: ''
     }
   }
 

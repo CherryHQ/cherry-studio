@@ -966,9 +966,12 @@ function mergeRuntimeSettings(
 }
 
 export async function buildClaudeCodeWarmQueryRequestForAgentSession(
-  sessionId: string
+  sessionId: string,
+  trace?: AgentRuntimeTraceContext
 ): Promise<WarmQueryRequest | undefined> {
-  const request = await buildClaudeCodeQueryRequestForAgentSession(sessionId)
+  const request = trace
+    ? await buildClaudeCodeQueryRequestForAgentSession(sessionId, undefined, undefined, 'default', false, [], trace)
+    : await buildClaudeCodeQueryRequestForAgentSession(sessionId)
   if (!request) return undefined
   return {
     key: request.key,
