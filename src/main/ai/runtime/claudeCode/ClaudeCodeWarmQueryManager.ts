@@ -205,9 +205,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       // the legacy fallback for mocked/older builders, but never re-open the trace window after a
       // request already carries its generation — doing so would change options without changing
       // the signature and make every traced warm process look stale at consume time.
-      const request = warmRequest.traceGeneration === undefined
-        ? await this.withTraceEnv(sessionId, warmRequest)
-        : warmRequest
+      const request =
+        warmRequest.traceGeneration === undefined ? await this.withTraceEnv(sessionId, warmRequest) : warmRequest
       await this.prewarm(request)
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
