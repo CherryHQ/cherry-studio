@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Connexions d’appareils",
   "deviceConnections.toggle.description": "Autorisez les appareils appairés sur le même réseau local à se connecter à ce Cherry Studio.",
   "deviceConnections.toggle.label": "Autoriser l'accès LAN",
+  "deviceConnections.toggle.risk": "Les connexions sur le réseau local utilisent du HTTP en clair, non chiffré. Les appareils appairés reçoivent vos clés API de fournisseur : n'activez cette option que sur un réseau de confiance et désactivez-la une fois terminé.",
   "deviceConnections.toggle.stopFirst": "Arrêtez le service de connexion pour modifier ce réglage",
   "docs.title": "Documentation d'aide",
   "emoji_picker.categories.activities": "Activités",

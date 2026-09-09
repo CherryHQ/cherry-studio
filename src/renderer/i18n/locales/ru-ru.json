@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Подключения устройств",
   "deviceConnections.toggle.description": "Разрешить сопряжённым устройствам в одной локальной сети подключаться к этому Cherry Studio.",
   "deviceConnections.toggle.label": "Разрешить доступ по локальной сети",
+  "deviceConnections.toggle.risk": "Подключения по локальной сети используют незашифрованный HTTP. Сопряжённые устройства получают ваши API-ключи провайдеров, поэтому включайте это только в доверенной сети и выключайте после использования.",
   "deviceConnections.toggle.stopFirst": "Остановите службу подключения, чтобы изменить эту настройку",
   "docs.title": "Документация",
   "emoji_picker.categories.activities": "Деятельность",

@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "裝置互聯",
   "deviceConnections.toggle.description": "允許同一區域網路內已配對的裝置連線到這台 Cherry Studio。",
   "deviceConnections.toggle.label": "允許區域網路存取",
+  "deviceConnections.toggle.risk": "區域網路連線使用明文 HTTP，未加密。已配對的裝置會收到你的模型服務商 API 金鑰，請只在可信網路中開啟，用完後關閉。",
   "deviceConnections.toggle.stopFirst": "停止連線服務後才能變更此設定",
   "docs.title": "說明文件",
   "emoji_picker.categories.activities": "活動",

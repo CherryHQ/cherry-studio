@@ -81,6 +81,17 @@ describe('DeviceConnectionsSettings', () => {
     })
   })
 
+  it('shows the plain-HTTP risk notice before LAN access is enabled', () => {
+    useApiGatewayMock.mockReturnValue({
+      ...useApiGatewayMock(),
+      apiGatewayConfig: { enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'cs-sk-test' }
+    })
+
+    render(<DeviceConnectionsSettings />)
+
+    expect(screen.getByRole('note')).toHaveTextContent('deviceConnections.toggle.risk')
+  })
+
   it('blocks LAN config changes while a gateway command is in flight', () => {
     useApiGatewayMock.mockReturnValue({
       ...useApiGatewayMock(),

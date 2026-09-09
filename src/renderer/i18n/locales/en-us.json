@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Device Connections",
   "deviceConnections.toggle.description": "Allow paired devices on the same local network to connect to this Cherry Studio.",
   "deviceConnections.toggle.label": "Allow LAN access",
+  "deviceConnections.toggle.risk": "Local network connections use plain HTTP and are not encrypted. Paired devices receive your provider API keys, so enable this only on a network you trust and turn it off when you are done.",
   "deviceConnections.toggle.stopFirst": "Stop the connection service to change this",
   "docs.title": "Docs",
   "emoji_picker.categories.activities": "Activities",

@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Ligações de dispositivos",
   "deviceConnections.toggle.description": "Permita que dispositivos emparelhados na mesma rede local se liguem a este Cherry Studio.",
   "deviceConnections.toggle.label": "Permitir acesso LAN",
+  "deviceConnections.toggle.risk": "As ligações na rede local usam HTTP em texto simples, sem encriptação. Os dispositivos emparelhados recebem as suas chaves API de fornecedor, por isso ative isto apenas numa rede de confiança e desative-o quando terminar.",
   "deviceConnections.toggle.stopFirst": "Pare o serviço de ligação para alterar esta definição",
   "docs.title": "Documentação de Ajuda",
   "emoji_picker.categories.activities": "Atividades",

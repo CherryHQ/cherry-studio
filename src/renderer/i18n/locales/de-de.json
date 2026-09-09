@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Geräteverbindungen",
   "deviceConnections.toggle.description": "Gekoppelten Geräten im selben lokalen Netzwerk erlauben, sich mit diesem Cherry Studio zu verbinden.",
   "deviceConnections.toggle.label": "LAN-Zugriff erlauben",
+  "deviceConnections.toggle.risk": "Verbindungen im lokalen Netzwerk verwenden unverschlüsseltes HTTP. Gekoppelte Geräte erhalten Ihre Anbieter-API-Schlüssel. Aktivieren Sie dies nur in einem vertrauenswürdigen Netzwerk und schalten Sie es danach wieder aus.",
   "deviceConnections.toggle.stopFirst": "Stoppen Sie den Verbindungsdienst, um dies zu ändern",
   "docs.title": "Hilfedokumentation",
   "emoji_picker.categories.activities": "Aktivitäten",

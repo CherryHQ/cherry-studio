@@ -12,7 +12,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { ApiGatewayPairingOfferResult } from '@shared/types/apiGateway'
-import { MonitorSmartphone, QrCode, Trash2 } from 'lucide-react'
+import { MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -189,6 +189,12 @@ const DeviceConnectionsSettings: FC = () => {
                   onCheckedChange={(checked: boolean) => void setLanEnabled(checked)}
                 />
               </Tooltip>
+            </div>
+            <div
+              role="note"
+              className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs leading-5">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <span>{t('deviceConnections.toggle.risk')}</span>
             </div>
           </SectionFields>
         </SettingGroup>

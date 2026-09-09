@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Kết nối thiết bị",
   "deviceConnections.toggle.description": "Cho phép các thiết bị đã ghép nối trong cùng mạng cục bộ kết nối với Cherry Studio này.",
   "deviceConnections.toggle.label": "Cho phép truy cập LAN",
+  "deviceConnections.toggle.risk": "Kết nối trong mạng cục bộ dùng HTTP không mã hóa. Các thiết bị đã ghép nối sẽ nhận khóa API nhà cung cấp của bạn, vì vậy chỉ bật tính năng này trên mạng tin cậy và tắt đi khi dùng xong.",
   "deviceConnections.toggle.stopFirst": "Dừng dịch vụ kết nối để thay đổi cài đặt này",
   "docs.title": "Tài liệu",
   "emoji_picker.categories.activities": "Hoạt động",

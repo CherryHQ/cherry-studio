@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Cihaz Bağlantıları",
   "deviceConnections.toggle.description": "Aynı yerel ağdaki eşleştirilmiş cihazların bu Cherry Studio'ya bağlanmasına izin verin.",
   "deviceConnections.toggle.label": "LAN erişimine izin ver",
+  "deviceConnections.toggle.risk": "Yerel ağ bağlantıları şifrelenmemiş düz HTTP kullanır. Eşleştirilmiş cihazlar sağlayıcı API anahtarlarınızı alır; bu nedenle bunu yalnızca güvendiğiniz bir ağda etkinleştirin ve işiniz bitince kapatın.",
   "deviceConnections.toggle.stopFirst": "Bunu değiştirmek için bağlantı hizmetini durdurun",
   "docs.title": "Belgeler",
   "emoji_picker.categories.activities": "Etkinlikler",

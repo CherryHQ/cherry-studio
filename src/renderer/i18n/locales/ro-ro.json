@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Conexiuni dispozitive",
   "deviceConnections.toggle.description": "Permiteți dispozitivelor asociate din aceeași rețea locală să se conecteze la acest Cherry Studio.",
   "deviceConnections.toggle.label": "Permite accesul LAN",
+  "deviceConnections.toggle.risk": "Conexiunile din rețeaua locală folosesc HTTP necriptat. Dispozitivele asociate primesc cheile API ale furnizorilor tăi, așa că activează această opțiune doar într-o rețea de încredere și dezactiveaz-o când ai terminat.",
   "deviceConnections.toggle.stopFirst": "Opriți serviciul de conectare pentru a modifica această setare",
   "docs.title": "Documentație",
   "emoji_picker.categories.activities": "Activități",

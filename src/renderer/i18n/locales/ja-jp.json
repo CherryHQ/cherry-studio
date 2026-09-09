@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "デバイス接続",
   "deviceConnections.toggle.description": "同じローカルネットワーク上のペアリング済みデバイスがこの Cherry Studio に接続できるようにします。",
   "deviceConnections.toggle.label": "LAN アクセスを許可",
+  "deviceConnections.toggle.risk": "ローカルネットワーク接続は暗号化されていない平文の HTTP を使用します。ペアリングした端末にはプロバイダーの API キーが送られるため、信頼できるネットワークでのみ有効にし、使い終わったら無効にしてください。",
   "deviceConnections.toggle.stopFirst": "この設定を変更するには接続サービスを停止してください",
   "docs.title": "ドキュメント",
   "emoji_picker.categories.activities": "活動",

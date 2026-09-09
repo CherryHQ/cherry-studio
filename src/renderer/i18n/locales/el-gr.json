@@ -1198,6 +1198,7 @@
   "deviceConnections.title": "Συνδέσεις συσκευών",
   "deviceConnections.toggle.description": "Επιτρέψτε σε συζευγμένες συσκευές στο ίδιο τοπικό δίκτυο να συνδέονται με αυτό το Cherry Studio.",
   "deviceConnections.toggle.label": "Να επιτρέπεται η πρόσβαση LAN",
+  "deviceConnections.toggle.risk": "Οι συνδέσεις στο τοπικό δίκτυο χρησιμοποιούν μη κρυπτογραφημένο HTTP. Οι συζευγμένες συσκευές λαμβάνουν τα κλειδιά API των παρόχων σας, γι' αυτό ενεργοποιήστε το μόνο σε δίκτυο που εμπιστεύεστε και απενεργοποιήστε το όταν τελειώσετε.",
   "deviceConnections.toggle.stopFirst": "Σταματήστε την υπηρεσία σύνδεσης για να το αλλάξετε",
   "docs.title": "Βοήθεια",
   "emoji_picker.categories.activities": "Δραστηριότητες",
