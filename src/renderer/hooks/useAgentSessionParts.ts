@@ -265,7 +265,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
 
   useEffect(() => {
     if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing && !error) {
-      void loadNext()
+      loadNext()
     }
   }, [enabled, error, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext])
   // A failed page fetch abandons the load-all; the user can re-trigger select-all.
