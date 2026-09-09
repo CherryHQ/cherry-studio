@@ -8,7 +8,7 @@ import {
   onWebviewStateChange,
   setWebviewElement,
   setWebviewLoaded
-} from '../webviewStateManager'
+} from '../MiniAppWebviewService'
 
 describe('webviewStateManager', () => {
   afterEach(() => {

@@ -132,6 +132,18 @@ describe('MinimalToolbar address bar', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
+  it('restores the committed URL when address navigation is cancelled without a replacement', async () => {
+    const { webview } = createWebview()
+    mocks.loadURL.mockRejectedValue(new Error('ERR_ABORTED (-3)'))
+    renderToolbar(webview)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'https://cancelled.example/' } })
+    fireEvent.submit(input.closest('form')!)
+
+    await waitFor(() => expect(input).toHaveValue(app.url))
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('normalizes and loads an entered web address', async () => {
     const { webview } = createWebview()
     const user = userEvent.setup()
