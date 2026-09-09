@@ -85,6 +85,12 @@ function node(id: string) {
   return found
 }
 
+async function findInitializedCanvas() {
+  const canvas = await screen.findByTestId('react-flow')
+  await waitFor(() => expect(flow.viewport.zoom).toBe(0.85))
+  return canvas
+}
+
 async function measureNodeHeight(id: string, height: number) {
   act(() => flow.props!.onNodesChange!([{ id, type: 'dimensions', dimensions: { width: node(id).width!, height } }]))
   await act(async () => {
@@ -102,7 +108,7 @@ describe('TopicMessageFlowCanvas', () => {
 
   it('opens with the first message at the left and vertically centered', async () => {
     render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
-    await screen.findByTestId('react-flow')
+    await findInitializedCanvas()
     const viewport = flow.viewport
     const root = node('user-1')
     const screenLeft = viewport.x + root.position.x * viewport.zoom
@@ -115,7 +121,7 @@ describe('TopicMessageFlowCanvas', () => {
 
   it('keeps the first message centered as its loading placeholder and delayed body are measured', async () => {
     render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
-    await screen.findByTestId('react-flow')
+    await findInitializedCanvas()
 
     for (const height of [144, 420]) {
       await measureNodeHeight('user-1', height)
@@ -130,7 +136,7 @@ describe('TopicMessageFlowCanvas', () => {
     async (input) => {
       const user = userEvent.setup()
       render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
-      const canvas = await screen.findByTestId('react-flow')
+      const canvas = await findInitializedCanvas()
 
       if (input === 'pointer') await user.pointer({ target: canvas, keys: '[MouseLeft]' })
       if (input === 'wheel') fireEvent.wheel(canvas, { deltaY: 120 })
@@ -149,12 +155,12 @@ describe('TopicMessageFlowCanvas', () => {
   it('centers the first message again when a new focus is requested after user interaction', async () => {
     const user = userEvent.setup()
     const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} focusKey="topic-1" />)
-    await user.click(await screen.findByTestId('react-flow'))
+    await user.click(await findInitializedCanvas())
     flow.viewport = { x: -500, y: -200, zoom: 0.6 }
     await measureNodeHeight('user-1', 420)
 
     rerender(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} focusKey="topic-2" />)
-    await screen.findByTestId('react-flow')
+    await findInitializedCanvas()
     const root = node('user-1')
     expect(flow.viewport.y + (root.position.y + 210) * flow.viewport.zoom).toBeCloseTo(300)
     expect(flow.viewport.zoom).toBe(0.85)
@@ -162,7 +168,7 @@ describe('TopicMessageFlowCanvas', () => {
 
   it('reflows siblings when a complete response grows taller', async () => {
     render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} />)
-    await screen.findByTestId('react-flow')
+    await findInitializedCanvas()
     act(() =>
       flow.props!.onNodesChange!([{ id: 'answer-a', type: 'dimensions', dimensions: { width: 440, height: 900 } }])
     )
@@ -171,7 +177,7 @@ describe('TopicMessageFlowCanvas', () => {
 
   it('preserves the viewport when active branch and streamed content change', async () => {
     const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={vi.fn()} focusKey="topic-1" />)
-    await screen.findByTestId('react-flow')
+    await findInitializedCanvas()
     const previousViewport = { x: -500, y: -200, zoom: 0.6 }
     flow.viewport = previousViewport
     rerender(
@@ -221,7 +227,7 @@ describe('TopicMessageFlowCanvas', () => {
   it('brings a requested offscreen branch into view without changing the user zoom', async () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(480)
     const { rerender } = render(<TopicMessageFlowCanvas graph={graph} onNodeActivate={() => {}} />)
-    await screen.findByTestId('react-flow')
+    await findInitializedCanvas()
     flow.viewport = { x: -900, y: -900, zoom: 0.7 }
     rerender(<TopicMessageFlowCanvas graph={graph} onNodeActivate={() => {}} revealNodeId="answer-b" />)
     await waitFor(() => {
