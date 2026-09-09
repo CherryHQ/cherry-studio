@@ -355,6 +355,9 @@ export const formatKeyDisplay = (key: ShortcutToken, isMac: boolean): string => 
       return isMac ? '⇧' : 'Shift'
     case 'meta':
       return isMac ? '⌘' : 'Win'
+    case 'enter':
+      // macOS keyboards label the key "return" (Apple HIG); other platforms label it "Enter".
+      return isMac ? 'Return' : 'Enter'
     default:
       return key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()
   }
