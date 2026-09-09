@@ -1,4 +1,4 @@
-import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -109,6 +109,44 @@ beforeEach(() => {
 })
 
 describe('useModelSelectorData', () => {
+  it('merges Qwen and Cloud into the first provider group without changing model routing', () => {
+    const qwen = makeModel('qwen', CHERRYAI_PROVIDER_ID, { name: 'Shared name' })
+    const cloud = makeModel('cloud-model', CHERRY_CLOUD_PROVIDER_ID, { name: 'Shared name' })
+    wireDeps({
+      providers: [
+        makeProvider('openai'),
+        makeProvider(CHERRY_CLOUD_PROVIDER_ID),
+        makeProvider('custom', { name: 'CherryAI' }),
+        makeProvider(CHERRYAI_PROVIDER_ID)
+      ],
+      models: [makeModel('gpt-4', 'openai'), cloud, makeModel('custom-model', 'custom'), qwen]
+    })
+
+    const { result, rerender } = renderHook(({ searchText }) => useModelSelectorData({ searchText }), {
+      initialProps: { searchText: '' }
+    })
+
+    expect(result.current.listItems.filter((item) => item.type === 'group').map((item) => item.key)).toEqual([
+      'provider-cherryai',
+      'provider-openai',
+      'provider-custom'
+    ])
+    expect(result.current.modelItems.slice(0, 2).map((item) => item.model)).toEqual([qwen, cloud])
+    expect(result.current.modelItems.slice(0, 2).map((item) => item.provider.id)).toEqual([
+      CHERRYAI_PROVIDER_ID,
+      CHERRY_CLOUD_PROVIDER_ID
+    ])
+    expect(result.current.modelItems.slice(0, 2).every((item) => item.showIdentifier)).toBe(true)
+
+    rerender({ searchText: 'cloud-model' })
+
+    expect(result.current.listItems.filter((item) => item.type === 'group').map((item) => item.key)).toEqual([
+      'provider-cherryai'
+    ])
+    expect(result.current.modelItems.map((item) => item.model)).toEqual([cloud])
+    expect(result.current.modelItems[0].showIdentifier).toBe(false)
+  })
+
   it('passes the selector activation state to every catalog query', () => {
     wireDeps({
       providers: [makeProvider('openai')],
