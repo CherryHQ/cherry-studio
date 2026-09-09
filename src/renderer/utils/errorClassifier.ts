@@ -98,6 +98,9 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   if (claudeCodeExitCategory) return classify(claudeCodeExitCategory)
 
   const errorBag = error as Record<string, unknown>
+  if (isErrorCategory(errorBag.providerErrorCategory) && errorBag.providerErrorCategory !== 'unknown') {
+    return classify(errorBag.providerErrorCategory)
+  }
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
 

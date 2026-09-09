@@ -193,7 +193,7 @@ describe('subagent settlement wake (incident replay)', () => {
     })
 
     // Settlement wake: the runtime opens its own turn and starts streaming immediately.
-    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started' })
+    handleRuntimeEvent({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
     handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-start', id: 'w1' } })
     handleRuntimeEvent({ type: 'chunk', chunk: { type: 'text-delta', id: 'w1', delta: 'wake report part 1' } })
 

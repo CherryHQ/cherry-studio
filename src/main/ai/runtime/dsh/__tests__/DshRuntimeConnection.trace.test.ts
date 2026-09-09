@@ -1,7 +1,7 @@
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeTraceContext } from '../../types'
+import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
 
 interface FakeSpan {
   name: string
@@ -329,39 +329,107 @@ describe('DshRuntimeConnection tracing', () => {
     }
   )
 
-  it('opens the plan-review tool part before its raced tool/call event', async () => {
-    const connection = await new DshRuntimeConnection(connectInput).start()
-    const events = connection.events[Symbol.asyncIterator]()
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token' } })
-    await connection.send({ message: {} } as never)
+  it.each([
+    { origin: 'host', nativeCall: true },
+    { origin: 'goal', nativeCall: true },
+    { origin: 'host', nativeCall: false },
+    { origin: 'goal', nativeCall: false }
+  ])(
+    'orders a bridge-first approval after its $origin provenance (native call: $nativeCall)',
+    async ({ origin, nativeCall }) => {
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const events: AgentRuntimeEvent[] = []
+      const consume = (async () => {
+        for await (const event of connection.events) events.push(event)
+      })()
+      await drain()
+      events.length = 0
+      await connection.send({ message: {} } as never)
 
-    const { emit } = vi.mocked(DshBridgeServer).mock.calls[0][0]
-    emit({
-      type: 'tool-approval-request',
-      request: {
-        approvalId: 'approval-1',
-        toolCallId: 'call-1',
-        toolName: 'exit_plan_mode',
-        input: { plan: '# Ship it' },
-        presentation: 'stream'
+      const { emit } = vi.mocked(DshBridgeServer).mock.calls[0][0]
+      emit(
+        {
+          type: 'tool-approval-request',
+          request: {
+            approvalId: 'approval-1',
+            toolCallId: 'call-1',
+            toolName: 'exit_plan_mode',
+            input: { plan: '# Ship it' },
+            presentation: 'stream'
+          }
+        },
+        { sessionId: 'session-1', seq: 4 }
+      )
+      await drain()
+      expect(events).toEqual([])
+      subscription.push({
+        method: 'session.event',
+        params: {
+          sessionId: 'child-1',
+          event: { type: 'turn/start', seq: 100, time: 0, data: { turn: 1 } }
+        }
+      })
+      await drain()
+      expect(events).toEqual([])
+      for (const [index, event] of [
+        { type: 'turn/start', data: { turn: 1 } },
+        { type: 'step/start', data: { turn: 1, step: 1 } },
+        {
+          type: 'user/message',
+          data: {
+            id: 'input-1',
+            role: 'user',
+            content: [],
+            source: origin === 'host' ? { kind: 'user' } : { kind: 'goal', goalId: 'goal-1', revision: 1, round: 1 }
+          }
+        },
+        nativeCall
+          ? {
+              type: 'tool/call',
+              data: { turn: 1, step: 1, callId: 'call-1', name: 'exit_plan_mode', arguments: '{"plan":"# Ship it"}' }
+            }
+          : {
+              type: 'approval/asked',
+              data: { id: 'native-approval-1', toolName: 'exit_plan_mode' }
+            }
+      ].entries()) {
+        subscription.push({
+          method: 'session.event',
+          params: {
+            sessionId: 'session-1',
+            event: { ...event, seq: index + 1, time: 0 }
+          }
+        })
       }
-    })
-
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'chunk', chunk: { type: 'tool-input-start', toolCallId: 'call-1' } }
-    })
-    await expect(events.next()).resolves.toMatchObject({
-      value: {
-        type: 'chunk',
-        chunk: { type: 'tool-input-available', toolCallId: 'call-1', input: { plan: '# Ship it' } }
-      }
-    })
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'tool-approval-request', request: { approvalId: 'approval-1' } }
-    })
-
-    await connection.close()
-  })
+      await drain()
+      expect(events).toMatchObject([
+        ...(origin === 'goal'
+          ? [{ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'goal-round', round: 1 } }]
+          : []),
+        { type: 'chunk', chunk: { type: 'tool-input-start', toolCallId: 'call-1' } },
+        { type: 'chunk', chunk: { type: 'tool-input-available', toolCallId: 'call-1', input: { plan: '# Ship it' } } },
+        { type: 'tool-approval-request', request: { approvalId: 'approval-1' } }
+      ])
+      events.length = 0
+      emit(
+        {
+          type: 'tool-approval-request',
+          request: {
+            approvalId: 'approval-2',
+            toolCallId: 'call-1',
+            toolName: 'exit_plan_mode',
+            input: { plan: '# Ship it' },
+            presentation: 'stream'
+          }
+        },
+        { sessionId: 'session-1', seq: 4 }
+      )
+      await drain()
+      expect(events).toEqual([expect.objectContaining({ type: 'tool-approval-request' })])
+      await connection.close()
+      await consume
+    }
+  )
 
   it('sends cross-Session provenance and forged instructions inside the untrusted delivery boundary', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()

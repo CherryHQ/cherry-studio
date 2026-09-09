@@ -277,9 +277,8 @@ const ASSISTANT_TOOLS = {
   prepare_diagnostic_report: PREPARE_DIAGNOSTIC_REPORT_TOOL
 } as const satisfies Record<AssistantToolName, Tool>
 
-// Health check cache: { providerId -> { result, timestamp } }
-const healthCache = new Map<string, { result: unknown; timestamp: number }>()
 const HEALTH_CACHE_TTL = 30_000 // 30 seconds
+const healthCacheKey = (providerId: string) => `assistant:health:${providerId}`
 
 class AssistantServer {
   public mcpServer: McpServer
@@ -681,11 +680,9 @@ class AssistantServer {
       throw new McpError(ErrorCode.InvalidParams, "'provider_id' is required for health action")
     }
 
-    // Check cache first (30s TTL)
-    const cached = healthCache.get(providerId)
-    if (cached && Date.now() - cached.timestamp < HEALTH_CACHE_TTL) {
-      return cached.result as ReturnType<typeof this.diagnoseHealth>
-    }
+    const cacheService = application.get('CacheService')
+    const cached = cacheService.get<unknown>(healthCacheKey(providerId))
+    if (cached) return cached as ReturnType<typeof this.diagnoseHealth>
 
     try {
       let provider: ReturnType<typeof providerService.getByProviderId> | null = null
@@ -725,7 +722,7 @@ class AssistantServer {
             }
           ]
         }
-        healthCache.set(providerId, { result, timestamp: Date.now() })
+        cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
         return result
       }
 
@@ -761,7 +758,7 @@ class AssistantServer {
             }
           ]
         }
-        healthCache.set(providerId, { result, timestamp: Date.now() })
+        cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
         return result
       } catch (fetchError) {
         const latency = Date.now() - startTime
@@ -784,7 +781,7 @@ class AssistantServer {
             }
           ]
         }
-        healthCache.set(providerId, { result, timestamp: Date.now() })
+        cacheService.set(healthCacheKey(providerId), result, HEALTH_CACHE_TTL)
         return result
       } finally {
         if (timeout !== undefined) clearTimeout(timeout)

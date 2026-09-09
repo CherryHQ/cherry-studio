@@ -7688,6 +7688,42 @@
       }
     },
     {
+      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
+      "contextWindow": 1000000,
+      "family": "deepseek-flash",
+      "id": "deepseek-v4-1-flash-expires-on",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 393216,
+      "metadata": {},
+      "name": "DeepSeek V4.1 Flash Expires-On-0910",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "high", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1048576,
       "family": "deepseek-flash",

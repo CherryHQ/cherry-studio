@@ -457,11 +457,11 @@ export const GEMINI_FLASH_MODEL_REGEX = /gemini.*flash/i
 
 /**
  * The wire id every id-based predicate must key off. `apiModelId` is optional
- * on the runtime Model, so reading it alone silently misidentifies models whose
+ * or empty on the runtime Model, so reading it alone silently misidentifies models whose
  * unique id carries the wire name instead.
  */
 export function getRawModelId(model: Model): string {
-  return model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  return model.apiModelId || parseUniqueModelId(model.id).modelId
 }
 
 // ---------------------------------------------------------------------------
