@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} elemente",
   "agent.preview_pane.no_search_results": "Niciun fișier nu corespunde căutării tale",
   "agent.preview_pane.office.title": "Deschiderea fișierelor {{extension}} aici nu este încă acceptată",
+  "agent.preview_pane.pick_selection": "Selectează o zonă",
   "agent.preview_pane.preview": "Previzualizare",
   "agent.preview_pane.quote_selection": "Citează selecția",
   "agent.preview_pane.refresh": "Reîmprospătare",

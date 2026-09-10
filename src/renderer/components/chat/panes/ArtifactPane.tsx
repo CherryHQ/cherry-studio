@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { FilePreview } from '@renderer/components/FilePreview'
+import { canProduceSelectionReference, FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
 import { useCmTheme } from '@renderer/hooks/useCodeStyle'
@@ -19,7 +19,19 @@ import { getFileExtension } from '@renderer/utils/file'
 import { joinPath } from '@renderer/utils/path'
 import { isWin } from '@renderer/utils/platform'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { AlertCircle, ArrowLeft, Copy, CopySlash, Eye, RotateCw, Sparkles, SquarePen, TextQuote, X } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowLeft,
+  Copy,
+  CopySlash,
+  Eye,
+  RotateCw,
+  Sparkles,
+  SquareDashedMousePointer,
+  SquarePen,
+  TextQuote,
+  X
+} from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -195,6 +207,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           : null,
     [hasInvalidWorkspacePath, selectedFile, validPreviewFileSelection, workspacePath]
   )
+  const [pickerActive, setPickerActive] = useState(false)
+  const pickerAvailable = Boolean(
+    onInsertSelectionReference &&
+      overlaySelection &&
+      canProduceSelectionReference(getArtifactPaneSelectionPath(overlaySelection))
+  )
   const overlayWorkspacePath = overlaySelection?.workspacePath
   const overlayFilePath = overlaySelection?.filePath
   const previewWorkspacePath = overlayWorkspacePath ?? (hasInvalidWorkspacePath ? undefined : workspacePath)
@@ -243,6 +261,20 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   useEffect(() => {
     if (editMode === 'edit') setSelectionReference(null)
   }, [editMode])
+
+  // The picker is a mode of the preview, so it ends with the preview: the editor replaces it, and a
+  // file without a producing plugin has nothing to pick. It survives a file switch to another
+  // pickable file on purpose — the button is meant to stay on while the user gathers references.
+  useEffect(() => {
+    if (editMode === 'edit' || !pickerAvailable) setPickerActive(false)
+  }, [editMode, pickerAvailable])
+
+  // Switching capture off is the one moment the plugin cannot report null itself: its callback is
+  // already gone. (Escape is handled by handleOverlayKeyDown and handlePaneKeyDown, not here.)
+  useEffect(() => {
+    if (pickerActive) return
+    setSelectionReference(null)
+  }, [pickerActive])
 
   // Successful writes return an exact byte size through the edit session.
   // Invalidate the separate metadata gate whenever that size changes so a
@@ -334,13 +366,36 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onSelectedFileChange(null)
   }, [onPreviewClose, onSelectedFileChange])
 
+  // The overlay owns Escape for anything focused inside it: React 19 delegates events at the root
+  // container, so a document-level listener would never see a keydown whose
+  // SyntheticEvent.stopPropagation() already stopped it here. The picker takes precedence over closing
+  // the preview because losing the mode is cheaper to recover from than losing the preview. Escape from
+  // the picker toggle itself lands on the pane root instead — see handlePaneKeyDown.
   const handleOverlayKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.key !== 'Escape') return
+      if (pickerActive) {
+        event.stopPropagation()
+        setPickerActive(false)
+        return
+      }
       event.stopPropagation()
       handleClosePreview()
     },
-    [handleClosePreview]
+    [handleClosePreview, pickerActive]
+  )
+
+  // With headerVariant="pane" the picker toggle lives in the pane header, a sibling of the overlay, so
+  // the Escape that follows clicking it never reaches handleOverlayKeyDown. Turning the picker off is
+  // all this adds: closing the preview stays the overlay's business, and the overlay stops its own
+  // Escape, so this never double-fires.
+  const handlePaneKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Escape' || !pickerActive) return
+      event.stopPropagation()
+      setPickerActive(false)
+    },
+    [pickerActive]
   )
 
   const copyPath = useCallback(
@@ -408,6 +463,28 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       </Tooltip>
     ),
     [handleRefresh, t]
+  )
+
+  const pickerToggle = useMemo(
+    () =>
+      pickerAvailable && editMode !== 'edit' ? (
+        <Tooltip content={t('agent.preview_pane.pick_selection')} delay={800}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={cn(
+              'text-muted-foreground hover:bg-accent hover:text-foreground',
+              pickerActive && 'bg-accent text-foreground'
+            )}
+            aria-label={t('agent.preview_pane.pick_selection')}
+            aria-pressed={pickerActive}
+            onClick={() => setPickerActive((active) => !active)}>
+            <SquareDashedMousePointer size={16} />
+          </Button>
+        </Tooltip>
+      ) : null,
+    [editMode, pickerActive, pickerAvailable, t]
   )
 
   const searchToolbar = useMemo(
@@ -618,6 +695,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 targetPath={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : previewWorkspacePath}
                 pathKind={overlaySelection ? 'file' : 'directory'}
               />
+              {pickerToggle}
               {refreshButton}
               <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
             </>
@@ -642,7 +720,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
       filePath={getArtifactPaneSelectionPath(overlaySelection)}
       refreshKey={contentRefreshToken}
       type="artifact"
-      onSelectionReference={onInsertSelectionReference ? setSelectionReference : undefined}
+      onSelectionReference={onInsertSelectionReference && pickerActive ? setSelectionReference : undefined}
     />
   ) : null
 
@@ -665,6 +743,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     const overlayActions = (
       <>
         <OpenTargetButton targetPath={getArtifactPaneSelectionPath(overlaySelection)} pathKind="file" />
+        {pickerToggle}
         {refreshButton}
         <Tooltip content={t('agent.preview_pane.close')} delay={800}>
           <Button
@@ -881,6 +960,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   return (
     <div
       ref={artifactPaneRef}
+      onKeyDown={handlePaneKeyDown}
       className={cn(
         'flex h-full min-h-0 flex-col overflow-hidden text-card-foreground',
         maximized && 'rounded-lg border border-border-subtle shadow-sm'

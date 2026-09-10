@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} éléments",
   "agent.preview_pane.no_search_results": "Aucun fichier ne correspond à votre recherche",
   "agent.preview_pane.office.title": "L'ouverture des fichiers {{extension}} n'est pas encore prise en charge ici",
+  "agent.preview_pane.pick_selection": "Sélectionner une zone",
   "agent.preview_pane.preview": "Aperçu",
   "agent.preview_pane.quote_selection": "Citer la sélection",
   "agent.preview_pane.refresh": "Actualiser",

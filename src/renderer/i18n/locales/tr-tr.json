@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} öğe",
   "agent.preview_pane.no_search_results": "Aramayla eşleşen dosya yok",
   "agent.preview_pane.office.title": "{{extension}} dosyalarının burada açılması henüz desteklenmiyor",
+  "agent.preview_pane.pick_selection": "Bölge seç",
   "agent.preview_pane.preview": "Önizleme",
   "agent.preview_pane.quote_selection": "Seçimi alıntıla",
   "agent.preview_pane.refresh": "Yenile",

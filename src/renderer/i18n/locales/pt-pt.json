@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} itens",
   "agent.preview_pane.no_search_results": "Nenhum ficheiro corresponde à sua pesquisa",
   "agent.preview_pane.office.title": "Abrir ficheiros {{extension}} aqui ainda não é suportado",
+  "agent.preview_pane.pick_selection": "Selecionar região",
   "agent.preview_pane.preview": "Pré-visualização",
   "agent.preview_pane.quote_selection": "Citar seleção",
   "agent.preview_pane.refresh": "Atualizar",
