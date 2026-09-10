@@ -53,11 +53,6 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
   },
   { route: '/settings/api-gateway', titleKey: 'apiGateway.title', icon: createElement(GatewayIcon) },
   {
-    route: '/settings/device-connections',
-    titleKey: 'deviceConnections.title',
-    icon: createElement(MonitorSmartphone)
-  },
-  {
     route: '/settings/mcp',
     titleKey: 'agent.settings.toolsMcp.mcp.tab',
     icon: createElement(McpLogo, { width: 16, height: 16, className: 'text-foreground' }),
@@ -127,6 +122,12 @@ export const settingsMenu: readonly SettingsMenuEntry[] = [
     route: '/settings/channels',
     titleKey: 'settings.channels.title',
     icon: createElement(Radio),
+    groupKey: 'settings.menuGroups.automation'
+  },
+  {
+    route: '/settings/device-connections',
+    titleKey: 'deviceConnections.title',
+    icon: createElement(MonitorSmartphone),
     groupKey: 'settings.menuGroups.automation'
   },
   {
