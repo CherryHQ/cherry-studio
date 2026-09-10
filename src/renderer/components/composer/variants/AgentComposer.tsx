@@ -81,7 +81,7 @@ import { Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { excludeComposerDraftTokens } from '../composerDraft'
+import { excludeComposerDraftTokens, withComposerDraftUserText } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -123,6 +123,7 @@ import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/com
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerFill } from './shared/useComposerFill'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
 import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
@@ -958,7 +959,14 @@ const AgentComposerInner = ({
     },
     [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
   )
-  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+  const {
+    isInputHistoryActive,
+    navigateHistory,
+    resetHistoryIndex,
+    peekDraftBeforeHistory,
+    takeDraftBeforeHistory,
+    saveHistory
+  } = useInputHistory({
     applyDraft: applyHistoryDraft
   })
   const handleTextChange = useCallback(
@@ -1105,6 +1113,31 @@ const AgentComposerInner = ({
       actionsRef.current.focus('end')
     })
   }, [actionsRef, sessionTopicId])
+
+  useComposerFill(
+    actionsRef,
+    sessionTopicId,
+    (text) => {
+      const draftBeforeHistory = takeDraftBeforeHistory()
+      const currentDraft = draftBeforeHistory ?? actionsRef.current.getDraft()
+      const nextDraft = withComposerDraftUserText(
+        { ...currentDraft, tokens: getAgentDraftTokens(currentDraft.tokens) },
+        text
+      )
+      actionsRef.current.replaceDraft(nextDraft)
+      setText(nextDraft.text)
+      setDraftTokens(nextDraft.tokens)
+      draftTokensRef.current = nextDraft.tokens
+      setSelectedSkills(getCachedSkillTokens(nextDraft.tokens).map(getSkillFromCachedToken))
+      const savedTools = inputHistoryToolsRef.current
+      inputHistoryToolsRef.current = null
+      if (savedTools) {
+        setFiles(savedTools.files)
+        setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+      }
+    },
+    () => peekDraftBeforeHistory() ?? actionsRef.current.getDraft()
+  )
 
   useEffect(() => {
     if (!launchOptions?.initialDraft) return

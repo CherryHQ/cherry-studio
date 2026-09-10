@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +10,8 @@ const harness = vi.hoisted(() => ({
   defaultModel: undefined as Model | undefined,
   quickModel: undefined as Model | undefined,
   translateModel: undefined as Model | undefined,
+  suggestionsModel: undefined as Model | undefined,
+  suggestionsModelIds: [] as Array<string | null | undefined>,
   setDefaultModel: vi.fn(),
   setQuickModel: vi.fn(),
   setTranslateModel: vi.fn(),
@@ -71,15 +73,26 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     onSelect,
     trigger,
-    filter
+    filter,
+    noneOptionLabel
   }: {
     onSelect: (model: Model | undefined) => void
     trigger: ReactNode
     filter?: (model: Model) => boolean
+    noneOptionLabel?: string
   }) => {
     harness.selectorCallbacks.push(onSelect)
     harness.selectorFilters.push(filter)
-    return trigger
+    return (
+      <>
+        {trigger}
+        {noneOptionLabel ? (
+          <button type="button" onClick={() => onSelect(undefined)}>
+            {noneOptionLabel}
+          </button>
+        ) : null}
+      </>
+    )
   }
 }))
 
@@ -93,7 +106,11 @@ vi.mock('@renderer/hooks/useModel', () => ({
     setQuickModel: harness.setQuickModel,
     setTranslateModel: harness.setTranslateModel,
     setPaintingModel: harness.setPaintingModel
-  })
+  }),
+  useModelById: (modelId: string | null | undefined) => {
+    harness.suggestionsModelIds.push(modelId)
+    return { model: harness.suggestionsModel }
+  }
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -158,9 +175,14 @@ describe('ModelSettings', () => {
     harness.defaultModel = undefined
     harness.quickModel = undefined
     harness.translateModel = undefined
+    harness.suggestionsModel = undefined
+    harness.suggestionsModelIds = []
     harness.selectorCallbacks = []
     harness.selectorFilters = []
-    harness.preferenceValues = {}
+    harness.preferenceValues = {
+      'chat.suggestions.enabled': true,
+      'chat.suggestions.model_id': null
+    }
     harness.preferenceSetters = {}
     harness.setDefaultModel.mockResolvedValue(undefined)
     harness.setQuickModel.mockResolvedValue(undefined)
@@ -240,6 +262,65 @@ describe('ModelSettings', () => {
         outputModalities: ['text']
       })
     ).toBe(false)
+  })
+
+  it('lets users disable suggestions or choose a dedicated model', () => {
+    const selectedModel = createModel('openai', 'gpt-4o-mini')
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    fireEvent.click(screen.getByLabelText('settings.models.conversation_suggestions.label'))
+    act(() => harness.selectorCallbacks[1](selectedModel))
+
+    expect(harness.preferenceSetters['chat.suggestions.enabled']).toHaveBeenCalledWith(false)
+    expect(harness.preferenceSetters['chat.suggestions.model_id']).toHaveBeenCalledWith(selectedModel.id)
+  })
+
+  it('hides the suggestions model picker until the feature is enabled', () => {
+    harness.preferenceValues['chat.suggestions.enabled'] = false
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(
+      screen.queryByRole('button', { name: 'settings.models.conversation_suggestions.default_model' })
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('settings.models.conversation_suggestions.label'))
+    expect(harness.preferenceSetters['chat.suggestions.enabled']).toHaveBeenCalledWith(true)
+  })
+
+  it('does not resolve a retained suggestions model while the feature is disabled', () => {
+    harness.preferenceValues['chat.suggestions.enabled'] = false
+    harness.preferenceValues['chat.suggestions.model_id'] = 'openai::gpt-4o-mini'
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(harness.suggestionsModelIds).toEqual([null])
+  })
+
+  it('lets users reset a dedicated suggestions model to follow the default', () => {
+    const selectedModel = createModel('openai', 'gpt-4o-mini')
+    harness.suggestionsModel = selectedModel
+    harness.preferenceValues['chat.suggestions.model_id'] = selectedModel.id
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.conversation_suggestions.default_model' }))
+
+    expect(harness.preferenceSetters['chat.suggestions.model_id']).toHaveBeenCalledWith(null)
+  })
+
+  it('does not present a dedicated suggestions model that is no longer chat-capable', () => {
+    const embeddingModel = {
+      ...createModel('openai', 'text-embedding-3-small'),
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    }
+    harness.suggestionsModel = embeddingModel
+    harness.preferenceValues['chat.suggestions.model_id'] = embeddingModel.id
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(screen.queryByText(embeddingModel.name)).not.toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: 'settings.models.conversation_suggestions.default_model' }).length
+    ).toBeGreaterThan(0)
   })
 
   it.each([

@@ -1,4 +1,4 @@
-import { Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
@@ -12,7 +12,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useDefaultModel, useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -21,9 +21,9 @@ import { toast } from '@renderer/services/toast'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import { ArrowRight, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2, Sparkles } from 'lucide-react'
 import type { FC, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -144,6 +144,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const { setTimeoutTimer } = useTimer()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
+  const [suggestionsEnabled, setSuggestionsEnabled] = usePreference('chat.suggestions.enabled')
+  const [suggestionsModelId, setSuggestionsModelId] = usePreference('chat.suggestions.model_id')
+  const { model: suggestionsModel } = useModelById(
+    suggestionsEnabled ? (suggestionsModelId as UniqueModelId | null) : null
+  )
 
   const chatModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
@@ -157,6 +162,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
   const selectableTranslateModel = translateModel && translateModelFilter(translateModel) ? translateModel : undefined
+  const selectableSuggestionsModel =
+    suggestionsModel && chatModelFilter(suggestionsModel) ? suggestionsModel : undefined
   const shouldAutoFillEmptyModels =
     autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
@@ -191,6 +198,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       void setTranslateModel(selected)
     },
     [setTranslateModel]
+  )
+
+  const onSelectSuggestionsModel = useCallback(
+    (selected: Model | undefined) => void setSuggestionsModelId(selected?.id ?? null),
+    [setSuggestionsModelId]
   )
 
   const onSelectPainting = useCallback(
@@ -251,6 +263,30 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               compact={compact}
               onSelect={onSelectDefault}
               placeholder={t('settings.models.empty')}
+            />
+          </ModelSettingRow>
+          {showDividers && <SettingDivider />}
+          <ModelSettingRow
+            compact={compact}
+            id={compact ? undefined : 'setting-model-conversation-suggestions'}
+            icon={<Sparkles size={16} className="lucide-custom shrink-0 text-foreground" />}
+            title={t('settings.models.conversation_suggestions.label')}
+            description={showDescription ? t('settings.models.conversation_suggestions.description') : undefined}>
+            {suggestionsEnabled && (
+              <DefaultModelSelector
+                model={selectableSuggestionsModel}
+                providers={providers}
+                filter={chatModelFilter}
+                compact={compact}
+                onSelect={onSelectSuggestionsModel}
+                placeholder={t('settings.models.conversation_suggestions.default_model')}
+                noneOptionLabel={t('settings.models.conversation_suggestions.default_model')}
+              />
+            )}
+            <Switch
+              checked={suggestionsEnabled}
+              onCheckedChange={(checked) => void setSuggestionsEnabled(checked)}
+              aria-label={t('settings.models.conversation_suggestions.label')}
             />
           </ModelSettingRow>
           {showDividers && <SettingDivider />}

@@ -216,6 +216,23 @@ export function serializeComposerDocument(source: ComposerSerializableSource): C
   return { text, tokens }
 }
 
+export function hasComposerDraftUserText(draft: ComposerSerializedDraft): boolean {
+  return excludeComposerDraftTokens(draft, () => true).text.trim() !== ''
+}
+
+/** Keeps token prompt spans in the serialized text so restore still finds the chips. */
+export function withComposerDraftUserText(draft: ComposerSerializedDraft, userText: string): ComposerSerializedDraft {
+  if (!userText) return draft
+  const separator = draft.text.length > 0 && !/\s$/.test(draft.text) ? ' ' : ''
+  const availableLength = COMPOSER_INPUT_MAX_LENGTH - draft.text.length - separator.length
+  if (availableLength <= 0) return draft
+
+  return {
+    text: draft.text + separator + userText.slice(0, availableLength),
+    tokens: draft.tokens
+  }
+}
+
 /**
  * Drops the tokens a persistence layer cannot carry, taking the prompt text each one contributed with
  * it. `serializeComposerDocument` folds `promptText` into the draft text, so filtering the token alone

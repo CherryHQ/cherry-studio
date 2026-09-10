@@ -14,6 +14,12 @@ export const entries: SettingsSearchEntry[] = [
     descriptionKey: 'settings.models.default_assistant_model_description'
   },
   {
+    anchorId: 'conversation-suggestions',
+    titleKey: 'settings.models.conversation_suggestions.label',
+    groupKey: 'settings.model',
+    descriptionKey: 'settings.models.conversation_suggestions.description'
+  },
+  {
     anchorId: 'quick-model',
     titleKey: 'settings.models.quick_model.label',
     groupKey: 'settings.model',

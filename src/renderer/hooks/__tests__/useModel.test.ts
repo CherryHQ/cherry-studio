@@ -173,6 +173,23 @@ describe('useModelById', () => {
     })
   })
 
+  it('does not revalidate when a model id is unavailable', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined)
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch,
+      mutate: vi.fn()
+    })
+    renderHook(() => useModelById(undefined))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/models/:uniqueModelId*' }])
+
+    expect(refetch).not.toHaveBeenCalled()
+  })
+
   it('revalidates a mounted model after registry enrichment changes', () => {
     const refetch = vi.fn().mockResolvedValue(undefined)
     mockUseQuery.mockReturnValue({

@@ -460,6 +460,9 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'app.developer_mode.enabled') return [true, vi.fn()]
+    if (key === 'chat.suggestions.enabled') return [false, vi.fn()]
+    if (key === 'chat.suggestions.model_id') return [null, vi.fn()]
+    if (key === 'chat.default_model_id') return [null, vi.fn()]
     return [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
   }
 }))
@@ -485,7 +488,18 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelById: (modelId?: string | null) => ({
-    model: modelId ? { id: modelId, name: 'Model 1' } : undefined,
+    model: modelId
+      ? {
+          id: modelId,
+          providerId: 'provider',
+          apiModelId: 'model-1',
+          name: 'Model 1',
+          capabilities: [],
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false
+        }
+      : undefined,
     isLoading: false
   })
 }))
