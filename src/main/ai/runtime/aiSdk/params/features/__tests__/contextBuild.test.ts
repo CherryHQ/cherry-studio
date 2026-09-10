@@ -71,6 +71,7 @@ interface ScopeOverrides {
   request?: Partial<RequestScope['request']>
   requestContext?: Partial<RequestScope['requestContext']>
   canOffloadToolOutputs?: boolean
+  requestedMaxOutputTokens?: number
 }
 
 function makeScope(overrides: ScopeOverrides = {}): RequestScope {
@@ -81,6 +82,7 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
     requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
     compressionModel: overrides.compressionModel ?? null,
+    requestedMaxOutputTokens: overrides.requestedMaxOutputTokens,
     // The normal chat turn. The anchor lookup happens once upstream, so storage
     // routing reads this flag rather than re-querying the row.
     canOffloadToolOutputs: overrides.canOffloadToolOutputs ?? true
@@ -376,6 +378,14 @@ describe('resolveInFlightTruncateThreshold', () => {
       expect(Number.isFinite(threshold)).toBe(true)
     }
   )
+})
+
+describe('buildContextOptions — output reservation', () => {
+  it('uses the centrally resolved request budget for the in-flight threshold', () => {
+    const opts = buildContextOptions(makeScope({ requestedMaxOutputTokens: 128_000 }))!
+
+    expect(opts.truncate?.threshold).toBe(21_600)
+  })
 })
 
 describe('buildContextOptions — models without a contextWindow', () => {

@@ -30,7 +30,6 @@ import {
 } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
-import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
@@ -164,16 +163,7 @@ export const inLoopCompactionFeature: RequestFeature = {
     }
     // Against the room the PROMPT actually has, not the whole window: whatever
     // this request declares as max_tokens is billed alongside the input.
-    const inputRoom = resolveInputRoom(
-      contextWindow,
-      resolveRequestedMaxOutputTokens(
-        scope.request.callOverrides?.maxOutputTokens,
-        undefined,
-        scope.assistant,
-        scope.model,
-        scope.endpointType
-      )
-    )
+    const inputRoom = resolveInputRoom(contextWindow, scope.requestedMaxOutputTokens)
     const trigger = Math.floor((inputRoom * scope.contextSettings.compress.thresholdPercent) / 100)
     const keepBudget = Math.floor(trigger * CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER)
     // The trigger/keep budgets above belong to the REQUEST model (they describe

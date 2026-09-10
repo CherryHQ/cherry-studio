@@ -136,6 +136,18 @@ describe('resolveOutputReservation', () => {
     expect(resolveOutputReservation('a1', [makeModel(), makeModel({ maxOutputTokens: 32_000 })])).toBe(32_000)
   })
 
+  it('reserves a clamped custom maxOutputTokens value for durable compaction', () => {
+    endpoint(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    mockGetAssistantById.mockReturnValue(
+      makeAssistant({
+        enableMaxTokens: false,
+        customParameters: [{ name: 'maxOutputTokens', type: 'number', value: 393_216 }]
+      })
+    )
+
+    expect(resolveOutputReservation('a1', [makeModel({ maxOutputTokens: 300_000 })])).toBe(300_000)
+  })
+
   // A deleted assistant or an unreachable provider row must not fail the turn —
   // this runs on the durable compaction path, before the model stream opens.
   it('degrades to the assistant-less answer when the lookups throw', () => {

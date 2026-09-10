@@ -269,6 +269,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     reasoningProfile,
     reasoning,
+    requestedMaxOutputTokens,
     serviceTierControl,
     requestContext,
     mcpToolIds,
@@ -622,7 +623,7 @@ function buildAgentOptions(
   const callOverrides = request.callOverrides
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
-  const effectiveProviderOptions = applyFastModeToProviderOptions(
+  let effectiveProviderOptions = applyFastModeToProviderOptions(
     provider,
     model,
     overridden.providerOptions,
@@ -631,11 +632,21 @@ function buildAgentOptions(
   // A namespace that ended up empty carries nothing; emitting it would ship a bare
   // `providerOptions` for callers that opted into nothing.
   const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
-  const effectiveBudgetTokens = resolveEffectiveThinkingBudget(
+  let effectiveBudgetTokens = resolveEffectiveThinkingBudget(
     effectiveProviderOptions,
     sdkConfig.providerOptionsKey,
     reasoning.budgetTokens
   )
+  const boundedThinking = boundExplicitThinkingByTotalOutput(
+    effectiveProviderOptions,
+    sdkConfig.providerOptionsKey,
+    requestedMaxOutputTokens,
+    endpointType
+  )
+  if (boundedThinking) {
+    effectiveProviderOptions = boundedThinking.providerOptions
+    effectiveBudgetTokens = boundedThinking.budgetTokens
+  }
   const maxOutputTokens = adjustMaxOutputTokensForReasoning(requestedMaxOutputTokens, endpointType, {
     budgetTokens: effectiveBudgetTokens
   })
@@ -672,6 +683,43 @@ function buildAgentOptions(
       headers,
       getUsagePlugins: getRepairUsagePlugins
     })
+  }
+}
+
+const ANTHROPIC_MIN_THINKING_BUDGET = 1024
+
+function boundExplicitThinkingByTotalOutput(
+  providerOptions: ProviderOptions,
+  providerOptionsKey: string,
+  totalOutputTokens: number | undefined,
+  endpointType: EndpointType | undefined
+): { providerOptions: ProviderOptions; budgetTokens: number | undefined } | undefined {
+  if (totalOutputTokens === undefined || endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return undefined
+  const namespace = providerOptions[providerOptionsKey]
+  const thinking = namespace?.thinking
+  if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
+  const thinkingOptions = thinking as Record<string, unknown>
+  if (thinkingOptions.type !== 'enabled' || typeof thinkingOptions.budgetTokens !== 'number') return undefined
+
+  if (totalOutputTokens <= ANTHROPIC_MIN_THINKING_BUDGET) {
+    const disabledThinking = { ...thinkingOptions, type: 'disabled' }
+    delete disabledThinking.budgetTokens
+    return {
+      providerOptions: {
+        ...providerOptions,
+        [providerOptionsKey]: { ...namespace, thinking: disabledThinking }
+      },
+      budgetTokens: undefined
+    }
+  }
+
+  const budgetTokens = Math.min(thinkingOptions.budgetTokens, totalOutputTokens - 1)
+  return {
+    providerOptions: {
+      ...providerOptions,
+      [providerOptionsKey]: { ...namespace, thinking: { ...thinkingOptions, budgetTokens } }
+    },
+    budgetTokens
   }
 }
 

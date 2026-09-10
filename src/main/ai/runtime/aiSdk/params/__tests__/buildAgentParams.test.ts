@@ -749,6 +749,85 @@ describe('buildAgentParams standard model parameters', () => {
     expect(result.options.maxOutputTokens).toBe(296_000)
   })
 
+  it('bounds an explicit Anthropic thinking budget by the clamped total output budget', async () => {
+    let sentBody: Record<string, any> | undefined
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 300_000)
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'anthropic',
+        providerSettings: {
+          apiKey: 'sk-ant-test',
+          baseURL: 'https://gateway.test/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
+            return Response.json({
+              id: 'msg_test',
+              type: 'message',
+              role: 'assistant',
+              model: 'custom-model',
+              content: [{ type: 'text', text: 'ok' }],
+              stop_reason: 'end_turn',
+              stop_sequence: null,
+              usage: { input_tokens: 1, output_tokens: 1 }
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          maxOutputTokens: 393_216,
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 400_000 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toMatchObject({
+      anthropic: { thinking: { type: 'enabled', budgetTokens: 299_999 } }
+    })
+    expect(result.options.maxOutputTokens).toBe(1)
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      maxOutputTokens: result.options.maxOutputTokens,
+      providerOptions: result.options.providerOptions
+    })
+    expect(sentBody?.max_tokens).toBe(300_000)
+    expect(sentBody?.thinking?.budget_tokens).toBe(299_999)
+  })
+
+  it('disables explicit Anthropic thinking when the total budget cannot satisfy its minimum', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 1024)
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          maxOutputTokens: 1024,
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toMatchObject({ anthropic: { thinking: { type: 'disabled' } } })
+    expect(result.options.providerOptions?.anthropic?.thinking).not.toHaveProperty('budgetTokens')
+    expect(result.options.maxOutputTokens).toBe(1024)
+  })
+
   it('does not apply a model catalog limit to a non-Anthropic endpoint', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 65_536)
     const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4096 } })

@@ -16,6 +16,7 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 
 import { resolveEffectiveEndpoint } from '../provider/endpoint'
+import { getCustomParameters } from '../utils/reasoning'
 
 const logger = loggerService.withContext('ai:outputReservation')
 
@@ -71,9 +72,16 @@ export function resolveOutputReservation(
   models: readonly Model[]
 ): number | undefined {
   const assistant = loadAssistant(assistantId)
+  const customMaxOutputTokens = assistant ? getCustomParameters(assistant).maxOutputTokens : undefined
   let largest: number | undefined
   for (const model of models) {
-    const reservation = resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, endpointTypeOf(model))
+    const reservation = resolveRequestedMaxOutputTokens(
+      undefined,
+      customMaxOutputTokens,
+      assistant,
+      model,
+      endpointTypeOf(model)
+    )
     if (reservation !== undefined && (largest === undefined || reservation > largest)) largest = reservation
   }
   return largest
