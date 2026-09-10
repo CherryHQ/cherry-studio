@@ -1,4 +1,4 @@
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
@@ -1663,6 +1663,44 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, '上海')).toBe(true)
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
+  })
+
+  it('notifies input listeners once an IME composition ends without another edit', async () => {
+    // A stable editor instance is what lets the test drive onUpdate the way ProseMirror would.
+    mocks.stabilizeEditor = true
+    let inputAdapter: QuickPanelInputAdapter | undefined
+    render(
+      <ComposerSurface
+        {...baseProps}
+        renderLeftControls={(adapter) => {
+          inputAdapter = adapter
+          return null
+        }}
+      />
+    )
+
+    await waitFor(() => expect(inputAdapter).toBeDefined())
+
+    const listener = vi.fn()
+    inputAdapter?.subscribeInput?.(listener)
+
+    // ProseMirror keeps `composing` set while the IME writes candidates into the document, so the
+    // quick panel skips every notification it sees until composition ends.
+    mocks.editorViewComposing = true
+    act(() => {
+      mocks.editorOptions.onUpdate({ editor: mocks.editorInstance })
+    })
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ isComposing: true }))
+    listener.mockClear()
+
+    // `endComposition` dispatches nothing when its flush finds no pending change, so committing a
+    // candidate produces no further notification and the panel never learns the query is final.
+    mocks.editorViewComposing = false
+    act(() => {
+      mocks.editorOptions.editorProps.handleDOMEvents.compositionend(null, { data: '知识' })
+    })
+
+    await waitFor(() => expect(listener).toHaveBeenCalledWith(expect.objectContaining({ isComposing: false })))
   })
 
   it('blocks typed input after the composer reaches the maximum text length', async () => {
