@@ -8,7 +8,7 @@ import { replacePromptVariables } from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 
-import { skillService } from '../../../skills/SkillService'
+import { SKILL_FILE_PREVIEW_MAX_SIZE_BYTES, skillService } from '../../../skills/SkillService'
 import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSearch'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { CITATIONS_SYSTEM_PROMPT } from '../prompts/citations'
@@ -79,8 +79,13 @@ async function buildSkillInstructionsSection(folderNames: readonly string[]): Pr
   for (const folderName of folderNames) {
     const state = await skillService.readSkillMdByFolderName(folderName)
     if (state.status !== 'found') {
-      const reason = state.status === 'missing' ? 'SKILL.md not found' : 'SKILL.md unreadable'
-      throw new Error(`Skill "${folderName}" cannot be read (${reason}). Remove it from the message or reinstall it.`)
+      const detail =
+        state.status === 'missing'
+          ? 'SKILL.md not found'
+          : state.reason === 'too-large'
+            ? `SKILL.md exceeds the ${SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MB limit`
+            : 'SKILL.md unreadable'
+      throw new Error(`Skill "${folderName}" cannot be read (${detail}). Remove it from the message or reinstall it.`)
     }
     blocks.push(`<skill name="${folderName}">\n${state.content.trim()}\n</skill>`)
   }

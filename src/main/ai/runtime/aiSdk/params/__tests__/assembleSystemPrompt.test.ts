@@ -10,6 +10,7 @@ vi.mock('@main/utils/prompt', () => ({
 
 const readSkillMdByFolderName = vi.fn()
 vi.mock('@main/ai/skills/SkillService', () => ({
+  SKILL_FILE_PREVIEW_MAX_SIZE_BYTES: 2 * 1024 * 1024,
   skillService: { readSkillMdByFolderName: (...args: unknown[]) => readSkillMdByFolderName(...args) }
 }))
 
@@ -231,6 +232,14 @@ describe('assembleSystemPrompt', () => {
     await expect(
       assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['locked'] })
     ).rejects.toThrow('Skill "locked" cannot be read (SKILL.md unreadable)')
+  })
+
+  it('fails the turn when an attached skill SKILL.md exceeds the size limit', async () => {
+    readSkillMdByFolderName.mockResolvedValue({ status: 'error', reason: 'too-large' })
+
+    await expect(
+      assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['huge'] })
+    ).rejects.toThrow('Skill "huge" cannot be read (SKILL.md exceeds the')
   })
 
   it('adds no skill section when no skill is attached', async () => {
