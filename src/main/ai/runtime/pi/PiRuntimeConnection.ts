@@ -34,7 +34,14 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
-import { getPathFromEnvironment, getRawShellEnv, getShellEnv, hasMiseInPath, isMiseEnvVar } from '@main/utils/shellEnv'
+import {
+  getMiseEnvEntries,
+  getPathFromEnvironment,
+  getRawShellEnv,
+  getShellEnv,
+  hasUserMiseEnv,
+  removePathEntry
+} from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -122,9 +129,7 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
   const binarySearchDirs = getBinarySearchDirs()
   const managedShimsDir = getBinaryShimsDir()
   const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
-  const callerOwnsMiseEnvironment =
-    Object.keys(definedEnv).some((key) => isMiseEnvVar(key)) ||
-    hasMiseInPath(getPathFromEnvironment(definedEnv as Record<string, string | undefined>))
+  const callerOwnsMiseEnvironment = hasUserMiseEnv(definedEnv)
 
   if (callerOwnsMiseEnvironment) {
     // A generic shell may already be activated against the user's mise installation. Do not
@@ -377,12 +382,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // (e.g. pnpx) reads MISE_DATA_DIR to locate its target; Cherry's
       // isolated value redirects it to the wrong data dir (#19738).
       const rawShellEnvForBash = await getRawShellEnv()
-      const rawMiseEnvForBash = Object.fromEntries(
-        Object.entries(rawShellEnvForBash).filter(([key]) => isMiseEnvVar(key))
-      )
-      const hasUserMiseForBash =
-        Object.keys(rawMiseEnvForBash).length > 0 ||
-        hasMiseInPath(getPathFromEnvironment(rawShellEnvForBash as Record<string, string | undefined>))
+      const rawMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(rawShellEnvForBash))
+      const hasUserMiseForBash = hasUserMiseEnv(rawShellEnvForBash)
       const cherryMiseEnvForBash = getBinaryExecutionEnv()
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
@@ -410,6 +411,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
               }
             }
             Object.assign(merged, rawMiseEnvForBash)
+            // A PATH-only mise install leaves rawMiseEnvForBash empty, and the merge
+            // above may have prepended Cherry's shims when context.env carried no
+            // mise markers — drop it so the user's shims resolve first.
+            removePathEntry(merged, getBinaryShimsDir())
           }
           return { ...context, env: merged }
         }
