@@ -99,8 +99,14 @@ Anchor shapes:
 ## Operations
 
 Scripts live in this skill's `scripts/` directory; resolve paths relative to this
-skill folder. Python dependencies are per-format and provided at invocation time via
+skill folder. The library-edit recipes routed to below live in `references/` beside them.
+Python dependencies are per-format and provided at invocation time via
 `uv run --with <pkg>` (the bundled-shell idiom — do not `pip install` globally).
+
+Which route an edit takes follows from the library that can write the format: `openpyxl`
+drops charts and drawings on a round-trip, which is why xlsx edits go through patch-copy,
+while `python-pptx` keeps XML it does not understand, which is why pptx edits go through
+the library.
 
 ### Extract — pull the anchored region into a new file
 
@@ -206,168 +212,19 @@ overwrites — and verify the output by reopening it before reporting success.
 
 ### Edit docx — edit runs, never `Paragraph.text`
 
-When patch-copy refuses a paragraph, the reason is that the paragraph holds structure a
-single rebuilt run cannot carry. `python-docx` can preserve it, but **only if you edit runs
-in place**. Assigning `paragraph.text = "..."` clears the paragraph and rebuilds one run,
-destroying bookmarks, comment anchors, hyperlinks, images and run formatting — the same loss
-patch-copy refused to inflict, minus the refusal.
+When patch-copy refuses a paragraph, `python-docx` can still edit it — but only run by run.
+Never assign `paragraph.text = "..."`: it inflicts exactly the loss patch-copy refused, minus
+the refusal. `save(path)` overwrites, so open the destination with `"xb"`.
 
-Two traps make the naive loop wrong:
-
-- `paragraph.runs` does **not** include runs inside a `w:hyperlink`, while `paragraph.text`
-  does. Offsets computed against `.text` will not line up with `.runs`. Walk
-  `iter_inner_content()` instead.
-- `Run.text`'s setter keeps that run's `rPr`, but rewrites the run's content from the
-  characters you give it. It can only spell back what a character stands for: a bare `w:br`
-  or `w:tab` survives, while `w:br w:type="page"` and `w:noBreakHyphen` vanish and `w:ptab`
-  returns as a plain `w:tab`. A touched run is checked for those before it is written.
-
-```python
-from docx.oxml.ns import qn
-
-def inline_runs(paragraph):
-    """Runs in document order, including those inside hyperlinks, so the concatenation of
-    their text equals paragraph.text and character offsets line up."""
-    runs = []
-    for item in paragraph.iter_inner_content():   # python-docx >= 1.1
-        runs.extend(item.runs) if hasattr(item, "runs") else runs.append(item)
-    return runs
-
-def rebuildable(run):
-    """Whether Run.text's setter can put this run back. It rewrites the run from characters,
-    so it restores only what a character spells: a bare w:br or w:tab. A page break, a column
-    break, a w:ptab or a w:noBreakHyphen comes back as the plain kind or not at all, which
-    changes the layout without changing the text — refuse instead."""
-    for child in run._r:
-        if child.tag in (qn("w:rPr"), qn("w:t")):
-            continue
-        if child.tag in (qn("w:br"), qn("w:tab")) and not child.attrib:
-            continue
-        return False
-    return True
-
-def replace_char_range(paragraph, start, end, new_text):
-    """Replace paragraph.text[start:end] by editing run text only."""
-    position, written = 0, False
-    for run in inline_runs(paragraph):
-        run_start, run_end = position, position + len(run.text)
-        position = run_end
-        if run_end <= start or run_start >= end:
-            continue
-        if not rebuildable(run):
-            raise ValueError("run holds inline content the text setter cannot rebuild")
-        head = run.text[: max(0, start - run_start)]
-        tail = run.text[max(0, end - run_start) :] if end < run_end else ""
-        run.text = head + ("" if written else new_text) + tail
-        written = True
-    if not written:
-        raise ValueError("charRange did not intersect any run")
-
-# `save(path)` overwrites whatever is there, and a library edit owes the caller the same
-# no-overwrite guarantee the scripts give. "x" states it without a check that can race.
-with open("/abs/report-updated.docx", "xb") as out:
-    document.save(out)
-```
-
-Verify by reopening the derived file and checking that the structure you meant to keep is
-still there — not just that the text reads correctly:
-
-```python
-from docx import Document
-check = Document("/abs/report-updated.docx")
-para = check.paragraphs[3]
-assert para.text == expected_text
-assert len(para.runs) == runs_before          # nothing collapsed
-assert "bookmarkStart" in para._p.xml         # anchors intact, if the source had them
-```
+Read [references/docx-edit.md](references/docx-edit.md) before writing any python-docx edit.
 
 ### Edit pptx — use python-pptx, saving to a new path
 
-pptx edits do not go through `office_patch_copy.py`. `python-pptx` keeps XML it does not
-understand, so the parts you never touch round-trip intact (unlike `openpyxl`, which drops
-charts and drawings — that is why xlsx edits use patch-copy). That guarantee covers the
-document around your edit; it does **not** make any given API call lossless. Assigning
-`.text` at paragraph or shape level rebuilds that subtree as one unformatted run, discarding
-bold, size, colour and `a:hlinkClick` and orphaning the hyperlink relationship. Edit runs:
+pptx edits do not go through `office_patch_copy.py`. Never assign `.text` at paragraph or
+shape level: it rebuilds that subtree as one unformatted run. Edit runs, and open the
+destination with `"xb"`.
 
-```python
-from pptx import Presentation
-from pptx.enum.shapes import MSO_SHAPE_TYPE
-
-def walk(shapes):  # extraction recurses into groups, so editing must too — a flat
-    for shape in shapes:  # `for s in slide.shapes` cannot reach a grouped shape_id
-        yield shape
-        if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
-            yield from walk(shape.shapes)
-
-from pptx.oxml.ns import qn
-
-def replace_char_range(paragraph, start, end, new_text):
-    """Replace paragraph.text[start:end] by editing run text only, so each run keeps its rPr
-    (bold, size, colour) and its a:hlinkClick. Everything that contributes to paragraph.text
-    without being a run has to be accounted for or every later offset shifts: a:br is one
-    position, and a:fld holds generated text that must not be rewritten. Skipping a child that
-    carries text moves the edit somewhere else without saying so, which is why an unrecognized
-    one is refused rather than passed over."""
-    position, written, covered = 0, False, []
-    for child in list(paragraph._p):
-        if child.tag in (qn("a:pPr"), qn("a:endParaRPr")):
-            continue                                  # properties, no text of their own
-        if child.tag == qn("a:br"):
-            if start <= position < end:
-                covered.append(child)                 # removed below, once the range is known good
-            position += 1
-            continue
-        if child.tag == qn("a:fld"):
-            field = "".join(t.text or "" for t in child.findall(qn("a:t")))
-            if position < end and start < position + len(field):
-                raise ValueError("charRange covers an a:fld; its text is generated, not stored")
-            position += len(field)
-            continue
-        if child.tag != qn("a:r"):
-            raise ValueError(f"paragraph holds {child.tag}, which this helper cannot position")
-        run = next(r for r in paragraph.runs if r._r is child)
-        run_start, run_end = position, position + len(run.text)
-        position = run_end
-        if run_end <= start or run_start >= end:
-            continue
-        head = run.text[: max(0, start - run_start)]
-        tail = run.text[max(0, end - run_start) :] if end < run_end else ""
-        run.text = head + ("" if written else new_text) + tail
-        written = True
-    if not written:                                   # nothing removed yet, so this leaves the
-        raise ValueError("charRange did not intersect any run")   # paragraph as it was found
-    for child in covered:
-        paragraph._p.remove(child)
-
-p = Presentation("/abs/deck.pptx")
-shape = next(s for s in walk(p.slides[1].shapes) if s.shape_id == 4)
-before = shape.text_frame.paragraphs[0]
-
-replace_char_range(before, 8, 11, "8%")               # anchor had "paragraph": 0
-# replace_char_range(shape.table.cell(1, 0).text_frame.paragraphs[0], ...)   # "tableCell" anchor
-
-# `save(path)` overwrites whatever is there. The scripts refuse an existing --out; a library
-# edit has to refuse one too, and "x" is how you say that without a check that can race.
-with open("/abs/deck-updated.pptx", "xb") as out:
-    p.save(out)
-```
-
-Verify that the formatting survived, not just the text — `paragraphs[0].text == "..."` plus a
-paragraph count passes even when every run was collapsed into one unformatted run:
-
-```python
-check = Presentation("/abs/deck-updated.pptx")
-edited = next(s for s in walk(check.slides[1].shapes) if s.shape_id == 4)
-after = edited.text_frame.paragraphs[0]
-assert after.text == expected_text
-assert len(after.runs) == len(before.runs)                                  # nothing collapsed
-assert [r.hyperlink.address for r in after.runs] == [r.hyperlink.address for r in before.runs]
-assert [(r.font.bold, r.font.size) for r in after.runs] == [(r.font.bold, r.font.size) for r in before.runs]
-```
-
-A table shape has no `text_frame` at all — reaching for one raises `AttributeError`. Route a
-`tableCell` anchor through `shape.table.cell(row, col).text_frame`.
+Read [references/pptx-edit.md](references/pptx-edit.md) before writing any python-pptx edit.
 
 ## Output conventions
 
