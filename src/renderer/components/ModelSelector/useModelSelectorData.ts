@@ -5,6 +5,11 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryProviderId
+} from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isAgentOnlyProvider } from '@shared/utils/provider'
@@ -54,12 +59,8 @@ function getModelIdentifier(model: Model) {
 }
 
 function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: readonly string[]) {
-  if (prioritizedProviderIds.length === 0) {
-    return providers
-  }
-
   const providerById = new Map(providers.map((provider) => [provider.id, provider]))
-  const prioritized = prioritizedProviderIds
+  const prioritized = [...new Set([CHERRYAI_PROVIDER_ID, CHERRY_CLOUD_PROVIDER_ID, ...prioritizedProviderIds])]
     .map((providerId) => providerById.get(providerId))
     .filter((provider): provider is Provider => Boolean(provider))
   const prioritizedIds = new Set(prioritized.map((provider) => provider.id))
@@ -252,6 +253,16 @@ export function useModelSelectorData({
     const duplicateModelNamesByProvider = new Map(
       [...tagFilteredModelsByProvider].map(([providerId, models]) => [providerId, getDuplicateModelNames(models)])
     )
+    const duplicateCherryModelNames = getDuplicateModelNames(
+      [...tagFilteredModelsByProvider].flatMap(([providerId, models]) =>
+        isManagedCherryProviderId(providerId) ? models : []
+      )
+    )
+    for (const provider of sortedProviders) {
+      if (isManagedCherryProviderId(provider.id)) {
+        duplicateModelNamesByProvider.set(provider.id, duplicateCherryModelNames)
+      }
+    }
 
     if (searchText.length === 0 && showPinnedModels && pinnedIdSet.size > 0) {
       const pinnedItems = pinnedIds.flatMap((modelId) => {
@@ -283,6 +294,7 @@ export function useModelSelectorData({
       }
     }
 
+    const displayedGroupIds = new Set<string>()
     sortedProviders.forEach((provider) => {
       const filteredModels = (tagFilteredModelsByProvider.get(provider.id) ?? []).filter(
         (model) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
@@ -292,14 +304,18 @@ export function useModelSelectorData({
         return
       }
 
-      items.push({
-        key: `provider-${provider.id}`,
-        type: 'group',
-        title: getProviderDisplayName(provider),
-        groupKind: 'provider',
-        provider,
-        canNavigateToSettings: isProviderSettingsListVisibleProvider(provider)
-      })
+      const groupId = isManagedCherryProviderId(provider.id) ? CHERRYAI_PROVIDER_ID : provider.id
+      if (!displayedGroupIds.has(groupId)) {
+        displayedGroupIds.add(groupId)
+        items.push({
+          key: `provider-${groupId}`,
+          type: 'group',
+          title: getProviderDisplayName(provider),
+          groupKind: 'provider',
+          provider,
+          canNavigateToSettings: isProviderSettingsListVisibleProvider(provider)
+        })
+      }
 
       items.push(
         ...filteredModels.map((model) =>
