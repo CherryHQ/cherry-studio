@@ -146,6 +146,18 @@ describe('ImageGenerationSupportSchema', () => {
     })
   })
 
+  it.each([0, -0.1])('rejects non-positive range step %s', (step) => {
+    expect(() =>
+      ImageGenerationSupportSchema.parse({
+        modes: {
+          generate: {
+            supports: { guidanceScale: { type: 'range', min: 1, max: 20, step } }
+          }
+        }
+      })
+    ).toThrow()
+  })
+
   it('Ideogram V_3: per-mode supports — remix gains imageWeight; upscale gains resemblance + detail', () => {
     const parsed = ImageGenerationSupportSchema.parse({
       modes: {

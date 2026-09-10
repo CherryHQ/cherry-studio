@@ -51,29 +51,34 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
     <>
       {configItems
         .filter((item) => shouldRenderConfigItem(item, paintingParams))
-        .map((item) => (
-          <div key={item.key ?? `${item.type}-${item.title ?? ''}`}>
-            {item.title && (
-              <PaintingSectionTitle>
-                {t(item.title)}
-                {/* range fields (e.g. numImages) interpolate their actual {{min}}-{{max}} */}
-                {item.tooltip && (
-                  <InfoTooltip
-                    content={t(item.tooltip, item.type === 'slider' ? { min: item.min, max: item.max } : undefined)}
-                  />
-                )}
-              </PaintingSectionTitle>
-            )}
-            <PaintingFieldRenderer
-              item={item}
-              painting={paintingParams}
-              onChange={(updates) =>
-                onConfigChange({ params: { ...paintingParams, ...updates } } as Partial<PaintingData>)
-              }
-              onGenerateRandomSeed={onGenerateRandomSeed}
-            />
-          </div>
-        ))}
+        .map((item) => {
+          const isSwitch = item.type === 'switch'
+          return (
+            <div
+              key={item.key ?? `${item.type}-${item.title ?? ''}`}
+              className={isSwitch ? 'flex min-h-6 items-center justify-between gap-3' : undefined}>
+              {item.title && (
+                <PaintingSectionTitle className={isSwitch ? 'mb-0 min-w-0' : undefined}>
+                  {t(item.title)}
+                  {/* range fields (e.g. numImages) interpolate their actual {{min}}-{{max}} */}
+                  {item.tooltip && (
+                    <InfoTooltip
+                      content={t(item.tooltip, item.type === 'slider' ? { min: item.min, max: item.max } : undefined)}
+                    />
+                  )}
+                </PaintingSectionTitle>
+              )}
+              <PaintingFieldRenderer
+                item={item}
+                painting={paintingParams}
+                onChange={(updates) =>
+                  onConfigChange({ params: { ...paintingParams, ...updates } } as Partial<PaintingData>)
+                }
+                onGenerateRandomSeed={onGenerateRandomSeed}
+              />
+            </div>
+          )
+        })}
     </>
   )
 }

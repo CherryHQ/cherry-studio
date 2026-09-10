@@ -193,6 +193,8 @@ function stepFrom(base: number, step: number, min?: number, max?: number): numbe
   const next = step > 0 ? Math.floor(offsets + epsilon) + 1 : Math.ceil(offsets - epsilon) - 1
   const decimals = Math.max(decimalsOf(size), decimalsOf(anchor))
   const stepped = Number((anchor + next * size).toFixed(decimals))
+  // An in-range base stays put when there is no next grid point in range.
+  if (inRange(base, min, max) && !inRange(stepped, min, max)) return base
   const clamped = min !== undefined && stepped < min ? min : max !== undefined && stepped > max ? max : stepped
   // An arrow must never move the value against its own direction. A base already
   // outside the range would otherwise be dragged backwards by the clamp: pressing
@@ -233,6 +235,18 @@ function InputNumber({
   // Set by Escape so the blur it triggers settles on what the edit started from:
   // `draft` has not re-rendered yet, so the text still reads what was typed.
   const discarding = React.useRef(false)
+  const previousConstraints = React.useRef({ min, max, step })
+
+  React.useEffect(() => {
+    const previous = previousConstraints.current
+    if (previous.min === min && previous.max === max && previous.step === step) return
+
+    previousConstraints.current = { min, max, step }
+    generation.current += 1
+    setBusy(false)
+    preEdit.current = value
+    setDraft((current) => (current === null ? null : format(value)))
+  }, [max, min, step, value])
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.value
@@ -306,6 +320,9 @@ function InputNumber({
     onKeyDown?.(event)
   }
 
+  const numericText = toNumber(text)
+  const ariaValueNow = numericText !== null && inRange(numericText, min, max) ? numericText : undefined
+
   return (
     <Input
       {...props}
@@ -316,7 +333,7 @@ function InputNumber({
       data-busy={busy || undefined}
       aria-valuemin={min}
       aria-valuemax={max}
-      aria-valuenow={toNumber(text) ?? undefined}
+      aria-valuenow={ariaValueNow}
       value={text}
       className={cn(sizeClasses[size], 'data-[busy=true]:cursor-progress data-[busy=true]:opacity-40', className)}
       onFocus={(event) => {

@@ -572,6 +572,17 @@ describe('InputNumber', () => {
     expect(input).toHaveValue('0')
   })
 
+  it('does not step from the grid onto an off-grid maximum', async () => {
+    const user = userEvent.setup()
+    render(<Controlled initial={0.9} min={0} max={1} step={0.3} />)
+
+    const input = screen.getByLabelText('amount')
+    await user.click(input)
+    await user.keyboard('{ArrowUp}')
+
+    expect(input).toHaveValue('0.9')
+  })
+
   it('reports a step like a keystroke and settles it only when focus leaves', async () => {
     const user = userEvent.setup()
     const onValueChange = vi.fn()

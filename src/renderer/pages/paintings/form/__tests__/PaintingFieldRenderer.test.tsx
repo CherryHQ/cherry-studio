@@ -30,27 +30,55 @@ function renderSlider(item: Partial<SliderConfigItem>, painting: Record<string, 
 }
 
 describe('PaintingFieldRenderer slider input', () => {
-  // `role="spinbutton"` announces a value and a range; with no name it is a number
-  // with no subject, and nothing else in the suite would notice the name going.
   it('names the slider companion field', () => {
     renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
     expect(screen.getByRole('spinbutton')).toHaveAccessibleName()
   })
 
-  it('accepts a fractional value when the field step is fractional', async () => {
+  it('keeps the numeric control compact', () => {
+    renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 16.5 })
+
+    expect(screen.getByRole('spinbutton')).toHaveClass('h-8', 'w-12')
+  })
+
+  it('aligns a typed value to an explicit integer step on settle', async () => {
     const user = userEvent.setup()
-    const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
+    const onChange = renderSlider({ key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }, { numImages: 1 })
 
     const input = screen.getByRole('spinbutton')
     await user.clear(input)
-    await user.type(input, '7.5')
+    await user.type(input, '2.5')
     await user.tab()
 
-    expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 7.5 })
+    expect(onChange).toHaveBeenLastCalledWith({ numImages: 3 })
   })
 
-  it('clamps a value above the maximum on blur', async () => {
+  it('keeps a typed value that is already on a decimal step', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSlider({ min: 1, max: 20, step: 0.1 }, { guidanceScale: 5 })
+
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '4.5')
+    await user.tab()
+
+    expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 4.5 })
+  })
+
+  it('keeps decimal precision when step is omitted', async () => {
+    const user = userEvent.setup()
+    const onChange = renderSlider({ key: 'imageWeight', min: 1, max: 100, initialValue: 50 }, { imageWeight: 50 })
+
+    const input = screen.getByRole('spinbutton')
+    await user.clear(input)
+    await user.type(input, '50.5')
+    await user.tab()
+
+    expect(onChange).toHaveBeenLastCalledWith({ imageWeight: 50.5 })
+  })
+
+  it('clamps a value above the maximum on settle', async () => {
     const user = userEvent.setup()
     const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
@@ -62,7 +90,7 @@ describe('PaintingFieldRenderer slider input', () => {
     expect(onChange).toHaveBeenLastCalledWith({ guidanceScale: 20 })
   })
 
-  it('writes nothing while typing, so the slider never sees a half-typed value', async () => {
+  it('does not write a half-typed value into the slider state', async () => {
     const user = userEvent.setup()
     const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
 
@@ -74,8 +102,6 @@ describe('PaintingFieldRenderer slider input', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  // Clearing to retype settles as `null`, which is not a value the slider can
-  // hold: writing it would drop the field to `min`.
   it('writes nothing when the field is cleared and left empty', async () => {
     const user = userEvent.setup()
     const onChange = renderSlider({ min: 1, max: 20, step: 0.1 }, { guidanceScale: 4.5 })
@@ -85,6 +111,37 @@ describe('PaintingFieldRenderer slider input', () => {
     await user.tab()
 
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps persisted out-of-range values inside both control bounds', () => {
+    const onChange = renderSlider({ min: 0, max: 20, step: 0.1 }, { guidanceScale: 99 })
+
+    expect(screen.getByRole('slider')).toHaveValue('20')
+    expect(screen.getByRole('spinbutton')).toHaveValue('20')
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-valuenow', '20')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('PaintingFieldRenderer seed reset control', () => {
+  it('pairs the seed field with a same-height labeled reset button', async () => {
+    const onGenerateRandomSeed = vi.fn()
+    render(
+      <PaintingFieldRenderer
+        item={{ type: 'input', key: 'seed', title: 'paintings.seed' }}
+        painting={{ seed: '' }}
+        onChange={vi.fn()}
+        onGenerateRandomSeed={onGenerateRandomSeed}
+      />
+    )
+
+    const input = screen.getByRole('textbox')
+    const reset = screen.getByRole('button', { name: 'common.regenerate' })
+    expect(input).toHaveClass('h-8')
+    expect(reset).toHaveClass('h-8', 'w-8')
+
+    await userEvent.click(reset)
+    expect(onGenerateRandomSeed).toHaveBeenCalledWith('seed')
   })
 })
 
@@ -174,7 +231,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
     expect(screen.getByTestId('select')).toHaveAttribute('data-value', '1024x1024')
   })
 
-  it('rejects a decimal persisted value for an integer-backed slider', () => {
+  it('displays an in-range off-grid value until it is edited', () => {
     const support = {
       modes: {
         generate: {
@@ -192,7 +249,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
       />
     )
 
-    expect(screen.getByRole('spinbutton')).toHaveValue('1')
+    expect(screen.getByRole('spinbutton')).toHaveValue('2.5')
     expect(submitted.numImages).toBeUndefined()
   })
 })

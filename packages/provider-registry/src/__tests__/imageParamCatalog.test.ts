@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { CANONICAL_PARAM_KEY } from '../schemas/enums'
 import { IMAGE_PARAM_CATALOG_KEYS, imageParamsSchema, parseImageParamValue } from '../schemas/imageParamCatalog'
-import type { ImageGenerationSupport } from '../schemas/model'
+import { type ImageGenerationSupport, ImageGenerationSupportSchema } from '../schemas/model'
 import { buildParamsSchema } from '../utils/buildParamsSchema'
 
 describe('IMAGE_PARAM_CATALOG', () => {
@@ -124,5 +124,35 @@ describe('buildParamsSchema', () => {
     expect((s.parse({ seed: '7' }) as { seed?: number }).seed).toBe(7)
     // the cleaned bag now survives the strict IPC-boundary schema instead of rejecting
     expect(() => imageParamsSchema.parse(parsed)).not.toThrow()
+  })
+
+  it('drops an in-range fractional count instead of rewriting it, and keeps guidanceScale 4.5', () => {
+    const support = ImageGenerationSupportSchema.parse({
+      modes: {
+        generate: {
+          supports: {
+            numImages: { type: 'range', min: 1, max: 4, default: 1 },
+            numInferenceSteps: { type: 'range', min: 1, max: 50, default: 25 },
+            guidanceScale: { type: 'range', min: 1, max: 20, default: 4.5, step: 0.1 },
+            negativePrompt: { type: 'text', multiline: true },
+            seed: { type: 'text' }
+          }
+        }
+      }
+    })
+    const parsed = buildParamsSchema(support, 'generate').parse({
+      numImages: 2.5,
+      numInferenceSteps: 12.2,
+      guidanceScale: 4.5,
+      negativePrompt: '',
+      seed: ''
+    })
+    // Integer catalog fields reject a non-int; `.catch(undefined)` omits them
+    // rather than snapping 2.5 → 3 on the wire without updating form/footer.
+    expect(parsed.numImages).toBeUndefined()
+    expect(parsed.numInferenceSteps).toBeUndefined()
+    expect(parsed.guidanceScale).toBe(4.5)
+    expect(parsed.negativePrompt).toBe('')
+    expect(parsed.seed).toBeUndefined()
   })
 })

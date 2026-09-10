@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { isEditImageModel } from '@shared/utils/model'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { createDefaultPainting } from '../model/paintingPipeline'
@@ -26,10 +26,17 @@ export function usePaintingModelSwitch({
   ensureProviderCatalog
 }: UsePaintingModelSwitchInput) {
   const currentProviderId = painting.providerId
+  const paintingRef = useRef(painting)
+  paintingRef.current = painting
+  const latestSwitchRef = useRef(0)
   const { models } = useModels(currentProviderId ? { providerId: currentProviderId } : undefined)
 
   return useCallback(
     async ({ providerId, modelId }: PaintingModelSelection) => {
+      const switchId = ++latestSwitchRef.current
+      const paintingId = painting.id
+      const isCurrentSwitch = () => latestSwitchRef.current === switchId && paintingRef.current.id === paintingId
+
       if (providerId === currentProviderId) {
         // Reset stale fields the old model wrote but the new one doesn't
         // accept — the form writes into `painting.params`, so the reset
@@ -42,8 +49,9 @@ export function usePaintingModelSwitch({
           oldModelId: painting.model,
           newModelId: modelId,
           mode: tabToImageGenerationMode(painting.mode),
-          currentValues: painting.params ?? {}
+          currentValues: () => paintingRef.current.params ?? {}
         })
+        if (!isCurrentSwitch()) return
         // Drop attached input images when the target model can't accept them:
         // the prompt-bar upload UI is gated on `isEditImageModel`, so a hidden
         // attachment left over from an edit model would otherwise still be
@@ -51,8 +59,9 @@ export function usePaintingModelSwitch({
         // clear must be explicit.
         const nextModel = models.find((model) => model.apiModelId === modelId)
         const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
+        const latestPainting = paintingRef.current
         onPaintingChange({
-          params: { ...painting.params, ...resetPatch },
+          params: { ...latestPainting.params, ...resetPatch },
           model: modelId,
           ...(keepInputFiles ? {} : { inputFiles: [] })
         } as Partial<PaintingData>)
@@ -62,19 +71,22 @@ export function usePaintingModelSwitch({
       try {
         await ensureProviderCatalog(providerId)
       } catch (error) {
+        if (!isCurrentSwitch()) return
         // Cold-cache + DB/IPC failure must not silently revert the dropdown —
         // surface it like the generate path instead of swallowing the switch.
         logger.error('Failed to load provider catalog on model switch', error as Error)
         presentPaintingGenerateError(error)
         return
       }
+      if (!isCurrentSwitch()) return
       const targetPainting = createDefaultPainting({ providerId })
+      const latestPainting = paintingRef.current
 
       onPaintingChange({
         ...targetPainting,
-        id: painting.id,
-        files: painting.files,
-        prompt: painting.prompt,
+        id: latestPainting.id,
+        files: latestPainting.files,
+        prompt: latestPainting.prompt,
         providerId,
         mode: 'generate',
         model: modelId,

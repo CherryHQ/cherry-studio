@@ -1,3 +1,4 @@
+import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -125,6 +126,28 @@ describe('canonicalGenerate', () => {
   it('omits empty / undefined / empty-string params from the bag', async () => {
     await canonicalGenerate(makeInput({ size: '', seed: undefined, addWatermark: '' }))
     expect(lastGenerateCall().paramValues).toEqual({})
+  })
+
+  it('omits stale fractional numImages, keeps guidanceScale 4.5, and omits empty optionals', async () => {
+    const support = ImageGenerationSupportSchema.parse({
+      modes: {
+        generate: {
+          supports: {
+            numImages: { type: 'range', min: 1, max: 4, default: 1 },
+            guidanceScale: { type: 'range', min: 1, max: 20, default: 4.5, step: 0.1 },
+            negativePrompt: { type: 'text', multiline: true },
+            seed: { type: 'text' }
+          }
+        }
+      }
+    })
+    await canonicalGenerate(makeInput({ numImages: 2.5, guidanceScale: 4.5, negativePrompt: '', seed: '' }), {
+      support,
+      mode: 'generate'
+    })
+    // Form commit / model-switch snap 2.5 → 3. Request-time schema must not
+    // rewrite a stale stored 2.5 to 3 while the footer still shows 2.5.
+    expect(lastGenerateCall().paramValues).toEqual({ guidanceScale: 4.5 })
   })
 
   it('prefetches attached input images as data URLs, carried separately from paramValues', async () => {

@@ -29,7 +29,7 @@ import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
-import { controlValue, finiteParamNumberOr, optionalFiniteNumber } from '../form/fieldValue'
+import { controlValue, finiteNumberOr, optionalFiniteNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
 import { resolveOptions, resolveOptionValue } from '../form/resolveOptions'
@@ -86,7 +86,7 @@ function formatSummaryValue(
     // and the artboard prompt bar do, instead of formatting the raw enum.
     return isOptionsConfigItem(item) ? sizeOptionLabel(item, controlValue(value), params, translate) : undefined
   }
-  if (item.type === 'slider') return `${finiteParamNumberOr(item.key, value, item.initialValue)}`
+  if (item.type === 'slider') return `${finiteNumberOr(value, item.initialValue)}`
   // Option-based: show the selected option's localized label.
   const formattedValue = controlValue(value)
   const match = resolveOptions(item, params ?? {}, translate).find((opt) => controlValue(opt.value) === formattedValue)
