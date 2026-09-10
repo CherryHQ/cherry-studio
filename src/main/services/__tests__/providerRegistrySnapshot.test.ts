@@ -1,3 +1,5 @@
+import { basename } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { clearCacheMock, rmSyncMock, atomicWriteFileMock } = vi.hoisted(() => ({
@@ -23,8 +25,6 @@ vi.mock('@main/data/services/ProviderRegistryService', () => ({
 }))
 
 import { writeProviderRegistrySnapshot } from '../providerRegistrySnapshot'
-
-const basename = (pathname: string) => pathname.split('/').pop()
 
 describe('writeProviderRegistrySnapshot', () => {
   beforeEach(() => {

@@ -1,3 +1,5 @@
+import { resolve as resolvePath } from 'node:path'
+
 import { BaseService } from '@main/core/lifecycle'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,7 +41,7 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 
 const { AppService } = await import('../AppService')
 
-const autostartDir = '/mock/sys.appdata.autostart'
+const autostartDir = resolvePath('/mock/sys.appdata.autostart')
 const desktopFile = path.join(autostartDir, 'cherry-studio.desktop')
 const linuxFiles = new Set<string>()
 const activeServices: BaseService[] = []
@@ -253,7 +255,7 @@ describe('AppService', () => {
       expect(atomicWriteFileMock).toHaveBeenCalledWith(desktopFile, expect.any(String))
       const desktopContent = atomicWriteFileMock.mock.calls[0][1]
       expect(desktopContent).toContain('Type=Application')
-      expect(desktopContent).toContain('Exec=/mock/app.exe_file')
+      expect(desktopContent).toContain(`Exec=${resolvePath('/mock/app.exe_file')}`)
       expect(desktopContent).toContain('X-GNOME-Autostart-enabled=true')
       expect(desktopContent).toContain('Hidden=false')
     })
@@ -261,13 +263,13 @@ describe('AppService', () => {
     it('uses the stable AppImage path in the Linux desktop entry', async () => {
       platform.isLinux = true
       platform.isWin = false
-      vi.stubEnv('APPIMAGE', '/opt/CherryStudio.AppImage')
+      vi.stubEnv('APPIMAGE', resolvePath('/opt/CherryStudio.AppImage'))
 
       await new AppService().setAppLaunchOnBoot(true)
 
       const desktopContent = atomicWriteFileMock.mock.calls[0][1]
-      expect(desktopContent).toContain('Exec=/opt/CherryStudio.AppImage')
-      expect(desktopContent).not.toContain('Exec=/mock/app.exe_file')
+      expect(desktopContent).toContain(`Exec=${resolvePath('/opt/CherryStudio.AppImage')}`)
+      expect(desktopContent).not.toContain(`Exec=${resolvePath('/mock/app.exe_file')}`)
     })
 
     it('propagates Linux removal errors', async () => {

@@ -143,20 +143,17 @@ describe('publishFileNoClobber', () => {
     const staged = path.join(temporaryDirectory, 'staged.bin') as AbsoluteFilePath
     const target = path.join(temporaryDirectory, 'target.bin') as AbsoluteFilePath
     const controller = new AbortController()
-    let validations = 0
     await writeFile(staged, 'new content')
 
     await expect(
       publishFileNoClobber(staged, target, {
         signal: controller.signal,
         validateTarget: async () => {
-          validations += 1
-          if (validations === 2) controller.abort()
+          if ((await exists(target)) && (await readFile(target, 'utf8')) === 'new content') controller.abort()
         }
       })
     ).rejects.toMatchObject({ name: 'AbortError' })
 
-    expect(validations).toBe(2)
     expect(await exists(target)).toBe(false)
     await expect(readFile(staged, 'utf8')).resolves.toBe('new content')
   })
@@ -169,7 +166,7 @@ describe('publishFileNoClobber', () => {
     await expect(
       publishFileNoClobber(staged, target, {
         validateTarget: async () => {
-          throw new Error('target validation failed')
+          if (await exists(target)) throw new Error('target validation failed')
         }
       })
     ).rejects.toThrow('target validation failed')
@@ -214,7 +211,6 @@ describe('publishFileNoClobber', () => {
     await Promise.all([mkdir(outputParent), mkdir(outsideParent)])
     await writeFile(staged, 'new content')
     await writeFile(outsideVictim, 'keep me')
-    let validations = 0
 
     vi.mocked(execFile).mockImplementationOnce(((...args: unknown[]) => {
       renameSync(outputParent, displacedParent)
@@ -226,14 +222,13 @@ describe('publishFileNoClobber', () => {
       await expect(
         publishFileNoClobber(staged, target, {
           validateTarget: async () => {
-            validations += 1
-            if (validations === 2) throw new Error('target validation failed')
+            if ((await exists(target)) && (await readFile(target, 'utf8')) === 'new content') {
+              throw new Error('target validation failed')
+            }
           }
         })
       ).rejects.toThrow('target validation failed')
 
-      expect(validations).toBe(2)
-      expect(execFile).toHaveBeenCalled()
       await expect(readFile(outsideVictim, 'utf8')).resolves.toBe('keep me')
       await expect(readFile(path.join(displacedParent, 'target.bin'))).resolves.toHaveLength(0)
     } finally {

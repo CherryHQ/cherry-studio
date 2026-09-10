@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url'
+
 import { BaseService, Phase } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -34,11 +36,11 @@ function registeredHandler() {
 
 const trustedEvent = {
   sender: { getType: () => 'window' },
-  senderFrame: { url: 'file:///app/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/app/index.html').href, parent: null }
 }
 const webviewEvent = {
   sender: { getType: () => 'webview' },
-  senderFrame: { url: 'file:///app/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/app/index.html').href, parent: null }
 }
 
 beforeEach(() => {

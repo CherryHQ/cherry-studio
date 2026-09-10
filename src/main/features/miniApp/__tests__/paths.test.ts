@@ -1,3 +1,5 @@
+import { resolve as resolvePath } from 'node:path'
+
 import { application } from '@application'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -14,12 +16,12 @@ const mockRoots = (base: string) =>
 
 describe('mini app paths', () => {
   it('derives every path from the registry roots', () => {
-    mockRoots('/data/MiniApps')
+    mockRoots(resolvePath('/data/MiniApps'))
 
-    expect(miniAppInstallPath('com.example.a')).toBe('/data/MiniApps/packages/com.example.a')
-    expect(miniAppBackupPath('com.example.a')).toBe('/data/MiniApps/snapshots/com.example.a.backup')
-    expect(miniAppRollingPath('com.example.a')).toBe('/data/MiniApps/snapshots/com.example.a.rolling')
-    expect(miniAppDataPath('com.example.a')).toBe('/data/MiniApps/data/com.example.a')
+    expect(miniAppInstallPath('com.example.a')).toBe(resolvePath('/data/MiniApps/packages/com.example.a'))
+    expect(miniAppBackupPath('com.example.a')).toBe(resolvePath('/data/MiniApps/snapshots/com.example.a.backup'))
+    expect(miniAppRollingPath('com.example.a')).toBe(resolvePath('/data/MiniApps/snapshots/com.example.a.rolling'))
+    expect(miniAppDataPath('com.example.a')).toBe(resolvePath('/data/MiniApps/data/com.example.a'))
   })
 
   it('keeps a snapshot off every legal appId install tree', () => {
@@ -27,7 +29,7 @@ describe('mini app paths', () => {
     // beside the install trees, its package directory would be byte-identical to
     // `com.example.a`'s rollback snapshot: installing it would delete that snapshot,
     // and rolling `com.example.a` back would publish its tree under the other identity.
-    mockRoots('/data/MiniApps')
+    mockRoots(resolvePath('/data/MiniApps'))
 
     expect(miniAppInstallPath('com.example.a.backup')).not.toBe(miniAppBackupPath('com.example.a'))
     expect(miniAppInstallPath('com.example.a.rolling')).not.toBe(miniAppRollingPath('com.example.a'))
@@ -36,9 +38,9 @@ describe('mini app paths', () => {
   it('follows the root when userData moves', () => {
     // The bug this guards: caching or persisting the resolved path. A relocation
     // copies the whole tree, so a stored absolute path breaks every installed app.
-    mockRoots('/moved/MiniApps')
+    mockRoots(resolvePath('/moved/MiniApps'))
 
-    expect(miniAppInstallPath('com.example.a')).toBe('/moved/MiniApps/packages/com.example.a')
-    expect(miniAppBackupPath('com.example.a')).toBe('/moved/MiniApps/snapshots/com.example.a.backup')
+    expect(miniAppInstallPath('com.example.a')).toBe(resolvePath('/moved/MiniApps/packages/com.example.a'))
+    expect(miniAppBackupPath('com.example.a')).toBe(resolvePath('/moved/MiniApps/snapshots/com.example.a.backup'))
   })
 })

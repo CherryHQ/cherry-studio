@@ -29,6 +29,7 @@ interface GitFixture {
 }
 
 let roots: string[] = []
+let gitConfigRoot: string
 const inheritedGitEnvironment = Object.entries(process.env).filter(
   (entry): entry is [string, string] => entry[0].startsWith('GIT_') && entry[1] !== undefined
 )
@@ -41,13 +42,17 @@ function clearGitEnvironment(): void {
 
 beforeAll(() => {
   clearGitEnvironment()
-  process.env.GIT_CONFIG_GLOBAL = os.devNull
+  gitConfigRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'release-git-config-'))
+  const gitConfig = path.join(gitConfigRoot, 'config')
+  fs.writeFileSync(gitConfig, '')
+  process.env.GIT_CONFIG_GLOBAL = gitConfig
   process.env.GIT_CONFIG_NOSYSTEM = '1'
 })
 
 afterAll(() => {
   clearGitEnvironment()
   for (const [key, value] of inheritedGitEnvironment) process.env[key] = value
+  fs.rmSync(gitConfigRoot, { recursive: true, force: true })
 })
 
 function git(cwd: string, ...args: string[]): string {
@@ -216,8 +221,14 @@ describe('backport patch preparation', () => {
   it('rejects a symbolic link before release metadata can be updated', () => {
     const fixture = createGitFixture()
     const base = git(fixture.repo, 'rev-parse', 'HEAD')
-    fs.symlinkSync('app.txt', path.join(fixture.repo, 'linked.txt'))
-    const mergeSha = commit(fixture.repo, 'add linked file')
+    const target = execFileSync('git', ['hash-object', '-w', '--stdin'], {
+      cwd: fixture.repo,
+      input: 'app.txt',
+      encoding: 'utf8'
+    }).trim()
+    git(fixture.repo, 'update-index', '--add', '--cacheinfo', `120000,${target},linked.txt`)
+    git(fixture.repo, 'commit', '-m', 'add linked file')
+    const mergeSha = git(fixture.repo, 'rev-parse', 'HEAD')
     markOriginMain(fixture.repo, mergeSha)
     git(fixture.repo, 'checkout', '-b', 'release', base)
 
@@ -230,8 +241,11 @@ describe('backport patch preparation', () => {
     const fixture = createGitFixture()
     const base = git(fixture.repo, 'rev-parse', 'HEAD')
     write(fixture.repo, 'script.sh', '#!/bin/sh\n')
-    fs.chmodSync(path.join(fixture.repo, 'script.sh'), 0o755)
-    const mergeSha = commit(fixture.repo, 'add executable')
+    git(fixture.repo, 'config', 'core.filemode', 'false')
+    git(fixture.repo, 'add', 'script.sh')
+    git(fixture.repo, 'update-index', '--chmod=+x', 'script.sh')
+    git(fixture.repo, 'commit', '-m', 'add executable')
+    const mergeSha = git(fixture.repo, 'rev-parse', 'HEAD')
     markOriginMain(fixture.repo, mergeSha)
     git(fixture.repo, 'checkout', '-b', 'release', base)
 
@@ -256,8 +270,7 @@ describe('backport patch preparation', () => {
   it('rejects an existing-file mode change before release metadata can be updated', () => {
     const fixture = createGitFixture()
     const base = git(fixture.repo, 'rev-parse', 'HEAD')
-    git(fixture.repo, 'config', 'core.filemode', 'true')
-    fs.chmodSync(path.join(fixture.repo, 'app.txt'), 0o755)
+    git(fixture.repo, 'config', 'core.filemode', 'false')
     git(fixture.repo, 'update-index', '--chmod=+x', 'app.txt')
     git(fixture.repo, 'commit', '-m', 'make app executable')
     const mergeSha = git(fixture.repo, 'rev-parse', 'HEAD')

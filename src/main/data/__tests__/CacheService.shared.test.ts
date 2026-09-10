@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url'
+
 /**
  * Tests for the shared-tier TTL synchronization contract (issue #17050).
  *
@@ -77,7 +79,7 @@ const PROGRESS_KEY = 'jobs.progress.job-1' as const
 // the global application mock resolves getPath('app.root') to '/mock/app.root'.
 const trustedEvent = {
   sender: { getType: () => 'window' },
-  senderFrame: { url: 'file:///mock/app.root/index.html', parent: null }
+  senderFrame: { url: pathToFileURL('/mock/app.root/index.html').href, parent: null }
 } as unknown as IpcMainEvent
 
 const BASE = 1_000_000

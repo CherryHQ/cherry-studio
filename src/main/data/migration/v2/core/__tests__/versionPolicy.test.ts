@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -115,13 +116,13 @@ describe('readPreviousVersion', () => {
     ].join('\n')
     mockedReadFileSync.mockReturnValue(content)
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBe('1.9.0')
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBe('1.9.0')
   })
 
   it('returns null for an empty file', () => {
     mockedReadFileSync.mockReturnValue('')
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBeNull()
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBeNull()
   })
 
   it('returns null when all records match current version', () => {
@@ -131,7 +132,7 @@ describe('readPreviousVersion', () => {
     ].join('\n')
     mockedReadFileSync.mockReturnValue(content)
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBeNull()
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBeNull()
   })
 
   it('skips corrupted lines and returns the valid previous version', () => {
@@ -143,13 +144,13 @@ describe('readPreviousVersion', () => {
     ].join('\n')
     mockedReadFileSync.mockReturnValue(content)
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBe('1.9.0')
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBe('1.9.0')
   })
 
   it('returns null when a single valid entry matches current version', () => {
     mockedReadFileSync.mockReturnValue('2.0.0|darwin|production|true|normal|2025-03-01T00:00:00Z')
 
-    expect(readPreviousVersion('/tmp/version.log', '2.0.0')).toBeNull()
+    expect(readPreviousVersion(resolvePath('/tmp/version.log'), '2.0.0')).toBeNull()
   })
 
   it('returns null when the file does not exist', () => {
@@ -157,7 +158,7 @@ describe('readPreviousVersion', () => {
       throw new Error('ENOENT: no such file or directory')
     })
 
-    expect(readPreviousVersion('/tmp/nonexistent.log', '2.0.0')).toBeNull()
+    expect(readPreviousVersion(resolvePath('/tmp/nonexistent.log'), '2.0.0')).toBeNull()
   })
 })
 
@@ -174,7 +175,7 @@ describe('evaluateCandidateVersion', () => {
   it('blocks with no_version_log when the directory has no version.log', () => {
     mockedExistsSync.mockReturnValue(false)
 
-    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+    const result = evaluateCandidateVersion(resolvePath('/data/dir'), '2.0.0')
 
     expect(result.check).toStrictEqual({
       outcome: 'block',
@@ -185,14 +186,14 @@ describe('evaluateCandidateVersion', () => {
     expect(result.versionLogExists).toBe(false)
     expect(result.previousVersion).toBeNull()
     // version.log path is derived from the candidate directory.
-    expect(mockedExistsSync).toHaveBeenCalledWith('/data/dir/version.log')
+    expect(mockedExistsSync).toHaveBeenCalledWith(resolvePath('/data/dir/version.log'))
   })
 
   it('passes when version.log records a previous version at or above the required v1', () => {
     mockedExistsSync.mockReturnValue(true)
     mockedReadFileSync.mockReturnValue('1.9.12|darwin|production|true|normal|2025-03-01T00:00:00Z')
 
-    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+    const result = evaluateCandidateVersion(resolvePath('/data/dir'), '2.0.0')
 
     expect(result.check).toStrictEqual({ outcome: 'pass' })
     expect(result.previousVersion).toBe('1.9.12')
@@ -203,7 +204,7 @@ describe('evaluateCandidateVersion', () => {
     mockedExistsSync.mockReturnValue(true)
     mockedReadFileSync.mockReturnValue('1.8.0|darwin|production|true|normal|2025-01-01T00:00:00Z')
 
-    const result = evaluateCandidateVersion('/data/dir', '2.0.0')
+    const result = evaluateCandidateVersion(resolvePath('/data/dir'), '2.0.0')
 
     expect(result.check).toStrictEqual({
       outcome: 'block',

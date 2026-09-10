@@ -158,7 +158,7 @@ describe('saveAttachmentToWorkspace', () => {
 
   it('rejects an output directory symlink that escapes the workspace', async () => {
     const outsideDirectory = path.dirname(sourcePath)
-    await symlink(outsideDirectory, path.join(workspacePath, 'escaped'))
+    await symlink(outsideDirectory, path.join(workspacePath, 'escaped'), 'junction')
 
     let error: Error | undefined
     try {
@@ -185,7 +185,7 @@ describe('saveAttachmentToWorkspace', () => {
     await mkdir(outputDirectory)
     withTempCopy.mockImplementationOnce(async (_id: string, fn: (tempPath: string) => Promise<unknown>) => {
       await rm(outputDirectory, { recursive: true, force: true })
-      await symlink(outsideDirectory, outputDirectory)
+      await symlink(outsideDirectory, outputDirectory, 'junction')
       return fn(sourcePath)
     })
 

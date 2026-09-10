@@ -260,10 +260,10 @@ describe('buildResolvedEnv', () => {
 
     // The mocked application.getPath returns "/mock/<key>" deterministically.
     expect(result).toEqual({
-      HOME: '/mock/sys.home',
-      DESKTOP: '/mock/sys.desktop',
-      DOCUMENTS: '/mock/sys.documents',
-      DOWNLOADS: '/mock/sys.downloads'
+      HOME: path.resolve('/mock/sys.home'),
+      DESKTOP: path.resolve('/mock/sys.desktop'),
+      DOCUMENTS: path.resolve('/mock/sys.documents'),
+      DOWNLOADS: path.resolve('/mock/sys.downloads')
     })
   })
 

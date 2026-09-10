@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,14 +28,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  *     write, legacyDataConfirmed) against a path-aware node:fs mock.
  */
 
-const CONFIG_FILE = '/mock/home/.cherrystudio/config/config.json'
-const DEFAULT_USER_DATA = '/mock/userData'
+const CONFIG_FILE = resolvePath('/mock/home/.cherrystudio/config/config.json')
+const DEFAULT_USER_DATA = resolvePath('/mock/userData')
 
 const h = vi.hoisted(() => ({
-  getPath: vi.fn((key: string): string => (key === 'userData' ? '/mock/userData' : '/mock/unknown')),
+  getPath: vi.fn((key: string): string =>
+    key === 'userData' ? resolvePath('/mock/userData') : resolvePath('/mock/unknown')
+  ),
   setPath: vi.fn(),
   getVersion: vi.fn((): string => '2.0.0'),
-  normalizedExe: vi.fn((): string => '/current/exe'),
+  normalizedExe: vi.fn((): string => resolvePath('/current/exe')),
   bootGet: vi.fn((): unknown => undefined),
   bootSet: vi.fn(),
   bootPersist: vi.fn()
@@ -67,11 +70,11 @@ vi.mock('@main/data/bootConfig', () => ({
 }))
 
 vi.mock('@main/core/paths/constants', () => ({
-  CHERRY_HOME: '/mock/home/.cherrystudio',
+  CHERRY_HOME: resolvePath('/mock/home/.cherrystudio'),
   CHERRY_HOME_DIRNAME: '.cherrystudio',
-  BOOT_CONFIG_PATH: '/mock/home/.cherrystudio/boot-config.json',
-  LOGS_DIR: '/mock/logs',
-  resolveDevUserDataPath: () => '/mock/userDataDev'
+  BOOT_CONFIG_PATH: resolvePath('/mock/home/.cherrystudio/boot-config.json'),
+  LOGS_DIR: resolvePath('/mock/logs'),
+  resolveDevUserDataPath: () => resolvePath('/mock/userDataDev')
 }))
 
 vi.mock('@logger', () => ({
@@ -100,8 +103,8 @@ describe('selectLegacyUserData', () => {
     // sqlite + markCompleted is NOT dragged back to the custom dir.
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
-      entries: [{ executablePath: '/old/exe', dataPath: '/custom/data' }],
-      currentExe: '/current/exe',
+      entries: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/custom/data') }],
+      currentExe: resolvePath('/current/exe'),
       probe: probe({
         hasValidSqlite: (d) => d === DEFAULT_USER_DATA,
         // The stale custom entry would otherwise be eligible.
@@ -114,18 +117,18 @@ describe('selectLegacyUserData', () => {
   it('A1: exact exe mapping to a usable non-default dir → redirect without notice', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
-      entries: [{ executablePath: '/current/exe', dataPath: '/custom/data' }],
-      currentExe: '/current/exe',
+      entries: [{ executablePath: resolvePath('/current/exe'), dataPath: resolvePath('/custom/data') }],
+      currentExe: resolvePath('/current/exe'),
       probe: probe()
     })
-    expect(result).toEqual({ kind: 'redirect', target: '/custom/data', notice: false })
+    expect(result).toEqual({ kind: 'redirect', target: resolvePath('/custom/data'), notice: false })
   })
 
   it('A1: exact exe mapping that resolves to the current default → no redirect', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
-      entries: [{ executablePath: '/current/exe', dataPath: DEFAULT_USER_DATA }],
-      currentExe: '/current/exe',
+      entries: [{ executablePath: resolvePath('/current/exe'), dataPath: DEFAULT_USER_DATA }],
+      currentExe: resolvePath('/current/exe'),
       probe: probe()
     })
     expect(result).toEqual({ kind: 'default' })
@@ -136,16 +139,16 @@ describe('selectLegacyUserData', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
       entries: [
-        { executablePath: '/current/exe', dataPath: '/unmounted/custom' },
-        { executablePath: '/old/exe', dataPath: '/stale/eligible' }
+        { executablePath: resolvePath('/current/exe'), dataPath: resolvePath('/unmounted/custom') },
+        { executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/stale/eligible') }
       ],
-      currentExe: '/current/exe',
+      currentExe: resolvePath('/current/exe'),
       probe: probe({
-        isUsableDir: (d) => d !== '/unmounted/custom',
-        hasV1Data: (d) => d === '/stale/eligible'
+        isUsableDir: (d) => d !== resolvePath('/unmounted/custom'),
+        hasV1Data: (d) => d === resolvePath('/stale/eligible')
       })
     })
-    expect(result).toEqual({ kind: 'inaccessible', path: '/unmounted/custom' })
+    expect(result).toEqual({ kind: 'inaccessible', path: resolvePath('/unmounted/custom') })
   })
 
   it('A1: exact dir usable but version-ineligible, stale eligible entry exists → still picks exact dir', () => {
@@ -154,17 +157,17 @@ describe('selectLegacyUserData', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
       entries: [
-        { executablePath: '/current/exe', dataPath: '/exact/dir' },
-        { executablePath: '/old/exe', dataPath: '/stale/eligible' }
+        { executablePath: resolvePath('/current/exe'), dataPath: resolvePath('/exact/dir') },
+        { executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/stale/eligible') }
       ],
-      currentExe: '/current/exe',
+      currentExe: resolvePath('/current/exe'),
       probe: probe({
         hasV1Data: () => true,
-        versionOk: (d) => d !== '/exact/dir', // exact dir is version-ineligible
-        mtimeOf: (d) => (d === '/stale/eligible' ? 999 : 1)
+        versionOk: (d) => d !== resolvePath('/exact/dir'), // exact dir is version-ineligible
+        mtimeOf: (d) => (d === resolvePath('/stale/eligible') ? 999 : 1)
       })
     })
-    expect(result).toEqual({ kind: 'redirect', target: '/exact/dir', notice: false })
+    expect(result).toEqual({ kind: 'redirect', target: resolvePath('/exact/dir'), notice: false })
   })
 
   it('A1: exact dir usable but empty (no v1 marker), real-data eligible entry exists → still picks exact dir', () => {
@@ -173,34 +176,36 @@ describe('selectLegacyUserData', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
       entries: [
-        { executablePath: '/current/exe', dataPath: '/exact/empty' },
-        { executablePath: '/old/exe', dataPath: '/other/realdata' }
+        { executablePath: resolvePath('/current/exe'), dataPath: resolvePath('/exact/empty') },
+        { executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/other/realdata') }
       ],
-      currentExe: '/current/exe',
+      currentExe: resolvePath('/current/exe'),
       probe: probe({
-        hasV1Data: (d) => d === '/other/realdata',
-        mtimeOf: (d) => (d === '/other/realdata' ? 999 : 1)
+        hasV1Data: (d) => d === resolvePath('/other/realdata'),
+        mtimeOf: (d) => (d === resolvePath('/other/realdata') ? 999 : 1)
       })
     })
-    expect(result).toEqual({ kind: 'redirect', target: '/exact/empty', notice: false })
+    expect(result).toEqual({ kind: 'redirect', target: resolvePath('/exact/empty'), notice: false })
   })
 
   it('B1: single eligible entry (no exact match) → redirect with notice', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
-      entries: [{ executablePath: '/old/exe', dataPath: '/custom/data' }],
-      currentExe: '/current/exe',
-      probe: probe({ hasV1Data: (d) => d === '/custom/data' })
+      entries: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/custom/data') }],
+      currentExe: resolvePath('/current/exe'),
+      probe: probe({ hasV1Data: (d) => d === resolvePath('/custom/data') })
     })
-    expect(result).toEqual({ kind: 'redirect', target: '/custom/data', notice: true })
+    expect(result).toEqual({ kind: 'redirect', target: resolvePath('/custom/data'), notice: true })
   })
 
   it('keeps a fresh Windows portable build isolated from setup data', () => {
     const result = selectLegacyUserData({
       currentUserData: 'D:\\Portable\\data',
-      entries: [{ executablePath: 'C:\\Program Files\\CherryStudio\\CherryStudio.exe', dataPath: '/setup/data' }],
+      entries: [
+        { executablePath: 'C:\\Program Files\\CherryStudio\\CherryStudio.exe', dataPath: resolvePath('/setup/data') }
+      ],
       currentExe: 'D:\\Portable\\cherry-studio-portable.exe',
-      probe: probe({ hasV1Data: (d) => d === '/setup/data' })
+      probe: probe({ hasV1Data: (d) => d === resolvePath('/setup/data') })
     })
     expect(result).toEqual({ kind: 'default' })
   })
@@ -229,46 +234,46 @@ describe('selectLegacyUserData', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
       entries: [
-        { executablePath: '/a/exe', dataPath: '/data/older' },
-        { executablePath: '/b/exe', dataPath: '/data/newer' }
+        { executablePath: resolvePath('/a/exe'), dataPath: resolvePath('/data/older') },
+        { executablePath: resolvePath('/b/exe'), dataPath: resolvePath('/data/newer') }
       ],
-      currentExe: '/current/exe',
+      currentExe: resolvePath('/current/exe'),
       probe: probe({
         hasV1Data: () => true,
-        mtimeOf: (d) => (d === '/data/newer' ? 200 : 100)
+        mtimeOf: (d) => (d === resolvePath('/data/newer') ? 200 : 100)
       })
     })
-    expect(result).toEqual({ kind: 'redirect', target: '/data/newer', notice: true })
+    expect(result).toEqual({ kind: 'redirect', target: resolvePath('/data/newer'), notice: true })
   })
 
   it('B2: candidate with v1 data but version-ineligible → redirect without notice (gate will block)', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
-      entries: [{ executablePath: '/old/exe', dataPath: '/too/old' }],
-      currentExe: '/current/exe',
+      entries: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/too/old') }],
+      currentExe: resolvePath('/current/exe'),
       probe: probe({
-        hasV1Data: (d) => d === '/too/old',
+        hasV1Data: (d) => d === resolvePath('/too/old'),
         versionOk: () => false
       })
     })
-    expect(result).toEqual({ kind: 'redirect', target: '/too/old', notice: false })
+    expect(result).toEqual({ kind: 'redirect', target: resolvePath('/too/old'), notice: false })
   })
 
   it('B3: no candidate but an entry dataPath is not usable → inaccessible', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
-      entries: [{ executablePath: '/old/exe', dataPath: '/unmounted/drive' }],
-      currentExe: '/current/exe',
+      entries: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/unmounted/drive') }],
+      currentExe: resolvePath('/current/exe'),
       probe: probe({ isUsableDir: (d) => d === DEFAULT_USER_DATA })
     })
-    expect(result).toEqual({ kind: 'inaccessible', path: '/unmounted/drive' })
+    expect(result).toEqual({ kind: 'inaccessible', path: resolvePath('/unmounted/drive') })
   })
 
   it('B4: no entries and no recoverable data → default (keep current, no redirect)', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
       entries: [],
-      currentExe: '/current/exe',
+      currentExe: resolvePath('/current/exe'),
       probe: probe()
     })
     expect(result).toEqual({ kind: 'default' })
@@ -277,8 +282,8 @@ describe('selectLegacyUserData', () => {
   it('小王: default dir holds the real (more recent) data + a stale custom entry → keeps default', () => {
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
-      entries: [{ executablePath: '/old/exe', dataPath: '/stale/custom' }],
-      currentExe: '/current/exe',
+      entries: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/stale/custom') }],
+      currentExe: resolvePath('/current/exe'),
       probe: probe({
         hasV1Data: () => true,
         mtimeOf: (d) => (d === DEFAULT_USER_DATA ? 900 : 100) // default used most recently
@@ -291,8 +296,8 @@ describe('selectLegacyUserData', () => {
     // The mapping resolves to the current default (with a trailing sep) → no redirect.
     const result = selectLegacyUserData({
       currentUserData: DEFAULT_USER_DATA,
-      entries: [{ executablePath: '/current/exe', dataPath: `${DEFAULT_USER_DATA}/` }],
-      currentExe: '/current/exe',
+      entries: [{ executablePath: resolvePath('/current/exe'), dataPath: `${DEFAULT_USER_DATA}/` }],
+      currentExe: resolvePath('/current/exe'),
       probe: probe()
     })
     expect(result).toEqual({ kind: 'default' })
@@ -353,9 +358,9 @@ function applyFs(desc: FsDesc) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  h.getPath.mockImplementation((key: string) => (key === 'userData' ? DEFAULT_USER_DATA : '/mock/unknown'))
+  h.getPath.mockImplementation((key: string) => (key === 'userData' ? DEFAULT_USER_DATA : resolvePath('/mock/unknown')))
   h.getVersion.mockReturnValue('2.0.0')
-  h.normalizedExe.mockReturnValue('/current/exe')
+  h.normalizedExe.mockReturnValue(resolvePath('/current/exe'))
   h.bootGet.mockReturnValue(undefined)
 })
 
@@ -415,45 +420,45 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
   })
 
   it('recovers the only on-disk dataPath among multiple entries when none match the current exe', () => {
-    h.normalizedExe.mockReturnValue('/new/install/exe')
+    h.normalizedExe.mockReturnValue(resolvePath('/new/install/exe'))
     applyFs({
-      dirs: ['/Volumes/Data/CherryStudio'],
+      dirs: [resolvePath('/Volumes/Data/CherryStudio')],
       contents: {
         [CONFIG_FILE]: JSON.stringify({
           appDataPath: [
-            { executablePath: '/old/portable/exe', dataPath: '/removed/usb/CherryStudio' },
-            { executablePath: '/old/install/exe', dataPath: '/Volumes/Data/CherryStudio' }
+            { executablePath: resolvePath('/old/portable/exe'), dataPath: resolvePath('/removed/usb/CherryStudio') },
+            { executablePath: resolvePath('/old/install/exe'), dataPath: resolvePath('/Volumes/Data/CherryStudio') }
           ]
         }),
-        '/Volumes/Data/CherryStudio/version.log': GOOD_VERSION_LOG
+        [resolvePath('/Volumes/Data/CherryStudio/version.log')]: GOOD_VERSION_LOG
       }
     })
 
     const result = resolveMigrationPaths()
 
-    expect(result.paths.userData).toBe('/Volumes/Data/CherryStudio')
+    expect(result.paths.userData).toBe(resolvePath('/Volumes/Data/CherryStudio'))
     expect(result.userDataChanged).toBe(true)
-    expect(h.setPath).toHaveBeenCalledWith('userData', '/Volumes/Data/CherryStudio')
+    expect(h.setPath).toHaveBeenCalledWith('userData', resolvePath('/Volumes/Data/CherryStudio'))
   })
 
   it('string-form config synthesizes an exact entry → recovers even when the exe changed', () => {
     // Legacy string form applied to ALL executables; it must still win.
-    h.normalizedExe.mockReturnValue('/some/new/exe')
+    h.normalizedExe.mockReturnValue(resolvePath('/some/new/exe'))
     applyFs({
-      dirs: ['/legacy/string/data'],
+      dirs: [resolvePath('/legacy/string/data')],
       contents: {
-        [CONFIG_FILE]: JSON.stringify({ appDataPath: '/legacy/string/data' }),
-        '/legacy/string/data/version.log': GOOD_VERSION_LOG
+        [CONFIG_FILE]: JSON.stringify({ appDataPath: resolvePath('/legacy/string/data') }),
+        [resolvePath('/legacy/string/data/version.log')]: GOOD_VERSION_LOG
       }
     })
 
     const result = resolveMigrationPaths()
 
-    expect(result.paths.userData).toBe('/legacy/string/data')
+    expect(result.paths.userData).toBe(resolvePath('/legacy/string/data'))
     expect(result.userDataChanged).toBe(true)
     // A1 (synthetic exact) path → no notice.
     expect(result.dataLocation).toBeUndefined()
-    expect(h.setPath).toHaveBeenCalledWith('userData', '/legacy/string/data')
+    expect(h.setPath).toHaveBeenCalledWith('userData', resolvePath('/legacy/string/data'))
   })
 
   it('ordinary user with no appDataPath → no redirect, no setPath, legacyDataConfirmed=false', () => {
@@ -471,14 +476,14 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
   })
 
   it('entry dataPath equals the current default → no setPath', () => {
-    h.normalizedExe.mockReturnValue('/current/exe')
+    h.normalizedExe.mockReturnValue(resolvePath('/current/exe'))
     applyFs({
       dirs: [DEFAULT_USER_DATA],
       contents: {
         [CONFIG_FILE]: JSON.stringify({
-          appDataPath: [{ executablePath: '/current/exe', dataPath: DEFAULT_USER_DATA }]
+          appDataPath: [{ executablePath: resolvePath('/current/exe'), dataPath: DEFAULT_USER_DATA }]
         }),
-        [`${DEFAULT_USER_DATA}/version.log`]: GOOD_VERSION_LOG
+        [resolvePath(DEFAULT_USER_DATA, 'version.log')]: GOOD_VERSION_LOG
       }
     })
 
@@ -490,53 +495,53 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
   })
 
   it('B3: an entry dataPath is inaccessible (not on disk) → inaccessibleLegacyPath, no setPath', () => {
-    h.normalizedExe.mockReturnValue('/new/exe')
+    h.normalizedExe.mockReturnValue(resolvePath('/new/exe'))
     applyFs({
       // /custom/gone is neither a dir nor present → not usable.
       dirs: [],
       contents: {
         [CONFIG_FILE]: JSON.stringify({
-          appDataPath: [{ executablePath: '/old/exe', dataPath: '/custom/gone' }]
+          appDataPath: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/custom/gone') }]
         })
       }
     })
 
     const result = resolveMigrationPaths()
 
-    expect(result.inaccessibleLegacyPath).toBe('/custom/gone')
+    expect(result.inaccessibleLegacyPath).toBe(resolvePath('/custom/gone'))
     expect(result.userDataChanged).toBe(false)
     expect(h.setPath).not.toHaveBeenCalled()
   })
 
   it('isValidDir tightening: a custom entry pointing at a FILE (not a directory) → inaccessible', () => {
-    h.normalizedExe.mockReturnValue('/new/exe')
+    h.normalizedExe.mockReturnValue(resolvePath('/new/exe'))
     applyFs({
       dirs: [],
       // '/custom/file' exists but statSync reports a file → not a usable dir.
-      sqlite: { '/custom/file': 10 }, // reuse the file-stat shape (isFile true)
+      sqlite: { [resolvePath('/custom/file')]: 10 }, // reuse the file-stat shape (isFile true)
       contents: {
         [CONFIG_FILE]: JSON.stringify({
-          appDataPath: [{ executablePath: '/old/exe', dataPath: '/custom/file' }]
+          appDataPath: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/custom/file') }]
         })
       }
     })
 
     const result = resolveMigrationPaths()
 
-    expect(result.inaccessibleLegacyPath).toBe('/custom/file')
+    expect(result.inaccessibleLegacyPath).toBe(resolvePath('/custom/file'))
     expect(h.setPath).not.toHaveBeenCalled()
   })
 
   it('A0: current default already holds a non-empty sqlite + stale eligible entry → no redirect', () => {
-    h.normalizedExe.mockReturnValue('/new/exe')
+    h.normalizedExe.mockReturnValue(resolvePath('/new/exe'))
     applyFs({
-      dirs: [DEFAULT_USER_DATA, '/stale/custom'],
+      dirs: [DEFAULT_USER_DATA, resolvePath('/stale/custom')],
       sqlite: { [path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite')]: 4096 },
       contents: {
         [CONFIG_FILE]: JSON.stringify({
-          appDataPath: [{ executablePath: '/old/exe', dataPath: '/stale/custom' }]
+          appDataPath: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/stale/custom') }]
         }),
-        '/stale/custom/version.log': GOOD_VERSION_LOG
+        [resolvePath('/stale/custom/version.log')]: GOOD_VERSION_LOG
       }
     })
 
@@ -547,33 +552,35 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
   })
 
   it('A0 non-empty guard: a 0-byte sqlite does NOT count as V2-ized → still fuzzy-recovers custom', () => {
-    h.normalizedExe.mockReturnValue('/new/exe')
+    h.normalizedExe.mockReturnValue(resolvePath('/new/exe'))
     applyFs({
-      dirs: [DEFAULT_USER_DATA, '/custom/real'],
+      dirs: [DEFAULT_USER_DATA, resolvePath('/custom/real')],
       sqlite: { [path.join(DEFAULT_USER_DATA, 'Data', 'cherrystudio.sqlite')]: 0 }, // 0 bytes → invalid
       contents: {
         [CONFIG_FILE]: JSON.stringify({
-          appDataPath: [{ executablePath: '/old/exe', dataPath: '/custom/real' }]
+          appDataPath: [{ executablePath: resolvePath('/old/exe'), dataPath: resolvePath('/custom/real') }]
         }),
-        '/custom/real/version.log': GOOD_VERSION_LOG
+        [resolvePath('/custom/real/version.log')]: GOOD_VERSION_LOG
       }
     })
 
     const result = resolveMigrationPaths()
 
-    expect(result.paths.userData).toBe('/custom/real')
+    expect(result.paths.userData).toBe(resolvePath('/custom/real'))
     expect(result.userDataChanged).toBe(true)
-    expect(h.setPath).toHaveBeenCalledWith('userData', '/custom/real')
+    expect(h.setPath).toHaveBeenCalledWith('userData', resolvePath('/custom/real'))
   })
 
   it('P0 regression: boot-config already points at TARGET with version.log but empty electron-store → legacyDataConfirmed=true', () => {
     // Simulates "redirected on a previous launch, then exited before migrating".
-    h.normalizedExe.mockReturnValue('/current/exe')
-    h.bootGet.mockReturnValue({ '/current/exe': '/custom/target' })
-    h.getPath.mockImplementation((key: string) => (key === 'userData' ? '/custom/target' : '/mock/unknown'))
+    h.normalizedExe.mockReturnValue(resolvePath('/current/exe'))
+    h.bootGet.mockReturnValue({ [resolvePath('/current/exe')]: resolvePath('/custom/target') })
+    h.getPath.mockImplementation((key: string) =>
+      key === 'userData' ? resolvePath('/custom/target') : resolvePath('/mock/unknown')
+    )
     applyFs({
-      dirs: ['/custom/target'],
-      contents: { '/custom/target/version.log': GOOD_VERSION_LOG }
+      dirs: [resolvePath('/custom/target')],
+      contents: { [resolvePath('/custom/target/version.log')]: GOOD_VERSION_LOG }
     })
 
     const result = resolveMigrationPaths()
@@ -586,10 +593,12 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
   })
 
   it('front-gate P: boot-config points at a custom dir that is now inaccessible → inaccessibleLegacyPath, no lock on default', () => {
-    h.normalizedExe.mockReturnValue('/current/exe')
-    h.bootGet.mockReturnValue({ '/current/exe': '/unmounted/custom' })
+    h.normalizedExe.mockReturnValue(resolvePath('/current/exe'))
+    h.bootGet.mockReturnValue({ [resolvePath('/current/exe')]: resolvePath('/unmounted/custom') })
     // resolveUserDataLocation already fell back to the default; userData is default.
-    h.getPath.mockImplementation((key: string) => (key === 'userData' ? DEFAULT_USER_DATA : '/mock/unknown'))
+    h.getPath.mockImplementation((key: string) =>
+      key === 'userData' ? DEFAULT_USER_DATA : resolvePath('/mock/unknown')
+    )
     applyFs({
       // /unmounted/custom is not on disk; default is an empty dir.
       dirs: [DEFAULT_USER_DATA]
@@ -597,18 +606,20 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
 
     const result = resolveMigrationPaths()
 
-    expect(result.inaccessibleLegacyPath).toBe('/unmounted/custom')
+    expect(result.inaccessibleLegacyPath).toBe(resolvePath('/unmounted/custom'))
     expect(result.userDataChanged).toBe(false)
     expect(h.setPath).not.toHaveBeenCalled()
   })
 
   it('front-gate P: boot-config points at a valid custom dir → probing skipped, normal', () => {
-    h.normalizedExe.mockReturnValue('/current/exe')
-    h.bootGet.mockReturnValue({ '/current/exe': '/custom/valid' })
-    h.getPath.mockImplementation((key: string) => (key === 'userData' ? '/custom/valid' : '/mock/unknown'))
+    h.normalizedExe.mockReturnValue(resolvePath('/current/exe'))
+    h.bootGet.mockReturnValue({ [resolvePath('/current/exe')]: resolvePath('/custom/valid') })
+    h.getPath.mockImplementation((key: string) =>
+      key === 'userData' ? resolvePath('/custom/valid') : resolvePath('/mock/unknown')
+    )
     applyFs({
-      dirs: ['/custom/valid'],
-      contents: { '/custom/valid/version.log': GOOD_VERSION_LOG }
+      dirs: [resolvePath('/custom/valid')],
+      contents: { [resolvePath('/custom/valid/version.log')]: GOOD_VERSION_LOG }
     })
 
     const result = resolveMigrationPaths()

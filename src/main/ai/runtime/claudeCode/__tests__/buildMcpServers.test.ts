@@ -3,8 +3,8 @@
  * `mcp__agent-memory__memory`, so every agent must actually get the `agent-memory`
  * server injected into the runtime MCP list AND allow its tools — not just reference the name.
  */
-
 import type * as NodeFs from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 import path from 'node:path'
 
 import type * as KnowledgeLookup from '@main/ai/tools/knowledgeLookup'
@@ -27,7 +27,7 @@ const {
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
-  mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
+  mockGetPath: vi.fn(() => resolvePath('/tmp/managed-workspaces')),
   mockPreferenceGet: vi.fn(() => undefined),
   mockListOrOutlineKnowledge: vi.fn(),
   mockMemoryConstructor: vi.fn(),
@@ -139,7 +139,7 @@ const session = {
   workspace: {
     id: 'ws-1',
     name: 'Workspace',
-    path: '/tmp/workspace',
+    path: resolvePath('/tmp/workspace'),
     type: 'user',
     orderKey: 'a0',
     createdAt: '2026-05-20T00:00:00.000Z',
@@ -274,9 +274,16 @@ describe('buildMcpServers', () => {
   })
 
   it('injects the agent-memory and skills servers for every agent (REGRESSION agents-jobs-3)', async () => {
-    const result = buildMcpServers(session, agent, WITHOUT_HOST_TOOLS, undefined, undefined, '/data/Agents/agent-1')
+    const result = buildMcpServers(
+      session,
+      agent,
+      WITHOUT_HOST_TOOLS,
+      undefined,
+      undefined,
+      resolvePath('/data/Agents/agent-1')
+    )
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory', 'skills']))
-    expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', '/data/Agents/agent-1')
+    expect(mockMemoryConstructor).toHaveBeenCalledWith('agent-1', resolvePath('/data/Agents/agent-1'))
   })
 
   it('mounts mcp-manager only when the session resolved it, never off the agent role', () => {
@@ -444,7 +451,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     mockMkdir.mockReset()
     mockRealpath.mockReset()
     mockRealpath.mockImplementation(async (targetPath: string) => targetPath)
-    mockGetPath.mockReturnValue('/tmp/managed-workspaces')
+    mockGetPath.mockReturnValue(resolvePath('/tmp/managed-workspaces'))
     mockEnsureManagedDirectory.mockImplementation(async (root: string, target: string) => {
       const [resolvedRoot, resolvedTarget] = await Promise.all([mockRealpath(root), mockRealpath(target)])
       const relative = path.relative(resolvedRoot, resolvedTarget)
@@ -459,14 +466,14 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
 
     await expect(
-      prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/user-workspace', 'user'))
+      prepareClaudeCodeWorkspaceDirectory(makeSession(resolvePath('/tmp/user-workspace'), 'user'))
     ).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
 
     expect(mockMkdir).not.toHaveBeenCalled()
   })
 
   it('creates a missing system workspace before asserting it', async () => {
-    const workspacePath = '/tmp/managed-workspaces/sess-workspace'
+    const workspacePath = resolvePath('/tmp/managed-workspaces/sess-workspace')
     mockGetPathStatus.mockResolvedValueOnce({ ok: true, kind: 'directory' })
     mockMkdir.mockResolvedValueOnce(undefined)
 
@@ -476,19 +483,19 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   })
 
   it('rejects system workspace paths outside the managed root', async () => {
-    await expect(prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/outside', 'system'))).rejects.toBeInstanceOf(
-      AgentSessionWorkspaceError
-    )
+    await expect(
+      prepareClaudeCodeWorkspaceDirectory(makeSession(resolvePath('/tmp/outside'), 'system'))
+    ).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
 
     expect(mockGetPathStatus).not.toHaveBeenCalled()
     expect(mockMkdir).not.toHaveBeenCalled()
   })
 
   it('rejects system workspace symlinks that resolve outside the managed root', async () => {
-    const workspacePath = '/tmp/managed-workspaces/sess-link'
+    const workspacePath = resolvePath('/tmp/managed-workspaces/sess-link')
     mockRealpath.mockImplementation(async (targetPath: string) => {
-      if (targetPath === '/tmp/managed-workspaces') return '/tmp/managed-workspaces'
-      if (targetPath === workspacePath) return '/tmp/outside-workspace'
+      if (targetPath === resolvePath('/tmp/managed-workspaces')) return resolvePath('/tmp/managed-workspaces')
+      if (targetPath === workspacePath) return resolvePath('/tmp/outside-workspace')
       return targetPath
     })
 
@@ -503,7 +510,7 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   it('keeps assertClaudeCodeWorkspaceDirectory as pure validation', async () => {
     mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
 
-    await expect(assertClaudeCodeWorkspaceDirectory('sess-1', '/tmp/missing')).rejects.toBeInstanceOf(
+    await expect(assertClaudeCodeWorkspaceDirectory('sess-1', resolvePath('/tmp/missing'))).rejects.toBeInstanceOf(
       AgentSessionWorkspaceError
     )
 

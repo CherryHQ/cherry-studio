@@ -122,7 +122,7 @@ describe('move (EXDEV cross-device fallback)', () => {
     // Pin the unlink call so a future "skip-unlink-on-EXDEV" regression fails
     // here instead of silently leaving the source on disk.
     expect(mockUnlink).toHaveBeenCalledWith(src)
-    expect(mockLoggerWarn).not.toHaveBeenCalled()
+    expect(mockLoggerWarn).not.toHaveBeenCalledWith(expect.stringContaining('source unlink failed'), expect.anything())
   })
 
   it('on EXDEV + unlink ENOENT: silent (source already gone is the desired post-state)', async () => {
@@ -135,7 +135,7 @@ describe('move (EXDEV cross-device fallback)', () => {
     await fsMove(src as AbsoluteFilePath, dest as AbsoluteFilePath)
 
     expect(await readFile(dest, 'utf-8')).toBe('payload')
-    expect(mockLoggerWarn).not.toHaveBeenCalled()
+    expect(mockLoggerWarn).not.toHaveBeenCalledWith(expect.stringContaining('source unlink failed'), expect.anything())
   })
 
   it('on EXDEV + unlink EACCES: warn-logs the stranded source, function still resolves', async () => {

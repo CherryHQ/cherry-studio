@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import type * as NodePath from 'node:path'
+
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   getBinaryIsolatedHomeEnv,
@@ -83,3 +85,11 @@ describe('getBinaryIsolatedHomeEnv', () => {
     expect(env['APPDATA']).toBeUndefined()
   })
 })
+
+// These fixtures model a POSIX tool installation independently of the host OS.
+vi.mock('path', async () => {
+  const actual = await vi.importActual<typeof NodePath>('node:path')
+  return { ...actual.posix, default: actual.posix }
+})
+
+vi.mock('@main/core/platform', () => ({ isWin: false, isLinux: true, isMac: false, isDev: false, isPortable: false }))

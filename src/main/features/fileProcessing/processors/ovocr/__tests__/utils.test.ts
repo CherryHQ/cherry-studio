@@ -3,6 +3,7 @@ import type * as NodeFs from 'node:fs'
 import fs from 'node:fs'
 import type * as NodeOs from 'node:os'
 import os from 'node:os'
+import { resolve as resolvePath } from 'node:path'
 
 import { application } from '@application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -63,14 +64,14 @@ describe('OvOcr prepareContext', () => {
     vi.clearAllMocks()
     vi.mocked(application.getPath).mockImplementation((key: string) => {
       if (key === 'app.temp') {
-        return '/tmp/app-temp'
+        return resolvePath('/tmp/app-temp')
       }
 
       if (key === 'feature.ovms.ovocr') {
-        return '/mock/ovocr'
+        return resolvePath('/mock/ovocr')
       }
 
-      return `/mock/${key}`
+      return resolvePath(`/mock/${key}`)
     })
     vi.mocked(fs.existsSync).mockReturnValue(true)
     vi.mocked(os.cpus).mockReturnValue([{ model: 'Intel Ultra 7' }] as never)
@@ -92,13 +93,13 @@ describe('OvOcr prepareContext', () => {
     const first = prepareContext(
       {
         id: 'file-1',
-        path: '/tmp/a.png',
+        path: resolvePath('/tmp/a.png'),
         type: 'image'
       } as never,
       config as never
     )
 
-    expect(first.workingDirectoryPrefix).toBe('/tmp/app-temp/cherry-ovocr-')
+    expect(first.workingDirectoryPrefix).toBe(resolvePath('/tmp/app-temp/cherry-ovocr-'))
   })
 })
 
@@ -107,17 +108,17 @@ describe('OvOcr executeExtraction', () => {
     vi.clearAllMocks()
     vi.mocked(application.getPath).mockImplementation((key: string) => {
       if (key === 'feature.ovms.ovocr') {
-        return '/mock/ovocr'
+        return resolvePath('/mock/ovocr')
       }
 
-      return `/mock/${key}`
+      return resolvePath(`/mock/${key}`)
     })
     vi.mocked(fs.existsSync).mockReturnValue(true)
   })
 
   it('passes AbortSignal to child process execution', async () => {
     const controller = new AbortController()
-    const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue('/tmp/cherry-ovocr-1' as never)
+    const mkdtempSpy = vi.spyOn(fs.promises, 'mkdtemp').mockResolvedValue(resolvePath('/tmp/cherry-ovocr-1') as never)
     const copyFileSpy = vi.spyOn(fs.promises, 'copyFile').mockResolvedValue(undefined)
     const rmSpy = vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined)
     const mkdirSpy = vi.spyOn(fs.promises, 'mkdir').mockResolvedValue(undefined as never)
@@ -131,22 +132,22 @@ describe('OvOcr executeExtraction', () => {
       await expect(
         executeExtraction({
           file: {
-            path: '/tmp/test.png',
+            path: resolvePath('/tmp/test.png'),
             type: 'image'
           } as never,
           signal: controller.signal,
-          workingDirectoryPrefix: '/tmp/app-temp/cherry-ovocr-'
+          workingDirectoryPrefix: resolvePath('/tmp/app-temp/cherry-ovocr-')
         })
       ).resolves.toEqual({
         kind: 'text',
         text: 'recognized text'
       })
 
-      expect(mkdtempSpy).toHaveBeenCalledWith('/tmp/app-temp/cherry-ovocr-')
+      expect(mkdtempSpy).toHaveBeenCalledWith(resolvePath('/tmp/app-temp/cherry-ovocr-'))
       expect(execMock).toHaveBeenCalledWith(
-        '"/mock/ovocr"',
+        `"${resolvePath('/mock/ovocr')}"`,
         expect.objectContaining({
-          cwd: '/tmp/cherry-ovocr-1',
+          cwd: resolvePath('/tmp/cherry-ovocr-1'),
           timeout: 60000,
           signal: controller.signal
         }),

@@ -1,4 +1,5 @@
 import type * as NodeModule from 'node:module'
+import type * as NodePath from 'node:path'
 
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
@@ -4049,4 +4050,10 @@ describe('BinaryManager', () => {
       }
     })
   })
+})
+
+// These fixtures model a POSIX tool installation independently of the host OS.
+vi.mock('path', async () => {
+  const actual = await vi.importActual<typeof NodePath>('node:path')
+  return { ...actual.posix, default: actual.posix }
 })

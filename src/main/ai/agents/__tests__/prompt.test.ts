@@ -1,3 +1,4 @@
+import { resolve as resolvePath } from 'node:path'
 import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -108,20 +109,20 @@ describe('PromptBuilder', () => {
   it('uses the SDK preset base and emits no identity preamble when no workspace files exist', async () => {
     setupFiles({})
 
-    const { base, context: result } = await builder.buildPromptParts('/workspace')
+    const { base, context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     // No system.md → keep the runtime-native prompt as the base and append Cherry content;
     // the old embedded "personal assistant" preamble must be gone.
     expect(base).toEqual({ kind: 'native' })
     expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
     expect(result).toContain('## Memories')
-    expect(result).toContain('`/workspace/SOUL.md`')
+    expect(result).toContain(`\`${resolvePath('/workspace')}/SOUL.md\``)
   })
 
   it('no longer embeds the always-injected tool-usage handbook (now a lazy builtin skill)', async () => {
     setupFiles({})
 
-    const { context: result } = await builder.buildPromptParts('/workspace')
+    const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     // The autonomy / memory-handbook / web-search handbook headings and their
     // tool-strategy text ship lazily via the `cherry-tool-guide` builtin skill,
@@ -145,10 +146,10 @@ describe('PromptBuilder', () => {
 
   it('keeps an explicit system.md separate as the custom base', async () => {
     setupFiles({
-      '/workspace/system.md': 'You are CustomBot, a specialized assistant.'
+      [resolvePath('/workspace/system.md')]: 'You are CustomBot, a specialized assistant.'
     })
 
-    const { base, context: result } = await builder.buildPromptParts('/workspace')
+    const { base, context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(base).toEqual({ kind: 'custom', content: 'You are CustomBot, a specialized assistant.' })
     expect(result).not.toContain('You are CustomBot')
@@ -156,25 +157,25 @@ describe('PromptBuilder', () => {
   })
 
   it('treats an empty system.md as an explicit custom base while retaining Cherry context', async () => {
-    setupFiles({ '/workspace/system.md': '' })
+    setupFiles({ [resolvePath('/workspace/system.md')]: '' })
 
-    const { base, context } = await builder.buildPromptParts('/workspace')
+    const { base, context } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(base).toEqual({ kind: 'custom', content: '' })
     expect(context).toContain('## Memories')
   })
 
   it('fails prompt construction when an explicit system.md cannot be opened', async () => {
-    setupFiles({ '/workspace/system.md': 'Custom base' })
+    setupFiles({ [resolvePath('/workspace/system.md')]: 'Custom base' })
     mockedOpen.mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }))
 
-    await expect(builder.buildPromptParts('/workspace')).rejects.toThrow(
-      'Failed to read required agent prompt file: /workspace/system.md'
+    await expect(builder.buildPromptParts(resolvePath('/workspace'))).rejects.toThrow(
+      `Failed to read required agent prompt file: ${resolvePath('/workspace/system.md')}`
     )
   })
 
   it('fails prompt construction when an explicit system.md cannot be read', async () => {
-    setupFiles({ '/workspace/system.md': 'Custom base' })
+    setupFiles({ [resolvePath('/workspace/system.md')]: 'Custom base' })
     mockedOpen.mockResolvedValueOnce({
       stat: async () => ({ mtimeMs: 1000, isFile: () => true }),
       readFile: async () => {
@@ -183,17 +184,17 @@ describe('PromptBuilder', () => {
       close: async () => undefined
     } as any)
 
-    await expect(builder.buildPromptParts('/workspace')).rejects.toThrow(
-      'Failed to read required agent prompt file: /workspace/system.md'
+    await expect(builder.buildPromptParts(resolvePath('/workspace'))).rejects.toThrow(
+      `Failed to read required agent prompt file: ${resolvePath('/workspace/system.md')}`
     )
   })
 
   it('includes soul.md in memories section', async () => {
     setupFiles({
-      '/workspace/soul.md': 'Warm but direct. Lead with answers.'
+      [resolvePath('/workspace/soul.md')]: 'Warm but direct. Lead with answers.'
     })
 
-    const { context: result } = await builder.buildPromptParts('/workspace')
+    const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(result).toContain('## Memories')
     expect(result).toContain('<soul>')
@@ -203,9 +204,9 @@ describe('PromptBuilder', () => {
   })
 
   it('defines SOUL.md as presentation persona rather than the Agent role', async () => {
-    setupFiles({ '/workspace/SOUL.md': 'Warm, concise, and direct.' })
+    setupFiles({ [resolvePath('/workspace/SOUL.md')]: 'Warm, concise, and direct.' })
 
-    const { context } = await builder.buildPromptParts('/workspace', baseConfig, true)
+    const { context } = await builder.buildPromptParts(resolvePath('/workspace'), baseConfig, true)
 
     expect(context).toContain('HOW you present yourself — name, personality, tone, and communication style')
     expect(context).not.toContain('WHO you are — personality, tone, communication style, core principles')
@@ -220,19 +221,19 @@ Complete every research task thoroughly.
 
 ## Principles
 Always cite primary sources.`
-    setupFiles({ '/workspace/SOUL.md': legacySoul })
+    setupFiles({ [resolvePath('/workspace/SOUL.md')]: legacySoul })
 
-    const { context } = await builder.buildPromptParts('/workspace', baseConfig, true)
+    const { context } = await builder.buildPromptParts(resolvePath('/workspace'), baseConfig, true)
 
     expect(context).toContain(`<soul>\n${legacySoul}\n</soul>`)
   })
 
   it('includes user.md in memories section', async () => {
     setupFiles({
-      '/workspace/user.md': 'Name: V\nTimezone: UTC+8'
+      [resolvePath('/workspace/user.md')]: 'Name: V\nTimezone: UTC+8'
     })
 
-    const { context: result } = await builder.buildPromptParts('/workspace')
+    const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(result).toContain('<user>')
     expect(result).toContain('Name: V')
@@ -242,10 +243,10 @@ Always cite primary sources.`
 
   it('includes memory/FACT.md in memories section', async () => {
     setupFiles({
-      '/workspace/memory/FACT.md': '# Active Projects\n\n- Cherry Studio'
+      [resolvePath('/workspace/memory/FACT.md')]: '# Active Projects\n\n- Cherry Studio'
     })
 
-    const { context: result } = await builder.buildPromptParts('/workspace')
+    const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(result).toContain('<facts>')
     expect(result).toContain('Cherry Studio')
@@ -255,12 +256,12 @@ Always cite primary sources.`
 
   it('includes all memory files when all exist', async () => {
     setupFiles({
-      '/workspace/soul.md': 'Be concise.',
-      '/workspace/user.md': 'Name: V',
-      '/workspace/memory/FACT.md': 'Project: Cherry Studio'
+      [resolvePath('/workspace/soul.md')]: 'Be concise.',
+      [resolvePath('/workspace/user.md')]: 'Name: V',
+      [resolvePath('/workspace/memory/FACT.md')]: 'Project: Cherry Studio'
     })
 
-    const { context: result } = await builder.buildPromptParts('/workspace')
+    const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(result).toContain('<soul>')
     expect(result).toContain('<user>')
@@ -271,12 +272,12 @@ Always cite primary sources.`
 
   it('builds the memories section without the base agent prompt', async () => {
     setupFiles({
-      '/workspace/SOUL.md': 'Be concise.',
-      '/workspace/USER.md': 'Name: V',
-      '/workspace/memory/FACT.md': 'Project: Cherry Studio'
+      [resolvePath('/workspace/SOUL.md')]: 'Be concise.',
+      [resolvePath('/workspace/USER.md')]: 'Name: V',
+      [resolvePath('/workspace/memory/FACT.md')]: 'Project: Cherry Studio'
     })
 
-    const result = await builder.buildMemoriesSection('/workspace')
+    const result = await builder.buildMemoriesSection(resolvePath('/workspace'))
 
     expect(result).toContain('## Memories')
     expect(result).toContain('Be concise.')
@@ -288,11 +289,11 @@ Always cite primary sources.`
 
   it('keeps system.md as the base while building memories as Cherry context', async () => {
     setupFiles({
-      '/workspace/system.md': 'You are CustomBot.',
-      '/workspace/soul.md': 'Sharp and efficient.'
+      [resolvePath('/workspace/system.md')]: 'You are CustomBot.',
+      [resolvePath('/workspace/soul.md')]: 'Sharp and efficient.'
     })
 
-    const { base, context: result } = await builder.buildPromptParts('/workspace')
+    const { base, context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(base).toEqual({ kind: 'custom', content: 'You are CustomBot.' })
     expect(result).not.toContain('You are CustomBot.')
@@ -302,39 +303,49 @@ Always cite primary sources.`
 
   it('loads workspace system.md but identity and memory from the agent data directory', async () => {
     setupFiles({
-      '/workspace/system.md': 'Workspace-local system prompt.',
-      '/agent-data/SOUL.md': 'Persistent agent identity.',
-      '/agent-data/memory/FACT.md': 'Persistent agent fact.'
+      [resolvePath('/workspace/system.md')]: 'Workspace-local system prompt.',
+      [resolvePath('/agent-data/SOUL.md')]: 'Persistent agent identity.',
+      [resolvePath('/agent-data/memory/FACT.md')]: 'Persistent agent fact.'
     })
 
-    const { base, context: result } = await builder.buildPromptParts('/workspace', undefined, false, '/agent-data')
+    const { base, context: result } = await builder.buildPromptParts(
+      resolvePath('/workspace'),
+      undefined,
+      false,
+      resolvePath('/agent-data')
+    )
 
     expect(base).toEqual({ kind: 'custom', content: 'Workspace-local system prompt.' })
     expect(result).not.toContain('Workspace-local system prompt.')
     expect(result).toContain('Persistent agent identity.')
     expect(result).toContain('Persistent agent fact.')
-    expect(result).toContain('`/agent-data/`')
-    expect(result).toContain('`/agent-data/SOUL.md`')
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/\``)
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/SOUL.md\``)
     expect(result).toContain('current working directory is the session workspace')
   })
 
   it('always identifies the agent data directory when identity files are empty and bootstrap is skipped', async () => {
     setupFiles({})
 
-    const { context: result } = await builder.buildPromptParts('/workspace', baseConfig, true, '/agent-data')
+    const { context: result } = await builder.buildPromptParts(
+      resolvePath('/workspace'),
+      baseConfig,
+      true,
+      resolvePath('/agent-data')
+    )
 
     expect(result).not.toContain('## Bootstrap Mode')
     expect(result).toContain('## Memories')
-    expect(result).toContain('`/agent-data/SOUL.md`')
-    expect(result).toContain('`/agent-data/USER.md`')
-    expect(result).toContain('`/agent-data/memory/FACT.md`')
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/SOUL.md\``)
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/USER.md\``)
+    expect(result).toContain(`\`${resolvePath('/agent-data')}/memory/FACT.md\``)
   })
 
   it('ignores symbolic-link persona files', async () => {
-    setupFiles({ '/workspace/SOUL.md': 'must not be read' })
+    setupFiles({ [resolvePath('/workspace/SOUL.md')]: 'must not be read' })
     mockedLstat.mockImplementation(async (filePath) => {
       const p = typeof filePath === 'string' ? filePath : filePath.toString()
-      if (p === '/workspace/SOUL.md') {
+      if (p === resolvePath('/workspace/SOUL.md')) {
         return {
           mtimeMs: 1000,
           isFile: () => true,
@@ -345,7 +356,7 @@ Always cite primary sources.`
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
     })
 
-    const { context: result } = await builder.buildPromptParts('/workspace')
+    const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(result).not.toContain('must not be read')
   })
@@ -353,12 +364,12 @@ Always cite primary sources.`
   it('resolves filenames case-insensitively', async () => {
     // Files exist with different casing than the canonical names
     setupFiles({
-      '/workspace/SOUL.md': 'Uppercase soul',
-      '/workspace/User.md': 'Mixed case user',
-      '/workspace/memory/fact.md': 'Lowercase facts'
+      [resolvePath('/workspace/SOUL.md')]: 'Uppercase soul',
+      [resolvePath('/workspace/User.md')]: 'Mixed case user',
+      [resolvePath('/workspace/memory/fact.md')]: 'Lowercase facts'
     })
 
-    const { context: result } = await builder.buildPromptParts('/workspace')
+    const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
     expect(result).toContain('<soul>')
     expect(result).toContain('Uppercase soul')
@@ -370,11 +381,11 @@ Always cite primary sources.`
 
   it('uses mtime cache for repeated reads', async () => {
     setupFiles({
-      '/workspace/soul.md': 'Cached soul'
+      [resolvePath('/workspace/soul.md')]: 'Cached soul'
     })
 
-    await builder.buildPromptParts('/workspace')
-    await builder.buildPromptParts('/workspace')
+    await builder.buildPromptParts(resolvePath('/workspace'))
+    await builder.buildPromptParts(resolvePath('/workspace'))
 
     // The file should only be opened once due to caching.
     const soulReadCalls = mockedOpen.mock.calls.filter(
@@ -387,7 +398,7 @@ Always cite primary sources.`
     it('injects bootstrap instructions when no config is provided and SOUL.md is empty', async () => {
       setupFiles({})
 
-      const { context: result } = await builder.buildPromptParts('/workspace')
+      const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
       expect(result).toContain('## Bootstrap Mode')
       expect(result).toContain('**Discover the role**')
@@ -399,7 +410,7 @@ Always cite primary sources.`
     it('injects bootstrap instructions when bootstrap_completed is false', async () => {
       setupFiles({})
 
-      const { context: result } = await builder.buildPromptParts('/workspace', {
+      const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'), {
         ...baseConfig,
         bootstrap_completed: false
       })
@@ -413,7 +424,7 @@ Always cite primary sources.`
       setupFiles({})
 
       const { context: result } = await builder.buildPromptParts(
-        '/workspace',
+        resolvePath('/workspace'),
         { ...baseConfig, bootstrap_completed: false },
         true
       )
@@ -425,7 +436,7 @@ Always cite primary sources.`
       setupFiles({})
 
       const { context } = await builder.buildPromptParts(
-        '/workspace',
+        resolvePath('/workspace'),
         { ...baseConfig, bootstrap_completed: false },
         true
       )
@@ -449,7 +460,7 @@ Always cite primary sources.`
     it('skips bootstrap when bootstrap_completed is true', async () => {
       setupFiles({})
 
-      const { context: result } = await builder.buildPromptParts('/workspace', {
+      const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'), {
         ...baseConfig,
         bootstrap_completed: true
       })
@@ -460,7 +471,7 @@ Always cite primary sources.`
     it('skips bootstrap when the agent already has non-blank user instructions', async () => {
       setupFiles({})
 
-      const { context: result } = await builder.buildPromptParts('/workspace', baseConfig, true)
+      const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'), baseConfig, true)
 
       expect(result).not.toContain('## Bootstrap Mode')
     })
@@ -469,32 +480,33 @@ Always cite primary sources.`
       const realContent =
         'I am a warm, direct assistant. I lead with answers and prefer concise communication. I respect boundaries and always ask before making assumptions.'
       setupFiles({
-        '/workspace/SOUL.md': `# Soul\n\n> Template header\n\n${realContent}`
+        [resolvePath('/workspace/SOUL.md')]: `# Soul\n\n> Template header\n\n${realContent}`
       })
 
-      const { context: result } = await builder.buildPromptParts('/workspace')
+      const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
       expect(result).not.toContain('## Bootstrap Mode')
     })
 
     it('still shows bootstrap when SOUL.md only has template headings', async () => {
       setupFiles({
-        '/workspace/SOUL.md':
+        [resolvePath('/workspace/SOUL.md')]:
           '# Soul\n\n> This file defines who you are. Update it as your personality evolves.\n\n## Personality\n\n\n## Tone\n\n'
       })
 
-      const { context: result } = await builder.buildPromptParts('/workspace')
+      const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
       expect(result).toContain('## Bootstrap Mode')
     })
 
     it('includes memories section alongside bootstrap instructions', async () => {
       setupFiles({
-        '/workspace/SOUL.md': '# Soul\n\n> This file defines who you are.\n\n## Personality\n\n\n## Tone\n\n',
-        '/workspace/user.md': 'Name: V'
+        [resolvePath('/workspace/SOUL.md')]:
+          '# Soul\n\n> This file defines who you are.\n\n## Personality\n\n\n## Tone\n\n',
+        [resolvePath('/workspace/user.md')]: 'Name: V'
       })
 
-      const { context: result } = await builder.buildPromptParts('/workspace')
+      const { context: result } = await builder.buildPromptParts(resolvePath('/workspace'))
 
       expect(result).toContain('## Bootstrap Mode')
       expect(result).toContain('## Memories')
@@ -506,17 +518,17 @@ Always cite primary sources.`
     it('returns undefined when no FACT.md exists', async () => {
       setupFiles({})
 
-      const result = await builder.buildFactsSection('/workspace')
+      const result = await builder.buildFactsSection(resolvePath('/workspace'))
 
       expect(result).toBeUndefined()
     })
 
     it('wraps memory/FACT.md content in an Agent Knowledge block', async () => {
       setupFiles({
-        '/workspace/memory/FACT.md': '- Project: cherry-studio\n- Build tool: pnpm + electron-vite'
+        [resolvePath('/workspace/memory/FACT.md')]: '- Project: cherry-studio\n- Build tool: pnpm + electron-vite'
       })
 
-      const result = await builder.buildFactsSection('/workspace')
+      const result = await builder.buildFactsSection(resolvePath('/workspace'))
 
       expect(result).toBeDefined()
       expect(result).toContain('## Agent Knowledge')
@@ -531,10 +543,10 @@ Always cite primary sources.`
 
     it('resolves FACT.md case-insensitively', async () => {
       setupFiles({
-        '/workspace/memory/fact.md': '- lowercase filename'
+        [resolvePath('/workspace/memory/fact.md')]: '- lowercase filename'
       })
 
-      const result = await builder.buildFactsSection('/workspace')
+      const result = await builder.buildFactsSection(resolvePath('/workspace'))
 
       expect(result).toBeDefined()
       expect(result).toContain('lowercase filename')
@@ -542,22 +554,22 @@ Always cite primary sources.`
 
     it('returns undefined when FACT.md exists but is empty', async () => {
       setupFiles({
-        '/workspace/memory/FACT.md': ''
+        [resolvePath('/workspace/memory/FACT.md')]: ''
       })
 
-      const result = await builder.buildFactsSection('/workspace')
+      const result = await builder.buildFactsSection(resolvePath('/workspace'))
 
       expect(result).toBeUndefined()
     })
 
     it('does not include SOUL.md or USER.md content (those are persona files)', async () => {
       setupFiles({
-        '/workspace/SOUL.md': 'Warm but direct.',
-        '/workspace/user.md': 'Name: V',
-        '/workspace/memory/FACT.md': 'Build tool: pnpm'
+        [resolvePath('/workspace/SOUL.md')]: 'Warm but direct.',
+        [resolvePath('/workspace/user.md')]: 'Name: V',
+        [resolvePath('/workspace/memory/FACT.md')]: 'Build tool: pnpm'
       })
 
-      const result = await builder.buildFactsSection('/workspace')
+      const result = await builder.buildFactsSection(resolvePath('/workspace'))
 
       expect(result).toBeDefined()
       expect(result).toContain('Build tool: pnpm')

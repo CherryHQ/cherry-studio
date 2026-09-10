@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
+import { resolve as resolvePath } from 'node:path'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
@@ -127,8 +128,18 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  refreshShellEnv: vi.fn(() => Promise.resolve({ PATH: '/mock/bin:/usr/bin', MISE_DATA_DIR: '/mock/mise' })),
-  getRawShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/local/bin:/usr/bin', MISE_DATA_DIR: '/user/mise' }))
+  refreshShellEnv: vi.fn(() =>
+    Promise.resolve({
+      PATH: [resolvePath('/mock/bin'), resolvePath('/usr/bin')].join(path.delimiter),
+      MISE_DATA_DIR: resolvePath('/mock/mise')
+    })
+  ),
+  getRawShellEnv: vi.fn(() =>
+    Promise.resolve({
+      PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
+      MISE_DATA_DIR: resolvePath('/user/mise')
+    })
+  )
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -214,9 +225,12 @@ describe('OpenClawService gateway status state machine', () => {
     vi.clearAllMocks()
     platformMock.isWin = false
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
-      openclaw: { name: 'openclaw', availability: { source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' } }
+      openclaw: {
+        name: 'openclaw',
+        availability: { source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' }
+      }
     })
-    vi.mocked(application.getPath).mockReturnValue('/mock/openclaw')
+    vi.mocked(application.getPath).mockReturnValue(resolvePath('/mock/openclaw'))
     service = await createService()
 
     // Reset internal state via reflection
@@ -240,7 +254,7 @@ describe('OpenClawService gateway status state machine', () => {
       .mockResolvedValue(createRuntimeConfigSchema())
     validateConfigSpy = vi.spyOn(service as any, 'validateConfig').mockResolvedValue({
       valid: true,
-      path: '/mock/.openclaw/openclaw.json',
+      path: resolvePath('/mock/.openclaw/openclaw.json'),
       issues: [],
       warnings: []
     })
@@ -261,8 +275,8 @@ describe('OpenClawService gateway status state machine', () => {
       queueSpawnResult({ stdout, stderr: 'configuration rejected', exitCode: 1 })
 
       await expect(
-        (service as any).runOpenClawCommand('/mock/bin/openclaw', ['config', 'validate', '--json'], {
-          PATH: '/mock/bin'
+        (service as any).runOpenClawCommand(resolvePath('/mock/bin/openclaw'), ['config', 'validate', '--json'], {
+          PATH: resolvePath('/mock/bin')
         })
       ).resolves.toEqual({
         exitCode: 1,
@@ -271,10 +285,10 @@ describe('OpenClawService gateway status state machine', () => {
         outputTruncated: false
       })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
-        '/mock/bin/openclaw',
+        resolvePath('/mock/bin/openclaw'),
         ['config', 'validate', '--json'],
         expect.objectContaining({
-          env: { PATH: '/mock/bin' },
+          env: { PATH: resolvePath('/mock/bin') },
           stdio: ['ignore', 'pipe', 'pipe']
         })
       )
@@ -288,16 +302,16 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(
         (service as any).assertSchemaCapability({
           source: 'mise',
-          path: '/mock/bin/openclaw',
+          path: resolvePath('/mock/bin/openclaw'),
           version: '1.0.0',
-          env: { PATH: '/mock/bin' }
+          env: { PATH: resolvePath('/mock/bin') }
         })
       ).rejects.toMatchObject({ kind: 'binary_incompatible' })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
-        '/mock/bin/openclaw',
+        resolvePath('/mock/bin/openclaw'),
         ['config', 'schema'],
         expect.objectContaining({
-          env: { PATH: '/mock/bin', OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json' },
+          env: { PATH: resolvePath('/mock/bin'), OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json') },
           stdio: ['ignore', 'pipe', 'pipe']
         })
       )
@@ -312,9 +326,9 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(
         (service as any).assertSchemaCapability({
           source: 'mise',
-          path: '/mock/bin/openclaw',
+          path: resolvePath('/mock/bin/openclaw'),
           version: '1.0.0',
-          env: { PATH: '/mock/bin' }
+          env: { PATH: resolvePath('/mock/bin') }
         })
       ).resolves.toEqual(schema)
     })
@@ -331,16 +345,16 @@ describe('OpenClawService gateway status state machine', () => {
 
       await expect(
         (service as any).assertSchemaCapability({
-          path: '/mock/bin/openclaw',
-          env: { PATH: '/mock/bin' }
+          path: resolvePath('/mock/bin/openclaw'),
+          env: { PATH: resolvePath('/mock/bin') }
         })
       ).resolves.toEqual(schema)
       expect(runOpenClawCommandSpy).toHaveBeenCalledWith(
-        '/mock/bin/openclaw',
+        resolvePath('/mock/bin/openclaw'),
         ['config', 'schema'],
         {
-          PATH: '/mock/bin',
-          OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
+          PATH: resolvePath('/mock/bin'),
+          OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json')
         },
         { stdoutLimitBytes: 32 * 1024 * 1024 }
       )
@@ -358,9 +372,9 @@ describe('OpenClawService gateway status state machine', () => {
       await expect(
         (service as any).assertSchemaCapability({
           source: 'mise',
-          path: '/mock/bin/openclaw',
+          path: resolvePath('/mock/bin/openclaw'),
           version: '1.0.0',
-          env: { PATH: '/mock/bin' }
+          env: { PATH: resolvePath('/mock/bin') }
         })
       ).resolves.toEqual(schema)
     })
@@ -392,7 +406,7 @@ describe('OpenClawService gateway status state machine', () => {
         exitCode: 1,
         stdout: JSON.stringify({
           valid: false,
-          path: '/mock/openclaw/openclaw.json.cherry-candidate-id',
+          path: resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id'),
           issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unsupported field' }]
         }),
         stderr: 'ignored diagnostic',
@@ -400,28 +414,32 @@ describe('OpenClawService gateway status state machine', () => {
       })
       const runtime = {
         source: 'mise',
-        path: '/mock/bin/openclaw',
+        path: resolvePath('/mock/bin/openclaw'),
         version: '1.0.0',
-        env: { PATH: '/mock/bin', MISE_DATA_DIR: '/mock/mise' }
+        env: { PATH: resolvePath('/mock/bin'), MISE_DATA_DIR: resolvePath('/mock/mise') }
       }
 
       await expect(
-        (service as any).validateConfig(runtime, '/mock/openclaw/openclaw.json.cherry-candidate-id')
+        (service as any).validateConfig(runtime, resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id'))
       ).resolves.toEqual({
         valid: false,
-        path: '/mock/openclaw/openclaw.json.cherry-candidate-id',
+        path: resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id'),
         issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unsupported field' }],
         warnings: []
       })
-      expect(runOpenClawCommandSpy).toHaveBeenCalledWith('/mock/bin/openclaw', ['config', 'validate', '--json'], {
-        PATH: '/mock/bin',
-        MISE_DATA_DIR: '/mock/mise',
-        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json.cherry-candidate-id'
-      })
+      expect(runOpenClawCommandSpy).toHaveBeenCalledWith(
+        resolvePath('/mock/bin/openclaw'),
+        ['config', 'validate', '--json'],
+        {
+          PATH: resolvePath('/mock/bin'),
+          MISE_DATA_DIR: resolvePath('/mock/mise'),
+          OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
+        }
+      )
     })
 
     it('accepts a successful OpenClaw validation report without an issues field', () => {
-      const path = '/mock/openclaw/openclaw.json.cherry-candidate-id'
+      const path = resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
 
       expect(
         (service as any).parseValidationResult({
@@ -435,10 +453,10 @@ describe('OpenClawService gateway status state machine', () => {
 
     it.each([
       { name: 'missing', reportPath: undefined },
-      { name: 'different', reportPath: '/mock/openclaw/openclaw.json' }
+      { name: 'different', reportPath: resolvePath('/mock/openclaw/openclaw.json') }
     ])('rejects a successful validation report with a $name config path', async ({ reportPath }) => {
       validateConfigSpy.mockRestore()
-      const candidatePath = '/mock/openclaw/openclaw.json.cherry-candidate-id'
+      const candidatePath = resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
       runOpenClawCommandSpy.mockResolvedValueOnce({
         exitCode: 0,
         stdout: JSON.stringify({
@@ -451,18 +469,21 @@ describe('OpenClawService gateway status state machine', () => {
       })
 
       await expect(
-        (service as any).validateConfig({ path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } }, candidatePath)
+        (service as any).validateConfig(
+          { path: resolvePath('/mock/bin/openclaw'), env: { PATH: resolvePath('/mock/bin') } },
+          candidatePath
+        )
       ).rejects.toMatchObject({ kind: 'binary_incompatible' })
     })
 
     it('accepts a validation report whose config path resolves to the requested path', async () => {
       validateConfigSpy.mockRestore()
-      const candidatePath = '/mock/openclaw/openclaw.json.cherry-candidate-id'
+      const candidatePath = resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
       runOpenClawCommandSpy.mockResolvedValueOnce({
         exitCode: 0,
         stdout: JSON.stringify({
           valid: true,
-          path: '/mock/openclaw/nested/../openclaw.json.cherry-candidate-id',
+          path: resolvePath('/mock/openclaw/nested/../openclaw.json.cherry-candidate-id'),
           warnings: []
         }),
         stderr: '',
@@ -470,8 +491,14 @@ describe('OpenClawService gateway status state machine', () => {
       })
 
       await expect(
-        (service as any).validateConfig({ path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } }, candidatePath)
-      ).resolves.toMatchObject({ valid: true, path: '/mock/openclaw/nested/../openclaw.json.cherry-candidate-id' })
+        (service as any).validateConfig(
+          { path: resolvePath('/mock/bin/openclaw'), env: { PATH: resolvePath('/mock/bin') } },
+          candidatePath
+        )
+      ).resolves.toMatchObject({
+        valid: true,
+        path: resolvePath('/mock/openclaw/nested/../openclaw.json.cherry-candidate-id')
+      })
     })
 
     it('rejects an invalid validation report that omits the config path as binary incompatible', async () => {
@@ -488,8 +515,8 @@ describe('OpenClawService gateway status state machine', () => {
 
       await expect(
         (service as any).validateConfig(
-          { path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } },
-          '/mock/openclaw/openclaw.json.cherry-candidate-id'
+          { path: resolvePath('/mock/bin/openclaw'), env: { PATH: resolvePath('/mock/bin') } },
+          resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
         )
       ).rejects.toMatchObject({ kind: 'binary_incompatible' })
     })
@@ -569,8 +596,8 @@ describe('OpenClawService gateway status state machine', () => {
 
       await expect(
         (service as any).assertConfigValid(
-          { source: 'mise', path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } },
-          '/mock/openclaw/openclaw.json.cherry-candidate-id'
+          { source: 'mise', path: resolvePath('/mock/bin/openclaw'), env: { PATH: resolvePath('/mock/bin') } },
+          resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
         )
       ).rejects.toMatchObject({
         kind: 'binary_incompatible',
@@ -589,8 +616,8 @@ describe('OpenClawService gateway status state machine', () => {
 
         await expect(
           (service as any).assertConfigValid(
-            { source: 'mise', path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } },
-            '/mock/openclaw/openclaw.json.cherry-candidate-id'
+            { source: 'mise', path: resolvePath('/mock/bin/openclaw'), env: { PATH: resolvePath('/mock/bin') } },
+            resolvePath('/mock/openclaw/openclaw.json.cherry-candidate-id')
           )
         ).rejects.toMatchObject({
           kind: 'external_config_invalid',
@@ -735,12 +762,12 @@ describe('OpenClawService gateway status state machine', () => {
   describe('startGateway', () => {
     it('resolves a system OpenClaw through BinaryManager availability', async () => {
       binaryManagerMock.getToolSnapshots.mockResolvedValue({
-        openclaw: { name: 'openclaw', availability: { source: 'system', path: '/usr/local/bin/openclaw' } }
+        openclaw: { name: 'openclaw', availability: { source: 'system', path: resolvePath('/usr/local/bin/openclaw') } }
       })
 
       await expect((service as any).findOpenClawBinary()).resolves.toEqual({
         source: 'system',
-        path: '/usr/local/bin/openclaw'
+        path: resolvePath('/usr/local/bin/openclaw')
       })
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['openclaw'])
     })
@@ -759,7 +786,7 @@ describe('OpenClawService gateway status state machine', () => {
       const stopGatewaySpy = vi.spyOn(service, 'stopGateway').mockResolvedValue({ success: true })
       validateConfigSpy.mockResolvedValueOnce({
         valid: false,
-        path: '/mock/openclaw/openclaw.json',
+        path: resolvePath('/mock/openclaw/openclaw.json'),
         issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unrecognized key' }],
         warnings: []
       })
@@ -767,7 +794,7 @@ describe('OpenClawService gateway status state machine', () => {
       const result = await service.startGateway()
 
       expect(result.success).toBe(false)
-      expect(validateConfigSpy).toHaveBeenCalledWith(expect.any(Object), '/mock/openclaw/openclaw.json')
+      expect(validateConfigSpy).toHaveBeenCalledWith(expect.any(Object), resolvePath('/mock/openclaw/openclaw.json'))
       expect(checkPortOpenSpy).not.toHaveBeenCalled()
       expect(stopGatewaySpy).not.toHaveBeenCalled()
       expect(startAndWaitSpy).not.toHaveBeenCalled()
@@ -780,7 +807,7 @@ describe('OpenClawService gateway status state machine', () => {
         exitCode: 0,
         stdout: JSON.stringify({
           valid: true,
-          path: '/mock/openclaw/openclaw.json',
+          path: resolvePath('/mock/openclaw/openclaw.json'),
           issues: [],
           warnings: []
         }),
@@ -794,14 +821,14 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(runOpenClawCommandSpy).toHaveBeenCalledTimes(1)
       expect(runOpenClawCommandSpy.mock.calls[0][2]).toMatchObject({
-        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
+        OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json')
       })
     })
 
     it('spawns a system OpenClaw with the raw user environment and formal config path', async () => {
       const child = createSpawnChild()
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'system', path: '/usr/local/bin/openclaw' })
+      findBinarySpy.mockResolvedValue({ source: 'system', path: resolvePath('/usr/local/bin/openclaw') })
       startAndWaitSpy.mockRestore()
       crossPlatformSpawnMock.mockReturnValue(child)
       vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
@@ -815,13 +842,13 @@ describe('OpenClawService gateway status state machine', () => {
 
       await expect(started).resolves.toEqual({ success: true })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
-        '/usr/local/bin/openclaw',
+        resolvePath('/usr/local/bin/openclaw'),
         ['gateway', 'run', '--force'],
         expect.objectContaining({
           env: {
-            PATH: '/usr/local/bin:/usr/bin',
-            MISE_DATA_DIR: '/user/mise',
-            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
+            MISE_DATA_DIR: resolvePath('/user/mise'),
+            OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
             OPENCLAW_NO_AUTO_UPDATE: '1'
           }
         })
@@ -832,7 +859,7 @@ describe('OpenClawService gateway status state machine', () => {
     it('spawns a managed OpenClaw with the refreshed environment and formal config path', async () => {
       const child = createSpawnChild()
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockRestore()
       crossPlatformSpawnMock.mockReturnValue(child)
       vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
@@ -846,13 +873,13 @@ describe('OpenClawService gateway status state machine', () => {
 
       await expect(started).resolves.toEqual({ success: true })
       expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
-        '/mock/bin/openclaw',
+        resolvePath('/mock/bin/openclaw'),
         ['gateway', 'run', '--force'],
         expect.objectContaining({
           env: {
-            PATH: '/mock/bin:/usr/bin',
-            MISE_DATA_DIR: '/mock/mise',
-            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            PATH: [resolvePath('/mock/bin'), resolvePath('/usr/bin')].join(path.delimiter),
+            MISE_DATA_DIR: resolvePath('/mock/mise'),
+            OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
             OPENCLAW_NO_AUTO_UPDATE: '1'
           }
         })
@@ -888,7 +915,7 @@ describe('OpenClawService gateway status state machine', () => {
           detached: false,
           env: {
             Path: 'C:\\Windows\\System32',
-            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
             OPENCLAW_NO_AUTO_UPDATE: '1'
           },
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -909,7 +936,7 @@ describe('OpenClawService gateway status state machine', () => {
       vi.useFakeTimers()
 
       const shellEnv = {
-        PATH: '/usr/local/bin:/usr/bin',
+        PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
         HTTP_PROXY: 'socks5://127.0.0.1:1080',
         HTTPS_PROXY: 'http://127.0.0.1:7897',
         http_proxy: 'socks5://127.0.0.1:1080',
@@ -920,19 +947,19 @@ describe('OpenClawService gateway status state machine', () => {
         CHERRY_STUDIO_NODE_PROXY_RULES: 'socks5://127.0.0.1:1080',
         CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'localhost',
         USER_DEFINED_TOKEN: 'keep-me',
-        MISE_DATA_DIR: '/user/mise'
+        MISE_DATA_DIR: resolvePath('/user/mise')
       }
       const sourceSnapshot = { ...shellEnv }
 
-      const started = (service as any).startAndWaitForGateway('/usr/local/bin/openclaw', shellEnv)
+      const started = (service as any).startAndWaitForGateway(resolvePath('/usr/local/bin/openclaw'), shellEnv)
       await vi.advanceTimersByTimeAsync(1000)
       await expect(started).resolves.toBeUndefined()
 
       expect(crossPlatformSpawnMock.mock.calls[0][2].env).toEqual({
-        PATH: '/usr/local/bin:/usr/bin',
+        PATH: [resolvePath('/usr/local/bin'), resolvePath('/usr/bin')].join(path.delimiter),
         USER_DEFINED_TOKEN: 'keep-me',
-        MISE_DATA_DIR: '/user/mise',
-        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+        MISE_DATA_DIR: resolvePath('/user/mise'),
+        OPENCLAW_CONFIG_PATH: resolvePath('/mock/openclaw/openclaw.json'),
         OPENCLAW_NO_AUTO_UPDATE: '1'
       })
       expect(shellEnv).toEqual(sourceSnapshot)
@@ -942,7 +969,7 @@ describe('OpenClawService gateway status state machine', () => {
       // First call: port occupied; after stop: port free
       checkPortOpenSpy.mockResolvedValueOnce(true).mockResolvedValue(false)
       checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 }) // startGateway detects our gateway
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       const result = await service.startGateway()
@@ -975,7 +1002,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('transitions to running on successful start', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       const result = await service.startGateway()
@@ -986,7 +1013,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('transitions to error when start fails', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockRejectedValue(new Error('Gateway timeout'))
 
       const result = await service.startGateway()
@@ -997,7 +1024,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('sets status to starting during startup', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
 
       let statusDuringStart: string | undefined
       startAndWaitSpy.mockImplementation(async () => {
@@ -1011,7 +1038,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('uses custom port when provided', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       await service.startGateway(9999)
@@ -1060,7 +1087,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('publishes starting then running on a successful start', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       await expect(service.startGateway()).resolves.toEqual({ success: true })
@@ -1070,7 +1097,7 @@ describe('OpenClawService gateway status state machine', () => {
 
     it('publishes error when the start fails', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockRejectedValue(new Error('Gateway timeout'))
 
       await expect(service.startGateway()).resolves.toMatchObject({ success: false })
@@ -1100,7 +1127,7 @@ describe('OpenClawService gateway status state machine', () => {
     it('keeps the current custom port when startGateway is called without one', async () => {
       ;(service as any).gatewayPort = 18888
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       await expect(service.startGateway()).resolves.toEqual({ success: true })
@@ -2090,7 +2117,7 @@ describe('OpenClawService gateway status state machine', () => {
       validateConfigSpy.mockRestore()
       runOpenClawCommandSpy.mockResolvedValueOnce({
         exitCode: 0,
-        stdout: JSON.stringify({ valid: true, path: '/mock/default/openclaw.json', warnings: [] }),
+        stdout: JSON.stringify({ valid: true, path: resolvePath('/mock/default/openclaw.json'), warnings: [] }),
         stderr: '',
         outputTruncated: false
       })
@@ -2116,7 +2143,7 @@ describe('OpenClawService gateway status state machine', () => {
         ;(service as any).gatewayAuthToken = initialToken
         validateConfigSpy.mockResolvedValueOnce({
           valid: false,
-          path: '/ignored/by-test',
+          path: resolvePath('/ignored/by-test'),
           issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unsupported field' }],
           warnings: []
         })
@@ -2210,7 +2237,7 @@ describe('OpenClawService gateway status state machine', () => {
       expect(path.dirname(candidatePath)).toBe(path.dirname(configPath))
       expect(path.basename(candidatePath)).toContain('openclaw.json.cherry-candidate-')
       expect(fs.existsSync(candidatePath)).toBe(false)
-      expect(fs.statSync(configPath).mode & 0o777).toBe(0o600)
+      if (process.platform !== 'win32') expect(fs.statSync(configPath).mode & 0o777).toBe(0o600)
     })
 
     it('returns a sanitized preflight failure and leaves the formal file unchanged for malformed validation output', async () => {
@@ -2251,7 +2278,7 @@ describe('OpenClawService gateway status state machine', () => {
 
       // Start
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
       await service.startGateway()
       expect((service as any).gatewayStatus).toBe('running')
@@ -2265,7 +2292,7 @@ describe('OpenClawService gateway status state machine', () => {
     it('stopped → starting → error → (external recovery) → running', async () => {
       // Start fails
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: resolvePath('/mock/bin/openclaw'), version: '1.0.0' })
       startAndWaitSpy.mockRejectedValue(new Error('timeout'))
       await service.startGateway()
       expect((service as any).gatewayStatus).toBe('error')

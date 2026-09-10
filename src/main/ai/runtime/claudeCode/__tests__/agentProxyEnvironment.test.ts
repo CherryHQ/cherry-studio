@@ -38,7 +38,7 @@ describe('mergeAgentLoopbackProxyBypass', () => {
       NO_PROXY: 'example.com\tLOCALHOST; [::1], Api.Example.com'
     }
 
-    const result = mergeAgentLoopbackProxyBypass(environment)
+    const result = mergeAgentLoopbackProxyBypass(environment, { platform: 'linux' })
 
     expect(result.no_proxy).toBe('Example.COM,127.0.0.1,::1,LOCALHOST,[::1],Api.Example.com')
     expect(result.NO_PROXY).toBe(result.no_proxy)
@@ -54,11 +54,14 @@ describe('mergeAgentLoopbackProxyBypass', () => {
   })
 
   it('collapses both bypass variables to a standalone wildcard rule', () => {
-    const result = mergeAgentLoopbackProxyBypass({
-      ALL_PROXY: 'socks5://proxy.example.com:1080',
-      no_proxy: '*.example.com; *',
-      NO_PROXY: 'localhost'
-    })
+    const result = mergeAgentLoopbackProxyBypass(
+      {
+        ALL_PROXY: 'socks5://proxy.example.com:1080',
+        no_proxy: '*.example.com; *',
+        NO_PROXY: 'localhost'
+      },
+      { platform: 'linux' }
+    )
 
     expect(result.no_proxy).toBe('*')
     expect(result.NO_PROXY).toBe('*')
