@@ -545,7 +545,13 @@ export function useHomeMessageListProviderValue({
         }
 
         const filtered = partsForEdit.filter((_, index) => index !== resolved.index)
-        const durableParts = isSyntheticFallback ? [...filtered, createDismissedNoResponsePart()] : filtered
+        // A removed persisted no-response error would recreate itself through the
+        // display fallback, so record the dismissal like the synthetic fallback.
+        const removedData = (resolved.part as unknown as { data?: { name?: unknown } }).data
+        const durableParts =
+          isSyntheticFallback || removedData?.name === 'NoResponseError'
+            ? [...filtered, createDismissedNoResponsePart()]
+            : filtered
 
         await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts)
       } catch (error) {

@@ -219,7 +219,18 @@ function error(msg: string): SerializedError {
 }
 
 function req(topicId: string) {
-  return { chatId: topicId, trigger: 'submit-message', messages: [] } as any
+  const request = { chatId: topicId, trigger: 'submit-message', messages: [] } as any
+  // Production agent-session turns always carry their runtime identity on the
+  // request (AgentSessionRuntimeService), which the terminal classification
+  // reads instead of sniffing the topic id.
+  if (topicId.startsWith('agent-session:')) {
+    request.runtime = {
+      kind: 'agent-session',
+      sessionId: topicId.slice('agent-session:'.length),
+      turnId: 'turn-test'
+    }
+  }
+  return request
 }
 
 /**
@@ -554,6 +565,30 @@ describe('AiStreamManager', () => {
 
       current.close()
       await vi.waitFor(() => expect(currentListener.doneResults).toHaveLength(1))
+    })
+
+    it('converts an empty successful ordinary turn into a no-response error', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:ordinary-empty')
+      startSingle(mgr, {
+        topicId: 'ordinary-empty',
+        modelId: 'provider-a::model-a',
+        request: req('ordinary-empty'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.close()
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.doneResults).toEqual([])
+      expect(listener.errorResults[0]).toMatchObject({
+        status: 'error',
+        error: { name: 'NoResponseError' }
+      })
+      expect(mgr.inspect('ordinary-empty')?.status).toBe('error')
     })
   })
 

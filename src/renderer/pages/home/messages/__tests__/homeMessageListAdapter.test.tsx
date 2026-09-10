@@ -569,6 +569,59 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     })
   })
 
+  it('keeps a dismissed persisted no-response error dismissed on re-render', async () => {
+    const persistedParts = [
+      { type: 'step-start' },
+      {
+        type: 'data-error',
+        data: { name: 'NoResponseError', message: 'error.no_response', stack: null, i18nKey: 'no_response' }
+      }
+    ] as CherryMessagePart[]
+    const errorMessage = {
+      id: 'error-message',
+      role: 'assistant',
+      metadata: { status: 'error' },
+      parts: persistedParts
+    } as CherryUIMessage
+
+    vi.mocked(dataApiService.get).mockResolvedValue({ data: { parts: persistedParts } } as never)
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 1,
+      messageId: 'error-message',
+      part: persistedParts[1]
+    })
+    let value: MessageListProviderValue | undefined
+    const { rerender } = render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[errorMessage]}
+        partsByMessageId={{ 'error-message': persistedParts }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    await value?.actions.removeMessageErrorPart?.({ messageId: 'error-message', partId: 'error-message:1' })
+
+    const written = vi.mocked(chatWriteMock.editMessage).mock.calls.at(-1)?.[1] ?? []
+    expect(vi.mocked(chatWriteMock.editMessage)).toHaveBeenCalledWith(
+      'error-message',
+      expect.arrayContaining([expect.objectContaining({ type: 'data-no-response-dismissed' })])
+    )
+    expect(written.some((part) => part.type === 'data-error')).toBe(false)
+
+    rerender(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[{ ...errorMessage, parts: written }]}
+        partsByMessageId={{ 'error-message': written }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    const displayParts = value?.state.partsByMessageId['error-message'] ?? []
+    expect(displayParts.some((part) => part.type === 'data-error')).toBe(false)
+  })
+
   it.each(['embedding', 'rerank'])('filters %s models from the regenerate model picker', (capability) => {
     let value: MessageListProviderValue | undefined
     render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
