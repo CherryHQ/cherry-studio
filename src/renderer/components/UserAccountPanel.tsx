@@ -373,10 +373,10 @@ export function UserAccountPanel({
         <RowFlex className="min-h-8 items-center gap-2 px-2.5">
           <SunMoon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <span className="min-w-0 flex-1 truncate text-[13px] text-foreground leading-5">
-            {t('settings.theme.title')}
+            {t('settings.appearance.title')}
           </span>
           <SegmentedControl
-            aria-label={t('settings.theme.title')}
+            aria-label={t('settings.appearance.title')}
             className="p-px [&_[role=radio]]:h-6 [&_[role=radio]]:px-1.5"
             options={themeOptions}
             size="sm"

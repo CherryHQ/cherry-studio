@@ -261,6 +261,7 @@ vi.mock('react-i18next', () => ({
   },
   useTranslation: () => ({
     t: (key: string, options?: { displayName?: string }) => {
+      if (key === 'settings.appearance.title') return 'Appearance'
       if (key === 'settings.provider.cherry_cloud.title') return 'Localized Cherry Cloud'
       if (key === 'settings.provider.cherry_cloud.logout_confirm_title') return 'Log out?'
       if (key === 'settings.provider.cherry_cloud.logout_confirm_account') {
@@ -396,11 +397,11 @@ describe('UserPopup', () => {
     await waitFor(() => expect(screen.queryByTestId('dialog')).not.toBeInTheDocument())
   })
 
-  it('changes the existing theme from the account popup theme control', async () => {
+  it('changes the existing theme from the account popup appearance control', async () => {
     const user = userEvent.setup()
     showUserPopup()
 
-    const themeControl = await screen.findByRole('radiogroup', { name: 'settings.theme.title' })
+    const themeControl = await screen.findByRole('radiogroup', { name: 'Appearance' })
     expect(within(themeControl).getByRole('radio', { name: 'settings.theme.system' })).toHaveAttribute(
       'aria-checked',
       'true'
