@@ -880,6 +880,58 @@ describe('buildAgentParams standard model parameters', () => {
     expect(sentBody?.max_tokens).toBe(10_000)
   })
 
+  it('disables a below-minimum Anthropic thinking budget without an output ceiling', async () => {
+    let sentBody: Record<string, any> | undefined
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4096 } })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'anthropic',
+        providerSettings: {
+          apiKey: 'sk-ant-test',
+          baseURL: 'https://gateway.test/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
+            return Response.json({
+              id: 'msg_test',
+              type: 'message',
+              role: 'assistant',
+              model: 'custom-model',
+              content: [{ type: 'text', text: 'ok' }],
+              stop_reason: 'end_turn',
+              stop_sequence: null,
+              usage: { input_tokens: 1, output_tokens: 1 }
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 500 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.maxOutputTokens).toBeUndefined()
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      providerOptions: result.options.providerOptions
+    })
+    expect(sentBody?.thinking).toEqual({ type: 'disabled' })
+  })
+
   it('does not apply a model catalog limit to a non-Anthropic endpoint', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 65_536)
     const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4096 } })

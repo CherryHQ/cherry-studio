@@ -694,14 +694,17 @@ function boundExplicitThinkingByTotalOutput(
   totalOutputTokens: number | undefined,
   endpointType: EndpointType | undefined
 ): { providerOptions: ProviderOptions; budgetTokens: number | undefined } | undefined {
-  if (totalOutputTokens === undefined || endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return undefined
+  if (endpointType !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return undefined
   const namespace = providerOptions[providerOptionsKey]
   const thinking = namespace?.thinking
   if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
   const thinkingOptions = thinking as Record<string, unknown>
   if (thinkingOptions.type !== 'enabled' || typeof thinkingOptions.budgetTokens !== 'number') return undefined
 
-  const budgetTokens = Math.min(thinkingOptions.budgetTokens, totalOutputTokens - 1)
+  const budgetTokens =
+    totalOutputTokens === undefined
+      ? thinkingOptions.budgetTokens
+      : Math.min(thinkingOptions.budgetTokens, totalOutputTokens - 1)
   if (budgetTokens < ANTHROPIC_MIN_THINKING_BUDGET) {
     const disabledThinking = { ...thinkingOptions, type: 'disabled' }
     Reflect.deleteProperty(disabledThinking, 'budgetTokens')
