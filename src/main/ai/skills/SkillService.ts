@@ -119,14 +119,20 @@ export class SkillService {
     const target = path.resolve(this.getMirrorPath(folderName))
     if (target !== root && !target.startsWith(root + path.sep)) return { status: 'missing' }
     // The descriptor is inlined into the system prompt, so guard the read itself: resolved paths
-    // must stay inside the mirror root (same symlink rule as readFile) and an oversized SKILL.md
-    // fails the turn before it is ever loaded (limit shared with file previews).
+    // must stay inside the mirror root or the skill storage root (non-builtin mirrors are
+    // intentionally symlinked to storage on POSIX), and an oversized SKILL.md fails the turn
+    // before it is ever loaded (limit shared with file previews).
     try {
-      const realRoot = await fs.promises.realpath(root)
+      const [realRoot, realStorageRoot] = await Promise.all([
+        fs.promises.realpath(root),
+        fs.promises.realpath(path.resolve(application.getPath('feature.agents.skills')))
+      ])
+      const isAllowed = (realFile: string) =>
+        realFile.startsWith(realRoot + path.sep) || realFile.startsWith(realStorageRoot + path.sep)
       for (const variant of ['SKILL.md', 'skill.md']) {
         const realFile = await fs.promises.realpath(path.join(target, variant)).catch(() => null)
         if (!realFile) continue
-        if (isOutsidePath(path.relative(realRoot, realFile))) return { status: 'missing' }
+        if (!isAllowed(realFile)) return { status: 'missing' }
         const { size } = await fs.promises.stat(realFile)
         if (size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return { status: 'error', reason: 'too-large' }
       }

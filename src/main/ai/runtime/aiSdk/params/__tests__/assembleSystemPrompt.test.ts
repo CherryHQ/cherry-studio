@@ -242,6 +242,16 @@ describe('assembleSystemPrompt', () => {
     ).rejects.toThrow('Skill "huge" cannot be read (SKILL.md exceeds the')
   })
 
+  it('fails the turn when the combined attached skills exceed the size limit', async () => {
+    // Each descriptor alone fits; any two together exceed the 2 MiB cap.
+    const half = 'x'.repeat(1024 * 1024 + 1)
+    readSkillMdByFolderName.mockImplementation(async () => ({ status: 'found', content: half }))
+
+    await expect(
+      assembleSystemPrompt({ assistant: makeAssistant({ prompt: 'base' }), model, skillFolderNames: ['one', 'two'] })
+    ).rejects.toThrow('attached skills together exceed the')
+  })
+
   it('adds no skill section when no skill is attached', async () => {
     readSkillMdByFolderName.mockResolvedValue({ status: 'found', content: 'unused' })
 

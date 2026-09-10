@@ -2261,15 +2261,19 @@ describe('SkillService', () => {
   describe('readSkillMdByFolderName', () => {
     let restoreGetPath: () => void
     let mirrorRoot: string
+    let storageRoot: string
 
     beforeEach(async () => {
       const root = await createTempDir('skill-md-read-')
       mirrorRoot = path.join(root, '.claude', 'skills')
+      storageRoot = path.join(root, 'Skills')
       await fs.promises.mkdir(mirrorRoot, { recursive: true })
+      await fs.promises.mkdir(storageRoot, { recursive: true })
       // The fallback keeps every other path key inside the temp root — SkillInstaller's
       // constructor resolves one and would try to mkdir a non-existent /mock.
       const spy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
         if (key === 'feature.agents.claude.skills') return filename ? path.join(mirrorRoot, filename) : mirrorRoot
+        if (key === 'feature.agents.skills') return filename ? path.join(storageRoot, filename) : storageRoot
         return path.join(root, 'mock', key, filename ?? '')
       })
       restoreGetPath = () => spy.mockRestore()
@@ -2338,7 +2342,7 @@ describe('SkillService', () => {
       await fs.promises.mkdir(skillDir, { recursive: true })
       await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'x'.repeat(SKILL_FILE_PREVIEW_MAX_SIZE_BYTES + 1))
       // Simulate the stat/read race: stat underreports while the real content is oversized.
-      const statSpy = vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1 } as unknown as import('node:fs').Stats)
+      const statSpy = vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1 } as unknown as fs.Stats)
 
       try {
         await expect(new SkillService().readSkillMdByFolderName('growing')).resolves.toEqual({
@@ -2357,6 +2361,20 @@ describe('SkillService', () => {
       await fs.promises.symlink(outsideDir, path.join(mirrorRoot, 'escaped'), 'junction')
 
       await expect(new SkillService().readSkillMdByFolderName('escaped')).resolves.toEqual({ status: 'missing' })
+    })
+
+    it('reads through the intentional storage symlink used for non-builtin mirrors', async () => {
+      // POSIX mirrors non-builtin skills as symlinks into the skills storage root (see
+      // pathRegistry: "symlinks → feature.agents.skills") — attachment must read them fine.
+      const sourceDir = path.join(storageRoot, 'linked')
+      await fs.promises.mkdir(sourceDir, { recursive: true })
+      await fs.promises.writeFile(path.join(sourceDir, 'SKILL.md'), 'from storage')
+      await fs.promises.symlink(sourceDir, path.join(mirrorRoot, 'linked'), 'junction')
+
+      await expect(new SkillService().readSkillMdByFolderName('linked')).resolves.toEqual({
+        status: 'found',
+        content: 'from storage'
+      })
     })
 
     it('reports error when the descriptor exists but cannot be read', async () => {
