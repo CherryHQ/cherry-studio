@@ -33,6 +33,12 @@ const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
 
+  // Name the variable only — the value is the user's full PATH and may carry
+  // local usernames. `dedupePathSegments` drops the affected segments (#20344).
+  if (existingPathValue.includes('\0')) {
+    logger.warn('Dropped PATH segments carrying null bytes', { pathKey: canonicalPathKey })
+  }
+
   // Existing segments first, tool dirs appended — dedup keeps an already-present
   // tool dir at its original position instead of moving it to the tail.
   const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...tailDirs]).join(pathSeparator)

@@ -17,8 +17,9 @@ import path from 'path'
  * Collapse a list of PATH segments to unique entries, first occurrence wins.
  * On Windows the compare is case-insensitive (the filesystem is), so `C:\Foo`
  * and `c:\foo` fold together; elsewhere it is case-sensitive. Blank segments
- * are dropped. Order is preserved — never sorted — because it is load-bearing
- * on Windows, where the shims dir must stay ahead of the system PATH.
+ * and segments carrying a NUL byte are dropped. Order is preserved — never
+ * sorted — because it is load-bearing on Windows, where the shims dir must
+ * stay ahead of the system PATH.
  *
  * The single home for this canonicalization: both `mergeBinaryExecutionEnv`
  * here and `shellEnv.appendCherryToolDirsToPath` run it back-to-back on the
@@ -28,6 +29,9 @@ export function dedupePathSegments(segments: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
   for (const segment of segments) {
+    // Node rejects the whole child env when PATH carries a NUL (#20344). Dropped,
+    // not stripped: repairing `C:\a\0b` into `C:\ab` could hit a different real dir.
+    if (segment.includes('\0')) continue
     const trimmed = segment.trim()
     if (!trimmed) continue
     const canonical = isWin ? path.normalize(trimmed).toLowerCase() : path.normalize(trimmed)

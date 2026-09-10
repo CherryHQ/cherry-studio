@@ -47,6 +47,15 @@ describe('mergeBinaryExecutionEnv', () => {
 
     expect(PATH.split(':')).toEqual([shims, '/opt/mise/bin', '/usr/bin'])
   })
+
+  it('drops PATH segments carrying a null byte on every platform', () => {
+    // Node rejects any child env value containing a NUL, so the guard must not
+    // be Windows-only: a posix host has to sanitize identically (#20344).
+    const { PATH } = mergeBinaryExecutionEnv({ PATH: '/usr/bin:/broken\0dir:/opt/bin' })
+
+    expect(PATH).not.toContain('\0')
+    expect(PATH.split(':')).toEqual([shims, '/usr/bin', '/opt/bin'])
+  })
 })
 
 describe('mergePathPrefixes', () => {
