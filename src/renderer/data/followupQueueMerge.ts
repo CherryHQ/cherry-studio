@@ -40,10 +40,8 @@ export function mergeFollowupQueues(
       const incomingEntry = incomingVal as { items?: unknown; paused?: unknown; failedItemId?: unknown }
       if (Array.isArray(existingEntry.items) && Array.isArray(incomingEntry.items)) {
         const pausedMerged = existingEntry.paused === true || incomingEntry.paused === true
-        const existingFailedId =
-          typeof existingEntry.failedItemId === 'string' ? existingEntry.failedItemId : undefined
-        const incomingFailedId =
-          typeof incomingEntry.failedItemId === 'string' ? incomingEntry.failedItemId : undefined
+        const existingFailedId = typeof existingEntry.failedItemId === 'string' ? existingEntry.failedItemId : undefined
+        const incomingFailedId = typeof incomingEntry.failedItemId === 'string' ? incomingEntry.failedItemId : undefined
         const existingItems = existingEntry.items as Array<{ id?: string }>
         const incomingItems = incomingEntry.items as Array<{ id?: string }>
         const existingIds = new Set(
