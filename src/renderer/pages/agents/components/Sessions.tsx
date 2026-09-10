@@ -691,7 +691,7 @@ const Sessions = ({
         },
         mode: displayMode,
         now: groupNow,
-        pinnedAsSection: displayMode === 'workdir',
+        pinnedAsSection: displayMode !== 'time',
         workdirDisplay
       }),
     [agentById, displayMode, groupNow, t, workdirDisplay]
@@ -724,7 +724,7 @@ const Sessions = ({
     if (displayMode === 'time') return undefined
 
     return (session: SessionListItem): ResourceListSection => {
-      if (displayMode === 'workdir' && session.pinned) {
+      if (session.pinned) {
         return { id: SESSION_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
 
