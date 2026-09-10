@@ -15,6 +15,7 @@ export const RESOURCE_LIST_PANE_MAX_WIDTH = 360
 export const RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD = 200
 export const RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH = 540
 export const RESOURCE_LIST_PANE_CACHE_KEY = 'ui.chat.sidebar.width'
+export const RESOURCE_LIST_PANE_WINDOW_CACHE_KEY = 'ui.window.chat.sidebar.width'
 
 export const ARTIFACT_RIGHT_PANE_MIN_WIDTH = 255
 export const ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT = 80
@@ -28,6 +29,17 @@ export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
  */
 export const RESOURCE_LIST_RIGHT_PANE_CACHE_KEY = 'ui.chat.resource_pane.width'
 
+export type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+
+const RIGHT_PANE_WINDOW_CACHE_KEY = {
+  [ARTIFACT_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.artifact_pane.width',
+  [RESOURCE_LIST_RIGHT_PANE_CACHE_KEY]: 'ui.window.chat.resource_pane.width'
+} as const
+
+export function getRightPaneWindowCacheKey(cacheKey: RightPaneResizeCacheKey) {
+  return RIGHT_PANE_WINDOW_CACHE_KEY[cacheKey]
+}
+
 /**
  * Named width policies for the shared right pane. Panels pick a preset by name; the envelope
  * and the persisted key behind each name are owned here, so width policy never becomes
@@ -40,7 +52,8 @@ export const RESOURCE_LIST_RIGHT_PANE_CACHE_KEY = 'ui.chat.resource_pane.width'
 export type RightPaneWidthPreset = 'inspector' | 'navigation-list'
 
 export type RightPaneWidthPolicy = {
-  cacheKey: typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+  cacheKey: RightPaneResizeCacheKey
+  windowCacheKey: (typeof RIGHT_PANE_WINDOW_CACHE_KEY)[RightPaneResizeCacheKey]
   minWidth: number
   maxWidth: number
 }
@@ -48,11 +61,13 @@ export type RightPaneWidthPolicy = {
 const RIGHT_PANE_WIDTH_PRESETS = {
   inspector: {
     cacheKey: ARTIFACT_RIGHT_PANE_CACHE_KEY,
+    windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[ARTIFACT_RIGHT_PANE_CACHE_KEY],
     minWidth: ARTIFACT_RIGHT_PANE_MIN_WIDTH,
     maxWidth: ARTIFACT_RIGHT_PANE_MAX_WIDTH
   },
   'navigation-list': {
     cacheKey: RESOURCE_LIST_RIGHT_PANE_CACHE_KEY,
+    windowCacheKey: RIGHT_PANE_WINDOW_CACHE_KEY[RESOURCE_LIST_RIGHT_PANE_CACHE_KEY],
     minWidth: RESOURCE_LIST_PANE_MIN_WIDTH,
     maxWidth: RESOURCE_LIST_PANE_MAX_WIDTH
   }

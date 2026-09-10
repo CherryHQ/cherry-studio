@@ -1,5 +1,5 @@
-import { usePersistCache } from '@data/hooks/useCache'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
+import { useWindowScopedPersistCache } from '@renderer/hooks/useWindowScopedPersistCache'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
@@ -8,7 +8,8 @@ import {
   RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD,
   RESOURCE_LIST_PANE_DEFAULT_WIDTH,
   RESOURCE_LIST_PANE_MAX_WIDTH,
-  RESOURCE_LIST_PANE_MIN_WIDTH
+  RESOURCE_LIST_PANE_MIN_WIDTH,
+  RESOURCE_LIST_PANE_WINDOW_CACHE_KEY
 } from './paneLayout'
 
 export function clampResourceListPaneWidth(width: number): number {
@@ -20,7 +21,10 @@ interface ResourceListPaneResizeOptions {
 }
 
 export function useResourceListPaneResize({ onPaneCollapse }: ResourceListPaneResizeOptions = {}) {
-  const [storedWidth, setStoredWidth] = usePersistCache(RESOURCE_LIST_PANE_CACHE_KEY)
+  const [storedWidth, setStoredWidth] = useWindowScopedPersistCache(
+    RESOURCE_LIST_PANE_CACHE_KEY,
+    RESOURCE_LIST_PANE_WINDOW_CACHE_KEY
+  )
   const paneRef = useRef<HTMLDivElement>(null)
   const pendingPaneCollapseRef = useRef(false)
   const dragStateRef = useRef({ paneLeft: 0, startClientX: 0 })

@@ -1,5 +1,6 @@
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
+import { createElement, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
@@ -8,6 +9,17 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 })
 
 import { useClassicLayoutRightPaneOpen } from '../useClassicLayoutRightPaneOpen'
+import { WindowFrameContext } from '../useWindowFrame'
+import { useWindowScopedPersistCache } from '../useWindowScopedPersistCache'
+
+const detachedWindowWrapper = ({ children }: { children: ReactNode }) =>
+  createElement(WindowFrameContext, { value: { mode: 'window' } }, children)
+
+const useMismatchedWindowCachePair = () => {
+  // @ts-expect-error number persistence cannot seed a boolean window cache
+  return useWindowScopedPersistCache('ui.chat.sidebar.width', 'ui.window.chat.right_pane_open_override')
+}
+void useMismatchedWindowCachePair
 
 describe('useClassicLayoutRightPaneOpen', () => {
   beforeEach(() => {
@@ -74,5 +86,30 @@ describe('useClassicLayoutRightPaneOpen', () => {
 
     expect(MockUseCacheUtils.getPersistCacheValue('ui.chat.right_pane_open_override')).toBe(false)
     expect(MockUseCacheUtils.getPersistCacheValue('ui.agent.right_pane_open_override')).toBe(true)
+  })
+
+  it.each([
+    {
+      surface: 'chat' as const,
+      persistCacheKey: 'ui.chat.right_pane_open_override' as const,
+      windowCacheKey: 'ui.window.chat.right_pane_open_override' as const
+    },
+    {
+      surface: 'agent' as const,
+      persistCacheKey: 'ui.agent.right_pane_open_override' as const,
+      windowCacheKey: 'ui.window.agent.right_pane_open_override' as const
+    }
+  ])('keeps detached $surface writes out of persisted cache', ({ surface, persistCacheKey, windowCacheKey }) => {
+    MockUseCacheUtils.setPersistCacheValue(persistCacheKey, false)
+    MockUseCacheUtils.setCacheValue(windowCacheKey, false)
+    const { result } = renderHook(() => useClassicLayoutRightPaneOpen(surface, { enabled: true, defaultOpen: true }), {
+      wrapper: detachedWindowWrapper
+    })
+
+    expect(result.current[0]).toBe(false)
+    act(() => result.current[1](true))
+
+    expect(MockUseCacheUtils.getCacheValue(windowCacheKey)).toBe(true)
+    expect(MockUseCacheUtils.getPersistCacheValue(persistCacheKey)).toBe(false)
   })
 })
