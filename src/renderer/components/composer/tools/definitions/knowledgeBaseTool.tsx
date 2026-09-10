@@ -1,12 +1,16 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 
+import { loggerService } from '@logger'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
+import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { composerKnowledgeBaseTokenId, getComposerTokenIds } from '../../variants/shared/composerTokens'
 import { KnowledgeBaseToolRuntime } from '../components/KnowledgeBaseButton'
 import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '../toolbarManifests'
+
+const logger = loggerService.withContext('KnowledgeBaseTool')
 
 type KnowledgeBaseToolContext = ToolRenderContext<
   readonly ['selectedKnowledgeBases', 'files', 'selectableKnowledgeBases'],
@@ -27,15 +31,47 @@ const useKnowledgeBaseSelect = (context: KnowledgeBaseToolContext) => {
 const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolContext }) => {
   const { state, launcher } = context
   const handleSelect = useKnowledgeBaseSelect(context)
+  const { updateAssistant } = useAssistantMutations()
   // Sessions skip the model tool-use probe: an Agent session reaches its knowledge bases through the
   // runtime's own kb_* MCP tools, not through the model's function-calling support, so the composer
   // model here (which may be a sub-model) says nothing about whether the picker is usable.
   const isToolUseAvailable = context.session ? true : !!context.assistant && isSupportedToolUse(context.model)
+  // Chat scope shows every loaded base and auto-links an unconfigured pick to the assistant (#20238).
+  // Agent sessions keep the configured intersection — linking would edit the agent definition,
+  // widening the ceiling for every session of that agent.
+  const isChatScope = !!context.assistant
+  const assistantKnowledgeBaseIds = context.assistant?.knowledgeBaseIds
+
+  const unconfiguredBaseIds = useMemo(() => {
+    if (!isChatScope) return new Set<string>()
+    const configured = new Set(assistantKnowledgeBaseIds ?? [])
+    return new Set(state.selectableKnowledgeBases.filter((base) => !configured.has(base.id)).map((base) => base.id))
+  }, [assistantKnowledgeBaseIds, isChatScope, state.selectableKnowledgeBases])
+
+  const handleLinkBase = useCallback(
+    async (base: KnowledgeBase): Promise<boolean> => {
+      const assistant = context.assistant
+      if (!assistant) return false
+      try {
+        await updateAssistant(assistant.id, { knowledgeBaseIds: [...(assistant.knowledgeBaseIds ?? []), base.id] })
+        return true
+      } catch (error) {
+        logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
+          assistantId: assistant.id,
+          knowledgeBaseId: base.id
+        })
+        return false
+      }
+    },
+    [context.assistant, updateAssistant]
+  )
 
   return (
     <KnowledgeBaseToolRuntime
       launcher={launcher}
-      configuredKnowledgeBaseIds={context.assistant?.knowledgeBaseIds ?? context.session?.knowledgeBaseIds ?? []}
+      bases={state.selectableKnowledgeBases}
+      unconfiguredBaseIds={unconfiguredBaseIds}
+      onLinkBase={isChatScope ? handleLinkBase : undefined}
       selectedBases={state.selectedKnowledgeBases}
       onSelect={handleSelect}
       disabled={!isToolUseAvailable || (Array.isArray(state.files) && state.files.length > 0)}
