@@ -140,7 +140,7 @@ export default function Sidebar({
         align="start"
         side="top"
         sideOffset={8}
-        className="w-64 p-0"
+        className="w-56 rounded-md p-0"
         onClick={(event) => event.stopPropagation()}
         onEscapeKeyDown={(event) => {
           if (isEditingUserName) event.preventDefault()

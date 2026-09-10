@@ -148,7 +148,7 @@ export function UserAccountPanel({
       value: ThemeMode.light,
       label: (
         <>
-          <Sun className="size-3.5" aria-hidden />
+          <Sun className="size-3" aria-hidden />
           <span className="sr-only">{t('settings.theme.light')}</span>
         </>
       )
@@ -157,7 +157,7 @@ export function UserAccountPanel({
       value: ThemeMode.dark,
       label: (
         <>
-          <Moon className="size-3.5" aria-hidden />
+          <Moon className="size-3" aria-hidden />
           <span className="sr-only">{t('settings.theme.dark')}</span>
         </>
       )
@@ -166,7 +166,7 @@ export function UserAccountPanel({
       value: ThemeMode.system,
       label: (
         <>
-          <Monitor className="size-3.5" aria-hidden />
+          <Monitor className="size-3" aria-hidden />
           <span className="sr-only">{t('settings.theme.system')}</span>
         </>
       )
@@ -216,8 +216,8 @@ export function UserAccountPanel({
   }
 
   return (
-    <ColFlex className="w-64">
-      <RowFlex className="min-h-12 items-center gap-2 px-2.5 py-2">
+    <ColFlex className="w-56">
+      <RowFlex className="min-h-12 items-center gap-2 px-2.5 py-1.5">
         <Popover
           open={avatarPopoverOpen}
           onOpenChange={(visible) => {
@@ -229,18 +229,18 @@ export function UserAccountPanel({
               type="button"
               variant="ghost"
               aria-label={t('common.avatar')}
-              className="group relative size-8 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
+              className="group relative size-7 min-h-7 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
               {isEmoji(avatar) ? (
-                <EmojiAvatar size={32} fontSize={16}>
+                <EmojiAvatar size={28} fontSize={14}>
                   {avatar}
                 </EmojiAvatar>
               ) : (
-                <Avatar className="size-8 rounded-full">
+                <Avatar className="size-7 rounded-full">
                   <AvatarImage src={avatar} className="object-cover" />
                 </Avatar>
               )}
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                <Camera className="size-4" aria-hidden />
+                <Camera className="size-3.5" aria-hidden />
               </span>
             </Button>
           </PopoverTrigger>
@@ -329,16 +329,16 @@ export function UserAccountPanel({
             <Button
               type="button"
               aria-label={t('settings.general.user_name.label')}
-              className="h-auto min-w-0 flex-1 justify-start px-1 py-1 text-left"
+              className="h-auto min-w-0 flex-1 justify-start px-0.5 py-0 text-left"
               onClick={startEditingUserName}
               size="sm"
               variant="ghost">
-              <ColFlex className="min-w-0 flex-1 gap-0.5">
+              <ColFlex className="min-w-0 flex-1 gap-0">
                 <RowFlex className="min-w-0 items-center gap-1">
-                  <span className="truncate font-medium text-foreground text-sm leading-5">
+                  <span className="truncate font-medium text-[13px] text-foreground leading-[18px]">
                     {userName || t('settings.general.user_name.placeholder')}
                   </span>
-                  <Pencil className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+                  <Pencil className="!text-muted-foreground size-3 shrink-0" aria-hidden />
                 </RowFlex>
                 {cloudSubtitle ? (
                   <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
@@ -362,15 +362,22 @@ export function UserAccountPanel({
         )}
       </RowFlex>
       <ColFlex className="border-border-subtle border-t py-1">
-        <Button className="min-h-9 w-full justify-start px-2.5" onClick={handleOpenSettings} size="sm" variant="ghost">
-          <Settings aria-hidden />
+        <Button
+          className="min-h-8 w-full justify-start gap-2 px-2.5 text-[13px] text-foreground leading-5"
+          onClick={handleOpenSettings}
+          size="sm"
+          variant="ghost">
+          <Settings className="!text-muted-foreground size-4" aria-hidden />
           {t('common.settings')}
         </Button>
-        <RowFlex className="min-h-9 items-center gap-2 px-2.5">
+        <RowFlex className="min-h-8 items-center gap-2 px-2.5">
           <SunMoon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-foreground text-sm">{t('settings.theme.title')}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] text-foreground leading-5">
+            {t('settings.theme.title')}
+          </span>
           <SegmentedControl
             aria-label={t('settings.theme.title')}
+            className="p-px [&_[role=radio]]:h-6 [&_[role=radio]]:px-1.5"
             options={themeOptions}
             size="sm"
             value={settedTheme}
@@ -379,14 +386,14 @@ export function UserAccountPanel({
         </RowFlex>
       </ColFlex>
       {isCloudSignedIn ? (
-        <div className="border-border-subtle border-t px-1.5 py-1">
+        <div className="border-border-subtle border-t py-1">
           <Button
-            className="min-h-9 w-full justify-start px-2"
+            className="min-h-8 w-full justify-start gap-2 px-2.5 text-[13px] text-foreground leading-5"
             loading={isRevokingSession}
             onClick={() => setLogoutConfirmOpen(true)}
             size="sm"
             variant="ghost">
-            {!isRevokingSession ? <LogOut aria-hidden /> : null}
+            {!isRevokingSession ? <LogOut className="!text-muted-foreground size-4" aria-hidden /> : null}
             {t('settings.provider.cherry_cloud.logout')}
           </Button>
         </div>

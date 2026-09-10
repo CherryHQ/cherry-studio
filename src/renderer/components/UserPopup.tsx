@@ -24,7 +24,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="w-64 gap-0 p-0 sm:max-w-64"
+        className="w-56 gap-0 rounded-md p-0 sm:max-w-56"
         onEscapeKeyDown={(event) => {
           if (isEditingUserName) event.preventDefault()
         }}>
