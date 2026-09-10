@@ -141,6 +141,22 @@ export class AgentGlobalSkillService {
     return this.rowToInstalledSkill(updated)
   }
 
+  updateMirrorEnabled(id: string, mirrorEnabled: boolean): InstalledSkill | null {
+    const [updated] = this.db
+      .update(agentGlobalSkillTable)
+      .set({ mirrorEnabled })
+      .where(eq(agentGlobalSkillTable.id, id))
+      .returning()
+      .all()
+    if (!updated) return null
+
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [id] },
+      { endpoint: '/skills/:skillId', entityIds: [id] }
+    ])
+    return this.rowToInstalledSkill(updated)
+  }
+
   updateTx(
     tx: DbOrTx,
     id: string,
@@ -286,6 +302,7 @@ export class AgentGlobalSkillService {
       sourceTags: row.tags,
       contentHash: row.contentHash,
       isGlobalEnabled: row.isEnabled,
+      mirrorEnabled: row.mirrorEnabled,
       isEnabled: false,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)

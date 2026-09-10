@@ -4878,6 +4878,8 @@
   "settings.skills.tabs.builtin": "Încorporate",
   "settings.skills.tabs.system": "Sistem",
   "settings.skills.title": "Abilități",
+  "settings.skills.mirrorToggle": "Sincronizează abilitatea {{name}} în directorul agents",
+  "settings.skills.mirrorToggleFailed": "Sincronizarea abilității {{name}} a eșuat",
   "settings.skills.toggleFailed": "Nu s-a putut actualiza starea globală a abilității {{name}}",
   "settings.skills.viewSource": "Vezi sursa",
   "settings.system.title": "Sistem",

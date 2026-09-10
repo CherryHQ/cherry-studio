@@ -60,6 +60,30 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
   )
 }
 
+/** Controls whether the skill is exported to ~/.agents/skills for external agents. */
+function SkillMirrorToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
+  const { t } = useTranslation()
+  const { setMirrorEnabled, isUpdating } = useSkillMutationsById(resource.id)
+
+  const handleCheckedChange = async (checked: boolean) => {
+    try {
+      await setMirrorEnabled(checked)
+    } catch {
+      toast.error(t('settings.skills.mirrorToggleFailed', { name: resource.name }))
+    }
+  }
+
+  return (
+    <Switch
+      size="sm"
+      checked={resource.raw.mirrorEnabled}
+      disabled={isUpdating}
+      aria-label={t('settings.skills.mirrorToggle', { name: resource.name })}
+      onCheckedChange={handleCheckedChange}
+    />
+  )
+}
+
 export function ResourceCard({
   resource: r,
   variant = 'library',
@@ -132,6 +156,7 @@ export function ResourceCard({
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
             {r.type === 'skill' && isSettings ? (
               <div className="flex items-center gap-1">
+                <SkillMirrorToggle resource={r} />
                 <SkillGlobalToggle resource={r} />
                 <Button
                   variant="ghost"

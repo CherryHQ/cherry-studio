@@ -753,6 +753,28 @@ export class SkillService {
   }
 
   /**
+   * Toggle whether a skill is projected into the ~/.agents/skills mirror and apply the
+   * change to the filesystem immediately (no reconcile wait). Default for every skill is
+   * enabled; disabling keeps the skill installed and enabled for Cherry agents, it only
+   * stops exporting it to external agents reading CLAUDE_CONFIG_DIR/skills.
+   */
+  async setMirrorEnabled(skillId: string, mirrorEnabled: boolean): Promise<InstalledSkill | null> {
+    return this.mutationLock.runExclusive(async () => {
+      const skill = agentGlobalSkillService.getById(skillId)
+      if (!skill) return null
+      const updated = agentGlobalSkillService.updateMirrorEnabled(skillId, mirrorEnabled)
+      if (!updated) return null
+
+      if (mirrorEnabled) {
+        await this.linkMirror(updated.folderName)
+      } else {
+        await this.unlinkMirror(updated.folderName)
+      }
+      return updated
+    })
+  }
+
+  /**
    * Reconcile the managed skill library (Data/Skills) with the DB catalog and the
    * CLAUDE_CONFIG_DIR/skills mirror. The filesystem is the source of truth for
    * user-authored skills; builtins remain owned by the bundled source and are never
@@ -996,7 +1018,14 @@ export class SkillService {
         }
         continue
       }
-      await this.linkMirror(group[0].folderName)
+      const skill = group[0]
+      if (!skill.mirrorEnabled) {
+        // User opted this skill out of the ~/.agents/skills projection — clear any
+        // mirror a previous reconcile (or the default-on install flow) left behind.
+        await this.unlinkMirror(skill.folderName)
+        continue
+      }
+      await this.linkMirror(skill.folderName)
     }
 
     const root = this.getMirrorRoot()

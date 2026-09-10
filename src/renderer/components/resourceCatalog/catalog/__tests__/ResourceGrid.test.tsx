@@ -12,11 +12,12 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
+const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock, updateSkillMirrorEnabledMock } = vi.hoisted(() => ({
   deleteGroupMock: vi.fn(),
   updateGroupMock: vi.fn(),
   updateAssistantMock: vi.fn(),
-  updateSkillGlobalEnabledMock: vi.fn()
+  updateSkillGlobalEnabledMock: vi.fn(),
+  updateSkillMirrorEnabledMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -355,6 +356,7 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   }),
   useSkillMutationsById: () => ({
     updateGlobalEnabled: updateSkillGlobalEnabledMock,
+    setMirrorEnabled: updateSkillMirrorEnabledMock,
     isUpdating: false
   })
 }))

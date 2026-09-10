@@ -4878,6 +4878,8 @@
   "settings.skills.tabs.builtin": "Ενσωματωμένα",
   "settings.skills.tabs.system": "Σύστημα",
   "settings.skills.title": "Δεξιότητες",
+  "settings.skills.mirrorToggle": "Συγχρονισμός της δεξιότητας {{name}} στον κατάλογο agents",
+  "settings.skills.mirrorToggleFailed": "Αποτυχία συγχρονισμού της δεξιότητας {{name}}",
   "settings.skills.toggleFailed": "Αποτυχία ενημέρωσης της καθολικής κατάστασης της δεξιότητας {{name}}",
   "settings.skills.viewSource": "Προβολή Πηγής",
   "settings.system.title": "Σύστημα",

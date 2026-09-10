@@ -1759,6 +1759,53 @@ describe('SkillService', () => {
       }
     })
 
+    it('setMirrorEnabled(false) unlinks the mirror and persists the preference; true restores it', async () => {
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false
+      })
+
+      // default-on: mirror present before the toggle
+      await skillService.linkMirror('skill-one')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+
+      const disabled = await skillService.setMirrorEnabled(SKILL_ID_1, false)
+      expect(disabled?.mirrorEnabled).toBe(false)
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one'))).rejects.toThrow()
+      expect(agentGlobalSkillService.getByFolderName('skill-one')?.mirrorEnabled).toBe(false)
+
+      const enabled = await skillService.setMirrorEnabled(SKILL_ID_1, true)
+      expect(enabled?.mirrorEnabled).toBe(true)
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+    })
+
+    it('reconcileSkills drops mirrors for skills opted out of the mirror', async () => {
+      vi.mocked(parseSkillMetadata).mockReset()
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false,
+        mirrorEnabled: false
+      })
+
+      // a mirror left behind by an earlier default-on install flow
+      await skillService.linkMirror('skill-one')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one'))).resolves.toBeUndefined()
+
+      await skillService.reconcileSkills()
+
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one'))).rejects.toThrow()
+    })
+
     it('uninstall removes the mirror entry', async () => {
       await seedSkills()
       vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)

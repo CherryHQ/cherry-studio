@@ -4878,6 +4878,8 @@
   "settings.skills.tabs.builtin": "Integradas",
   "settings.skills.tabs.system": "Sistema",
   "settings.skills.title": "Habilidades",
+  "settings.skills.mirrorToggle": "Sincronizar la habilidad {{name}} con el directorio agents",
+  "settings.skills.mirrorToggleFailed": "Error al sincronizar la habilidad {{name}}",
   "settings.skills.toggleFailed": "No se pudo actualizar el estado global de la habilidad {{name}}",
   "settings.skills.viewSource": "Ver fuente",
   "settings.system.title": "Sistema",

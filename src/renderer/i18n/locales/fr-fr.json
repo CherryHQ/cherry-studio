@@ -4878,6 +4878,8 @@
   "settings.skills.tabs.builtin": "Intégrées",
   "settings.skills.tabs.system": "Système",
   "settings.skills.title": "Compétences",
+  "settings.skills.mirrorToggle": "Synchroniser la compétence {{name}} vers le répertoire agents",
+  "settings.skills.mirrorToggleFailed": "Échec de la synchronisation de la compétence {{name}}",
   "settings.skills.toggleFailed": "Impossible de mettre à jour l’état global de la compétence {{name}}",
   "settings.skills.viewSource": "Afficher la source",
   "settings.system.title": "Système",

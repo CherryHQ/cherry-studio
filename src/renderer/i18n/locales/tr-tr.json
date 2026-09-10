@@ -4878,6 +4878,8 @@
   "settings.skills.tabs.builtin": "Yerleşik",
   "settings.skills.tabs.system": "Sistem",
   "settings.skills.title": "Beceriler",
+  "settings.skills.mirrorToggle": "{{name}} becerisini agents diziniyle eşitle",
+  "settings.skills.mirrorToggleFailed": "{{name}} becerisi eşitlemesi başarısız oldu",
   "settings.skills.toggleFailed": "{{name}} becerisinin genel durumu güncellenemedi",
   "settings.skills.viewSource": "Kaynağı Görüntüle",
   "settings.system.title": "Sistem",

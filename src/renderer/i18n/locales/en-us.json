@@ -4878,6 +4878,8 @@
   "settings.skills.tabs.builtin": "Built-in",
   "settings.skills.tabs.system": "System",
   "settings.skills.title": "Skills",
+  "settings.skills.mirrorToggle": "Sync skill {{name}} to agents directory",
+  "settings.skills.mirrorToggleFailed": "Failed to sync skill {{name}}",
   "settings.skills.toggleFailed": "Failed to update the global state of skill {{name}}",
   "settings.skills.viewSource": "View Source",
   "settings.system.title": "System",
