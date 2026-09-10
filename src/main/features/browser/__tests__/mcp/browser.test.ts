@@ -27,6 +27,7 @@ vi.mock('electron', async () => {
     let initialized = false
     Object.assign(mock, {
       setUserAgent: vi.fn(),
+      getZoomFactor: () => 1,
       getURL: () => url,
       getTitle: () => new URL(url).hostname,
       loadURL: vi.fn(async () => {
@@ -39,6 +40,13 @@ vi.mock('electron', async () => {
     })
     mock.debugger.sendCommand.mockImplementation(async (method, params: any) => {
       if (method === 'Page.enable' && !initialized) throw new Error('Fresh BrowserView has no document')
+      if (method === 'Page.getLayoutMetrics')
+        return {
+          cssContentSize: { x: 0, y: 0, width: 1000, height: 7000 },
+          cssVisualViewport: { pageX: 0, pageY: 0, clientWidth: 1000, clientHeight: 800 }
+        }
+      if (method === 'Page.createIsolatedWorld') return { executionContextId: 1 }
+      if (method === 'Page.captureScreenshot') return { data: Buffer.from(`tile:${params.clip.y}`).toString('base64') }
       if (method === 'Page.getFrameTree')
         return { frameTree: { frame: { id: snapshotFixture.frameId, loaderId: url } } }
       if (method === 'Page.navigate') {
@@ -61,6 +69,7 @@ vi.mock('electron', async () => {
         }
       if (method === 'DOMSnapshot.captureSnapshot') return snapshotFixture.dom
       if (method === 'Runtime.evaluate') {
+        if (params.expression === 'window.devicePixelRatio') return { result: { value: 1 } }
         if (params.expression === '({x:scrollX,y:scrollY,w:innerWidth,h:innerHeight})')
           return { result: { value: snapshotFixture.viewport } }
         if (params.expression === 'document.title') return { result: { value: new URL(url).hostname } }
@@ -509,6 +518,23 @@ describe('MCP browser on shared sessions', () => {
       const opened = await client.callTool({ name: 'open', arguments: { url: 'https://example.com' } })
       const data = JSON.parse((opened.content as Array<{ text: string }>)[0].text)
       expect(data).toMatchObject({ currentUrl: 'https://example.com/', title: 'example.com' })
+      const screenshot = await client.callTool({ name: 'screenshot', arguments: { tabId: data.tabId, fullPage: true } })
+      expect(screenshot.isError).toBe(false)
+      const content = screenshot.content as Array<{ type: string; text: string; data: string }>
+      expect(
+        content.filter((part) => part.type === 'image').map((part) => Buffer.from(part.data, 'base64').toString())
+      ).toEqual(['tile:0', 'tile:1440', 'tile:2880', 'tile:4320'])
+      const metadata = JSON.parse(content[0].text)
+      expect(metadata.totalTiles).toBe(5)
+      const remaining = await client.callTool({
+        name: 'screenshot',
+        arguments: { tabId: data.tabId, fullPage: true, cursor: metadata.nextCursor }
+      })
+      const rest = remaining.content as Array<{ type: string; text: string; data: string }>
+      expect(
+        rest.filter((part) => part.type === 'image').map((part) => Buffer.from(part.data, 'base64').toString())
+      ).toEqual(['tile:5760'])
+      expect(JSON.parse(rest[0].text).nextCursor).toBeUndefined()
       const result = await client.callTool({
         name: 'execute',
         arguments: { code: 'document.title', tabId: data.tabId }
