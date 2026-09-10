@@ -2,9 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions, LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-const prompt: LanguageModelV3CallOptions['prompt'] = [
-  { role: 'user', content: [{ type: 'text', text: 'Hello' }] }
-]
+const prompt: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]
 
 async function streamEvents(events: unknown[]): Promise<LanguageModelV3StreamPart[]> {
   const body = `${events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`
