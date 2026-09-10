@@ -99,6 +99,9 @@ export class AgentJobsService extends BaseService {
   private isShuttingDown = false
 
   protected async onInit(): Promise<void> {
+    // A restart re-runs onInit on the same instance after onStop set the gate,
+    // so clear it here or every event producer stays dead for the new lifetime.
+    this.isShuttingDown = false
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
 
     // Deleting an agent used to leave its schedules behind: nothing listened
