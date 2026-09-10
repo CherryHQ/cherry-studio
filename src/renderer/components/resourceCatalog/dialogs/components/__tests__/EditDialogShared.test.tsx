@@ -50,6 +50,11 @@ vi.mock('react-i18next', () => ({
         'library.config.prompt.vars.os': 'OS',
         'library.config.prompt.vars.time': 'Time',
         'library.config.prompt.vars.username': 'Username',
+        'library.config.prompt.runtime_context.configure': 'Configure runtime context prompt',
+        'library.config.prompt.runtime_context.description': 'Include environment details.',
+        'library.config.prompt.runtime_context.label': 'Runtime context',
+        'library.config.prompt.runtime_context.prompt_label': 'Runtime context prompt',
+        'library.config.prompt.runtime_context.reset': 'Restore preset',
         'message.copy.success': 'Copied'
       }
       return labels[key] ?? key
@@ -71,9 +76,11 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mockIpcRequest }
 }))
 
+import { RUNTIME_CONTEXT_PROMPT_PRESET } from '@shared/ai/prompts'
+
 import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
 import type { ResourceCreateWizardFormValues } from '../../create/types'
-import { PromptVariablesPopover } from '../EditDialogShared'
+import { persistRuntimeContextPrompt, PromptRuntimeContextToggle, PromptVariablesPopover } from '../EditDialogShared'
 
 beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = () => {}
@@ -227,5 +234,47 @@ describe('EditDialogShared', () => {
 
     expect(screen.queryByText('Knowledge one')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add knowledge base' })).toBeDisabled()
+  })
+
+  it('keeps the empty runtime-context sentinel when the displayed default is submitted unchanged', () => {
+    expect(persistRuntimeContextPrompt(RUNTIME_CONTEXT_PROMPT_PRESET)).toBe('')
+    expect(persistRuntimeContextPrompt(`  ${RUNTIME_CONTEXT_PROMPT_PRESET}  `)).toBe('')
+    expect(persistRuntimeContextPrompt('')).toBe('')
+    expect(persistRuntimeContextPrompt('Custom: {{datetime}}')).toBe('Custom: {{datetime}}')
+  })
+
+  it('does not freeze the displayed runtime-context default on the first matching change', async () => {
+    function Harness() {
+      const [prompt, setPrompt] = useState('')
+      return (
+        <PromptRuntimeContextToggle
+          checked
+          prompt={prompt}
+          onCheckedChange={() => undefined}
+          onPromptChange={setPrompt}
+          portalContainer={null}
+        />
+      )
+    }
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'Configure runtime context prompt' }))
+
+    const editor = await screen.findByRole('textbox', { name: 'Runtime context prompt' })
+    const reset = screen.getByRole('button', { name: 'Restore preset' })
+    expect(editor).toHaveValue(RUNTIME_CONTEXT_PROMPT_PRESET)
+    expect(reset).toBeDisabled()
+
+    fireEvent.change(editor, { target: { value: RUNTIME_CONTEXT_PROMPT_PRESET } })
+    expect(editor).toHaveValue(RUNTIME_CONTEXT_PROMPT_PRESET)
+    expect(reset).toBeDisabled()
+
+    fireEvent.change(editor, { target: { value: 'Custom: {{datetime}}' } })
+    expect(editor).toHaveValue('Custom: {{datetime}}')
+    expect(reset).toBeEnabled()
+
+    fireEvent.change(editor, { target: { value: RUNTIME_CONTEXT_PROMPT_PRESET } })
+    expect(editor).toHaveValue(RUNTIME_CONTEXT_PROMPT_PRESET)
+    expect(reset).toBeDisabled()
   })
 })

@@ -17,7 +17,12 @@ import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import {
+  type AgentRuntimeContextSnapshot,
+  buildAgentRuntimePrompt,
+  captureAgentRuntimeContextSnapshot,
+  resolveAgentTurnContextPrompt
+} from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -150,6 +155,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   /** Serializes push/pull reconciles so snapshot reads and live policy writes cannot land out of order. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
   private _usageCapture?: AgentSessionUsageCapture
+  private runtimeContext?: AgentRuntimeContextSnapshot
 
   readonly events = this.eventQueue
 
@@ -278,6 +284,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.contextWindow = injection.modelConfig.contextWindow
     this.reasoningEffort = this.input.reasoningEffort ?? 'default'
     this._usageCapture = injection.usageCapture
+    this.runtimeContext = captureAgentRuntimeContextSnapshot(agent, snapshot.model.name)
     this.workspacePath = workspacePath
     this.traceRecorder = new DshTraceRecorder(() => this.traceContext, {
       provider: injection.providerName,
@@ -452,14 +459,19 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Admission miss (unknown name) — dsh client semantics: the line stays ordinary prose.
       if (handled) return
     }
-    const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
+    const runtimeContext = await resolveAgentTurnContextPrompt({
+      snapshot: this.runtimeContext,
+      webSearchEnabled: !this.disabledTools.has(buildDshCherryToolName('cherry-tools', WEB_SEARCH_TOOL_NAME))
+    })
+    const wrapped = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     this.markTurnActive()
     // Before the request: the turn can start streaming before the socket result returns.
     this.adapter.beginTurn()
     try {
       await bridge.request('session/prompt', {
         sessionId: this.input.sessionId,
-        contentBlocks: [{ type: 'text', text: content }]
+        contentBlocks: [{ type: 'text', text: wrapped }],
+        ...(runtimeContext ? { systemPromptAppend: runtimeContext } : {})
       })
     } catch (error) {
       this.turnActive = false

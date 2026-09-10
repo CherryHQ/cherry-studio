@@ -17,7 +17,12 @@ import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
-import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
+import {
+  type AgentRuntimeContextSnapshot,
+  buildAgentRuntimePrompt,
+  captureAgentRuntimeContextSnapshot,
+  resolveAgentTurnContextPrompt
+} from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -79,6 +84,7 @@ import {
 import { loadPiAiCompat, loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
+import { createPiRuntimeContextExtension } from './runtimeContextExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = PI_NATIVE_BUILTIN_TOOLS.map((tool) => tool.name)
@@ -170,6 +176,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Steers accepted by pi but not yet observed as delivered. pi emits the delivery boundary as a
    *  user `message_start`; default steering mode is one-at-a-time, so the delivery drain is mode-aware. */
   private readonly pendingSteers: PendingSteer[] = []
+  private runtimeContext?: AgentRuntimeContextSnapshot
 
   readonly events = this.eventQueue
 
@@ -233,6 +240,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const injection = await resolveInjection(initialSnapshot)
     this.modelId = injection.modelId
     this._usageCapture = injection.usageCapture
+    this.runtimeContext = captureAgentRuntimeContextSnapshot(agent, initialSnapshot.model.name)
 
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
@@ -334,7 +342,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         additionalSkillPaths,
         extensionFactories: [
           createPiProviderExtension(runtimeProviderName, isolatedProviderConfig),
-          createPiApprovalExtension(approvalContext)
+          createPiApprovalExtension(approvalContext),
+          createPiRuntimeContextExtension(() =>
+            resolveAgentTurnContextPrompt({
+              snapshot: this.runtimeContext,
+              webSearchEnabled: this.isCherryWebSearchEnabled()
+            })
+          )
         ],
         // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
         // override runs; Cherry owns the agent persona.
@@ -479,6 +493,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       () => this.finishPromptRun(),
       (error) => this.finishPromptRun(error)
     )
+  }
+
+  private isCherryWebSearchEnabled(): boolean {
+    return !this.disabledTools.has(buildPiMcpToolName('cherry-tools', WEB_SEARCH_TOOL_NAME))
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {

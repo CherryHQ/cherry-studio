@@ -65,6 +65,7 @@ import {
   FieldLabelWithHelp,
   KnowledgeBaseField,
   type ModelLabels,
+  PromptRuntimeContextToggle,
   PromptVariablesPopover,
   setFormValues,
   TextInputField,
@@ -95,6 +96,8 @@ type AssistantEditFormValues = {
   maxTokens: number
   enableMaxTokens: boolean
   streamOutput: boolean
+  enableRuntimeContext: boolean
+  runtimeContextPrompt: string
   maxToolCalls: number
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
@@ -136,6 +139,8 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     maxTokens: form.maxTokens,
     enableMaxTokens: form.enableMaxTokens,
     streamOutput: form.streamOutput,
+    enableRuntimeContext: form.enableRuntimeContext,
+    runtimeContextPrompt: form.runtimeContextPrompt,
     maxToolCalls: form.maxToolCalls,
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
@@ -176,6 +181,8 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     maxTokens: values.maxTokens,
     enableMaxTokens: values.enableMaxTokens,
     streamOutput: values.streamOutput,
+    enableRuntimeContext: values.enableRuntimeContext,
+    runtimeContextPrompt: values.runtimeContextPrompt,
     maxToolCalls: values.maxToolCalls,
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
@@ -558,6 +565,7 @@ function AssistantPromptField({
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const prompt = form.watch('prompt')
+  const runtimeContextPrompt = form.watch('runtimeContextPrompt')
   const name = form.watch('name')
   const processedPrompt = usePromptProcessor({
     prompt,
@@ -582,32 +590,50 @@ function AssistantPromptField({
       onChange={handlePromptActionChange}
     />
   )
-
-  return (
+  const runtimeContextControl = (
     <FormField
       control={form.control}
-      name="prompt"
+      name="enableRuntimeContext"
       render={({ field }) => (
-        <PromptEditorField
-          label={
-            <FieldLabelWithHelp
-              label={t('library.config.prompt.label')}
-              helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
-              formLabel={false}
-            />
-          }
-          value={field.value}
-          onChange={handlePromptChange}
-          placeholder={t('library.config.prompt.placeholder')}
-          previewValue={processedPrompt || prompt}
-          resetPreviewKey={resetPreviewKey}
-          actions={promptActions}
-          fill
-          minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
-          maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+        <PromptRuntimeContextToggle
+          checked={field.value}
+          prompt={runtimeContextPrompt}
+          onCheckedChange={field.onChange}
+          onPromptChange={(value) => form.setValue('runtimeContextPrompt', value, { shouldDirty: true })}
+          portalContainer={portalContainer}
         />
       )}
     />
+  )
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <FormField
+        control={form.control}
+        name="prompt"
+        render={({ field }) => (
+          <PromptEditorField
+            label={
+              <FieldLabelWithHelp
+                label={t('library.config.prompt.label')}
+                helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+                formLabel={false}
+              />
+            }
+            value={field.value}
+            onChange={handlePromptChange}
+            placeholder={t('library.config.prompt.placeholder')}
+            previewValue={processedPrompt || prompt}
+            resetPreviewKey={resetPreviewKey}
+            labelAddon={runtimeContextControl}
+            editorActions={promptActions}
+            fill
+            minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
+            maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+          />
+        )}
+      />
+    </div>
   )
 }
 

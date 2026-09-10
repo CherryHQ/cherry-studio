@@ -83,6 +83,11 @@ function makeContext(overrides: Partial<Record<string, unknown>> = {}): Context 
   } as unknown as Context
 }
 
+function textOf(message: unknown): string | undefined {
+  const content = (message as { content?: Array<{ type: string; text?: string }> }).content
+  return content?.find((block) => block.type === 'text')?.text
+}
+
 const openParams = {
   sessionId: 'session-1',
   provider: 'deepseek',
@@ -208,13 +213,85 @@ describe('cherry bridge plugin', () => {
     expect(dispose).toHaveBeenCalledOnce()
   })
 
+  it('rejects a concurrent open before creating a second agent for the same session', async () => {
+    const host = await startHost()
+    let resolveCreate: ((value: { agent: Agent; dispose: () => Promise<void> }) => void) | undefined
+    const create = vi.fn(
+      () =>
+        new Promise<{ agent: Agent; dispose: () => Promise<void> }>((resolve) => {
+          resolveCreate = resolve
+        })
+    )
+    const agent = {
+      id: 'session-1',
+      session: { header: { cwd: '/new-workspace' } },
+      ctx: { on: vi.fn(), systemPrompt: { section: vi.fn() } }
+    } as unknown as Agent
+    const ctx = makeContext({ agents: { resume: vi.fn(), create, get: vi.fn(() => agent) } })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+
+    const firstOpen = host.request('session/open', { ...openParams, resume: false })
+    await vi.waitFor(() => expect(create).toHaveBeenCalledOnce())
+    await expect(host.request('session/open', { ...openParams, resume: false })).rejects.toThrow(
+      'session "session-1" is already open'
+    )
+    expect(create).toHaveBeenCalledOnce()
+
+    resolveCreate?.({ agent, dispose: vi.fn().mockResolvedValue(undefined) })
+    await expect(firstOpen).resolves.toEqual({})
+  })
+
+  it.each([
+    { name: 'created', resume: false },
+    { name: 'resumed', resume: true }
+  ])('disposes a $name agent when post-open setup fails', async ({ resume }) => {
+    const host = await startHost()
+    const dispose = vi.fn().mockResolvedValue(undefined)
+    const agent = {
+      id: 'session-1',
+      session: { header: { cwd: '/new-workspace' } },
+      ctx: {
+        on: vi.fn(),
+        systemPrompt: {
+          section: vi.fn(() => {
+            throw new Error('section setup failed')
+          })
+        }
+      }
+    } as unknown as Agent
+    const opened = { agent, dispose }
+    const ctx = makeContext({
+      agents: {
+        resume: vi.fn().mockResolvedValue(opened),
+        create: vi.fn().mockResolvedValue(opened),
+        get: vi.fn(() => agent)
+      }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+
+    await expect(host.request('session/open', { ...openParams, resume })).rejects.toThrow('section setup failed')
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
   it('routes a delegated subagent tool call through the root session', async () => {
     const host = await startHost()
     const register = vi.fn().mockReturnValue(() => {})
-    const rootAgent = { id: 'session-1', session: { header: { cwd: '/new-workspace' } } }
+    const rootAgent = {
+      id: 'session-1',
+      session: { header: { cwd: '/new-workspace' } },
+      ctx: { on: vi.fn(), systemPrompt: { section: vi.fn() } }
+    }
     const get = vi.fn((id: string) => (id === 'session-1' ? rootAgent : undefined))
     const ctx = makeContext({
-      agents: { resume: vi.fn(), create: vi.fn().mockResolvedValue(rootAgent), get },
+      agents: { resume: vi.fn(), create: vi.fn().mockResolvedValue({ agent: rootAgent }), get },
       tools: { register, guard: vi.fn() }
     })
     process.env[BRIDGE_SOCKET_ENV] = host.socketPath
@@ -351,6 +428,74 @@ describe('cherry bridge plugin', () => {
         ]
       })
     )
+  })
+
+  it('keeps the latest turn context in an agent-scoped system section without persisting it as user text', async () => {
+    const host = await startHost()
+    const followup = vi.fn()
+    const listeners = new Map<string, (payload: { message: unknown; turn: number }) => void>()
+    let section: { text: () => string } | undefined
+    const registerSection = vi.fn((candidate: { text: () => string }) => {
+      section = candidate
+      return () => undefined
+    })
+    const agent = {
+      id: 'session-1',
+      followup,
+      session: { header: { cwd: '/new-workspace' } },
+      ctx: {
+        on: vi.fn((event: string, listener: (payload: { message: unknown; turn: number }) => void) => {
+          listeners.set(event, listener)
+        }),
+        systemPrompt: { section: registerSection }
+      }
+    } as unknown as Agent
+    const get = vi.fn(() => agent)
+    const ctx = makeContext({
+      agents: { resume: vi.fn(), create: vi.fn().mockResolvedValue({ agent }), get },
+      systemPrompt: {}
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    await host.request('session/open', { ...openParams, resume: false })
+    await expect(host.request('session/open', { ...openParams, resume: false })).rejects.toThrow(
+      'session "session-1" is already open'
+    )
+
+    await host.request('session/prompt', {
+      sessionId: 'session-1',
+      contentBlocks: [{ type: 'text', text: 'first user message' }],
+      systemPromptAppend: 'Runtime one'
+    })
+    await host.request('session/prompt', {
+      sessionId: 'session-1',
+      contentBlocks: [{ type: 'text', text: 'second user message' }],
+      systemPromptAppend: 'Runtime two'
+    })
+
+    expect(section?.text()).toBe('')
+    listeners.get('agent/inbox/claimed')?.({ message: followup.mock.calls[0][0], turn: 1 })
+    expect(section?.text()).toBe('Runtime one')
+    expect(section?.text()).toBe('Runtime one')
+    listeners.get('agent/inbox/claimed')?.({ message: followup.mock.calls[1][0], turn: 2 })
+    expect(registerSection).toHaveBeenCalledOnce()
+    expect(section?.text()).toBe('Runtime two')
+
+    await host.request('session/prompt', {
+      sessionId: 'session-1',
+      contentBlocks: [{ type: 'text', text: 'third user message' }]
+    })
+
+    listeners.get('agent/inbox/claimed')?.({ message: followup.mock.calls[2][0], turn: 3 })
+    expect(section?.text()).toBe('')
+    expect(followup.mock.calls.map(([message]) => textOf(message))).toEqual([
+      'first user message',
+      'second user message',
+      'third user message'
+    ])
   })
 
   it('rejects an unknown method instead of answering it', async () => {

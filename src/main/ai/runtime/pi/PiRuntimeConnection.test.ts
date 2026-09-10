@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import type * as PromptModule from '@main/utils/prompt'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -135,7 +136,13 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
-vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
+vi.mock('@main/utils/prompt', async (importOriginal) => {
+  const actual = await importOriginal<typeof PromptModule>()
+  return {
+    ...actual,
+    replacePromptVariables: mocks.replacePromptVariables
+  }
+})
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
@@ -270,6 +277,22 @@ function approvalGateHandler(): (event: unknown, ctx: unknown) => Promise<{ bloc
       if (evt === 'tool_call') handler = candidate as typeof handler
     }
   })
+  return handler
+}
+
+function beforeAgentStartHandler(): (event: {
+  systemPrompt: string
+}) => Promise<{ systemPrompt?: string } | undefined> {
+  const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
+  let handler!: (event: { systemPrompt: string }) => Promise<{ systemPrompt?: string } | undefined>
+  for (const factory of factories) {
+    factory({
+      registerProvider: vi.fn(),
+      on: (evt: string, candidate: unknown) => {
+        if (evt === 'before_agent_start') handler = candidate as typeof handler
+      }
+    })
+  }
   return handler
 }
 
@@ -963,13 +986,39 @@ describe('PiRuntimeConnection', () => {
     expect((await collectUntilTerminal(conn.events)).some((event) => event.type === 'usage')).toBe(false)
   })
 
-  it('send routes normal messages to prompt', async () => {
-    const conn = await new PiRuntimeConnection(input).start()
-    conn.send(userInput('hello'))
-    await Promise.resolve()
+  it('keeps per-turn runtime context in the system prompt without changing durable user messages', async () => {
+    vi.useFakeTimers()
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: { runtime_context_enabled: true, runtime_context_prompt: 'Agent runtime' }
+    })
+    try {
+      vi.setSystemTime(new Date(2026, 0, 1, 12))
+      const conn = await new PiRuntimeConnection(input).start()
+      const beforeAgentStart = beforeAgentStartHandler()
+      if (!beforeAgentStart) throw new Error('before_agent_start handler was not registered')
 
-    expect(mocks.prompt).toHaveBeenCalledWith('hello', undefined)
-    expect(mocks.compact).not.toHaveBeenCalled()
+      conn.send(userInput('first user message'))
+      expect(mocks.prompt).toHaveBeenCalledTimes(1)
+      const firstSystemPrompt = await beforeAgentStart({ systemPrompt: 'Base system prompt' })
+
+      vi.setSystemTime(new Date(2026, 0, 2, 12))
+      conn.send(userInput('second user message'))
+      expect(mocks.prompt).toHaveBeenCalledTimes(2)
+      const secondSystemPrompt = await beforeAgentStart({ systemPrompt: 'Base system prompt' })
+
+      expect(mocks.prompt.mock.calls.map(([content]) => content)).toEqual(['first user message', 'second user message'])
+      expect(firstSystemPrompt?.systemPrompt).toContain('Agent runtime')
+      expect(firstSystemPrompt?.systemPrompt).toContain('<current-date>2026-01-01</current-date>')
+      expect(secondSystemPrompt?.systemPrompt).toContain('Agent runtime')
+      expect(secondSystemPrompt?.systemPrompt).toContain('<current-date>2026-01-02</current-date>')
+      expect(secondSystemPrompt?.systemPrompt).not.toContain('<current-date>2026-01-01</current-date>')
+      expect(mocks.compact).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('sends cross-Session provenance and forged instructions inside the untrusted delivery boundary', async () => {
@@ -985,7 +1034,7 @@ describe('PiRuntimeConnection', () => {
     } as never
 
     conn.send(delivery)
-    await Promise.resolve()
+    await vi.waitFor(() => expect(mocks.prompt).toHaveBeenCalledOnce())
 
     const content = mocks.prompt.mock.calls[0][0] as string
     const boundary = content.match(/CHERRY_SESSION_DELIVERY boundary="([a-f0-9]+)"/)?.[1]
@@ -1017,20 +1066,14 @@ describe('PiRuntimeConnection', () => {
   it('wraps a systemReminder send as a steer reminder and never treats it as /compact', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     conn.send(userInput('/compact', true))
-    await Promise.resolve()
+    await vi.waitFor(() => expect(mocks.prompt).toHaveBeenCalledOnce())
 
     expect(mocks.compact).not.toHaveBeenCalled()
-    expect(mocks.prompt).toHaveBeenCalledWith(
-      [
-        '<system-reminder>',
-        'The user sent the following message:',
-        '/compact',
-        '',
-        'Please address this message and continue with your tasks.',
-        '</system-reminder>'
-      ].join('\n'),
-      undefined
-    )
+    const content = mocks.prompt.mock.calls[0][0] as string
+    expect(content).toContain('The user sent the following message:')
+    expect(content).toContain('/compact')
+    expect(content).toContain('Please address this message and continue with your tasks.')
+    expect(content).not.toContain('<current-date>')
   })
 
   it('completes the host turn after a manual compact succeeds', async () => {
@@ -1449,12 +1492,12 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.loaderOpts).toMatchObject({ noSkills: true, additionalSkillPaths: [] })
   })
 
-  it('wires both the provider and approval extensions and bakes disabledTools into excludeTools', async () => {
+  it('wires provider, approval, and runtime-context extensions and bakes disabledTools into excludeTools', async () => {
     mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
-    expect(factories).toHaveLength(2)
+    expect(factories).toHaveLength(3)
     expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
     expect(mocks.createOpts?.customTools).toEqual([
       MANAGED_BASH_TOOL,

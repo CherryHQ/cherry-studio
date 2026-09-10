@@ -1,11 +1,19 @@
+import type * as PromptModule from '@main/utils/prompt'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/utils/prompt', () => ({
-  replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
-}))
+vi.mock('@main/utils/prompt', async (importOriginal) => {
+  const actual = await importOriginal<typeof PromptModule>()
+  return {
+    ...actual,
+    buildRuntimeContextPrompt: vi.fn(
+      async (_modelName: string, template?: string) => template ?? '## Runtime Context\n- Current date and time: now'
+    ),
+    replacePromptVariables: vi.fn(async (input: string) => input.replace('{{date}}', '2026-04-20'))
+  }
+})
 
 import { assembleSystemPrompt } from '../assembleSystemPrompt'
 
@@ -26,6 +34,7 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
       maxToolCalls: 20,
       enableMaxToolCalls: true,
       enableWebSearch: false,
+      enableRuntimeContext: false,
       customParameters: []
     },
     ...overrides
@@ -57,6 +66,34 @@ describe('assembleSystemPrompt', () => {
       model
     })
     expect(out).toBe('Today is 2026-04-20')
+  })
+
+  it('appends runtime context when enabled, even when the assistant prompt is empty', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({
+        prompt: '',
+        settings: { ...makeAssistant().settings, enableRuntimeContext: true }
+      }),
+      model
+    })
+
+    expect(out).toBe('## Runtime Context\n- Current date and time: now')
+  })
+
+  it('uses the assistant runtime context prompt override', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({
+        prompt: '',
+        settings: {
+          ...makeAssistant().settings,
+          enableRuntimeContext: true,
+          runtimeContextPrompt: 'Custom runtime context'
+        }
+      }),
+      model
+    })
+
+    expect(out).toBe('Custom runtime context')
   })
 
   it('returns just the assistant prompt when no tool_search is present, regardless of mcpMode', async () => {
