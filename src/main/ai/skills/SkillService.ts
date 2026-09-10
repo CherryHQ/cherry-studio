@@ -35,7 +35,7 @@ import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
 
-const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
+export const SKILL_FILE_PREVIEW_MAX_SIZE_BYTES = 2 * 1024 * 1024
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
 
@@ -52,7 +52,10 @@ const BUILTIN_VERSION_FILE = '.version'
  * state lives in the `agent_skill` join table.
  */
 /** Three-state SKILL.md read result: found / missing (no file) / error (exists but unreadable). */
-export type SkillMdReadState = { status: 'found'; content: string } | { status: 'missing' } | { status: 'error' }
+export type SkillMdReadState =
+  | { status: 'found'; content: string }
+  | { status: 'missing' }
+  | { status: 'error'; reason?: 'too-large' }
 
 export class SkillService {
   private readonly installer: SkillInstaller
@@ -115,6 +118,21 @@ export class SkillService {
     const root = path.resolve(this.getMirrorRoot())
     const target = path.resolve(this.getMirrorPath(folderName))
     if (target !== root && !target.startsWith(root + path.sep)) return { status: 'missing' }
+    // The descriptor is inlined into the system prompt, so guard the read itself: resolved paths
+    // must stay inside the mirror root (same symlink rule as readFile) and an oversized SKILL.md
+    // fails the turn before it is ever loaded (limit shared with file previews).
+    try {
+      const realRoot = await fs.promises.realpath(root)
+      for (const variant of ['SKILL.md', 'skill.md']) {
+        const realFile = await fs.promises.realpath(path.join(target, variant)).catch(() => null)
+        if (!realFile) continue
+        if (isOutsidePath(path.relative(realRoot, realFile))) return { status: 'missing' }
+        const { size } = await fs.promises.stat(realFile)
+        if (size > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) return { status: 'error', reason: 'too-large' }
+      }
+    } catch {
+      // An unreadable mirror root falls through to the shared three-state read.
+    }
     return this.readSkillMdState(target)
   }
 

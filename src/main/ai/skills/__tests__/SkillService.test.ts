@@ -64,7 +64,7 @@ vi.mock('../skillArchive', async (importOriginal) => {
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
 import * as skillPaths from '../skillPaths'
-import { SkillService } from '../SkillService'
+import { SKILL_FILE_PREVIEW_MAX_SIZE_BYTES, SkillService } from '../SkillService'
 
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
@@ -2320,6 +2320,26 @@ describe('SkillService', () => {
         status: 'found',
         content: 'dots are legal'
       })
+    })
+
+    it('fails the read before loading an oversized SKILL.md', async () => {
+      const skillDir = path.join(mirrorRoot, 'huge')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'x'.repeat(SKILL_FILE_PREVIEW_MAX_SIZE_BYTES + 1))
+
+      await expect(new SkillService().readSkillMdByFolderName('huge')).resolves.toEqual({
+        status: 'error',
+        reason: 'too-large'
+      })
+    })
+
+    it('rejects a skill directory that resolves outside the mirror root', async () => {
+      const outsideDir = path.join(path.dirname(mirrorRoot), 'outside-skill')
+      await fs.promises.mkdir(outsideDir, { recursive: true })
+      await fs.promises.writeFile(path.join(outsideDir, 'SKILL.md'), 'exfiltrated')
+      await fs.promises.symlink(outsideDir, path.join(mirrorRoot, 'escaped'), 'junction')
+
+      await expect(new SkillService().readSkillMdByFolderName('escaped')).resolves.toEqual({ status: 'missing' })
     })
 
     it('reports error when the descriptor exists but cannot be read', async () => {
