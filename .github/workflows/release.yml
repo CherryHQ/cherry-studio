@@ -33,6 +33,9 @@ jobs:
     name: Prepare release ref
     if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
