@@ -148,12 +148,50 @@ describe('Agent browser authority and control lifetime', () => {
     terminal.dispose()
   })
 
-  it('reveals an explicitly requested HTML file in the artifact profile', async () => {
+  it.each([true, false])('restores original throttling %s after the last execution releases it', (original) => {
+    fixture.guest.setBackgroundThrottling(original)
+    service.agentBrowser.attach(sessionId, 1, windowId)
+    const target = service.agentBrowser.get({ agentId, sessionId })!
+    const first = target.beginExecution()
+    const second = target.beginExecution()
+    expect(fixture.guest.getBackgroundThrottling()).toBe(false)
+    first.dispose()
+    first.dispose()
+    expect(fixture.guest.getBackgroundThrottling()).toBe(false)
+    second.dispose()
+    expect(fixture.guest.getBackgroundThrottling()).toBe(original)
+  })
+
+  it('restores throttling when the guest binding is revoked during execution', () => {
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    const target = service.agentBrowser.get({ agentId, sessionId })!
+    const execution = target.beginExecution()
+    service.agentBrowser.detach(sessionId, tabId, windowId)
+    expect(fixture.guest.getBackgroundThrottling()).toBe(true)
+    execution.dispose()
+    expect(() => target.beginExecution()).toThrow()
+    expect(fixture.guest.isDestroyed()).toBe(false)
+  })
+
+  it('releases execution throttling at the end of a tool while retaining the browser', async () => {
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    await controller.getSession(false, tabId)
+    expect(fixture.guest.getBackgroundThrottling()).toBe(false)
+    controller.finishTool()
+    expect(fixture.guest.getBackgroundThrottling()).toBe(true)
+    expect(service.agentBrowser.get({ agentId, sessionId })?.tabId).toBe(tabId)
+    await controller.getSession(false, tabId)
+    expect(fixture.guest.getBackgroundThrottling()).toBe(false)
+    await controller.dispose()
+    expect(fixture.guest.getBackgroundThrottling()).toBe(true)
+  })
+
+  it('ensures an explicitly requested HTML file in the artifact profile', async () => {
     service.agentBrowser.attach(sessionId, 1, windowId)
     const url = 'file:///workspace/local%20page.html'
     expect(controller.validateUrl(url)).toBe(url)
-    const pending = service.agentBrowser.reveal({ agentId, sessionId }, new AbortController().signal, url)
-    expect(application.get('IpcApiService').broadcast).toHaveBeenLastCalledWith('browser.pane.open_requested', {
+    const pending = service.agentBrowser.ensureGuest({ agentId, sessionId }, new AbortController().signal, url)
+    expect(application.get('IpcApiService').broadcast).toHaveBeenLastCalledWith('browser.guest.ensure_requested', {
       sessionId,
       url
     })

@@ -23,6 +23,7 @@ export class AgentBrowserController extends BrowserPageController {
   private closing?: Promise<void>
   private turnSubscription?: Disposable
   private cursorTurn?: string
+  private execution?: { target: AgentBrowserTarget; lease: Disposable }
   private readonly leaseMutex = new Mutex()
   private lease?: { target: AgentBrowserTarget; session: GuestSession; release: () => void }
 
@@ -50,8 +51,14 @@ export class AgentBrowserController extends BrowserPageController {
     return this.leaseMutex.runExclusive(async () => {
       this.assertAvailable()
       if (privateMode) throw new BrowserSessionError('not_allowed')
-      const target = tabId ? this.registry.get(this.context) : await this.registry.reveal(this.context, this.signal)
+      const target = tabId
+        ? this.registry.get(this.context)
+        : await this.registry.ensureGuest(this.context, this.signal)
       if (!target || (tabId && target.tabId !== tabId)) throw new BrowserSessionError('not_found')
+      if (this.execution?.target !== target) {
+        this.finishTool()
+        this.execution = { target, lease: target.beginExecution() }
+      }
       if (this.lease?.target !== target) {
         this.lease?.release()
         const session = this.service.acquire(target.guest, this.owner, { ownership: 'borrowed' })
@@ -125,7 +132,10 @@ export class AgentBrowserController extends BrowserPageController {
     if (privateMode || newTab) throw new BrowserSessionError('not_allowed')
     url = this.validateUrl(url)
     signal = AbortSignal.any(signal ? [this.signal, signal] : [this.signal])
-    const target = await this.registry.reveal(this.context, signal, url)
+    const target = await this.registry.ensureGuest(this.context, signal, url)
+    application
+      .get('IpcApiService')
+      .send(target.windowId, 'browser.pane.open_requested', { sessionId: this.context.sessionId })
     const { session, tabId } = await this.getSession(false, target.tabId)
     const options = {
       deadline: Date.now() + Math.min(Math.max(timeout, 1), 30_000),
@@ -164,9 +174,15 @@ export class AgentBrowserController extends BrowserPageController {
       ? [{ tabId: target.tabId, url: sanitizeSnapshotUrl(target.guest.getURL()), title: target.guest.getTitle() }]
       : []
   }
+  finishTool(): void {
+    this.execution?.lease.dispose()
+    this.execution = undefined
+  }
+
   dispose(): Promise<void> {
     this.turnSubscription?.dispose()
     this.turnSubscription = undefined
+    this.finishTool()
     this.abort.abort(new BrowserSessionError('debugger_unavailable'))
     this.lease?.release()
     return (this.closing ??= this.leaseMutex.runExclusive(() => {

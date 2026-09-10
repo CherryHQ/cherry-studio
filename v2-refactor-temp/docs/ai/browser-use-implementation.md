@@ -14,12 +14,13 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 
 | Layer | Base | Status and scope |
 |---|---|---|
-| PR1 / A — `browser-use-engine` | `webview-agent-pane-browser` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
+| Stable surface — `webview-stable-surface` | `webview-agent-pane-browser` | Stable guest composition and presentation anchors outside Activity |
+| PR1 / A — `browser-use-engine` | `webview-stable-surface` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
 | PR2 / B — `browser-use-mcp` | `browser-use-engine` | Implemented on this branch: MCP migration, snapshot/action tools, dialog/download results |
 | PR3 / C1–C2 — `browser-use-inspection` | PR B | Open in [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139): inspection and same-document ref recovery |
 | Existing Agent browser integration — `agent-browser-integration` | PR3 | Open in [#20166](https://github.com/CherryHQ/cherry-studio/pull/20166): visible-page control, ordinary browsing, history/import, settings and skill (§12) |
 | PR7 — `webview-shared-host` | `agent-browser-integration` | Shared renderer guest host and navigation state for MiniApp and Browser (§14) |
-| Cursor feedback — `browser-use-cursor` | `webview-shared-host` | Visible Agent pointer feedback; background execution remains deferred (#20335) |
+| Cursor feedback — `browser-use-cursor` | `webview-shared-host` | Agent pointer feedback follows the stable guest; hidden presentation skips visual waits (§12.1) |
 | C3–C5 follow-ups | PR3 | WebMCP deferred while Electron stays at 41.8.0; retained-tab freezing and WebContentsView remain independent |
 | D work packages | Integrated browser PR | Import work (§10) now ships with its visible-page consumer and history; no independent PR D |
 
@@ -906,9 +907,12 @@ Keep one visible browser page per Agent Session in this delivery.
 
 Extend `BrowserSessionService` with a main-owned binding from Agent Session to the attached guest:
 `{ agentId, sessionId, tabId, guest, windowId, abort }`. The guest determines its validated profile,
-and each fresh opaque `tabId` is the binding generation. It changes when the UI replaces or resumes
-the guest. Activity suspension revokes control while retaining the page as a history destination
-until native guest destruction. History reopening uses the existing conversation navigation service
+and each fresh opaque `tabId` is the binding generation. It changes when the guest is replaced,
+not when its presentation resumes. `AgentBrowserRuntimeHost` mounts beside the page Activities in
+`TabsProvider`; its session resources own the guest, native event listeners and binding effects.
+`WebviewBrowser` supplies a presentation anchor and view-only overlays. Hiding a pane or switching
+Activities removes the anchor without detaching the guest or keeping the chat subtree active.
+Session deletion, closing the owning app tabs, or closing the host renderer releases the resource. History reopening uses the existing conversation navigation service
 to focus the owning session before revealing and navigating its browser. This is runtime state,
 not a SQLite record.
 The owning app renderer registers/unregisters via typed IpcApi. Main validates the sender, guest's
@@ -918,8 +922,24 @@ Only non-authoritative display summaries belong in Shared Cache.
 The MCP instance receives trusted `agentId`/`sessionId` from the runtime and resolves the binding on
 each call. Never accept a raw `webContentsId`, profile or owner from model arguments. Missing, stale
 or foreign targets fail; do not fall back to another session or create a hidden MCP tab. Opening a
-browser may request that the owning renderer reveal/mount its pane, then wait with cancellation and
-a deadline for the verified binding. A headless/unavailable host returns an explicit unavailable result.
+browser requests `browser.guest.ensure_requested` at the stable renderer host and waits with cancellation
+and a deadline for a verified binding. `browser.pane.open_requested` is a separate presentation request;
+tool execution does not depend on a visible pane. A renderer with no declared session owner cannot
+create the guest; an unavailable host still returns a bounded error.
+
+`WebviewSurface` keeps a stable portal parent and the last viewport. Hidden presentation uses opacity
+and inert input, preserving Chromium compositor eligibility. Geometry updates come from resize,
+ancestor layout mutations and scroll events, coalesced into a frame; there is no idle animation loop.
+During a tool, the binding shares a reference-counted execution lease that temporarily disables
+background throttling and restores the previous setting after the last caller. Screenshots additionally
+subscribe to native frames only until their CDP command settles, including timeout and cancellation.
+No screenshot scrolling, input synthesis, Electron upgrade or persistent frame capture is introduced.
+
+Stack placement: the generic surface follows the pane foundation; screenshot frame capture belongs
+to PR2, where screenshot commands enter the engine. Session ownership and ensure/presentation IPC
+belong to the Agent integration layer. Shared-host and cursor layers adapt above it. File-tree mirror
+and watcher lifetimes are a separate change based on main, reusing `DirectoryTreeManager`; browser
+resources and directory trees do not share a generic resource manager.
 
 ### 12.2 Ordinary browsing and profile boundaries
 

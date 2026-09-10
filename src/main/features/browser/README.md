@@ -119,5 +119,9 @@ uses a host PNG and eight response/damping springs in one requestAnimationFrame 
 scoot along their travel axis; long moves follow a cubic Bezier curve with distance-scaled response.
 Position convergence acknowledges arrival independently of decorative settling. A delayed, bounded
 thinking sway ends with a spring fade, then the loop stops. Reduced motion skips movement and sway;
-blur, inactive presentation, navigation and unmount cancel animation immediately. Background execution and visibility tools remain
-deferred under [#20335](https://github.com/CherryHQ/cherry-studio/issues/20335).
+blur, inactive presentation, navigation and unmount cancel animation immediately. Explicit visibility tools remain deferred under [#20335](https://github.com/CherryHQ/cherry-studio/issues/20335).
+Agent guests are owned by a stable renderer runtime outside page Activity boundaries. Pane visibility
+only supplies an anchor; it does not attach or detach control. Guest creation and pane presentation
+use separate IPC events. Per-tool execution leases temporarily disable background throttling and
+restore its previous value after the last execution. Webview screenshots retain a native frame
+subscription for the bounded CDP command, releasing it on completion, cancellation or timeout.

@@ -65,7 +65,7 @@ export class BrowserServer {
           if (this.closing) throw new BrowserSessionError('debugger_unavailable')
           this.controller.assertAvailable?.()
           const signal = this.controller.signal ? AbortSignal.any([extra.signal, this.controller.signal]) : extra.signal
-          const invoke = () => {
+          const invoke = async () => {
             signal.throwIfAborted()
             if (
               controller &&
@@ -75,7 +75,11 @@ export class BrowserServer {
             )
               throw new BrowserSessionError('not_allowed')
             this.controller.assertAvailable?.()
-            return toolHandlers[name](this.controller, args, signal)
+            try {
+              return await toolHandlers[name](this.controller, args, signal)
+            } finally {
+              this.controller.finishTool?.()
+            }
           }
           const request = controller ? this.paneRequests.runExclusive(invoke) : invoke()
           this.requests.add(request)
