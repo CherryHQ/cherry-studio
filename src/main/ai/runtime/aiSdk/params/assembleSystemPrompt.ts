@@ -74,6 +74,11 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
  * of silently dropping the instructions — the error reaches the UI through the stream's
  * pre-start error funnel.
  */
+/** Folder names may contain characters meaningful to the pseudo-XML wrapper — escape them. */
+function escapeXmlAttribute(value: string): string {
+  return value.replace(/[<>&"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
+}
+
 async function buildSkillInstructionsSection(folderNames: readonly string[]): Promise<string> {
   const blocks: string[] = []
   let totalBytes = 0
@@ -95,7 +100,7 @@ async function buildSkillInstructionsSection(folderNames: readonly string[]): Pr
         `The attached skills together exceed the ${SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MB limit. Remove some of them.`
       )
     }
-    blocks.push(`<skill name="${folderName}">\n${state.content.trim()}\n</skill>`)
+    blocks.push(`<skill name="${escapeXmlAttribute(folderName)}">\n${state.content.trim()}\n</skill>`)
   }
   return `<attached-skills>\nThe user attached the following skills to this conversation. Follow the instructions inside each block.\n${blocks.join('\n')}\n</attached-skills>`
 }
