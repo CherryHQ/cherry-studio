@@ -126,6 +126,7 @@ import { meta as pulseMeta } from './pulse/meta'
 import { meta as qiniuMeta } from './qiniu/meta'
 import { meta as queritMeta } from './querit/meta'
 import { meta as qwenMeta } from './qwen/meta'
+import { meta as qwencloudMeta } from './qwencloud/meta'
 import { meta as radeonCloudMeta } from './radeon-cloud/meta'
 import { meta as recraftMeta } from './recraft/meta'
 import { meta as relaceMeta } from './relace/meta'
@@ -288,6 +289,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   qiniu: qiniuMeta,
   querit: queritMeta,
   qwen: qwenMeta,
+  qwencloud: qwencloudMeta,
   'radeon-cloud': radeonCloudMeta,
   recraft: recraftMeta,
   relace: relaceMeta,
