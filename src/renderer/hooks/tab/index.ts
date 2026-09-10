@@ -16,4 +16,5 @@ export {
   useTabsContext
 } from './useTabsContext'
 export { type TabSelfVisuals, useTabSelfVisuals } from './useTabSelfVisuals'
+export { useTabSessionSweep } from './useTabSessionSweep'
 export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheValueTypes'

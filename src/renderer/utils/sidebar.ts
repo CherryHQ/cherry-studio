@@ -26,7 +26,13 @@ export interface SidebarConversationRoute {
 interface SidebarAppDefinition<Id extends SidebarFavorite = SidebarFavorite> {
   id: Id
   routePrefix: string
-  /** Url to open when no tab exists yet (defaults to `routePrefix`). */
+  /**
+   * Url to open when no tab exists yet (defaults to `routePrefix`).
+   *
+   * By convention both this and `routePrefix` are page paths — pathname only, no search or hash.
+   * The value doubles as the navigation target and as the page identity a tab is compared against,
+   * so a search param here would be written into the tab url and silently stop matching it.
+   */
   resolveUrl?: (ctx: SidebarNavContext) => string
   /** Highlight the sidebar entry only on the exact base route, not on sub-routes owned by the app. */
   exactRouteFocus?: boolean
@@ -39,6 +45,45 @@ function getConversationSearchParamFromUrl(url: string, name: string): string | 
   } catch {
     return undefined
   }
+}
+
+/**
+ * The page a url points at. Search and hash carry payload — which conversation to render
+ * (`?topicId=`), which tab owns the state (`?tabSession=`) — not which page you are on.
+ *
+ * A url that is not an app route (a webview tab carries an absolute site url) has no page path
+ * and is returned untouched, so it can never match a route.
+ */
+function pagePathOf(url: string): string {
+  try {
+    const parsed = new URL(url, 'app://x')
+    return parsed.protocol === 'app:' ? parsed.pathname : url
+  } catch {
+    return url
+  }
+}
+
+/**
+ * Whether two urls point at the same page.
+ *
+ * Use this to ask "am I already here?". "Would writing this url change anything?" is the other
+ * question, and it compares urls exactly.
+ */
+export function isSamePage(url: string, otherUrl: string): boolean {
+  return pagePathOf(url) === pagePathOf(otherUrl)
+}
+
+/**
+ * Whether a url's page is `page` itself or one nested under it.
+ *
+ * Pages nest by path segment, so the relation is compared segment by segment rather than by string
+ * prefix: `/app/chatroom` is not under `/app/chat`.
+ */
+function isPageUnder(url: string, page: string): boolean {
+  const segments = pagePathOf(url).split('/')
+  return pagePathOf(page)
+    .split('/')
+    .every((segment, index) => segments[index] === segment)
 }
 
 /**
@@ -114,12 +159,12 @@ export function getSidebarApp(id: SidebarAppId): SidebarApp | undefined {
 }
 
 /**
- * A tab belongs to an app when its url is the route itself, a path sub-route,
- * or a query-param instance of it. Shared by the sidebar dispatcher and the
- * conversation-navigation boundary so the matcher lives in exactly one place.
+ * A tab belongs to an app when its page is the app's route or nests under it — a conversation
+ * instance carries its id in the search, which does not change the page it is on. Shared by the
+ * sidebar dispatcher and the conversation-navigation boundary so the matcher lives in one place.
  */
 export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
-  return url === app.routePrefix || url.startsWith(`${app.routePrefix}/`) || url.startsWith(`${app.routePrefix}?`)
+  return isPageUnder(url, app.routePrefix)
 }
 
 /**

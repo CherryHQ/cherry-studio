@@ -18,6 +18,7 @@ const translateTextMock =
     ) => Promise<string>
   >()
 vi.mock('@renderer/utils/translate/translateText', () => ({
+  createTranslateStreamId: () => 'translate:test',
   translateText: (...args: any[]) => translateTextMock(...(args as Parameters<typeof translateTextMock>))
 }))
 
