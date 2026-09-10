@@ -1,7 +1,7 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from '../buildCompactReplay'
+import { buildCompactReplay, evictOldestReplayEntry, mergeDeltaPayload, splitDeltaPayload } from '../buildCompactReplay'
 
 describe('buildCompactReplay', () => {
   it('merges consecutive text-delta chunks with the same id', () => {
@@ -256,7 +256,10 @@ describe('buildCompactReplay', () => {
 
     it('drops orphan tool-input-delta whose start was evicted', () => {
       const result = buildCompactReplay([
-        { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'orphan' } as UIMessageChunk },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'orphan' } as UIMessageChunk
+        },
         { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
         { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } as UIMessageChunk }
       ])
@@ -265,6 +268,56 @@ describe('buildCompactReplay', () => {
         { topicId: 'topic-1', chunk: { type: 'text-start', id: 'p1' } },
         { topicId: 'topic-1', chunk: { type: 'text-delta', id: 'p1', delta: 'ok' } }
       ])
+    })
+  })
+
+  describe('evictOldestReplayEntry', () => {
+    it('spares a still-open tool-input-start and evicts the next oldest entry', () => {
+      const buffer = [
+        {
+          topicId: 't',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+        },
+        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
+        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'hi' } as UIMessageChunk }
+      ]
+
+      evictOldestReplayEntry(buffer, new Set(['tc1']))
+
+      expect(buffer).toEqual([
+        {
+          topicId: 't',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
+        },
+        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'hi' } }
+      ])
+    })
+
+    it('evicts a tool-input-start whose tool already completed', () => {
+      const buffer = [
+        {
+          topicId: 't',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+        },
+        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk }
+      ]
+
+      evictOldestReplayEntry(buffer, new Set())
+
+      expect(buffer).toEqual([{ topicId: 't', chunk: { type: 'text-start', id: 'p1' } }])
+    })
+
+    it('falls back to the oldest entry when every entry is pinned', () => {
+      const buffer = [
+        {
+          topicId: 't',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+        }
+      ]
+
+      evictOldestReplayEntry(buffer, new Set(['tc1']))
+
+      expect(buffer).toEqual([])
     })
   })
 
