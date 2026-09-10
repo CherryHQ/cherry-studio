@@ -115,5 +115,9 @@ binding disposal invalidate pending input. Actions re-resolve their element afte
 and clicks check for layout changes caused by real hover before pressing. Actual input stays on CDP;
 the overlay never intercepts user input or appears in guest screenshots. Matching runtime output
 boundaries and controller release hide the cursor without closing the borrowed page. Renderer motion
-uses local MotionValues and stops when hidden. Background execution and visibility tools remain
+uses a host PNG and eight response/damping springs in one requestAnimationFrame loop. Short moves
+scoot along their travel axis; long moves follow a cubic Bezier curve with distance-scaled response.
+Position convergence acknowledges arrival independently of decorative settling. A delayed, bounded
+thinking sway ends with a spring fade, then the loop stops. Reduced motion skips movement and sway;
+blur, inactive presentation, navigation and unmount cancel animation immediately. Background execution and visibility tools remain
 deferred under [#20335](https://github.com/CherryHQ/cherry-studio/issues/20335).

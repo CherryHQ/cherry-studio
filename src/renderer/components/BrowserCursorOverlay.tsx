@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
+import cursorImage from '@renderer/assets/images/browser-cursor.png?inline'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { BrowserCursorArrival, BrowserCursorState } from '@shared/types/browserCursor'
 import type { WebviewTag } from 'electron'
-import { MousePointer2 } from 'lucide-react'
-import { animate, motion, useMotionValue, useReducedMotion } from 'motion/react'
 import { useEffect, useRef } from 'react'
+
+import { BrowserCursorAnimation } from './BrowserCursorAnimation'
 
 const logger = loggerService.withContext('BrowserCursorOverlay')
 
@@ -19,17 +20,12 @@ export function BrowserCursorOverlay({
   guest: WebviewTag
   active: boolean
 }) {
-  const x = useMotionValue(0)
-  const y = useMotionValue(0)
-  const opacity = useMotionValue(0)
-  const pulse = useMotionValue(1)
-  const reducedMotion = useReducedMotion()
+  const position = useRef<HTMLDivElement>(null)
+  const sprite = useRef<HTMLImageElement>(null)
+  const animation = useRef<BrowserCursorAnimation | undefined>(undefined)
+  const reducedMotion = useRef(false)
   const sequence = useRef(0)
   const pending = useRef<BrowserCursorArrival | undefined>(undefined)
-  const movement = useRef<{ stop: () => void } | undefined>(undefined)
-  const feedback = useRef<{ stop: () => void } | undefined>(undefined)
-  const fade = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const positioned = useRef(false)
 
   const acknowledge = () => {
     if (!pending.current) return
@@ -39,67 +35,49 @@ export function BrowserCursorOverlay({
       logger.debug('Cursor arrival target is unavailable', { error })
     })
   }
-  const stop = () => {
-    movement.current?.stop()
-    feedback.current?.stop()
-    clearTimeout(fade.current)
-  }
-  const hide = () => {
-    stop()
-    opacity.set(0)
-    acknowledge()
-  }
 
   useIpcOn('browser.cursor.state', (state: BrowserCursorState) => {
     if (state.sessionId !== sessionId || state.tabId !== tabId || state.sequence <= sequence.current) return
     sequence.current = state.sequence
-    stop()
     acknowledge()
     if (state.kind === 'hidden') {
-      opacity.set(0)
+      animation.current?.hide()
       return
     }
     if (state.kind === 'move' && state.animate)
       pending.current = { sessionId, tabId, sequence: state.sequence, documentId: state.documentId }
     const bounds = guest.getBoundingClientRect()
-    if (!active || document.hidden || bounds.width <= 0 || bounds.height <= 0) {
-      hide()
-      return
-    }
-    const targetX = state.x * state.scale
-    const targetY = state.y * state.scale
-    const finish = () => {
+    if (!active || document.hidden || bounds.width <= 0 || bounds.height <= 0 || !animation.current) {
+      animation.current?.hide(true)
       acknowledge()
-      fade.current = setTimeout(() => {
-        feedback.current = animate(opacity, 0, { duration: reducedMotion ? 0 : 0.15 })
-      }, 900)
-    }
-    opacity.set(1)
-    if (state.kind === 'pressed') {
-      pulse.set(reducedMotion ? 1 : 0.8)
-      feedback.current = animate(pulse, 1, { duration: reducedMotion ? 0 : 0.18 })
-    }
-    if (!positioned.current || !state.animate || reducedMotion || (x.get() === targetX && y.get() === targetY)) {
-      x.set(targetX)
-      y.set(targetY)
-      positioned.current = true
-      finish()
       return
     }
-    const startX = x.get()
-    const startY = y.get()
-    movement.current = animate(0, 1, {
-      duration: Math.min(0.18, Math.max(0.08, Math.hypot(targetX - startX, targetY - startY) / 2500)),
-      ease: 'easeOut',
-      onUpdate: (progress) => {
-        x.set(startX + (targetX - startX) * progress)
-        y.set(startY + (targetY - startY) * progress)
-      },
-      onComplete: finish
-    })
+    animation.current.move(
+      state.x * state.scale,
+      state.y * state.scale,
+      bounds.width,
+      bounds.height,
+      state.animate,
+      reducedMotion.current,
+      state.kind === 'pressed'
+    )
   })
 
   useEffect(() => {
+    if (!position.current || !sprite.current) return
+    const controller = new BrowserCursorAnimation(position.current, sprite.current, acknowledge)
+    animation.current = controller
+    const hide = () => {
+      controller.hide(true)
+      acknowledge()
+    }
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const updateMotion = () => {
+      reducedMotion.current = media.matches
+      hide()
+    }
+    updateMotion()
+    media.addEventListener('change', updateMotion)
     void ipcApi.request('browser.cursor.present', { sessionId, tabId, presented: active }).catch((error) => {
       logger.debug('Cursor presentation target is unavailable', { error })
     })
@@ -107,15 +85,19 @@ export function BrowserCursorOverlay({
     observer.observe(guest)
     guest.addEventListener('did-start-navigation', hide)
     window.addEventListener('blur', hide)
+    document.addEventListener('visibilitychange', hide)
     return () => {
       hide()
+      controller.dispose()
+      animation.current = undefined
       observer.disconnect()
+      media.removeEventListener('change', updateMotion)
       guest.removeEventListener('did-start-navigation', hide)
       window.removeEventListener('blur', hide)
+      document.removeEventListener('visibilitychange', hide)
       void ipcApi.request('browser.cursor.present', { sessionId, tabId, presented: false }).catch(() => undefined)
     }
-    // Animation state is owned by this binding, not by each incoming event.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The animation belongs to this guest binding, not to individual IPC events.
   }, [sessionId, tabId, guest, active])
 
   return (
@@ -123,11 +105,17 @@ export function BrowserCursorOverlay({
       aria-hidden="true"
       data-testid="browser-cursor-overlay"
       className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
-      <motion.div className="absolute top-0 left-0" style={{ x, y, opacity }}>
-        <motion.div className="-translate-x-1 -translate-y-1" style={{ scale: pulse, transformOrigin: '4px 4px' }}>
-          <MousePointer2 className="size-8 fill-primary stroke-primary-foreground drop-shadow-sm" strokeWidth={1.5} />
-        </motion.div>
-      </motion.div>
+      <div ref={position} className="absolute top-0 left-0 opacity-0 will-change-transform">
+        <img
+          ref={sprite}
+          src={cursorImage}
+          alt=""
+          draggable={false}
+          width={46}
+          height={48}
+          className="-top-1 -left-[23px] absolute max-w-none origin-[23px_4px] will-change-transform"
+        />
+      </div>
     </div>
   )
 }

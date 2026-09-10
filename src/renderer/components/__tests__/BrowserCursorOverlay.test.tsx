@@ -5,16 +5,11 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { BrowserCursorState } from '@shared/types/browserCursor'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
-import type * as Motion from 'motion/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BrowserCursorOverlay } from '../BrowserCursorOverlay'
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn().mockResolvedValue(undefined) }, useIpcOn: vi.fn() }))
-vi.mock('motion/react', async (importOriginal) => ({
-  ...(await importOriginal<typeof Motion>()),
-  useReducedMotion: () => true
-}))
 
 describe('Agent cursor presentation', () => {
   const identity = { sessionId: 'session', tabId: 'tab' }
@@ -37,6 +32,7 @@ describe('Agent cursor presentation', () => {
   })
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -61,9 +57,7 @@ describe('Agent cursor presentation', () => {
     expect(overlay).toHaveAttribute('aria-hidden', 'true')
     // Pointer transparency and transform coordinates are the overlay's input/geometry contract.
     expect(overlay).toHaveClass('pointer-events-none')
-    await waitFor(() =>
-      expect(overlay.firstElementChild).toHaveStyle({ transform: 'translateX(120px) translateY(60px)' })
-    )
+    await waitFor(() => expect(overlay.firstElementChild).toHaveStyle({ transform: 'translate3d(120px, 60px, 0)' }))
   })
 
   it('ignores another binding and does not revive a cursor after a newer hide', async () => {
