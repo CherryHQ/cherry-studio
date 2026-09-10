@@ -1,7 +1,11 @@
 import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
 import { PI_TOOL_CALL_TOOL_NAME, PI_TOOL_DESCRIBE_TOOL_NAME } from '@shared/ai/piBuiltinTools'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { tryFileUrlToPath } from '@shared/utils/file'
 
 import type { CherryMessagePart } from './types/message'
+import { readCherryMeta } from './types/uiParts'
 
 export const HIDDEN_MARKER_PART_TYPES: ReadonlySet<string> = new Set([
   'step-start',
@@ -99,6 +103,25 @@ function hasCherryTransport(part: CherryMessagePart): boolean {
   return typeof (cherry as Record<string, unknown>).transport === 'string'
 }
 
+// dsh runtime-native builtins the renderer renders through the standard agent
+// tool-call card (see chooseTool's runtime-builtin branch). `pwsh` is dsh's
+// Windows identity for `bash`; the renderer maps both, so both count here.
+const DSH_RUNTIME_TOOL_NAMES: ReadonlySet<string> = new Set([...DSH_BUILTIN_TOOLS.map((tool) => tool.name), 'pwsh'])
+
+// Mirrors the renderer's file-addressability contract (see fileHandleFromPart
+// + the `file` case in MessagePartsRenderer): images render from any URL, but
+// a non-image file only renders when it addresses managed storage (a cherry
+// fileEntryId) or a `file://` URL that decodes to an absolute path. A remote
+// URL or filename-only part renders nothing.
+function isAddressableFilePart(part: CherryMessagePart): boolean {
+  if (part.type !== 'file') return false
+  if (readCherryMeta(part)?.fileEntryId) return true
+  const url = (part as unknown as { url?: string }).url?.trim()
+  if (!url) return false
+  const path = tryFileUrlToPath(url)
+  return path !== undefined && AbsoluteFilePathSchema.safeParse(path).success
+}
+
 function isRenderableToolName(part: CherryMessagePart, name: string): boolean {
   const trimmed = name.trim()
   if (!trimmed) return false
@@ -113,6 +136,7 @@ function isRenderableToolName(part: CherryMessagePart, name: string): boolean {
     const canonical = CHERRY_RUNTIME_TOOL_RENDER_NAMES.get(trimmed) ?? trimmed
     if (canonical !== trimmed) return KNOWN_RENDERABLE_TOOL_NAMES.has(canonical)
     if (trimmed === PI_TOOL_CALL_TOOL_NAME || trimmed === PI_TOOL_DESCRIBE_TOOL_NAME) return true
+    if (DSH_RUNTIME_TOOL_NAMES.has(trimmed)) return true
   }
   return KNOWN_RENDERABLE_TOOL_NAMES.has(trimmed)
 }
@@ -125,8 +149,9 @@ export function isRenderablePart(part: CherryMessagePart): boolean {
   if (isHiddenMarkerPart(part)) return false
   if (part.type === 'text' || part.type === 'reasoning') return !!part.text?.trim()
   if (part.type === 'file') {
-    const p = part as unknown as { url?: string }
-    return !!p.url?.trim()
+    const p = part as unknown as { url?: string; mediaType?: string }
+    if (p.mediaType?.startsWith('image/')) return !!p.url?.trim()
+    return isAddressableFilePart(part)
   }
   if (part.type === 'data-code') {
     const data = (part as unknown as { data?: { content?: string } }).data

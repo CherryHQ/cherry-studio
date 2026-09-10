@@ -53,6 +53,54 @@ describe('isRenderablePart tool names', () => {
     expect(isRenderablePart(part({ type: 'tool-Bash' }))).toBe(false)
     expect(isRenderablePart(part({ type: 'tool-Bash', toolCallId: '  ' }))).toBe(false)
   })
+
+  it('treats dsh runtime-native builtins as visible agent content', () => {
+    for (const name of [
+      'read_image',
+      'get_goal',
+      'create_goal',
+      'update_goal',
+      'send_message',
+      'interrupt_agent',
+      'list_agents'
+    ]) {
+      expect(isRenderablePart(part({ type: `tool-${name}`, toolCallId: 'call-1', ...cherryTransport }))).toBe(true)
+    }
+  })
+
+  it('does not treat dsh runtime-native names as visible without cherry transport metadata', () => {
+    expect(isRenderablePart(part({ type: 'tool-read_image', toolCallId: 'call-1' }))).toBe(false)
+    expect(isRenderablePart(part({ type: 'tool-send_message', toolCallId: 'call-1' }))).toBe(false)
+  })
+})
+
+describe('isRenderablePart file addressability', () => {
+  it('treats managed-storage and file-URL parts as visible', () => {
+    expect(isRenderablePart(part({ type: 'file', mediaType: 'text/markdown', url: 'file:///tmp/note.md' }))).toBe(true)
+    expect(
+      isRenderablePart(
+        part({
+          type: 'file',
+          mediaType: 'text/markdown',
+          providerMetadata: { cherry: { fileEntryId: '01a066b1-2d81-76ca-a828-018c02068f88' } }
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('rejects filename-only and remote-URL parts that render nothing', () => {
+    expect(isRenderablePart(part({ type: 'file', mediaType: 'text/markdown', filename: 'note.md' }))).toBe(false)
+    expect(
+      isRenderablePart(part({ type: 'file', mediaType: 'text/markdown', url: 'https://example.com/note.md' }))
+    ).toBe(false)
+  })
+
+  it('renders image parts from any URL but not without one', () => {
+    expect(isRenderablePart(part({ type: 'file', mediaType: 'image/png', url: 'https://example.com/img.png' }))).toBe(
+      true
+    )
+    expect(isRenderablePart(part({ type: 'file', mediaType: 'image/png' }))).toBe(false)
+  })
 })
 
 describe('hasRenderableContent', () => {
