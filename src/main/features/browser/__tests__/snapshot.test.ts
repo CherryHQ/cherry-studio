@@ -196,7 +196,7 @@ describe('browser snapshots', () => {
     if (href !== undefined) {
       const key = raw.dom!.strings.push('href') - 1
       const value = href === '' ? -1 : raw.dom!.strings.push(href) - 1
-      raw.dom!.documents[0].nodes.attributes[2] = [key, value]
+      raw.dom!.documents[0].nodes.attributes![2] = [key, value]
     }
     const result = await session.snapshot({ full: true, maxChars: 6000 })
     const button = result.snapshot.nodes.find((node) => node.backendNodeId === 3)!
