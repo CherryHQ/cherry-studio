@@ -144,6 +144,10 @@ interface FilePreviewPluginProps {
 }
 ```
 
+A plugin that honours `onSelectionReference` also sets `supportsSelectionReference: true` on its
+descriptor. Hosts use `canProduceSelectionReference(filePath)` (exported from this module) to decide
+whether to offer selection capture for a file at all.
+
 The preview component must use a default export, read the file, and compose the module's internal layout:
 
 ```tsx
@@ -200,13 +204,24 @@ This composition lets the same plugin work in embedded and tab hosts without for
 `SelectionReference` (`@renderer/types/selectionReference`) — an anchor into the document's own structural
 coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixel coordinates.
 
-- A plugin that owns a view → structure inverse mapping calls the callback with the current reference, and with
-  `null` when the selection clears. Plugins without such a mapping ignore the prop entirely.
+- A plugin that owns a view → structure inverse mapping declares `supportsSelectionReference` and, while
+  the callback is present, lets the user pick one addressable unit (docx body paragraph, pptx slide, pdf page,
+  xlsx cell range) and reports it; it reports `null` when the pick is cleared. The callback's presence is the
+  capture switch: the embedding surface passes it only while its picker is on, so a plugin never needs a
+  separate mode flag. Plugins without such a mapping ignore the prop entirely.
 - The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
 - The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
   surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
   `fileStamp`), which keeps holding one safe.
+- The embedding surface, not the host, reports `null` when it turns capture off (it stops passing the
+  callback, so the plugin cannot). Text selection is never the capture gesture: most previews render
+  inside the app-wide `user-select: none` (the PDF viewer is the exception — it opts back in with
+  `.selectable` so its text layer stays copyable), and a block pick does not depend on it either way.
+- Known limitation: a click on an in-document jump link picks nothing. The PDF and PPTX renderers both
+  navigate from their own listener before the pick handler runs — pdf.js binds an internal destination
+  with `link.onclick`, and the PPTX renderer's in-deck links are `role="link"` spans that stop
+  propagation — so those links jump instead. External hyperlinks are intercepted and pick normally.
 - Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture). A reference
   travels into the conversation as message text, so the only thing that acts on it is the `office-transform`
   skill, and the staleness rule lives in that skill's prompt: it tells the model to `stat` the file, compare
