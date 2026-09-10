@@ -50,6 +50,8 @@ export interface CallOverrides {
   tools?: ToolSet
   toolChoice?: ToolChoice<ToolSet>
   providerOptions?: ProviderOptions
+  /** Vendor fields injected after AI SDK schema serialization. */
+  rawBodyParameters?: Record<string, unknown>
 }
 
 /**

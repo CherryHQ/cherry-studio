@@ -620,6 +620,12 @@ function buildAgentOptions(
 
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   const callOverrides = request.callOverrides
+  if (callOverrides?.rawBodyParameters && Object.keys(callOverrides.rawBodyParameters).length > 0) {
+    sdkConfig.providerSettings.fetch = createCustomParamsFetch(
+      sdkConfig.providerSettings.fetch ?? globalThis.fetch,
+      callOverrides.rawBodyParameters
+    )
+  }
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
   const effectiveProviderOptions = applyFastModeToProviderOptions(
