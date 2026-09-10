@@ -119,7 +119,8 @@ export const replacePromptVariables = async (
   }
 
   if (assistantName && userSystemPrompt.includes('{{assistant_name}}')) {
-    userSystemPrompt = userSystemPrompt.replace(/{{assistant_name}}/g, assistantName)
+    // Function replacer keeps `$&`-style tokens in user-chosen names literal.
+    userSystemPrompt = userSystemPrompt.replace(/{{assistant_name}}/g, () => assistantName)
   }
 
   return userSystemPrompt
