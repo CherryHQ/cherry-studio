@@ -7,13 +7,6 @@ export function successResponse(text: string): CallToolResult {
   }
 }
 
-export function imageResponse(base64: string, mimeType = 'image/png'): CallToolResult {
-  return {
-    content: [{ type: 'image', data: base64, mimeType }],
-    isError: false
-  }
-}
-
 export function errorResponse(error: Error | string): CallToolResult {
   const message = error instanceof Error ? error.message : error
   return {
