@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
@@ -144,6 +145,21 @@ function buildStructuredConversation(messages: StructuredMessage[]): string {
 }
 
 export class TopicNamingService {
+  canAutoNameAgentSession(sessionId: string): boolean {
+    const session = this.getAgentSession(sessionId, 'initial')
+    if (!session || session.isNameManuallyEdited) return false
+    if (isDefaultAgentSessionName(session.name)) return true
+
+    try {
+      const firstUserMessage = agentSessionMessageService.getFirstUserMessage(sessionId)
+      const firstUserText = firstUserMessage ? getMainTextContentFromMessageData(firstUserMessage.data) : undefined
+      return canAutoRenameAgentSessionName(session.name, firstUserText)
+    } catch (error) {
+      logger.debug('Failed to inspect agent session auto-naming eligibility', { sessionId, error: error as Error })
+      return false
+    }
+  }
+
   maybeRenameFromFirstUserMessage(topicId: string, userMessageId: string): void {
     try {
       const topic = this.getTopic(topicId)
@@ -273,7 +289,7 @@ export class TopicNamingService {
    *
    * @param agentId    Agent id, used for failure logging context only.
    * @param sessionId  Cherry Studio session id.
-   * @param userText   Plain text of the persisted user turn, extracted by
+   * @param userText   Plain text of the successful user turn, extracted by
    *                   AgentSessionRuntimeService from the saved user message.
    * @param finalMessage Accumulated assistant UIMessage for this turn.
    */
@@ -303,7 +319,9 @@ export class TopicNamingService {
       const session = this.getAgentSession(sessionId, 'initial')
       if (!session || !session.agentId) return
       if (session.isNameManuallyEdited) return
-      if (!canAutoRenameAgentSessionName(session.name, userText)) return
+      const firstUserMessage = agentSessionMessageService.getFirstUserMessage(sessionId)
+      const firstUserText = firstUserMessage ? getMainTextContentFromMessageData(firstUserMessage.data) : undefined
+      if (!canAutoRenameAgentSessionName(session.name, firstUserText)) return
       const uniqueModelId = this.resolveNamingModelId()
 
       const structuredConversation: StructuredMessage[] = [
@@ -321,7 +339,7 @@ export class TopicNamingService {
       const nextName = sanitizeConversationTitle(title)
       const latestSession = this.getAgentSession(sessionId, 'latest')
       if (latestSession?.isNameManuallyEdited) return
-      if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
+      if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, firstUserText)) return
       if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
       agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
