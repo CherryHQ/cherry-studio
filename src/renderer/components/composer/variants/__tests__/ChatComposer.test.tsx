@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import type * as UseProviderModule from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -16,8 +17,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
+import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
-import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
   createTopic: vi.fn(),
@@ -58,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
+  registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
@@ -264,7 +266,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
     toolsRegistry: {
-      registerLaunchers: vi.fn(() => vi.fn())
+      registerLaunchers: vi.fn((key: string, _entries: unknown[], footerActions: ComposerToolFooterAction[] = []) => {
+        mocks.registeredFooterActions.set(key, footerActions)
+        return vi.fn()
+      })
     },
     triggers: {
       getLaunchers: vi.fn(() => []),
@@ -282,11 +287,11 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion
 }))
 
-vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
-  const actual = await importOriginal<typeof ComposerSpeedControlModule>()
+vi.mock('@renderer/components/ModelSpeedControl', async (importOriginal) => {
+  const actual = await importOriginal<typeof ModelSpeedControlModule>()
   return {
     ...actual,
-    ComposerSpeedControl: (props: {
+    ModelSpeedControl: (props: {
       model: Model
       reasoningEffort: string
       serviceTier: string
@@ -645,6 +650,7 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    mocks.registeredFooterActions.clear()
     MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
@@ -1131,13 +1137,13 @@ describe('ChatComposer', () => {
       disabled: false,
       searchAliases: ['clear context']
     })
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual([
-      'composer:customize-toolbar',
-      'composer:clear-context'
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:clear-context'])
+    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')?.map((item) => item.id)).toEqual([
+      'composer:customize-toolbar'
     ])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
 
     const clearContextSwitch = screen.getByRole('switch', { name: 'chat.input.new.context' })
@@ -1172,7 +1178,10 @@ describe('ChatComposer', () => {
     const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
       name: 'chat.input.new.context'
     })
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:customize-toolbar'])
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([])
+    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')?.map((item) => item.id)).toEqual([
+      'composer:customize-toolbar'
+    ])
     const draftBefore = mocks.surfaceProps?.text
 
     fireEvent.click(clearContextButton)
@@ -1716,7 +1725,7 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     const newTopicSwitch = screen.getByRole('switch', { name: 'chat.conversation.new' })
     expect(newTopicSwitch).toBeChecked()
@@ -1737,7 +1746,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems?.map((item) => item.id)).toEqual(['composer:new-conversation'])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('chat.conversation.new')
   })

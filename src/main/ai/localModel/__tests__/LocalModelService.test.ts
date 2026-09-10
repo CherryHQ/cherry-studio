@@ -10,10 +10,11 @@ import type { InstallState } from '../catalog/types'
 const EMBEDDING = 'qwen3-embedding-0.6b'
 const OCR = 'pp-ocrv6-medium'
 
-const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused } = vi.hoisted(() => ({
+const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused, sweepStaleDownloads } = vi.hoisted(() => ({
   scanBundleFiles: vi.fn(),
   isArtifactReady: vi.fn(),
-  removeArtifactIfUnused: vi.fn()
+  removeArtifactIfUnused: vi.fn(),
+  sweepStaleDownloads: vi.fn()
 }))
 
 const { terminateOcrRuntime } = vi.hoisted(() => ({
@@ -42,6 +43,7 @@ vi.mock('../installation/LocalModelStorageService', () => ({
     isArtifactSupported: () => true,
     isBundleSupported: () => true,
     removeArtifactIfUnused,
+    sweepStaleDownloads,
     bundleInstallDir: () => '/install',
     bundleRootDir: () => '/install',
     pendingBundleFiles: () => [],
@@ -49,7 +51,8 @@ vi.mock('../installation/LocalModelStorageService', () => ({
   }
 }))
 
-const { localModelService } = await import('../LocalModelService')
+const { LocalModelService } = await import('../LocalModelService')
+const localModelService = new LocalModelService()
 
 const INSTALLED: InstallState = { status: 'installed' }
 const ABSENT: InstallState = { status: 'not_installed' }
@@ -64,8 +67,48 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   isArtifactReady.mockReturnValue(true)
   removeArtifactIfUnused.mockResolvedValue(true)
+  sweepStaleDownloads.mockResolvedValue(undefined)
   onDisk({})
   vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined)
+})
+
+describe('lifecycle', () => {
+  it('sweeps every bundle on init and keeps going when one sweep fails', async () => {
+    sweepStaleDownloads.mockRejectedValueOnce(new Error('EACCES'))
+
+    await expect(localModelService._doInit()).resolves.toBeUndefined()
+
+    const swept = sweepStaleDownloads.mock.calls.map((call) => call[0].id).sort()
+    expect(swept).toEqual([EMBEDDING, OCR].sort())
+  })
+
+  it('cancels an in-flight download on stop instead of leaving it to die with the process', async () => {
+    const download = localModelService.download(EMBEDDING, () => new Promise(() => {}))
+
+    await localModelService._doStop()
+
+    await expect(download).resolves.toBe('cancelled')
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY)?.[EMBEDDING]).toEqual({
+      status: 'not_downloaded',
+      percent: 0
+    })
+  })
+
+  it('waits for an in-flight removal on stop so the bundle directory is not left half-deleted', async () => {
+    onDisk({ [OCR]: INSTALLED })
+    let finishRemoval!: () => void
+    vi.mocked(fs.promises.rm).mockReturnValueOnce(new Promise<void>((resolve) => (finishRemoval = resolve)))
+    const removal = localModelService.remove(OCR)
+
+    let stopped = false
+    const stop = localModelService._doStop().then(() => (stopped = true))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(stopped).toBe(false)
+
+    finishRemoval()
+    await stop
+    await expect(removal).resolves.toEqual({ removed: true })
+  })
 })
 
 describe('status snapshots', () => {
@@ -94,15 +137,15 @@ describe('LocalModelService readiness', () => {
   it('answers for the capability, not for a specific bundle', () => {
     onDisk({ [OCR]: INSTALLED })
 
-    expect(localModelService.isReady('ocr')).toBe(true)
-    expect(localModelService.isReady('embedding')).toBe(false)
+    expect(localModelService.isCapabilityReady('ocr')).toBe(true)
+    expect(localModelService.isCapabilityReady('embedding')).toBe(false)
   })
 
   it('is false while the shared runtime the model needs is missing', () => {
     onDisk({ [OCR]: INSTALLED })
     isArtifactReady.mockReturnValue(false)
 
-    expect(localModelService.isReady('ocr')).toBe(false)
+    expect(localModelService.isCapabilityReady('ocr')).toBe(false)
   })
 })
 

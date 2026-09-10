@@ -1,6 +1,5 @@
 import {
   Button,
-  EditableNumber,
   FormControl,
   FormField,
   FormItem,
@@ -9,6 +8,7 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
+  InputNumber,
   Switch,
   TabsContent,
   Textarea
@@ -832,16 +832,17 @@ function HeartbeatSettingsField({
                 {t('library.config.agent.field.heartbeat_interval.label')}
               </FormLabel>
               <FormControl>
-                <EditableNumber
+                <InputNumber
                   min={1}
                   max={1440}
                   step={1}
-                  precision={0}
-                  align="start"
-                  changeOnBlur
                   className="h-9 w-full"
                   value={field.value || null}
-                  onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)}
+                  // Emptying the field is how you retype the interval, not how you
+                  // turn the heartbeat off — the switch above does that.
+                  onBlur={(v) => {
+                    if (v !== null) field.onChange(v)
+                  }}
                 />
               </FormControl>
               <FormMessage className="col-start-2" />

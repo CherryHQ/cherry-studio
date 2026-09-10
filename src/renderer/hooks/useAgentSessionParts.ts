@@ -18,6 +18,7 @@ import {
   useWriteInfiniteCache
 } from '@renderer/data/hooks/useDataApi'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -29,6 +30,7 @@ const PAGE_SIZE = 50
 
 interface CachedAgentSessionMessage {
   liveParts: CherryMessagePart[] | undefined
+  turnOrigin: AutonomousTurnOrigin | undefined
   message: CherryUIMessage
   modelId: AgentSessionMessageEntity['modelId']
   role: AgentSessionMessageEntity['role']
@@ -149,6 +151,16 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [loadedMessageIds]
   )
   const flowParts = useSharedCacheSelector(flowPartsKeys, selectFlowParts)
+  const turnOriginKeys = useMemo(
+    () => loadedMessageIds.map((messageId) => AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, messageId)),
+    [loadedMessageIds, sessionId]
+  )
+  const selectTurnOrigins = useCallback(
+    (values: readonly (AutonomousTurnOrigin | null | undefined)[]) =>
+      Object.fromEntries(loadedMessageIds.map((messageId, index) => [messageId, values[index] ?? undefined])),
+    [loadedMessageIds]
+  )
+  const turnOrigins = useSharedCacheSelector(turnOriginKeys, selectTurnOrigins)
 
   const messageProjectionRef = useRef<
     | {
@@ -170,6 +182,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       const nextById = new Map<string, CachedAgentSessionMessage>()
       const nextMessages = sourceRows.map((row) => {
         const liveParts = flowParts[row.id]
+        const turnOrigin = turnOrigins[row.id]
         const cached = previousById?.get(row.id)
         if (
           cached?.sessionId === row.sessionId &&
@@ -177,16 +190,19 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
           cached.role === row.role &&
           cached.status === row.status &&
           cached.modelId === row.modelId &&
-          cached.liveParts === liveParts
+          cached.liveParts === liveParts &&
+          cached.turnOrigin === turnOrigin
         ) {
           nextById.set(row.id, cached)
           return cached.message
         }
 
         const message = toAgentSessionUIMessage(row)
-        const projectedMessage = liveParts ? { ...message, parts: liveParts } : message
+        const withOrigin = turnOrigin ? { ...message, metadata: { ...message.metadata, turnOrigin } } : message
+        const projectedMessage = liveParts ? { ...withOrigin, parts: liveParts } : withOrigin
         nextById.set(row.id, {
           liveParts,
+          turnOrigin,
           message: projectedMessage,
           modelId: row.modelId,
           role: row.role,
@@ -209,7 +225,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       }
       return stableMessages
     },
-    [flowParts, projectionOwnerToken]
+    [flowParts, turnOrigins, projectionOwnerToken]
   )
 
   const messages = useMemo<CherryUIMessage[]>(() => {

@@ -34,13 +34,38 @@ const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: tru
 function userMessage(parts: CherryMessagePart[]): CherryUIMessage {
   return { id: 'm1', role: 'user', parts } as CherryUIMessage
 }
-const fileWithEntry = (id: string, filename: string, mediaType: string): CherryMessagePart =>
+const fileWithEntry = (
+  id: string,
+  filename: string,
+  mediaType: string,
+  fileTokenSourceId?: string
+): CherryMessagePart =>
   ({
     type: 'file',
     url: `file:///x/${filename}`,
     mediaType,
     filename,
-    providerMetadata: { cherry: { fileEntryId: id } }
+    providerMetadata: { cherry: { fileEntryId: id, ...(fileTokenSourceId ? { fileTokenSourceId } : {}) } }
+  }) as CherryMessagePart
+
+const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMessagePart =>
+  ({
+    type: 'text',
+    text,
+    providerMetadata: {
+      cherry: {
+        composer: {
+          version: 1,
+          tokens: fileTokenSourceIds.map((sourceId, index) => ({
+            id: `file:${sourceId}`,
+            kind: 'file',
+            label: `${sourceId}.png`,
+            index,
+            textOffset: 0
+          }))
+        }
+      }
+    }
   }) as CherryMessagePart
 
 /** One token per character, so a test's `cap` reads directly as a character cap. */
@@ -90,12 +115,50 @@ describe('prepareChatMessages — routing', () => {
     expect(extractMock).not.toHaveBeenCalled()
   })
 
-  it('OCRs a non-vision image into inline text', async () => {
+  it('OCRs a legacy non-vision image without composer source metadata', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockResolvedValueOnce('ocr body')
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
     expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
+  })
+
+  it('OCRs a modern non-vision image whose composer token matches its source id', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('ocr body')
+
+    const [out] = await run(
+      [composerText('attached', 'source-1'), fileWithEntry('e1', 'a.png', 'image/png', 'source-1')],
+      NONE
+    )
+
+    expect(textOf(out.parts)).toEqual(['attached', 'Attached file "a.png":\nocr body'])
+    expect(ocrMock).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a modern managed image whose composer token no longer references its source id', async () => {
+    const [out] = await run(
+      [composerText('text only', 'different-source'), fileWithEntry('e1', 'stale.png', 'image/png', 'stale-source')],
+      NONE
+    )
+
+    expect(out.parts).toEqual([composerText('text only', 'different-source')])
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
+  it('does not OCR a stale retained attachment when the effective messages are text-only', async () => {
+    const message = userMessage([{ type: 'text', text: 'text only' } as CherryMessagePart])
+
+    const out = await prepareChatMessages([message] as UIMessage[], {
+      attachments: [{ fileEntryId: 'stale-entry', handle: 'stale.png', displayName: 'stale.png' }],
+      nativeSupport: NONE,
+      isToolCapable: true
+    })
+
+    expect(out).toEqual([message])
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
   })
 
   it('rejects before native materialization when OCR finds no text', async () => {
@@ -350,5 +413,21 @@ describe('collectFileAttachments', () => {
   it('ignores file parts without a fileEntryId', () => {
     const legacy = { type: 'file', url: 'file:///x/legacy.pdf', mediaType: 'application/pdf' } as CherryMessagePart
     expect(collectFileAttachments([userMessage([legacy])] as UIMessage[])).toEqual([])
+  })
+
+  it('ignores orphaned modern file parts but keeps matching and legacy attachments', () => {
+    const messages = [
+      userMessage([
+        composerText('attached', 'live-source'),
+        fileWithEntry('live', 'live.png', 'image/png', 'live-source'),
+        fileWithEntry('stale', 'stale.png', 'image/png', 'stale-source'),
+        fileWithEntry('legacy', 'legacy.png', 'image/png')
+      ])
+    ] as UIMessage[]
+
+    expect(collectFileAttachments(messages)).toEqual([
+      { fileEntryId: 'live', handle: 'live.png', displayName: 'live.png' },
+      { fileEntryId: 'legacy', handle: 'legacy.png', displayName: 'legacy.png' }
+    ])
   })
 })

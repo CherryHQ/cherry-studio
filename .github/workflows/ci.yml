@@ -98,6 +98,13 @@ jobs:
           # The PR merge commit and its parents are enough for changeset comparison.
           fetch-depth: ${{ github.event_name == 'pull_request' && '2' || '1' }}
 
+      - name: Lint GitHub Actions workflows
+        uses: docker://rhysd/actionlint:1.7.12
+        env:
+          SHELLCHECK_OPTS: --severity=error
+        with:
+          args: -color
+
       - name: Prepare base reference
         if: github.event_name == 'pull_request'
         env:

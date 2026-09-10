@@ -652,7 +652,7 @@ export class ClaudeCodeStreamAdapter {
       }
       // Parentless content with no turn open is Claude waking the main agent after background work.
       // Translate that SDK protocol into the runtime-neutral receive-only contract.
-      this.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
+      this.statusSink.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
       this.beginTurn()
       this.autonomousTurn = true
     }

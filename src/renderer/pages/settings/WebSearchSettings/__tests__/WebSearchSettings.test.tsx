@@ -4,6 +4,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -257,12 +258,12 @@ describe('WebSearchSettings', () => {
     const { rerender } = render(<WebSearchSettings />)
     openAdvancedSettings()
 
-    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(5)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('5')
 
     MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(20)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('20')
   })
 
   it('keeps dirty max-result drafts when maxResults changes externally', () => {
@@ -272,12 +273,34 @@ describe('WebSearchSettings', () => {
     fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
       target: { value: '10' }
     })
-    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(10)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('10')
 
     MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(10)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('10')
+  })
+
+  // The field holds its own draft while focused, so a reset that does not take the
+  // focus away is undone the moment the caret leaves.
+  it('resets max results even while the field has focus', async () => {
+    const user = userEvent.setup()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.max_results', 20)
+    const { rerender } = render(<WebSearchSettings />)
+    openAdvancedSettings()
+
+    await user.click(screen.getByLabelText('settings.tool.websearch.search_max_result.label'))
+    await user.click(screen.getByLabelText('common.reset'))
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(5)
+    })
+    rerender(<WebSearchSettings />)
+
+    await user.tab()
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(5)
+    })
   })
 
   it('marks max-result drafts clean after a successful commit', async () => {
@@ -297,17 +320,16 @@ describe('WebSearchSettings', () => {
     rerender(<WebSearchSettings />)
 
     await waitFor(() => {
-      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(20)
+      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('20')
     })
   })
 
   it.each([
     ['1000', 100],
-    ['-3', 1],
-    ['abc', 1],
-    ['3.9', 3]
-  ])('clamps max-result draft %s to %s on commit', async (value, expected) => {
-    render(<WebSearchSettings />)
+    ['3.9', 3],
+    ['-3', 1]
+  ])('normalizes max-result draft %s to %s on commit', async (value, expected) => {
+    const { rerender } = render(<WebSearchSettings />)
     openAdvancedSettings()
 
     fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
@@ -317,12 +339,32 @@ describe('WebSearchSettings', () => {
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(expected)
-      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(expected)
     })
+
+    // The mocked preference hook does not re-render on write, so the field is
+    // re-read explicitly to check what it now shows.
+    rerender(<WebSearchSettings />)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(String(expected))
+  })
+
+  // Filtering the offending characters out instead would rewrite what was
+  // pasted: "abc" would reset the setting to 1.
+  it('rejects a non-numeric pasted max-result draft and keeps the saved value', async () => {
+    render(<WebSearchSettings />)
+    openAdvancedSettings()
+
+    const field = screen.getByLabelText('settings.tool.websearch.search_max_result.label')
+    const saved = MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')
+
+    fireEvent.change(field, { target: { value: 'abc' } })
+    fireEvent.blur(field)
+
+    expect(field).toHaveValue(String(saved))
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(saved)
   })
 
   it('resets max results to the default value when customized', async () => {
-    render(<WebSearchSettings />)
+    const { rerender } = render(<WebSearchSettings />)
     openAdvancedSettings()
 
     expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
@@ -336,12 +378,15 @@ describe('WebSearchSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(10)
     })
 
+    rerender(<WebSearchSettings />)
     fireEvent.click(screen.getByRole('button', { name: 'common.reset' }))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(5)
-      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(5)
     })
+
+    rerender(<WebSearchSettings />)
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue('5')
   })
 
   it('syncs clean blacklist drafts from external preference changes', () => {

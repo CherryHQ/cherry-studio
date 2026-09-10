@@ -13,14 +13,11 @@ vi.mock('@application', async () => {
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
     if (name === 'OcrInferenceService') return { recognize: recognizeMock }
+    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   return result
 })
-
-vi.mock('@main/ai/localModel', () => ({
-  localModelService: { isReady: isLocalModelReadyMock }
-}))
 
 import { localPaddleocrImageToTextHandler } from '../imageToText/handler'
 

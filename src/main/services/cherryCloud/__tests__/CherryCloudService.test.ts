@@ -1,3 +1,6 @@
+import { createHmac } from 'node:crypto'
+
+import type { Model } from '@shared/data/types/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,7 +23,12 @@ const mocks = vi.hoisted(() => ({
   savedDevice: null as { publicKey: string; privateKey: string } | null,
   savedSession: null as Record<string, unknown> | null,
   sessionClear: vi.fn(),
-  sessionReplace: vi.fn()
+  sessionReplace: vi.fn(),
+  showMainWindow: vi.fn()
+}))
+
+vi.mock('systeminformation', () => ({
+  uuid: vi.fn(async () => ({ os: 'abcdef12123456789abc1234567890ab', hardware: '', macs: [] }))
 }))
 
 vi.mock('@data/dataApiDataChange', () => ({
@@ -70,6 +78,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'ApiGatewayService') return { start: mocks.gatewayStart }
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
+      if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
       throw new Error(`Unexpected service: ${name}`)
     }
   }
@@ -94,7 +103,12 @@ vi.mock('../CherryCloudLoopbackCallback', () => ({
   CherryCloudLoopbackCallback: { open: mocks.loopbackOpen }
 }))
 
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
+import { uuid } from 'systeminformation'
+
 import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
+
+const resolveRegistryModels = vi.spyOn(providerRegistryService, 'resolveModels')
 
 const authorizationId = '00000000-0000-4000-8000-000000000001'
 const sessionId = '00000000-0000-4000-8000-000000000010'
@@ -136,21 +150,24 @@ const cloudModelCatalog = {
       display_name: 'DeepSeek Free',
       endpoint_type: 'anthropic-messages',
       context_window: 128_000,
-      max_output_tokens: 8_192
+      max_output_tokens: 8_192,
+      capabilities: ['function-call']
     },
     {
       id: 'deepseek-go',
       display_name: 'DeepSeek GO',
       endpoint_type: 'anthropic-messages',
       context_window: 256_000,
-      max_output_tokens: 16_384
+      max_output_tokens: 16_384,
+      capabilities: ['function-call', 'reasoning']
     },
     {
       id: 'deepseek-inactive',
       display_name: 'DeepSeek Inactive',
       endpoint_type: 'anthropic-messages',
       context_window: 64_000,
-      max_output_tokens: 4_096
+      max_output_tokens: 4_096,
+      capabilities: []
     }
   ]
 }
@@ -291,6 +308,7 @@ async function createSignedInService(): Promise<CherryCloudService> {
 
 describe('CherryCloudService', () => {
   beforeEach(() => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET', 'cloud-login-test-secret')
     vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', '')
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
@@ -302,6 +320,7 @@ describe('CherryCloudService', () => {
     mocks.modelList.mockReturnValue([])
     mocks.modelCreate.mockReturnValue([])
     mocks.modelBulkUpdate.mockReturnValue([])
+    resolveRegistryModels.mockReturnValue([])
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
@@ -309,6 +328,84 @@ describe('CherryCloudService', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs()
+  })
+
+  it('authenticates both login requests with the cloud secret and their transmitted bodies', async () => {
+    vi.stubEnv('MAIN_VITE_CHERRYAI_CLIENT_SECRET', 'different-qwen-secret')
+    const createPath = '/api/v1/desktop/authorizations'
+    const exchangePath = `${createPath}/${authorizationId}/exchange`
+    const verifyRequest = (path: string, response: Response) => (init: RequestInit) => {
+      const headers = new Headers(init.headers)
+      const timestamp = headers.get('X-Timestamp')
+      expect(init.method).toBe('POST')
+      expect(headers.get('X-Client-ID')).toBe('cherry-studio')
+      expect(timestamp).toMatch(/^\d+$/)
+      expect(Math.abs(Date.now() / 1000 - Number(timestamp))).toBeLessThan(5)
+      const expected = createHmac('sha256', 'cloud-login-test-secret')
+        .update(`POST\n${path}\n\ncherry-studio\n${timestamp}\n${init.body}`)
+        .digest('hex')
+      expect(headers.get('X-Signature')).toBe(expected)
+      return response
+    }
+    mockCloudRoute(createPath, verifyRequest(createPath, jsonResponse(authorizationResponse(), 201)))
+    mockCloudRoute(exchangePath, verifyRequest(exchangePath, jsonResponse(exchangeResponse())))
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+    const service = await createService()
+
+    await service.startLogin()
+    await loopbackCallback()(
+      new URL(
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+      )
+    )
+
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    await service['syncEntitledModels']()
+    await service._doStop()
+  })
+
+  it.each(['', undefined])('does not send an unsigned login request when the cloud secret is %s', async (secret) => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET', secret)
+    vi.stubEnv('MAIN_VITE_CHERRYAI_CLIENT_SECRET', 'available-qwen-secret')
+    const service = await createService()
+
+    await expect(service.startLogin()).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
+
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+    expect(mocks.openExternal).not.toHaveBeenCalled()
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.savedSession).toBeNull()
+    await service._doStop()
+  })
+
+  it.each(['create', 'exchange'])('stays signed out when the server rejects the %s signature', async (step) => {
+    const createPath = '/api/v1/desktop/authorizations'
+    const exchangePath = `${createPath}/${authorizationId}/exchange`
+    mockCloudRoute(
+      createPath,
+      step === 'create' ? new Response(null, { status: 401 }) : jsonResponse(authorizationResponse(), 201)
+    )
+    mockCloudRoute(exchangePath, new Response(null, { status: 401 }))
+    const service = await createService()
+
+    if (step === 'create') {
+      await expect(service.startLogin()).rejects.toThrow('Cherry Cloud login request failed (401)')
+    } else {
+      await service.startLogin()
+      await expect(
+        loopbackCallback()(
+          new URL(
+            `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+          )
+        )
+      ).rejects.toThrow('Cherry Cloud login request failed (401)')
+    }
+
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.savedSession).toBeNull()
+    expect(requestCalls(createPath)).toHaveLength(1)
+    expect(requestCalls(exchangePath)).toHaveLength(step === 'exchange' ? 1 : 0)
+    await service._doStop()
   })
 
   it('persists the signed-in account across service restarts', async () => {
@@ -345,6 +442,7 @@ describe('CherryCloudService', () => {
     )
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     expect(mocks.gatewayStart).toHaveBeenCalledOnce()
+    expect(mocks.showMainWindow).toHaveBeenCalledOnce()
 
     const exchangeRequest = requestCalls(`/api/v1/desktop/authorizations/${authorizationId}/exchange`)[0]
     expect(exchangeRequest[0]).toBe(`http://127.0.0.1:8084/api/v1/desktop/authorizations/${authorizationId}/exchange`)
@@ -385,6 +483,60 @@ describe('CherryCloudService', () => {
 
     const createBody = authorizationRequestBody()
     expect(createBody.device_public_key).toBe(firstDevicePublicKey)
+  })
+
+  it('uses the current computer when restoring copied credentials and requires login after rejection', async () => {
+    const original = await createSignedInService()
+    mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
+    await original.authenticatedFetch('/v1/models')
+    const originalCode = new Headers(requestCalls('/v1/models')[0][1].headers).get('Cherry-Machine-Code')
+    expect(originalCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const originalDevice = structuredClone(mocks.savedDevice)
+    mocks.netFetch.mockClear()
+    vi.mocked(uuid).mockResolvedValueOnce({ os: '12345678123456789abc1234567890ab', hardware: '', macs: [] })
+    let restoredCode: string | null = null
+    mockCloudRoute('/api/v1/product-sessions/refresh', (init) => {
+      restoredCode = new Headers(init.headers).get('Cherry-Machine-Code')
+      return restoredCode === originalCode
+        ? jsonResponse(refreshedTokenSet())
+        : jsonResponse({ error: { code: 'REAUTH_REQUIRED' } }, 401)
+    })
+    CherryCloudService.resetInstances()
+    const copied = await createService()
+    await vi.waitFor(async () => {
+      expect(await copied.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    })
+    expect(restoredCode).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(restoredCode).not.toBe(originalCode)
+    expect(mocks.savedSession).toBeNull()
+    expect(mocks.savedDevice).toEqual(originalDevice)
+  })
+
+  it('sends the same machine code after local credentials are deleted and a new device key is generated', async () => {
+    const service = await createService()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await service.startLogin()
+    const first = authorizationRequestBody()
+    await service._doStop()
+    CherryCloudService.resetInstances()
+    mocks.savedDevice = null
+    mocks.savedSession = null
+    mocks.netFetch.mockClear()
+    const restarted = await createService()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await restarted.startLogin()
+    const second = authorizationRequestBody()
+    expect(second.device_public_key).not.toBe(first.device_public_key)
+    expect(second.machine_code).toBe(first.machine_code)
+    expect(second.machine_code).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  })
+
+  it('does not start cloud authorization when the system machine ID is missing', async () => {
+    vi.mocked(uuid).mockResolvedValueOnce({ os: '', hardware: '', macs: [] })
+    const service = await createService()
+    await expect(service.startLogin()).rejects.toThrow('valid system machine ID is required')
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+    expect(mocks.savedDevice).toBeNull()
   })
 
   it('keeps the Session when automatic Gateway startup fails', async () => {
@@ -432,6 +584,7 @@ describe('CherryCloudService', () => {
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
     expect(mocks.savedSession).toBeNull()
+    expect(mocks.showMainWindow).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -554,6 +707,19 @@ describe('CherryCloudService', () => {
     await service._doStop()
     expect(oldReceiver.dispose).toHaveBeenCalledOnce()
     expect(newReceiver.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('reports an upgrade requirement without opening a browser or leaving login pending', async () => {
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse({ error: { code: 'CLIENT_UPGRADE_REQUIRED' } }, 426))
+    const service = await createService()
+
+    await expect(service.startLogin()).rejects.toHaveProperty('name', 'CherryCloudUpgradeRequiredError')
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.openExternal).not.toHaveBeenCalled()
+    expect(mocks.loopbackReceiver.dispose).toHaveBeenCalled()
+
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
   })
 
   it('reports an unavailable login service when the backend cannot be reached', async () => {
@@ -776,7 +942,7 @@ describe('CherryCloudService', () => {
       },
       {
         data: cloudModelCatalog.data.map((model) =>
-          model.id === 'deepseek-go' ? { ...model, endpoint_type: 'openai-responses' } : model
+          model.id === 'deepseek-go' ? { ...model, endpoint_type: 'openai-chat-completions' } : model
         )
       }
     )
@@ -796,6 +962,7 @@ describe('CherryCloudService', () => {
           endpointTypes: ['anthropic-messages'],
           contextWindow: 128_000,
           maxOutputTokens: 8_192,
+          capabilities: ['function-call'],
           supportsStreaming: true
         }
       },
@@ -805,14 +972,16 @@ describe('CherryCloudService', () => {
           modelId: 'deepseek-go',
           name: 'DeepSeek GO',
           group: 'Cherry Cloud',
-          endpointTypes: ['openai-responses'],
+          endpointTypes: ['openai-chat-completions'],
           contextWindow: 256_000,
           maxOutputTokens: 16_384,
+          capabilities: ['function-call', 'reasoning'],
           supportsStreaming: true
         }
       }
     ])
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
+    expect(resolveRegistryModels).not.toHaveBeenCalled()
     expect(mocks.modelList).toHaveBeenCalledWith({ providerId: 'cherryai-subscription' })
     expect(mocks.notifyDataChange).toHaveBeenCalledWith([{ endpoint: '/models', kind: 'membership' }])
     for (const [, init] of mocks.netFetch.mock.calls) {
@@ -821,6 +990,167 @@ describe('CherryCloudService', () => {
       expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
       expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
     }
+  })
+
+  it('updates capabilities for an existing managed model', async () => {
+    const service = await createSignedInService()
+    mocks.modelList.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-free',
+        name: 'DeepSeek Free',
+        group: 'Cherry Cloud',
+        endpointTypes: ['anthropic-messages'],
+        contextWindow: 128_000,
+        maxOutputTokens: 8_192,
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true
+      }
+    ])
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        entitlements: [accountSnapshot.entitlements[0]]
+      },
+      { data: [cloudModelCatalog.data[0]] }
+    )
+
+    await service['syncEntitledModels']()
+
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).toHaveBeenCalledWith([
+      {
+        providerId: 'cherryai-subscription',
+        modelId: 'deepseek-free',
+        patch: {
+          name: 'DeepSeek Free',
+          group: 'Cherry Cloud',
+          endpointTypes: ['anthropic-messages'],
+          contextWindow: 128_000,
+          maxOutputTokens: 8_192,
+          capabilities: ['function-call'],
+          supportsStreaming: true,
+          isEnabled: true
+        }
+      }
+    ])
+  })
+
+  it('falls back to registry capabilities when the Cloud catalog omits them', async () => {
+    const service = await createSignedInService()
+    resolveRegistryModels.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-free',
+        presetModelId: 'deepseek-free',
+        name: 'DeepSeek Free',
+        capabilities: ['function-call', 'reasoning'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      } satisfies Model
+    ])
+    const modelWithoutCapabilities = { ...cloudModelCatalog.data[0], capabilities: undefined }
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        entitlements: [accountSnapshot.entitlements[0]]
+      },
+      { data: [modelWithoutCapabilities] }
+    )
+
+    await service['syncEntitledModels']()
+
+    expect(resolveRegistryModels).toHaveBeenCalledWith('cherryai-subscription', ['deepseek-free'])
+    expect(mocks.modelCreate).toHaveBeenCalledWith([
+      {
+        dto: {
+          providerId: 'cherryai-subscription',
+          modelId: 'deepseek-free',
+          name: 'DeepSeek Free',
+          group: 'Cherry Cloud',
+          endpointTypes: ['anthropic-messages'],
+          contextWindow: 128_000,
+          maxOutputTokens: 8_192,
+          capabilities: ['function-call', 'reasoning'],
+          supportsStreaming: true
+        }
+      }
+    ])
+  })
+
+  it.each([
+    {
+      failure: 'does not recognize the Cloud SKU',
+      arrange: () =>
+        resolveRegistryModels.mockReturnValue([
+          {
+            id: 'cherryai-subscription::deepseek-free',
+            providerId: 'cherryai-subscription',
+            apiModelId: 'deepseek-free',
+            presetModelId: null,
+            name: 'DeepSeek Free',
+            capabilities: [],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false
+          } satisfies Model
+        ])
+    },
+    {
+      failure: 'is unavailable',
+      arrange: () =>
+        resolveRegistryModels.mockImplementation(() => {
+          throw new Error('registry unavailable')
+        })
+    }
+  ])('preserves existing capabilities when the Registry $failure', async ({ arrange }) => {
+    const service = await createSignedInService()
+    mocks.modelList.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-free',
+        name: 'DeepSeek Free',
+        group: 'Cherry Cloud',
+        endpointTypes: ['anthropic-messages'],
+        contextWindow: 128_000,
+        maxOutputTokens: 8_192,
+        capabilities: ['function-call'],
+        supportsStreaming: true,
+        isEnabled: true
+      }
+    ])
+    arrange()
+    const modelWithoutCapabilities = { ...cloudModelCatalog.data[0], capabilities: undefined }
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        entitlements: [accountSnapshot.entitlements[0]]
+      },
+      { data: [modelWithoutCapabilities] }
+    )
+
+    await expect(service['syncEntitledModels']()).resolves.toEqual({
+      entitledModelIds: ['cherryai-subscription::deepseek-free'],
+      quotaExhaustedModelIds: []
+    })
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects model protocols outside the Cherry Cloud contract', async () => {
+    const service = await createSignedInService()
+    mockModelSync(accountSnapshot, {
+      data: [{ ...cloudModelCatalog.data[0], endpoint_type: 'openai-responses' }]
+    })
+
+    await expect(service['syncEntitledModels']()).rejects.toThrow()
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
   })
 
   it('keeps managed models while signed out', async () => {
@@ -1207,6 +1537,22 @@ describe('CherryCloudService', () => {
     expect(headers.get('Cherry-Body-SHA256')).toBe('f24394a04116608ee41330b7fd6511ff8e44f65e29f6cfc44bb7c8393de7e5ea')
     expect(init.redirect).toBe('error')
     expect(init.signal).toBeUndefined()
+  })
+
+  it('adds an idempotency key to signed OpenAI chat completion requests', async () => {
+    const service = await createSignedInService()
+    mockCloudRoute('/v1/chat/completions', jsonResponse({ object: 'chat.completion' }))
+
+    await service.authenticatedFetch('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"model":"deepseek-go","messages":[]}'
+    })
+
+    const init = requestCalls('/v1/chat/completions')[0][1]
+    const headers = new Headers(init.headers)
+    expect(headers.get('Idempotency-Key')).toMatch(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
+    expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
   })
 
   it('clears the local login before waiting for remote Product Session revocation', async () => {

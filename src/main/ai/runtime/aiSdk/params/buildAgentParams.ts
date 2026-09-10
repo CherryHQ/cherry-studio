@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { mergeHeaders } from '@main/utils/http'
 import {
   FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -31,16 +32,10 @@ import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'a
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
-import { createHttpTraceFetch } from '../../../observability'
-import { resolveProviderAiSdkConfig } from '../../../provider/config'
+import { applyHttpTrace } from '../../../observability'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
-import {
-  resolveAiSdkProviderId,
-  type ResolvedEndpoint,
-  resolveEffectiveEndpoint,
-  resolveProviderOptionsKey,
-  resolveWireModelId
-} from '../../../provider/endpoint'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { resolveSdkConfig } from '../../../provider/sdkConfig'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
@@ -52,7 +47,7 @@ import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
-import type { AiBaseRequest, CallOverrides } from '../../../types'
+import type { AiChatRequest, CallOverrides } from '../../../types'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -68,7 +63,7 @@ import {
   resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
-import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
@@ -92,8 +87,7 @@ const CITABLE_BUILTIN_TOOL_NAMES: ReadonlySet<string> = new Set([
 const NO_WEB_TOOL_ROUTES: WebToolRoutes = { webSearch: 'none', webFetch: 'none' }
 
 export interface BuildAgentParamsInput {
-  request: AiBaseRequest & {
-    chatId?: string
+  request: AiChatRequest & {
     messageId?: string
     messages?: UIMessage[]
     /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
@@ -134,10 +128,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride,
-    request.chatId
+    request.apiKeyOverride
   )
-  applyHttpTrace(sdkConfig, request.chatId, model)
+  applyHttpTrace(sdkConfig.providerSettings, {
+    topicId: request.conversation.topicId,
+    modelName: model.name ?? model.id
+  })
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /
@@ -150,6 +146,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   // context (fs_read's per-call cap follows the effective persist threshold).
   const { contextSettings, compressionModel } = await resolveRequestContextSettings(
     model,
+    request.conversation,
     assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
@@ -228,10 +225,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType
   )
   const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
-  const reasoningSelection =
-    requestedReasoningSelection === 'auto' && !invocationModel.reasoning?.selectableEfforts.includes('auto')
-      ? 'default'
-      : requestedReasoningSelection
+  const reasoningSelection = normalizeRequestedSelection(requestedReasoningSelection, invocationModel)
   const reasoning = resolveReasoningInvocation({
     selection: reasoningSelection,
     model: invocationModel,
@@ -247,7 +241,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
-    topicId: request.chatId,
+    topicId: request.conversation.topicId,
     assistant,
     abortSignal: signal,
     fileAttachments,
@@ -343,41 +337,6 @@ export function applyResponsesInstructions(
   // `instructions` does not displace the system input message; without this the
   // whole prompt ships twice.
   namespace.systemMessageMode = 'remove'
-}
-
-async function resolveSdkConfig(
-  provider: Provider,
-  model: Model,
-  resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string,
-  sessionId?: string
-): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
-  const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
-    apiKeyOverride,
-    resolvedEndpoint,
-    sessionId
-  })
-  return {
-    sdkConfig: {
-      ...config,
-      providerOptionsKey: resolveProviderOptionsKey(config.providerId, {
-        actualProviderId: provider.id,
-        endpointType: resolvedEndpoint.endpointType,
-        gatewayProviderOptionsKey: resolvedEndpoint.providerOptionsKey
-      }),
-      modelId: resolveWireModelId(model, resolvedEndpoint.endpointType)
-    },
-    credentialReceipt
-  }
-}
-
-export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
-  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings
-  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
-    topicId,
-    modelName: model.name ?? model.id
-  })
 }
 
 /**
@@ -617,8 +576,8 @@ function buildAgentOptions(
   )
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
-    const temperature = getTemperature(assistant, model, reasoning)
-    const topP = getTopP(assistant, model, reasoning)
+    const temperature = getTemperature(assistant.settings, model, reasoning)
+    const topP = getTopP(assistant.settings, model, reasoning)
     standardParams = {
       ...(temperature !== undefined && { temperature }),
       ...(topP !== undefined && { topP }),
@@ -687,7 +646,11 @@ function buildAgentOptions(
     delete standardParams.maxOutputTokens
   }
 
-  const { headers, maxRetries } = request.requestOptions ?? {}
+  const { headers: callerHeaders, maxRetries } = request.requestOptions ?? {}
+  // A provider that keys on the conversation declared the header; the caller's own headers win.
+  const headers = sdkConfig.conversationHeader
+    ? mergeHeaders({ [sdkConfig.conversationHeader]: request.conversation.id }, callerHeaders)
+    : callerHeaders
   const toolCallLimit = resolveToolCallLimit(assistant)
   const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
@@ -706,6 +669,7 @@ function buildAgentOptions(
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
+      headers,
       getUsagePlugins: getRepairUsagePlugins
     })
   }

@@ -129,6 +129,7 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
+        conversation: { id: 'topic-1', topicId: 'topic-1' },
         uniqueModelId: 'openai::gpt-4o-mini'
       })
     )
@@ -279,6 +280,7 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
+        conversation: { id: 'session-1', topicId: 'session-1' },
         uniqueModelId: 'openai::gpt-4o-mini'
       })
     )

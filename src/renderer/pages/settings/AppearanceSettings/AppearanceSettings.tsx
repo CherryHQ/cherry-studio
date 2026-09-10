@@ -3,9 +3,9 @@ import {
   CodeEditor,
   Combobox,
   type ComboboxOption,
-  EditableNumber,
   Flex,
   InfoTooltip,
+  InputNumber,
   SegmentedControl,
   Select,
   SelectContent,
@@ -28,7 +28,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -121,7 +121,7 @@ const AppearanceSettings: FC = () => {
   const { theme, settedTheme, setTheme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
-  const { activeCmTheme } = useCodeStyle()
+  const activeCmTheme = useCmTheme()
   const { appFavorites, setAppPinned } = useSidebarFavorites()
   const isChatAssistantVisible = appFavorites.includes('assistants')
 
@@ -564,14 +564,15 @@ const AppearanceSettings: FC = () => {
                 <SettingRowTitle>{t('chat.settings.code_execution.timeout_minutes.label')}</SettingRowTitle>
                 <InfoTooltip content={t('chat.settings.code_execution.timeout_minutes.tip')} />
               </Flex>
-              <EditableNumber
+              <InputNumber
                 size="small"
+                aria-label={t('chat.settings.code_execution.timeout_minutes.label')}
                 className="w-20 text-sm"
                 min={1}
                 max={60}
                 step={1}
                 value={codeExecution.timeoutMinutes}
-                onChange={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
+                onBlur={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
               />
             </SettingRow>
           </>
