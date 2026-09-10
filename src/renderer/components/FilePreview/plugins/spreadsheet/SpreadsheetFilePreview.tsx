@@ -1,5 +1,6 @@
 import { EmptyState, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { SELECTION_EXCERPT_MAX_LENGTH } from '@renderer/types/selectionReference'
 import { formatFileSize } from '@renderer/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import FileSpreadsheet from 'lucide-react/dist/esm/icons/file-spreadsheet'
@@ -8,9 +9,11 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { createSelectionReference, normalizeSelectionText } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import type { ChartRenderer } from './charts/ChartRenderer'
-import type { ChartModel, SheetRenderModel, WorkbookRenderModel } from './renderModel'
+import type { CellRangeRect } from './gridLayout'
+import type { ChartModel, MergeRange, SheetRenderModel, WorkbookRenderModel } from './renderModel'
 import { SpreadsheetFilePreviewToolbar } from './SpreadsheetFilePreviewToolbar'
 import { useXlsxWorkbook, XLSX_PREVIEW_MAX_SIZE_BYTES } from './useXlsxWorkbook'
 import type { SelectedCellInfo } from './XlsxGrid'
@@ -45,13 +48,72 @@ const loadChartRenderer = () => {
 
 const sheetHasChart = (sheet: SheetRenderModel | undefined): boolean => Boolean(sheet && sheet.charts.length > 0)
 
+/**
+ * Hard cap on cells visited while building a selection excerpt. sheet.cells is sparse but the rect is not, so a
+ * whole-column selection would otherwise walk millions of empty coordinates on the main thread.
+ */
+const EXCERPT_MAX_SCAN_CELLS = 50_000
+
+/**
+ * Plain-text snapshot of a selected range: tab-separated cells, newline-separated rows.
+ * Both budgets are checked while scanning — building the full text first and truncating afterwards is what makes a
+ * full-column selection hang. createSelectionReference does the exact normalization and truncation.
+ *
+ * Only text that survives normalization counts against the character budget, which is why each cell is charged its
+ * normalized length rather than its raw one. A cell that leaves nothing behind — empty, or holding only whitespace,
+ * the way an export that blanks a cell with a space leaves it — collapses away along with its separators, so
+ * charging for it would let a run of them exhaust the budget and normalize down to an empty excerpt. The scan cap
+ * stays separate — it is what bounds the walk over a sparse selection.
+ *
+ * ExcelJS reports a merged range's value through every cell it covers, so each range is emitted once, at its master.
+ * Merges are swept row by row rather than searched per cell, keeping the walk linear in the scan cap.
+ */
+const buildRangeExcerpt = (sheet: SheetRenderModel, rect: CellRangeRect): string => {
+  const intersecting = sheet.merges
+    .filter((m) => m.top <= rect.bottom && m.bottom >= rect.top && m.left <= rect.right && m.right >= rect.left)
+    .sort((a, b) => a.top - b.top)
+
+  const lines: string[] = []
+  let length = 0
+  let scanned = 0
+  let nextMerge = 0
+  let active: MergeRange[] = []
+
+  for (let row = rect.top; row <= rect.bottom; row++) {
+    while (nextMerge < intersecting.length && intersecting[nextMerge].top <= row) active.push(intersecting[nextMerge++])
+    if (active.length > 0) active = active.filter((merge) => merge.bottom >= row)
+
+    const values: string[] = []
+    for (let col = rect.left; col <= rect.right; col++) {
+      if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
+      scanned++
+      const covering = active.find((merge) => merge.left <= col && merge.right >= col)
+      const isMergeFollower = covering !== undefined && (covering.top !== row || covering.left !== col)
+      const text = isMergeFollower ? '' : (sheet.cells[`${row}:${col}`]?.text ?? '')
+      values.push(text)
+      const charged = normalizeSelectionText(text).length
+      if (charged > 0) length += charged + 1
+    }
+    lines.push(values.join('\t'))
+    if (scanned >= EXCERPT_MAX_SCAN_CELLS || length >= SELECTION_EXCERPT_MAX_LENGTH) break
+  }
+  return lines.join('\n')
+}
+
 /** Read-only XLSX preview with virtualized sheets, formula status, images, and lazily loaded charts. */
-export default function SpreadsheetFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function SpreadsheetFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const state = useXlsxWorkbook(filePath, refreshKey, metadata.size)
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [activeSheetName, setActiveSheetName] = useState<string | null>(null)
-  const [selectedCell, setSelectedCell] = useState<SelectedCellInfo | null>(null)
+  // The sheet is stored with the selection: an A1 range means nothing without the sheet it was taken from.
+  const [selectedCell, setSelectedCell] = useState<(SelectedCellInfo & { sheet: SheetRenderModel }) | null>(null)
   const [chartRenderer, setChartRenderer] = useState<ChartRenderer | null>(null)
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({})
 
@@ -70,6 +132,28 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
       setActiveSheetName(sheets[0].name)
     }
   }, [sheets, activeSheetName])
+
+  const handleSelectCell = useCallback(
+    (info: SelectedCellInfo | null) => setSelectedCell(info && activeSheet ? { ...info, sheet: activeSheet } : null),
+    [activeSheet]
+  )
+
+  // The reference is derived from the selection rather than emitted by the selection callback, so clearing the
+  // selection — including the sheet switch and model replacement handled above — reports null on its own. The
+  // sheet is compared rather than assumed: the switch resets the selection in an effect, one commit later.
+  const selectionReference = useMemo(() => {
+    if (!selectedCell || !activeSheet || selectedCell.sheet !== activeSheet) return null
+    return createSelectionReference({
+      filePath,
+      anchor: { format: 'xlsx', sheet: activeSheet.name, range: selectedCell.range },
+      excerpt: buildRangeExcerpt(activeSheet, selectedCell.rect),
+      metadata: { size: metadata.size, modifiedAt: metadata.modifiedAt }
+    })
+  }, [selectedCell, activeSheet, filePath, metadata.size, metadata.modifiedAt])
+
+  useEffect(() => {
+    onSelectionReference?.(selectionReference)
+  }, [selectionReference, onSelectionReference])
 
   // Build image object URLs from model.images when ready, then revoke the previous table on replacement/unmount.
   useEffect(() => {
@@ -161,14 +245,19 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
   } else if (!model || !activeSheet) {
     content = null
   } else {
-    // Selected cell status: formula cells show the raw formula; values stay in the grid.
-    const selectedCellContent = selectedCell?.cell?.formula
-      ? `= ${selectedCell.cell.formula}`
-      : selectedCell?.cell?.text
-    const statusBarText = selectedCell
+    // Selection status: the A1 range, plus the cell content when the selection is a single cell (formula cells show
+    // the raw formula). A multi-cell range reports no cell, so only the range is shown.
+    // The sheet is compared for the same reason selectionReference compares it: the effect that clears
+    // selectedCell on a sheet switch runs one commit later, so the new sheet's tabs would otherwise render
+    // beside the previous sheet's range for a frame.
+    const cellOnActiveSheet = selectedCell && selectedCell.sheet === activeSheet ? selectedCell : null
+    const selectedCellContent = cellOnActiveSheet?.cell?.formula
+      ? `= ${cellOnActiveSheet.cell.formula}`
+      : cellOnActiveSheet?.cell?.text
+    const statusBarText = cellOnActiveSheet
       ? selectedCellContent
-        ? `${selectedCell.address}  ${selectedCellContent}`
-        : selectedCell.address
+        ? `${cellOnActiveSheet.range}  ${selectedCellContent}`
+        : cellOnActiveSheet.range
       : null
 
     content = (
@@ -185,7 +274,7 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
             styles={model.styles}
             imageUrls={imageUrls}
             zoom={zoom}
-            onSelectCell={setSelectedCell}
+            onSelectCell={handleSelectCell}
             renderChart={renderChart}
           />
         </div>
@@ -207,7 +296,7 @@ export default function SpreadsheetFilePreview({ filePath, fileName, metadata, r
                 {statusBarText}
               </span>
             ) : null}
-            {selectedCell?.cell?.formulaState === 'unevaluated' ? (
+            {cellOnActiveSheet?.cell?.formulaState === 'unevaluated' ? (
               <span className="shrink-0 italic">{t('xlsx_preview.formula_not_evaluated')}</span>
             ) : null}
           </div>

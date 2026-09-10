@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/components/command'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import type { SelectionReference } from '@renderer/types/selectionReference'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
@@ -108,6 +109,43 @@ function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
   )
 }
 
+/** Opts into selection capture, which is what makes the preview report selections and the quote chip appear. */
+function SelectionPaneHarness({
+  workspacePath,
+  onInsertSelectionReference,
+  headerVariant
+}: {
+  workspacePath: string
+  onInsertSelectionReference: (reference: SelectionReference) => void
+  headerVariant?: 'pane'
+}) {
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const model = useArtifactFileTreeModel({
+    workspacePath,
+    treeOpen: true,
+    expandedIds,
+    searchKeyword: '',
+    enableFileSearch: false,
+    selectedFile,
+    onExpandedIdsChange: setExpandedIds
+  })
+  const shared = {
+    workspacePath,
+    model,
+    selectedFile,
+    onSelectedFileChange: setSelectedFile,
+    searchKeyword: '',
+    onSearchKeywordChange: () => undefined,
+    onInsertSelectionReference
+  }
+  return headerVariant === 'pane' ? (
+    <ArtifactPaneView {...shared} headerVariant="pane" paneTitle="Files" paneActions={null} />
+  ) : (
+    <ArtifactPaneView {...shared} />
+  )
+}
+
 it('watches an allowed missing workspace without limiting discovery depth', () => {
   expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ watchMissingRoot: true })
 })
@@ -144,6 +182,13 @@ const mocks = vi.hoisted(() => ({
     refreshKey: number
     type?: string
   }>,
+  /** What the mocked preview reports when its "report selection" button is pressed. */
+  selectionReference: {
+    path: '/tmp/workspace/README.md',
+    anchor: { format: 'docx', paragraph: 3 },
+    excerpt: 'selected text',
+    fileStamp: { size: 10, mtimeMs: 1 }
+  } as unknown,
   nextTreeId: 0,
   useRealCodeEditor: false,
   codeEditorRef: null as null | {
@@ -447,7 +492,12 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
-  FilePreview: (props: { filePath: string; refreshKey: number; type?: string }) => {
+  FilePreview: (props: {
+    filePath: string
+    refreshKey: number
+    type?: string
+    onSelectionReference?: (reference: unknown) => void
+  }) => {
     mocks.filePreviewProps.push(props)
     return (
       <div
@@ -456,9 +506,18 @@ vi.mock('@renderer/components/FilePreview', () => ({
         data-refresh-key={props.refreshKey}
         data-preview-type={props.type}>
         {props.filePath}
+        {props.onSelectionReference ? (
+          <button
+            type="button"
+            data-testid="report-selection"
+            onClick={() => props.onSelectionReference?.(mocks.selectionReference)}>
+            report selection
+          </button>
+        ) : null}
       </div>
     )
-  }
+  },
+  canProduceSelectionReference: (filePath: string) => filePath.endsWith('.docx')
 }))
 
 vi.mock('@renderer/components/FileTree', () => ({
@@ -779,6 +838,146 @@ describe('ArtifactPane', () => {
       workspacePath: '/tmp/workspace/..',
       filePath: 'secret.md'
     })
+  })
+
+  it('keeps the quote chip after handing the reference off, since the composer can still refuse it', async () => {
+    // The composer receives the reference over a window event and may reject it (an insertion that would
+    // exceed the input limit); nothing reports that back here. Clearing on click would drop the selection on
+    // exactly those failures, leaving no way to retry short of re-selecting.
+    mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
+    const onInsert = vi.fn()
+
+    render(<SelectionPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.docx')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.docx'))
+    await screen.findByTestId('file-preview')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' }))
+
+    fireEvent.click(screen.getByTestId('report-selection'))
+    const chip = await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+
+    fireEvent.click(chip)
+
+    expect(onInsert).toHaveBeenCalledWith(mocks.selectionReference)
+    expect(screen.getByRole('button', { name: 'agent.preview_pane.quote_selection' })).toBeInTheDocument()
+  })
+
+  it('drops the quote chip when the same file is refreshed', async () => {
+    // Refreshing remounts the preview plugin, so the held reference describes content that is no
+    // longer on screen and carries a fileStamp from before the refresh.
+    mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
+    const onInsert = vi.fn()
+
+    render(<SelectionPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.docx')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.docx'))
+    await screen.findByTestId('file-preview')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' }))
+    fireEvent.click(screen.getByTestId('report-selection'))
+    await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+
+    const refreshButtons = screen.getAllByRole('button', { name: 'agent.preview_pane.refresh' })
+    fireEvent.click(refreshButtons[refreshButtons.length - 1])
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'agent.preview_pane.quote_selection' })).not.toBeInTheDocument()
+    )
+  })
+
+  it('drops the quote chip when the previewed file changes', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.docx', 'other.docx'])
+    const onInsert = vi.fn()
+
+    render(<SelectionPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.docx')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.docx'))
+    await screen.findByTestId('file-preview')
+    const toggle = screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByTestId('report-selection'))
+    await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+
+    fireEvent.click(screen.getByTestId('tree-node-other.docx'))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'agent.preview_pane.quote_selection' })).not.toBeInTheDocument()
+    )
+    expect(screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
+  it('offers the picker only for files whose preview can produce a reference, and captures only while it is on', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md', 'notes.docx'])
+    const onInsert = vi.fn()
+    render(<SelectionPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await screen.findByTestId('file-preview')
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.pick_selection' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('report-selection')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('tree-node-notes.docx'))
+    await screen.findByTestId('file-preview')
+    const toggle = screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByTestId('report-selection')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('report-selection')).toBeInTheDocument()
+  })
+
+  it('drops the quote chip and stops capturing when the picker is switched off or Escape is pressed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
+    const onInsert = vi.fn()
+    render(<SelectionPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.docx')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.docx'))
+    await screen.findByTestId('file-preview')
+    const toggle = screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })
+
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByTestId('report-selection'))
+    await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.quote_selection' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('report-selection')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByTestId('report-selection'))
+    await screen.findByRole('button', { name: 'agent.preview_pane.quote_selection' })
+    fireEvent.keyDown(screen.getByTestId('artifact-file-preview-overlay'), { key: 'Escape' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.quote_selection' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('file-preview')).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByTestId('artifact-file-preview-overlay'), { key: 'Escape' })
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+  })
+
+  it('switches the picker off on Escape from the pane header toggle without closing the preview', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.docx'])
+    const onInsert = vi.fn()
+    render(
+      <SelectionPaneHarness workspacePath="/tmp/workspace" onInsertSelectionReference={onInsert} headerVariant="pane" />
+    )
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.docx')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.docx'))
+    await screen.findByTestId('file-preview')
+
+    // The pane header is a sibling of the overlay, so the toggle keeps focus outside it after a click.
+    const toggle = screen.getByRole('button', { name: 'agent.preview_pane.pick_selection' })
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.keyDown(toggle, { key: 'Escape' })
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('file-preview')).toBeInTheDocument()
   })
 
   it('delegates selected files to the canonical file preview', async () => {

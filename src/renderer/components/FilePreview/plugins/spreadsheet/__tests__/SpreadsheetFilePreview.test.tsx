@@ -1,3 +1,4 @@
+import { SELECTION_EXCERPT_MAX_LENGTH, type SelectionReference } from '@renderer/types/selectionReference'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -15,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   useXlsxWorkbookCalls: [] as Array<{ filePath: string; refreshKey: number; sourceSize?: number }>,
   translationCalls: [] as Array<{ key: string; options?: Record<string, unknown> }>,
   gridProps: [] as unknown[],
+  /** Status-bar text captured at every committed frame, to catch a stale frame an effect later clears. */
+  commitFrames: [] as Array<{ sheet: string; statusBar: string | null }>,
+  rangeSelection: { range: 'A2:D4', rect: { top: 2, left: 1, bottom: 4, right: 4 } },
   chartRendererRender: vi.fn(() => () => {}),
   chartRendererModuleLoadCount: 0,
   chartRendererModuleShouldReject: false,
@@ -33,18 +37,38 @@ vi.mock('../useXlsxWorkbook', () => ({
   }
 }))
 
-vi.mock('../XlsxGrid', () => ({
-  default: (props: {
+/** Single cells the mocked grid can report, as (range -> sparse cell key, 1-based rect). */
+const SELECTABLE_CELLS = {
+  B6: { key: '6:2', rect: { top: 6, left: 2, bottom: 6, right: 2 } },
+  B9: { key: '9:2', rect: { top: 9, left: 2, bottom: 9, right: 2 } },
+  A3: { key: '3:1', rect: { top: 3, left: 1, bottom: 3, right: 1 } }
+} as const
+
+/** What the mocked grid's range button reports by default: the header block plus its first two data rows. */
+const SELECTABLE_RANGE = { range: 'A2:D4', rect: { top: 2, left: 1, bottom: 4, right: 4 } }
+
+vi.mock('../XlsxGrid', async () => {
+  const React = await import('react')
+  // Named (and capitalized) so the useLayoutEffect below reads as a component to rules-of-hooks.
+  const MockXlsxGrid = (props: {
     sheet: { name: string; cells: Record<string, unknown> }
     zoom: number
     onSelectCell?: (info: unknown) => void
     renderChart?: (chart: unknown, container: HTMLElement) => () => void
   }) => {
     mocks.gridProps.push(props)
-    const selectCell = (key: string) =>
+    // Runs during commit, before passive effects — so a value that only an effect clears is still visible.
+    React.useLayoutEffect(() => {
+      mocks.commitFrames.push({
+        sheet: props.sheet.name,
+        statusBar: document.querySelector('[data-testid="xlsx-preview-status-bar"]')?.textContent ?? null
+      })
+    })
+    const selectCell = (range: keyof typeof SELECTABLE_CELLS) =>
       props.onSelectCell?.({
-        address: key,
-        cell: props.sheet.cells[key === 'B6' ? '6:2' : key === 'B9' ? '9:2' : '3:1'] ?? null
+        range,
+        rect: SELECTABLE_CELLS[range].rect,
+        cell: props.sheet.cells[SELECTABLE_CELLS[range].key] ?? null
       })
     return (
       <div
@@ -61,10 +85,20 @@ vi.mock('../XlsxGrid', () => ({
         <button type="button" data-testid="grid-select-a3" onClick={() => selectCell('A3')}>
           select A3
         </button>
+        <button
+          type="button"
+          data-testid="grid-select-range"
+          onClick={() => props.onSelectCell?.({ ...mocks.rangeSelection, cell: null })}>
+          select range
+        </button>
+        <button type="button" data-testid="grid-clear-selection" onClick={() => props.onSelectCell?.(null)}>
+          clear
+        </button>
       </div>
     )
   }
-}))
+  return { default: MockXlsxGrid }
+})
 
 vi.mock('../charts/EchartsChartRenderer', () => {
   mocks.chartRendererModuleLoadCount += 1
@@ -164,13 +198,14 @@ const modelWithoutCharts = () => {
   return model
 }
 
-const renderPanel = (size = 1024) =>
+const renderPanel = (size = 1024, onSelectionReference?: (reference: SelectionReference | null) => void) =>
   render(
     <SpreadsheetFilePreview
       filePath={'/tmp/workspace/book.xlsx' as AbsoluteFilePath}
       fileName="book.xlsx"
       metadata={{ size, modifiedAt: 1 }}
       refreshKey={0}
+      onSelectionReference={onSelectionReference}
     />
   )
 
@@ -180,6 +215,8 @@ describe('SpreadsheetFilePreview', () => {
     mocks.useXlsxWorkbookCalls.length = 0
     mocks.translationCalls.length = 0
     mocks.gridProps.length = 0
+    mocks.commitFrames.length = 0
+    mocks.rangeSelection = SELECTABLE_RANGE
     mocks.chartRendererRender.mockImplementation(() => () => {})
     mocks.chartRendererModuleShouldReject = false
     mocks.createObjectURL.mockReturnValue('blob:xlsx-image')
@@ -379,6 +416,180 @@ describe('SpreadsheetFilePreview', () => {
     renderPanel()
 
     expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-has-render-chart', 'false')
+  })
+
+  it('shows the range in the status bar when the selection spans more than one cell', () => {
+    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
+
+    renderPanel()
+
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+
+    expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('A2:D4')
+  })
+
+  it('reports a selected range as an xlsx anchor with the range text as its excerpt', () => {
+    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith<[SelectionReference]>({
+      path: '/tmp/workspace/book.xlsx' as AbsoluteFilePath,
+      anchor: { format: 'xlsx', sheet: 'Sales', range: 'A2:D4' },
+      // A2:D4 read row by row. Trailing empty cells of the short last row collapse away with the tabs.
+      excerpt:
+        'Quarter Sales Date Notes Q1 1,250.00 2026-01-15 ' +
+        'Holiday campaign boosted demand, with channel restocking concentrated in late January. Q2 980.50',
+      fileStamp: { size: 1024, mtimeMs: 1 }
+    })
+  })
+
+  it('anchors a single-cell selection at that cell', () => {
+    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    fireEvent.click(screen.getByTestId('grid-select-a3'))
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        anchor: { format: 'xlsx', sheet: 'Sales', range: 'A3' },
+        excerpt: 'Q1'
+      })
+    )
+  })
+
+  it('reports null when the selection is cleared and when the sheet changes', () => {
+    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+
+    fireEvent.click(screen.getByTestId('grid-select-a3'))
+    fireEvent.click(screen.getByTestId('grid-clear-selection'))
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+
+    fireEvent.click(screen.getByTestId('grid-select-a3'))
+    expect(onSelectionReference).toHaveBeenLastCalledWith(expect.objectContaining({ anchor: expect.anything() }))
+
+    // Switching sheets invalidates the anchor, since the range is only meaningful inside its own sheet.
+    fireEvent.click(screen.getByRole('tab', { name: 'Notes' }))
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    // And never re-labels the old range as belonging to the sheet just switched to, not even for one commit.
+    const anchors = onSelectionReference.mock.calls.map(
+      ([reference]) => (reference as SelectionReference | null)?.anchor
+    )
+    expect(anchors).not.toContainEqual({ format: 'xlsx', sheet: 'Notes', range: 'A3' })
+  })
+
+  it('never renders the previous sheet selection beside the new sheet tabs', () => {
+    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
+
+    renderPanel()
+    fireEvent.click(screen.getByTestId('grid-select-b6'))
+    expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('B6')
+    mocks.commitFrames.length = 0
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Notes' }))
+
+    // selectedCell is cleared by an effect, one commit after the switch. Every committed frame that
+    // already shows the new sheet must therefore be free of the old sheet's range, not just the last.
+    const framesOnNewSheet = mocks.commitFrames.filter((frame) => frame.sheet === 'Notes')
+    expect(framesOnNewSheet.length).toBeGreaterThan(0)
+    expect(framesOnNewSheet.map((frame) => frame.statusBar)).toEqual(framesOnNewSheet.map(() => null))
+  })
+
+  it('keeps the text of a range whose leading cells are blank', () => {
+    const model = modelWithoutCharts()
+    const sheet = model.sheets[0]
+    // A block of empty cells far larger than the character budget, with real text after it. The separators
+    // around blank cells collapse during normalization, so charging the budget for them would truncate the
+    // scan before reaching the text and leave an empty excerpt.
+    sheet.rowCount = 5000
+    sheet.colCount = 1
+    sheet.cells = { '4001:1': { text: 'text after the blanks', styleId: 0 } }
+    mocks.rangeSelection = { range: 'A1:A5000', rect: { top: 1, left: 1, bottom: 5000, right: 1 } }
+    setWorkbookState({ status: 'ready', model })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+
+    const reference = onSelectionReference.mock.lastCall?.[0] as SelectionReference
+    expect(reference.excerpt).toBe('text after the blanks')
+  })
+
+  it('keeps the text of a range whose leading cells hold only whitespace', () => {
+    const model = modelWithoutCharts()
+    const sheet = model.sheets[0]
+    // The same case as above, for cells an export blanked with a space rather than leaving empty. They have
+    // text, so a raw-length budget charges for them, but none of it survives normalization — enough of them
+    // and the scan stops before any real text, leaving an excerpt that normalizes to nothing and is dropped.
+    sheet.rowCount = 5000
+    sheet.colCount = 1
+    sheet.cells = Object.fromEntries(
+      Array.from({ length: 4000 }, (_, index) => [`${index + 1}:1`, { text: ' ', styleId: 0 }])
+    )
+    sheet.cells['4001:1'] = { text: 'text after the blanks', styleId: 0 }
+    mocks.rangeSelection = { range: 'A1:A5000', rect: { top: 1, left: 1, bottom: 5000, right: 1 } }
+    setWorkbookState({ status: 'ready', model })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+
+    const reference = onSelectionReference.mock.lastCall?.[0] as SelectionReference
+    expect(reference.excerpt).toBe('text after the blanks')
+  })
+
+  it('emits a merged range once, at its master, instead of repeating it per covered cell', () => {
+    const model = modelWithoutCharts()
+    const sheet = model.sheets[0]
+    sheet.rowCount = 2
+    sheet.colCount = 3
+    // ExcelJS reports a merged range's value through every cell it covers, so the sparse table holds the
+    // master's text at all four coordinates of A1:B2.
+    sheet.cells = {
+      '1:1': { text: 'merged title', styleId: 0 },
+      '1:2': { text: 'merged title', styleId: 0 },
+      '2:1': { text: 'merged title', styleId: 0 },
+      '2:2': { text: 'merged title', styleId: 0 },
+      '1:3': { text: 'tail', styleId: 0 }
+    }
+    sheet.merges = [{ top: 1, left: 1, bottom: 2, right: 2 }]
+    mocks.rangeSelection = { range: 'A1:C2', rect: { top: 1, left: 1, bottom: 2, right: 3 } }
+    setWorkbookState({ status: 'ready', model })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+
+    const reference = onSelectionReference.mock.lastCall?.[0] as SelectionReference
+    expect(reference.excerpt.match(/merged title/g)).toHaveLength(1)
+    expect(reference.excerpt).toBe('merged title tail')
+  })
+
+  it('bounds the excerpt scan for a whole-sheet selection instead of walking every empty coordinate', () => {
+    const model = modelWithoutCharts()
+    // A "select all" on a large sheet: the rect is dense (100M coordinates) even though the cell table is sparse.
+    model.sheets[0].rowCount = 200_000
+    model.sheets[0].colCount = 500
+    mocks.rangeSelection = { range: 'A1:SF200000', rect: { top: 1, left: 1, bottom: 200_000, right: 500 } }
+    setWorkbookState({ status: 'ready', model })
+    const onSelectionReference = vi.fn()
+
+    renderPanel(1024, onSelectionReference)
+    const startedAt = performance.now()
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+    const elapsed = performance.now() - startedAt
+
+    const reference = onSelectionReference.mock.lastCall?.[0] as SelectionReference
+    expect(reference.excerpt).toContain('2026 Sales Summary')
+    expect(reference.excerpt.length).toBeLessThanOrEqual(SELECTION_EXCERPT_MAX_LENGTH)
+    // Building the whole text before truncating would take minutes here; the scan must stop at the budget.
+    expect(elapsed).toBeLessThan(2000)
   })
 
   it('forwards filePath and refreshKey to useXlsxWorkbook', () => {

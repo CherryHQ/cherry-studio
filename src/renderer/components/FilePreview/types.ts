@@ -26,4 +26,10 @@ export interface FilePreviewPlugin {
   id: string
   extensions: readonly string[]
   load: () => Promise<{ default: ComponentType<FilePreviewPluginProps> }>
+  /**
+   * Declares that the preview owns a view → structure inverse mapping and will honour
+   * `onSelectionReference`. Hosts read it to decide whether to offer selection capture at all,
+   * so a surface never shows a picker for a format that can only ignore it.
+   */
+  supportsSelectionReference?: boolean
 }

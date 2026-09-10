@@ -54,3 +54,8 @@ export const filePreviewRegistry = createFilePreviewRegistry({
     wordFilePreviewPlugin
   ]
 })
+
+/** Whether the plugin that would render `filePath` declares `supportsSelectionReference`. */
+export function canProduceSelectionReference(filePath: string): boolean {
+  return resolveExtensionPlugin(filePath, filePreviewRegistry)?.supportsSelectionReference === true
+}

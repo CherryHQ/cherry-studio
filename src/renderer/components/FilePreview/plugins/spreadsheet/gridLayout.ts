@@ -93,6 +93,29 @@ export const axisOffset = (layout: AxisLayout, index: number): number => {
   return layout.offsets[index]
 }
 
+/**
+ * Inverse of axisOffset: the 0-based item containing the given px position, clamped to the layout.
+ * Binary search over the prefix sums, returning the last item whose start offset is <= px, so a run of
+ * zero-size (hidden) items resolves to the visible item after them.
+ */
+export const axisIndexAt = (layout: AxisLayout, px: number): number => {
+  const last = layout.offsets.length - 1
+  if (last < 0) return 0
+  // Clamped rather than short-circuited at 0: leading hidden items all sit at offset 0, and the binary
+  // search is what walks past them to the first visible one. Returning 0 outright for px <= 0 would
+  // contradict the contract above precisely when the first tracks are hidden.
+  const position = Math.max(px, 0)
+  if (position >= layout.totalSize) return last
+  let low = 0
+  let high = last
+  while (low < high) {
+    const mid = (low + high + 1) >> 1
+    if (layout.offsets[mid] <= position) low = mid
+    else high = mid - 1
+  }
+  return low
+}
+
 export interface ViewportRect {
   top: number
   left: number
@@ -100,12 +123,15 @@ export interface ViewportRect {
   right: number
 }
 
-export interface MergeRangeLike {
+/** Rectangular cell range, 1-based and inclusive on every edge. */
+export interface CellRangeRect {
   top: number
   left: number
   bottom: number
   right: number
 }
+
+export type MergeRangeLike = CellRangeRect
 
 export interface MergeInView<M extends MergeRangeLike = MergeRangeLike> {
   merge: M
@@ -155,6 +181,47 @@ export const mergesInView = <M extends MergeRangeLike>(
     result.push({ merge, masterRow: merge.top, masterCol: merge.left, rect })
   }
   return result
+}
+
+/**
+ * Grows a selection rect until it fully contains every merged range it touches, matching Excel: a selection may
+ * never cut a merged cell in half. Iterated to a fixpoint because growing can reach further merges; each round must
+ * grow the rect, so the merge cap (MAX_MERGED_RANGES) bounds both the rounds and the work per round.
+ * @param rect Normalized selection rect (top <= bottom, left <= right).
+ */
+export const expandRangeToMerges = (rect: CellRangeRect, merges: MergeRangeLike[]): CellRangeRect => {
+  let { top, left, bottom, right } = rect
+  let grown = true
+  while (grown) {
+    grown = false
+    for (const merge of merges) {
+      if (merge.top > bottom || merge.bottom < top || merge.left > right || merge.right < left) continue
+      if (merge.top < top) {
+        top = merge.top
+        grown = true
+      }
+      if (merge.left < left) {
+        left = merge.left
+        grown = true
+      }
+      if (merge.bottom > bottom) {
+        bottom = merge.bottom
+        grown = true
+      }
+      if (merge.right > right) {
+        right = merge.right
+        grown = true
+      }
+    }
+  }
+  return { top, left, bottom, right }
+}
+
+/** Cell range -> A1 notation ('B2:D8'), normalized to top-left:bottom-right. A single cell renders as 'B2'. */
+export const rangeAddress = (rect: CellRangeRect): string => {
+  const start = cellAddress(Math.min(rect.top, rect.bottom), Math.min(rect.left, rect.right))
+  const end = cellAddress(Math.max(rect.top, rect.bottom), Math.max(rect.left, rect.right))
+  return start === end ? start : `${start}:${end}`
 }
 
 /** Whether a cell is covered by a merged range but is not the master. Used to empty the regular cell layer. */

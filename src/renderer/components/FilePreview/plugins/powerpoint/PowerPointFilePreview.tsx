@@ -4,12 +4,14 @@ import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
+import { createSelectionReference } from '../../selectionReference'
 import type { FilePreviewPluginProps } from '../../types'
 import { PowerPointFilePreviewToolbar } from './PowerPointFilePreviewToolbar'
+import { slideExcerpt, slideToPptxAnchor } from './pptxSelectionAnchor'
 
 const logger = loggerService.withContext('PowerPointFilePreview')
 
@@ -83,10 +85,18 @@ function stripExternalMediaRelationships(presentation: PresentationData): void {
   }
 }
 
-export default function PowerPointFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
+export default function PowerPointFilePreview({
+  filePath,
+  fileName,
+  metadata,
+  refreshKey,
+  onSelectionReference
+}: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
+  // The parsed deck a pick reads its excerpt from — the viewer exposes no text API of its own.
+  const presentationRef = useRef<PresentationData | null>(null)
   const controlsBusyRef = useRef(false)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
@@ -94,6 +104,7 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(PPTX_PREVIEW_DEFAULT_ZOOM)
   const [controlsBusy, setControlsBusy] = useState(false)
+  const [pickedSlide, setPickedSlide] = useState<number | null>(null)
 
   const setPreviewControlsBusy = useCallback((busy: boolean) => {
     controlsBusyRef.current = busy
@@ -189,6 +200,7 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
         throwIfAborted(controller.signal)
         const presentation = buildPresentation(pptxFiles, { lazySlides: true })
         stripExternalMediaRelationships(presentation)
+        presentationRef.current = presentation
         throwIfAborted(controller.signal)
 
         viewer = new PptxViewer(container, {
@@ -261,6 +273,7 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
       cancelled = true
       controller.abort()
       controlsBusyRef.current = false
+      presentationRef.current = null
       if (viewerRef.current === viewer) {
         viewerRef.current = null
       }
@@ -268,6 +281,73 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
       container.innerHTML = ''
     }
   }, [filePath, focusContainer, metadata.size, refreshKey, setPreviewControlsBusy])
+
+  // Picking, not text selection: the slides render inside the app-wide `user-select: none`, and the
+  // anchor is slide-level anyway. The callback's presence is the capture switch. The pick lives in
+  // React state and the DOM marker is derived from it, because the renderer rebuilds every slide
+  // element on zoom (`setZoom` -> `queueRender` -> `container.innerHTML = ''`) and a DOM-only truth
+  // would be wiped, turning the next click on that slide into a duplicate pick instead of the clear
+  // it means. The excerpt comes from the parsed deck, not that element (see `slideExcerpt`), which
+  // also makes a click on a slide the windowed renderer has not mounted yet impossible to mis-read.
+  // The marker goes on only after createSelectionReference confirms the host actually receives
+  // something, never before — a slide with no text must not look picked while the host gets null.
+  // A click inside an external hyperlink is still a pick, so it gets preventDefault instead of
+  // following the href; the renderer's in-deck jump links are `role="link"` spans whose own click
+  // listener calls stopPropagation(), so React never sees those — they jump without picking.
+  const handlePick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!onSelectionReference || !(event.target instanceof Element)) return
+      if (event.target.closest('a[href]')) event.preventDefault()
+
+      const result = slideToPptxAnchor(event.target)
+      const presentation = presentationRef.current
+      if (!result || !presentation || result.anchor.slide === pickedSlide) {
+        setPickedSlide(null)
+        onSelectionReference(null)
+        return
+      }
+      const reference = createSelectionReference({
+        filePath,
+        anchor: result.anchor,
+        excerpt: slideExcerpt(presentation, result.anchor.slide),
+        metadata
+      })
+      setPickedSlide(reference ? result.anchor.slide : null)
+      onSelectionReference(reference)
+    },
+    [filePath, metadata, onSelectionReference, pickedSlide]
+  )
+
+  // Sole owner of the marker. The renderer replaces the container's children wholesale on zoom and
+  // fit changes, so a childList mutation on the container is the signal to paint the marker back on.
+  // A rebuild is not a selection change: the file did not change and the host's reference still
+  // stands, so nothing is reported from here.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const applyMarker = () => {
+      container.querySelectorAll('[data-pptx-picked]').forEach((marked) => marked.removeAttribute('data-pptx-picked'))
+      if (pickedSlide === null) return
+      container.querySelector(`[data-slide-index="${pickedSlide - 1}"]`)?.setAttribute('data-pptx-picked', 'true')
+    }
+
+    applyMarker()
+    const observer = new MutationObserver(applyMarker)
+    observer.observe(container, { childList: true })
+    return () => observer.disconnect()
+  }, [pickedSlide])
+
+  useEffect(() => {
+    if (onSelectionReference) return
+    setPickedSlide(null)
+  }, [onSelectionReference])
+
+  // A different document — or the same one reloaded — carries no pick; the host drops its reference
+  // on refresh too.
+  useEffect(() => {
+    setPickedSlide(null)
+  }, [filePath, refreshKey])
 
   const hasPages = !error && pageCount > 0
 
@@ -298,10 +378,12 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
           <div
             ref={containerRef}
             data-testid="pptx-viewer-container"
+            data-picker={onSelectionReference ? 'true' : undefined}
             role="region"
             aria-label={fileName}
-            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="h-full w-full overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-2 [&[data-picker=true]_[data-slide-index]:not([data-pptx-picked=true]):hover]:outline-primary/40 [&[data-picker=true]_[data-slide-index]]:cursor-pointer [&_[data-slide-index][data-pptx-picked=true]]:outline [&_[data-slide-index][data-pptx-picked=true]]:outline-2 [&_[data-slide-index][data-pptx-picked=true]]:outline-primary"
             tabIndex={0}
+            onClick={handlePick}
           />
           {loading ? (
             <div
