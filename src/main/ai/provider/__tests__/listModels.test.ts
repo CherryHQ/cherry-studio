@@ -218,12 +218,12 @@ describe('listModels — TokenDance protocol routing', () => {
 })
 
 describe('listModels — LM Studio', () => {
-  function makeLmStudioProvider() {
+  function makeLmStudioProvider(baseUrl = 'http://lmstudio.test:1234') {
     return makeProvider({
       id: 'lmstudio',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'http://lmstudio.test:1234' }
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl }
       }
     })
   }
@@ -285,6 +285,26 @@ describe('listModels — LM Studio', () => {
       url: 'http://lmstudio.test:1234/v1/models'
     })
     expect(models[0]).toMatchObject({ apiModelId: 'granite-3.0-2b-instruct' })
+  })
+
+  it.each([
+    ['a host pinned to /api/v0', 'http://lmstudio.test:1234/api/v0'],
+    ['a host pinned to /v1', 'http://lmstudio.test:1234/v1/'],
+    ['a trailing-sharp host sentinel', 'http://lmstudio.test:1234#']
+  ])('reduces %s to the server root for both URLs', async (_label, baseUrl) => {
+    // The fallback has to land on /v1/models: reusing a base URL already pinned to /api/v0 would
+    // retry the path that just failed, and a trailing `#` would turn the rest into a fragment.
+    aiSdkGetFromApiMock.mockRejectedValueOnce(new Error('404 Not Found'))
+    aiSdkGetFromApiMock.mockResolvedValueOnce({ value: { data: [{ id: 'granite-3.0-2b-instruct' }] } })
+
+    await listModels(makeLmStudioProvider(baseUrl))
+
+    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'http://lmstudio.test:1234/api/v0/models'
+    })
+    expect(aiSdkGetFromApiMock.mock.calls[1][0]).toMatchObject({
+      url: 'http://lmstudio.test:1234/v1/models'
+    })
   })
 })
 

@@ -787,23 +787,28 @@ const openAIFetcher: ModelFetcher = {
   }
 }
 
+async function listOpenAICompatibleModels(
+  provider: Provider,
+  baseUrl: string,
+  signal?: AbortSignal
+): Promise<Partial<Model>[]> {
+  const response = await getFromApi({
+    url: `${baseUrl}/models`,
+    headers: defaultHeaders(provider),
+    responseSchema: OpenAIModelsResponseSchema,
+    abortSignal: signal
+  })
+  return dedup(response.data, (m) => m.id).map((m) =>
+    toModel(m.id, provider, {
+      name: m.name || m.id,
+      ownedBy: m.owned_by
+    })
+  )
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
-  fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
-      url: `${baseUrl}/models`,
-      headers: defaultHeaders(provider),
-      responseSchema: OpenAIModelsResponseSchema,
-      abortSignal: signal
-    })
-    return dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        ownedBy: m.owned_by
-      })
-    )
-  }
+  fetch: (provider, signal) => listOpenAICompatibleModels(provider, formatApiHost(getBaseUrl(provider)), signal)
 }
 
 /**
@@ -814,13 +819,13 @@ const openAICompatibleFetcher: ModelFetcher = {
 const lmStudioFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
   fetch: async (provider, signal) => {
-    const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
-      .replace(/\/v1$/, '')
-      .replace(/\/api\/v0$/, '')
+    // Reduce whatever the user configured — a trailing `#` sentinel, a pinned `/v1` or `/api/v0`
+    // — to the server root, so the fallback cannot be sent back to the path that just failed.
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v0$/, ''))
     let response: z.infer<typeof LMStudioModelsResponseSchema>
     try {
       response = await getFromApi({
-        url: `${baseUrl}/api/v0/models`,
+        url: `${root}/api/v0/models`,
         headers: defaultHeaders(provider),
         responseSchema: LMStudioModelsResponseSchema,
         abortSignal: signal
@@ -832,7 +837,7 @@ const lmStudioFetcher: ModelFetcher = {
         providerId: provider.id,
         errorType: getErrorType(error)
       })
-      return openAICompatibleFetcher.fetch(provider, signal)
+      return listOpenAICompatibleModels(provider, formatApiHost(root), signal)
     }
 
     return dedup(response.data, (m) => m.id).map((m) => {
