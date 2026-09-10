@@ -12,6 +12,14 @@ type FileItemCore = {
   createdAt: string
   updatedAt: string
   trashed: boolean
+  /**
+   * Filesystem or external path used to distinguish same-name rows. Set by
+   * `toFileItem` from the underlying `FileEntry` (external) or the
+   * `physicalPathById` lookup (internal). Surfaced as the row's hover
+   * tooltip and accessibility name so two rows with identical `name` /
+   * `size` / `format` / `updatedAt` can still be told apart.
+   */
+  sourcePath?: string
   danglingState?: DanglingState
   isMissing?: boolean
 }

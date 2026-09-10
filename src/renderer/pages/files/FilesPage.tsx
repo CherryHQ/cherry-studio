@@ -200,6 +200,13 @@ function toFileItem(
   const physicalPath = physicalPathById[entry.id]
   const danglingState = entry.origin === 'external' ? danglingStateById[entry.id] : undefined
   const isMissing = danglingState === 'missing'
+  // For internal entries the physical filesystem path is the only stable
+  // distinguisher; for external entries the entry already carries the
+  // canonical externalPath on the row itself. Either way, set sourcePath
+  // so the Files list row can surface it through the tooltip and
+  // accessibility name when two same-name rows would otherwise be
+  // indistinguishable (#19495).
+  const sourcePath = entry.origin === 'external' ? entry.externalPath : physicalPath
 
   const base = {
     id: entry.id,
@@ -210,6 +217,7 @@ function toFileItem(
     createdAt: formatDateTime(createdAt),
     updatedAt: formatDateTime(updatedAt),
     trashed: entry.origin === 'internal' && entry.deletedAt !== undefined,
+    sourcePath: sourcePath ?? undefined,
     danglingState,
     isMissing
   }
