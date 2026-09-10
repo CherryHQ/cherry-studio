@@ -80,6 +80,7 @@ const emptyFileSweepReport = {
 describe('CacheCleanupService', () => {
   let root: string
   let tracePath: string
+  let logsPath: string
   let userDataPath: string
 
   const rootPath = (...segments: string[]) => path.join(root, ...segments)
@@ -122,6 +123,8 @@ describe('CacheCleanupService', () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-test-'))
     userDataPath = root
     tracePath = rootPath('Trace')
+    // Mirrors macOS, where the logs directory sits outside userData.
+    logsPath = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-logs-'))
     vi.mocked(app.getPath).mockImplementation((name) => (name === 'exe' ? rootPath('CherryStudio') : '/mock/path'))
 
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
@@ -132,6 +135,7 @@ describe('CacheCleanupService', () => {
         'app.session.webview': rootPath('Session', 'Partitions', 'webview'),
         'app.temp': rootPath('Temp'),
         'feature.trace': tracePath,
+        'app.logs': logsPath,
         'v1.trace': rootPath('Home', 'trace'),
         'v1.cli.install': rootPath('Home', 'install'),
         'v1.database.file': path.join(userDataPath, 'cherrystudio.sqlite'),
@@ -160,6 +164,7 @@ describe('CacheCleanupService', () => {
   afterEach(async () => {
     vi.restoreAllMocks()
     await fs.rm(root, { recursive: true, force: true })
+    await fs.rm(logsPath, { recursive: true, force: true })
   })
 
   it('sums all Electron sessions, disk caches, and traces without counting shared temp data', async () => {
@@ -423,6 +428,56 @@ describe('CacheCleanupService', () => {
     expect(inspection.results[0]?.size).toMatchObject({ bytes: null, completeness: 'partial' })
     expect(cleanup.results[0]?.status).toBe('partial')
     await expectExisting(externalBase)
+  })
+
+  it('removes rotated log files while keeping the log files still being written to', async () => {
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const activeLog = path.join(logsPath, `app.${today}.log`)
+    const activeMiniAppLog = path.join(logsPath, 'mini-apps', 'app-1', `activity.${today}.log`)
+    const oldLog = path.join(logsPath, 'app.2020-01-01.log')
+    const oldMiniAppLog = path.join(logsPath, 'mini-apps', 'app-1', 'activity.2020-01-01.log')
+    const auditFile = path.join(logsPath, '.1234-audit.json')
+    const sizes = [
+      [activeLog, 3],
+      [activeMiniAppLog, 5],
+      [oldLog, 7],
+      [oldMiniAppLog, 11],
+      [auditFile, 13]
+    ] as const
+    for (const [filePath, size] of sizes) {
+      await writeTestFile(filePath, Buffer.alloc(size))
+    }
+
+    const inspection = await cacheCleanupService.inspect(['logs'])
+    const cleanup = await cacheCleanupService.run(['logs'])
+
+    expect(inspection.results[0]?.size).toMatchObject({ bytes: 18, accuracy: 'exact', completeness: 'complete' })
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expectMissing(oldLog, oldMiniAppLog)
+    await expectExisting(activeLog, activeMiniAppLog, auditFile)
+  })
+
+  it('sweeps only logs past the retention window, keeping undated files', async () => {
+    const stamp = (daysAgo: number) => {
+      const day = new Date()
+      day.setDate(day.getDate() - daysAgo)
+      return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+    }
+    const kept = [
+      path.join(logsPath, `app.${stamp(0)}.log`),
+      path.join(logsPath, `app.${stamp(7)}.log`),
+      path.join(logsPath, 'app.log')
+    ]
+    const expired = [path.join(logsPath, `app.${stamp(8)}.log`), path.join(logsPath, `app-error.${stamp(40)}.log`)]
+    for (const filePath of [...kept, ...expired]) {
+      await writeTestFile(filePath, 'entry')
+    }
+
+    await expect(cacheCleanupService.sweepLogs(7)).resolves.toBe(2)
+
+    await expectMissing(...expired)
+    await expectExisting(...kept)
   })
 
   it('removes exact owned files and directory trees without inspecting their contents', async () => {

@@ -41,6 +41,13 @@
       "description": "Status of the main-window first-run provider setup onboarding flow"
     },
     {
+      "targetKey": "app.logs.retention_days",
+      "type": "number",
+      "defaultValue": 30,
+      "status": "classified",
+      "description": "Days of application log files to keep; older rotated logs are swept automatically (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.privacy.policy_version",
       "type": "string",
       "defaultValue": "",

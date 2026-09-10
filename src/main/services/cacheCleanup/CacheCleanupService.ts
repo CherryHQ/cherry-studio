@@ -9,6 +9,7 @@ import type {
 import { Mutex } from 'async-mutex'
 
 import { clearLegacyV1, inspectLegacyV1 } from './legacyV1'
+import { clearLogs, inspectLogs, sweepAgedLogs } from './logs'
 import { clearOrphanedData, inspectOrphanedData } from './orphanedData'
 import { clearNormalCache, clearSiteData, inspectNormalCache, inspectSiteData } from './sessionData'
 import { issue, resultFromSteps, toSizeSnapshot } from './shared'
@@ -24,7 +25,9 @@ async function inspectGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroup
           ? await inspectSiteData()
           : group === 'orphaned_data'
             ? await inspectOrphanedData()
-            : await inspectLegacyV1()
+            : group === 'logs'
+              ? await inspectLogs()
+              : await inspectLegacyV1()
     return { group, size }
   } catch (error) {
     logger.error('Unexpected cache cleanup inspection failure', { group, error })
@@ -46,6 +49,7 @@ async function runGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupResu
     if (group === 'normal_cache') return await clearNormalCache()
     if (group === 'site_data') return await clearSiteData()
     if (group === 'orphaned_data') return await clearOrphanedData()
+    if (group === 'logs') return await clearLogs()
     return await clearLegacyV1()
   } catch (error) {
     logger.error('Unexpected cache cleanup group failure', { group, error })
@@ -71,6 +75,11 @@ class CacheCleanupService {
   public run(groups: CacheCleanupGroup[]): Promise<CacheCleanupRunResult> {
     const requestedGroups = [...groups]
     return this.cleanupMutex.runExclusive(() => runCacheCleanupNow(requestedGroups))
+  }
+
+  /** Drops logs past the retention window, serialized against manual cleanups. */
+  public sweepLogs(retentionDays: number): Promise<number> {
+    return this.cleanupMutex.runExclusive(() => sweepAgedLogs(retentionDays))
   }
 }
 
