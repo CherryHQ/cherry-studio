@@ -1260,6 +1260,7 @@ describe('CherryCloudService', () => {
     mockCloudRoute('/api/v1/account', accountRequest.promise)
     mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
     mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse({ type: 'error' }, 401))
 
     const sync = service['syncEntitledModels']()
     const syncFailure = expect(sync).rejects.toMatchObject({ name: 'AbortError' })
@@ -1281,6 +1282,7 @@ describe('CherryCloudService', () => {
     mockCloudRoute('/api/v1/account', oldAccountRequest.promise)
     mockCloudRoute('/v1/models?limit=1000', oldCatalogRequest.promise)
     mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse({ type: 'error' }, 401))
 
     const oldSync = service['syncEntitledModels']()
     const oldSyncFailure = expect(oldSync).rejects.toMatchObject({ name: 'AbortError' })
@@ -1297,7 +1299,7 @@ describe('CherryCloudService', () => {
       )
     )
 
-    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(7))
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(8))
     oldAccountRequest.resolve(jsonResponse(accountSnapshot))
     oldCatalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
@@ -1448,73 +1450,30 @@ describe('CherryCloudService', () => {
     }
   })
 
-  it('does not restore a refreshed Session after an older request has cleared it', async () => {
+  it('shares an in-flight refresh before retrying a 401', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
 
     try {
       const service = await createSignedInService()
       const pendingOldRequest = deferred<Response>()
       const pendingRefresh = deferred<Response>()
-      mockCloudRoute('/v1/messages', pendingOldRequest.promise)
+      mockCloudRoute('/v1/messages', pendingOldRequest.promise, jsonResponse({ type: 'message' }))
       mockCloudRoute('/api/v1/product-sessions/refresh', pendingRefresh.promise)
+      mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
       clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
       const refreshingRequest = service.authenticatedFetch('/v1/models')
-      const refreshFailure = expect(refreshingRequest).rejects.toThrow(
-        'Cherry Cloud session changed while refresh was in progress'
-      )
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
 
       pendingOldRequest.resolve(jsonResponse({ type: 'error' }, 401))
-      await expect(oldRequest).resolves.toHaveProperty('status', 401)
       pendingRefresh.resolve(jsonResponse(refreshedTokenSet()))
-      await refreshFailure
-
-      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-      expect(mocks.savedSession).toBeNull()
-      expect(mocks.netFetch).toHaveBeenCalledTimes(2)
-    } finally {
-      clock.mockRestore()
-    }
-  })
-
-  it('does not share an in-flight token refresh with a newer Session', async () => {
-    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
-
-    try {
-      const service = await createSignedInService()
-      const pendingOldRequest = deferred<Response>()
-      const pendingOldRefresh = deferred<Response>()
-      mockCloudRoute('/v1/messages', pendingOldRequest.promise)
-      mockCloudRoute('/api/v1/product-sessions/refresh', pendingOldRefresh.promise, jsonResponse(refreshedTokenSet()))
-
-      const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
-      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
-      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
-      const oldRefresh = service.authenticatedFetch('/v1/models')
-      const oldRefreshFailure = expect(oldRefresh).rejects.toThrow(
-        'Cherry Cloud session changed while refresh was in progress'
-      )
-      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
-
-      pendingOldRequest.resolve(jsonResponse({}, 401))
-      await oldRequest
-      mockAuthorizationFlow(authorizationResponse(), exchangeResponse(30))
-      mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
-      await service.startLogin()
-      const createBody = authorizationRequestBody()
-      await loopbackCallback()(
-        new URL(
-          `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
-        )
+      await expect(Promise.all([oldRequest, refreshingRequest])).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ status: 200 }), expect.objectContaining({ status: 200 })])
       )
 
-      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(7))
-      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(2)
-      pendingOldRefresh.resolve(jsonResponse(refreshedTokenSet()))
-      await oldRefreshFailure
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     } finally {
       clock.mockRestore()
@@ -1627,12 +1586,42 @@ describe('CherryCloudService', () => {
     }
   })
 
-  it('clears the Product Session when Cloud API rejects authentication', async () => {
+  it('clears the Product Session when the refreshed Cloud API request still returns 401', async () => {
     const service = await createSignedInService()
-    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401), jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
 
     await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
 
+    expect(requestCalls('/v1/messages')).toHaveLength(2)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+    expect(mocks.savedSession).toBeNull()
+  })
+
+  it('refreshes and retries once when Cloud API rejects an otherwise valid access token', async () => {
+    const service = await createSignedInService()
+    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401), jsonResponse({ type: 'message' }))
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+
+    await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 200)
+
+    expect(requestCalls('/v1/messages')).toHaveLength(2)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+    expect(new Headers(requestCalls('/v1/messages')[0][1].headers).get('Authorization')).toBe(`Bearer ${token('F')}`)
+    expect(new Headers(requestCalls('/v1/messages')[1][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it('clears the Product Session when Cloud API token refresh fails', async () => {
+    const service = await createSignedInService()
+    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse({ type: 'error' }, 503))
+
+    await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
+
+    expect(requestCalls('/v1/messages')).toHaveLength(1)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
     expect(mocks.savedSession).toBeNull()
   })

@@ -750,8 +750,21 @@ export class CherryCloudService extends BaseService {
       url.pathname === '/v1/messages' || url.pathname === '/v1/chat/completions'
         ? (headers.get('Idempotency-Key') ?? createIdempotencyKey())
         : undefined
-    const response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
-    if (response.status === 401) await this.clearSession(session)
+    let response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
+    if (response.status !== 401 || this.cloudState.session !== session) return response
+
+    let refreshedSession: ProductSession
+    try {
+      refreshedSession = await this.activeSession(true, session)
+    } catch {
+      await this.clearSession(session)
+      return response
+    }
+    if (this.cloudState.session !== refreshedSession) return response
+
+    void response.body?.cancel?.()
+    response = await this.signedFetch(url, init, refreshedSession, { bearer: true, idempotencyKey })
+    if (response.status === 401) await this.clearSession(refreshedSession)
     return response
   }
 
@@ -796,11 +809,11 @@ export class CherryCloudService extends BaseService {
     return schema.parse(await response.json())
   }
 
-  private async activeSession(): Promise<ProductSession> {
+  private async activeSession(forceRefresh = false, expectedSession?: ProductSession): Promise<ProductSession> {
     await this.pruneExpiredState()
     const session = this.cloudState.session
-    if (!session) throw new CherryCloudSessionRequiredError()
-    if (session.accessExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > Date.now()) return session
+    if (!session || (expectedSession && session !== expectedSession)) throw new CherryCloudSessionRequiredError()
+    if (!forceRefresh && session.accessExpiresAt - ACCESS_TOKEN_REFRESH_SKEW_MS > Date.now()) return session
     if (this.refreshPromise?.session === session) return this.refreshPromise.promise
 
     const refresh = this.refreshSession(session).finally(() => {
