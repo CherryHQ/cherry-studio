@@ -1945,6 +1945,7 @@
   "library.config.prompt.variables_example": "例如：今天是 {{variable}}，会使用当前日期。",
   "library.config.prompt.variables_title": "系统变量",
   "library.config.prompt.vars.arch": "CPU 架构",
+  "library.config.prompt.vars.assistant_name": "助手 / 智能体名称",
   "library.config.prompt.vars.date": "日期",
   "library.config.prompt.vars.datetime": "日期和时间",
   "library.config.prompt.vars.language": "语言",

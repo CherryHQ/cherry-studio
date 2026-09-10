@@ -97,5 +97,15 @@ describe('prompt', () => {
       const result = await replacePromptVariables(null as any)
       expect(result).toBe(null)
     })
+
+    it('should substitute the owning assistant name', async () => {
+      const result = await replacePromptVariables('You are {{assistant_name}}.', undefined, 'Translator')
+      expect(result).toBe('You are Translator.')
+    })
+
+    it('should leave {{assistant_name}} untouched when the call site has no assistant', async () => {
+      const result = await replacePromptVariables('You are {{assistant_name}}.')
+      expect(result).toBe('You are {{assistant_name}}.')
+    })
   })
 })

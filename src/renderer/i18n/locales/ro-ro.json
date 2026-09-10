@@ -1945,6 +1945,7 @@
   "library.config.prompt.variables_example": "Exemplu: Astăzi este {{variable}}, iar data curentă este folosită.",
   "library.config.prompt.variables_title": "Variabile disponibile",
   "library.config.prompt.vars.arch": "arhitectura CPU",
+  "library.config.prompt.vars.assistant_name": "Numele asistentului / agentului",
   "library.config.prompt.vars.date": "Dată",
   "library.config.prompt.vars.datetime": "Dată și oră",
   "library.config.prompt.vars.language": "Limbă",

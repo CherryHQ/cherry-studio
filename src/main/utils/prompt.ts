@@ -9,7 +9,8 @@
  *      `app.language`)
  *   - `{{system}}`   → Node `os.platform()`
  *   - `{{arch}}`     → Node `os.arch()`
- *   - `{{model_name}}` → supplied by caller (no Redux default-model fallback)
+ *   - `{{model_name}}` / `{{assistant_name}}` → supplied by caller (no Redux
+ *      default-model fallback)
  */
 
 import os from 'node:os'
@@ -28,13 +29,19 @@ const supportedVariables = [
   '{{system}}',
   '{{language}}',
   '{{arch}}',
-  '{{model_name}}'
+  '{{model_name}}',
+  '{{assistant_name}}'
 ] as const
 
 export const containsSupportedVariables = (userSystemPrompt: string): boolean =>
   supportedVariables.some((variable) => userSystemPrompt.includes(variable))
 
-export const replacePromptVariables = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
+export const replacePromptVariables = async (
+  userSystemPrompt: string,
+  modelName?: string,
+  /** Name of the assistant/agent owning this prompt; left unreplaced when the call site has none. */
+  assistantName?: string
+): Promise<string> => {
   if (typeof userSystemPrompt !== 'string') {
     logger.warn('User system prompt is not a string', { userSystemPrompt })
     return userSystemPrompt
@@ -109,6 +116,10 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{model_name}}')) {
     userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, modelName ?? 'Unknown Model')
+  }
+
+  if (assistantName && userSystemPrompt.includes('{{assistant_name}}')) {
+    userSystemPrompt = userSystemPrompt.replace(/{{assistant_name}}/g, assistantName)
   }
 
   return userSystemPrompt

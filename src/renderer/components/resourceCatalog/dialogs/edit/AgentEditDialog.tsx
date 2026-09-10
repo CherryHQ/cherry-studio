@@ -869,7 +869,8 @@ function AgentPromptField({
   const name = form.watch('name')
   const processedInstructions = usePromptProcessor({
     prompt: instructions,
-    modelName: modelName ?? undefined
+    modelName: modelName ?? undefined,
+    assistantName: name
   })
 
   const handlePromptChange = (nextInstructions: string) => {

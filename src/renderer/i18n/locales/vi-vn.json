@@ -1945,6 +1945,7 @@
   "library.config.prompt.variables_example": "Ví dụ: Hôm nay là {{variable}}, và ngày hiện tại được sử dụng.",
   "library.config.prompt.variables_title": "Biến có sẵn",
   "library.config.prompt.vars.arch": "Kiến trúc CPU",
+  "library.config.prompt.vars.assistant_name": "Tên trợ lý / tác nhân",
   "library.config.prompt.vars.date": "Ngày",
   "library.config.prompt.vars.datetime": "Ngày và giờ",
   "library.config.prompt.vars.language": "Ngôn ngữ",

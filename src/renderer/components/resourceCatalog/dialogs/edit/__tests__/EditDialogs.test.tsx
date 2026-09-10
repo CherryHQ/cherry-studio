@@ -1048,13 +1048,14 @@ describe('edit dialogs', () => {
   })
 
   it('submits agent instructions and model changes as a PATCH', async () => {
-    promptProcessorMock.mockImplementation(({ prompt, modelName }: { prompt: string; modelName?: string }) =>
-      prompt.replaceAll('{{model_name}}', modelName ?? '')
+    promptProcessorMock.mockImplementation(
+      ({ prompt, modelName, assistantName }: { prompt: string; modelName?: string; assistantName?: string }) =>
+        prompt.replaceAll('{{model_name}}', modelName ?? '').replaceAll('{{assistant_name}}', assistantName ?? '')
     )
     render(
       <AgentEditDialog
         open
-        resource={{ ...AGENT, instructions: 'Original instructions {{model_name}}' }}
+        resource={{ ...AGENT, instructions: 'Original instructions {{model_name}} for {{assistant_name}}' }}
         onOpenChange={vi.fn()}
       />
     )
@@ -1066,11 +1067,7 @@ describe('edit dialogs', () => {
     ).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
     expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this assistant how to respond')
-    expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
-    expect(promptProcessorMock).toHaveBeenLastCalledWith({
-      prompt: 'Original instructions {{model_name}}',
-      modelName: 'Old Model'
-    })
+    expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model for Alpha Agent')
     fireEvent.change(instructionsInput, { target: { value: 'Updated instructions {{model_name}}' } })
     selectTab('Basic')
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
@@ -1082,10 +1079,6 @@ describe('edit dialogs', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Updated instructions Updated Model')
     )
-    expect(promptProcessorMock).toHaveBeenLastCalledWith({
-      prompt: 'Updated instructions {{model_name}}',
-      modelName: 'Updated Model'
-    })
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({

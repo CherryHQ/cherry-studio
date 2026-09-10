@@ -1945,6 +1945,7 @@
   "library.config.prompt.variables_example": "Örnek: Bugün {{variable}} ve güncel tarih kullanılıyor.",
   "library.config.prompt.variables_title": "Sistem değişkenleri",
   "library.config.prompt.vars.arch": "CPU mimarisi",
+  "library.config.prompt.vars.assistant_name": "Asistan / ajan adı",
   "library.config.prompt.vars.date": "Tarih",
   "library.config.prompt.vars.datetime": "Tarih ve saat",
   "library.config.prompt.vars.language": "Dil",

@@ -7,24 +7,25 @@ const logger = loggerService.withContext('usePromptProcessor')
 interface PromptProcessor {
   prompt: string
   modelName?: string
+  assistantName?: string
 }
 
-export function usePromptProcessor({ prompt, modelName }: PromptProcessor): string {
-  const [processedPrompt, setProcessedPrompt] = useState({ modelName, prompt, value: prompt })
+export function usePromptProcessor({ prompt, modelName, assistantName }: PromptProcessor): string {
+  const [processedPrompt, setProcessedPrompt] = useState({ assistantName, modelName, prompt, value: prompt })
 
   useEffect(() => {
     let cancelled = false
 
     const setCurrentProcessedPrompt = (value: string) => {
       if (!cancelled) {
-        setProcessedPrompt({ modelName, prompt, value })
+        setProcessedPrompt({ assistantName, modelName, prompt, value })
       }
     }
 
     const processPrompt = async () => {
       try {
         if (containsSupportedVariables(prompt)) {
-          const result = await replacePromptVariables(prompt, modelName)
+          const result = await replacePromptVariables(prompt, modelName, assistantName)
           setCurrentProcessedPrompt(result)
         } else {
           setCurrentProcessedPrompt(prompt)
@@ -40,7 +41,11 @@ export function usePromptProcessor({ prompt, modelName }: PromptProcessor): stri
     return () => {
       cancelled = true
     }
-  }, [prompt, modelName])
+  }, [prompt, modelName, assistantName])
 
-  return processedPrompt.prompt === prompt && processedPrompt.modelName === modelName ? processedPrompt.value : prompt
+  return processedPrompt.prompt === prompt &&
+    processedPrompt.modelName === modelName &&
+    processedPrompt.assistantName === assistantName
+    ? processedPrompt.value
+    : prompt
 }

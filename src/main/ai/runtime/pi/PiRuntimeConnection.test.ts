@@ -1769,17 +1769,19 @@ describe('PiRuntimeConnection', () => {
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         model: 'p::m',
+        name: 'Pi Agent',
         modelName: 'Pi Model',
-        instructions: 'Use {{model_name}}.',
+        instructions: '{{assistant_name}} uses {{model_name}}.',
         configuration: {}
       })
       mocks.getById.mockReturnValue(agentSession)
-      mocks.replacePromptVariables.mockResolvedValue('Use Pi Model.')
+      mocks.replacePromptVariables.mockImplementation(async (prompt: string, modelName?: string, agentName?: string) =>
+        prompt.replace('{{model_name}}', modelName ?? '').replace('{{assistant_name}}', agentName ?? '')
+      )
 
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.replacePromptVariables).toHaveBeenCalledWith('Use {{model_name}}.', 'Pi Model')
-      expect(appendedSystemPrompt()).toContain('<agent_instructions>\nUse Pi Model.\n</agent_instructions>')
+      expect(appendedSystemPrompt()).toContain('<agent_instructions>\nPi Agent uses Pi Model.\n</agent_instructions>')
     })
 
     it('resolves and provisions the bundled definition for a built-in Agent', async () => {

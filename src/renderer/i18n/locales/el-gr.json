@@ -1945,6 +1945,7 @@
   "library.config.prompt.variables_example": "Παράδειγμα: Σήμερα είναι {{variable}}, και χρησιμοποιείται η τρέχουσα ημερομηνία.",
   "library.config.prompt.variables_title": "Διαθέσιμες μεταβλητές",
   "library.config.prompt.vars.arch": "αρχιτεκτονική CPU",
+  "library.config.prompt.vars.assistant_name": "Όνομα βοηθού / πράκτορα",
   "library.config.prompt.vars.date": "Ημερομηνία",
   "library.config.prompt.vars.datetime": "Ημερομηνία και ώρα",
   "library.config.prompt.vars.language": "Γλώσσα",

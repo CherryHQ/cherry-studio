@@ -33,7 +33,7 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
   const modelId = useWatch({ control: form.control, name: 'modelId' })
   const prompt = useWatch({ control: form.control, name: 'prompt' })
   const { model } = useModelById(modelId)
-  const processedPrompt = usePromptProcessor({ prompt, modelName: model?.name })
+  const processedPrompt = usePromptProcessor({ prompt, modelName: model?.name, assistantName: name })
 
   return (
     <FormField

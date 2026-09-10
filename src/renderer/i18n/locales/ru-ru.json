@@ -1945,6 +1945,7 @@
   "library.config.prompt.variables_example": "Пример: Сегодня {{variable}}, и используется текущая дата.",
   "library.config.prompt.variables_title": "Доступные переменные",
   "library.config.prompt.vars.arch": "архитектура процессора",
+  "library.config.prompt.vars.assistant_name": "Имя ассистента / агента",
   "library.config.prompt.vars.date": "Дата",
   "library.config.prompt.vars.datetime": "Дата и время",
   "library.config.prompt.vars.language": "Язык",
