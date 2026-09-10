@@ -1,8 +1,7 @@
 import { application } from '@application'
 import type { LoggerService } from '@logger'
-import { getBinaryExecutionEnv, getBinarySearchDirs, getBinaryShimsDir, mergePathSuffixes } from '@main/utils/binaryEnv'
-import { getBundledGitDir } from '@main/utils/bundledGit'
-import { getRawShellEnv, hasUserMiseEnv } from '@main/utils/shellEnv'
+import { getBinaryExecutionEnv, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { getRawShellEnv, hasUserMiseEnv, resolveCherryPathTailDirs } from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import {
@@ -58,18 +57,7 @@ export async function resolveStdioLaunch({
   // instead of the default user location, matching DSH/Pi branching.
   const rawShellEnv = await getRawShellEnv(signal)
   const hasUserMise = hasUserMiseEnv(rawShellEnv)
-  const cherryToolDirs = getBinarySearchDirs()
-  const managedShimsDir = getBinaryShimsDir()
-  const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)
-  const bundledGitDir = getBundledGitDir()
-  const tailDirs = hasUserMise
-    ? bundledGitDir
-      ? [...standaloneDirs, bundledGitDir]
-      : standaloneDirs
-    : bundledGitDir
-      ? [...cherryToolDirs, bundledGitDir]
-      : cherryToolDirs
-  const baseShellEnv = mergePathSuffixes(rawShellEnv, tailDirs)
+  const baseShellEnv = mergePathSuffixes(rawShellEnv, resolveCherryPathTailDirs(hasUserMise))
   const loginShellEnv = hasUserMise ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
   const launch = await resolveLaunchCommand({
     command,

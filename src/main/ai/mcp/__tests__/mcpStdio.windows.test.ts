@@ -24,19 +24,10 @@ vi.mock('@main/ai/mcp/servers/factory', () => ({
   getBuiltinRegistryEnv: () => ({}),
   hasInMemoryImplementation: () => false
 }))
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
   getShellEnv: async () => ({ PATH: process.env.PATH ?? '' }),
-  getRawShellEnv: async () => ({ PATH: process.env.PATH ?? '' }),
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
-  hasMiseInPath: (pathValue?: string) =>
-    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  isMiseEnvVar: (key: string) => key.startsWith('MISE_'),
-  hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
-    Object.keys(env).some((key) => key.startsWith('MISE_')) ||
-    (Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '')
-      .split(/[:;]/)
-      .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
+  getRawShellEnv: async () => ({ PATH: process.env.PATH ?? '' })
 }))
 
 const { createTransport } = await import('../mcpTransport')
