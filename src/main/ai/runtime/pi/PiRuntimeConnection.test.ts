@@ -89,9 +89,9 @@ const mocks = vi.hoisted(() => ({
   createOpts: undefined as Record<string, unknown> | undefined,
   bashToolOptions: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
-  settingsCreateArgs: undefined as unknown[] | undefined,
   settingsArgs: undefined as unknown[] | undefined,
-  getShellPath: vi.fn(),
+  autoDiscoverGitBash: vi.fn(),
+  validateGitBashPath: vi.fn(),
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
   isStreaming: false,
@@ -138,6 +138,10 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
 vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
+vi.mock('@main/utils/commandResolver', () => ({
+  autoDiscoverGitBash: mocks.autoDiscoverGitBash,
+  validateGitBashPath: mocks.validateGitBashPath
+}))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
@@ -222,10 +226,6 @@ const fakePi = {
     inMemory: () => ({ registerProvider: mocks.registerProvider, find: () => ({ id: 'm', provider: 'p' }) })
   },
   SettingsManager: {
-    create: (...args: unknown[]) => {
-      mocks.settingsCreateArgs = args
-      return { getShellPath: mocks.getShellPath }
-    },
     inMemory: (...args: unknown[]) => {
       mocks.settingsArgs = args
       return { setShellCommandPrefix: mocks.setShellCommandPrefix }
@@ -306,9 +306,9 @@ beforeEach(() => {
   mocks.createOpts = undefined
   mocks.bashToolOptions = undefined
   mocks.loaderOpts = undefined
-  mocks.settingsCreateArgs = undefined
   mocks.settingsArgs = undefined
-  mocks.getShellPath.mockReturnValue(undefined)
+  mocks.autoDiscoverGitBash.mockReturnValue(null)
+  mocks.validateGitBashPath.mockImplementation((value: string) => value)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
@@ -1427,7 +1427,6 @@ describe('PiRuntimeConnection', () => {
 
   it('trusts the user-selected workspace: context files load, executable/managed discovery stays off', async () => {
     await new PiRuntimeConnection(input).start()
-    expect(mocks.settingsCreateArgs).toEqual([WORKSPACE, undefined, { projectTrusted: true }])
     expect(mocks.settingsArgs).toEqual([{}, { projectTrusted: true }])
     expect(mocks.loaderOpts).toMatchObject({
       noExtensions: true,
@@ -1439,17 +1438,58 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.reload).toHaveBeenCalledWith()
   })
 
-  it('honors the configured pi shell path without importing other pi settings', async () => {
-    mocks.getShellPath.mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+  it('uses Cherry Git Bash discovery without importing standalone pi settings', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    mocks.autoDiscoverGitBash.mockReturnValue('C:\\Users\\tester\\scoop\\apps\\git\\current\\bin\\bash.exe')
 
-    await new PiRuntimeConnection(input).start()
+    try {
+      await new PiRuntimeConnection(input).start()
+    } finally {
+      platform.mockRestore()
+    }
 
-    expect(mocks.settingsCreateArgs).toEqual([WORKSPACE, undefined, { projectTrusted: true }])
     expect(mocks.settingsArgs).toEqual([
-      { shellPath: 'C:\\Program Files\\Git\\bin\\bash.exe' },
+      { shellPath: 'C:\\Users\\tester\\scoop\\apps\\git\\current\\bin\\bash.exe' },
       { projectTrusted: true }
     ])
-    expect(mocks.bashToolOptions).toMatchObject({ shellPath: 'C:\\Program Files\\Git\\bin\\bash.exe' })
+    expect(mocks.bashToolOptions).toMatchObject({
+      shellPath: 'C:\\Users\\tester\\scoop\\apps\\git\\current\\bin\\bash.exe'
+    })
+  })
+
+  it('keeps the explicit Cherry Git Bash override across new pi sessions', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const shellPath = 'C:\\PortableGit\\bin\\bash.exe'
+    vi.stubEnv('CLAUDE_CODE_GIT_BASH_PATH', shellPath)
+
+    try {
+      await new PiRuntimeConnection(input).start()
+      await new PiRuntimeConnection(input).start()
+    } finally {
+      platform.mockRestore()
+    }
+
+    expect(mocks.validateGitBashPath).toHaveBeenCalledTimes(2)
+    expect(mocks.validateGitBashPath).toHaveBeenCalledWith(shellPath)
+    expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
+    expect(mocks.createBashToolDefinition).toHaveBeenCalledTimes(2)
+    expect(mocks.bashToolOptions).toMatchObject({ shellPath })
+  })
+
+  it('fails closed when the explicit Cherry Git Bash path is invalid', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    vi.stubEnv('CLAUDE_CODE_GIT_BASH_PATH', 'C:\\missing\\bash.exe')
+    mocks.validateGitBashPath.mockReturnValue(null)
+
+    try {
+      await expect(new PiRuntimeConnection(input).start()).rejects.toThrow(
+        'Configured Git Bash path is invalid or unavailable: C:\\missing\\bash.exe'
+      )
+    } finally {
+      platform.mockRestore()
+    }
+    expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
+    expect(mocks.createAgentSession).not.toHaveBeenCalled()
   })
 
   it('injects the agent enabled managed skills as additionalSkillPaths while keeping noSkills', async () => {

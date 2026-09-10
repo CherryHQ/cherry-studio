@@ -32,6 +32,7 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
+import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -94,6 +95,19 @@ export function buildPiLoginPathPrefix(
   platform: NodeJS.Platform = process.platform
 ): string | undefined {
   return platform !== 'win32' && loginPath ? `export PATH="$PATH":${quoteShellWord(loginPath)}` : undefined
+}
+
+function resolvePiShellPath(): string | undefined {
+  if (process.platform !== 'win32') return undefined
+
+  const configuredPath = process.env.CLAUDE_CODE_GIT_BASH_PATH
+  if (!configuredPath) return autoDiscoverGitBash() ?? undefined
+
+  const shellPath = validateGitBashPath(configuredPath)
+  if (!shellPath) {
+    throw new Error(`Configured Git Bash path is invalid or unavailable: ${configuredPath}`)
+  }
+  return shellPath
 }
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
@@ -269,9 +283,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // The workspace is always trusted: the user picked it by hand in Cherry, so there is
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
-      // Keep Cherry's runtime isolated from pi's other settings, while honoring the shell
-      // explicitly selected by the user in ~/.pi/agent/settings.json (or the workspace override).
-      const shellPath = pi.SettingsManager.create(workspacePath, undefined, { projectTrusted: true }).getShellPath()
+      // Keep Cherry's runtime isolated from pi's standalone settings while sharing Cherry's
+      // Windows Git Bash resolution with the Claude Code runtime.
+      const shellPath = resolvePiShellPath()
       const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
