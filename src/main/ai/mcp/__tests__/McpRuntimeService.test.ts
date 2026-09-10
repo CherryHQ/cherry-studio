@@ -897,7 +897,7 @@ describe('McpRuntimeService.callTool tool-result images', () => {
     expect(content[0].mimeType).toBe('image/png')
     const meta = await sharp(Buffer.from(content[0].data!, 'base64')).metadata()
     expect(meta.format).toBe('png')
-    expect(Math.max(meta.width!, meta.height!)).toBeLessThanOrEqual(2000)
+    expect(Math.max(meta.width, meta.height)).toBeLessThanOrEqual(2000)
   })
 
   it('degrades an undecodable image to text instead of failing the tool call', async () => {
