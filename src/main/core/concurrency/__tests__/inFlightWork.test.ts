@@ -5,8 +5,8 @@ import { createInFlightWorkTracker } from '../inFlightWork'
 describe('createInFlightWorkTracker', () => {
   it('drain resolves true once all tracked work settles', async () => {
     const tracker = createInFlightWorkTracker()
-    tracker.track(Promise.resolve('a'))
-    tracker.track(
+    void tracker.track(Promise.resolve('a'))
+    void tracker.track(
       new Promise((resolve) => {
         setTimeout(resolve, 10)
       })
@@ -17,9 +17,9 @@ describe('createInFlightWorkTracker', () => {
 
   it('drain follows work enqueued by settling work', async () => {
     const tracker = createInFlightWorkTracker()
-    tracker.track(
+    void tracker.track(
       Promise.resolve().then(() => {
-        tracker.track(Promise.resolve('follow-up'))
+        void tracker.track(Promise.resolve('follow-up'))
       })
     )
 
@@ -30,7 +30,7 @@ describe('createInFlightWorkTracker', () => {
     // A producer still live during shutdown (or a never-settling promise) must
     // not stall a service's stop() — the drain is deadline-bounded.
     const tracker = createInFlightWorkTracker()
-    tracker.track(new Promise(() => {}))
+    void tracker.track(new Promise(() => {}))
 
     await expect(tracker.drain({ timeoutMs: 50 })).resolves.toBe(false)
   })
