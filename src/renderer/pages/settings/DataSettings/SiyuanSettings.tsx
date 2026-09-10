@@ -1,6 +1,7 @@
 import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { SecretInput } from '@renderer/components/SecretInput'
 import {
   SettingDivider,
   SettingGroup,
@@ -106,13 +107,11 @@ const SiyuanSettings: FC = () => {
         </SettingRowTitle>
         <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
           <RowFlex className="w-full min-w-0 items-center gap-1.25">
-            <Input
-              type="password"
+            <SecretInput
               value={siyuanToken || ''}
               onChange={handleTokenChange}
               onBlur={handleTokenChange}
               placeholder={t('settings.data.siyuan.token_placeholder')}
-              style={{ width: '100%' }}
             />
             <Button onClick={handleCheckConnection} variant="outline" className="h-9 shrink-0">
               {t('settings.data.siyuan.check.button')}

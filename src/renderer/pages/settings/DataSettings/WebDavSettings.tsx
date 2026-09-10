@@ -1,5 +1,6 @@
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { SecretInput } from '@renderer/components/SecretInput'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -125,13 +126,12 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow id="setting-data-webdav-password" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.webdav.password')}</SettingRowTitle>
-        <Input
-          type="password"
+        <SecretInput
           placeholder={t('settings.data.webdav.password')}
           value={webdavPass}
           onChange={(e) => setWebdavPass(e.target.value)}
-          style={{ width: 250 }}
           onBlur={() => setWebdavPass(webdavPass || '')}
+          className="w-62.5"
         />
       </SettingRow>
       <SettingDivider />

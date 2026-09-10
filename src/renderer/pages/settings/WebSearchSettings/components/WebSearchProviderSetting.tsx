@@ -10,6 +10,7 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
+import { SecretInput } from '@renderer/components/SecretInput'
 import {
   SettingDivider,
   SettingGroup,
@@ -364,8 +365,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
               )}
             </div>
             <div className="flex min-w-0 items-center gap-2">
-              <Input
-                type="password"
+              <SecretInput
                 value={apiKeysInput}
                 placeholder={t('settings.provider.api_key.label')}
                 onChange={(e) => setApiKeysInput(e.target.value)}
@@ -474,9 +474,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   <Label htmlFor="websearch-basic-auth-password">
                     {t('settings.provider.basic_auth.password.label')}
                   </Label>
-                  <Input
+                  <SecretInput
                     id="websearch-basic-auth-password"
-                    type="password"
                     value={basicAuthPasswordInput}
                     placeholder={t('settings.provider.basic_auth.password.tip')}
                     onChange={(e) => setBasicAuthPasswordInput(e.target.value)}

@@ -22,7 +22,7 @@ vi.mock('@renderer/components/icons/EditIcon', () => ({
   default: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async () => ({
   Button: ({ asChild, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
     if (asChild) {
       return <>{children}</>
@@ -51,6 +51,7 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  SecretInput: (await import('@test-mocks/renderer/CherrystudioUI')).MockSecretInput,
   Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode; delay?: number }) => (
     <>{children}</>
   )

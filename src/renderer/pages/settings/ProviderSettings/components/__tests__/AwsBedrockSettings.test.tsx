@@ -10,13 +10,14 @@ const setInputApiKeyMock = vi.fn()
 const commitInputApiKeyNowMock = vi.fn()
 const radioGroupPropsSpy = vi.fn()
 
-vi.mock('@cherrystudio/ui', () => ({
+vi.mock('@cherrystudio/ui', async () => ({
   Button: ({ children, onClick, ...props }: any) => (
     <button type="button" onClick={onClick} {...props}>
       {children}
     </button>
   ),
   Input: (props: any) => <input {...props} />,
+  SecretInput: (await import('@test-mocks/renderer/CherrystudioUI')).MockSecretInput,
   Label: ({ children, ...props }: any) => <label {...props}>{children}</label>,
   // RadioGroup props are captured via spy so tests can drive onValueChange
   // directly. Simulating real radio change events in jsdom + an inline mock

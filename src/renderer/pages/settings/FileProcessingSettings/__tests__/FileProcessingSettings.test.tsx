@@ -353,7 +353,13 @@ describe('processing settings pages', () => {
       '[&_input[data-slot=input]]:border-border-subtle',
       '[&_input[data-slot=input]]:bg-muted/30',
       '[&_input[data-slot=input]]:shadow-none',
-      '[&_input[data-slot=input]:focus-visible]:ring-[1px]'
+      '[&_input[data-slot=input]:focus-visible]:ring-[1px]',
+      '[&_[data-slot=input-group]]:h-8',
+      '[&_[data-slot=input-group]]:rounded-lg',
+      '[&_[data-slot=input-group]]:border-border-subtle',
+      '[&_[data-slot=input-group]]:bg-muted/30',
+      '[&_[data-slot=input-group]]:shadow-none',
+      '[&_[data-slot=input-group-control]]:px-2.5'
     )
   })
 
