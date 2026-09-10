@@ -3,6 +3,8 @@ description: Simplified GitLab Flow for maintaining the current and previous min
 sources:
   - docs/contrib/branching-strategy.md
   - docs/contrib/release-workflow.md
+  - docs/references/data/database-construction.md
+  - docs/references/data/preference-overview.md
   - .github/workflows/backport-release-fixes.yml
   - .github/workflows/release.yml
 ---
@@ -143,7 +145,15 @@ For each supported line:
 6. Inspect the artifacts and approve publication through the protected release environment.
 7. Publish an immutable version tag. Any later fix receives a new patch version.
 
-Publishing an older maintenance release must not overwrite the current version recorded on `main`. Release history and update metadata therefore need per-version ownership. If clients must remain on their installed minor line, each supported line also needs a distinct update channel; otherwise maintenance builds may be published for manual installation while the default stable channel continues to upgrade users to the current line.
+Publishing an older maintenance release must not overwrite the current version recorded on `main`. Release history and update metadata therefore need per-version ownership. The default stable channel may upgrade users from the previous minor to the current minor, including `2.0.x` to `2.1.y`. If the product explicitly promises minor-line pinning, each supported line also needs a distinct update channel; maintaining two release branches alone does not create that promise.
+
+## Persisted Storage Contract
+
+Patch releases freeze the persisted storage contract. They must not add or modify Drizzle migrations, database schema, preference keys, persisted value types, or persisted value semantics. This rule freezes the on-disk contract, not its implementation: a patch may fix queries, transactions, serialization, validation, defensive reads, or documented preference behavior when existing stored data remains compatible. Do not evade the freeze by moving new durable state into a cache, JSON file, or another persistence mechanism.
+
+A lossless, idempotent repair over the existing schema requires explicit approval from the data owner and upgrade-path tests. A fix that requires a new persisted contract ships in the next minor release. If it cannot wait, cut an expedited minor instead of weakening the patch contract. Classifying a change as `hotfix` does not override this rule.
+
+At each minor cut, the older line's database migration chain must be an exact prefix of every later supported line's chain. For example, if `2.0.x` contains migrations `A, B`, then `2.1.y` may contain `A, B, C, D`. Because the `2.0.x` schema remains frozen after its branch cut, upgrading from `2.0.x` to `2.1.y` applies only `C, D` and follows the same forward migration path as a fresh `2.1.y` installation.
 
 ## Backport Policy
 
@@ -156,7 +166,8 @@ Publishing an older maintenance release must not overwrite the current version r
 | Feature or breaking change | Release through the appropriate future version | Do not backport |
 | Refactor | Do not backport independently | Do not backport |
 | Dependency update | Backport only for a concrete fix or security need | Backport only when necessary |
-| Database migration | Require target-line design and migration testing | Never cherry-pick mechanically |
+| Database or preference implementation fix | Backport only when the persisted contract is unchanged | Same, with compatibility review |
+| Database or preference contract change | Ship in the next minor or an expedited minor | Do not backport |
 
 ## Release-Line Lifecycle
 
@@ -180,4 +191,6 @@ Security support beyond the two-line window is an explicit release-team exceptio
 - Conflicted backports require human adaptation and target-line testing.
 - Builds, tags, and publication are bound to the same exact commit.
 - Published version tags never move.
+- Patch releases do not change database or preference storage contracts.
+- Every supported older migration chain is an exact prefix of later supported chains.
 - Only the current and immediately previous minor lines receive routine maintenance.
