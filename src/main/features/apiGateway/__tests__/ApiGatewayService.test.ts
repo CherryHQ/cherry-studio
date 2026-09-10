@@ -10,22 +10,34 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * preference-change handler is captured so the toggle can be driven directly.
  */
 
-const { mockStart, mockStop, mockSetShared, mockGetActiveUsageContext, mockPreferenceSet, captured } = vi.hoisted(
-  () => ({
-    mockStart: vi.fn(),
-    mockStop: vi.fn(),
-    mockSetShared: vi.fn(),
-    mockGetActiveUsageContext: vi.fn(),
-    mockPreferenceSet: vi.fn(async () => {}),
-    captured: {
-      prefHandler: undefined as ((enabled: boolean) => void) | undefined,
-      enabledPreference: false
-    }
-  })
-)
+const {
+  mockStart,
+  mockStop,
+  mockRuntimeAddress,
+  mockSetShared,
+  mockGetActiveUsageContext,
+  mockPreferenceSet,
+  captured
+} = vi.hoisted(() => ({
+  mockStart: vi.fn(),
+  mockStop: vi.fn(),
+  mockRuntimeAddress: vi.fn(() => ({ host: '127.0.0.1', port: 24444 })),
+  mockSetShared: vi.fn(),
+  mockGetActiveUsageContext: vi.fn(),
+  mockPreferenceSet: vi.fn(async () => {}),
+  captured: {
+    prefHandler: undefined as ((enabled: boolean) => void) | undefined,
+    enabledPreference: false
+  }
+}))
 
 vi.mock('../server', () => ({
-  ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
+  ApiGateway: vi.fn(() => ({
+    start: mockStart,
+    stop: mockStop,
+    isRunning: () => true,
+    getRuntimeAddress: mockRuntimeAddress
+  }))
 }))
 
 vi.mock('@application', async () => {
@@ -65,6 +77,7 @@ beforeEach(() => {
   rejectStart = false
   mockStart.mockReset()
   mockStop.mockReset()
+  mockRuntimeAddress.mockClear()
   mockSetShared.mockClear()
   mockGetActiveUsageContext.mockReset()
   mockGetActiveUsageContext.mockReturnValue({
@@ -181,7 +194,7 @@ describe('ApiGatewayService reconcile', () => {
     const started = service.start()
     await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
     startResolvers[0]()
-    await started
+    await expect(started).resolves.toEqual({ host: '127.0.0.1', port: 24444 })
 
     expect(mockPreferenceSet).toHaveBeenCalledWith('feature.api_gateway.enabled', true)
   })

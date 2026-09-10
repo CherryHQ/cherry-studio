@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
+import type { ApiGatewayConfig, ApiGatewayRuntimeAddress, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -146,7 +146,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     await this.converge(enabled)
   }
 
-  async start(): Promise<void> {
+  async start(): Promise<ApiGatewayRuntimeAddress> {
     await this.applyIntent(true)
     if (!this.isActivated) {
       const error = this.failureError('Failed to start API Gateway')
@@ -154,6 +154,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       throw error
     }
     logger.info('API Gateway started successfully')
+    return this.requireRuntimeAddress()
   }
 
   async stop(): Promise<ApiGatewayStopOutcome> {
@@ -173,7 +174,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return 'stopped'
   }
 
-  async restart(): Promise<void> {
+  async restart(): Promise<ApiGatewayRuntimeAddress> {
     if (this.leaseCount > 0) {
       const error = new Error('API Gateway is busy: a temporary run is in progress. Retry once it finishes.')
       logger.warn('Refusing API Gateway restart while a lease is active', error)
@@ -196,6 +197,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       throw error
     }
     logger.info('API Gateway restarted successfully')
+    return this.requireRuntimeAddress()
   }
 
   /**
@@ -203,7 +205,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
    * persisted intent, so a caller that merely needs the gateway up (an agent route whose model must
    * be bridged) can wait for readiness without being able to re-enable what a user disabled.
    */
-  async ensureRunning(): Promise<void> {
+  async ensureRunning(): Promise<ApiGatewayRuntimeAddress> {
     if (!this.getCurrentConfig().enabled) {
       throw new Error('API Gateway is disabled')
     }
@@ -213,6 +215,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       logger.error('Failed to start API Gateway:', error)
       throw error
     }
+    return this.requireRuntimeAddress()
   }
 
   /**
@@ -256,6 +259,16 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   isRunning(): boolean {
     return this.apiGateway?.isRunning() ?? false
+  }
+
+  getRuntimeAddress(): ApiGatewayRuntimeAddress | null {
+    return this.apiGateway?.isRunning() ? this.apiGateway.getRuntimeAddress() : null
+  }
+
+  private requireRuntimeAddress(): ApiGatewayRuntimeAddress {
+    const address = this.getRuntimeAddress()
+    if (!address) throw new Error('API Gateway runtime address is unavailable')
+    return address
   }
 
   getInternalRequestToken(): string {

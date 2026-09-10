@@ -1,14 +1,17 @@
 import { preferenceService } from '@data/PreferenceService'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
+import { loggerService } from '@renderer/services/LoggerService'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { DEFAULT_PROVIDER_SETTINGS, type Provider } from '@shared/data/types/provider'
+import type { ApiGatewayRuntimeAddress } from '@shared/types/apiGateway'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const DEFAULT_GATEWAY_HOST = '127.0.0.1'
 const DEFAULT_GATEWAY_PORT = 23333
+const logger = loggerService.withContext('useApiGatewayProvider')
 
 /**
  * The synthetic "Cherry Gateway" entry for the code-CLI provider list, plus the
@@ -23,7 +26,7 @@ export interface ApiGatewayProviderBundle {
   /** Current persisted gateway key; `null` before the gateway has ever started (main generates it lazily). */
   apiKey: string | null
   /** Start the gateway if needed and confirm it is running. */
-  ensureRunning: () => Promise<void>
+  ensureRunning: () => Promise<Provider>
   /** Read the persisted key for a CLI config-file write. */
   getApiKey: () => Promise<string>
 }
@@ -36,23 +39,48 @@ export interface ApiGatewayProviderBundle {
  */
 export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const { t } = useTranslation()
-  const { apiGatewayConfig, apiGatewayRunning, startApiGateway } = useApiGateway()
+  const { apiGatewayConfig, apiGatewayRunning, getApiGatewayRuntimeAddress, startApiGateway } = useApiGateway()
   const host = apiGatewayConfig.host || DEFAULT_GATEWAY_HOST
   const port = apiGatewayConfig.port || DEFAULT_GATEWAY_PORT
   const apiKey = apiGatewayConfig.apiKey
+  const [runtimeAddress, setRuntimeAddress] = useState<ApiGatewayRuntimeAddress | null>(null)
+  const wasGatewayRunning = useRef(apiGatewayRunning)
 
-  const ensureRunning = useCallback(async (): Promise<void> => {
+  useEffect(() => {
+    const startedExternally = apiGatewayRunning && !wasGatewayRunning.current
+    wasGatewayRunning.current = apiGatewayRunning
+
     if (!apiGatewayRunning) {
-      // Main persists the key in `onActivate` BEFORE the server binds, and it survives a stop — so a
-      // key can exist while nothing is listening. Only proceed when the start actually confirmed the
-      // server is running; otherwise the caller must not write the CLI config or mark the gateway
-      // current against a dead port. `startApiGateway` returns false on failure (it never rejects).
-      const started = await startApiGateway()
-      if (!started) {
-        throw new Error('API gateway failed to start')
-      }
+      setRuntimeAddress(null)
+      return
     }
-  }, [apiGatewayRunning, startApiGateway])
+    if (!startedExternally) return
+
+    let cancelled = false
+    getApiGatewayRuntimeAddress()
+      .then((address) => {
+        if (!cancelled) setRuntimeAddress(address)
+      })
+      .catch((error) => logger.warn('Failed to synchronize API gateway runtime address', { error }))
+    return () => {
+      cancelled = true
+    }
+  }, [apiGatewayRunning, getApiGatewayRuntimeAddress])
+
+  const provider = useMemo(
+    () =>
+      createApiGatewayProvider(t('code.api_gateway.title'), runtimeAddress?.host ?? host, runtimeAddress?.port ?? port),
+    [host, port, runtimeAddress, t]
+  )
+
+  const ensureRunning = useCallback(async (): Promise<Provider> => {
+    // Main owns the actual listener address. Renderer preferences are desired config and may lag a
+    // fallback bind; querying an already-running gateway also preserves a temporary lease's intent.
+    const address = apiGatewayRunning ? await getApiGatewayRuntimeAddress() : await startApiGateway()
+    if (!address) throw new Error('API gateway failed to start')
+    setRuntimeAddress(address)
+    return createApiGatewayProvider(t('code.api_gateway.title'), address.host, address.port)
+  }, [apiGatewayRunning, getApiGatewayRuntimeAddress, startApiGateway, t])
 
   const getApiKey = useCallback(async (): Promise<string> => {
     const key = await preferenceService.get('feature.api_gateway.api_key')
@@ -62,23 +90,23 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
     return key
   }, [])
 
-  return useMemo(() => {
-    const baseUrl = gatewayClientOrigin(host, port)
-    const provider: Provider = {
-      id: CLI_API_GATEWAY_PROVIDER_ID,
-      // Display-only; the CLI provider key is decoupled from this title (see cliProviderKeyName).
-      name: t('code.api_gateway.title'),
-      endpointConfigs: {
-        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl },
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl },
-        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl }
-      },
-      apiKeys: [{ id: 'gateway', isEnabled: true }],
-      authType: 'api-key',
-      reportsActualCost: false,
-      settings: DEFAULT_PROVIDER_SETTINGS,
-      isEnabled: true
-    }
-    return { provider, apiKey, ensureRunning, getApiKey }
-  }, [host, port, apiKey, t, ensureRunning, getApiKey])
+  return useMemo(() => ({ provider, apiKey, ensureRunning, getApiKey }), [provider, apiKey, ensureRunning, getApiKey])
+}
+
+function createApiGatewayProvider(name: string, host: string, port: number): Provider {
+  const baseUrl = gatewayClientOrigin(host, port)
+  return {
+    id: CLI_API_GATEWAY_PROVIDER_ID,
+    name,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl },
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl }
+    },
+    apiKeys: [{ id: 'gateway', isEnabled: true }],
+    authType: 'api-key',
+    reportsActualCost: false,
+    settings: DEFAULT_PROVIDER_SETTINGS,
+    isEnabled: true
+  }
 }

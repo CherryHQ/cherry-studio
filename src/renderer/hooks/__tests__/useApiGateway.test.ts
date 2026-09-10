@@ -49,4 +49,19 @@ describe('useApiGateway', () => {
     expect(toast.info).toHaveBeenCalledWith('apiGateway.messages.stopDeferred')
     expect(toast.success).not.toHaveBeenCalled()
   })
+
+  it('returns the bound runtime address after starting', async () => {
+    ipcRequestMock.mockResolvedValue({ success: true, address: { host: '127.0.0.1', port: 24444 } })
+    const { result } = renderHook(() => useApiGateway())
+
+    await expect(act(() => result.current.startApiGateway())).resolves.toEqual({ host: '127.0.0.1', port: 24444 })
+  })
+
+  it('reads the runtime address without issuing a start command', async () => {
+    ipcRequestMock.mockResolvedValue({ host: '127.0.0.1', port: 24444 })
+    const { result } = renderHook(() => useApiGateway())
+
+    await expect(result.current.getApiGatewayRuntimeAddress()).resolves.toEqual({ host: '127.0.0.1', port: 24444 })
+    expect(ipcRequestMock).toHaveBeenCalledWith('api_gateway.get_runtime_address')
+  })
 })

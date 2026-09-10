@@ -927,7 +927,7 @@ describe('CodeCliPage', () => {
       apiModelId: 'claude-new',
       name: 'Claude New'
     }
-    const ensureRunning = vi.fn().mockResolvedValue(undefined)
+    const ensureRunning = vi.fn().mockResolvedValue(gatewayProvider)
     const getApiKey = vi.fn().mockResolvedValue('cs-sk-default')
     gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getApiKey }
     gatewayState.defaultModelId = defaultModel.id
@@ -973,7 +973,7 @@ describe('CodeCliPage', () => {
       apiModelId: 'claude-new',
       name: 'Claude New'
     }
-    const ensureRunning = vi.fn().mockResolvedValue(undefined)
+    const ensureRunning = vi.fn().mockResolvedValue(gatewayProvider)
     const getApiKey = vi.fn().mockResolvedValue('cs-sk-default')
     gatewayState.bundle = { provider: gatewayProvider, apiKey: null, ensureRunning, getApiKey }
     gatewayState.defaultModelId = defaultModel.id
