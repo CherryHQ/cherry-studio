@@ -1,36 +1,28 @@
 import type { DocumentAnchor } from '@renderer/types/selectionReference'
 
 /**
- * Derives a DOCX paragraph anchor + plain-text excerpt from the current DOM
- * selection inside the docx-preview render. Relies on the `data-docx-part` /
- * `data-docx-index` / `data-para-id` attributes added by the repo's
- * `docx-preview` patch.
+ * Derives a DOCX paragraph anchor + plain-text excerpt from an element the user picked inside the
+ * docx-preview render. Relies on the `data-docx-part` / `data-docx-index` / `data-para-id`
+ * attributes added by the repo's `docx-preview` patch.
  *
- * Returns null unless the selection starts inside a **body-level** paragraph:
- * `paragraph` is a required anchor field, and only body paragraphs carry an
- * ordinal that matches the document's own addressing. Selections in headers,
- * footers, footnotes, endnotes, comments or table cells therefore produce no
- * anchor at all rather than a half-truthful one.
+ * Returns null unless the pick lands in a **body-level** paragraph: `paragraph` is a required anchor
+ * field, and only body paragraphs carry an ordinal that matches the document's own addressing.
+ * Headers, footers, footnotes, endnotes, comments and table cells therefore produce no anchor at all
+ * rather than a half-truthful one.
  *
- * A cross-paragraph selection anchors to its starting paragraph; the excerpt
- * still spans the whole selection.
+ * The innermost paragraph is resolved and the ordinal is required on that exact element: docx-preview
+ * parses `w:txbxContent` through `parseBodyElements` without a part, so a text box's paragraphs carry
+ * no ordinal while the body paragraph wrapping the shape does. Matching `[data-docx-index]` directly
+ * would skip past the text box and anchor to the outer paragraph, which a later edit would then
+ * replace instead of the text the user actually picked.
  *
- * Never resolve `data-para-id` with a global query — headers/footers and
- * footnotes are re-rendered per page, so the same id appears many times.
+ * Never resolve `data-para-id` with a global query — headers/footers and footnotes are re-rendered
+ * per page, so the same id appears many times.
  */
-export function selectionToDocxAnchor(selection: Selection): { anchor: DocumentAnchor; excerpt: string } | null {
-  if (selection.isCollapsed || selection.rangeCount === 0) return null
-
-  const range = selection.getRangeAt(0)
-  const startNode = range.startContainer
-  const startElement = startNode.nodeType === Node.ELEMENT_NODE ? (startNode as Element) : startNode.parentElement
-  // Resolve the innermost paragraph and require the ordinal on that exact element. Unnumbered
-  // paragraphs nest inside numbered ones — docx-preview parses `w:txbxContent` through
-  // `parseBodyElements` without a part, so a text box's paragraphs carry no ordinal while the
-  // body paragraph wrapping the shape does. Matching `[data-docx-index]` directly would skip
-  // past the text box and anchor the selection to the outer paragraph, which a later edit
-  // would then replace instead of the text the user actually selected.
-  const paragraphElement = startElement?.closest<HTMLElement>('p')
+export function paragraphToDocxAnchor(
+  element: Element
+): { anchor: DocumentAnchor; excerpt: string; element: HTMLElement } | null {
+  const paragraphElement = element.closest<HTMLElement>('p')
   if (!paragraphElement || paragraphElement.dataset.docxPart !== 'body') return null
 
   const paragraph = Number(paragraphElement.dataset.docxIndex)
@@ -40,9 +32,9 @@ export function selectionToDocxAnchor(selection: Selection): { anchor: DocumentA
 
   return {
     anchor: { format: 'docx', paragraph, ...(paraId ? { paraId } : {}) },
-    // Read the excerpt off the selection rather than the range, matching the pptx anchor:
-    // `Range.toString()` also collects text the selection merely spans over, `user-select: none`
-    // chrome outside the preview included, while `Selection.toString()` returns what is selectable.
-    excerpt: selection.toString()
+    excerpt: paragraphElement.textContent ?? '',
+    // The resolved paragraph itself, so the caller marks the element the ordinal came from instead
+    // of resolving `closest('p')` a second time and risking a different answer.
+    element: paragraphElement
   }
 }

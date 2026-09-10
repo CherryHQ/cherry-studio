@@ -1,124 +1,98 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { selectionToDocxAnchor } from '../docxSelectionAnchor'
+import { paragraphToDocxAnchor } from '../docxSelectionAnchor'
 
 /** Mirrors what the patched docx-preview renders for a single paragraph. */
 function buildParagraph(
   attributes: { part?: string; index?: string; paraId?: string },
   text: string
-): { paragraph: HTMLParagraphElement; textNode: Text } {
+): HTMLParagraphElement {
   const paragraph = document.createElement('p')
   if (attributes.part !== undefined) paragraph.setAttribute('data-docx-part', attributes.part)
   if (attributes.index !== undefined) paragraph.setAttribute('data-docx-index', attributes.index)
   if (attributes.paraId !== undefined) paragraph.setAttribute('data-para-id', attributes.paraId)
-  const textNode = document.createTextNode(text)
-  paragraph.appendChild(textNode)
+  paragraph.appendChild(document.createTextNode(text))
   document.body.appendChild(paragraph)
-  return { paragraph, textNode }
-}
-
-function selectionOver(range: Range, isCollapsed = false): Selection {
-  return {
-    isCollapsed,
-    rangeCount: 1,
-    getRangeAt: () => range,
-    // The anchor reads its excerpt off the selection, not the range. Chromium returns the rendered
-    // selection here, which is why it is the one being read; jsdom has no layout, so this stand-in
-    // can only be the range's text and the difference between the two is not observable in tests.
-    toString: () => range.toString()
-  } as unknown as Selection
-}
-
-function rangeOver(textNode: Text, length = textNode.length): Range {
-  const range = document.createRange()
-  range.setStart(textNode, 0)
-  range.setEnd(textNode, length)
-  return range
+  return paragraph
 }
 
 afterEach(() => {
   document.body.replaceChildren()
 })
 
-describe('selectionToDocxAnchor', () => {
-  it('anchors a body paragraph to its ordinal and paraId', () => {
-    const { textNode } = buildParagraph({ part: 'body', index: '7', paraId: '1A2B3C4D' }, 'body paragraph text')
+describe('paragraphToDocxAnchor', () => {
+  it('anchors a body paragraph to its ordinal and paraId with the paragraph text as excerpt', () => {
+    const paragraph = buildParagraph({ part: 'body', index: '7', paraId: '1A2B3C4D' }, 'body paragraph text')
 
-    const result = selectionToDocxAnchor(selectionOver(rangeOver(textNode)))
-
-    expect(result?.anchor).toEqual({ format: 'docx', paragraph: 7, paraId: '1A2B3C4D' })
-    expect(result?.excerpt).toBe('body paragraph text')
+    expect(paragraphToDocxAnchor(paragraph)).toEqual({
+      anchor: { format: 'docx', paragraph: 7, paraId: '1A2B3C4D' },
+      excerpt: 'body paragraph text',
+      element: paragraph
+    })
   })
 
   it('omits paraId for documents whose producer never wrote w14:paraId', () => {
-    const { textNode } = buildParagraph({ part: 'body', index: '0' }, 'paragraph without paraId')
+    const paragraph = buildParagraph({ part: 'body', index: '0' }, 'paragraph without paraId')
 
-    const result = selectionToDocxAnchor(selectionOver(rangeOver(textNode)))
+    const result = paragraphToDocxAnchor(paragraph)
 
     expect(result?.anchor).toEqual({ format: 'docx', paragraph: 0 })
     expect(result?.anchor).not.toHaveProperty('paraId')
   })
 
-  it.each(['header', 'footer', 'footnote', 'endnote', 'comment'])(
-    'returns null for a selection inside a %s paragraph, whose ordinal is not a body ordinal',
-    (part) => {
-      const { textNode } = buildParagraph({ part, index: '0', paraId: 'FFFF0001' }, `${part} text`)
+  it('resolves a click on an inline element to its enclosing body paragraph', () => {
+    const paragraph = buildParagraph({ part: 'body', index: '2' }, 'lead ')
+    const run = document.createElement('span')
+    run.textContent = 'bold run'
+    paragraph.appendChild(run)
 
-      expect(selectionToDocxAnchor(selectionOver(rangeOver(textNode)))).toBeNull()
+    expect(paragraphToDocxAnchor(run)).toEqual({
+      anchor: { format: 'docx', paragraph: 2 },
+      excerpt: 'lead bold run',
+      element: paragraph
+    })
+  })
+
+  it('returns null for header, footer, footnote and comment paragraphs', () => {
+    for (const part of ['header', 'footer', 'footnote', 'endnote', 'comment']) {
+      expect(paragraphToDocxAnchor(buildParagraph({ part, index: '1' }, `${part} text`))).toBeNull()
     }
-  )
+  })
 
-  it('returns null inside a table paragraph, which the patch leaves unnumbered', () => {
+  it('returns null for a paragraph inside a table cell', () => {
+    // The patch's `parseBodyElements` gives w:tbl its own case, so a table's paragraphs are rendered
+    // with neither data-docx-part nor data-docx-index — they carry no body ordinal to anchor to.
     const cell = document.createElement('td')
     const paragraph = document.createElement('p')
-    paragraph.setAttribute('data-para-id', 'CCCC0003')
-    const textNode = document.createTextNode('cell text')
-    paragraph.appendChild(textNode)
+    paragraph.textContent = 'cell text'
     cell.appendChild(paragraph)
     document.body.appendChild(cell)
 
-    expect(selectionToDocxAnchor(selectionOver(rangeOver(textNode)))).toBeNull()
+    expect(paragraphToDocxAnchor(paragraph)).toBeNull()
   })
 
-  it('returns null inside a text box, whose paragraphs nest in a numbered body paragraph', () => {
-    // docx-preview parses w:txbxContent through parseBodyElements without a part, so the text
-    // box's own <p> carries no ordinal while the body paragraph wrapping the shape does.
-    const { paragraph: bodyParagraph } = buildParagraph({ part: 'body', index: '2', paraId: 'DDDD0004' }, '')
-    const boxed = document.createElement('p')
-    const textNode = document.createTextNode('text inside the box')
-    boxed.appendChild(textNode)
-    bodyParagraph.appendChild(boxed)
-
-    expect(selectionToDocxAnchor(selectionOver(rangeOver(textNode)))).toBeNull()
+  it('returns null for a paragraph the docx-preview patch left unnumbered', () => {
+    expect(paragraphToDocxAnchor(buildParagraph({ part: 'body' }, 'text box paragraph'))).toBeNull()
+    expect(paragraphToDocxAnchor(buildParagraph({ part: 'body', index: '-1' }, 'negative ordinal'))).toBeNull()
+    expect(paragraphToDocxAnchor(buildParagraph({ part: 'body', index: '2.5' }, 'fractional ordinal'))).toBeNull()
   })
 
-  it('returns null for a collapsed selection', () => {
-    const { textNode } = buildParagraph({ part: 'body', index: '3' }, 'body paragraph text')
-    const range = document.createRange()
-    range.setStart(textNode, 2)
-    range.setEnd(textNode, 2)
+  it('anchors an unnumbered text-box paragraph to nothing rather than to the body paragraph around it', () => {
+    // docx-preview parses w:txbxContent without a part, so the inner paragraph has no ordinal while the
+    // outer one does. A pick inside the text box must not silently address the outer paragraph.
+    const outer = buildParagraph({ part: 'body', index: '4' }, 'outer ')
+    const inner = document.createElement('p')
+    inner.textContent = 'inside the text box'
+    outer.appendChild(inner)
 
-    expect(selectionToDocxAnchor(selectionOver(range, true))).toBeNull()
+    expect(paragraphToDocxAnchor(inner)).toBeNull()
   })
 
-  it('returns null when the selection starts outside any rendered paragraph', () => {
-    const outside = document.createTextNode('chrome around the document')
-    document.body.appendChild(outside)
+  it('returns null when the element is not inside any paragraph', () => {
+    const div = document.createElement('div')
+    div.textContent = 'chrome'
+    document.body.appendChild(div)
 
-    expect(selectionToDocxAnchor(selectionOver(rangeOver(outside)))).toBeNull()
-  })
-
-  it('anchors a cross-paragraph selection to its starting paragraph while keeping the full excerpt', () => {
-    const first = buildParagraph({ part: 'body', index: '4', paraId: 'AAAA0001' }, 'first paragraph')
-    const second = buildParagraph({ part: 'body', index: '5', paraId: 'BBBB0002' }, 'second paragraph')
-
-    const range = document.createRange()
-    range.setStart(first.textNode, 0)
-    range.setEnd(second.textNode, second.textNode.length)
-
-    const result = selectionToDocxAnchor(selectionOver(range))
-
-    expect(result?.anchor).toEqual({ format: 'docx', paragraph: 4, paraId: 'AAAA0001' })
-    expect(result?.excerpt).toContain('second paragraph')
+    expect(paragraphToDocxAnchor(div)).toBeNull()
   })
 })
