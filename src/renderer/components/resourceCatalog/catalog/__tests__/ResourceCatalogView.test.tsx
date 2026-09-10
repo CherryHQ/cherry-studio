@@ -1,3 +1,4 @@
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -114,7 +115,7 @@ vi.mock('../ResourceGrid', () => ({
   }
 }))
 
-function createController(resourceError?: Error) {
+function createController(resourceError?: Error, resources: ResourceItem[] = []) {
   return {
     resourceError,
     refetch: refetchMock,
@@ -136,7 +137,7 @@ function createController(resourceError?: Error) {
       onOpenSystemSkills: vi.fn(),
       onSearchChange: vi.fn(),
       onGroupFilter: vi.fn(),
-      resources: [],
+      resources,
       search: ''
     },
     dialogs: {
@@ -229,6 +230,37 @@ describe('ResourceCatalogView', () => {
     expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Toggle sidebar' })).toBeInTheDocument()
     expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ toolbarLeading: expect.anything() }))
+  })
+
+  it('filters controller resources before rendering the grid', () => {
+    const enabledSkill = { id: 'enabled', type: 'skill', raw: { isGlobalEnabled: true } } as ResourceItem
+    const disabledSkill = { id: 'disabled', type: 'skill', raw: { isGlobalEnabled: false } } as ResourceItem
+    resourceCatalogControllerMock.mockReturnValue(createController(undefined, [enabledSkill, disabledSkill]))
+
+    render(
+      <ResourceCatalogView
+        resourceType="skill"
+        filterResource={(resource) => resource.type === 'skill' && resource.raw.isGlobalEnabled}
+      />
+    )
+
+    expect(resourceGridMock).toHaveBeenCalledWith(
+      expect.objectContaining({ resources: [enabledSkill], hasHiddenResources: false })
+    )
+  })
+
+  it('tells the grid when an external filter hides every available resource', () => {
+    const disabledSkill = { id: 'disabled', type: 'skill', raw: { isGlobalEnabled: false } } as ResourceItem
+    resourceCatalogControllerMock.mockReturnValue(createController(undefined, [disabledSkill]))
+
+    render(
+      <ResourceCatalogView
+        resourceType="skill"
+        filterResource={(resource) => resource.type === 'skill' && resource.raw.isGlobalEnabled}
+      />
+    )
+
+    expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ resources: [], hasHiddenResources: true }))
   })
 
   it('keeps toolbar leading available when the catalog enters the error state', () => {

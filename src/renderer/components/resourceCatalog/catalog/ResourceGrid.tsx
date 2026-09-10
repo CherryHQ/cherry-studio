@@ -60,6 +60,8 @@ const RESOURCE_CARD_ROW_ESTIMATE_PX = 92
 
 interface Props {
   resources: ResourceItem[]
+  /** True when a catalog-level filter hides otherwise available resources. */
+  hasHiddenResources?: boolean
   isLoading?: boolean
   activeResourceType: ResourceType
   search: string
@@ -196,6 +198,7 @@ function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }:
 
 export const ResourceGrid: FC<Props> = ({
   resources,
+  hasHiddenResources = false,
   isLoading = false,
   activeResourceType,
   search,
@@ -222,6 +225,7 @@ export const ResourceGrid: FC<Props> = ({
   allowColumnToggle = false
 }) => {
   const { t } = useTranslation()
+  const hasNoMatches = Boolean(search) || hasHiddenResources
   const isSettings = variant === 'settings'
   const { updateGroup, deleteGroup } = useGroupMutations('assistant', {
     refreshOnDelete: ['/assistants', '/assistants/*']
@@ -377,6 +381,7 @@ export const ResourceGrid: FC<Props> = ({
                   collapsedSize={30}
                   style={{ borderRadius: 8 }}
                 />
+                {toolbarLeading ? <div className="flex shrink-0 items-center">{toolbarLeading}</div> : null}
               </div>
               {description ? (
                 <SettingDescription className="mt-1 text-sm leading-5">{description}</SettingDescription>
@@ -533,9 +538,11 @@ export const ResourceGrid: FC<Props> = ({
           <ResourceGridLoadingState columnCount={columnCount} resourceType={activeResourceType} />
         ) : resources.length === 0 ? (
           <EmptyState
-            preset={search ? 'no-result' : 'no-resource'}
-            title={search ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
-            description={search ? t('library.empty_state.no_match_description') : t('library.empty_state.description')}
+            preset={hasNoMatches ? 'no-result' : 'no-resource'}
+            title={hasNoMatches ? t('library.empty_state.no_match_title') : t('library.empty_state.title')}
+            description={
+              hasNoMatches ? t('library.empty_state.no_match_description') : t('library.empty_state.description')
+            }
             className="py-20"
           />
         ) : (
