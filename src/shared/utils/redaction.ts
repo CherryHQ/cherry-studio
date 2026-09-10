@@ -27,6 +27,12 @@ export function redactRecord(record: Record<string, string>): Record<string, str
 
 const MAX_STRING = 300
 
+/** Redact URL-shaped userinfo, including malformed URLs, without changing the remaining text. */
+export function redactUrlCredentials(text: string): string {
+  // Only try at scheme-token boundaries to avoid quadratic backtracking on long text.
+  return text.replace(/(?<![a-z\d+.-])([a-z][a-z\d+.-]*:\/\/)[^\s/?#]*@/gi, `$1${REDACTED}:${REDACTED}@`)
+}
+
 /**
  * Deep redaction of nested objects for logging/diagnostics: sensitive keys by
  * name, long strings truncated, circular graphs short-circuited.

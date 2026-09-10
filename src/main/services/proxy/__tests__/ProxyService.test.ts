@@ -8,7 +8,8 @@ const {
   webviewSetProxyMock,
   appSetProxyMock,
   getSystemProxyMock,
-  intervalRegistrations
+  intervalRegistrations,
+  loggerInfoMock
 } = vi.hoisted(() => {
   const nodeProxyConfigureMock = vi.fn()
 
@@ -19,13 +20,14 @@ const {
     webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
     appSetProxyMock: vi.fn().mockResolvedValue(undefined),
     getSystemProxyMock: vi.fn(),
-    intervalRegistrations: [] as Array<{ handler: () => void; dispose: ReturnType<typeof vi.fn> }>
+    intervalRegistrations: [] as Array<{ handler: () => void; dispose: ReturnType<typeof vi.fn> }>,
+    loggerInfoMock: vi.fn()
   }
 })
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
+    withContext: () => ({ info: loggerInfoMock, warn: vi.fn(), error: vi.fn(), debug: vi.fn() })
   }
 }))
 
@@ -144,6 +146,20 @@ describe('ProxyService — preference wiring', () => {
     expect(sessionSetProxyMock).toHaveBeenCalledWith(expected)
     expect(webviewSetProxyMock).toHaveBeenCalledWith(expected)
     expect(appSetProxyMock).toHaveBeenCalledWith(expected)
+  })
+
+  it('logs the applied proxy host without its credentials', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://user:hunter2@127.0.0.1:7890')
+
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+
+    const logged = loggerInfoMock.mock.calls.map((call) => String(call[0]))
+    expect(logged.some((line) => line.includes('apply proxy') && line.includes('http://127.0.0.1:7890'))).toBe(true)
+    expect(logged.join('\n')).not.toContain('hunter2')
+    expect(logged.join('\n')).not.toContain('user:')
   })
 
   it('applies the resolved system proxy on ready to every stack', async () => {

@@ -5,6 +5,7 @@ import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
+import { redactUrlCredentials } from '@shared/utils/redaction'
 import { app, ipcMain } from 'electron'
 import os from 'os'
 import path from 'path'
@@ -139,7 +140,12 @@ export class LoggerService {
           format: 'YYYY-MM-DD HH:mm:ss'
         }),
         winston.format.errors({ stack: true }),
-        winston.format.json()
+        winston.format.json({
+          replacer: (_key, value: unknown) => {
+            if (typeof value === 'bigint') return value.toString()
+            return typeof value === 'string' ? redactUrlCredentials(value) : value
+          }
+        })
       ),
       exitOnError: false,
       transports

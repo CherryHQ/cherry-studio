@@ -74,6 +74,88 @@ describe('LoggerService file output', () => {
     expect(lines[0]).toContain('EFAKE')
   })
 
+  it.each(['message', 'input', 'stack', 'nested error', 'array', 'tail'])(
+    'redacts URL credentials in %s at the file output',
+    async (position) => {
+      const { loggerService, lines, readLine } = await loadLogger()
+      const url = 'http://u:hunter2@host:abc'
+      const redacted = 'http://<redacted>:<redacted>@host:abc'
+      const lastFrame = `    at ${'x'.repeat(350)} (worker.ts:42:7)`
+      let error: unknown
+      try {
+        new URL(url)
+      } catch (caught) {
+        error = caught
+      }
+      expect(error).toBeInstanceOf(Error)
+      if (!(error instanceof Error)) throw new Error('Expected URL parsing to fail')
+      error.stack = `Error: Failed ${url}\n${lastFrame}`
+
+      switch (position) {
+        case 'message':
+          loggerService.error(`Failed ${url}`)
+          break
+        case 'input':
+        case 'stack':
+          loggerService.error('Invalid proxy', error)
+          break
+        case 'nested error':
+          loggerService.error('Invalid proxy', { error })
+          break
+        case 'array':
+          loggerService.error('Invalid proxy', { urls: [url] })
+          break
+        case 'tail':
+          loggerService.error('Invalid proxy', { requestId: 'r1' }, url, error)
+          break
+      }
+
+      const line = await readLine()
+      expect(lines[0]).not.toContain('hunter2')
+      if (position === 'message') expect(line.message).toBe(`Failed ${redacted}`)
+      if (position === 'input' || position === 'stack') {
+        expect(line.code).toBe('ERR_INVALID_URL')
+        expect(line.input).toBe(redacted)
+        expect(line.stack).toBe(`Error: Failed ${redacted}\n${lastFrame}`)
+      }
+      if (position === 'nested error') {
+        expect(line.error).toEqual({ code: 'ERR_INVALID_URL', input: redacted })
+      }
+      if (position === 'array') expect(line.urls).toEqual([redacted])
+      if (position === 'tail') {
+        expect(line.data).toEqual([
+          redacted,
+          { name: 'TypeError', message: 'Invalid URL', stack: `Error: Failed ${redacted}\n${lastFrame}` }
+        ])
+      }
+    }
+  )
+
+  it('preserves JSON serialization and long info values while redacting toJSON output', async () => {
+    const { loggerService, lines, readLine } = await loadLogger()
+    const url = 'http://u:hunter2@host'
+    const circular: Record<string, unknown> = { url }
+    circular.self = circular
+    const data = {
+      long: 'x'.repeat(1_000),
+      count: 9007199254740993n,
+      circular,
+      custom: { toJSON: () => url }
+    }
+
+    loggerService.info('Details', data)
+
+    const line = await readLine()
+    expect(line.long).toBe(data.long)
+    expect(line.count).toBe('9007199254740993')
+    expect(line.circular).toEqual({ url: 'http://<redacted>:<redacted>@host', self: '[Circular]' })
+    expect(line.custom).toBe('http://<redacted>:<redacted>@host')
+    expect(lines[0]).not.toContain('hunter2')
+    expect(circular.url).toBe(url)
+    expect(circular.self).toBe(circular)
+    expect(data.custom.toJSON()).toBe(url)
+  })
+
   it('adds sys/appver on warn and error but not on info', async () => {
     const { loggerService, readLine } = await loadLogger()
     const logger = loggerService.withContext('SysTest')
