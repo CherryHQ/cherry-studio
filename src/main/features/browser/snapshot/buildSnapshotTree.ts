@@ -31,9 +31,11 @@ export function buildSnapshotTree(
   allocateRef: (backendNodeId: number) => BrowserRef,
   scope?: number
 ) {
-  const document = raw.dom?.documents.find((doc) => raw.dom!.strings[doc.frameId] === raw.frameId)
-  if (raw.dom && !document) throw new Error('Main frame DOM snapshot is unavailable')
   const strings = raw.dom?.strings ?? []
+  // CDP represents empty strings with -1 instead of an entry in the string table.
+  const readString = (index: number) => (index === -1 ? '' : strings[index])
+  const document = raw.dom?.documents.find((doc) => readString(doc.frameId) === raw.frameId)
+  if (raw.dom && !document) throw new Error('Main frame DOM snapshot is unavailable')
   const domById = new Map(document?.nodes.backendNodeId.map((id, index) => [id, index]) ?? [])
   const layoutByIndex = new Map(document?.layout.nodeIndex.map((index, row) => [index, row]) ?? [])
   const axById = new Map(raw.ax.map((node) => [node.nodeId, node]))
@@ -56,12 +58,12 @@ export function buildSnapshotTree(
     const row = index === undefined ? undefined : layoutByIndex.get(index)
     const attributes = new Map<string, string>()
     const attrs = index === undefined ? [] : (document!.nodes.attributes[index] ?? [])
-    for (let i = 0; i < attrs.length; i += 2) attributes.set(strings[attrs[i]], strings[attrs[i + 1]])
-    const tag = index === undefined ? '' : strings[document!.nodes.nodeName[index]]?.toLowerCase()
+    for (let i = 0; i < attrs.length; i += 2) attributes.set(readString(attrs[i]), readString(attrs[i + 1]))
+    const tag = index === undefined ? '' : readString(document!.nodes.nodeName[index])?.toLowerCase()
     const password = attributes.get('type')?.toLowerCase() === 'password'
     const role = text(node.role?.value).toLowerCase()
     const name = text(node.name?.value)
-    const styles = row === undefined ? [] : document!.layout.styles[row].map((i) => strings[i])
+    const styles = row === undefined ? [] : document!.layout.styles[row].map(readString)
     const rect = row === undefined ? undefined : document!.layout.bounds[row]
     const visible = !raw.dom
       ? !node.ignored
