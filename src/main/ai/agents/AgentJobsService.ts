@@ -93,7 +93,7 @@ export class AgentJobsService extends BaseService {
   private readonly inFlightWork = createInFlightWorkTracker()
 
   private trackWork(work: Promise<unknown>): void {
-    this.inFlightWork.track(work)
+    void this.inFlightWork.track(work)
   }
 
   private isShuttingDown = false
@@ -337,10 +337,23 @@ export class AgentJobsService extends BaseService {
     }
 
     let deleted = 0
+    let failed = 0
     for (const schedule of schedules) {
-      if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
-        deleted += 1
+      // A transient unregister failure (SQLITE_BUSY, timer teardown) must not
+      // abort the sweep — the remaining schedules and the workspace cleanup
+      // below are independent of this row. The failed row converges on the
+      // next deletion pass or startup sweep instead of orphaning everything.
+      try {
+        if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
+          deleted += 1
+        }
+      } catch (error) {
+        failed += 1
+        logger.warn('Failed to unregister schedule for removed agent', { agentId, scheduleId: schedule.id, error })
       }
+    }
+    if (failed > 0) {
+      logger.warn('Some schedules survived the deletion sweep after transient failures', { agentId, failed })
     }
     for (const workspaceId of heartbeatWorkspaceIds) {
       try {

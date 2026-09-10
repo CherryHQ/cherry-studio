@@ -662,6 +662,58 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
     })
 
+    it('continues the sweep when one schedule fails to unregister (transient failure)', async () => {
+      // A transient unregister failure (SQLITE_BUSY, timer teardown) must not
+      // abort the whole pass: the remaining schedules and the heartbeat
+      // workspace cleanup are independent of the failed row.
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-busy',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-busy',
+          type: 'user',
+          orderKey: 'ws-hb-busy'
+        })
+        .run()
+      const first = service.createTask(AGENT_ID, form)
+      const second = service.createTask(AGENT_ID, { ...form, name: 'hourly-rollup' })
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-busy' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      const spy = vi.spyOn(jobManager, 'unregisterJobScheduleById')
+      spy.mockImplementationOnce(async () => {
+        throw new Error('SQLITE_BUSY')
+      })
+      try {
+        expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
+      } finally {
+        spy.mockRestore()
+      }
+
+      // The failed row survives for the next pass; everything else converged.
+      expect(jobScheduleService.getById(first.id)).not.toBeNull()
+      expect(jobScheduleService.getById(second.id)).toBeNull()
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual([])
+    })
+
     it('deleting an agent also removes the heartbeat workspace row its schedule referenced', async () => {
       dbh.db
         .insert(agentWorkspaceTable)

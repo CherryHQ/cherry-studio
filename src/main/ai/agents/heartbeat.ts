@@ -1,4 +1,5 @@
-import { lstat, mkdir, open, readFile, unlink } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { lstat, mkdir, open, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -34,15 +35,22 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
   }
 
   try {
-    // lstat, never stat: a pre-existing symlink at heartbeat.md must NOT be
-    // followed — readFile would happily stream whatever it points at (e.g.
-    // ~/.ssh) straight into the model prompt.
-    const stat = await lstat(resolved)
-    if (!stat.isFile() || stat.isSymbolicLink()) {
-      logger.warn(`Heartbeat path is not a regular file; refusing to read: ${resolved}`)
-      return undefined
+    // O_NOFOLLOW + fstat on the open handle: a pre-existing symlink at
+    // heartbeat.md — or one swapped in between any check and the read — fails
+    // the open with ELOOP instead of streaming its target (e.g. ~/.ssh)
+    // straight into the model prompt. lstat+readFile would leave that window.
+    const handle = await open(resolved, constants.O_RDONLY | constants.O_NOFOLLOW)
+    let content: string
+    try {
+      const stat = await handle.stat()
+      if (!stat.isFile()) {
+        logger.warn(`Heartbeat path is not a regular file; refusing to read: ${resolved}`)
+        return undefined
+      }
+      content = await handle.readFile('utf-8')
+    } finally {
+      await handle.close()
     }
-    const content = await readFile(resolved, 'utf-8')
     const trimmed = content.trim()
     if (!trimmed) {
       logger.debug('Heartbeat file is empty', { path: resolved })
@@ -55,8 +63,13 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
     logger.info(`Read heartbeat file: ${resolved}`)
     return trimmed
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') {
       logger.debug(`Heartbeat file not found: ${resolved}`)
+      return undefined
+    }
+    if (code === 'ELOOP') {
+      logger.warn(`Heartbeat path is a symlink; refusing to read: ${resolved}`)
       return undefined
     }
     logger.error(`Failed to read heartbeat file: ${resolved}`, error as Error)

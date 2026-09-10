@@ -237,7 +237,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         workspacePath,
         error
       })
-      return { sessionId: null, result: 'Skipped (untrusted workspace path)' }
+      return { result: 'Skipped (untrusted workspace path)' }
     }
     const content = await readHeartbeat(workspacePath)
     if (!content) {

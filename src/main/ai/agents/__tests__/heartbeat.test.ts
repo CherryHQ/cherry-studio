@@ -14,11 +14,11 @@ vi.mock('node:fs/promises', () => ({
   unlink: vi.fn()
 }))
 
-import { lstat, mkdir, open, readFile, unlink } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { lstat, mkdir, open, unlink } from 'node:fs/promises'
 
 import { ensureHeartbeatFile, readHeartbeat } from '../heartbeat'
 
-const mockedReadFile = vi.mocked(readFile)
 const mockedOpen = vi.mocked(open)
 const mockedMkdir = vi.mocked(mkdir)
 const mockedLstat = vi.mocked(lstat)
@@ -28,33 +28,69 @@ const regularFile = () => ({ isFile: () => true, isSymbolicLink: () => false })
 
 const errWithCode = (code: string) => Object.assign(new Error(code), { code })
 
+/** Handle shape readHeartbeat consumes: fstat + readFile + close. */
+const readableHandle = (content: string, stat = regularFile()) => ({
+  stat: vi.fn().mockResolvedValue(stat),
+  readFile: vi.fn().mockResolvedValue(content),
+  close: vi.fn().mockResolvedValue(undefined)
+})
+
 describe('readHeartbeat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedLstat.mockResolvedValue(regularFile() as never)
   })
 
   it('returns content when file exists', async () => {
-    mockedReadFile.mockResolvedValue('heartbeat content')
+    mockedOpen.mockResolvedValue(readableHandle('heartbeat content') as never)
     const result = await readHeartbeat('/workspace')
     expect(result).toBe('heartbeat content')
-    expect(mockedReadFile).toHaveBeenCalledWith(expect.stringContaining('heartbeat.md'), 'utf-8')
+  })
+
+  it('opens with O_NOFOLLOW, closing the check-to-read symlink window', async () => {
+    // Regression: lstat+readFile let a symlink swapped in between the two
+    // calls stream its target into the model prompt; O_NOFOLLOW makes the
+    // open itself atomic against the swap.
+    mockedOpen.mockResolvedValue(readableHandle('heartbeat content') as never)
+    await readHeartbeat('/workspace')
+    const [pathArg, flags] = mockedOpen.mock.calls[0]
+    expect(String(pathArg)).toContain('heartbeat.md')
+    expect((flags as number) & constants.O_NOFOLLOW).toBe(constants.O_NOFOLLOW)
   })
 
   it('returns undefined when file does not exist', async () => {
-    mockedReadFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+    mockedOpen.mockRejectedValue(errWithCode('ENOENT'))
     const result = await readHeartbeat('/workspace')
     expect(result).toBeUndefined()
   })
 
+  it('refuses to read through a symlink (open rejects with ELOOP)', async () => {
+    // A pre-existing heartbeat.md symlink — or one swapped in after the
+    // storage check — fails the O_NOFOLLOW open instead of being followed.
+    mockedOpen.mockRejectedValue(errWithCode('ELOOP'))
+
+    const result = await readHeartbeat('/workspace')
+
+    expect(result).toBeUndefined()
+  })
+
+  it('refuses a non-regular file even when the open succeeds', async () => {
+    const handle = readableHandle('x', { isFile: () => false, isSymbolicLink: () => false })
+    mockedOpen.mockResolvedValue(handle as never)
+
+    const result = await readHeartbeat('/workspace')
+
+    expect(result).toBeUndefined()
+    expect(handle.readFile).not.toHaveBeenCalled()
+  })
+
   it('returns undefined when file is empty', async () => {
-    mockedReadFile.mockResolvedValue('   \n  ')
+    mockedOpen.mockResolvedValue(readableHandle('   \n  ') as never)
     const result = await readHeartbeat('/workspace')
     expect(result).toBeUndefined()
   })
 
   it('returns undefined when file holds only HTML comments (fresh template)', async () => {
-    mockedReadFile.mockResolvedValue('<!-- check inbox -->\n<!-- keep it small -->')
+    mockedOpen.mockResolvedValue(readableHandle('<!-- check inbox -->\n<!-- keep it small -->') as never)
     const result = await readHeartbeat('/workspace')
     expect(result).toBeUndefined()
   })
@@ -62,30 +98,19 @@ describe('readHeartbeat', () => {
   it('returns undefined when the file holds only an unterminated HTML comment', async () => {
     // A truncated template must not bypass the comments-only gate and fire a
     // model call every tick — the unterminated comment consumes the rest.
-    mockedReadFile.mockResolvedValue('<!-- truncated template, never closed')
+    mockedOpen.mockResolvedValue(readableHandle('<!-- truncated template, never closed') as never)
     const result = await readHeartbeat('/workspace')
     expect(result).toBeUndefined()
-  })
-
-  it('refuses to read through a symlink (lstat, never follows)', async () => {
-    // A pre-existing heartbeat.md symlink would stream whatever it points at
-    // into the model prompt — readHeartbeat must decline it outright.
-    mockedLstat.mockResolvedValue({ isFile: () => false, isSymbolicLink: () => true } as never)
-
-    const result = await readHeartbeat('/workspace')
-
-    expect(result).toBeUndefined()
-    expect(mockedReadFile).not.toHaveBeenCalled()
   })
 
   it('returns the full content when comments accompany real entries', async () => {
-    mockedReadFile.mockResolvedValue('<!-- template header -->\n- real checklist item')
+    mockedOpen.mockResolvedValue(readableHandle('<!-- template header -->\n- real checklist item') as never)
     const result = await readHeartbeat('/workspace')
     expect(result).toBe('<!-- template header -->\n- real checklist item')
   })
 
   it('trims whitespace from content', async () => {
-    mockedReadFile.mockResolvedValue('  check my email  \n')
+    mockedOpen.mockResolvedValue(readableHandle('  check my email  \n') as never)
     const result = await readHeartbeat('/workspace')
     expect(result).toBe('check my email')
   })

@@ -380,7 +380,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (untrusted workspace path)' })
+    expect(out).toEqual({ result: 'Skipped (untrusted workspace path)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
@@ -394,7 +394,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (workspace deleted)' })
+    expect(out).toEqual({ result: 'Skipped (workspace deleted)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
     expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
@@ -424,7 +424,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (workspace deleted)' })
+    expect(out).toEqual({ result: 'Skipped (workspace deleted)' })
     expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
     expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
   })
@@ -450,7 +450,7 @@ describe('runAgentTask', () => {
 
     const out = await runAgentTask(makeCtx())
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (workspace deleted)' })
+    expect(out).toEqual({ result: 'Skipped (workspace deleted)' })
     expect(mockUpdateJobScheduleTx).not.toHaveBeenCalled()
     expect(mockSyncJobScheduleTimerById).not.toHaveBeenCalled()
   })
