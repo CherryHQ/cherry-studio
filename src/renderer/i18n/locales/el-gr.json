@@ -606,6 +606,7 @@
   "chat.input.followup_queue.failure_title": "Send failed",
   "chat.input.followup_queue.limit_reached": "Queue full (max {{count}} messages)",
   "chat.input.followup_queue.pause": "Παύση αυτόματης αποστολής",
+  "chat.input.followup_queue.persist_failed": "Could not save the queue — your draft was kept",
   "chat.input.followup_queue.remove": "Αφαίρεση",
   "chat.input.followup_queue.resume": "Συνέχιση αυτόματης αποστολής",
   "chat.input.followup_queue.retry": "Retry",

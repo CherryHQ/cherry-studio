@@ -17,7 +17,7 @@ Closes out the remaining gaps of #13417 (Message Queue for Agent & Chat). The co
 
 Tradeoffs: `failedItemId` is persisted alongside the queue (survives restart), so a failure banner reappears after reload; if the failed item is removed externally the queue auto-unpauses and resumes. The expand state is view-local (resets when the queue empties).
 
-Alternatives considered: a modal Skip/Retry/Abort dialog (rejected — heavier than needed for a dock-owned failure); persisting `failedItemId` (rejected — a stale failure banner across restarts is worse than a paused queue).
+Alternatives considered: a modal Skip/Retry/Abort dialog (rejected — heavier than needed for a dock-owned failure); not persisting the queue at all (rejected — pending follow-ups would be lost on restart, which the original spec requires surviving).
 
 Discussion: https://github.com/CherryHQ/cherry-studio/issues/13417
 
@@ -29,7 +29,7 @@ None. The queue storage key changes from the casual memory cache to the persist 
 
 - The queue keeps working identically in Chat and Agent mode; both composers were wired with the same props.
 - The `@cherrystudio/ui` mock in `tests/renderer.setup.ts` was updated to honor `ReorderableList.visibleItems` (it previously ignored it), so collapsed-subset rendering is covered by tests.
-- i18n: new keys added to `en-us` / `zh-cn`; the other locales carry `[to be translated]:` placeholders as per the translation workflow.
+- i18n: new keys added to `en-us` (translated in `zh-cn` where available); the remaining locales fall back to English until translators fill them in.
 
 # Checklist
 

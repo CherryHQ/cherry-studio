@@ -1,8 +1,9 @@
+import { cacheService } from '@data/CacheService'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
+import { type EnqueueResult, QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
 
 const QUEUE_KEY = 'ui.composer.followup_queue'
 
@@ -97,11 +98,11 @@ describe('useFollowupQueue', () => {
 
     for (let index = 0; index < QUEUE_LIMIT; index += 1) {
       act(() => {
-        expect(result.current.enqueue(draft(`m${index}`), payload(`m${index}`))).toBe(true)
+        expect(result.current.enqueue(draft(`m${index}`), payload(`m${index}`))).toBe('ok')
       })
     }
     act(() => {
-      expect(result.current.enqueue(draft('overflow'), payload('overflow'))).toBe(false)
+      expect(result.current.enqueue(draft('overflow'), payload('overflow'))).toBe('full')
     })
     expect(result.current.items).toHaveLength(QUEUE_LIMIT)
     expect(persistedTexts('s1')).toHaveLength(QUEUE_LIMIT)
@@ -525,5 +526,88 @@ describe('useFollowupQueue', () => {
 
     expect(persistedTexts('s1')).toEqual(['a'])
     expect(persistedTexts('s2')).toEqual(['b'])
+  })
+
+  it('a claimed manual send blocks the auto-drain until released', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    const headId = result.current.items[0].id
+    act(() => {
+      expect(result.current.tryClaimSend(headId)).toBe(true)
+    })
+    expect(result.current.drainingId).toBe(headId)
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    // The fulfilled edge must not start a second send for the claimed item.
+    expect(onDrain).not.toHaveBeenCalled()
+
+    act(() => {
+      result.current.releaseSend(headId)
+    })
+    expect(result.current.drainingId).toBeNull()
+
+    // A fresh completion edge drains normally once the claim is released.
+    await act(async () => {
+      rerender({ isFulfilled: false })
+    })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+  })
+
+  it('tryClaimSend fails while an auto-drain is in flight', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    const headId = result.current.items[0].id
+    act(() => {
+      expect(result.current.tryClaimSend(headId)).toBe(false)
+    })
+
+    await act(async () => {
+      resolveDrain(true)
+    })
+    expect(result.current.drainingId).toBeNull()
+    expect(result.current.items).toEqual([])
+  })
+
+  it("reports persist-error (not full) when the durable write fails, keeping the caller's draft", () => {
+    const { result } = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+    )
+
+    vi.mocked(cacheService.flushPersistCache).mockImplementationOnce(() => {
+      throw new Error('quota exceeded')
+    })
+    let outcome!: EnqueueResult
+    act(() => {
+      outcome = result.current.enqueue(draft('a'), payload('a'))
+    })
+
+    expect(outcome).toBe('persist-error')
+    // Rolled back: neither local state nor the persist map keeps the item.
+    expect(result.current.items).toEqual([])
+    expect(persistedTexts('s1')).toEqual([])
   })
 })

@@ -606,6 +606,7 @@
   "chat.input.followup_queue.failure_title": "发送失败",
   "chat.input.followup_queue.limit_reached": "队列已满（最多 {{count}} 条消息）",
   "chat.input.followup_queue.pause": "暂停自动发送",
+  "chat.input.followup_queue.persist_failed": "Could not save the queue — your draft was kept",
   "chat.input.followup_queue.remove": "移除",
   "chat.input.followup_queue.resume": "恢复自动发送",
   "chat.input.followup_queue.retry": "重试",

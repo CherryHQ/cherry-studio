@@ -606,6 +606,7 @@
   "chat.input.followup_queue.failure_title": "Send failed",
   "chat.input.followup_queue.limit_reached": "Queue full (max {{count}} messages)",
   "chat.input.followup_queue.pause": "Mettre en pause l'envoi automatique",
+  "chat.input.followup_queue.persist_failed": "Could not save the queue — your draft was kept",
   "chat.input.followup_queue.remove": "Retirer",
   "chat.input.followup_queue.resume": "Reprise de l'envoi automatique",
   "chat.input.followup_queue.retry": "Retry",
