@@ -52,19 +52,19 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
   await ensureAgentModel(app, page)
   await startNewAgentTask(page, 'Cherry Assistant')
 
-  const model = page.getByRole('button', { name: /Select Model|Selected models/ }).first()
-  if (await model.isVisible().catch(() => false)) {
-    await model.click()
-    await selectVisibleModel(page, app.config.cherryIn.chatModel)
-  }
+  const model = page.locator('button:has(span[title*=" | "])').first()
+  await expect(model).toBeVisible()
+  await model.click()
+  await selectVisibleModel(page, app.config.cherryIn.chatModel)
   await selectAgentWorkspace(app, page)
 
-  await page
-    .locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]')
-    .first()
-    .fill(
-      'Create cherry-regression-31415.pptx in the current working directory. Its exact title must be Cherry Regression 31415 and it must contain exactly three slides.'
-    )
+  const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
+  await composer.press(app.record.platform === 'macos' ? 'Meta+A' : 'Control+A')
+  await composer.press('Backspace')
+  await expect(composer.locator('[data-composer-token-kind="skill"]')).toHaveCount(0)
+  await composer.fill(
+    'Create cherry-regression-31415.pptx in the current working directory. Its exact title must be Cherry Regression 31415 and it must contain exactly three slides.'
+  )
   await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   const output = join(app.paths.workspace, 'cherry-regression-31415.pptx')

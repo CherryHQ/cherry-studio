@@ -200,13 +200,14 @@ export function selectExternalText(platform: Platform): void {
     '$shell = New-Object -ComObject WScript.Shell',
     'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
     'Start-Sleep -Milliseconds 200',
-    'Set-Clipboard -Value ""',
+    '$clipboardSentinel = "CHERRY_REGRESSION_CLIPBOARD_SENTINEL"',
+    'Set-Clipboard -Value $clipboardSentinel',
     '$shell.SendKeys("^a")',
     'Start-Sleep -Milliseconds 200',
     '$shell.SendKeys("^c")',
     'Start-Sleep -Milliseconds 300',
     '$selectedText = Get-Clipboard -Raw',
-    'if ([string]::IsNullOrWhiteSpace($selectedText)) { throw "External browser text selection is empty" }',
+    'if ([string]::IsNullOrWhiteSpace($selectedText) -or $selectedText.Trim() -eq $clipboardSentinel) { throw "External browser text selection is empty" }',
     '$shell.SendKeys("^a")',
     'Start-Sleep -Milliseconds 300'
   ].join('\n')
