@@ -1,6 +1,5 @@
 import './Sidebar.css'
 
-import { MenuItem } from '@cherrystudio/ui'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -8,11 +7,10 @@ import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
-import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser, SidebarVisibleLayout } from './types'
+import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
@@ -20,22 +18,18 @@ export interface SidebarProps {
   setWidth: (width: number) => void
   entries: ResolvedSidebarEntry[]
   active: SidebarActiveState
-  title?: string
-  logo?: React.ReactNode
   user?: SidebarUser
   isFloating?: boolean
   isFullscreen?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
+  userAction?: SidebarFooterActions
   onHoverChange?: (visible: boolean) => void
   onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
-  onHeaderClick?: () => void
-  renderHeaderTrigger?: (trigger: React.ReactElement) => React.ReactElement
-  renderHeaderAnchor?: (anchor: React.ReactElement) => React.ReactNode
-  renderHeaderOverlay?: (header: React.ReactElement) => React.ReactNode
+  renderUserTrigger?: (trigger: React.ReactElement) => React.ReactElement
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
@@ -45,22 +39,17 @@ export function Sidebar({
   setWidth,
   entries,
   active,
-  title = '',
-  logo,
   user,
   isFloating = false,
-  isFullscreen = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
+  userAction,
   onHoverChange,
   onResizePreview,
   onSearchClick,
   onExtensionsClick,
-  onHeaderClick,
-  renderHeaderTrigger,
-  renderHeaderAnchor,
-  renderHeaderOverlay,
+  renderUserTrigger,
   onEntriesReorder,
   onDismiss
 }: SidebarProps) {
@@ -72,78 +61,8 @@ export function Sidebar({
   const footerOverlayOpenRef = useRef(false)
   const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
-  const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
+  const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions || userAction)
   const showSearch = Boolean(onSearchClick)
-  const logoNode = logo ?? <DefaultLogo title={title} />
-
-  const renderLogo = (size: 'sm' | 'default' = 'default') => {
-    const renderedLogo = (
-      <div
-        className={cn(
-          'flex shrink-0 items-center justify-center overflow-hidden *:h-full *:w-full',
-          size === 'sm' ? 'size-8 rounded-lg' : 'size-6 rounded-lg'
-        )}>
-        {logoNode}
-      </div>
-    )
-
-    return renderHeaderAnchor?.(renderedLogo) ?? renderedLogo
-  }
-
-  const renderHeaderIdentity = (size: 'sm' | 'default', showTitle: boolean): React.ReactElement => {
-    const content = (
-      <>
-        {renderLogo(size)}
-        {showTitle && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
-      </>
-    )
-
-    if (!onHeaderClick) return content
-
-    if (showTitle) {
-      return (
-        <MenuItem
-          variant="ghost"
-          icon={<span className="flex size-4 items-center justify-center">{renderLogo(size)}</span>}
-          label={title}
-          aria-label={title || undefined}
-          onClick={onHeaderClick}
-          className="cursor-pointer rounded-xl text-sidebar-foreground [-webkit-app-region:no-drag]"
-        />
-      )
-    }
-
-    return (
-      <button
-        type="button"
-        aria-label={title || undefined}
-        onClick={onHeaderClick}
-        className="flex min-w-0 cursor-pointer items-center [-webkit-app-region:no-drag]">
-        {content}
-      </button>
-    )
-  }
-
-  const withHeaderTrigger = (trigger: React.ReactElement) => renderHeaderTrigger?.(trigger) ?? trigger
-
-  const renderHeader = (headerLayout: SidebarVisibleLayout) => {
-    const identity = withHeaderTrigger(
-      renderHeaderIdentity(headerLayout === 'icon' ? 'sm' : 'default', headerLayout === 'full')
-    )
-    const header = (
-      <div
-        className={cn(
-          'flex shrink-0',
-          isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
-          windowDragClassName,
-          headerLayout === 'full' ? 'px-2' : 'justify-center'
-        )}>
-        {identity}
-      </div>
-    )
-
-    return renderHeaderOverlay?.(header) ?? header
-  }
 
   const handleDismiss = useCallback(() => {
     onDismiss?.()
@@ -204,10 +123,12 @@ export function Sidebar({
   }
   const footerProps = {
     user,
+    userAction,
     actions,
     extensionsLabel,
     onExtensionsClick,
-    onOverlayOpenChange: handleFooterOverlayOpenChange
+    onOverlayOpenChange: handleFooterOverlayOpenChange,
+    renderUserTrigger
   }
   const windowDragClassName = contextMenuOpen ? '[-webkit-app-region:no-drag]' : '[-webkit-app-region:drag]'
 
@@ -232,8 +153,6 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          {renderHeader('full')}
-
           {showSearch && (
             <div className="px-3 py-2">
               <div
@@ -300,9 +219,6 @@ export function Sidebar({
         windowDragClassName,
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      {/* Header */}
-      {renderHeader(layout)}
-
       {/* Search */}
       {showSearch &&
         (layout === 'full' ? (

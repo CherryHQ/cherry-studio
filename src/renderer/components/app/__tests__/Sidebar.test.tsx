@@ -40,8 +40,8 @@ type FakeAssistant = {
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
   openTab: vi.fn(),
-  openSettingsTab: vi.fn(),
   setActiveTab: vi.fn(),
+  showUpdatePopup: vi.fn(),
   useMiniApps: vi.fn(),
   updateTab: vi.fn(),
   activeTab: {
@@ -53,7 +53,6 @@ const mocks = vi.hoisted(() => ({
   setSidebarWidth: vi.fn(),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
-  showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
   sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
@@ -163,12 +162,12 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('@renderer/services/mainWindowNavigation', () => ({
-  openSettingsTab: mocks.openSettingsTab
-}))
-
 vi.mock('../../UserAccountPanel', () => ({
-  UserAccountPanel: () => <div data-testid="account-menu">account-menu</div>
+  UserAccountPanel: ({ onRequestClose }: { onRequestClose?: () => void }) => (
+    <button type="button" data-testid="account-menu" onClick={onRequestClose}>
+      account-menu
+    </button>
+  )
 }))
 
 vi.mock('../../icons/SvgIcon', () => ({
@@ -187,18 +186,26 @@ vi.mock('../../feedback/FeedbackDialog', () => ({
 }))
 
 vi.mock('../../layout/ShellTabBarActions', () => ({
-  SidebarShellActions: ({
-    layout,
+  AppUpdateButton: () => (
+    <button type="button" aria-label="Install update" onClick={mocks.showUpdatePopup}>
+      update
+    </button>
+  )
+}))
+
+vi.mock('../../layout/HelpMenu', () => ({
+  HelpMenu: ({
     onFeedbackClick,
-    onSettingsClick
+    onOverlayOpenChange
   }: {
-    layout: string
     onFeedbackClick: () => void
-    onSettingsClick: () => void
+    onOverlayOpenChange?: (open: boolean) => void
   }) => (
     <>
-      <button type="button" data-testid={`sidebar-shell-actions-${layout}`} onClick={onSettingsClick} />
-      <button type="button" data-testid={`sidebar-feedback-${layout}`} onClick={onFeedbackClick} />
+      <button type="button" aria-label="Help" onClick={() => onOverlayOpenChange?.(true)}>
+        help
+      </button>
+      <button type="button" aria-label="Open feedback" onClick={onFeedbackClick} />
     </>
   )
 }))
@@ -221,11 +228,6 @@ vi.mock('../../Sidebar', async () => {
   const constants = await vi.importActual<typeof SidebarConstants>('../../Sidebar/constants')
   return {
     ...constants,
-    UserAvatar: ({ user, className }: { user: { name: string }; className?: string }) => (
-      <div className={className} data-testid="sidebar-user-avatar">
-        {user.name}
-      </div>
-    ),
     MiniAppIcon: () => null,
     Sidebar: ({
       isFloating,
@@ -235,14 +237,9 @@ vi.mock('../../Sidebar', async () => {
       onEntriesReorder,
       active,
       entries,
-      title,
-      logo,
-      onHeaderClick,
-      renderHeaderTrigger,
-      renderHeaderAnchor,
-      renderHeaderOverlay,
       user,
-      actions,
+      userAction,
+      renderUserTrigger,
       width,
       onResizePreview
     }: {
@@ -250,14 +247,9 @@ vi.mock('../../Sidebar', async () => {
       isFloatingClosing?: boolean
       active?: { activeItem: string; activeTabId?: string }
       entries?: MockSidebarEntry[]
-      title?: string
-      logo?: ReactNode
-      onHeaderClick?: () => void
-      renderHeaderTrigger?: (trigger: ReactElement) => ReactElement
-      renderHeaderAnchor?: (anchor: ReactElement) => ReactNode
-      renderHeaderOverlay?: (header: ReactElement) => ReactNode
-      user?: unknown
-      actions?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
+      user?: { name: string; onClick?: () => void }
+      userAction?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
+      renderUserTrigger?: (trigger: ReactElement) => ReactElement
       width?: number
       onResizePreview?: (width: number | null) => void
       onDismiss?: () => void
@@ -280,36 +272,35 @@ vi.mock('../../Sidebar', async () => {
       const dockedTabs = entries?.filter((entry) => parseEntryKey(entry.key).type === 'mini_app')
       const agentItems = entries?.filter((entry) => parseEntryKey(entry.key).type === 'agent')
       const assistantItems = entries?.filter((entry) => parseEntryKey(entry.key).type === 'assistant')
-      const renderHeader = (_layout: 'icon' | 'full', prefix: 'sidebar' | 'floating-sidebar') => {
-        const renderedLogo = <div data-testid={`${prefix}-logo`}>{logo}</div>
-        const anchoredLogo = renderHeaderAnchor?.(renderedLogo) ?? renderedLogo
-        const action = (
-          <button type="button" aria-label={title} onClick={onHeaderClick}>
-            {anchoredLogo}
-            <div data-testid={prefix === 'sidebar' ? 'sidebar-title' : undefined}>{title}</div>
+      const renderFooter = (layout: 'icon' | 'full', prefix: 'sidebar' | 'floating-sidebar') => {
+        const accountButton = user ? (
+          <button type="button" aria-label={user.name} onClick={user.onClick}>
+            {user.name}
           </button>
-        )
-        const trigger = renderHeaderTrigger?.(action) ?? action
-        const row = <div data-testid={`${prefix}-header`}>{trigger}</div>
+        ) : null
+        const accountTrigger = accountButton ? (renderUserTrigger?.(accountButton) ?? accountButton) : null
+        const resolvedUserAction = typeof userAction === 'function' ? userAction(layout, vi.fn()) : userAction
 
-        return renderHeaderOverlay?.(row) ?? row
+        return (
+          <div data-testid={`${prefix}-footer-user`}>
+            {accountTrigger}
+            {resolvedUserAction}
+          </div>
+        )
       }
 
       return isFloating ? (
         <div
           className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
           data-testid="floating-sidebar">
-          {renderHeader('full', 'floating-sidebar')}
-          {typeof actions === 'function' ? actions('full') : actions}
+          {renderFooter('full', 'floating-sidebar')}
           <button type="button" onClick={onDismiss}>
             dismiss
           </button>
         </div>
       ) : (
         <>
-          {renderHeader(constants.getSidebarLayout(width ?? 0) === 'full' ? 'full' : 'icon', 'sidebar')}
-          <div data-testid="sidebar-footer-user">{user ? 'user' : 'none'}</div>
-          <div data-testid="sidebar-footer-actions">{typeof actions === 'function' ? actions('icon') : actions}</div>
+          {renderFooter(constants.getSidebarLayout(width ?? 0) === 'full' ? 'full' : 'icon', 'sidebar')}
           <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
           <button type="button" data-testid="preview-null" onClick={() => onResizePreview?.(null)} />
           <button type="button" onClick={() => onHoverChange?.(true)}>
@@ -498,29 +489,53 @@ describe('app Sidebar', () => {
     expect(mocks.useMiniApps).toHaveBeenLastCalledWith({ enabled: true })
   })
 
-  it('opens the account menu at the avatar instead of launching the centered user popup', async () => {
+  it('omits the brand header and opens the account menu from the icon footer', async () => {
     const user = userEvent.setup()
     const { container } = render(<Sidebar />)
 
     expect(container.querySelector('#app-sidebar')).toHaveAttribute('data-ui', 'app.sidebar')
-    expect(screen.getByTestId('sidebar-logo')).toContainElement(screen.getByTestId('sidebar-user-avatar'))
-    expect(screen.getByTestId('sidebar-title')).toHaveTextContent('JD')
-    expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('none')
-    expect(screen.getByTestId('sidebar-shell-actions-icon')).toBeInTheDocument()
+    expect(screen.queryByText('Cherry Studio')).not.toBeInTheDocument()
+    expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('JD')
+    expect(within(screen.getByTestId('sidebar-footer-user')).getByRole('button', { name: 'Help' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Install update' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
 
-    await user.click(screen.getByTestId('sidebar-title'))
+    await user.click(screen.getByRole('button', { name: 'JD' }))
 
     expect(screen.getByTestId('account-menu')).toBeVisible()
-    expect(mocks.showUserPopup).not.toHaveBeenCalled()
+    const popover = screen.getByTestId('popover-content')
+    expect(popover).toHaveAttribute('data-side', 'top')
+    expect(popover).toHaveAttribute('data-align', 'start')
+    expect(popover).toHaveAttribute('data-side-offset', '8')
   })
 
-  it('opens settings in a main-window tab from the sidebar footer action', () => {
+  it('closes the anchored account menu when its panel completes a navigation action', async () => {
+    const user = userEvent.setup()
     render(<Sidebar />)
 
-    fireEvent.click(screen.getByTestId('sidebar-shell-actions-icon'))
+    await user.click(screen.getByRole('button', { name: 'JD' }))
+    await user.click(screen.getByTestId('account-menu'))
 
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
+  })
+
+  it('keeps the full footer update action independent from the account menu', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarWidth = 180
+    render(<Sidebar />)
+
+    const footer = screen.getByTestId('sidebar-footer-user')
+    const accountButton = within(footer).getByRole('button', { name: 'JD' })
+    const helpButton = within(footer).getByRole('button', { name: 'Help' })
+    const updateButton = within(footer).getByRole('button', { name: 'Install update' })
+    expect(accountButton.compareDocumentPosition(helpButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(helpButton.compareDocumentPosition(updateButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await user.click(updateButton)
+
+    expect(mocks.showUpdatePopup).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
   })
 
   it('keeps feedback mounted when the floating sidebar closes', async () => {
@@ -530,7 +545,7 @@ describe('app Sidebar', () => {
 
     await user.click(screen.getByRole('button', { name: 'reveal' }))
     const floatingSidebar = screen.getByTestId('floating-sidebar')
-    await user.click(within(floatingSidebar).getByTestId('sidebar-feedback-full'))
+    await user.click(within(floatingSidebar).getByRole('button', { name: 'Open feedback' }))
 
     expect(await screen.findByRole('dialog')).toHaveTextContent('feedback-dialog')
 
@@ -559,6 +574,16 @@ describe('app Sidebar', () => {
     await user.click(within(floatingSidebar).getByRole('button', { name: 'JD' }))
     expect(screen.queryByTestId('account-menu')).not.toBeInTheDocument()
     expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
+  })
+
+  it('keeps the update action out of the floating sidebar footer', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarWidth = 0
+    render(<Sidebar />)
+
+    await user.click(screen.getByRole('button', { name: 'reveal' }))
+
+    expect(within(screen.getByTestId('floating-sidebar')).queryByRole('button', { name: 'Install update' })).toBeNull()
   })
 
   it('renders sidebar menu items in visible preference order', () => {

@@ -3,23 +3,42 @@ import {
   AvatarImage,
   Button,
   ColFlex,
+  ConfirmDialog,
   EmojiAvatar,
   Input,
   Popover,
   PopoverContent,
   PopoverTrigger,
   RowFlex,
+  SegmentedControl,
   Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
-import { Camera, Check, Cloud, ImageUp, LogIn, LogOut, Pencil, RefreshCw, RotateCcw, Smile, X } from 'lucide-react'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import {
+  Camera,
+  Check,
+  ImageUp,
+  LogOut,
+  Monitor,
+  Moon,
+  Pencil,
+  RotateCcw,
+  Settings,
+  Smile,
+  Sun,
+  SunMoon,
+  X
+} from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,16 +46,26 @@ import { EmojiPicker } from './EmojiPicker'
 
 type AvatarPopoverView = 'menu' | 'emoji'
 
-export function UserAccountPanel({ active = true }: { active?: boolean }) {
+export function UserAccountPanel({
+  active = true,
+  onEditingUserNameChange,
+  onRequestClose
+}: {
+  active?: boolean
+  onEditingUserNameChange?: (editing: boolean) => void
+  onRequestClose?: () => void
+}) {
   const [userName, setUserName] = usePreference('app.user.name')
   const [isEditingUserName, setIsEditingUserName] = useState(false)
   const [isSavingUserName, setIsSavingUserName] = useState(false)
   const [userNameDraft, setUserNameDraft] = useState(userName)
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
   const avatar = useAvatar()
+  const { settedTheme, setTheme } = useTheme()
   const isCnEdition = getAppEdition() === 'cn'
   const {
     status: cloudStatus,
@@ -53,11 +82,13 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
   const startEditingUserName = () => {
     setUserNameDraft(userName)
     setIsEditingUserName(true)
+    onEditingUserNameChange?.(true)
   }
 
   const cancelEditingUserName = () => {
     setUserNameDraft(userName)
     setIsEditingUserName(false)
+    onEditingUserNameChange?.(false)
   }
 
   const saveUserName = async () => {
@@ -67,12 +98,80 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
       await setUserName(nextUserName)
       setUserNameDraft(nextUserName)
       setIsEditingUserName(false)
+      onEditingUserNameChange?.(false)
     } catch (error: any) {
       toast.error(error.message)
     } finally {
       setIsSavingUserName(false)
     }
   }
+
+  const handleOpenSettings = () => {
+    onRequestClose?.()
+    openSettingsTab()
+  }
+
+  const isCloudSignedIn = cloudStatus?.phase === 'signed-in'
+  const cloudSubtitle = isCloudSignedIn
+    ? cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')
+    : !isCnEdition
+      ? null
+      : isAuthorizing
+        ? t('settings.provider.cherry_cloud.signing_in')
+        : cloudStatusLoadState === 'error'
+          ? t('error.http.503')
+          : t('settings.provider.cherry_cloud.title')
+  const cloudSubtitleRole =
+    isCloudSignedIn || isAuthorizing ? 'status' : cloudStatusLoadState === 'error' ? 'alert' : undefined
+  const cloudHeaderAction =
+    !isCnEdition || isCloudSignedIn
+      ? null
+      : isAuthorizing
+        ? {
+            label: t('common.cancel'),
+            loading: isCancellingLogin,
+            onClick: handleCloudLoginCancel
+          }
+        : cloudStatusLoadState === 'error'
+          ? {
+              label: t('common.retry'),
+              loading: false,
+              onClick: loadCloudStatus
+            }
+          : {
+              label: t('settings.provider.cherry_cloud.login'),
+              loading: cloudStatusLoadState === 'loading',
+              onClick: handleCloudLogin
+            }
+  const themeOptions = [
+    {
+      value: ThemeMode.light,
+      label: (
+        <>
+          <Sun className="size-3.5" aria-hidden />
+          <span className="sr-only">{t('settings.theme.light')}</span>
+        </>
+      )
+    },
+    {
+      value: ThemeMode.dark,
+      label: (
+        <>
+          <Moon className="size-3.5" aria-hidden />
+          <span className="sr-only">{t('settings.theme.dark')}</span>
+        </>
+      )
+    },
+    {
+      value: ThemeMode.system,
+      label: (
+        <>
+          <Monitor className="size-3.5" aria-hidden />
+          <span className="sr-only">{t('settings.theme.system')}</span>
+        </>
+      )
+    }
+  ]
 
   // The handler owns the app.user.avatar Preference write, which auto-syncs back to useAvatar.
   // Superseded file_entry rows are left for the orphan sweep rather than pruned here.
@@ -118,7 +217,7 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
 
   return (
     <ColFlex className="w-64">
-      <RowFlex className="items-center gap-2 px-2 py-1">
+      <RowFlex className="min-h-12 items-center gap-2 px-2.5 py-2">
         <Popover
           open={avatarPopoverOpen}
           onOpenChange={(visible) => {
@@ -130,13 +229,13 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
               type="button"
               variant="ghost"
               aria-label={t('common.avatar')}
-              className="group relative size-9 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
+              className="group relative size-8 shrink-0 rounded-full p-0 text-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent">
               {isEmoji(avatar) ? (
-                <EmojiAvatar size={36} fontSize={18}>
+                <EmojiAvatar size={32} fontSize={16}>
                   {avatar}
                 </EmojiAvatar>
               ) : (
-                <Avatar className="size-9 rounded-full">
+                <Avatar className="size-8 rounded-full">
                   <AvatarImage src={avatar} className="object-cover" />
                 </Avatar>
               )}
@@ -177,9 +276,8 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
             )}
           </PopoverContent>
         </Popover>
-        <ColFlex className="min-w-0 flex-1 gap-0.5">
-          <span className="text-muted-foreground text-xs leading-4">{t('settings.general.user_name.label')}</span>
-          {isEditingUserName ? (
+        {isEditingUserName ? (
+          <ColFlex className="min-w-0 flex-1 gap-0.5">
             <RowFlex className="min-w-0 items-center gap-1">
               <Input
                 autoFocus
@@ -194,6 +292,7 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
                   }
                   if (event.key === 'Escape') {
                     event.preventDefault()
+                    event.stopPropagation()
                     cancelEditingUserName()
                   }
                 }}
@@ -224,91 +323,92 @@ export function UserAccountPanel({ active = true }: { active?: boolean }) {
                 </Button>
               </Tooltip>
             </RowFlex>
-          ) : (
-            <RowFlex className="min-w-0 items-center gap-1">
-              <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-4">
-                {userName || t('settings.general.user_name.placeholder')}
-              </span>
-              <Tooltip content={t('common.edit')}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('common.edit')}
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                  onClick={startEditingUserName}>
-                  <Pencil aria-hidden />
-                </Button>
-              </Tooltip>
-            </RowFlex>
-          )}
-        </ColFlex>
-      </RowFlex>
-      {isCnEdition || cloudStatus?.phase === 'signed-in' ? (
-        <ColFlex className="border-border-subtle border-t py-1.5">
-          <RowFlex className="min-h-9 items-center gap-2 px-2.5">
-            <Cloud className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <ColFlex className="min-w-0 flex-1 gap-0.5">
-              <RowFlex className="min-w-0 items-center justify-between gap-2">
-                <span className="truncate font-medium text-foreground text-sm">
-                  {t('settings.provider.cherry_cloud.title')}
-                </span>
-                {cloudStatus?.phase !== 'signed-in' && cloudStatusLoadState !== 'error' ? (
-                  <Button
-                    aria-label={isAuthorizing ? t('settings.provider.cherry_cloud.signing_in') : undefined}
-                    className="shrink-0"
-                    loading={cloudStatusLoadState === 'loading' || isAuthorizing}
-                    onClick={() => void handleCloudLogin()}
-                    size="sm"
-                    variant="outline">
-                    {!isAuthorizing && cloudStatusLoadState !== 'loading' ? <LogIn aria-hidden /> : null}
-                    {t('settings.provider.cherry_cloud.login')}
-                  </Button>
+          </ColFlex>
+        ) : (
+          <>
+            <Button
+              type="button"
+              aria-label={t('settings.general.user_name.label')}
+              className="h-auto min-w-0 flex-1 justify-start px-1 py-1 text-left"
+              onClick={startEditingUserName}
+              size="sm"
+              variant="ghost">
+              <ColFlex className="min-w-0 flex-1 gap-0.5">
+                <RowFlex className="min-w-0 items-center gap-1">
+                  <span className="truncate font-medium text-foreground text-sm leading-5">
+                    {userName || t('settings.general.user_name.placeholder')}
+                  </span>
+                  <Pencil className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+                </RowFlex>
+                {cloudSubtitle ? (
+                  <span role={cloudSubtitleRole} className="truncate text-muted-foreground text-xs leading-4">
+                    {cloudSubtitle}
+                  </span>
                 ) : null}
-              </RowFlex>
-              {cloudStatus?.phase === 'signed-in' ? (
-                <span role="status" className="truncate text-muted-foreground text-xs leading-4">
-                  {cloudStatus.displayName || t('settings.provider.cherry_cloud.logged_in')}
-                </span>
-              ) : null}
-            </ColFlex>
-          </RowFlex>
-          {cloudStatusLoadState === 'error' ? (
-            <ColFlex className="mt-1 gap-1 px-2.5">
-              <div role="alert" className="rounded-md bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
-                {t('error.http.503')}
-              </div>
-              <Button className="w-full" onClick={() => void loadCloudStatus()} variant="outline">
-                <RefreshCw aria-hidden />
-                {t('common.retry')}
-              </Button>
-            </ColFlex>
-          ) : cloudStatus?.phase === 'signed-in' ? (
-            <div className="mt-1 border-border-subtle border-t px-1.5 pt-1">
+              </ColFlex>
+            </Button>
+            {cloudHeaderAction ? (
               <Button
-                className="!text-destructive hover:!text-destructive focus-visible:!text-destructive w-full justify-start px-2"
-                loading={isRevokingSession}
-                onClick={() => void handleCloudLogout()}
+                type="button"
+                className="h-7 shrink-0 px-2 text-xs"
+                loading={cloudHeaderAction.loading}
+                onClick={() => void cloudHeaderAction.onClick()}
                 size="sm"
                 variant="ghost">
-                {!isRevokingSession ? <LogOut aria-hidden /> : null}
-                {t('settings.provider.cherry_cloud.logout')}
+                {cloudHeaderAction.label}
               </Button>
-            </div>
-          ) : isAuthorizing ? (
-            <div className="mt-1 px-1.5">
-              <Button
-                className="w-full"
-                loading={isCancellingLogin}
-                onClick={() => void handleCloudLoginCancel()}
-                variant="ghost">
-                {!isCancellingLogin ? <X aria-hidden /> : null}
-                {t('common.cancel')}
-              </Button>
-            </div>
-          ) : null}
-        </ColFlex>
+            ) : null}
+          </>
+        )}
+      </RowFlex>
+      <ColFlex className="border-border-subtle border-t py-1">
+        <Button className="min-h-9 w-full justify-start px-2.5" onClick={handleOpenSettings} size="sm" variant="ghost">
+          <Settings aria-hidden />
+          {t('common.settings')}
+        </Button>
+        <RowFlex className="min-h-9 items-center gap-2 px-2.5">
+          <SunMoon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-foreground text-sm">{t('settings.theme.title')}</span>
+          <SegmentedControl
+            aria-label={t('settings.theme.title')}
+            options={themeOptions}
+            size="sm"
+            value={settedTheme}
+            onValueChange={setTheme}
+          />
+        </RowFlex>
+      </ColFlex>
+      {isCloudSignedIn ? (
+        <div className="border-border-subtle border-t px-1.5 py-1">
+          <Button
+            className="min-h-9 w-full justify-start px-2"
+            loading={isRevokingSession}
+            onClick={() => setLogoutConfirmOpen(true)}
+            size="sm"
+            variant="ghost">
+            {!isRevokingSession ? <LogOut aria-hidden /> : null}
+            {t('settings.provider.cherry_cloud.logout')}
+          </Button>
+        </div>
       ) : null}
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        onOpenChange={setLogoutConfirmOpen}
+        title={t('settings.provider.cherry_cloud.logout_confirm_title')}
+        description={
+          cloudStatus?.displayName
+            ? t('settings.provider.cherry_cloud.logout_confirm_account', { displayName: cloudStatus.displayName })
+            : undefined
+        }
+        content={
+          <p className="text-foreground text-sm">{t('settings.provider.cherry_cloud.logout_confirm_description')}</p>
+        }
+        cancelText={t('common.cancel')}
+        confirmText={t('settings.provider.cherry_cloud.logout')}
+        confirmLoading={isRevokingSession}
+        destructive
+        onConfirm={handleCloudLogout}
+      />
     </ColFlex>
   )
 }

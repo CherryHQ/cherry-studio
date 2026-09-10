@@ -1,4 +1,4 @@
-import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type * as MenuListModule from '@cherrystudio/ui/components/composites/menu-list'
 import type * as PopoverModule from '@cherrystudio/ui/components/primitives/popover'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -308,86 +308,54 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
-  it('runs the header action when the visible title is clicked', async () => {
-    const user = userEvent.setup()
-    const onHeaderClick = vi.fn()
-
-    render(
-      <Sidebar
-        width={SIDEBAR_FULL_THRESHOLD}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={entries}
-        title="User"
-        logo={<span>avatar</span>}
-        onHeaderClick={onHeaderClick}
-      />
-    )
-
-    const headerAction = screen.getByRole('button', { name: /User$/ })
-    // Interactive controls must opt out of Electron's window drag region.
-    expect(headerAction).toHaveClass('[-webkit-app-region:no-drag]')
-    // The sidebar foreground token must win over MenuItem's generic foreground.
-    expect(headerAction).toHaveClass('text-sidebar-foreground')
-
-    await user.click(headerAction)
-
-    expect(onHeaderClick).toHaveBeenCalledTimes(1)
-  })
-
   it.each([
     { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
     { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },
     { name: 'floating', width: 0, isFloating: true }
-  ])('anchors the account panel to the $name avatar', ({ name, width, isFloating }) => {
+  ])('renders the $name account entry as an accessible footer button', async ({ width, isFloating }) => {
+    const user = userEvent.setup()
+    const onAccountClick = vi.fn()
     render(
       <Sidebar
         width={width}
         setWidth={vi.fn()}
         active={{ activeItem: 'chat' }}
         entries={entries}
-        title="User"
-        logo={<span data-testid={`${name}-avatar`}>avatar</span>}
-        onHeaderClick={vi.fn()}
+        user={{ name: 'User', onClick: onAccountClick }}
         isFloating={isFloating}
-        renderHeaderAnchor={(anchor: ReactElement) => <div data-testid="header-anchor">{anchor}</div>}
-        renderHeaderOverlay={(header: ReactElement) => <div data-testid="header-overlay">{header}</div>}
+        renderUserTrigger={(trigger: ReactElement) => <div data-testid="footer-account-trigger">{trigger}</div>}
       />
     )
 
-    const anchor = screen.getByTestId('header-anchor')
-    const headerAction = screen.getByRole('button', { name: /User$/ })
+    const accountButton = screen.getByRole('button', { name: 'User' })
 
-    expect(anchor.firstElementChild).toContainElement(screen.getByTestId(`${name}-avatar`))
-    expect(anchor.firstElementChild).not.toBe(headerAction)
-    expect(headerAction).toContainElement(anchor)
-    expect(screen.getByTestId('header-overlay')).toContainElement(headerAction)
+    expect(screen.getByTestId('footer-account-trigger')).toContainElement(accountButton)
+    await user.click(accountButton)
+    expect(onAccountClick).toHaveBeenCalledOnce()
   })
 
-  it('exposes the account menu state and restores focus to its header trigger', async () => {
+  it('exposes account menu state and restores focus to its footer trigger', async () => {
     const user = userEvent.setup()
 
     function AccountSidebar() {
       const [open, setOpen] = useState(false)
 
       return (
-        <Sidebar
-          width={SIDEBAR_FULL_THRESHOLD}
-          setWidth={vi.fn()}
-          active={{ activeItem: 'chat' }}
-          entries={entries}
-          title="User"
-          logo={<span>avatar</span>}
-          onHeaderClick={() => setOpen(!open)}
-          renderHeaderTrigger={(trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
-          renderHeaderAnchor={(anchor: ReactElement) => <PopoverAnchor asChild>{anchor}</PopoverAnchor>}
-          renderHeaderOverlay={(header: ReactElement) => (
-            <Popover open={open} onOpenChange={setOpen}>
-              {header}
-              {open ? <PopoverContent>Account settings</PopoverContent> : null}
-            </Popover>
-          )}
-        />
+        <Popover open={open} onOpenChange={setOpen}>
+          <Sidebar
+            width={SIDEBAR_FULL_THRESHOLD}
+            setWidth={vi.fn()}
+            active={{ activeItem: 'chat' }}
+            entries={entries}
+            user={{ name: 'User' }}
+            renderUserTrigger={(trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
+          />
+          {open ? (
+            <PopoverContent align="start" side="top" sideOffset={8}>
+              Account settings
+            </PopoverContent>
+          ) : null}
+        </Popover>
       )
     }
 
@@ -405,6 +373,33 @@ describe('Sidebar resize handle', () => {
 
     expect(screen.queryByText('Account settings')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+  })
+
+  it('keeps the full footer update action independent from the account trigger', async () => {
+    const user = userEvent.setup()
+    const onAccountClick = vi.fn()
+    const onUpdateClick = vi.fn()
+
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        user={{ name: 'User', onClick: onAccountClick }}
+        userAction={(layout) => (
+          <button type="button" aria-label={`Install update ${layout}`} onClick={onUpdateClick}>
+            update
+          </button>
+        )}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Install update full' }))
+
+    expect(onUpdateClick).toHaveBeenCalledOnce()
+    expect(onAccountClick).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'User' })).not.toHaveTextContent('›')
   })
 
   it('wires context menu actions and keeps blank sidebar space clickable while the menu is open', async () => {

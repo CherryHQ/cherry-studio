@@ -80,7 +80,11 @@ vi.mock('../../UserAccountPanel', () => ({
 }))
 
 vi.mock('../../layout/ShellTabBarActions', () => ({
-  SidebarShellActions: () => null
+  AppUpdateButton: () => null
+}))
+
+vi.mock('../../layout/HelpMenu', () => ({
+  HelpMenu: () => null
 }))
 
 import Sidebar from '../Sidebar'
