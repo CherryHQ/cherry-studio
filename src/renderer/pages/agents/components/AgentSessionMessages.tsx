@@ -36,6 +36,7 @@ type Props = {
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
+  previewInputFile?: MessageListActions['previewInputFile']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
 }
@@ -55,6 +56,7 @@ const AgentSessionMessages = ({
   openAgentToolFlow,
   openArtifactFile,
   openDiagnosticReport,
+  previewInputFile,
   deleteMessage,
   respondToolApproval
 }: Props) => {
@@ -128,6 +130,7 @@ const AgentSessionMessages = ({
     openArtifactFile,
     openDiagnosticReport,
     diagnosticReport,
+    previewInputFile,
     deleteMessage,
     respondToolApproval,
     messageNavigation,

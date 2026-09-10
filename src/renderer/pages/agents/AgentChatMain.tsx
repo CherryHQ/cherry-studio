@@ -78,12 +78,20 @@ export default function AgentChatMain({
 }
 
 const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<typeof AgentSessionMessages>) => {
-  const { canOpenAgentToolFlow, canOpenArtifactFile, openAgentToolFlow, openArtifactFile } = useAgentRightPaneActions()
+  const {
+    canOpenAgentToolFlow,
+    canOpenArtifactFile,
+    canPreviewInputFileInRightPane,
+    openAgentToolFlow,
+    openArtifactFile,
+    previewInputFileInRightPane
+  } = useAgentRightPaneActions()
   return (
     <AgentSessionMessages
       {...props}
       openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
       openArtifactFile={canOpenArtifactFile ? openArtifactFile : undefined}
+      previewInputFile={canPreviewInputFileInRightPane ? previewInputFileInRightPane : undefined}
     />
   )
 }

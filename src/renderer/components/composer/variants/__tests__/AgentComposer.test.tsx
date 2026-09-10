@@ -4281,7 +4281,8 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
-                  fileTokenSourceId: 'source-workspace-file-1'
+                  fileTokenSourceId: 'source-workspace-file-1',
+                  originalPath: '/workspace/docs/notes.md'
                 }
               }
             }
@@ -4426,7 +4427,8 @@ describe('AgentComposer', () => {
               filename: 'notes.md',
               providerMetadata: {
                 cherry: {
-                  fileTokenSourceId: 'source-workspace-file-1'
+                  fileTokenSourceId: 'source-workspace-file-1',
+                  originalPath: 'C:/workspace/docs/notes.md'
                 }
               }
             }
@@ -4533,7 +4535,8 @@ describe('AgentComposer', () => {
               providerMetadata: {
                 cherry: {
                   fileEntryId: 'fe-1',
-                  fileTokenSourceId: 'source-file-1'
+                  fileTokenSourceId: 'source-file-1',
+                  originalPath: '/tmp/notes.md'
                 }
               }
             }

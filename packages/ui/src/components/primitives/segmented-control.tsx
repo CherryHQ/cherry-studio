@@ -1,10 +1,14 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
 
+import { Tooltip } from './tooltip'
+
 export interface SegmentedControlOption<TValue extends string = string> {
   value: TValue
   label: React.ReactNode
+  ariaLabel?: string
   disabled?: boolean
+  tooltip?: React.ReactNode
 }
 
 export interface SegmentedControlProps<TValue extends string = string>
@@ -56,12 +60,13 @@ function SegmentedControl<TValue extends string = string>({
       {options.map((option) => {
         const selected = option.value === selectedValue
 
-        return (
+        const button = (
           <button
             key={option.value}
             type="button"
             role="radio"
             aria-checked={selected}
+            aria-label={option.ariaLabel}
             disabled={disabled || option.disabled}
             onClick={() => handleSelect(option)}
             className={cn(
@@ -72,6 +77,14 @@ function SegmentedControl<TValue extends string = string>({
             )}>
             {option.label}
           </button>
+        )
+
+        return option.tooltip ? (
+          <Tooltip key={option.value} content={option.tooltip} delay={300} asChild>
+            {button}
+          </Tooltip>
+        ) : (
+          button
         )
       })}
     </div>

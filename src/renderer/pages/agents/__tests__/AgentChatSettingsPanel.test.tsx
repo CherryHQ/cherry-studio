@@ -267,9 +267,12 @@ vi.mock('../components/AgentRightPane', () => {
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,
+      canPreviewInputFileInRightPane: true,
       openAgentToolFlow: agentRightPanePropsMock.openAgentToolFlow,
-      openArtifactFile: agentRightPanePropsMock.openArtifactFile
-    })
+      openArtifactFile: agentRightPanePropsMock.openArtifactFile,
+      previewInputFileInRightPane: vi.fn()
+    }),
+    useOptionalAgentRightPaneActions: () => undefined
   }
 })
 

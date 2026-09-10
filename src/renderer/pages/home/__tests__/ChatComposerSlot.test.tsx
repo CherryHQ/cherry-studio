@@ -9,6 +9,7 @@ import ChatComposerSlot from '../ChatComposerSlot'
 
 const chatPlacementProps = vi.hoisted(() => ({ current: null as any }))
 const rightPanelPresentationMock = vi.hoisted(() => ({ maximized: false }))
+const topicPreviewInputFileMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
   useRightPanelPresentationMaximized: () => rightPanelPresentationMock.maximized
@@ -42,6 +43,12 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
       </button>
     )
   }
+}))
+
+vi.mock('../components/TopicRightPane', () => ({
+  useOptionalTopicRightPaneActions: () => ({
+    previewInputFile: topicPreviewInputFileMock
+  })
 }))
 
 const topic = { id: 'topic-1' } as Topic
@@ -85,6 +92,7 @@ describe('ChatComposerSlot', () => {
         resolvedProviders: providers,
         contextUsage: baseProps.contextUsage,
         externalContextControls: true,
+        previewInputFile: topicPreviewInputFileMock,
         onConversationControlsChange
       })
     )

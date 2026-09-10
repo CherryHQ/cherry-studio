@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import type { MessageInputFilePreview } from '@renderer/components/chat/messages/types'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -38,6 +39,7 @@ import {
   isSelectableFileNode,
   useArtifactFileTreeModel
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
+import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/panes/useArtifactPanePreviewNavigation'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
@@ -115,6 +117,7 @@ const logger = loggerService.withContext('AgentRightPane')
 
 const FLOW_TAB_PREFIX = 'flow:'
 const STATUS_PANE_ID = 'status'
+const FILES_PANE_ID = 'files'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 const TracePane = lazy(() =>
@@ -158,7 +161,14 @@ function isSameFileSelection(
   next: ArtifactPaneFileSelection | null
 ): boolean {
   if (!current || !next) return current === next
-  return current.workspacePath === next.workspacePath && current.filePath === next.filePath
+  return (
+    current.workspacePath === next.workspacePath &&
+    current.filePath === next.filePath &&
+    current.displayName === next.displayName &&
+    current.displayPath === next.displayPath &&
+    current.previewType === next.previewType &&
+    current.readOnly === next.readOnly
+  )
 }
 
 interface AgentFlowTab {
@@ -204,8 +214,10 @@ export type AgentFileNavigationRequest = (transition: () => void) => void
 interface AgentRightPaneActions {
   canOpenAgentToolFlow: boolean
   canOpenArtifactFile: boolean
+  canPreviewInputFileInRightPane: boolean
   openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
   openArtifactFile: (path: string) => void
+  previewInputFileInRightPane: (input: MessageInputFilePreview) => void
   closeFilePreview: () => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
   setSelectedFile: (file: string | null) => void
@@ -215,6 +227,7 @@ interface AgentRightPaneActions {
 
 interface AgentRightPanelScope {
   developerMode: boolean
+  filePreviewSelection: ArtifactPaneFileSelection | null
   hasSystemWorkspaceFiles: boolean
   filesTitle: string
   flowTab: AgentFlowTab | null
@@ -271,6 +284,10 @@ export function useAgentRightPaneActions(): AgentRightPaneActions {
   return value
 }
 
+export function useOptionalAgentRightPaneActions(): AgentRightPaneActions | undefined {
+  return use(AgentRightPaneActionsContext) ?? undefined
+}
+
 export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | null {
   return use(AgentFileNavigationContext)
 }
@@ -282,7 +299,7 @@ interface AgentRightPaneActionsProviderProps {
   sessionId?: string
   workspacePath?: string
   replaceFlowTab: (input: AgentToolFlowOpenInput) => void
-  closeFilePreview: () => void
+  previewFileSelection: ArtifactPaneFileSelection | null
   requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
   selectFile: (file: string | null) => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
@@ -298,7 +315,7 @@ function AgentRightPaneActionsProvider({
   sessionId,
   workspacePath,
   replaceFlowTab,
-  closeFilePreview,
+  previewFileSelection,
   requestFileSelection,
   selectFile,
   setFileEditMode,
@@ -317,7 +334,20 @@ function AgentRightPaneActionsProvider({
     }
   }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
-  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
+  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen(FILES_PANE_ID)
+  const canPreviewInputFileInRightPane = conversationState === 'ready'
+  const {
+    clearReturnTarget,
+    closeFilePreview,
+    previewInputFile: previewInputFileInRightPane
+  } = useArtifactPanePreviewNavigation({
+    enabled: canPreviewInputFileInRightPane,
+    paneId: FILES_PANE_ID,
+    previewFileSelection,
+    requestFileSelection,
+    scopeKey: sessionId,
+    workspacePath
+  })
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
@@ -332,7 +362,7 @@ function AgentRightPaneActionsProvider({
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      panelActions.tryOpen('files', { userInitiated: true })
+      panelActions.tryOpen(FILES_PANE_ID, { userInitiated: true })
 
       if (!selection) {
         requestFileSelection(null)
@@ -368,28 +398,39 @@ function AgentRightPaneActionsProvider({
     },
     [artifactOpenRequestRef, canOpenArtifactFile, panelActions, requestFileSelection, t, workspacePath]
   )
+  const setSelectedFile = useCallback(
+    (file: string | null) => {
+      clearReturnTarget()
+      selectFile(file)
+    },
+    [clearReturnTarget, selectFile]
+  )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
       canOpenAgentToolFlow,
       canOpenArtifactFile,
+      canPreviewInputFileInRightPane,
       openAgentToolFlow,
       openArtifactFile,
+      previewInputFileInRightPane,
       closeFilePreview,
       setFileEditMode,
-      setSelectedFile: selectFile,
+      setSelectedFile,
       setFileTreeExpandedIds,
       setFileTreeSearchKeyword
     }),
     [
       canOpenAgentToolFlow,
       canOpenArtifactFile,
+      canPreviewInputFileInRightPane,
       closeFilePreview,
       openAgentToolFlow,
       openArtifactFile,
-      selectFile,
+      previewInputFileInRightPane,
       setFileEditMode,
       setFileTreeExpandedIds,
-      setFileTreeSearchKeyword
+      setFileTreeSearchKeyword,
+      setSelectedFile
     ]
   )
 
@@ -431,6 +472,7 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const previousSessionIdRef = useRef(sessionId)
   const artifactOpenRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
@@ -441,7 +483,9 @@ function AgentRightPaneStateProvider({
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
   const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
   const editPath =
-    editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
+    editMode === 'edit' && previewFileSelection && !previewFileSelection.readOnly
+      ? getArtifactPaneSelectionPath(previewFileSelection)
+      : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
   const fileSession = useFileEditSession(editHandle)
   const discardFileDraft = fileSession.discard
@@ -508,6 +552,12 @@ function AgentRightPaneStateProvider({
     [fileWorkspace.path, previewFileSelection, requestFileTransition]
   )
 
+  useLayoutEffect(() => {
+    const sessionChanged = previousSessionIdRef.current !== sessionId
+    previousSessionIdRef.current = sessionId
+    if (sessionChanged && previewFileSelection?.previewType === 'file') requestFileSelection(null)
+  }, [previewFileSelection?.previewType, requestFileSelection, sessionId])
+
   const requestFileEditMode = useCallback(
     (mode: AgentFileEditorMode) => {
       if (mode === editMode) return
@@ -557,8 +607,6 @@ function AgentRightPaneStateProvider({
     }
     requestFileTransition(commitWorkspace)
   }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, workspaceKey, workspacePath])
-
-  const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
 
   const fileState = useMemo<AgentRightPaneFileState>(
     () => ({
@@ -611,6 +659,7 @@ function AgentRightPaneStateProvider({
   const scope = useMemo<AgentRightPanelScope>(
     () => ({
       developerMode: enableDeveloperMode,
+      filePreviewSelection: previewFileSelection,
       hasSystemWorkspaceFiles,
       filesTitle: t('agent.right_pane.tabs.files'),
       flowTab,
@@ -619,7 +668,7 @@ function AgentRightPaneStateProvider({
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, resourcePane, t]
+    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, previewFileSelection, resourcePane, t]
   )
 
   return (
@@ -642,7 +691,7 @@ function AgentRightPaneStateProvider({
                 sessionId={sessionId}
                 workspacePath={workspacePath}
                 replaceFlowTab={replaceFlowTab}
-                closeFilePreview={closeFilePreview}
+                previewFileSelection={previewFileSelection}
                 requestFileSelection={requestFileSelection}
                 selectFile={selectFile}
                 setFileEditMode={requestFileEditMode}
@@ -719,7 +768,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onPreviewClose={actions.closeFilePreview}
       enableFileSearch
       fileSession={state.fileSession}
-      editMode={state.editMode}
+      editMode={state.previewFileSelection?.readOnly ? 'preview' : state.editMode}
       onEditModeChange={actions.setFileEditMode}
       model={model}
       selectedFile={state.selectedFile}
@@ -777,6 +826,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
     openArtifactFile: actions.canOpenArtifactFile ? actions.openArtifactFile : undefined,
+    previewInputFile: actions.canPreviewInputFileInRightPane ? actions.previewInputFileInRightPane : undefined,
     messageNavigation,
     // Tool output is commonly workspace-relative (`dist/report.md`). Without the
     // root, open/reveal cannot resolve it and the directory probe fails closed.
@@ -1209,6 +1259,7 @@ function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentR
 
 function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
   if (scope.meta.conversationState !== 'ready') return scope.meta.conversationState
+  if (scope.filePreviewSelection) return 'ready'
   if (scope.meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM && !scope.hasSystemWorkspaceFiles) {
     return 'unavailable'
   }
@@ -1240,7 +1291,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
   {
     component: AgentRightPaneFilesPanel,
     resolve: (scope) => ({
-      id: 'files',
+      id: FILES_PANE_ID,
       instanceKey: `workspace:${scope.meta.workspaceId ?? ''}\0${scope.meta.workspacePath ?? ''}`,
       title: scope.filesTitle,
       readiness: resolveAgentFilesReadiness(scope),
@@ -1441,7 +1492,7 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
   return (
     <>
       <RightPanelShortcut
-        tab="files"
+        tab={FILES_PANE_ID}
         label={t('agent.right_pane.tabs.files')}
         icon={<FolderOpen className="size-3.5" />}
       />

@@ -7,6 +7,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Model } from '@shared/data/types/model'
 import { memo } from 'react'
 
+import { useOptionalAgentRightPaneActions } from './components/AgentRightPane'
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
 interface AgentComposerSlotProps {
@@ -43,6 +44,7 @@ function AgentComposerSlot({
   composerLaunchOptions
 }: AgentComposerSlotProps) {
   const compactWhenSingleLine = useRightPanelPresentationMaximized()
+  const rightPaneActions = useOptionalAgentRightPaneActions()
   const fallback =
     agentId && !isMultiSelectMode ? (
       <AgentComposer
@@ -59,6 +61,9 @@ function AgentComposerSlot({
         sendDisabled={sendDisabled}
         onCreateEmptySession={onCreateEmptySession}
         compactWhenSingleLine={compactWhenSingleLine}
+        previewInputFile={
+          rightPaneActions?.canPreviewInputFileInRightPane ? rightPaneActions.previewInputFileInRightPane : undefined
+        }
         launchOptions={composerLaunchOptions}
       />
     ) : undefined

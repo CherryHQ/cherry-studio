@@ -2,7 +2,7 @@
 
 `FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy; the matching plugin owns file I/O, format rendering, toolbar controls, and format-specific state.
 
-The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), PDF, Word (`.docx`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
+The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), browser-playable video (`.mp4`, `.webm`, `.m4v`), PDF, Word (`.docx`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
 ## Path Contract
 
@@ -60,6 +60,12 @@ The embedded host owns page-level interactions such as back, close, and file sel
 `header` content when they should share the fixed top row with the plugin toolbar. `FilePreview` keeps caller content
 on the left and portals the active plugin toolbar to the right. Do not pass format controls through `header` or add
 `embedded`, `showBackButton`, or page-specific callbacks to `FilePreview`.
+
+Two portal channels keep embedded headers composable. `FilePreviewToolbarPortalProvider` places a plugin's full
+format toolbar in the header action area. `FilePreviewModeToolbarPortalProvider` places only a plugin's mutually
+exclusive view control, such as preview/source, beside the host-owned file title. Hosts render the matching portal
+host; plugins continue to declare controls through `FilePreviewToolbar` or `FilePreviewModeTabs` and never target a
+host DOM node directly.
 
 When an embedded host owns in-app file navigation, wrap the preview in `FilePreviewNavigationProvider` and provide
 the workspace root and its absolute-path opener. The Markdown plugin then resolves schemeless links relative to that
@@ -182,6 +188,9 @@ Follow these boundaries when adding formats or capabilities:
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
 - Put every plugin toolbar in a separate `<Format>FilePreviewToolbar.tsx` component. When a plugin has no controls, omit the toolbar completely instead of rendering an empty row.
 - Compose toolbar content with `FilePreviewToolbar`. Use `FilePreviewToolbarButton` for icon commands and an appropriate UI primitive such as `SegmentedControl` for mode selection.
+- Use `FilePreviewModeTabs` for icon-only preview/source selection so it renders the shared `SegmentedControl` with an accessible name and tooltip for each option, whether inline or portaled.
+- Native controls rendered inside a format's content are not a plugin toolbar. For example, video uses Chromium's
+  inline `<video controls>` UI and does not render a separate `FilePreviewToolbar`.
 - Keep the renderer and file-loading lifecycle inside the plugin directory. Do not wrap an existing page or legacy preview panel; migrate that caller to `FilePreview` later instead of coupling the new plugin back to it.
 - Represent mutually exclusive plugin views with an explicit union such as `'preview' | 'source'`, not several interacting booleans.
 - Keep plugin capabilities inside the plugin. Do not expose a toolbar slot to callers or make calling pages manage format-specific state.

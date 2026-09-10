@@ -27,7 +27,6 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
-import MessageAttachments from './MessageAttachments'
 import MessageAvatar from './MessageAvatar'
 import MessageContent from './MessageContent'
 import MessageErrorBoundary from './MessageErrorBoundary'
@@ -357,7 +356,7 @@ const UserBubbleMessage = ({
     void actions.openUserProfile?.()
   }, [actions])
   const messageParts = useMessageParts(message.id)
-  const attachments = getHoistedAttachments(messageParts, message)
+  const attachments = getHoistedAttachments(messageParts)
 
   return (
     <div className="flex w-full flex-col items-end">
@@ -368,20 +367,9 @@ const UserBubbleMessage = ({
               <AgentSessionDeliveryBadge delivery={message.delivery} />
             </div>
           )}
-          {(attachments.images.length > 0 || attachments.files.length > 0) && (
+          {attachments.images.length > 0 && (
             <div className="flex max-w-full flex-col items-end">
-              {attachments.images.length > 0 && (
-                <ImageBlock images={attachments.images} thumbnail className="mb-2 justify-end" />
-              )}
-              {attachments.files.map((file) => (
-                <MessageAttachments
-                  key={file.key}
-                  handle={file.handle}
-                  name={file.name}
-                  ext={file.ext}
-                  createdAt={message.createdAt}
-                />
-              ))}
+              <ImageBlock images={attachments.images} thumbnail className="mb-2 justify-end" />
             </div>
           )}
           <Scrollbar

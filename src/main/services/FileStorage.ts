@@ -414,7 +414,7 @@ class FileStorage {
    * @throws Error if file reading fails
    */
   private async readFileCore(filePath: string, detectEncoding: boolean = false): Promise<string> {
-    const fileExtension = path.extname(filePath)
+    const fileExtension = path.extname(filePath).toLowerCase()
 
     if (documentExts.includes(fileExtension)) {
       try {
