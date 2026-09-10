@@ -21,5 +21,6 @@ export const browserRequestSchemas = {
 }
 
 export type BrowserEventSchemas = {
+  'browser.guest.ensure_requested': { sessionId: string; url?: string }
   'browser.pane.open_requested': { sessionId: string; url?: string }
 }

@@ -107,3 +107,9 @@ Explicit `file://` HTML entries, including address-bar and Agent opens, use the 
 within the opened file's directory. Opening a different file establishes a fresh guest
 and directory authorization. Ordinary HTTP(S) guests cannot navigate into local files;
 the artifact policy also rejects directory escapes and symlink escapes.
+
+Agent guests are owned by a stable renderer runtime outside page Activity boundaries. Pane visibility
+only supplies an anchor; it does not attach or detach control. Guest creation and pane presentation
+use separate IPC events. Per-tool execution leases temporarily disable background throttling and
+restore its previous value after the last execution. Webview screenshots retain a native frame
+subscription for the bounded CDP command, releasing it on completion, cancellation or timeout.

@@ -24,6 +24,7 @@ export interface AgentBrowserTarget extends AgentBrowserContext {
   windowId: WindowId
   abort: AbortController
   popupBlocked?: boolean
+  beginExecution: () => Disposable
   dispose: () => void
 }
 
@@ -62,6 +63,29 @@ export class AgentBrowserRegistry implements Disposable {
     existing?.dispose()
     const tabId = randomUUID()
     const abort = new AbortController()
+    let executions = 0
+    let throttling = true
+    const restoreThrottling = () => {
+      if (executions && !guest.isDestroyed()) guest.setBackgroundThrottling(throttling)
+      executions = 0
+    }
+    abort.signal.addEventListener('abort', restoreThrottling, { once: true })
+    const beginExecution = (): Disposable => {
+      abort.signal.throwIfAborted()
+      if (executions++ === 0) {
+        throttling = guest.getBackgroundThrottling()
+        guest.setBackgroundThrottling(false)
+      }
+      let released = false
+      return {
+        dispose: () => {
+          if (released) return
+          released = true
+          if (executions === 1) restoreThrottling()
+          else if (executions > 1) executions--
+        }
+      }
+    }
     const dispose = () => {
       if (this.targets.get(sessionId)?.tabId !== tabId) return
       this.targets.delete(sessionId)
@@ -69,7 +93,16 @@ export class AgentBrowserRegistry implements Disposable {
       abort.abort(new BrowserSessionError('not_found'))
       this.changed.fire()
     }
-    this.targets.set(sessionId, { agentId: owner.agentId, sessionId, tabId, guest, windowId: senderId, abort, dispose })
+    this.targets.set(sessionId, {
+      agentId: owner.agentId,
+      sessionId,
+      tabId,
+      guest,
+      windowId: senderId,
+      abort,
+      beginExecution,
+      dispose
+    })
     guest.once('destroyed', dispose)
     this.changed.fire()
     return { tabId }
@@ -114,7 +147,7 @@ export class AgentBrowserRegistry implements Disposable {
       : undefined
   }
 
-  async reveal(context: AgentBrowserContext, signal: AbortSignal, url?: string): Promise<AgentBrowserTarget> {
+  async ensureGuest(context: AgentBrowserContext, signal: AbortSignal, url?: string): Promise<AgentBrowserTarget> {
     signal.throwIfAborted()
     const existing = this.get(context)
     const isFile = url?.startsWith('file:')
@@ -124,9 +157,6 @@ export class AgentBrowserRegistry implements Disposable {
     const matches = (target: AgentBrowserTarget) =>
       !url || (target.guest.session === expectedSession && (!isFile || target.guest.getURL() === url))
     if (existing && matches(existing)) {
-      application
-        .get('IpcApiService')
-        .send(existing.windowId, 'browser.pane.open_requested', { sessionId: context.sessionId })
       return existing
     }
     const timeout = AbortSignal.timeout(10_000)
@@ -155,7 +185,7 @@ export class AgentBrowserRegistry implements Disposable {
       abort.addEventListener('abort', onAbort, { once: true })
       try {
         abort.throwIfAborted()
-        application.get('IpcApiService').broadcast('browser.pane.open_requested', {
+        application.get('IpcApiService').broadcast('browser.guest.ensure_requested', {
           sessionId: context.sessionId,
           url: isFile ? url : url ? 'about:blank' : undefined
         })

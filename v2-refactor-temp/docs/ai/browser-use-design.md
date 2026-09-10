@@ -330,3 +330,17 @@ for capability selection, result handling and acceptance gates.
   Do not treat a dependency type update or a future Electron major version as the compatibility gate.
 - Full working notes (project-by-project source refs) live in
   `.context/research/browser-use-gap-analysis.md` on the `webview-agent-pane-browser` workspace.
+
+## Runtime ownership and presentation
+
+Agent browser resources belong to their session and declared app-tab owners. The window composition
+provides a stable renderer host outside page Activities; it does not keep chat pages active. A pane
+supplies the display rectangle and view-only controls. Hiding it preserves the same native guest,
+binding, document and viewport. Closing its owners or deleting the session releases the resource.
+
+Creation is requested at the stable host, independently of revealing the pane. Tool execution holds
+a temporary background-throttling lease; screenshots hold a bounded native frame subscription.
+These mechanisms keep hidden guests usable without an idle render loop. The generic surface goes
+below the browser engine, while session policy stays in Agent integration. File trees reuse their
+own directory mirror/watcher infrastructure in a separate change; no universal resource manager is
+needed. See implementation §12.1 for the component, IPC and release boundaries.
