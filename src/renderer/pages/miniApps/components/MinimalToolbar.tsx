@@ -11,6 +11,7 @@ import { normalizeWebviewAddress } from '@renderer/utils/normalizeWebviewAddress
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
+import { isHttpUrl } from '@shared/utils/url'
 import type { WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
 import type { FC, RefObject } from 'react'
@@ -18,15 +19,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('MinimalToolbar')
-
-function isExternalUrl(value: string): boolean {
-  try {
-    const protocol = new URL(value).protocol
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
-  }
-}
 
 /** `open` splits the view in two; `close` is the split pane's way back to one. */
 export type SplitMode = 'open' | 'close'
@@ -78,7 +70,7 @@ const MinimalToolbar: FC<Props> = ({
   const splitLabelKey = splitMode === 'close' || splitActive ? 'miniApp.split.close' : 'miniApp.split.open'
   const canPinned = allApps.some((item) => item.appId === app.appId)
   const isPinned = pinned.some((item) => item.appId === app.appId)
-  const canOpenExternalLink = isExternalUrl(currentPageUrl)
+  const canOpenExternalLink = isHttpUrl(currentPageUrl)
 
   const addressInputRef = useRef<HTMLInputElement | null>(null)
   const addressLoadGenerationRef = useRef(0)

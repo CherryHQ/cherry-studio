@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
-import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
+import { WEBVIEW_KEYDOWN_CHANNEL, type WebviewKeyPayload } from '@shared/utils/webviewKey'
 import type {
   DidFailLoadEvent,
   DidNavigateEvent,
@@ -153,9 +153,9 @@ export function WebviewHost({
     // Replay the guest's keydown on the host window so the normal keybinding
     // resolution (find-in-page and friends) sees it; `target` identifies the webview.
     const handleGuestKeydown = (event: IpcMessageEvent) => {
-      if (event.channel !== MINI_APP_KEYDOWN_CHANNEL) return
+      if (event.channel !== WEBVIEW_KEYDOWN_CHANNEL) return
 
-      const payload = event.args[0] as MiniAppKeyPayload | undefined
+      const payload = event.args[0] as WebviewKeyPayload | undefined
       if (!payload?.isTrusted || document.activeElement !== webview) return
 
       const replayed = new KeyboardEvent('keydown', { ...payload, cancelable: true })

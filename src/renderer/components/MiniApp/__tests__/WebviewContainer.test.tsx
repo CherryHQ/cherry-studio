@@ -36,7 +36,7 @@ vi.mock('react-i18next', () => ({
 
 import { ipcApi } from '@renderer/ipc'
 import type { MiniAppKind } from '@shared/data/types/miniApp'
-import { MINI_APP_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
+import { WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
 
 import WebviewContainer from '../WebviewContainer'
 
@@ -94,7 +94,7 @@ const focusOn = (element: Element | null) => {
 const sendGuestKey = (webview: Element, payload: Record<string, unknown>) => {
   act(() => {
     webview.dispatchEvent(
-      Object.assign(new Event('ipc-message'), { channel: MINI_APP_KEYDOWN_CHANNEL, args: [payload] })
+      Object.assign(new Event('ipc-message'), { channel: WEBVIEW_KEYDOWN_CHANNEL, args: [payload] })
     )
   })
 }

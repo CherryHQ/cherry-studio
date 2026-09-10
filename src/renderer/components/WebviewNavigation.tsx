@@ -7,6 +7,7 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { normalizeWebviewAddress } from '@renderer/utils/normalizeWebviewAddress'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
+import { isHttpUrl } from '@shared/utils/url'
 import type { WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, ExternalLink, History, RotateCw } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
@@ -39,15 +40,6 @@ function compactAddress(value: string): string {
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.host : value
   } catch {
     return value
-  }
-}
-
-function isExternalUrl(value: string): boolean {
-  try {
-    const protocol = new URL(value).protocol
-    return protocol === 'http:' || protocol === 'https:'
-  } catch {
-    return false
   }
 }
 
@@ -227,7 +219,7 @@ export function WebviewNavigation({
     [isAddressEditingRef, navigateToAddress, restoreCurrentPageUrl, selectedSuggestion, showHistory, suggestions.length]
   )
 
-  const canOpenExternal = isExternalUrl(currentPageUrl)
+  const canOpenExternal = isHttpUrl(currentPageUrl)
   const addressHost = compactAddress(addressValue)
   const addressTitle =
     addressValue === currentPageUrl && pageTitle !== addressValue && pageTitle !== addressHost ? pageTitle : undefined
