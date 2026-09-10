@@ -5,7 +5,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 
-import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
+import { dedupePathSegments, getBinarySearchDirs, getBinaryShimsDir, mergeBinaryExecutionEnv } from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'
 
 const logger = loggerService.withContext('ShellEnv')
@@ -40,7 +40,24 @@ export function getMiseEnvEntries(env: Record<string, string | undefined>): Arra
 
 /** Whether an env shows a user-owned mise installation: MISE_* vars or a mise-owned PATH dir. */
 export function hasUserMiseEnv(env: Record<string, string | undefined>): boolean {
-  return getMiseEnvEntries(env).length > 0 || hasMiseInPath(getPathFromEnvironment(env))
+  if (getMiseEnvEntries(env).length > 0) return true
+  // On POSIX PATH is case-sensitive: a lowercase `path` entry is an unrelated
+  // variable and must not count as a mise-owned PATH dir.
+  return hasMiseInPath(isWin ? getPathFromEnvironment(env) : env.PATH)
+}
+
+/**
+ * Cherry PATH tail dirs for a spawned child: standalone binaries always, the
+ * managed shims dir only when the user has no mise of their own (else a Cherry
+ * shim would run under the user's MISE contract), bundled git last (#19738).
+ */
+export function resolveCherryPathTailDirs(hasUserMise: boolean): string[] {
+  const cherryToolDirs = getBinarySearchDirs()
+  const managedShimsDir = getBinaryShimsDir()
+  const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)
+  const bundledGitDir = getBundledGitDir()
+  if (hasUserMise) return bundledGitDir ? [...standaloneDirs, bundledGitDir] : standaloneDirs
+  return bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
 }
 
 /** Drop one directory from every PATH key in `env`, matching Windows paths case-insensitively. */
