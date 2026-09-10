@@ -78,7 +78,7 @@ describe('deepseek endpoint matrix', () => {
       {
         id: 'web-search',
         modelScope: 'model-dependent',
-        modelIdPrefixes: ['deepseek-v4-flash', 'deepseek-v4-pro'],
+        modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'],
         endpointTypes: ['openai-responses']
       }
     ])
