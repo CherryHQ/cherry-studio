@@ -136,6 +136,7 @@ describe('CacheCleanupService', () => {
         'app.temp': rootPath('Temp'),
         'feature.trace': tracePath,
         'app.logs': logsPath,
+        'feature.mini_app.logs': path.join(logsPath, 'mini-apps'),
         'v1.trace': rootPath('Home', 'trace'),
         'v1.cli.install': rootPath('Home', 'install'),
         'v1.database.file': path.join(userDataPath, 'cherrystudio.sqlite'),
@@ -435,13 +436,17 @@ describe('CacheCleanupService', () => {
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     const activeLog = path.join(logsPath, `app.${today}.log`)
     const activeMiniAppLog = path.join(logsPath, 'mini-apps', 'app-1', `activity.${today}.log`)
+    const activeShard = path.join(logsPath, `app.${today}.log.2`)
     const oldLog = path.join(logsPath, 'app.2020-01-01.log')
+    const oldShard = path.join(logsPath, 'app.2020-01-01.log.1')
     const oldMiniAppLog = path.join(logsPath, 'mini-apps', 'app-1', 'activity.2020-01-01.log')
     const auditFile = path.join(logsPath, '.1234-audit.json')
     const sizes = [
       [activeLog, 3],
+      [activeShard, 2],
       [activeMiniAppLog, 5],
       [oldLog, 7],
+      [oldShard, 1],
       [oldMiniAppLog, 11],
       [auditFile, 13]
     ] as const
@@ -452,10 +457,10 @@ describe('CacheCleanupService', () => {
     const inspection = await cacheCleanupService.inspect(['logs'])
     const cleanup = await cacheCleanupService.run(['logs'])
 
-    expect(inspection.results[0]?.size).toMatchObject({ bytes: 18, accuracy: 'exact', completeness: 'complete' })
+    expect(inspection.results[0]?.size).toMatchObject({ bytes: 19, accuracy: 'exact', completeness: 'complete' })
     expect(cleanup.results[0]?.status).toBe('cleared')
-    await expectMissing(oldLog, oldMiniAppLog)
-    await expectExisting(activeLog, activeMiniAppLog, auditFile)
+    await expectMissing(oldLog, oldShard, oldMiniAppLog)
+    await expectExisting(activeLog, activeShard, activeMiniAppLog, auditFile)
   })
 
   it('sweeps only logs past the retention window, keeping undated files', async () => {
@@ -467,14 +472,20 @@ describe('CacheCleanupService', () => {
     const kept = [
       path.join(logsPath, `app.${stamp(0)}.log`),
       path.join(logsPath, `app.${stamp(7)}.log`),
-      path.join(logsPath, 'app.log')
+      path.join(logsPath, 'app.log'),
+      // Mini apps keep their newest activity days however old they are.
+      path.join(logsPath, 'mini-apps', 'app-1', `activity.${stamp(40)}.log`)
     ]
-    const expired = [path.join(logsPath, `app.${stamp(8)}.log`), path.join(logsPath, `app-error.${stamp(40)}.log`)]
+    const expired = [
+      path.join(logsPath, `app.${stamp(8)}.log`),
+      path.join(logsPath, `app.${stamp(8)}.log.1`),
+      path.join(logsPath, `app-error.${stamp(40)}.log`)
+    ]
     for (const filePath of [...kept, ...expired]) {
       await writeTestFile(filePath, 'entry')
     }
 
-    await expect(cacheCleanupService.sweepLogs(7)).resolves.toBe(2)
+    await expect(cacheCleanupService.sweepLogs(7)).resolves.toBe(3)
 
     await expectMissing(...expired)
     await expectExisting(...kept)

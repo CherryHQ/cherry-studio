@@ -2,7 +2,7 @@
 title: Logs now follow a retention setting, and error logs are kept 30 days instead of 60
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#20330'
 date: 2026-09-10
 ---
 

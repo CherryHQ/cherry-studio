@@ -10,6 +10,7 @@ import {
   type CleanupTarget,
   collectOwnedTargets,
   isNodeError,
+  isPathWithin,
   issue,
   measurePaths,
   removeCleanupTarget,
@@ -19,7 +20,9 @@ import {
 
 const logger = loggerService.withContext('CacheCleanup')
 
-const LOG_FILE_PATTERN = /\.log(\.gz)?$/
+// `.log.3` is a size-rolled shard of the same day: file-stream-rotator appends the
+// counter after the name, because our `filename` carries the extension and its own is empty.
+const LOG_FILE_PATTERN = /\.log(\.\d+)?(\.gz)?$/
 const LOG_STAMP_PATTERN = /(\d{4})-(\d{2})-(\d{2})/
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -49,6 +52,10 @@ async function collectLogTargets(minAgeDays: number): Promise<{
   issues: CacheCleanupIssue[]
 }> {
   const logsDir = application.getPath('app.logs')
+  // Mini apps keep their newest activity days however old those are — a monthly app must
+  // still show its last session — so calendar retention stays off that tree. Only the
+  // manual sweep, which the user asked for explicitly, takes those files.
+  const miniAppLogsDir = minAgeDays === 0 ? null : application.getPath('feature.mini_app.logs')
 
   let entries
   try {
@@ -61,7 +68,12 @@ async function collectLogTargets(minAgeDays: number): Promise<{
 
   return collectOwnedTargets(
     entries
-      .filter((entry) => entry.isFile() && isRemovable(entry.name, minAgeDays))
+      .filter(
+        (entry) =>
+          entry.isFile() &&
+          isRemovable(entry.name, minAgeDays) &&
+          !(miniAppLogsDir && isPathWithin(entry.parentPath, miniAppLogsDir))
+      )
       .map((entry): CleanupTarget => ({ item: 'logs', path: path.join(entry.parentPath, entry.name), kind: 'file' }))
   )
 }

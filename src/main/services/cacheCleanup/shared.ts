@@ -38,7 +38,7 @@ export function isNodeError(error: unknown, code: string): boolean {
   return error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === code
 }
 
-function isPathWithin(targetPath: string, rootPath: string): boolean {
+export function isPathWithin(targetPath: string, rootPath: string): boolean {
   const relativePath = path.relative(path.resolve(rootPath), path.resolve(targetPath))
   return (
     relativePath === '' ||
