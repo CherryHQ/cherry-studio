@@ -1,6 +1,6 @@
-import type { Protocol } from 'devtools-protocol'
 import type TurndownService from 'turndown'
 
+import { type BrowserScreenshot, captureScreenshot, type ScreenshotOptions } from '../actions/screenshot'
 import type { BrowserPointerFeedback } from '../BrowserCursor'
 import type { GuestSession } from '../session/GuestSession'
 import { logger } from './types'
@@ -100,24 +100,15 @@ export abstract class BrowserPageController {
   }
 
   public async screenshot(
-    options: { fullPage?: boolean; format?: 'png' | 'jpeg'; quality?: number } = {},
+    options: ScreenshotOptions = {},
     privateMode = false,
     tabId?: string,
     signal?: AbortSignal
-  ): Promise<string> {
+  ): Promise<BrowserScreenshot> {
     const { session, signal: targetSignal } = await this.getSession(privateMode, tabId)
     signal = targetSignal ? AbortSignal.any(signal ? [signal, targetSignal] : [targetSignal]) : signal
 
-    const format = options.format ?? 'png'
-    const params: Protocol.Page.CaptureScreenshotRequest = {
-      format,
-      captureBeyondViewport: options.fullPage ?? false
-    }
-    if (format === 'jpeg' && options.quality !== undefined) {
-      params.quality = options.quality
-    }
-
-    const result = await session.run(() => session.send('Page.captureScreenshot', params, { signal }), { signal })
-    return result.data
+    const commands = { deadline: Date.now() + 30_000, signal }
+    return session.run(() => captureScreenshot(session, options, commands), { signal })
   }
 }
