@@ -29,6 +29,10 @@ const fileMock = vi.hoisted(() => ({
 }))
 
 const useJobMock = vi.hoisted(() => vi.fn())
+const smoothStreamMock = vi.hoisted(() => ({
+  deferUpdates: false,
+  pendingUpdates: [] as Array<() => void>
+}))
 const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
@@ -216,7 +220,14 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 vi.mock('@renderer/hooks/useSmoothStream', () => ({
   useSmoothStream: (options: { onUpdate: (text: string) => void }) => ({
     reset: (text = '') => options.onUpdate(text),
-    update: (text: string) => options.onUpdate(text)
+    update: (text: string) => {
+      const applyUpdate = () => options.onUpdate(text)
+      if (smoothStreamMock.deferUpdates) {
+        smoothStreamMock.pendingUpdates.push(applyUpdate)
+      } else {
+        applyUpdate()
+      }
+    }
   })
 }))
 
@@ -544,6 +555,8 @@ describe('TranslatePage', () => {
     uuidMock.mockReturnValue('abort-key')
     useJobMock.mockReset()
     useJobMock.mockReturnValue({ data: undefined, isTerminal: false })
+    smoothStreamMock.deferUpdates = false
+    smoothStreamMock.pendingUpdates.length = 0
     dropMock.getFilesFromDropEvent.mockReset()
     dropMock.getFilesFromDropEvent.mockResolvedValue(null)
     dropMock.getTextFromDropEvent.mockReset()
@@ -1966,6 +1979,32 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.setTimeoutTimer).not.toHaveBeenCalledWith('auto-copy', expect.any(Function), 100)
   })
 
+  it('renders a buffered translation update after the request has settled', async () => {
+    const user = userEvent.setup()
+    smoothStreamMock.deferUpdates = true
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'hello')
+    translateCoreMock.translateText.mockImplementationOnce(
+      async (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
+        onResponse?.('complete translation', true)
+        return 'complete translation'
+      }
+    )
+
+    const { rerender } = render(<TranslatePage />)
+    await user.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('translate.complete'))
+
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    await act(async () => smoothStreamMock.pendingUpdates.splice(0).forEach((update) => update()))
+    rerender(<TranslatePage />)
+
+    expect(screen.getByTestId('translate-output-content')).toHaveTextContent('complete translation')
+  })
+
   it('schedules auto-copy after successful translation when auto-copy is enabled', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
@@ -2317,6 +2356,33 @@ describe('TranslatePage', () => {
 
     expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('history input')
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('history output')
+  })
+
+  it('ignores a file read from an unmounted page after history is restored on a new page', async () => {
+    const user = userEvent.setup()
+    let resolveRead!: (value: string) => void
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.txt', size: 10 }])
+    fileMock.readText.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveRead = resolve
+      })
+    )
+
+    const previousPage = render(<TranslatePage />)
+    await user.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
+    previousPage.unmount()
+
+    const currentPage = render(<TranslatePage />)
+    await user.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    await user.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+    await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('history input'))
+
+    await act(async () => resolveRead('late file content'))
+    currentPage.rerender(<TranslatePage />)
+
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('history input')
+    expect(screen.getByTestId('translate-output-content')).toHaveTextContent('history output')
   })
 
   it('ignores OCR output that completes after history restoration', async () => {
