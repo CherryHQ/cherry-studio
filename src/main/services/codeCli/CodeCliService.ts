@@ -699,7 +699,12 @@ export class CodeCliService extends BaseService {
         // Combine directory change with the main command to ensure they execute in the same shell session.
         // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
         // (double-quoting it only blocks `"`, leaving command substitution live).
-        const fullCommand = `cd ${posixQuote(directory)} && clear && ${command}`
+        const scriptBody = `#!/bin/sh\ncd ${posixQuote(directory)} && clear && ${command}`
+
+        // Inline env exports made the typed command exceed 2KB and hit the AppleEvent
+        // text-injection truncation on macOS terminals (#20338); a script file keeps it short.
+        const scriptPath = writeLaunchScript(cliTool, scriptBody, '.sh')
+        const fullCommand = `sh ${posixQuote(scriptPath)}`
 
         const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
