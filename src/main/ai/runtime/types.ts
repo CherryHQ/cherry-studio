@@ -16,6 +16,8 @@ import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
+import type { RuntimeForkCheckpoint, RuntimeForkInput, RuntimeForkResult, RuntimeForkState } from './forkCheckpoint'
+
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
 /**
@@ -129,7 +131,7 @@ export type AgentRuntimeEvent =
       }
     }
   | { type: 'resume-token'; token: string }
-  | { type: 'turn-complete' }
+  | { type: 'turn-complete'; forkState?: RuntimeForkState }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
@@ -181,6 +183,15 @@ export type AgentRuntimeEvent =
 export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
 
 export interface AgentRuntimeConnection {
+  readForkContext?(checkpoint: RuntimeForkCheckpoint): Promise<{ identity: string; messages: unknown[] } | undefined>
+  getForkContextEnvironment?(): Promise<{
+    sdkVersion: string
+    systemPrompt: unknown
+    tools: unknown
+    contextWindow?: number
+    opaqueEnvelope: boolean
+  }>
+  snapshotForFork?(boundary: number): Promise<unknown[]>
   readonly events: AsyncIterable<AgentRuntimeEvent>
   /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
@@ -233,6 +244,7 @@ export interface AgentRuntimeConnection {
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
+  fork?(input: RuntimeForkInput): Promise<RuntimeForkResult>
   /**
    * Per-driver session prerequisite check: throws if the session can't be
    * served (e.g. workspace path missing, credentials absent). Hosts call

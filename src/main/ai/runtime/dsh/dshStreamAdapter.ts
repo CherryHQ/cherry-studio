@@ -59,7 +59,7 @@ export interface DshStreamSink {
     model?: string
     metrics?: DshInvocationMetrics
   }): void
-  onTurnEnd(reason: TurnEndReason): void
+  onTurnEnd(reason: TurnEndReason, boundary?: number): void
   /** One scheduled provider retry (`llm/retry`); the host clears the status when content resumes. */
   onApiRetry(retry: AgentSessionApiRetryInfo): void
   /** Compaction lifecycle (`compaction/start|end`) mapped to host runtime events. */
@@ -264,7 +264,7 @@ export class DshStreamAdapter {
           // Ownership release must precede the terminal turn-complete (host contract).
           this.sink.onAutonomousTurnState({ state: 'finished' })
         }
-        this.sink.onTurnEnd(event.data.reason)
+        this.sink.onTurnEnd(event.data.reason, event.seq)
         return
       }
       case 'llm/retry':

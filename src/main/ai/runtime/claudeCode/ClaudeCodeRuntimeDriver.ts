@@ -1,3 +1,5 @@
+import { homedir } from 'node:os'
+import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -65,6 +67,7 @@ import {
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
 import { createClaudeCodeProcessDiagnostics, createSpawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
+import { captureClaudeForkCheckpoint, forkClaudeSession } from './claudeFork'
 import { effectiveContextWindowTokens } from './contextWindowSuffix'
 import {
   type ClaudeCodeProcessDiagnostics,
@@ -348,6 +351,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
+  private lastMainAssistantUuid?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false
@@ -482,7 +486,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
+  async getForkContextEnvironment() {
+    const { default: manifest } = await import('../../../../../package.json')
+    return {
+      sdkVersion: manifest.dependencies['@anthropic-ai/claude-agent-sdk'],
+      systemPrompt: { prompt: this.spawnOptions?.systemPrompt, signature: this.connectionConfig?.rebuildSignature },
+      tools: { allowed: this.spawnOptions?.allowedTools, metadata: this.mcpToolMetadata },
+      opaqueEnvelope: true
+    }
+  }
+
   async send(input: AgentRuntimeUserInput): Promise<void> {
+    this.lastMainAssistantUuid = undefined
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
@@ -721,7 +736,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
         const messageAssociation = this.adapter!.isTurnActive ? 'current-turn' : 'stateless'
         if (message.type === 'stream_event') this.captureStreamInvocation(message, messageAssociation)
-        if (message.type === 'assistant') this.captureAssistantInvocation(message, messageAssociation)
+        if (message.type === 'assistant') {
+          this.captureAssistantInvocation(message, messageAssociation)
+          if (message.parent_tool_use_id == null) this.lastMainAssistantUuid = message.uuid
+        }
 
         let result: ReturnType<ClaudeCodeStreamAdapter['handleMessage']>
         try {
@@ -749,7 +767,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
-          this.eventQueue.push({ type: 'turn-complete' })
+          const forkState = await captureClaudeForkCheckpoint(
+            result.sessionId,
+            this.lastMainAssistantUuid,
+            this.spawnOptions?.env?.CLAUDE_CONFIG_DIR ??
+              process.env.CLAUDE_CONFIG_DIR ??
+              path.join(homedir(), '.claude'),
+            this.spawnOptions?.cwd ?? ''
+          )
+          this.lastMainAssistantUuid = undefined
+          this.eventQueue.push({ type: 'turn-complete', forkState })
         }
       }
     } catch (error) {
@@ -1399,6 +1426,7 @@ function toClaudeImageMediaType(value: string | undefined) {
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly fork = forkClaudeSession
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 

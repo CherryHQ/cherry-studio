@@ -10,11 +10,13 @@ const { version: dshLlmVersion } = require_('@deepseek-ai/dsh-llm/package.json')
 const runtimeEntries = Object.fromEntries(
   Object.entries(DSH_RUNTIME_ENTRY_NAMES).map(([specifier, entryName]) => [
     entryName,
-    specifier === '@cherrystudio/dsh-bridge/plugin'
-      ? path.join(import.meta.dirname, 'src/plugin.ts')
-      : specifier === '@cherrystudio/dsh-bridge/bin'
-        ? path.join(import.meta.dirname, 'src/runtimeBin.ts')
-        : require_.resolve(specifier)
+    specifier === '@cherrystudio/dsh-bridge/fork'
+      ? path.join(import.meta.dirname, 'src/fork.ts')
+      : specifier === '@cherrystudio/dsh-bridge/plugin'
+        ? path.join(import.meta.dirname, 'src/plugin.ts')
+        : specifier === '@cherrystudio/dsh-bridge/bin'
+          ? path.join(import.meta.dirname, 'src/runtimeBin.ts')
+          : require_.resolve(specifier)
   ])
 )
 

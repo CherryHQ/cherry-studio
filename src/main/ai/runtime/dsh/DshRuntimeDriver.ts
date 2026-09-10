@@ -8,10 +8,12 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
 import { buildDshCherryToolName, DSH_AUTO_APPROVED_BRIDGED_TOOLS } from './DshCherryToolBridge'
+import { forkDshSession } from './dshFork'
 import { DshRuntimeConnection } from './DshRuntimeConnection'
 import { assertDshProviderUsable } from './modelInjection'
 
 export class DshRuntimeDriver implements AgentSessionRuntimeDriver {
+  readonly fork = forkDshSession
   readonly type = 'dsh'
   readonly capabilities = ['agent-session'] as const
 

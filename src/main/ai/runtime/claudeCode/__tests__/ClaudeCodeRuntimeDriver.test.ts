@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -5,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
+
+const externalFileUrl = (name: string) => `file:///${process.platform === 'win32' ? 'C:/' : ''}tmp/${name}`
 
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
@@ -769,7 +773,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           parts: [
             { type: 'text', text: 'describe this' },
             { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
-            { type: 'file', url: 'file:///tmp/spec.pdf', mediaType: 'application/pdf', filename: 'spec.pdf' }
+            { type: 'file', url: externalFileUrl('spec.pdf'), mediaType: 'application/pdf', filename: 'spec.pdf' }
           ]
         }
       }
@@ -783,7 +787,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /tmp/spec.pdf'
+              text: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": ${fileURLToPath(externalFileUrl('spec.pdf'))}`
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -1367,7 +1371,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+            { type: 'file', url: externalFileUrl('pixel.png'), mediaType: 'image/png', filename: 'pixel.png' }
           ]
         }
       }
@@ -1377,8 +1381,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content:
-            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /tmp/pixel.png'
+          content: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": ${fileURLToPath(externalFileUrl('pixel.png'))}`
         }
       },
       done: false
@@ -3114,7 +3117,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen).toContainEqual(
       expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
     )
-    expect(seen).toContainEqual({ type: 'turn-complete' })
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     void connection.close()
   })
 
@@ -3301,7 +3304,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         error: expect.objectContaining({ message: 'API Error: The operation timed out.' })
       })
     )
-    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
     void connection.close()
   })
@@ -3343,7 +3346,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       })
     )
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'chunk' }))
-    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'turn-complete' }))
     await expect(connection.reconcile({ modelId: 'claude-code::sonnet' as any })).resolves.toBe('rebuild')
     void connection.close()
   })

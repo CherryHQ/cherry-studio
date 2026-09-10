@@ -48,6 +48,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
+import type { RuntimeForkCheckpoint } from '../forkCheckpoint'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -436,6 +437,29 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
   }
 
+  async getForkContextEnvironment() {
+    const sdk = await loadPiSdk()
+    const session = this.session
+    if (!session) throw new Error('Pi session is not initialized')
+    return {
+      sdkVersion: sdk.VERSION,
+      systemPrompt: session.systemPrompt,
+      tools: session.getAllTools().filter((tool) => session.getActiveToolNames().includes(tool.name)),
+      contextWindow: session.model?.contextWindow,
+      opaqueEnvelope: false
+    }
+  }
+
+  async readForkContext(checkpoint: RuntimeForkCheckpoint) {
+    if (checkpoint.runtime !== 'pi' || !this.session) return undefined
+    const manager = this.session.sessionManager
+    if (manager.getSessionId() !== checkpoint.runtimeSessionId || manager.getLeafId() !== checkpoint.leafId)
+      return undefined
+    const entry = manager.getBranch(checkpoint.leafId).findLast((item) => item.type === 'compaction')
+    if (!entry) return undefined
+    return { identity: entry.id, messages: manager.buildSessionContext().messages }
+  }
+
   send(input: AgentRuntimeUserInput): void {
     const session = this.session
     if (!session) {
@@ -669,7 +693,23 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'error', error: failure })
     } else {
       this.emitContextUsage()
-      this.eventQueue.push({ type: 'turn-complete' })
+      let leafId: string | null | undefined
+      try {
+        leafId = this.session?.sessionManager.getLeafId()
+      } catch (checkpointError) {
+        logger.warn('Could not capture Pi fork checkpoint', { error: checkpointError })
+      }
+      this.eventQueue.push({
+        type: 'turn-complete',
+        forkState:
+          leafId && this.resumeToken
+            ? {
+                version: 1,
+                status: 'available',
+                checkpoint: { runtime: 'pi', runtimeSessionId: this.resumeToken, leafId }
+              }
+            : { version: 1, status: 'unavailable', reason: 'checkpoint_failed' }
+      })
     }
     this.lastStopReason = undefined
     this.lastAgentError = undefined

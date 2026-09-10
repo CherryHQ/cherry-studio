@@ -184,6 +184,27 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
 }
 
 describe('messageMenuBarActions', () => {
+  it('permits history reconstruction while busy but rejects incomplete boundaries', async () => {
+    const forkSession = vi.fn()
+    const context = createActionContext({ actions: { forkSession }, isProcessing: true, isLastMessage: false })
+    const forkAction = () => resolveMessageMenuBarMenuActions(context).find((action) => action.id === 'fork-session')!
+    expect(forkAction().availability.enabled).toBe(true)
+    context.message.forkAvailability = { status: 'unavailable', reason: 'checkpoint_failed' }
+    expect(forkAction().availability.enabled).toBe(true)
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    forkSession.mockClear()
+    context.message.forkAvailability = { status: 'unavailable', reason: 'not_turn_boundary' }
+    expect(forkAction().availability.enabled).toBe(false)
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).not.toHaveBeenCalled()
+    context.message.forkAvailability = { status: 'available' }
+    expect(forkAction().availability.enabled).toBe(true)
+    await executeMessageMenuBarAction('fork-session', context)
+    expect(forkSession).toHaveBeenCalledWith(context.message.id)
+    expect(resolveMessageMenuBarMenuActions(context).some((action) => action.id === 'new-branch')).toBe(false)
+  })
+
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({

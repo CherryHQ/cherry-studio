@@ -2,6 +2,7 @@
  * Agent session domain API Schema definitions.
  */
 
+import type { ForkContextView } from '@shared/ai/agentSessionForkContext'
 import { TraceIdSchema } from '@shared/data/types/trace'
 import * as z from 'zod'
 
@@ -115,6 +116,9 @@ export interface ReusableAgentSessionPlaceholdersResponse {
 // ============================================================================
 
 export type AgentSessionSchemas = {
+  '/agent-sessions/:sessionId/fork-context': {
+    GET: { params: { sessionId: string }; response: ForkContextView | null }
+  }
   '/agent-sessions': {
     GET: {
       query?: ListAgentSessionsQueryParams

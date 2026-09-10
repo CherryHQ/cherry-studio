@@ -244,9 +244,8 @@ export class AgentSessionService {
    * DB-only create primitive for caller-owned transaction composition.
    * The caller supplies the reserved id and owns the outer commit boundary.
    */
-  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
+  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto, createdAt = Date.now()): void {
     this.assertAgentExistsTx(tx, dto.agentId)
-    const createdAt = Date.now()
 
     let workspaceId: string
     switch (dto.workspace.type) {
@@ -283,6 +282,11 @@ export class AgentSessionService {
       createdAt,
       updatedAt: createdAt
     })
+  }
+
+  /** Bump metadata modification time from a foreign service's transaction. */
+  setForkSourceTx(tx: DbOrTx, id: string, source: NonNullable<SessionRow['forkedFrom']>): void {
+    tx.update(sessionsTable).set({ forkedFrom: source }).where(eq(sessionsTable.id, id)).run()
   }
 
   /** Bump metadata modification time from a foreign service's transaction. */

@@ -1,6 +1,13 @@
 packages:
   - 'packages/*'
 
+packageExtensions:
+  # The published development export imports these but lists them only as devDependencies.
+  'micromark-extension-definition-list@2.0.1':
+    dependencies:
+      debug: '4.4.3'
+      devlop: '1.1.0'
+
 overrides:
   # Temporary: the SDK umbrella is only needed without dshBin; Cherry always supplies its bundled runtime.
   # Remove when upstream makes this optional/peer (PR #20214, discussion_r3965278746).

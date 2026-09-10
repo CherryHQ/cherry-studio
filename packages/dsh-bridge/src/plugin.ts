@@ -11,7 +11,7 @@ import type {} from '@deepseek-ai/dsh-commands'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-token-meter'
@@ -112,6 +112,14 @@ export function apply(ctx: Context): void {
   /** Host→plugin dispatch; a rejection becomes the JSON-RPC error response. */
   async function handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
+      case 'session/fork-snapshot': {
+        const { sessionId, boundary } = params as BridgeHostParams<'session/fork-snapshot'>
+        const session = requireAgent(sessionId).session
+        if (session.eventAt(SessionSeq(boundary))?.type !== 'turn/end') {
+          throw new Error('history_changed')
+        }
+        return { events: session.snapshotEvents(SessionLogOffset(0), SessionLogOffset(boundary + 1)) }
+      }
       case 'session/open':
         return openSession(params as BridgeHostParams<'session/open'>)
       case 'session/prompt': {

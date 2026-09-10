@@ -237,6 +237,7 @@
 | Document | Description |
 |----------|-------------|
 | [Testing Reference](./references/testing/README.md) | Home for testing references covering frontend policy, the SQLite harness, and DSH runtime regression checks |
+| [Agent Session Fork Verification](./references/testing/agent-session-fork.md) | Runtime checkpoints, transaction safety and manual verification for independent Pi, Claude and DSH session forks |
 | [Database Testing Guide](./references/testing/database-testing.md) | How to test SQLite-backed main-process code with the setupTestDatabase harness and production migrations |
 | [DSH Runtime Upgrade Tests](./references/testing/dsh-runtime-upgrade.md) | Build and packaging regression commands with manual approval and sandbox checks for the embedded DSH runtime |
 | [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Normative test rules for renderer, packages/ui, and E2E code covering layer choice, mocking, and review gates |

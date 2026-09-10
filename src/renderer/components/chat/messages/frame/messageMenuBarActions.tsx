@@ -15,6 +15,7 @@ import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/u
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
+import { canRebuildAgentSessionFork } from '@shared/ai/agentSessionFork'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import dayjs from 'dayjs'
@@ -38,6 +39,7 @@ import type { ReactNode, RefObject } from 'react'
 
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'
+import { agentSessionForkReasonLabel } from '../agentSessionFork'
 import type { MessageListActions, MessageListItem, MessageListSelectionState } from '../types'
 import type { MessageMenuConfig } from '../types'
 import { getMessageListItemModelName } from '../utils/messageListItem'
@@ -197,6 +199,9 @@ registerCommand('message.abortTranslation', async ({ actions, message }) => {
 registerCommand('message.newBranch', async ({ actions, message, t }) => {
   await actions.startMessageBranch?.(message.id)
   actions.notifySuccess?.(t('chat.message.new.branch.created'))
+})
+registerCommand('message.forkSession', async ({ actions, message }) => {
+  await actions.forkSession?.(message.id)
 })
 
 registerCommand('message.copyToNewTopic', async ({ actions, message, t }) => {
@@ -446,6 +451,29 @@ registerAction({
   availability: ({ actions, isAssistantMessage }) => {
     if (!actions.startMessageBranch || !isAssistantMessage) return false
     return true
+  }
+})
+
+registerAction({
+  id: 'fork-session',
+  commandId: 'message.forkSession',
+  label: ({ t }) => t('agent_session_fork.label'),
+  icon: <Split size={15} />,
+  group: 'write',
+  order: 22,
+  surface: 'menu',
+  availability: ({ actions, message, isAssistantMessage, t }) => {
+    if (!actions.forkSession || !isAssistantMessage) return false
+    const state = message.forkAvailability
+    const reason = state?.status === 'unavailable' ? state.reason : 'legacy_history'
+    return {
+      visible: true,
+      enabled: message.status === 'success' && (state?.status === 'available' || canRebuildAgentSessionFork(reason)),
+      reason:
+        message.status !== 'success' || reason === 'not_turn_boundary'
+          ? agentSessionForkReasonLabel(t, 'not_turn_boundary')
+          : undefined
+    }
   }
 })
 

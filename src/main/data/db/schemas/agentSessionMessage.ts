@@ -24,6 +24,8 @@ export const agentSessionMessageTable = sqliteTable(
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
+    // Main-private checkpoint; the API projects only availability and a reason.
+    runtimeForkState: text({ mode: 'json' }).$type<unknown>(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),

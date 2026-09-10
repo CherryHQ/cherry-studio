@@ -62,6 +62,8 @@ overrides:
   '@ai-sdk/anthropic': 3.0.103
   ai: 6.0.185
 
+packageExtensionsChecksum: sha256-8cT4mAWZUsT6jyThCR7MLzNMC9Lsg9iani2H6fsicMY=
+
 patchedDependencies:
   '@ai-sdk/anthropic': a6fee9768531a088c004ca35f2889025e90645eabb4aeb2a867d169ed1462b34
   '@ai-sdk/google@3.0.113': 8cbaff63516ef35b2a638a683af4799855611da4a40b71ff896798ba90e30874
@@ -28363,6 +28365,8 @@ snapshots:
 
   micromark-extension-definition-list@2.0.1:
     dependencies:
+      debug: 4.4.3
+      devlop: 1.1.0
       micromark-core-commonmark: 2.0.3
       micromark-factory-space: 2.0.1
       micromark-util-character: 2.1.1
@@ -28370,6 +28374,8 @@ snapshots:
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
       ts-dedent: 2.2.0
+    transitivePeerDependencies:
+      - supports-color
 
   micromark-extension-gfm-autolink-literal@0.5.7:
     dependencies:

@@ -147,6 +147,20 @@
       "when": 1788247231321,
       "tag": "0020_wooden_fat_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1789013267049,
+      "tag": "0021_puzzling_genesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1789027449845,
+      "tag": "0022_fancy_true_believers",
+      "breakpoints": true
     }
   ],
   "version": "7"
