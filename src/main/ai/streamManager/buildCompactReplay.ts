@@ -152,6 +152,18 @@ export function mergeDeltaPayload(
   return undefined
 }
 
+/** Ring eviction that spares a still-open tool call's `tool-input-start`: without the opener a later live delta throws in `readUIMessageStream`. Falls back to oldest-first so the ring stays bounded. */
+export function evictOldestReplayEntry(buffer: StreamChunkPayload[], openToolInputIds?: ReadonlySet<string>): void {
+  let victim = 0
+  if (openToolInputIds && openToolInputIds.size > 0) {
+    const index = buffer.findIndex(
+      (payload) => payload.chunk.type !== 'tool-input-start' || !openToolInputIds.has(payload.chunk.toolCallId)
+    )
+    if (index !== -1) victim = index
+  }
+  buffer.splice(victim, 1)
+}
+
 /**
  * Compact an execution's buffered chunks for replay. Contiguous delta runs
  * are merged, and a missing `text-start` / `reasoning-start` is synthesized

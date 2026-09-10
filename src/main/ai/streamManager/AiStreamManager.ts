@@ -47,7 +47,7 @@ import type {
   InProcessUsageContext
 } from '../types'
 import { AiStreamAdmissionError, type LiveExecutionChangeAdmission, type LiveExecutionChangeIntent } from './admission'
-import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
+import { buildCompactReplay, evictOldestReplayEntry, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -1279,6 +1279,18 @@ export class AiStreamManager extends BaseService {
       exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
       exec.runtimeTiming.finishApproval({ toolCallId: chunk.toolCallId })
     }
+    // Open tool inputs pin their `tool-input-start` against ring eviction;
+    // available/output proves the input finished and releases the pin.
+    if (chunk.type === 'tool-input-start') {
+      ;(exec.openToolInputIds ??= new Set()).add(chunk.toolCallId)
+    } else if (
+      chunk.type === 'tool-input-available' ||
+      chunk.type === 'tool-output-available' ||
+      chunk.type === 'tool-output-error' ||
+      chunk.type === 'tool-output-denied'
+    ) {
+      exec.openToolInputIds?.delete(chunk.toolCallId)
+    }
     // Broadcast payloads and consumers only care about "any pending?", so only
     // the empty↔non-empty flip warrants a rebroadcast — size changes within
     // parallel approvals would produce byte-identical payloads.
@@ -1303,8 +1315,11 @@ export class AiStreamManager extends BaseService {
     // Contiguous deltas of one part collapse into the buffer tail on ingest,
     // so the cap counts protocol units (parts, tool events) rather than raw
     // deltas — a delta flood can no longer evict its own part's opening chunk
-    // and leave the replay unparseable for `readUIMessageStream`. Oversized
-    // incoming deltas split first; ingest and attach share `maxDeltaBytes`.
+    // and leave the replay unparseable for `readUIMessageStream`. Still-open
+    // `tool-input-start` chunks are pinned outright: unlike text/reasoning
+    // they can't be re-synthesized (the delta carries no tool name), and
+    // losing one orphans later live deltas at the attach handoff.
+    // Oversized incoming deltas split first; ingest and attach share `maxDeltaBytes`.
     const bufferLimit = Math.max(1, this.config.maxBufferChunks)
     for (const segment of splitDeltaPayload(payload, this.config.maxDeltaBytes)) {
       const tail = exec.buffer.at(-1)
@@ -1313,7 +1328,7 @@ export class AiStreamManager extends BaseService {
         exec.buffer[exec.buffer.length - 1] = merged
       } else {
         if (exec.buffer.length >= bufferLimit && !exec.pendingApprovalToolCallIds?.size) {
-          exec.buffer.shift()
+          evictOldestReplayEntry(exec.buffer, exec.openToolInputIds)
           exec.droppedChunks += 1
         }
         exec.buffer.push(segment)
@@ -1799,6 +1814,11 @@ export class AiStreamManager extends BaseService {
         ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
       )
     }
+    logger.info('attach: replay size', {
+      topicId: req.topicId,
+      bufferedChunks: bufferedChunks.length,
+      bytes: JSON.stringify(bufferedChunks).length
+    })
     return { status: 'attached', bufferedChunks }
   }
 

@@ -132,6 +132,8 @@ export interface StreamExecution {
   /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
    *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
   pendingApprovalToolCallIds?: Set<string>
+  /** `tool-input-start` toolCallIds with no available/output yet. Their openers skip ring eviction so attach replay keeps the live handoff parseable. */
+  openToolInputIds?: Set<string>
   /** Approval ids already published during this execution. */
   publishedApprovalIds?: Set<string>
   error?: SerializedError
