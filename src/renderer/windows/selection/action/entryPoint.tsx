@@ -14,7 +14,8 @@ await prepareWindow({
     'ui.theme_user.color_primary',
     'feature.selection.auto_close',
     'feature.selection.auto_pin',
-    'feature.selection.action_window_opacity'
+    'feature.selection.action_window_opacity',
+    'feature.quick_assistant.assistant_id'
   ]
 })
 

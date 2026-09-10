@@ -897,9 +897,12 @@ export class AiStreamManager extends BaseService {
         ? input.messages
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
-    const chatId = input.usageContext ? input.usageContext.agentSessionId : input.streamId
     const request: ManagedAiStreamRequest = {
-      chatId,
+      // A trusted Agent SDK call belongs to its agent session; anything else is its own conversation.
+      conversation: {
+        id: input.usageContext ? input.usageContext.agentSessionId : input.streamId,
+        topicId: input.streamId
+      },
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       messages,
@@ -953,8 +956,9 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Detach one not-yet-admitted runtime execution without terminalizing its reserved assistant row.
-   * The runtime closes the upstream stream immediately after this call, then waits for the returned
+   * Detach one runtime execution that has produced nothing yet (prompt not admitted, or admitted but
+   * queued behind a runtime-started turn) without terminalizing its reserved assistant row. The
+   * runtime closes the upstream stream immediately after this call, then waits for the returned
    * promise before opening the receive-only generation that preempted it.
    */
   async suspendUnadmittedRuntimeTurn(topicId: string): Promise<void> {

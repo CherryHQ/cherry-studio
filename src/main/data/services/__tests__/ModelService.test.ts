@@ -20,8 +20,9 @@ import {
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { and, eq, or } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
@@ -1054,6 +1055,45 @@ describe('ModelService.list — registry enrichment', () => {
     })
   })
 
+  it("keeps a sparse GPT-6 Astra row on a custom provider's Chat endpoint", async () => {
+    await dbh.db.insert(userProviderTable).values({
+      ...providerRow('custom-provider', 'Custom Provider'),
+      presetProviderId: null,
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.net/v1' }
+      }
+    })
+    await dbh.db.insert(userModelTable).values(
+      modelRow('custom-provider', 'openai/gpt-6-astra', {
+        presetModelId: 'gpt-6-astra',
+        name: null,
+        capabilities: null,
+        endpointTypes: null,
+        supportsStreaming: null
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-6-astra',
+        name: 'GPT-6 Astra',
+        capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
+        endpointTypes: ['openai-responses']
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const [model] = modelService.list({ providerId: 'custom-provider' })
+
+    expect(model).toMatchObject({
+      apiModelId: 'openai/gpt-6-astra',
+      presetModelId: 'gpt-6-astra',
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    expect(model.endpointTypes).toBeUndefined()
+  })
+
   it('hydrates same-canonical variants through their exact API model ID', async () => {
     const apiModelId = 'deepseek-v4-flash-202605'
     await dbh.db.insert(userProviderTable).values(providerRow('tokenhub', 'TokenHub'))
@@ -1178,7 +1218,11 @@ describe('ModelService.list — registry enrichment', () => {
         inputModalities: ['text', 'image'],
         outputModalities: ['image'],
         endpointTypes: ['openai-responses'],
-        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 }
+        limits: { contextWindow: 256_000, maxOutputTokens: 32_768 },
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } },
+          topP: { supported: false, range: { min: 0, max: 1 } }
+        }
       },
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
@@ -1196,6 +1240,10 @@ describe('ModelService.list — registry enrichment', () => {
       contextWindow: 256_000,
       maxInputTokens: 120_000,
       maxOutputTokens: 4096,
+      parameterSupport: expect.objectContaining({
+        temperature: expect.objectContaining({ supported: false }),
+        topP: expect.objectContaining({ supported: false })
+      }),
       pricing: {
         input: { perMillionTokens: 5 },
         output: { perMillionTokens: 15 }
@@ -1215,7 +1263,13 @@ describe('ModelService.list — registry enrichment', () => {
           name: 'Future Model',
           description: 'Custom description',
           inputModalities: ['audio'],
-          outputModalities: ['video']
+          outputModalities: ['video'],
+          parameterSupport: {
+            temperature: { supported: true, range: { min: 0, max: 2 } },
+            maxTokens: true,
+            stopSequences: true,
+            systemMessage: true
+          }
         }
       }
     ])
@@ -1232,7 +1286,10 @@ describe('ModelService.list — registry enrichment', () => {
       },
       registryOverride: {
         inputModalities: ['text', 'image'],
-        outputModalities: ['image']
+        outputModalities: ['image'],
+        parameterSupport: {
+          temperature: { supported: false, range: { min: 0, max: 1 } }
+        }
       },
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     })
@@ -1245,7 +1302,10 @@ describe('ModelService.list — registry enrichment', () => {
       name: 'Future Model',
       description: 'Custom description',
       inputModalities: ['audio'],
-      outputModalities: ['video']
+      outputModalities: ['video'],
+      parameterSupport: expect.objectContaining({
+        temperature: { supported: true, range: { min: 0, max: 2 } }
+      })
     })
     expect(storedAfterRegistryUpdate).toEqual(storedBeforeRegistryUpdate)
   })
@@ -1910,6 +1970,44 @@ describe('ModelService.getNamesByUniqueIdsTx', () => {
   it('returns an empty map for empty input without querying', async () => {
     const result = modelService.getNamesByUniqueIdsTx(dbh.db, [])
     expect(result.size).toBe(0)
+  })
+})
+
+/**
+ * Seeders run inside `DbService.onInit()`, where `getDb()` still throws. A `*Tx`
+ * read that reaches for the service singleton instead of its own transaction
+ * therefore aborts startup (v2.0.11 shipped exactly that: the Cherry Support
+ * seeder could not create the built-in Agent). Edition availability must be
+ * decided from columns the caller's own query already returned.
+ */
+describe('ModelService — transaction-scoped reads never re-enter DbService', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { name: 'GPT-4o' }))
+    MockMainDbServiceUtils.setDb({
+      select: () => {
+        throw new Error('Database is not initialized, please call init() first!')
+      }
+    })
+  })
+
+  afterEach(() => MockMainDbServiceUtils.setDb(dbh.db))
+
+  const uid = createUniqueModelId('openai', 'gpt-4o')
+
+  it('resolves model names', () => {
+    expect(modelService.getNamesByUniqueIdsTx(dbh.db, [uid]).get(uid)).toBe('GPT-4o')
+  })
+
+  it('finds a model by id', () => {
+    expect(modelService.findByIdTx(dbh.db, uid)?.id).toBe(uid)
+  })
+
+  it('checks model existence', () => {
+    expect(modelService.existsByIdTx(dbh.db, uid)).toBe(true)
+    expect(modelService.existsByIdTx(dbh.db, 'openai::missing')).toBe(false)
   })
 })
 
