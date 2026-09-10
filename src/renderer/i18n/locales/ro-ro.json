@@ -252,6 +252,8 @@
   "agent.session_delivery.status.consumed": "Procesat",
   "agent.session_delivery.status.delivering": "În curs de livrare",
   "agent.session_delivery.status.failed": "Eșuat",
+  "agent.session_turn_origin.background_work": "Continuat după activitate în fundal",
+  "agent.session_turn_origin.goal_round": "Runda obiectivului {{round}}",
   "agent.settings.permissionMode.title": "Mod de permisiune",
   "agent.settings.skills.addMore": "Gestionează abilitățile",
   "agent.settings.tooling.mcp.toggle": "Comută {{name}}",

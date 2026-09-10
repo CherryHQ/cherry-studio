@@ -160,7 +160,11 @@ vi.mock('../streamAdapter', async (importActual) => {
           const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
           if (!isContent) return { type: 'continue' }
           this.autonomous = true
-          this.options.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
+          this.options.statusSink.emit({
+            type: 'autonomous-turn-state',
+            state: 'started',
+            origin: { kind: 'background-work' }
+          })
           this.beginTurn()
         }
         if (message.type === 'truncate-now') {
