@@ -506,8 +506,12 @@ describe('PiRuntimeConnection', () => {
 
     if (process.platform === 'win32') {
       expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
+      expect(mocks.bashToolOptions).toMatchObject({ commandPrefix: undefined })
     } else {
       expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
+      expect(mocks.bashToolOptions).toMatchObject({
+        commandPrefix: 'export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\''
+      })
     }
     expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin", 'darwin')).toBe(
       "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
@@ -1445,6 +1449,7 @@ describe('PiRuntimeConnection', () => {
       { shellPath: 'C:\\Program Files\\Git\\bin\\bash.exe' },
       { projectTrusted: true }
     ])
+    expect(mocks.bashToolOptions).toMatchObject({ shellPath: 'C:\\Program Files\\Git\\bin\\bash.exe' })
   })
 
   it('injects the agent enabled managed skills as additionalSkillPaths while keeping noSkills', async () => {

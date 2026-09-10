@@ -370,6 +370,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
+        commandPrefix: loginPathPrefix,
+        shellPath,
         spawnHook: (context) => ({
           ...context,
           env: mergePiBashExecutionEnv(context.env)
