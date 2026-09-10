@@ -314,7 +314,7 @@ function ModelSelectorFilterTags({
       ref={scrollRef}
       onScroll={updateFadeState}
       style={maskImage ? { maskImage } : undefined}
-      className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       data-testid="model-selector-filter-tags">
       {tags.map((tag) => (
         <ModelTag
