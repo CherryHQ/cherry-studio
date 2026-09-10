@@ -26,23 +26,25 @@ vi.mock('@application', () => ({
   }
 }))
 
-// Module-level singletons (pending-cleanups set, exit-handler flag) must not
-// leak across test cases — re-import a fresh module instance per test.
+// Module-level singletons must not leak across cases — import fresh each
+// time; the file-level @application mock factory reads tempDir live.
 const importFresh = async () => {
   vi.resetModules()
-  vi.doUnmock('@application')
-  vi.doMock('@application', () => ({ application: { getPath: () => tempDir } }))
   return import('../launchScript')
 }
 
 describe('writeLaunchScript', () => {
+  // Cases may repoint `tempDir` at a nested path; always remove the mkdtemp root.
+  let tempDirRoot: string
+
   beforeEach(() => {
-    tempDir = mkdtempSync(path.join(tmpdir(), 'launch-script-test-'))
+    tempDirRoot = mkdtempSync(path.join(tmpdir(), 'launch-script-test-'))
+    tempDir = tempDirRoot
   })
 
   afterEach(() => {
     vi.useRealTimers()
-    rmSync(tempDir, { recursive: true, force: true })
+    rmSync(tempDirRoot, { recursive: true, force: true })
   })
 
   it('creates the script with exact body, 0600 mode, and launch_<tool>_<ts> naming', async () => {
