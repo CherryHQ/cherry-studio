@@ -486,16 +486,37 @@ describe('findKeybindingConflicts', () => {
     ])
   })
 
-  it('ignores conflicts when scope or platform cannot overlap', () => {
+  it('reports main-process shortcuts that shadow a renderer binding', () => {
     expect(
       findKeybindingConflicts({
         command: 'topic.create',
-        preference: { binding: ['CommandOrControl', 'N'], enabled: true },
-        preferences: { 'app.settings.open': { binding: ['CommandOrControl', 'N'], enabled: true } },
-        rules: [testRule('topic.create'), testRule('app.settings.open', { scope: 'main' })]
+        preference: { binding: ['CommandOrControl', '='], enabled: true }
       })
-    ).toEqual([])
+    ).toEqual([
+      expect.objectContaining({
+        command: 'topic.create',
+        conflictingCommand: 'app.zoom.in',
+        trigger: 'primary',
+        conflictingTrigger: 'primary'
+      })
+    ])
 
+    expect(
+      findKeybindingConflicts({
+        command: 'topic.create',
+        preference: { binding: ['CommandOrControl', 'Shift', '='], enabled: true }
+      })
+    ).toEqual([
+      expect.objectContaining({
+        command: 'topic.create',
+        conflictingCommand: 'app.zoom.in',
+        trigger: 'primary',
+        conflictingTrigger: 'additional'
+      })
+    ])
+  })
+
+  it('ignores conflicts when platforms cannot overlap', () => {
     expect(
       findKeybindingConflicts({
         command: 'topic.create',
