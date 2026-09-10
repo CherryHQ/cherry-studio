@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { anyFileExt } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
@@ -241,6 +242,114 @@ describe('pasteHandling', () => {
     expect(window.api.file.write).toHaveBeenCalledWith(tempImageFile.path, new Uint8Array([1, 2, 3]))
     expect(files).toHaveLength(1)
     expect(files[0]).toMatchObject({ path: tempImageFile.path, ext: '.png', type: FILE_TYPE.IMAGE })
+  })
+
+  it('attaches a clipboard image whose extension no catalog lists when the surface declares the wildcard', async () => {
+    // The agent surface only forwards the path, so the allowlist it hands the paste
+    // handler carries the wildcard. A clipboard image the modality catalogs miss
+    // (`.avif`, or a screenshot the OS named without a known extension) must attach
+    // instead of being refused with `file_not_supported`.
+    const tempImageFile: FileMetadata = {
+      ...selectedFile,
+      name: 'temp_file_123_image.avif',
+      origin_name: 'temp_file_123_image.avif',
+      path: '/tmp/temp_file_123_image.avif',
+      ext: '.avif',
+      type: FILE_TYPE.IMAGE
+    }
+    const clipboardImage = {
+      name: 'image.avif',
+      type: 'image/avif',
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
+    } as unknown as File
+    vi.mocked(window.api.file.createTempFile).mockResolvedValue(tempImageFile.path)
+    vi.mocked(window.api.file.get).mockResolvedValue(tempImageFile)
+
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: [clipboardImage] }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png', anyFileExt], setFiles)
+
+    expect(handled).toBe(true)
+    expect(window.api.file.createTempFile).toHaveBeenCalledWith('image.avif')
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({ path: tempImageFile.path, ext: '.avif', type: FILE_TYPE.IMAGE })
+  })
+
+  it('prefers that wildcard-accepted clipboard image over the text flavor next to it', async () => {
+    const tempImageFile: FileMetadata = {
+      ...selectedFile,
+      name: 'temp_file_123_image.avif',
+      origin_name: 'temp_file_123_image.avif',
+      path: '/tmp/temp_file_123_image.avif',
+      ext: '.avif',
+      type: FILE_TYPE.IMAGE
+    }
+    const clipboardImage = {
+      name: 'image.avif',
+      type: 'image/avif',
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
+    } as unknown as File
+    vi.mocked(window.api.file.createTempFile).mockResolvedValue(tempImageFile.path)
+    vi.mocked(window.api.file.get).mockResolvedValue(tempImageFile)
+
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: (type: string) => (type === 'text' ? 'clipboard image' : ''),
+        files: [clipboardImage]
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png', anyFileExt], setFiles)
+
+    expect(handled).toBe(true)
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({ path: tempImageFile.path, ext: '.avif', type: FILE_TYPE.IMAGE })
+  })
+
+  it('still refuses an unlisted clipboard image when the surface has no wildcard', async () => {
+    const clipboardImage = {
+      name: 'image.avif',
+      type: 'image/avif',
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
+    } as unknown as File
+
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: { getData: () => '', files: [clipboardImage] }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(
+      event,
+      ['.png'],
+      setFiles,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (key) => key
+    )
+    expect(handled).toBe(true)
+    expect(window.api.file.createTempFile).not.toHaveBeenCalled()
+    expect(files).toHaveLength(0)
+    expect(toast.info).toHaveBeenCalledWith('chat.input.file_not_supported')
   })
 
   it('processes path-backed clipboard files concurrently and commits them once in order', async () => {

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@renderer/services/toast'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { anyFileExt } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { getSingleDroppedPathFromText, useFileDragDrop } from '../useFileDragDrop'
@@ -336,5 +337,39 @@ describe('useFileDragDrop', () => {
     expect(onTextDropped).not.toHaveBeenCalled()
     expect(onFolderPathDropped).not.toHaveBeenCalled()
     expect(setFiles).not.toHaveBeenCalled()
+  })
+
+  it('attaches an unlisted binary format when the surface declares the wildcard', async () => {
+    // The agent composer's shape: it only ever hands the path to the agent, so a
+    // format no modality catalog lists must still attach instead of being refused.
+    const path = '/Users/jd/Models/weights.onnx'
+    const file = { ...createFileMetadata(path), ext: '.onnx' }
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const onTextDropped = vi.fn()
+    const onFolderPathDropped = vi.fn()
+    mocks.request.mockResolvedValue({ kind: 'file', type: FILE_TYPE.OTHER })
+    fileApi.get.mockResolvedValue(file)
+
+    const { result } = renderHook(() =>
+      useFileDragDrop({
+        supportedExts: ['.md', anyFileExt],
+        setFiles,
+        onTextDropped,
+        onFolderPathDropped,
+        enabled: true,
+        t
+      })
+    )
+
+    await act(async () => {
+      await result.current.handleDrop?.(createDropEvent(path))
+    })
+
+    expect(files).toEqual([expect.objectContaining({ path, origin_name: 'weights.onnx' })])
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(onTextDropped).not.toHaveBeenCalled()
   })
 })
