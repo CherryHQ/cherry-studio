@@ -29,10 +29,13 @@ export class McpServerMigrator extends BaseMigrator {
   readonly order = 1.5
 
   private preparedResults: McpServerTransformResult[] = []
+  /** Rows that failed to insert on their own (malformed legacy records); see execute(). */
+  private executeSkipped: string[] = []
   private skippedCount = 0
 
   override reset(): void {
     this.preparedResults = []
+    this.executeSkipped = []
     this.skippedCount = 0
   }
 
@@ -113,33 +116,62 @@ export class McpServerMigrator extends BaseMigrator {
 
     try {
       let processed = 0
+      const skippedIds = new Set<string>()
+      const warnings: string[] = []
       const rows = this.preparedResults.map((r) => r.row)
 
       const BATCH_SIZE = 100
       ctx.db.transaction((tx) => {
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
           const batch = rows.slice(i, i + BATCH_SIZE)
-          tx.insert(mcpServerTable).values(batch).run()
-          processed += batch.length
+          try {
+            tx.insert(mcpServerTable).values(batch).run()
+            processed += batch.length
+            continue
+          } catch (batchError) {
+            // A single malformed legacy record aborts the whole batched INSERT
+            // (#20301). Retry the batch row by row so only the offending rows
+            // are skipped and every other server still migrates.
+            logger.warn('Batch insert failed, retrying rows individually', batchError as Error)
+          }
+          for (const row of batch) {
+            try {
+              tx.insert(mcpServerTable).values(row).run()
+              processed += 1
+            } catch (rowError) {
+              const message = rowError instanceof Error ? rowError.message : String(rowError)
+              skippedIds.add(row.id!)
+              warnings.push(`Skipped MCP server "${row.name}" (${row.id}): ${message}`)
+              logger.warn('Skipped MCP server that could not be inserted', { id: row.id, name: row.name, message })
+            }
+          }
         }
       })
 
       // Share oldId → newId mapping so downstream migrators (e.g. AssistantMigrator)
-      // can remap legacy MCP server references to the new UUIDs
+      // can remap legacy MCP server references to the new UUIDs. A skipped
+      // server has no row, so it stays unmapped and its references are dropped.
       const idMapping = new Map<string, string>()
       for (const result of this.preparedResults) {
-        idMapping.set(result.oldId, result.row.id!)
+        if (!skippedIds.has(result.row.id!)) {
+          idMapping.set(result.oldId, result.row.id!)
+        }
       }
       ctx.sharedData.set('mcpServerIdMapping', idMapping)
+      this.executeSkipped = warnings
 
       this.reportProgress(100, `Migrated ${processed} items`, {
         key: 'migration.progress.migrated_mcp_servers',
         params: { processed, total: this.preparedResults.length }
       })
 
-      logger.info('Execute completed', { processedCount: processed })
+      logger.info('Execute completed', { processedCount: processed, skippedCount: skippedIds.size })
 
-      return { success: true, processedCount: processed }
+      return {
+        success: true,
+        processedCount: processed,
+        ...(warnings.length > 0 ? { warnings } : {})
+      }
     } catch (error) {
       logger.error('Execute failed', error as Error)
       return {
@@ -156,10 +188,11 @@ export class McpServerMigrator extends BaseMigrator {
       const serverCount = serverResult?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
-      if (serverCount !== this.preparedResults.length) {
+      const expectedCount = this.preparedResults.length - this.executeSkipped.length
+      if (serverCount !== expectedCount) {
         errors.push({
           key: 'count_mismatch',
-          message: `Expected ${this.preparedResults.length} servers but found ${serverCount}`
+          message: `Expected ${expectedCount} servers but found ${serverCount}`
         })
       }
 
@@ -176,7 +209,7 @@ export class McpServerMigrator extends BaseMigrator {
         stats: {
           sourceCount: this.preparedResults.length,
           targetCount: serverCount,
-          skippedCount: this.skippedCount
+          skippedCount: this.skippedCount + this.executeSkipped.length
         }
       }
     } catch (error) {
