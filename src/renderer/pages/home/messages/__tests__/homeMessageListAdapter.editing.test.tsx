@@ -122,8 +122,7 @@ describe('Home message editing model locks', () => {
   })
 
   it('loads all reply models before editing an inactive user already present without its replies', async () => {
-    MockDataApiUtils.setCustomResponse('/topics/topic-a/path', 'GET', [user, replies[0]])
-    MockDataApiUtils.setCustomResponse('/topics/topic-a/messages', 'GET', branchResponse)
+    vi.mocked(dataApiService.get).mockResolvedValueOnce([user, replies[0]]).mockResolvedValueOnce(branchResponse)
     const { result } = renderAdapter([sharedMessageToUIMessage(user)])
 
     act(() => result.current.actions.startEditing?.({ ...messageItem(user), isActiveBranch: false }, parts))
