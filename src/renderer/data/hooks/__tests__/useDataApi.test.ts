@@ -1591,6 +1591,51 @@ describe('useMutation trigger identity & option freshness', () => {
     rerender()
     expect(result.current.trigger).toBe(first)
   })
+
+  it('keeps each concurrent template mutation bound to its own request outcome', async () => {
+    const firstError = new Error('session-1 delete failed')
+    let rejectSessionOne!: (error: Error) => void
+    let resolveSessionTwo!: (value: unknown) => void
+    vi.spyOn(dataApiService, 'delete').mockImplementation((path) => {
+      if (path === '/agent-sessions/session-1/messages/message-1') {
+        return new Promise((_, reject) => {
+          rejectSessionOne = reject
+        }) as never
+      }
+      if (path === '/agent-sessions/session-2/messages/message-2') {
+        return new Promise((resolve) => {
+          resolveSessionTwo = resolve
+        }) as never
+      }
+      throw new Error(`Unexpected DELETE path: ${path}`)
+    })
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId'), {
+      wrapper: Wrapper
+    })
+
+    let sessionOneDelete!: Promise<unknown>
+    let sessionTwoDelete!: Promise<unknown>
+    act(() => {
+      sessionOneDelete = result.current.trigger({ params: { sessionId: 'session-1', messageId: 'message-1' } })
+      sessionTwoDelete = result.current.trigger({ params: { sessionId: 'session-2', messageId: 'message-2' } })
+    })
+
+    await act(async () => {
+      resolveSessionTwo(undefined)
+      await sessionTwoDelete
+    })
+    let outcomes!: PromiseSettledResult<unknown>[]
+    await act(async () => {
+      rejectSessionOne(firstError)
+      outcomes = await Promise.allSettled([sessionOneDelete, sessionTwoDelete])
+    })
+
+    expect(outcomes).toEqual([
+      { status: 'rejected', reason: firstError },
+      { status: 'fulfilled', value: undefined }
+    ])
+  })
 })
 
 describe('useInvalidateCache identity', () => {

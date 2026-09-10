@@ -489,28 +489,21 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
   // concurrency detection on template paths.
   const inFlightParamsRef = useRef<Record<string, unknown> | null>(null)
 
-  const apiFetcher = createApiFetcher<ConcreteApiPaths, TMethod>(method)
+  const apiFetcher = useMemo(() => createApiFetcher<ConcreteApiPaths, TMethod>(method), [method])
 
-  // Fetcher resolves the template using the arg's `params` so the outgoing
-  // request hits the concrete URL. The SWR mutation key (the template itself)
-  // stays stable across triggers, which is what SWR needs for hook identity.
+  // SWR discards errors from older overlapping mutations on the same key, so
+  // keep the concrete request owned by each trigger as its source of truth.
   const fetcher = async (
-    templatePath: string,
+    _templatePath: string,
     {
       arg
     }: {
-      arg?: {
-        params?: Record<string, string | number>
-        body?: BodyForPath<TPath, TMethod>
-        query?: QueryParamsForPath<TPath, TMethod>
+      arg: {
+        request: Promise<ResponseForPath<TPath, TMethod>>
       }
     }
   ): Promise<ResponseForPath<TPath, TMethod>> => {
-    const resolvedPath = resolveTemplate(templatePath, arg?.params)
-    return apiFetcher(resolvedPath as ConcreteApiPaths, {
-      body: arg?.body as BodyForPath<ConcreteApiPaths, TMethod>,
-      query: arg?.query as QueryParamsForPath<ConcreteApiPaths, TMethod>
-    }) as Promise<ResponseForPath<TPath, TMethod>>
+    return arg.request
   }
 
   // SWR mutation state is cached by path; for template paths this means a
@@ -569,15 +562,13 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
       }
 
       try {
-        const result = await swrTrigger({
-          params: paramsRecord,
-          body: capturedArgs?.body,
-          query: capturedArgs?.query
-        } as {
-          params?: Record<string, string | number>
-          body?: BodyForPath<TPath, TMethod>
-          query?: QueryParamsForPath<TPath, TMethod>
-        })
+        const request = apiFetcher(resolvedPath as ConcreteApiPaths, {
+          body: capturedArgs?.body as BodyForPath<ConcreteApiPaths, TMethod>,
+          query: capturedArgs?.query as QueryParamsForPath<ConcreteApiPaths, TMethod>
+        }) as Promise<ResponseForPath<TPath, TMethod>>
+        const [requestOutcome] = await Promise.allSettled([request, swrTrigger({ request })])
+        if (requestOutcome.status === 'rejected') throw requestOutcome.reason
+        const result = requestOutcome.value
 
         // Run refresh after the mutation resolves. We do this in `trigger`
         // itself (not SWR's onSuccess) so args/result are closure-captured
@@ -623,7 +614,7 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         }
       }
     },
-    [cache, globalMutate, method, path, swrTrigger]
+    [apiFetcher, cache, globalMutate, method, path, swrTrigger]
   )
 
   return {
