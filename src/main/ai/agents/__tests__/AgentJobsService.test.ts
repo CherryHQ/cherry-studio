@@ -28,6 +28,8 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import type { AgentTaskForm } from '@shared/ipc/schemas/ai'
 
+import type * as HeartbeatScheduleModule from '../heartbeatSchedule'
+
 // Registering a second schedule type exercises the type guard; the dummy
 // entry is compile-time only and never enters production code.
 declare module '@main/core/job/jobRegistry' {
@@ -43,6 +45,23 @@ vi.mock('@application', async () => {
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
+// The heartbeat sync is observed, not executed: these tests are about which
+// service events reach it. Everything else in the module stays real so the
+// deletion sweep under test is the production one.
+const { syncHeartbeatScheduleMock, repairHeartbeatSchedulesMock } = vi.hoisted(() => ({
+  // Both are awaited/chained by the service, so they must return promises.
+  syncHeartbeatScheduleMock: vi.fn(async () => undefined),
+  repairHeartbeatSchedulesMock: vi.fn(async () => undefined)
+}))
+vi.mock('../heartbeatSchedule', async (importOriginal) => {
+  const actual = await importOriginal<typeof HeartbeatScheduleModule>()
+  return {
+    ...actual,
+    syncHeartbeatSchedule: syncHeartbeatScheduleMock,
+    repairHeartbeatSchedules: repairHeartbeatSchedulesMock
+  }
+})
 
 // The real handler pulls in the whole runAgentTask execution chain; the
 // service under test only needs SOME registered handler for 'agent.task'.
@@ -154,6 +173,9 @@ describe('AgentJobsService', () => {
   })
 
   afterAll(async () => {
+    // The service owns the in-flight drain and the agent-event subscriptions;
+    // stopping only JobManager/SchedulerService would leave both behind.
+    await service._doStop()
     await jobManager._doStop()
     await scheduler._doStop()
     BaseService.resetInstances()
@@ -161,6 +183,7 @@ describe('AgentJobsService', () => {
 
   beforeEach(() => {
     clearScheduleDisposables()
+    syncHeartbeatScheduleMock.mockClear()
     seedAgent(AGENT_ID)
   })
 
@@ -938,6 +961,86 @@ describe('AgentJobsService', () => {
     it('run fires an owned task', async () => {
       const task = service.createTask(AGENT_ID, form)
       expect(await service.runTask(AGENT_ID, task.id)).toBe(true)
+    })
+  })
+
+  // ------------------------------------------------------- heartbeat wiring
+
+  describe('heartbeat wiring', () => {
+    function fireAgentCreated(): void {
+      const agent = agentService.getAgent(AGENT_ID)
+      ;(
+        agentService as unknown as { _onAgentCreated: { fire: (e: { agentId: string; agent: unknown }) => void } }
+      )._onAgentCreated.fire({ agentId: AGENT_ID, agent })
+    }
+
+    function fireAgentUpdated(updates: Record<string, unknown>): void {
+      const agent = agentService.getAgent(AGENT_ID)
+      ;(
+        agentService as unknown as {
+          _onAgentUpdated: { fire: (e: { agentId: string; updates: unknown; agent: unknown }) => void }
+        }
+      )._onAgentUpdated.fire({ agentId: AGENT_ID, updates, agent })
+    }
+
+    it('syncs the heartbeat for a configuration patch that carries a heartbeat key', async () => {
+      fireAgentUpdated({ configuration: { heartbeat_interval: 45 } })
+      await vi.waitFor(() => expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith(AGENT_ID))
+      syncHeartbeatScheduleMock.mockClear()
+
+      fireAgentUpdated({ configuration: { heartbeat_enabled: false } })
+      await vi.waitFor(() => expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith(AGENT_ID))
+    })
+
+    it('ignores saves that do not carry a heartbeat key', async () => {
+      // The heartbeat schedule is derived state of two configuration keys —
+      // every other save must not re-provision it.
+      fireAgentUpdated({ configuration: { model: 'other' } })
+      fireAgentUpdated({ name: 'renamed' })
+      fireAgentUpdated({})
+      // Nothing to wait for: a call here is the bug, so let the microtask
+      // queue drain and assert its absence.
+      await Promise.resolve()
+      expect(syncHeartbeatScheduleMock).not.toHaveBeenCalled()
+    })
+
+    it('provisions the heartbeat from the creation event', async () => {
+      // createAgent awaits its own sync; the event is the seam that also
+      // covers creation paths which never go through createAgent.
+      fireAgentCreated()
+      await vi.waitFor(() => expect(syncHeartbeatScheduleMock).toHaveBeenCalledWith(AGENT_ID))
+    })
+
+    it('defers the startup repair pass behind the quiet window', async () => {
+      vi.useFakeTimers()
+      try {
+        await service._doAllReady()
+        // Deferred, not run inline — onAllReady is fire-and-forget.
+        expect(repairHeartbeatSchedulesMock).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(repairHeartbeatSchedulesMock).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('stops producing work once the service has been stopped', async () => {
+      // Shutdown gate: onStop's drain must converge, so every producer
+      // returns early rather than refilling the in-flight set. Kept last —
+      // these tests do not restart a stopped service.
+      const task = service.createTask(AGENT_ID, form)
+      await service._doStop()
+
+      fireAgentCreated()
+      fireAgentUpdated({ configuration: { heartbeat_interval: 45 } })
+      ;(
+        agentService as unknown as { _onAgentDeleted: { fire: (e: { agentId: string }) => void } }
+      )._onAgentDeleted.fire({ agentId: AGENT_ID })
+      await Promise.resolve()
+
+      expect(syncHeartbeatScheduleMock).not.toHaveBeenCalled()
+      // The deletion sweep is the other producer the gate covers.
+      expect(jobScheduleService.getById(task.id)).not.toBeNull()
     })
   })
 })

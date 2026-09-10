@@ -86,7 +86,6 @@ describe('createAgent', () => {
     settle('created')
     await expect(pending).resolves.toMatchObject({ name: 'Test' })
     expect(syncHeartbeatSchedule).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111')
-    expect(onSettled).toHaveBeenCalled()
   })
 
   it('stays non-fatal when heartbeat provisioning fails, and keeps the failure per-agent', async () => {

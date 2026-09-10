@@ -32,6 +32,8 @@ import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as HeartbeatModule from '../heartbeat'
+
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
   return mod.mockApplicationFactory()
@@ -49,6 +51,20 @@ vi.mock('@main/i18n', () => ({
 
 // The real handler pulls in the whole runAgentTask execution chain; the sync
 // logic under test only needs SOME registered handler for 'agent.task'.
+// `ensureHeartbeatFile` is re-exported behind an opt-in gate so the drain test
+// can hold a sync in flight; every other test passes straight through.
+const { heartbeatFileGate } = vi.hoisted(() => ({ heartbeatFileGate: { current: null as Promise<void> | null } }))
+vi.mock('../heartbeat', async (importOriginal) => {
+  const actual = await importOriginal<typeof HeartbeatModule>()
+  return {
+    ...actual,
+    ensureHeartbeatFile: async (workspacePath: string) => {
+      if (heartbeatFileGate.current) await heartbeatFileGate.current
+      return actual.ensureHeartbeatFile(workspacePath)
+    }
+  }
+})
+
 vi.mock('../agentTaskJobHandler', () => ({
   agentTaskJobHandler: {
     recovery: 'retry',
@@ -59,7 +75,7 @@ vi.mock('../agentTaskJobHandler', () => ({
   } satisfies JobHandler
 }))
 
-import { repairHeartbeatSchedules, syncHeartbeatSchedule } from '../heartbeatSchedule'
+import { drainHeartbeatWork, repairHeartbeatSchedules, syncHeartbeatSchedule } from '../heartbeatSchedule'
 
 const AGENT_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_AGENT_ID = '22222222-2222-4222-8222-222222222222'
@@ -667,6 +683,112 @@ describe('heartbeatSchedule', () => {
     expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
     // The workspace this sync created is rolled back along with the schedule.
     expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(0)
+  })
+
+  it('unregisters a repaired row when the agent is deleted mid-sync', async () => {
+    // Same guard, the other write path: here the row already existed, so the
+    // sync did not create it — `finalize` must still undo the repair it just
+    // committed, or the onAgentDeleted sweep (already run) leaves it firing.
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const row = heartbeatRows(AGENT_ID)[0]
+    // Drift the row so the second sync takes the repair branch rather than noop.
+    setAgentConfiguration(AGENT_ID, { heartbeat_interval: 45 })
+
+    const original = agentWorkspaceService.findOrCreateByPathResult.bind(agentWorkspaceService)
+    const spy = vi.spyOn(agentWorkspaceService, 'findOrCreateByPathResult').mockImplementation((...args) => {
+      dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
+      return original(...args)
+    })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+    spy.mockRestore()
+
+    expect(outcome).toBe('skipped-missing-agent')
+    expect(jobScheduleService.getById(row.id)).toBeNull()
+    // The workspace predated this sync (find-or-create reused it), so the
+    // deletion path must leave it alone — only rows this sync created roll back.
+    expect(dbh.db.select().from(agentWorkspaceTable).all()).toHaveLength(1)
+  })
+
+  it('unregisters a paused row when the agent is deleted mid-sync', async () => {
+    // Third write path: the toggle-off branch pauses rows via
+    // pauseHeartbeatRows, and those ids land in touchedScheduleIds too — a
+    // pause committed after the deletion sweep is as orphaned as a create.
+    seedAgent(AGENT_ID)
+    await syncHeartbeatSchedule(AGENT_ID)
+    const row = heartbeatRows(AGENT_ID)[0]
+    setAgentConfiguration(AGENT_ID, { heartbeat_enabled: false })
+
+    const original = jobManager.updateJobScheduleTx.bind(jobManager)
+    const spy = vi.spyOn(jobManager, 'updateJobScheduleTx').mockImplementation((...args) => {
+      dbh.db.delete(agentTable).where(eq(agentTable.id, AGENT_ID)).run()
+      return original(...args)
+    })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
+    spy.mockRestore()
+
+    expect(outcome).toBe('skipped-missing-agent')
+    expect(jobScheduleService.getById(row.id)).toBeNull()
+  })
+
+  it('drives a stale rows snapshot through the create path and converges on the winner', async () => {
+    // repairHeartbeatSchedules hands every agent the same snapshot taken
+    // before the pass. A row created after that snapshot must not make the
+    // create path throw on the (type, name) UNIQUE conflict — it repairs the
+    // winner instead. This is the only path where a stale array reaches a
+    // write.
+    seedAgent(AGENT_ID)
+    const staleRows = jobScheduleService.listAll({ type: 'agent.task' })
+    expect(staleRows).toHaveLength(0)
+
+    // A "concurrent" sync commits the row the snapshot cannot see.
+    await syncHeartbeatSchedule(AGENT_ID)
+    // Drift it so the convergence is observable as an update, not a noop.
+    setAgentConfiguration(AGENT_ID, { heartbeat_interval: 45 })
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID, staleRows)
+
+    expect(outcome).toBe('updated')
+    const rows = heartbeatRows(AGENT_ID)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].trigger).toEqual({ kind: 'interval', ms: 45 * 60_000 })
+  })
+
+  it('drains the syncs a repair pass enqueues while it settles', async () => {
+    // The drain's loop exists because settling work enqueues follow-ups: the
+    // repair pass is tracked as one unit and each of its per-agent syncs is
+    // tracked again, so a single allSettled round would return while the
+    // syncs are still writing.
+    seedAgent(AGENT_ID)
+    seedAgent(OTHER_AGENT_ID)
+
+    const repair = repairHeartbeatSchedules()
+    await expect(drainHeartbeatWork()).resolves.toBe(true)
+    await repair
+
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+    expect(heartbeatRows(OTHER_AGENT_ID)).toHaveLength(1)
+  })
+
+  it('reports the deadline instead of stalling on a sync that outlives stop()', async () => {
+    // Shutdown contract of the exported drain: a producer that never settles
+    // must not hold `stop()` open. `ensureHeartbeatFile` is the seam because
+    // it is the sync's only awaited step it does not own itself.
+    seedAgent(AGENT_ID)
+    let release!: () => void
+    heartbeatFileGate.current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+
+    const sync = syncHeartbeatSchedule(AGENT_ID)
+    await expect(drainHeartbeatWork({ timeoutMs: 50 })).resolves.toBe(false)
+
+    release()
+    heartbeatFileGate.current = null
+    await expect(sync).resolves.toBe('created')
+    await expect(drainHeartbeatWork()).resolves.toBe(true)
   })
 
   it('rolls back a newly created workspace row when heartbeat-file provisioning fails', async () => {
