@@ -73,6 +73,7 @@ const mcpSdkMock = vi.hoisted(() => {
   const clients: Array<{
     connectCalls: Array<{ kind: string }>
     close: ReturnType<typeof vi.fn>
+    ping: ReturnType<typeof vi.fn>
     listPrompts: ReturnType<typeof vi.fn>
     listResources: ReturnType<typeof vi.fn>
   }> = []
@@ -231,6 +232,99 @@ describe('McpRuntimeService stdio environment', () => {
     expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
     expect(transportEnv?.PATH).toBe('C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows')
     platformSpy.mockRestore()
+  })
+
+  it('captures a fresh env for a connect, and accepts a cached one only when the caller opts out', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    // A connect must see a tool the user installed after launch (issue #18528).
+    await service.withClient(server.id, async () => undefined)
+    expect(shellEnvMock.getShellEnv).toHaveBeenLastCalledWith({ fresh: true })
+
+    // Background warmers connect on their own schedule and take the cache. A
+    // second server so this actually connects instead of reusing the client.
+    const warmed = { ...server, id: 'warmed-server', name: 'warmed-server' } as McpServer
+    getByIdMock.mockReturnValue(warmed)
+    await service.withClient(warmed.id, async () => undefined, { passiveEnv: true })
+    expect(shellEnvMock.getShellEnv).toHaveBeenLastCalledWith({ fresh: false })
+  })
+
+  it('does not let a user-triggered connect inherit a warmer’s pending connection', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    // Hold the warmer's connect open, then fail it the way a stale PATH does.
+    let failWarmer: (error: Error) => void = () => {}
+    const connectSpy = vi
+      .spyOn(mcpSdkMock.Client.prototype, 'connect')
+      .mockImplementationOnce(() => new Promise((_, reject) => (failWarmer = reject)))
+
+    const warming = service.withClient(server.id, async () => 'warm', { passiveEnv: true })
+    await vi.waitFor(() => expect(connectSpy).toHaveBeenCalled())
+
+    // The user activates the server while that connect is still in flight.
+    const activation = service.withClient(server.id, async () => 'user')
+    failWarmer(new Error('spawn ENOENT'))
+
+    await expect(warming).rejects.toThrow()
+    // The activation must re-resolve on its own fresh capture, not inherit the failure.
+    await expect(activation).resolves.toBe('user')
+    expect(shellEnvMock.getShellEnv).toHaveBeenLastCalledWith({ fresh: true })
+    connectSpy.mockRestore()
+  })
+
+  it('does not adopt a warmer’s connection registered while a stale client was being pinged', async () => {
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => 'first')
+    const connected = mcpSdkMock.clients.at(-1)!
+
+    // The cached client stops answering, and the probe is slow enough for a warmer
+    // and a user connect to queue behind the same in-flight ping.
+    const ping = createDeferred<boolean>()
+    connected.ping.mockReturnValue(ping.promise)
+
+    // Warmer probes first, so it is also the first to register a pending connect
+    // once the ping resolves — the window the post-ping re-check has to cover.
+    const warming = service.withClient(server.id, async () => 'warm', { passiveEnv: true })
+    await vi.waitFor(() => expect(connected.ping).toHaveBeenCalled())
+    const activation = service.withClient(server.id, async () => 'user')
+
+    let failWarmer: (error: Error) => void = () => {}
+    const connectSpy = vi
+      .spyOn(mcpSdkMock.Client.prototype, 'connect')
+      .mockImplementationOnce(() => new Promise((_, reject) => (failWarmer = reject)))
+    ping.resolve(false)
+    await vi.waitFor(() => expect(connectSpy).toHaveBeenCalled())
+    failWarmer(new Error('spawn ENOENT'))
+
+    await expect(warming).rejects.toThrow()
+    await expect(activation).resolves.toBe('user')
+    expect(shellEnvMock.getShellEnv).toHaveBeenLastCalledWith({ fresh: true })
+    connectSpy.mockRestore()
   })
 
   it('preserves distinct PATH key casing on POSIX', async () => {

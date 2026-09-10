@@ -49,6 +49,16 @@ function getAbortReason(signal: AbortSignal): Error {
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
+export type ConnectOptions = {
+  /**
+   * Accept a cached shell environment instead of capturing a fresh one. For
+   * background warmers only: they connect on their own schedule, so they must
+   * not make the user wait behind a login-shell capture per batch. A connect the
+   * user asked for leaves this unset — it may need a tool installed seconds ago.
+   */
+  passiveEnv?: boolean
+}
+
 type CallToolArgs = {
   serverId: string
   name: string
@@ -178,6 +188,8 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
+  // Subset of `pendingClients` started with `passiveEnv` — see getOrCreateClient.
+  private passivePendingClients: Set<string> = new Set()
   // In-flight liveness probes, deduped per server key. Deliberately separate from
   // pendingClients: removeServer awaits that map, and it must not wait out a ping.
   private pendingProbes: Map<string, Promise<Client | undefined>> = new Map()
@@ -209,6 +221,7 @@ export class McpRuntimeService extends BaseService {
     await this.waitForPendingClients()
     await this.closeAllClients()
     this.pendingClients.clear()
+    this.passivePendingClients.clear()
     this.clients.clear()
     this.serverLogs.clear()
   }
@@ -330,14 +343,15 @@ export class McpRuntimeService extends BaseService {
 
   public async withClient<T>(
     serverId: string,
-    operation: (client: Client, server: McpServer) => Promise<T>
+    operation: (client: Client, server: McpServer) => Promise<T>,
+    options?: ConnectOptions
   ): Promise<T> {
     const server = this.getServerById(serverId)
-    const client = await this.getOrCreateClient(server)
+    const client = await this.getOrCreateClient(server, options)
     return operation(client, server)
   }
 
-  private async getOrCreateClient(server: McpServer): Promise<Client> {
+  private async getOrCreateClient(server: McpServer, options?: ConnectOptions): Promise<Client> {
     if (this.stopping || this.isStopped || this.isDestroyed) {
       throw new Error('MCP runtime is stopping')
     }
@@ -359,6 +373,9 @@ export class McpRuntimeService extends BaseService {
     const pendingClient = this.pendingClients.get(serverKey)
     if (pendingClient) {
       this.setServerStatus(server.id, 'connecting')
+      if (this.mustNotAdopt(serverKey, options)) {
+        return this.awaitThenReconnect(server, serverKey, pendingClient, options)
+      }
       getServerLogger(server).silly(`Waiting for pending client initialization`)
       return pendingClient
     }
@@ -377,16 +394,48 @@ export class McpRuntimeService extends BaseService {
       }
       const pendingAfterPing = this.pendingClients.get(serverKey)
       if (pendingAfterPing) {
+        if (this.mustNotAdopt(serverKey, options)) {
+          return this.awaitThenReconnect(server, serverKey, pendingAfterPing, options)
+        }
         return pendingAfterPing
       }
     }
 
-    const initPromise = this.connectClient(server, serverKey).finally(() => {
+    const initPromise = this.connectClient(server, serverKey, options).finally(() => {
       this.pendingClients.delete(serverKey)
+      this.passivePendingClients.delete(serverKey)
     })
     this.pendingClients.set(serverKey, initPromise)
+    if (options?.passiveEnv) {
+      this.passivePendingClients.add(serverKey)
+    }
 
     return initPromise
+  }
+
+  /**
+   * Whether a pending connect must not be handed to this caller: a background
+   * warmer started it on a cached PATH, so adopting it would report the warmer's
+   * stale-PATH failure as the caller's own.
+   */
+  private mustNotAdopt(serverKey: string, options?: ConnectOptions): boolean {
+    return this.passivePendingClients.has(serverKey) && !options?.passiveEnv
+  }
+
+  /**
+   * Let a warmer's connect settle, then resolve from scratch: a client it managed
+   * to connect is reused, a failed one is retried on a fresh capture. The re-entry
+   * redoes the check-then-set synchronously, as getOrCreateClient requires.
+   */
+  private async awaitThenReconnect(
+    server: McpServer,
+    serverKey: string,
+    pending: Promise<Client>,
+    options?: ConnectOptions
+  ): Promise<Client> {
+    getServerLogger(server).debug(`Not adopting a background warmer's pending connection`, { serverKey })
+    await pending.catch(() => undefined)
+    return this.getOrCreateClient(server, options)
   }
 
   /**
@@ -437,7 +486,7 @@ export class McpRuntimeService extends BaseService {
     return undefined
   }
 
-  private async connectClient(server: McpServer, serverKey: string): Promise<Client> {
+  private async connectClient(server: McpServer, serverKey: string, options?: ConnectOptions): Promise<Client> {
     // Re-checked here as well as in getOrCreateClient: a reconnect arrives after the ping and
     // stale-client cleanup awaits, by which time removeServer may have completed.
     if (this.removedServerIds.has(server.id)) {
@@ -466,7 +515,8 @@ export class McpRuntimeService extends BaseService {
         typeOverride,
         authProvider,
         logger: getServerLogger(server),
-        onServerLog: (entry) => this.emitServerLog(server, entry)
+        onServerLog: (entry) => this.emitServerLog(server, entry),
+        passiveEnv: options?.passiveEnv
       })
 
     try {

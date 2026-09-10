@@ -104,6 +104,10 @@ async function readWindowsRegistryPath(env: Record<string, string>): Promise<str
  * Build a fresh environment on Windows by copying `process.env` and replacing
  * PATH with the current registry value. This avoids the stale PATH problem
  * where `cmd.exe /c set` only inherits the Electron parent process's env.
+ *
+ * Throws when the registry is unreadable: `process.env` alone is the boot-time
+ * PATH, i.e. exactly the stale value this function exists to replace. Reporting
+ * it as a capture would record it as last-known-good and hide the failure.
  */
 async function getWindowsEnvironment(): Promise<Record<string, string>> {
   const env: Record<string, string> = {}
@@ -112,18 +116,18 @@ async function getWindowsEnvironment(): Promise<Record<string, string>> {
   }
 
   const registryPath = await readWindowsRegistryPath(env)
-  if (registryPath) {
-    const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
-    for (const key of pathKeys) {
-      env[key] = registryPath
-    }
-    if (pathKeys.length === 0) {
-      env.Path = registryPath
-    }
-    logger.debug('Replaced PATH with fresh registry value')
-  } else {
-    logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
+  if (!registryPath) {
+    throw new Error('Could not read PATH from the Windows registry')
   }
+
+  const pathKeys = Object.keys(env).filter((k) => k.toLowerCase() === 'path')
+  for (const key of pathKeys) {
+    env[key] = registryPath
+  }
+  if (pathKeys.length === 0) {
+    env.Path = registryPath
+  }
+  logger.debug('Replaced PATH with fresh registry value')
 
   return env
 }
@@ -287,89 +291,146 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
   })
 }
 
-let cachedEnv: Record<string, string> | null = null
-let inflight: Promise<Record<string, string>> | null = null
+// Fresh capture: expiry drives re-resolution, so a PATH changed after launch
+// (newly installed tool) reaches spawned processes without an app restart.
+const SHELL_ENV_CACHE_KEY = 'system.shell_env'
+// Last successful capture, never expired. Serves readers while a re-capture runs
+// and survives a failed one, so a hung profile never downgrades a working env.
+const SHELL_ENV_LAST_GOOD_KEY = 'system.shell_env.last_good'
 
-async function fetchShellEnv(): Promise<Record<string, string>> {
+// Backstop only: a caller that must observe a tool the user just installed asks
+// for a fresh capture. This just bounds how stale a passive read can get, so it
+// is platform-agnostic -- the cost difference between a registry read and a
+// login-shell spawn says what each platform can afford, not what it needs.
+const SHELL_ENV_TTL_MS = 5 * 60_000
+
+let inflight: Promise<Record<string, string>> | null = null
+// Captures that have begun, counted rather than timestamped: a caller and a
+// capture that fall in the same millisecond must still order, and a clock can
+// only report them as simultaneous.
+let capturesStarted = 0
+// Index of `inflight`, or Infinity while it is still queued behind an earlier
+// capture -- it is then guaranteed to start later than any caller deciding right
+// now whether to join it.
+let inflightCapture = 0
+
+function readProcessEnv(): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const key in process.env) {
+    env[key] = process.env[key] || ''
+  }
+  return env
+}
+
+/**
+ * Resolve the env once and publish it. A failed capture republishes the
+ * last-known-good snapshot for one TTL: a broken profile must not be re-spawned
+ * on every read. Only a cold start falls back to a bare `process.env`, and never
+ * as last-known-good -- it is a degraded env, not a capture.
+ */
+async function captureShellEnv(): Promise<Record<string, string>> {
+  const cache = application.get('CacheService')
   try {
-    return await getLoginShellEnvironment()
+    const env = await getLoginShellEnvironment()
+    cache.set(SHELL_ENV_CACHE_KEY, env, SHELL_ENV_TTL_MS)
+    cache.set(SHELL_ENV_LAST_GOOD_KEY, env)
+    return env
   } catch (error) {
-    logger.error('Failed to get shell environment, falling back to process.env', { error })
-    const fallbackEnv: Record<string, string> = {}
-    for (const key in process.env) {
-      fallbackEnv[key] = process.env[key] || ''
-    }
-    return fallbackEnv
+    logger.error('Failed to get shell environment', { error })
+    const fallback = cache.get<Record<string, string>>(SHELL_ENV_LAST_GOOD_KEY) ?? readProcessEnv()
+    cache.set(SHELL_ENV_CACHE_KEY, fallback, SHELL_ENV_TTL_MS)
+    return fallback
   }
 }
 
 /**
- * Fetch the shell env, collapsing concurrent callers onto a single spawn.
+ * Run a capture, collapsing callers onto as few spawns as the freshness they ask
+ * for allows. `minCapture` is the lowest capture index that satisfies the
+ * caller: `0` accepts any capture, `capturesStarted + 1` accepts only one that
+ * begins after this call.
  *
- * Resolving the login shell can be slow or hang (misconfigured profiles), so
- * letting overlapping callers each spawn their own shell multiplies a 15s
- * timeout into several. Sharing the in-flight promise keeps it to one spawn.
+ * Resolving the login shell can be slow or hang (misconfigured profiles), so a
+ * capture that cannot be joined is queued behind the running one rather than
+ * spawned alongside it -- overlapping shells would multiply the 15s timeout.
+ * While queued it satisfies every caller, so a burst still costs one extra
+ * capture, not one per caller.
  */
-function loadShellEnv(): Promise<Record<string, string>> {
-  if (inflight) {
+function loadShellEnv(minCapture = 0): Promise<Record<string, string>> {
+  if (inflight && inflightCapture >= minCapture) {
     return inflight
   }
-  // fetchShellEnv never rejects (it falls back to process.env), so the cache
-  // is always populated and `inflight` always cleared.
-  inflight = fetchShellEnv()
-    .then((env) => {
-      cachedEnv = env
-      return env
-    })
-    .finally(() => {
+
+  const previous = inflight
+  inflightCapture = Number.POSITIVE_INFINITY
+  const start = () => {
+    inflightCapture = ++capturesStarted
+    return captureShellEnv()
+  }
+  // captureShellEnv never rejects, so the chain and `inflight` always settle.
+  const next: Promise<Record<string, string>> = previous ? previous.then(start, start) : start()
+  inflight = next
+  // A later capture may already own the slot; only clear our own.
+  const clear = () => {
+    if (inflight === next) {
       inflight = null
-    })
-  return inflight
+    }
+  }
+  next.then(clear, clear)
+  return next
 }
 
 /**
- * Get the cached shell environment. If no cache exists yet, fetches it once.
- * This is a pure query -- it never invalidates the cache.
+ * Get the shell environment.
+ *
+ * Pass `fresh` when the result decides something the user just changed outside
+ * the app -- activating an MCP server against a tool they installed a minute
+ * ago, probing whether a CLI is present. It awaits a capture that started after
+ * the call, which costs a login-shell spawn on POSIX.
+ *
+ * A passive read is served from the cache, and an expired one is served stale
+ * while a shared re-capture runs in the background, so a slow login shell never
+ * stalls a reader; only a cold start with nothing captured waits.
  *
  * Returns a shallow copy: callers routinely mutate the env they get back (e.g.
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
-export async function getRawShellEnv(): Promise<Record<string, string>> {
-  const env = cachedEnv ?? (await loadShellEnv())
-  return { ...env }
+export async function getRawShellEnv(options?: { fresh?: boolean }): Promise<Record<string, string>> {
+  if (options?.fresh) {
+    return { ...(await loadShellEnv(capturesStarted + 1)) }
+  }
+
+  const cache = application.get('CacheService')
+  const cached = cache.get<Record<string, string>>(SHELL_ENV_CACHE_KEY)
+  if (cached) {
+    return { ...cached }
+  }
+
+  const lastGood = cache.get<Record<string, string>>(SHELL_ENV_LAST_GOOD_KEY)
+  if (lastGood) {
+    // Background re-capture; a failure is logged inside and keeps this snapshot.
+    void loadShellEnv().catch(() => {})
+    return { ...lastGood }
+  }
+  return { ...(await loadShellEnv()) }
 }
 
-export async function getShellEnv(): Promise<Record<string, string>> {
-  const env = await getRawShellEnv()
+export async function getShellEnv(options?: { fresh?: boolean }): Promise<Record<string, string>> {
+  const env = await getRawShellEnv(options)
   appendCherryToolDirsToPath(env)
   applyBinaryExecutionEnv(env)
   return env
 }
 
 /**
- * Invalidate the shell env cache and immediately re-fetch a fresh environment.
- * This is an explicit command -- callers use this when they need to pick up
- * newly installed tools (nvm, mise, fnm, etc.) that change PATH.
+ * Re-capture the environment and return it. Callers use this when they need to
+ * pick up newly installed tools (nvm, mise, fnm, etc.) that change PATH.
  *
- * Returns a fresh shallow copy (see getShellEnv) so callers can use it directly
- * without a separate getShellEnv() call, avoiding stale-read race conditions.
- *
- * If a fetch is already in flight, that one is reused instead of spawning a
- * second shell -- it is already fresh enough, and a duplicate spawn just
- * multiplies the cost when the user's profile is slow.
+ * Always awaits a capture that starts after this call: one already running may
+ * predate the install that prompted the refresh, so adopting it would report the
+ * pre-install PATH -- and callers like BinaryManager use exactly this result to
+ * decide whether a system tool is missing.
  */
-export async function refreshShellEnv(): Promise<Record<string, string>> {
-  if (inflight) {
-    // Reusing a capture that started before the event prompting this refresh
-    // (e.g. a tool install completing mid-flight). Acceptable because downstream
-    // lookups hit the filesystem live; logged so the reuse is observable.
-    logger.debug('refreshShellEnv reusing in-flight shell capture instead of re-spawning')
-    const env = { ...(await inflight) }
-    appendCherryToolDirsToPath(env)
-    applyBinaryExecutionEnv(env)
-    return env
-  }
-  cachedEnv = null
-  return getShellEnv()
+export function refreshShellEnv(): Promise<Record<string, string>> {
+  return getShellEnv({ fresh: true })
 }
