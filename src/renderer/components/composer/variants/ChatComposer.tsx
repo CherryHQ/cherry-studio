@@ -1019,7 +1019,10 @@ const ChatComposerInner = ({
     isKnowledgeBasesLoading,
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
-    setSelectedKnowledgeBases
+    setSelectedKnowledgeBases,
+    // Chat scope shows every base and auto-links unconfigured ones on select (#20238);
+    // the Agent composer keeps the configured intersection.
+    allowUnconfigured: true
   })
 
   useEffect(() => {
