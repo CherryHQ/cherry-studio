@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} mục",
   "agent.preview_pane.no_search_results": "Không có tệp nào khớp với tìm kiếm của bạn",
   "agent.preview_pane.office.title": "Mở tệp {{extension}} ở đây hiện chưa được hỗ trợ",
+  "agent.preview_pane.pick_selection": "Chọn vùng",
   "agent.preview_pane.preview": "Xem trước",
   "agent.preview_pane.quote_selection": "Trích dẫn vùng chọn",
   "agent.preview_pane.refresh": "Làm mới",

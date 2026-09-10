@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} элемента",
   "agent.preview_pane.no_search_results": "Ни один файл не соответствует вашему поиску",
   "agent.preview_pane.office.title": "Открытие файлов {{extension}} здесь пока не поддерживается",
+  "agent.preview_pane.pick_selection": "Выбрать область",
   "agent.preview_pane.preview": "Предварительный просмотр",
   "agent.preview_pane.quote_selection": "Цитировать выделение",
   "agent.preview_pane.refresh": "Обновить",
