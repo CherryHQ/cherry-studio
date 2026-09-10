@@ -35,7 +35,8 @@ function createModelCheckFingerprint(model: Model) {
     capabilities: model.capabilities.toSorted(),
     inputModalities: model.inputModalities?.toSorted() ?? [],
     outputModalities: model.outputModalities?.toSorted() ?? [],
-    endpointTypes: model.endpointTypes ?? []
+    endpointTypes: model.endpointTypes ?? [],
+    preferredEndpointType: model.preferredEndpointType ?? null
   })
 }
 

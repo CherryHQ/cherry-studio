@@ -6,6 +6,10 @@ export default openaiCompatible({
   availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api-inference.modelscope.cn/v1/',
   anthropic: 'https://api-inference.modelscope.cn',
+  additionalEndpointConfigs: {
+    'openai-embeddings': { adapterFamily: 'modelscope' },
+    'openai-image-generation': { adapterFamily: 'modelscope' }
+  },
   website: {
     apiKey: 'https://modelscope.cn/my/myaccesstoken',
     docs: 'https://modelscope.cn/docs/model-service/API-Inference/intro',

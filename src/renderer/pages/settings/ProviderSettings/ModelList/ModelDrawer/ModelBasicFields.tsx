@@ -1,18 +1,26 @@
-import { Input } from '@cherrystudio/ui'
+import { InfoTooltip, Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode, Ref } from 'react'
+import type { EndpointType } from '@shared/data/types/model'
+import { type ReactNode, type Ref, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
 import { ModelEndpointTypeSelect } from './ModelEndpointTypeSelect'
+import { ModelPreferredEndpointSelect } from './ModelPreferredEndpointSelect'
 import type { ModelBasicFormState, ModelDrawerEndpointType } from './types'
 
 interface ModelBasicFieldsProps {
   values: ModelBasicFormState
   showEndpointType: boolean
-  endpointTypeControl?: 'select' | 'chips'
+  endpointTypeOptions?: readonly EndpointType[]
+  /** Routable endpoints for this model. The caller decides when there is a choice worth showing. */
+  preferredEndpointOptions?: readonly EndpointType[]
+  /** The pinned endpoint, or `undefined` when the model inherits its route. */
+  preferredEndpointType?: EndpointType
+  /** Where inheriting lands today, so the inherit chip can name it. */
+  inheritedEndpointType?: EndpointType
+  onPreferredEndpointTypeChange?: (next: EndpointType | undefined) => void
   showRequiredIndicator?: boolean
   layout?: 'vertical' | 'horizontal'
   modelIdDisabled?: boolean
@@ -32,7 +40,11 @@ interface ModelBasicFieldsProps {
 export function ModelBasicFields({
   values,
   showEndpointType,
-  endpointTypeControl = 'select',
+  endpointTypeOptions,
+  preferredEndpointOptions,
+  preferredEndpointType,
+  inheritedEndpointType,
+  onPreferredEndpointTypeChange,
   showRequiredIndicator = false,
   layout = 'vertical',
   modelIdDisabled = false,
@@ -49,6 +61,11 @@ export function ModelBasicFields({
   onEndpointTypesChange
 }: ModelBasicFieldsProps) {
   const { t } = useTranslation()
+  const preferredEndpointLabelId = useId()
+  const preferredEndpointLabel = t('settings.models.add.preferred_endpoint.label')
+  const preferredEndpointTooltip = t('settings.models.add.preferred_endpoint.tooltip')
+  // `preferredEndpointType` is legitimately unset (inherited), so it cannot gate rendering.
+  const showPreferredEndpoint = (preferredEndpointOptions?.length ?? 0) > 0 && onPreferredEndpointTypeChange != null
 
   return (
     <>
@@ -129,11 +146,39 @@ export function ModelBasicFields({
           className={drawerClasses.field}
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
-            {endpointTypeControl === 'chips' ? (
-              <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
-            ) : (
-              <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
-            )}
+            <ModelEndpointTypeSelect
+              value={values.endpointTypes ?? []}
+              endpointTypes={endpointTypeOptions ?? []}
+              onChange={onEndpointTypesChange}
+            />
+          </div>
+        </ProviderField>
+      )}
+
+      {showPreferredEndpoint && (
+        <ProviderField
+          title={preferredEndpointLabel}
+          titleId={preferredEndpointLabelId}
+          titleClassName={drawerClasses.fieldTitle}
+          layout={layout}
+          className={drawerClasses.field}
+          action={
+            <InfoTooltip
+              content={preferredEndpointTooltip}
+              iconProps={{
+                className: 'cursor-help text-foreground-tertiary',
+                'aria-label': `${preferredEndpointLabel}: ${preferredEndpointTooltip}`
+              }}
+            />
+          }>
+          <div data-testid="provider-settings-model-preferred-endpoint-field">
+            <ModelPreferredEndpointSelect
+              value={preferredEndpointType}
+              inheritedEndpoint={inheritedEndpointType}
+              options={preferredEndpointOptions ?? []}
+              labelledBy={preferredEndpointLabelId}
+              onChange={onPreferredEndpointTypeChange}
+            />
           </div>
         </ProviderField>
       )}

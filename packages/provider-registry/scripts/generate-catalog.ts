@@ -27,13 +27,20 @@ import {
 import { matchReasoningMembership } from '../src/patterns/reasoning-membership'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
-import { SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
+import {
+  applyModelCapabilityOverride,
+  defaultOperationCapability,
+  getModelEndpointContractIssues,
+  MODEL_OPERATION_CAPABILITIES
+} from '../src/registry-utils'
+import { type ModelCapability, SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 import { getServiceTierCatalogErrors } from '../src/utils/serviceTierCatalog'
 import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from './canonicalize'
+import { normalizeProviderModelOperations } from './providerModelOperations'
 import {
   type CherryMeta,
   finalizeMeta,
@@ -475,6 +482,19 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     if (kind === 'embedding') m.outputModalities = ['vector']
     if (!m.inputModalities?.length) m.inputModalities = ['text']
   }
+  // Last-resort default so every model declares at least one operation — NOT a derivation. A model
+  // that already declares one keeps exactly what it declares, so a multi-operation model (an omni
+  // SKU that both chats and speaks) has to say so at its source; upstream modality metadata is too
+  // noisy to infer a second operation from (it would hand `text-generation` to rerankers and to
+  // image models whose vendor serves them off the images API). The runtime read path fills the same
+  // gap with the same rule for rows that reach it without one.
+  const operationCapabilities = new Set<ModelCapability>(MODEL_OPERATION_CAPABILITIES)
+  for (const m of models.values()) {
+    const capabilities = (m.capabilities ?? []) as ModelCapability[]
+    if (capabilities.some((capability) => operationCapabilities.has(capability))) continue
+
+    m.capabilities = [...capabilities, defaultOperationCapability(m.inputModalities, m.outputModalities)]
+  }
   // Server-tool eligibility is compiled separately from provider declarations.
   // Remove any stale/upstream web-search capability so it cannot become a
   // second runtime source of truth beside that eligibility table.
@@ -518,8 +538,9 @@ function buildProviderModels(
   md: ModelsDevApi,
   orModels: OpenRouterApi,
   orImageModels: OpenRouterApi,
-  baseIds: Set<string>
+  baseModels: Map<string, any>
 ): { overrides: any[] } {
+  const baseIds = new Set(baseModels.keys())
   const openRouterStandaloneIds = new Set(
     PROVIDERS.find((provider) => provider.id === 'openrouter')?.standaloneModelIds?.map(canonOf) ?? []
   )
@@ -646,6 +667,28 @@ function buildProviderModels(
     if (existing) Object.assign(existing, imageRow)
     else addModel(imageRow)
   }
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]
+    const baseModel = baseModels.get(row.modelId)
+    // A row with no base model is a standalone: the catalog invariant requires it to carry its own
+    // name, and nothing downstream can invent one. Identity belongs here, at row construction — not
+    // inside the operation normalizer, which must only decide operations.
+    const namedRow = baseModel === undefined && !row.name ? { ...row, name: row.modelId } : row
+    const baseCapabilities = baseModel?.capabilities as ModelCapability[] | undefined
+    rows[index] = normalizeProviderModelOperations(namedRow, baseCapabilities)
+    const normalizedRow = rows[index]
+    const effectiveCapabilities = applyModelCapabilityOverride(baseCapabilities ?? [], normalizedRow.capabilities)
+    const issues = getModelEndpointContractIssues({
+      capabilities: effectiveCapabilities,
+      endpointTypes: normalizedRow.endpointTypes
+    })
+    if (issues.length > 0) {
+      throw new Error(
+        `Invalid provider-model operation contract for '${normalizedRow.providerId}/${normalizedRow.modelId}': ${issues.join('; ')}`
+      )
+    }
+  }
   rows.sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
   return { overrides: rows }
 }
@@ -702,7 +745,7 @@ void (async () => {
       return { ...rest, ...(metadata ? { metadata } : {}) }
     })
   const providers = buildProviders()
-  const pm = buildProviderModels(md, orModels, orImageModels, new Set(models.keys()))
+  const pm = buildProviderModels(md, orModels, orImageModels, models)
   const serviceTierErrors = getServiceTierCatalogErrors(providers, pm.overrides)
   if (serviceTierErrors.length > 0) {
     throw new Error(`Invalid service tier catalog:\n${serviceTierErrors.join('\n')}`)

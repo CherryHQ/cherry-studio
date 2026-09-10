@@ -11,12 +11,10 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/modelSync'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
-import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { chunkArray } from '../utils/chunkArray'
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
 
 const logger = loggerService.withContext('ProviderModelManageDrawer')
@@ -81,7 +79,7 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [translateModelId] = usePreference('feature.translate.model_id')
   const { provider, enableProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
-  const { createModels, deleteModels, isCreating, isDeleting, isBulkDeleting } = useModelMutations()
+  const { deleteModels, isDeleting, isBulkDeleting } = useModelMutations()
   const { trigger: reconcileModels, isLoading: isReconciling } = useMutation(
     'POST',
     '/providers/:providerId/models:reconcile',
@@ -200,13 +198,15 @@ export function useProviderModelPullReconcile(providerId: string) {
       }
 
       try {
-        const chunks = chunkArray(
-          toAdd.map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))),
-          MODELS_BATCH_MAX_ITEMS
-        )
-        for (const chunk of chunks) {
-          await createModels(chunk)
-        }
+        await reconcileModels({
+          params: { providerId },
+          body: {
+            toAdd: toAdd.map((model) =>
+              toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model))
+            ),
+            toRemove: []
+          }
+        })
       } catch (error) {
         logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
         toast.error(t('settings.models.manage.operation_failed'))
@@ -229,7 +229,7 @@ export function useProviderModelPullReconcile(providerId: string) {
         toast.warning(t('settings.models.manage.add_success_enable_failed'))
       }
     },
-    [createModels, enableProvider, models, provider, providerId, t]
+    [enableProvider, models, provider, providerId, reconcileModels, t]
   )
 
   const removeModels = useCallback(
@@ -274,7 +274,9 @@ export function useProviderModelPullReconcile(providerId: string) {
       const skippedCount = staleIds.filter((id) => reconciledIds.has(id)).length
 
       if (skippedCount > 0) {
-        toast.warning(t('settings.models.manage.remove_skipped_default_in_use', { count: skippedCount }))
+        // Reconcile skips both user defaults and knowledge-base embedding models; the response only
+        // reports which rows survived, so the message names the shared reason.
+        toast.warning(t('settings.models.manage.remove_skipped_in_use', { count: skippedCount }))
       } else {
         toast.success(t('settings.models.manage.clean_stale_success', { count: staleIds.length }))
       }
@@ -305,7 +307,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     cleanStaleModels,
     isLoadingModels,
     loadErrorMessage,
-    isApplyingPullReconcile: isCreating || isDeleting || isBulkDeleting || isReconciling,
-    isBusy: isLoadingModels || isCreating || isDeleting || isBulkDeleting || isReconciling
+    isApplyingPullReconcile: isDeleting || isBulkDeleting || isReconciling,
+    isBusy: isLoadingModels || isDeleting || isBulkDeleting || isReconciling
   }
 }

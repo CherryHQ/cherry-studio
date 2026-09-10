@@ -2,12 +2,14 @@ import type { CreateModelInput } from '@data/services/ModelService'
 import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import {
   BulkUpdateModelsSchema,
+  type CreateModelDto,
   CreateModelsSchema,
   DeleteModelsQuerySchema,
   MODELS_BATCH_MAX_ITEMS,
   MODELS_DELETE_MAX_IDS,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
@@ -169,6 +171,31 @@ describe('/models', () => {
         registryData
       }
     ] satisfies CreateModelInput[])
+  })
+
+  it('resolves registry data with the endpoint selection from the create payload', async () => {
+    const registryData = {
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
+    lookupModelMock.mockImplementation((_providerId, _modelId, _cache, selection) => {
+      if (selection?.preferredEndpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) {
+        throw new Error('missing endpoint selection')
+      }
+      return registryData
+    })
+    createMock.mockReturnValue([{ id: 'openai::gpt-4o' }])
+    const dto = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+    } satisfies CreateModelDto
+
+    await modelHandlers['/models'].POST({ body: [dto] } as any)
+
+    expect(createMock).toHaveBeenCalledWith([{ dto, registryData }] satisfies CreateModelInput[])
   })
 
   it('falls back to custom model creation when registry lookup returns NOT_FOUND', async () => {

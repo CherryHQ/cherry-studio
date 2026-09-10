@@ -18,26 +18,10 @@ interface ProviderModelAddDialogProps {
   open: boolean
   onClose: () => void
   onSuccess?: (modelIds: UniqueModelId[]) => void
-  showPurposeSelection?: boolean
 }
 
-export function ProviderModelAddDialog({
-  providerId,
-  open,
-  onClose,
-  onSuccess,
-  showPurposeSelection
-}: ProviderModelAddDialogProps) {
-  return (
-    <AddModelDrawer
-      providerId={providerId}
-      open={open}
-      prefill={null}
-      onClose={onClose}
-      onSuccess={onSuccess}
-      showPurposeSelection={showPurposeSelection}
-    />
-  )
+export function ProviderModelAddDialog({ providerId, open, onClose, onSuccess }: ProviderModelAddDialogProps) {
+  return <AddModelDrawer providerId={providerId} open={open} prefill={null} onClose={onClose} onSuccess={onSuccess} />
 }
 
 const ProviderModelAdd: React.FC<ProviderModelAddProps> = ({ providerId, disabled }) => {

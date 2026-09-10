@@ -16,7 +16,7 @@ import {
   CHERRYAI_PROVIDER_ID,
   CHERRYAI_PROVIDER_NAME
 } from '@shared/data/presets/cherryai'
-import type { ModelCapability } from '@shared/data/types/model'
+import { MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
 import { and, eq } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
@@ -79,7 +79,7 @@ function createCherryAiDefaultModelRow(): CherryAiDefaultModelRow {
     name: CHERRYAI_DEFAULT_MODEL_NAME,
     description: null,
     group: CHERRYAI_DEFAULT_MODEL_GROUP,
-    capabilities: [] as ModelCapability[],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION] as ModelCapability[],
     inputModalities: null,
     outputModalities: null,
     endpointTypes: null,

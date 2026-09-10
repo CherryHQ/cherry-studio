@@ -107,6 +107,198 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('backfills a default operation only when a custom model has no stored operation or endpoint', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_model_endpoint_preference'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('operation-migration', 'Operation Migration', 'a0', ?, ?)`
+      )
+      .run(now, now)
+
+    const insert = sqlite.prepare(
+      `INSERT INTO user_model
+         (id, provider_id, model_id, preset_model_id, name, capabilities, supports_streaming,
+          is_enabled, is_hidden, order_key, created_at, updated_at)
+       VALUES (?, 'operation-migration', ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`
+    )
+    const insertWithModalities = sqlite.prepare(
+      `INSERT INTO user_model
+         (id, provider_id, model_id, preset_model_id, name, capabilities, input_modalities,
+          output_modalities, supports_streaming, is_enabled, is_hidden, order_key, created_at, updated_at)
+       VALUES (?, 'operation-migration', ?, NULL, ?, ?, ?, ?, 1, 1, 0, ?, ?, ?)`
+    )
+    const cases = [
+      ['empty', 'Empty', '[]'],
+      ['feature', 'Feature', '["function-call"]'],
+      ['embedding', 'Embedding', '["embedding"]'],
+      ['rerank', 'Rerank', '["rerank"]'],
+      ['image', 'Image', '["image-generation"]'],
+      ['transcript', 'Transcript', '["audio-transcript"]'],
+      ['speech', 'Speech', '["audio-generation"]'],
+      ['video', 'Video', '["video-generation"]'],
+      ['multi', 'Multi', '["text-generation","embedding"]']
+    ] as const
+    for (const [index, [modelId, name, capabilities]] of cases.entries()) {
+      insert.run(`operation-migration::${modelId}`, modelId, null, name, capabilities, 1, `a${index}`, now, now)
+    }
+    insert.run('operation-migration::preset', 'preset', 'preset', null, null, null, 'a9', now, now)
+    // Audio in, text out, no text in: a dedicated transcription model, whose operation is transcription.
+    // Calling it text generation would put a Whisper row in the chat pickers and probe it with a chat request.
+    insertWithModalities.run(
+      'operation-migration::asr',
+      'asr',
+      'ASR',
+      '["audio-recognition"]',
+      '["audio"]',
+      '["text"]',
+      'a91',
+      now,
+      now
+    )
+    // Same capability list, but it also takes text — a multimodal chat model, not a transcriber.
+    insertWithModalities.run(
+      'operation-migration::audio-chat',
+      'audio-chat',
+      'Audio Chat',
+      '["audio-recognition"]',
+      '["text","audio"]',
+      '["text"]',
+      'a92',
+      now,
+      now
+    )
+    // Preset operations belong to the registry baseline; a stored feature override must not
+    // freeze a guessed operation into the row.
+    insert.run(
+      'operation-migration::preset-image',
+      'preset-image',
+      'imagen-4-0-generate-001',
+      null,
+      '["image-recognition"]',
+      null,
+      'b0',
+      now,
+      now
+    )
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite
+      .prepare(
+        "SELECT model_id, capabilities FROM user_model WHERE provider_id = 'operation-migration' ORDER BY order_key"
+      )
+      .all() as Array<{ model_id: string; capabilities: string | null }>
+    expect(rows.map((row) => [row.model_id, row.capabilities ? JSON.parse(row.capabilities) : null])).toEqual([
+      ['empty', ['text-generation']],
+      ['feature', ['function-call', 'text-generation']],
+      ['embedding', ['embedding']],
+      ['rerank', ['rerank']],
+      ['image', ['image-generation']],
+      ['transcript', ['audio-transcript']],
+      ['speech', ['audio-generation']],
+      ['video', ['video-generation']],
+      ['multi', ['text-generation', 'embedding']],
+      ['preset', null],
+      ['asr', ['audio-recognition', 'audio-transcript']],
+      ['audio-chat', ['audio-recognition', 'text-generation']],
+      ['preset-image', ['image-recognition']]
+    ])
+  })
+
+  it('preserves the operations of legacy custom endpoints without changing explicit capabilities or preset deltas', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_model_endpoint_preference'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('endpoint-migration', 'Endpoint Migration', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    const cases = [
+      ['embedding', ['openai-embeddings'], ['embedding']],
+      ['rerank', ['jina-rerank'], ['rerank']],
+      ['image', ['openai-image-generation'], ['image-generation']],
+      ['image-edit', ['openai-image-edit'], ['image-generation']],
+      ['transcript', ['openai-audio-transcription'], ['audio-transcript']],
+      ['translation', ['openai-audio-translation'], ['audio-transcript']],
+      ['speech', ['openai-text-to-speech'], ['audio-generation']],
+      ['video', ['openai-video-generation'], ['video-generation']],
+      ['chat', ['openai-chat-completions', 'openai-responses'], ['text-generation']],
+      ['google', ['google-generate-content'], ['text-generation']],
+      ['anthropic', ['anthropic-messages'], ['text-generation']],
+      ['ollama', ['ollama-chat', 'ollama-generate'], ['text-generation']],
+      ['completion', ['openai-text-completions'], ['text-generation']],
+      ['empty-endpoints', [], ['text-generation']],
+      ['image-both', ['openai-image-edit', 'openai-image-generation'], ['image-generation']],
+      ['mixed', ['openai-embeddings', 'openai-chat-completions'], ['embedding', 'text-generation']]
+    ] as const
+    const insert = sqlite.prepare(
+      `INSERT INTO user_model
+         (id, provider_id, model_id, preset_model_id, name, capabilities, endpoint_types,
+          supports_streaming, is_enabled, is_hidden, order_key, created_at, updated_at)
+       VALUES (?, 'endpoint-migration', ?, ?, ?, ?, ?, 1, 1, 0, ?, ?, ?)`
+    )
+    for (const [modelId, endpoints] of cases) {
+      insert.run(modelId, modelId, null, modelId, '["function-call"]', JSON.stringify(endpoints), modelId, now, now)
+    }
+    insert.run('explicit', 'explicit', null, 'Explicit', '["embedding"]', '["ollama-chat"]', 'explicit', now, now)
+    insert.run('preset', 'preset', 'preset', null, '["image-recognition"]', '["openai-image-edit"]', 'preset', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const read = sqlite.prepare('SELECT capabilities, endpoint_types FROM user_model WHERE id = ?')
+    for (const [modelId, endpoints, operations] of cases) {
+      const row = read.get(modelId) as { capabilities: string; endpoint_types: string }
+      expect(JSON.parse(row.capabilities).toSorted(), modelId).toEqual(['function-call', ...operations].toSorted())
+      expect(JSON.parse(row.endpoint_types), modelId).toEqual(endpoints)
+    }
+    expect(read.get('explicit')).toEqual({ capabilities: '["embedding"]', endpoint_types: '["ollama-chat"]' })
+    expect(read.get('preset')).toEqual({
+      capabilities: '["image-recognition"]',
+      endpoint_types: '["openai-image-edit"]'
+    })
+  })
+
+  it('turns a legacy implicit empty input-modality list back into an unset column', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0021_model_endpoint_preference'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('modality-migration', 'Modality Migration', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    const insert = sqlite.prepare(
+      `INSERT INTO user_model
+         (id, provider_id, model_id, name, capabilities, input_modalities, input_modalities_explicit,
+          supports_streaming, is_enabled, is_hidden, order_key, created_at, updated_at)
+       VALUES (?, 'modality-migration', ?, ?, '["text-generation"]', ?, ?, 1, 1, 0, ?, ?, ?)`
+    )
+    // The old add form wrote `[]` for "nothing chosen"; only a flagged `[]` is a real clear.
+    insert.run('modality-migration::implicit', 'implicit', 'Implicit', '[]', 0, 'a0', now, now)
+    insert.run('modality-migration::cleared', 'cleared', 'Cleared', '[]', 1, 'a1', now, now)
+    insert.run('modality-migration::set', 'set', 'Set', '["text","image"]', 0, 'a2', now, now)
+    insert.run('modality-migration::unset', 'unset', 'Unset', null, 0, 'a3', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite
+      .prepare(
+        "SELECT model_id, input_modalities FROM user_model WHERE provider_id = 'modality-migration' ORDER BY order_key"
+      )
+      .all() as Array<{ model_id: string; input_modalities: string | null }>
+    expect(rows.map((row) => [row.model_id, row.input_modalities])).toEqual([
+      ['implicit', null],
+      ['cleared', '[]'],
+      ['set', '["text","image"]'],
+      ['unset', null]
+    ])
+    const columns = (sqlite.pragma('table_info(user_model)') as Array<{ name: string }>).map((column) => column.name)
+    expect(columns).not.toContain('input_modalities_explicit')
+  })
+
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     const now = Date.now()
@@ -1048,8 +1240,42 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
-  it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
+  it('leaves existing models routing on their supported-endpoint order after the preference column lands', () => {
+    // Unpinned: this migration is still branch-local and gets regenerated under a new
+    // tag on every merge that appends one upstream.
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('doubao', 'doubao', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    // A pre-existing custom model whose route lives only in `endpoint_types[0]`.
+    sqlite
+      .prepare(
+        `INSERT INTO user_model (id, provider_id, model_id, name, capabilities, endpoint_types, supports_streaming, order_key, created_at, updated_at)
+         VALUES ('doubao::seed-pro', 'doubao', 'seed-pro', 'Seed Pro', '[]', ?, 1, 'a0', ?, ?)`
+      )
+      .run(JSON.stringify(['openai-responses', 'openai-chat-completions']), now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    // The column is added empty — an upgrade must not invent a preference, because
+    // `resolveEffectiveEndpoint` falls back to `endpoint_types[0]` exactly as before.
+    expect(
+      sqlite
+        .prepare(`SELECT preferred_endpoint_type, endpoint_types FROM user_model WHERE id = 'doubao::seed-pro'`)
+        .get()
+    ).toEqual({
+      preferred_endpoint_type: null,
+      endpoint_types: JSON.stringify(['openai-responses', 'openai-chat-completions'])
+    })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO job

@@ -1,7 +1,8 @@
 import { defineProvider } from './types'
 
 const webToolModels = ['gemini-2', 'gemini-3', 'gemini-flash-latest', 'gemini-pro-latest', 'gemini-flash-lite-latest']
-const webSearchImageModels = ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
+// Search grounding per model page: Pro Image and 3.1 Flash Image yes, 3.1 Flash Lite Image no.
+const webSearchImageModels = ['gemini-3-pro-image', 'gemini-3-pro-image-preview', 'gemini-3-1-flash-image']
 
 export default defineProvider({
   id: 'gemini',

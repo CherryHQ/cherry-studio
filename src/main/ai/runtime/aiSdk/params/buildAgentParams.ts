@@ -22,7 +22,7 @@ import {
   MAX_TOOL_CALLS,
   MIN_TOOL_CALLS
 } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
@@ -123,7 +123,9 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
 
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
   const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
     provider,
     model,

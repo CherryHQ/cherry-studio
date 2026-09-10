@@ -51,6 +51,10 @@ export default openaiCompatible({
   name: 'Silicon',
   availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.siliconflow.cn/v1',
+  additionalEndpointConfigs: {
+    'openai-embeddings': { adapterFamily: 'silicon' },
+    'openai-image-generation': { adapterFamily: 'silicon' }
+  },
   reasoningFormat: { type: 'openai-chat' },
   anthropic: 'https://api.siliconflow.cn',
   website: {

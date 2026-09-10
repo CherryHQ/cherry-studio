@@ -1,6 +1,6 @@
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -101,7 +101,7 @@ function mockAvailableModel(providerId: string, internalModelId: string, apiMode
     providerId,
     apiModelId,
     group,
-    capabilities: []
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
   }
   mockListModels.mockReturnValue([model])
 }

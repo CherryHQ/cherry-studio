@@ -114,6 +114,15 @@ export default defineProvider({
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net',
       reasoningFormat: { type: 'openai-chat' }
+    },
+    'openai-embeddings': {
+      adapterFamily: 'cherryin'
+    },
+    'openai-image-generation': {
+      adapterFamily: 'cherryin'
+    },
+    'jina-rerank': {
+      adapterFamily: 'cherryin'
     }
   },
   // Gateway-mapped delivery: `resolveToolCapability` falls back to the vendor
@@ -125,7 +134,12 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels, ...openAIWebSearchModels],
-      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview'],
+      imageModelIds: [
+        'gemini-3-pro-image',
+        'gemini-3-pro-image-preview',
+        'gemini-3-1-flash-image',
+        'gemini-3-1-flash-image-preview'
+      ],
       vendors: ['anthropic', 'gemini', 'openai']
     },
     {

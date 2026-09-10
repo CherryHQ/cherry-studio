@@ -163,8 +163,13 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.addModels(result.current.allModels as any)
     })
 
-    expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedOverlap)
-    expect(toCreateModelDtoMock).toHaveBeenCalledWith('openai', fetchedOverlap, [ENDPOINT_TYPE.OPENAI_RESPONSES])
+    expect(reconcileTriggerMock).toHaveBeenCalledWith({
+      params: { providerId: 'openai' },
+      body: {
+        toAdd: [expect.objectContaining({ modelId: 'overlap-model', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })],
+        toRemove: []
+      }
+    })
   })
 
   it('does not mark custom local models as stale when they are missing remotely', async () => {
@@ -254,16 +259,21 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.addModels([localModel as any, fetchedModel as any])
     })
 
-    expect(createModelsMock).toHaveBeenCalledWith([
-      {
-        providerId: 'openai',
-        modelId: 'fetched-model',
-        name: 'Fetched Model',
-        group: 'OpenAI',
-        endpointTypes: undefined
+    expect(reconcileTriggerMock).toHaveBeenCalledWith({
+      params: { providerId: 'openai' },
+      body: {
+        toAdd: [
+          {
+            providerId: 'openai',
+            modelId: 'fetched-model',
+            name: 'Fetched Model',
+            group: 'OpenAI',
+            endpointTypes: undefined
+          }
+        ],
+        toRemove: []
       }
-    ])
-    expect(resolveCreateModelEndpointTypesMock).toHaveBeenCalledWith({ id: 'openai', isEnabled: false }, fetchedModel)
+    })
     expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
       { id: 'openai', isEnabled: false },
       enableProviderMock,
@@ -272,7 +282,7 @@ describe('useProviderModelPullReconcile', () => {
     )
   })
 
-  it('adds more than 500 models in sequential batches before enabling the provider', async () => {
+  it('submits more than 500 models in one atomic request before enabling the provider', async () => {
     const remoteModels = Array.from({ length: 804 }, (_, index) => ({
       id: `openai::remote-model-${index}`,
       providerId: 'openai',
@@ -286,13 +296,14 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.addModels(remoteModels as any)
     })
 
-    expect(createModelsMock).toHaveBeenCalledTimes(2)
-    expect(createModelsMock.mock.calls[0]?.[0]).toHaveLength(500)
-    expect(createModelsMock.mock.calls[0]?.[0][0]?.modelId).toBe('remote-model-0')
-    expect(createModelsMock.mock.calls[0]?.[0][499]?.modelId).toBe('remote-model-499')
-    expect(createModelsMock.mock.calls[1]?.[0]).toHaveLength(304)
-    expect(createModelsMock.mock.calls[1]?.[0][0]?.modelId).toBe('remote-model-500')
-    expect(createModelsMock.mock.calls[1]?.[0][303]?.modelId).toBe('remote-model-803')
+    expect(reconcileTriggerMock).toHaveBeenCalledTimes(1)
+    expect(reconcileTriggerMock).toHaveBeenCalledWith({
+      params: { providerId: 'openai' },
+      body: {
+        toAdd: remoteModels.map((model) => expect.objectContaining({ modelId: model.apiModelId })),
+        toRemove: []
+      }
+    })
     expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledTimes(1)
     expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
       { id: 'openai', isEnabled: false },
@@ -303,7 +314,7 @@ describe('useProviderModelPullReconcile', () => {
   })
 
   it('shows an operation failure toast when adding models fails', async () => {
-    createModelsMock.mockRejectedValueOnce(new Error('create failed'))
+    reconcileTriggerMock.mockRejectedValueOnce(new Error('create failed'))
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
     await act(async () => {
@@ -313,7 +324,7 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
-  it('stops after a later create batch fails and does not enable the provider', async () => {
+  it('does not enable the provider when a large atomic addition fails', async () => {
     const remoteModels = Array.from({ length: 804 }, (_, index) => ({
       id: `openai::remote-model-${index}`,
       providerId: 'openai',
@@ -321,14 +332,13 @@ describe('useProviderModelPullReconcile', () => {
       name: `Remote Model ${index}`,
       group: 'OpenAI'
     }))
-    createModelsMock.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('second batch failed'))
+    reconcileTriggerMock.mockRejectedValueOnce(new Error('transaction failed'))
     const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
 
     await act(async () => {
       await result.current.addModels(remoteModels as any)
     })
 
-    expect(createModelsMock).toHaveBeenCalledTimes(2)
     expect(enableProviderWhenModelsAvailableMock).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
@@ -341,7 +351,6 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.addModels([fetchedModel as any])
     })
 
-    expect(createModelsMock).toHaveBeenCalledTimes(1)
     expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.add_success_enable_failed')
     expect(toast.error).not.toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
@@ -426,7 +435,7 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.cleanStaleModels()
     })
 
-    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_in_use')
   })
 
   it('shows an operation failure toast when cleaning stale models fails', async () => {

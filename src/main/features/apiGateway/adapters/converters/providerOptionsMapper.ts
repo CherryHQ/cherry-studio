@@ -19,7 +19,7 @@ import {
 import { buildResolvedReasoningProviderOptions } from '@main/ai/utils/options'
 import { resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { nearestEffortForBudget } from '@shared/ai/reasoning'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 
@@ -33,7 +33,9 @@ type AnthropicThinkingConfig = NonNullable<MessageCreateParams['thinking']>
 function resolveProviderReasoningContext(
   provider: Provider,
   model: Model,
-  resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
 ) {
   const { endpointType } = resolvedEndpoint
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, endpointType)
@@ -109,7 +111,9 @@ export function mapAnthropicThinkingToProviderOptions(
   effort?: GatewayReasoningEffort | null,
   maxTokens?: number
 ): ProviderOptions | undefined {
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
   const { endpointType } = resolvedEndpoint
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     return passThroughAnthropicReasoning(config, effort)
@@ -151,7 +155,9 @@ export function mapGeminiThinkingToProviderOptions(
   thinkingConfig: GeminiThinkingConfig,
   maxTokens?: number
 ): ProviderOptions | undefined {
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
   const { endpointType } = resolvedEndpoint
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) return passThroughGeminiThinking(thinkingConfig)
 

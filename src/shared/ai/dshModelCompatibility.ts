@@ -12,12 +12,11 @@
  * back to the local API Gateway when the model is gateway-routable.
  */
 
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { isLoginBasedProvider } from '@shared/utils/provider'
+import { getModelPreferredEndpoint, isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
  * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.7).
@@ -64,19 +63,12 @@ export function mapEndpointToDshApi(
   }
 }
 
-/** The effective chat endpoint the dsh runtime uses, preserving the model's declared preference order. */
-export function resolveDshEndpointType(provider: Provider, model: Model): EndpointType | undefined {
-  return (
-    model.endpointTypes?.[0] ?? resolveGatewayChatRoute(provider, model)?.endpointType ?? provider.defaultChatEndpoint
-  )
-}
-
 /** Resolve the dsh `api` protocol for a Cherry provider+model, or `undefined` if unsupported. */
 export function resolveDshApi(provider: Provider, model: Model): DshApi | undefined {
   // dsh runs as a subprocess with no per-request transport injection, so every login-based
   // provider is undrivable — including the app-managed OAuth ones pi adapts in-process.
   if (isLoginBasedProvider(provider)) return undefined
-  const endpointType = resolveDshEndpointType(provider, model)
+  const endpointType = getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToDshApi(endpointType, adapterFamily)
 }

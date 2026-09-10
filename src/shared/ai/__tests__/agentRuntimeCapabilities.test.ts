@@ -6,7 +6,7 @@ import {
   CHERRYAI_DEFAULT_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -27,7 +27,7 @@ function makeModel(overrides: Partial<Model>): Model {
     id: 'p::m',
     providerId: 'p',
     name: 'M',
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     contextWindow: 128_000,
     supportsStreaming: true,
     isEnabled: true,

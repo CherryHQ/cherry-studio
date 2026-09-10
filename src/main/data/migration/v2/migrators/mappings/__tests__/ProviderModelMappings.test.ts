@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
 
 import { transformModel, transformProvider } from '../ProviderModelMappings'
@@ -25,8 +25,8 @@ describe('ProviderModelMappings', () => {
         'custom-provider'
       )
 
-      expect(enabled.capabilities).toEqual(['function-call'])
-      expect(disabled.capabilities).toEqual([])
+      expect(enabled.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.TEXT_GENERATION])
+      expect(disabled.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
     })
 
     it('leaves inferred v1 web-search entries to the v2 registry default', () => {
@@ -38,7 +38,27 @@ describe('ProviderModelMappings', () => {
         'anthropic'
       )
 
-      expect(result.capabilities).toEqual([])
+      expect(result.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
+    })
+
+    it('keeps the v1 route as an explicit preference when it is not first in the supported set', () => {
+      const result = transformModel(
+        {
+          id: 'claude-sonnet-4-6',
+          endpoint_type: 'anthropic',
+          supported_endpoint_types: ['openai', 'anthropic']
+        } as never,
+        'new-api'
+      )
+
+      expect(result.endpointTypes).toEqual(['openai-chat-completions', 'anthropic-messages'])
+      expect(result.preferredEndpointType).toBe('anthropic-messages')
+    })
+
+    it('leaves the preference unset when v1 pinned no route', () => {
+      const result = transformModel({ id: 'gpt-5', supported_endpoint_types: ['openai'] } as never, 'new-api')
+
+      expect(result.preferredEndpointType).toBeNull()
     })
   })
 

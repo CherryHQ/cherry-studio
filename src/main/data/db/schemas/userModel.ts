@@ -2,8 +2,10 @@
  * User Model table schema
  *
  * Stores complete custom models and user-owned deltas for preset-backed models.
- * Preset-backed runtime models resolve from the current registry on every read;
- * each non-null config column is the corresponding user-owned delta.
+ * Preset-backed runtime models resolve from the current registry on every read.
+ * Every config column stores what the user asked for and nothing else:
+ *   null ⇒ unset (inherit the registry) · [] ⇒ explicitly cleared · value ⇒ override.
+ * Writers never materialise a default or a registry value into these columns.
  *
  * - presetModelId: traceability marker (which preset this came from, if any)
  * - Single PK: id = "providerId::modelId" (deterministic UniqueModelId)
@@ -61,15 +63,14 @@ export const userModelTable = sqliteTable(
     /** Supported input modalities (e.g., TEXT, VISION, AUDIO, VIDEO) */
     inputModalities: text({ mode: 'json' }).$type<Modality[]>(),
 
-    /** Whether inputModalities was explicitly supplied by the user. Historical empty arrays predate
-     *  this provenance bit and are treated as the old add-model form's implicit default. */
-    inputModalitiesExplicit: integer({ mode: 'boolean' }).notNull().default(false),
-
     /** Supported output modalities (e.g., TEXT, VISION, AUDIO, VIDEO, VECTOR) */
     outputModalities: text({ mode: 'json' }).$type<Modality[]>(),
 
     /** Endpoint types (optional, override Provider default) */
     endpointTypes: text({ mode: 'json' }).$type<EndpointType[]>(),
+
+    /** Explicit routing choice, used only for operations compatible with this endpoint. */
+    preferredEndpointType: text().$type<EndpointType>(),
 
     /** Context window size */
     contextWindow: integer(),

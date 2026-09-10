@@ -1,4 +1,4 @@
-import { CURRENCY, type Model } from '@shared/data/types/model'
+import { CURRENCY, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -235,8 +235,42 @@ describe('EditModelDrawer', () => {
     await user.tab()
 
     expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ name: 'Claude 4 Sonnet Renamed' }))
-    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('pricing')
+    // Every field sent is stored as an override, so untouched fields must stay out of the patch.
+    expect(updateModelMock.mock.calls[0][2]).toEqual({ name: 'Claude 4 Sonnet Renamed' })
+  })
+
+  it('hands one overridden field back to the registry from its chip', async () => {
+    const user = userEvent.setup()
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={{ ...makePricingModel(), presetModelId: 'claude-4-sonnet', overrides: { name: true, pricing: true } }}
+      />
+    )
+
+    await user.click(screen.getAllByLabelText('settings.models.edit.overrides.remove')[0])
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual({ name: null })
+  })
+
+  it('hands classification back to the registry when a preset-backed model is reset', async () => {
+    const user = userEvent.setup()
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={{ ...makePricingModel(), presetModelId: 'claude-4-sonnet' }}
+      />
+    )
+
+    await user.click(screen.getByLabelText('common.reset'))
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual({ capabilities: null, inputModalities: null })
   })
 
   it('keeps a queued pricing save when a later unrelated field is edited', async () => {
@@ -481,5 +515,50 @@ describe('EditModelDrawer', () => {
       perImage: { price: 0.04, unit: 'image' },
       perMinute: { price: 0.2 }
     })
+  })
+})
+
+describe('EditModelDrawer operation routing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    updateModelMock.mockResolvedValue(undefined)
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom',
+        name: 'Custom',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com' },
+          [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://example.com' }
+        }
+      }
+    })
+  })
+
+  it('removes incompatible endpoints and preference in the operation patch', async () => {
+    const user = userEvent.setup()
+    const model = {
+      id: 'custom::multi-model',
+      providerId: 'custom',
+      name: 'Multi model',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model
+
+    render(<EditModelDrawer providerId="custom" open onClose={vi.fn()} model={model} />)
+    await user.click(screen.getByRole('button', { name: 'models.type.text' }))
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+        preferredEndpointType: null
+      })
+    )
   })
 })

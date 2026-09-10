@@ -79,6 +79,27 @@ Keep the merge in the main-process owner. Returning a row from one endpoint and
 preset metadata from another would make every renderer consumer reconstruct the
 same entity and let merge semantics drift.
 
+### Delta columns store intent, never inference
+
+A delta column has three states, and the write path stores exactly what the
+caller sent:
+
+| Stored     | Meaning                              | Read                     |
+| ---------- | ------------------------------------ | ------------------------ |
+| `null`     | unset — the user never touched it    | inherit the preset value |
+| `[]` / `""`| explicitly cleared                   | empty replaces the preset|
+| value      | override                             | value replaces the preset|
+
+The write path must not compare a patch against the preset and collapse an
+equal value to `null`, nor fill an absent field with a default: the effective
+entity the client holds is already the merge, so any comparison re-derives
+provenance the boundary erased and stores a guess. `user_model` learned this the
+hard way — a "matches baseline" collapse froze catalog values as overrides when
+lists were reordered, and an add form that wrote `[]` for "nothing chosen" made
+the same stored value mean two things. The entity exposes which fields are
+overrides (`Model.overrides`) so a client can offer "follow the registry"; the
+client sends `null` for that field, and only fields the user touched.
+
 ## Preset Files
 
 Preset modules live under `src/shared/data/presets/` and follow the repository's
@@ -96,6 +117,8 @@ while the owning service or hook applies overrides and validation.
 - Is there a current consumer that needs presets plus persisted user changes?
 - Is Preference or SQLite the actual owner of those changes?
 - Does persistence store a delta rather than a copied preset snapshot?
+- Does the write path store the patch verbatim — no baseline comparison, no
+  defaults filled in for absent fields?
 - Is there one authoritative merge per process that needs the effective value?
 - Do reset operations delete the delta instead of writing the current default?
 - Do tests cover preset updates, user overrides, and reset behavior?

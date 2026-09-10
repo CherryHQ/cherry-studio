@@ -19,6 +19,7 @@ import type {
   ImageModeDef,
   Modality,
   ModelCapability,
+  ModelOperationCapability,
   ReasoningEffort,
   ServerTool,
   SupportSpec
@@ -27,9 +28,12 @@ import {
   CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
-  endpointImpliedCapability,
+  endpointDefaultOperationCapability,
+  getModelEndpointContractIssues,
+  getModelOperationCapabilities,
   ImageGenerationModeSchema,
   ImageGenerationSupportSchema,
+  isEndpointCompatibleWithOperation,
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
@@ -44,8 +48,10 @@ export {
   CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
-  endpointImpliedCapability,
+  endpointDefaultOperationCapability,
+  getModelOperationCapabilities,
   ImageGenerationModeSchema,
+  isEndpointCompatibleWithOperation,
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
@@ -63,6 +69,7 @@ export type {
   ImageModeDef,
   Modality,
   ModelCapability,
+  ModelOperationCapability,
   ReasoningEffort,
   ServerTool,
   SupportSpec
@@ -354,7 +361,29 @@ export const RuntimeModelPricingSchema = z
   })
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
-export const ModelSchema = z.object({
+/**
+ * Preset-backed rows store these as a delta over the registry baseline:
+ * `null` inherits, `[]` (or a value) is a user override. Custom rows own all of them.
+ */
+export const MODEL_OVERRIDE_FIELDS = [
+  'name',
+  'description',
+  'group',
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes',
+  'preferredEndpointType',
+  'contextWindow',
+  'maxInputTokens',
+  'maxOutputTokens',
+  'supportsStreaming',
+  'parameterSupport',
+  'pricing'
+] as const
+export type ModelOverrideField = (typeof MODEL_OVERRIDE_FIELDS)[number]
+
+const ModelObjectSchema = z.object({
   /** Unique identifier: "providerId::modelId" */
   id: UniqueModelIdSchema,
   /** Provider ID */
@@ -363,6 +392,12 @@ export const ModelSchema = z.object({
   apiModelId: z.string().optional(),
   /** Preset catalog model ID this row was created from, if any */
   presetModelId: z.string().nullable().optional(),
+  /**
+   * Which fields this row overrides rather than inherits from its preset — the stored delta's
+   * shape, so a client can tell an override from a baseline value without re-deriving the merge.
+   * Absent on custom rows, which own every field.
+   */
+  overrides: z.partialRecord(z.enum(MODEL_OVERRIDE_FIELDS), z.literal(true)).optional(),
 
   // Display Information
   /** Display name */
@@ -393,6 +428,13 @@ export const ModelSchema = z.object({
   maxInputTokens: z.number().optional(),
   /** Supported endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
+  /**
+   * The user's explicit routing choice. Honored only while it stays available on the current model
+   * and provider; a caller that speaks exactly one dialect still outranks it. Unset — or no longer
+   * available — falls through the rest of the order (supported provider default → declared set →
+   * gateway route → provider default). See `getModelPreferredEndpoint` and `resolveEffectiveEndpoint`.
+   */
+  preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).optional(),
   /** Whether streaming is supported */
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */
@@ -441,6 +483,14 @@ export const ModelSchema = z.object({
   // UI metadata
   /** User notes about this model */
   notes: z.string().optional()
+})
+
+export const PartialModelSchema = ModelObjectSchema.partial()
+
+export const ModelSchema = ModelObjectSchema.superRefine((model, ctx) => {
+  for (const message of getModelEndpointContractIssues(model)) {
+    ctx.addIssue({ code: 'custom', message })
+  }
 })
 
 export type Model = z.infer<typeof ModelSchema>

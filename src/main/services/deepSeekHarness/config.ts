@@ -349,11 +349,15 @@ export function resolveDeepSeekHarnessEndpoint(
     Boolean(endpoint && DIRECT_ENDPOINTS.includes(endpoint as (typeof DIRECT_ENDPOINTS)[number]))
   const hasBaseUrl = (endpoint: EndpointType): boolean => Boolean(provider.endpointConfigs?.[endpoint]?.baseUrl)
   const declaredModelEndpoints = model.endpointTypes?.length ? model.endpointTypes.filter(isSupported) : undefined
-  const endpoint = declaredModelEndpoints
-    ? declaredModelEndpoints.find(hasBaseUrl)
-    : isSupported(provider.defaultChatEndpoint) && hasBaseUrl(provider.defaultChatEndpoint)
-      ? provider.defaultChatEndpoint
-      : DIRECT_ENDPOINTS.find(hasBaseUrl)
+  const preferredEndpoint = [model.preferredEndpointType, provider.defaultChatEndpoint].find(
+    (endpoint): endpoint is (typeof DIRECT_ENDPOINTS)[number] =>
+      isSupported(endpoint) &&
+      hasBaseUrl(endpoint) &&
+      (!declaredModelEndpoints || declaredModelEndpoints.includes(endpoint))
+  )
+  const endpoint =
+    preferredEndpoint ??
+    (declaredModelEndpoints ? declaredModelEndpoints.find(hasBaseUrl) : DIRECT_ENDPOINTS.find(hasBaseUrl))
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
   const rawBaseUrl = provider.endpointConfigs?.[endpoint]?.baseUrl

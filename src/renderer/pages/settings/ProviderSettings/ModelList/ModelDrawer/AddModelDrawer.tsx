@@ -12,17 +12,9 @@ interface AddModelDrawerProps {
   prefill: AddModelDrawerPrefill | null
   onClose: () => void
   onSuccess?: (modelIds: UniqueModelId[]) => void
-  showPurposeSelection?: boolean
 }
 
-export default function AddModelDrawer({
-  providerId,
-  open,
-  prefill,
-  onClose,
-  onSuccess,
-  showPurposeSelection
-}: AddModelDrawerProps) {
+export default function AddModelDrawer({ providerId, open, prefill, onClose, onSuccess }: AddModelDrawerProps) {
   const { t } = useTranslation()
   const [footerBinding, setFooterBinding] = useState<AddModelDrawerFooterBinding | null>(null)
   const handleSuccess = useCallback(
@@ -60,7 +52,6 @@ export default function AddModelDrawer({
             prefill={prefill}
             onSuccess={handleSuccess}
             onCancel={onClose}
-            showPurposeSelection={showPurposeSelection}
             onDrawerFooterBinding={setFooterBinding}
           />
         </div>

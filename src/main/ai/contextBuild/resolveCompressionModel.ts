@@ -14,7 +14,7 @@ import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
 import type { ConversationRef } from '../types'
@@ -65,7 +65,11 @@ export async function resolveCompressionModel(
   }
 
   try {
-    const { sdkConfig } = await resolveSdkConfig(provider, model, resolveEffectiveEndpoint(provider, model))
+    const { sdkConfig } = await resolveSdkConfig(
+      provider,
+      model,
+      resolveEffectiveEndpoint(provider, model, { operationCapability: MODEL_CAPABILITY.TEXT_GENERATION })
+    )
     // App provider extensions are registered beyond the executor's built-in type union.
     const executor = await createExecutor(
       sdkConfig.providerId as Parameters<typeof createExecutor>[0],

@@ -34,7 +34,7 @@ describe('model drawer classification helpers', () => {
     )
   })
 
-  it('separates model type, capabilities, and input modalities', () => {
+  it('separates model operations, capabilities, and input modalities', () => {
     const classification = getInitialModelClassification(
       makeModel({
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
@@ -42,7 +42,7 @@ describe('model drawer classification helpers', () => {
       })
     )
 
-    expect(classification.primaryType).toBe('image')
+    expect(classification.operationCapabilities).toEqual(new Set([MODEL_CAPABILITY.IMAGE_GENERATION]))
     expect(classification.capabilities).toEqual(new Set([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL]))
     expect(classification.inputModalities).toEqual(new Set([MODALITY.IMAGE, MODALITY.AUDIO]))
   })
@@ -66,51 +66,62 @@ describe('model drawer classification helpers', () => {
     ])
   })
 
-  it('switches between editable model types without disabling independent capabilities', () => {
+  it('preserves multiple editable operations and independent capabilities', () => {
     const classification = getInitialModelClassification(
       makeModel({ capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.FUNCTION_CALL] })
     )
-    classification.primaryType = 'rerank'
+    classification.operationCapabilities.add(MODEL_CAPABILITY.RERANK)
     classification.capabilities.add(MODEL_CAPABILITY.REASONING)
 
     expect(buildModelCapabilities([MODEL_CAPABILITY.EMBEDDING], classification)).toEqual([
+      MODEL_CAPABILITY.EMBEDDING,
       MODEL_CAPABILITY.RERANK,
       MODEL_CAPABILITY.FUNCTION_CALL,
       MODEL_CAPABILITY.REASONING
     ])
   })
 
-  it('preserves unsupported catalog model types until the user explicitly chooses a supported type', () => {
+  it('writes text as the base input for a text-generating multimodal model', () => {
+    const classification = getInitialModelClassification()
+    classification.inputModalities.add(MODALITY.IMAGE)
+
+    expect(buildModelInputModalities([], classification)).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
+  })
+
+  it('preserves read-only catalog operations', () => {
     const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
     const classification = getInitialModelClassification(model)
 
-    expect(classification.primaryType).toBeNull()
+    expect(classification.operationCapabilities).toEqual(new Set([MODEL_CAPABILITY.AUDIO_GENERATION]))
     expect(buildModelCapabilities(model.capabilities, classification)).toEqual([MODEL_CAPABILITY.AUDIO_GENERATION])
 
     const reset = getInitialModelClassification(model)
     expect(areModelClassificationsEqual(classification, reset)).toBe(true)
   })
 
-  it('replaces an unsupported audio model type with text after round-trip', () => {
+  it('adds text without removing a read-only audio operation', () => {
     const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
     const classification = getInitialModelClassification(model)
-    classification.primaryType = 'text'
+    classification.operationCapabilities.add(MODEL_CAPABILITY.TEXT_GENERATION)
 
     const capabilities = buildModelCapabilities(model.capabilities, classification)
 
-    expect(capabilities).toEqual([])
-    expect(getInitialModelClassification(makeModel({ capabilities })).primaryType).toBe('text')
+    expect(capabilities).toEqual([MODEL_CAPABILITY.AUDIO_GENERATION, MODEL_CAPABILITY.TEXT_GENERATION])
+    expect(getInitialModelClassification(makeModel({ capabilities })).operationCapabilities).toEqual(
+      new Set([MODEL_CAPABILITY.AUDIO_GENERATION, MODEL_CAPABILITY.TEXT_GENERATION])
+    )
   })
 
-  it('replaces an unsupported audio model type with image after round-trip', () => {
-    const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
+  it('does not lose an operation when another operation is removed', () => {
+    const model = makeModel({
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.EMBEDDING]
+    })
     const classification = getInitialModelClassification(model)
-    classification.primaryType = 'image'
+    classification.operationCapabilities.delete(MODEL_CAPABILITY.IMAGE_GENERATION)
 
     const capabilities = buildModelCapabilities(model.capabilities, classification)
 
-    expect(capabilities).toEqual([MODEL_CAPABILITY.IMAGE_GENERATION])
-    expect(getInitialModelClassification(makeModel({ capabilities })).primaryType).toBe('image')
+    expect(capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING])
   })
 })
 

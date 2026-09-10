@@ -29,10 +29,13 @@ import type {
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import {
+  applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
   configureOpenAIResponsesSummary,
+  defaultOperationCapability,
   deriveLegacyReasoningFields,
   ENDPOINT_TYPE,
+  getModelOperationCapabilities,
   inferAdapterFamily,
   inferReasoningControls,
   inferReasoningMembership,
@@ -63,6 +66,7 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import { getModelPreferredEndpoint } from '@shared/utils/provider'
 import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -147,6 +151,11 @@ export interface ReasoningProviderContext {
   presetProviderId?: Provider['presetProviderId'] | null
   defaultChatEndpoint?: Provider['defaultChatEndpoint']
   endpointConfigs?: Provider['endpointConfigs']
+}
+
+interface ModelEndpointSelection {
+  endpointTypes?: EndpointType[]
+  preferredEndpointType?: EndpointType
 }
 
 function isEmptyPricingEcho(value: unknown): boolean {
@@ -291,26 +300,7 @@ export function applyCapabilityOverride(
   base: ModelCapability[],
   override: { add?: ModelCapability[]; remove?: ModelCapability[]; force?: ModelCapability[] } | null | undefined
 ): ModelCapability[] {
-  if (!override) {
-    return [...base]
-  }
-
-  if (override.force && override.force.length > 0) {
-    return [...override.force]
-  }
-
-  let result = [...base]
-
-  if (override.add?.length) {
-    result = Array.from(new Set([...result, ...override.add]))
-  }
-
-  if (override.remove?.length) {
-    const removeSet = new Set(override.remove)
-    result = result.filter((c) => !removeSet.has(c))
-  }
-
-  return result
+  return applyModelCapabilityOverride(base, override ?? undefined)
 }
 
 /**
@@ -421,7 +411,7 @@ export function createCustomModel(
     apiModelId: modelId,
     name: modelId,
     ownedBy: inferReasoningOwnedBy(modelId),
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     reasoning,
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
     supportsStreaming: true,
@@ -456,6 +446,22 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
     imageGeneration: override.imageGeneration
   }
+}
+
+/**
+ * The operation contract holds over the effective model, so it is closed here — where the registry
+ * baseline is in hand — rather than guessed at write or migration time. A stored capability list
+ * from before the contract (a full override like `["function-call"]`, or a seeded `[]`) keeps what
+ * it says and gains the operation its baseline declares; an unmatched row gets the shared default.
+ */
+export function ensureOperationCapability(model: Model, baseline: Model | null): Model {
+  if (getModelOperationCapabilities(model.capabilities).length > 0) return model
+  const baselineOperations = baseline ? getModelOperationCapabilities(baseline.capabilities) : []
+  const operations =
+    baselineOperations.length > 0
+      ? baselineOperations
+      : [defaultOperationCapability(model.inputModalities, model.outputModalities)]
+  return { ...model, capabilities: [...model.capabilities, ...operations] }
 }
 
 /**
@@ -919,7 +925,10 @@ class ProviderRegistryService {
         return {
           id: providerId,
           presetProviderId: registryProvider?.presetProviderId,
-          defaultChatEndpoint: registryProvider?.defaultChatEndpoint ?? undefined
+          defaultChatEndpoint: registryProvider?.defaultChatEndpoint ?? undefined,
+          endpointConfigs: registryProvider
+            ? (buildPersistedEndpointConfigs(registryProvider.endpointConfigs) as Provider['endpointConfigs'])
+            : undefined
         }
       }
       logger.error('Failed to fetch provider for reasoning profile', error as Error)
@@ -935,16 +944,51 @@ class ProviderRegistryService {
     )
   }
 
+  private resolveEndpointForModelData(
+    context: ReasoningProviderContext,
+    registryOverride: ProtoProviderModelOverride | null,
+    fallbackModelId: string,
+    modelEndpointSelection?: ModelEndpointSelection
+  ): EndpointType | undefined {
+    const endpointTypes = modelEndpointSelection?.endpointTypes ?? registryOverride?.endpointTypes
+    const preferredEndpointType = modelEndpointSelection?.preferredEndpointType
+    const defaultChatEndpoint =
+      context.defaultChatEndpoint ?? this.findProfileProvider(context)?.defaultChatEndpoint ?? undefined
+
+    if (context.endpointConfigs && fallbackModelId) {
+      return getModelPreferredEndpoint(
+        {
+          id: createUniqueModelId(context.id, fallbackModelId),
+          apiModelId: registryOverride?.apiModelId ?? fallbackModelId,
+          endpointTypes: endpointTypes ? [...endpointTypes] : undefined,
+          preferredEndpointType
+        },
+        {
+          id: context.id,
+          presetProviderId: context.presetProviderId ?? undefined,
+          defaultChatEndpoint,
+          endpointConfigs: context.endpointConfigs
+        },
+        MODEL_CAPABILITY.TEXT_GENERATION
+      )
+    }
+
+    return resolveChatEndpointType(endpointTypes, defaultChatEndpoint)
+  }
+
   private resolveProfileForModelData(
     context: ReasoningProviderContext,
     presetModel: ProtoModelConfig | null,
     registryOverride: ProtoProviderModelOverride | null,
-    fallbackModelId: string
+    fallbackModelId: string,
+    modelEndpointSelection?: ModelEndpointSelection
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(context)
-    const endpointType = resolveChatEndpointType(
-      registryOverride?.endpointTypes,
-      context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
+    const endpointType = this.resolveEndpointForModelData(
+      context,
+      registryOverride,
+      fallbackModelId,
+      modelEndpointSelection
     )
     const contract = endpointType ? registryOverride?.reasoningContracts?.[endpointType] : undefined
     const inferredControls =
@@ -966,12 +1010,16 @@ class ProviderRegistryService {
 
   private resolveServiceTierControlForModelData(
     context: ReasoningProviderContext,
-    registryOverride: ProtoProviderModelOverride | null
+    registryOverride: ProtoProviderModelOverride | null,
+    fallbackModelId = registryOverride?.apiModelId ?? registryOverride?.modelId ?? '',
+    modelEndpointSelection?: ModelEndpointSelection
   ): ResolvedServiceTierControl | undefined {
     const profileProvider = this.findProfileProvider(context)
-    const endpointType = resolveChatEndpointType(
-      registryOverride?.endpointTypes,
-      context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
+    const endpointType = this.resolveEndpointForModelData(
+      context,
+      registryOverride,
+      fallbackModelId,
+      modelEndpointSelection
     )
     const endpointControl = endpointType
       ? profileProvider?.endpointConfigs?.[endpointType]?.requestControls?.serviceTier
@@ -992,7 +1040,21 @@ class ProviderRegistryService {
     endpointType?: EndpointType
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(provider)
-    const effectiveEndpoint = endpointType ?? resolveChatEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
+    // An explicit per-model route decides the reasoning dialect too, so it enters as the sole
+    // candidate; without one the heuristic still ranks the whole supported set.
+    const effectiveEndpoint =
+      endpointType ??
+      getModelPreferredEndpoint(
+        model,
+        {
+          id: provider.id,
+          presetProviderId: provider.presetProviderId ?? undefined,
+          defaultChatEndpoint: provider.defaultChatEndpoint,
+          endpointConfigs: provider.endpointConfigs
+        },
+        MODEL_CAPABILITY.TEXT_GENERATION
+      ) ??
+      resolveChatEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
     const providerIds = Array.from(
       new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))
     )
@@ -1109,7 +1171,8 @@ class ProviderRegistryService {
   lookupModel(
     providerId: string,
     modelId: string,
-    providerContextCache?: Map<string, ReasoningProviderContext>
+    providerContextCache?: Map<string, ReasoningProviderContext>,
+    modelEndpointSelection?: ModelEndpointSelection
   ): {
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
@@ -1128,8 +1191,19 @@ class ProviderRegistryService {
     return {
       presetModel,
       registryOverride,
-      reasoningProfile: this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId),
-      serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, registryOverride)
+      reasoningProfile: this.resolveProfileForModelData(
+        providerContext,
+        presetModel,
+        registryOverride,
+        modelId,
+        modelEndpointSelection
+      ),
+      serviceTierControl: this.resolveServiceTierControlForModelData(
+        providerContext,
+        registryOverride,
+        modelId,
+        modelEndpointSelection
+      )
     }
   }
 

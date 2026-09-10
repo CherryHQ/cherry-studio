@@ -278,7 +278,7 @@ describe('buildDshCompositionYaml', () => {
     expect(providerRoute(audioYml, 'deepseek').models[0].input).toEqual(['text'])
   })
 
-  it("honors Google as CherryIN's first declared route when the model supports multiple protocols", () => {
+  it("honors CherryIN's supported provider default when the model supports multiple protocols", () => {
     const provider = {
       id: 'cherryin',
       name: 'CherryIN',
@@ -315,9 +315,9 @@ describe('buildDshCompositionYaml', () => {
 
     const injection = buildDshProviderInjection(provider, model, SECRET_API_KEY)
 
-    expect(injection.api).toBe('google-generative-ai')
-    expect(injection.providerName).toBe('google')
-    expect(injection.baseUrl).toBe('https://open.cherryin.net/v1beta')
+    expect(injection.api).toBe('openai-completions')
+    expect(injection.providerName).toBe('cherryin')
+    expect(injection.baseUrl).toBe('https://open.cherryin.net/v1')
   })
 
   it.each(['gemini', 'cherryin', 'aihubmix', 'dmxapi'])(
@@ -401,7 +401,7 @@ describe('buildDshCompositionYaml', () => {
       providerId: 'openai-codex',
       apiModelId: 'gpt-6-astra',
       name: 'GPT-6 Astra',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
       contextWindow: 272_000,
       reasoning: { selectableEfforts: ['low', 'ultra'] }

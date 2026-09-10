@@ -28,13 +28,15 @@ type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}
 type ProviderPresetPath = Extract<ConcreteApiPaths, `/providers/${string}/preset`>
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
 
+type DiscoveredModel = Model & { reportedEndpointTypes?: RuntimeEndpointType[] }
+
 export function resolveCreateModelEndpointTypes(
   provider: ModelSyncProviderEndpointSource | null | undefined,
-  model: Pick<Model, 'endpointTypes'>
+  model: Pick<DiscoveredModel, 'endpointTypes' | 'presetModelId' | 'reportedEndpointTypes'>
 ): RuntimeEndpointType[] | undefined {
-  if (model.endpointTypes?.length) {
-    return [...model.endpointTypes]
-  }
+  if (model.reportedEndpointTypes?.length) return [...model.reportedEndpointTypes]
+  if (model.presetModelId) return undefined
+  if (model.endpointTypes?.length) return [...model.endpointTypes]
 
   if (!provider || !isNewApiProvider(provider as Provider)) {
     return undefined
@@ -49,23 +51,29 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
 
 export function toCreateModelDto(
   providerId: string,
-  model: Model,
+  model: DiscoveredModel,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
   const modelId = getRawModelId(model)
-  const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
-  const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
+  const resolvedEndpointTypes = endpointTypes ?? resolveCreateModelEndpointTypes(null, model)
+  // A preset-backed row inherits name/group/window from the registry; sending the overlaid
+  // values back would store the registry's own baseline as user overrides.
+  const isPreset = Boolean(model.presetModelId)
 
   return {
     providerId,
     modelId,
-    name: model.name,
-    group: model.group,
-    ...(capabilities ? { capabilities: [...capabilities] } : {}),
+    ...(isPreset
+      ? {}
+      : {
+          name: model.name,
+          group: model.group,
+          capabilities: [...(model.capabilities ?? [])],
+          supportsStreaming: model.supportsStreaming
+        }),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {}),
-    // Discovered rather than registry-supplied for local providers — Ollama's window comes from
-    // `/api/show`, and dropping it here leaves the row without one, so no `num_ctx` is ever sent.
-    ...(model.contextWindow ? { contextWindow: model.contextWindow } : {})
+    // Discovered for local providers (Ollama `/api/show`); without it no `num_ctx` is ever sent.
+    ...(!isPreset && model.contextWindow ? { contextWindow: model.contextWindow } : {})
   }
 }
 
@@ -76,7 +84,7 @@ export function toCreateModelDto(
  * — this layer overlays preset capabilities/limits/pricing that aren't
  * available from the upstream provider SDK.
  */
-async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Model>[]): Promise<Model[]> {
+async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Model>[]): Promise<DiscoveredModel[]> {
   const filteredModels = fetchedModels.filter((model) => !isEmpty(model.name))
   if (filteredModels.length === 0) {
     return []
@@ -97,6 +105,8 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     }
   }
 
+  // `preferredEndpointType` is deliberately absent: refreshing what a provider supports must never
+  // rewrite the user's explicit route.
   const REGISTRY_FIELDS = [
     'name',
     'presetModelId',
@@ -116,7 +126,10 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   ] as const
 
   return filteredModels.map((fetched) => {
-    const base = fetched as Model
+    const base: DiscoveredModel = {
+      ...(fetched as Model),
+      ...(fetched.endpointTypes?.length ? { reportedEndpointTypes: [...fetched.endpointTypes] } : {})
+    }
     const apiId = fetched.apiModelId ?? ''
     // `resolveModels` keys every result by the exact raw id it was sent, so an exact lookup always hits —
     // no fuzzy fallback needed (a slash/dot-stripping fallback used to overlay siblings onto one canonical
@@ -134,6 +147,9 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     const keepFetchedName = !registry.presetModelId && !!base.name && base.name !== base.apiModelId
 
     for (const field of REGISTRY_FIELDS) {
+      if (field === 'capabilities' && !registry.presetModelId && base.capabilities?.length) {
+        continue
+      }
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }
@@ -156,7 +172,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<Model[]> {
+export async function fetchResolvedProviderModels(providerId: string): Promise<DiscoveredModel[]> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
     const fetched = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })

@@ -5,6 +5,8 @@ interface ProviderFieldProps {
   title: ReactNode
   /** Merged onto the title row; use to override label color/weight when needed. */
   titleClassName?: string
+  /** Set when a non-labelable control (a group of inputs) must reference the title as its name. */
+  titleId?: string
   action?: ReactNode
   help?: ReactNode
   children: ReactNode
@@ -15,6 +17,7 @@ interface ProviderFieldProps {
 export default function ProviderField({
   title,
   titleClassName,
+  titleId,
   action,
   help,
   children,
@@ -31,7 +34,9 @@ export default function ProviderField({
         isHorizontal && 'grid grid-cols-[7rem_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 space-y-0'
       )}>
       <div className={cn('flex items-center justify-between gap-3', isHorizontal && 'min-h-8 justify-start')}>
-        <div className={cn('font-medium text-muted-foreground text-sm leading-5', titleClassName)}>{title}</div>
+        <div id={titleId} className={cn('font-medium text-muted-foreground text-sm leading-5', titleClassName)}>
+          {title}
+        </div>
         {action}
       </div>
       {children}

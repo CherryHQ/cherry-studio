@@ -19,6 +19,7 @@ export default defineProvider({
   endpointConfigs: {
     'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://tokenhub.tencentmaas.com' },
     'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://tokenhub.tencentmaas.com/v1' },
+    'openai-image-generation': { adapterFamily: 'openai-compatible' },
     'openai-responses': { adapterFamily: 'openai', baseUrl: 'https://tokenhub.tencentmaas.com/v1' }
   },
   metadata: {

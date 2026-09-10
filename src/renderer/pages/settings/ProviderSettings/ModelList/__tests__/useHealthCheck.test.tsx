@@ -59,7 +59,7 @@ const chatModel: Model = {
   id: 'openai::gpt-4o',
   providerId: 'openai',
   name: 'GPT-4o',
-  capabilities: [],
+  capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false
@@ -182,7 +182,11 @@ describe('useHealthCheck', () => {
         resolveCommit = resolve
       }).then(() => [{ kind: 'api-key' as const, entry: primaryKey }])
     )
-    const reclassifiedModel = { ...imageModel, name: 'Image Model Reclassified', capabilities: [] }
+    const reclassifiedModel = {
+      ...imageModel,
+      name: 'Image Model Reclassified',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
     checkModelsHealthMock.mockResolvedValue([okResult(reclassifiedModel)])
     const { result, rerender } = renderHook(() => useHealthCheck('openai', getCredentialsState()))
 
@@ -308,7 +312,7 @@ describe('useHealthCheck', () => {
     const renamedChatModel = { ...chatModel, name: 'GPT-4o Renamed' }
     models = [
       renamedChatModel,
-      { ...imageModel, capabilities: [] },
+      { ...imageModel, capabilities: [MODEL_CAPABILITY.TEXT_GENERATION] },
       { ...rerankModel, endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }
     ]
     rerender()
@@ -323,6 +327,40 @@ describe('useHealthCheck', () => {
     expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_passed:{\\"count\\":1}'))
     expect(toastSuccessMock).not.toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
   })
+
+  it.each([
+    { preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, inFlight: false },
+    { preferredEndpointType: undefined, inFlight: true }
+  ])(
+    'discards results for a changed endpoint pin ($preferredEndpointType, inFlight=$inFlight)',
+    async ({ preferredEndpointType, inFlight }) => {
+      const pinnedModel = {
+        ...chatModel,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      }
+      models = [pinnedModel, rerankModel]
+      let finishCheck!: (results: ModelWithStatus[]) => void
+      checkModelsHealthMock.mockImplementationOnce(
+        () =>
+          new Promise<ModelWithStatus[]>((resolve) => {
+            finishCheck = resolve
+          })
+      )
+      const { result, rerender } = renderHook(() => useHealthCheck('openai', getCredentialsState()))
+      await act(async () => {
+        await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
+      })
+      if (!inFlight) await act(async () => finishCheck([okResult(pinnedModel), okResult(rerankModel)]))
+
+      models = [{ ...pinnedModel, preferredEndpointType }, rerankModel]
+      rerender()
+      if (inFlight) await act(async () => finishCheck([okResult(pinnedModel), okResult(rerankModel)]))
+
+      await waitFor(() => expect(readModelHealthStatus(chatModel.id)).toBeUndefined())
+      expect(readModelHealthStatus(rerankModel.id)).toMatchObject({ kind: 'ok' })
+    }
+  )
 
   it('aborts and clears an active run on each pending credential draft edit', async () => {
     const signals: AbortSignal[] = []

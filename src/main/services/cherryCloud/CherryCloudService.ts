@@ -10,6 +10,7 @@ import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data
 import {
   createUniqueModelId,
   type EndpointType,
+  MODEL_CAPABILITY,
   type ModelCapability,
   parseUniqueModelId
 } from '@shared/data/types/model'
@@ -660,11 +661,15 @@ export class CherryCloudService extends BaseService {
 
     const reconciledModels = models.map((model) => ({
       ...model,
-      capabilities:
-        model.capabilities ??
-        registryCapabilitiesByModelId.get(model.id) ??
-        currentByModelId.get(model.id)?.capabilities ??
-        []
+      capabilities: [
+        ...new Set([
+          ...(model.capabilities ??
+            registryCapabilitiesByModelId.get(model.id) ??
+            currentByModelId.get(model.id)?.capabilities ??
+            []),
+          MODEL_CAPABILITY.TEXT_GENERATION
+        ])
+      ]
     }))
     const remoteByModelId = new Map(reconciledModels.map((model) => [model.id, model]))
     const missing = reconciledModels.filter((model) => !currentByModelId.has(model.id))

@@ -12,7 +12,8 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
-import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { getModelPreferredEndpoint, resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
@@ -75,7 +76,9 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientSearchAvailable,
           clientFetchAvailable,
           modelToolsPreferred,
-          endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
+          endpointType: modelProvider
+            ? getModelPreferredEndpoint(model, modelProvider, MODEL_CAPABILITY.TEXT_GENERATION)
+            : undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })

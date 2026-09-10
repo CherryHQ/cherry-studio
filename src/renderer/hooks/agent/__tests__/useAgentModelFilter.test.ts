@@ -23,7 +23,7 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-function model(capabilities: Model['capabilities'] = []): Model {
+function model(capabilities: Model['capabilities'] = [MODEL_CAPABILITY.TEXT_GENERATION]): Model {
   return {
     id: 'openai::gpt-4o',
     providerId: 'openai',

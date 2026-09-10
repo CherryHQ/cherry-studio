@@ -9,6 +9,9 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'gateway',
       baseUrl: 'https://ai-gateway.vercel.sh/v1/ai'
+    },
+    'openai-image-generation': {
+      adapterFamily: 'gateway'
     }
   },
   // NO serverTools: unlike cherryin/new-api/aihubmix, this gateway has no reachable native tool.

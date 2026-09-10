@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -7,11 +8,27 @@ import AddModelDrawer from '../ModelDrawer/AddModelDrawer'
 import EditModelDrawer from '../ModelDrawer/EditModelDrawer'
 
 const useProviderMock = vi.fn()
+const useProviderPresetMock = vi.fn()
 const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
+const createModelsMock = vi.fn()
 const updateModelMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
+
+const newApiProvider = {
+  id: 'new-api',
+  name: 'New API',
+  endpointConfigs: {
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+      adapterFamily: 'newapi',
+      baseUrl: 'http://localhost:3000'
+    },
+    [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' },
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' },
+    [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+  }
+}
 
 const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
@@ -42,7 +59,10 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string) => translations[key] ?? key
+      t: (key: string, options?: Record<string, string>) =>
+        key === 'settings.models.add.preferred_endpoint.inherit_resolved'
+          ? `${key} (${options?.endpoint})`
+          : (translations[key] ?? key)
     })
   }
 })
@@ -81,13 +101,15 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args)
+  useProvider: (...args: any[]) => useProviderMock(...args),
+  useProviderPreset: (...args: any[]) => useProviderPresetMock(...args)
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModel: (...args: any[]) => createModelMock(...args),
+    createModels: (...args: any[]) => createModelsMock(...args),
     updateModel: (...args: any[]) => updateModelMock(...args)
   })
 }))
@@ -115,9 +137,46 @@ describe('Model drawers', () => {
     )
 
     useModelsMock.mockReturnValue({ models: [] })
+    useProviderPresetMock.mockReturnValue({ data: undefined })
+    vi.mocked(dataApiService.get).mockImplementation(async () => useProviderPresetMock()?.data?.models ?? [])
   })
 
-  it('renders the legacy add drawer without the inner panel shell and submits through the local drawer form', async () => {
+  it('waits for exact-ID resolution even when the catalog projection is unavailable', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({ provider: { id: 'ppio', name: 'PPIO' } })
+    const resolved = deferred<any[]>()
+    vi.mocked(dataApiService.get).mockReturnValueOnce(resolved.promise)
+    render(<AddModelDrawer providerId="ppio" open prefill={null} onClose={vi.fn()} />)
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'baai/bge-m3')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+    expect(createModelMock).not.toHaveBeenCalled()
+    await act(async () =>
+      resolved.resolve([{ id: 'ppio::baai/bge-m3', apiModelId: 'baai/bge-m3', presetModelId: 'bge-m3' }])
+    )
+    await waitFor(() => expect(createModelMock).toHaveBeenCalled())
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('capabilities')
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('name')
+  })
+
+  it('keeps the input for retry when exact-ID resolution fails', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({ provider: { id: 'ppio', name: 'PPIO' } })
+    vi.mocked(dataApiService.get).mockRejectedValueOnce(new Error('catalog unavailable'))
+    render(<AddModelDrawer providerId="ppio" open prefill={null} onClose={vi.fn()} />)
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'baai/bge-m3')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.models.manage.operation_failed')
+    expect(screen.getByLabelText('settings.models.add.model_id.label')).toHaveValue('baai/bge-m3')
+    expect(createModelMock).not.toHaveBeenCalled()
+    vi.mocked(dataApiService.get).mockResolvedValueOnce([
+      { id: 'ppio::baai/bge-m3', apiModelId: 'baai/bge-m3', presetModelId: 'bge-m3' }
+    ])
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+    await waitFor(() => expect(createModelMock).toHaveBeenCalled())
+    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('capabilities')
+  })
+
+  it('renders the add drawer without the inner panel shell and submits through the local drawer form', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
     })
@@ -152,6 +211,7 @@ describe('Model drawers', () => {
         endpointTypes: undefined
       })
     )
+    // Untouched modalities are the catalog's to decide, not an override the form invents.
     expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('inputModalities')
     expect(onSuccess).toHaveBeenCalledWith(['openai::alpha-model'])
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -180,16 +240,22 @@ describe('Model drawers', () => {
   it('creates a New API model with multiple endpoint types', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'new-api', name: 'New API' }
+      provider: newApiProvider
     })
 
-    render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
+    render(
+      <AddModelDrawer
+        providerId="new-api"
+        open
+        prefill={{ endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }}
+        onClose={vi.fn()}
+      />
+    )
 
     expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
     const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
     const endpointSelect = within(endpointField).getByRole('combobox')
     expect(endpointSelect).toHaveTextContent('endpoint_type.openai')
-    expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
 
     await user.click(endpointSelect)
     await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
@@ -200,26 +266,393 @@ describe('Model drawers', () => {
       expect.objectContaining({
         providerId: 'new-api',
         modelId: 'claude-4-sonnet',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
       })
     )
   })
 
-  it('atomically maps a custom model to image editing from the purpose surface', async () => {
+  it('clears a chosen endpoint when the add form removes it from the supported set', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: newApiProvider
+    })
+
+    render(
+      <AddModelDrawer
+        providerId="new-api"
+        open
+        prefill={{ endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }}
+        onClose={vi.fn()}
+      />
+    )
+
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.anthropic' }))
+
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
+    // One protocol left: nothing to choose between, and the pin must not survive to the payload.
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-only-model')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    )
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ preferredEndpointType: expect.anything() })
+    )
+  })
+
+  it('declares compatible endpoints when a custom model pins one on a preset provider', async () => {
+    const user = userEvent.setup()
+    // doubao-shaped: an ordinary preset provider that speaks both chat completions and responses.
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
+
+    // Nothing is declared yet, so there is no route to choose between.
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai' }))
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai-response' }))
+    await user.keyboard('{Escape}')
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    expect(
+      screen.getByRole('img', {
+        name: 'settings.models.add.preferred_endpoint.label: settings.models.add.preferred_endpoint.tooltip'
+      })
+    ).toBeInTheDocument()
+    expect(
+      within(preferredField).getByRole('radio', { name: /settings\.models\.add\.preferred_endpoint\.inherit/ })
+    ).toBeChecked()
+
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'doubao-seed-2-1-pro')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'doubao',
+        modelId: 'doubao-seed-2-1-pro',
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+      })
+    )
+  })
+
+  it("labels inheritance with the provider's default chat endpoint once the model declares it", async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'custom-model')
+
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai' }))
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai-response' }))
+    await user.keyboard('{Escape}')
+
+    expect(
+      within(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).getByRole('radio', {
+        // The Responses default outranks the declared order, which is the catalog's, not the user's.
+        name: `settings.models.add.preferred_endpoint.inherit_resolved (endpoint_type.openai-response)`
+      })
+    ).toBeChecked()
+  })
+
+  it('leaves the endpoint choice unset when the user never picks one', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'doubao-seed-2-1-pro')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    // Pinning the default anyway would freeze the model against future registry updates.
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ preferredEndpointType: expect.anything() })
+    )
+  })
+
+  it('stores only a preference delta for an untouched preset endpoint declaration', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+    useProviderPresetMock.mockReturnValue({
+      data: {
+        models: [
+          {
+            id: 'doubao::preset-model',
+            providerId: 'doubao',
+            apiModelId: 'preset-model',
+            name: 'Preset Model',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+            supportsStreaming: true
+          }
+        ]
+      }
+    })
+
+    render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'preset-model')
+    await user.click(
+      within(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).getByRole('radio', {
+        name: 'endpoint_type.openai-response'
+      })
+    )
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'preset-model',
+        endpointTypes: undefined,
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+    )
+  })
+
+  it('keeps an explicit endpoint declaration when adding a mixed preset and custom batch', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+    useProviderPresetMock.mockReturnValue({
+      data: {
+        models: [
+          {
+            id: 'doubao::chat-only-preset',
+            providerId: 'doubao',
+            apiModelId: 'chat-only-preset',
+            name: 'Chat Only Preset',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true
+          }
+        ]
+      }
+    })
+
+    render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
+
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai' }))
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai-response' }))
+    await user.keyboard('{Escape}')
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-only-preset,custom-model')
+
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(createModelsMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        modelId: 'chat-only-preset',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      }),
+      expect.objectContaining({
+        modelId: 'custom-model',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+    ])
+  })
+
+  it('rejects a batch containing an existing model before persisting any new model', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+    useModelsMock.mockReturnValue({ models: [{ id: 'openai::existing' }] })
+    const onClose = vi.fn()
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={onClose} />)
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'new-model,existing')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('error.model.exists')
+    expect(createModelMock).not.toHaveBeenCalled()
+    expect(createModelsMock).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('keeps the whole batch available for retry when the atomic create is rejected', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
+    createModelsMock.mockRejectedValueOnce(new Error('second model rejected'))
+    const onClose = vi.fn()
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={onClose} />)
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'first,second')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.models.manage.operation_failed')
+    expect(screen.getByLabelText('settings.models.add.model_id.label')).toHaveValue('first,second')
+    expect(createModelsMock).toHaveBeenCalledWith([
+      expect.objectContaining({ modelId: 'first' }),
+      expect.objectContaining({ modelId: 'second' })
+    ])
+    expect(createModelMock).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('offers no route pin when the provider serves a single chat endpoint', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'anthropic',
+        name: 'Anthropic',
+        presetProviderId: 'anthropic',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' } }
+      }
+    })
+
+    render(<AddModelDrawer providerId="anthropic" open prefill={null} onClose={vi.fn()} />)
+
+    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+  })
+
+  it('shows operation-compatible endpoint controls for a custom provider', () => {
+    const provider = {
+      id: 'custom-provider',
+      name: 'Custom Provider',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com/anthropic' }
+      }
+    }
+    useProviderMock.mockReturnValue({ provider })
+
+    const addDrawer = render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
+
+    // Adding declares what the model speaks; the pin appears once that declaration offers a choice.
+    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+    addDrawer.unmount()
+
+    render(
+      <EditModelDrawer
+        providerId="custom-provider"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'custom-provider::chat-model',
+            providerId: 'custom-provider',
+            apiModelId: 'chat-model',
+            name: 'Chat Model',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).toBeInTheDocument()
+  })
+
+  it('expresses image editing with the image operation, image input, and edit endpoint', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: {
         id: 'custom-provider',
         name: 'Custom Provider',
-        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         endpointConfigs: {
-          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' }
+          [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: { baseUrl: 'https://api.example.com' }
         }
       }
     })
 
     render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_edit\.label/ }))
+    await user.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    await user.click(screen.getByRole('button', { name: 'models.type.image' }))
+    await user.click(screen.getByRole('button', { name: 'models.type.text' }))
+    await user.click(screen.getByRole('button', { name: 'models.type.vision' }))
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.image-edit' }))
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
       target: { value: 'image-editor' }
     })
@@ -234,8 +667,7 @@ describe('Model drawers', () => {
         modelId: 'image-editor',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-        inputModalities: [MODALITY.IMAGE],
-        outputModalities: [MODALITY.IMAGE]
+        inputModalities: [MODALITY.IMAGE]
       })
     )
   })
@@ -253,11 +685,8 @@ describe('Model drawers', () => {
       }
     })
 
-    render(
-      <AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} showPurposeSelection={false} />
-    )
+    render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
 
-    expect(screen.queryByText('settings.models.add.purpose.label')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-model')
     await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
 
@@ -265,7 +694,8 @@ describe('Model drawers', () => {
       expect.objectContaining({
         providerId: 'custom-provider',
         modelId: 'chat-model',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        endpointTypes: undefined,
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
       })
     )
   })
@@ -291,13 +721,13 @@ describe('Model drawers', () => {
 
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
-        inputModalities: [MODALITY.AUDIO]
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        inputModalities: [MODALITY.TEXT, MODALITY.AUDIO]
       })
     )
   })
 
-  it('preserves an explicitly emptied input-modality selection when adding', async () => {
+  it('drops a deselected input modality when adding', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
     })
@@ -315,7 +745,8 @@ describe('Model drawers', () => {
       fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
     })
 
-    expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ inputModalities: [] }))
+    // Toggling audio on and off again is still an edit, so the resulting set is submitted as-is.
+    expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ inputModalities: [MODALITY.TEXT] }))
   })
 
   it('keeps the add-model submit disabled while creating and shows one inline error on failure', async () => {
@@ -366,7 +797,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'claude-4-sonnet',
             group: 'Anthropic',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -432,14 +863,15 @@ describe('Model drawers', () => {
     )
   })
 
-  it('auto-saves an atomic image-generation mapping from the custom model purpose surface', async () => {
+  it('auto-saves image generation as an additional model operation', async () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'custom-provider',
         name: 'Custom Provider',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://api.example.com' }
         }
       }
     })
@@ -454,7 +886,7 @@ describe('Model drawers', () => {
             id: 'custom-provider::image-model',
             providerId: 'custom-provider',
             name: 'Image Model',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
             supportsStreaming: true,
             pricing: {
@@ -467,18 +899,18 @@ describe('Model drawers', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_generation\.label/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'models.type.image' }))
     })
 
     expect(updateModelMock).toHaveBeenCalledWith(
       'custom-provider',
       'image-model',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-        outputModalities: [MODALITY.IMAGE]
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION]
       })
     )
+    // Nothing was dropped from the declared list, so it is not rewritten.
+    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('endpointTypes')
   })
 
   it('does not overwrite the saved chat endpoint when opening the edit drawer', async () => {
@@ -503,7 +935,7 @@ describe('Model drawers', () => {
             id: 'custom-provider::custom-openai-model',
             providerId: 'custom-provider',
             name: 'Custom OpenAI Model',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
             supportsStreaming: true
           } as any
@@ -512,9 +944,9 @@ describe('Model drawers', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toHaveTextContent(
-        'settings.provider.more_endpoints.openai_chat'
-      )
+      expect(
+        within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('combobox')
+      ).toHaveTextContent('endpoint_type.openai')
     })
     expect(updateModelMock).not.toHaveBeenCalled()
   })
@@ -561,7 +993,7 @@ describe('Model drawers', () => {
       'openai',
       'custom-embedding',
       expect.objectContaining({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.EMBEDDING],
         inputModalities: []
       })
     )
@@ -573,7 +1005,7 @@ describe('Model drawers', () => {
       'openai',
       'custom-embedding',
       expect.objectContaining({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.REASONING],
         inputModalities: []
       })
     )
@@ -585,7 +1017,7 @@ describe('Model drawers', () => {
       'openai',
       'custom-embedding',
       expect.objectContaining({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.REASONING],
         inputModalities: [MODALITY.VIDEO]
       })
     )
@@ -609,7 +1041,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'claude-4-sonnet',
             group: 'Anthropic',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -675,7 +1107,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'Model A',
             group: 'Group A',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -705,7 +1137,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'Model B',
             group: 'Group B',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -763,7 +1195,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'Model A',
             group: 'Group A',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -803,7 +1235,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'Model B',
             group: 'Group B',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -833,10 +1265,10 @@ describe('Model drawers', () => {
     ])
   })
 
-  it('auto-saves New API endpoint type changes from the edit drawer', async () => {
+  it('offers only the endpoints the aggregator reported for this model', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'new-api', name: 'New API' }
+      provider: newApiProvider
     })
 
     render(
@@ -850,8 +1282,9 @@ describe('Model drawers', () => {
             providerId: 'new-api',
             name: 'claude-4-sonnet',
             group: 'Anthropic',
-            capabilities: [],
-            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            // What upstream `/models` reported in `supported_endpoint_types`.
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -862,27 +1295,277 @@ describe('Model drawers', () => {
       />
     )
 
-    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
-    expect(within(endpointField).getByRole('button', { name: 'endpoint_type.openai-response' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    expect(
+      within(preferredField)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('value'))
+    ).toEqual(['inherit', ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    // Nothing is pinned yet, so the model inherits — the chip names where that lands today rather
+    // than showing the effective route as if it had been chosen.
+    expect(
+      within(preferredField).getByRole('radio', { name: /settings\.models\.add\.preferred_endpoint\.inherit/ })
+    ).toBeChecked()
     expect(updateModelMock).not.toHaveBeenCalled()
 
-    await user.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai' }))
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.anthropic' }))
 
+    // Routing moves; the upstream-owned supported set is never rewritten.
     expect(updateModelMock).toHaveBeenCalledWith(
       'new-api',
       'claude-4-sonnet',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+        preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       })
+    )
+    expect(updateModelMock.mock.calls.at(-1)?.[2]).not.toHaveProperty('endpointTypes')
+  })
+
+  it('keeps a single-endpoint model showing which protocol it speaks', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            adapterFamily: 'cherryin',
+            baseUrl: 'https://open.cherryin.net'
+          }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="cherryin"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'cherryin::agent/kimi-k2.5',
+            providerId: 'cherryin',
+            name: 'Kimi K2.5',
+            group: 'agent',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    // The same control stays visible for every provider shape, even with one effective route.
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    expect(
+      within(preferredField)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('value'))
+    ).toEqual(['inherit', ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+  })
+
+  it('offers no preference for a model that declares no endpoints', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="doubao"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'doubao::custom-model',
+            providerId: 'doubao',
+            name: 'Custom Model',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    // A pin would have to write the provider's endpoints into the row to be valid; declare first.
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).toBeNull()
+    expect(updateModelMock).not.toHaveBeenCalled()
+  })
+
+  it('narrows an inherited endpoint list without writing it when an operation is dropped', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'openai',
+        name: 'OpenAI',
+        presetProviderId: 'openai',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' },
+          [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://api.openai.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::text-embedding-3',
+            providerId: 'openai',
+            presetModelId: 'text-embedding-3',
+            name: 'Embedding',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'models.type.embedding' }))
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    const patch = updateModelMock.mock.calls[0][2]
+    expect(patch.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
+    // The list is inherited: the read path narrows it, so the row must not start owning it.
+    expect(patch).not.toHaveProperty('endpointTypes')
+  })
+
+  it('hands routing back to the inherited order when the pin is cleared', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="doubao"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'doubao::doubao-seed-2-1-pro',
+            providerId: 'doubao',
+            name: 'doubao-seed-2-1-pro',
+            group: 'doubao',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+            preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+            supportsStreaming: true
+          } as any
+        }
+      />
+    )
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' })).toBeChecked()
+
+    await user.click(
+      within(preferredField).getByRole('radio', { name: /settings\.models\.add\.preferred_endpoint\.inherit/ })
+    )
+
+    // Without an explicit clear the pin was permanent, so a later registry default could never apply.
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'doubao',
+      'doubao-seed-2-1-pro',
+      expect.objectContaining({ preferredEndpointType: null })
     )
   })
 
-  it('shows and preserves the image-edit endpoint when adding another endpoint type', async () => {
+  it('auto-saves an endpoint switch as a routing preference, leaving the supported set alone', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="doubao"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'doubao::doubao-seed-2-1-pro',
+            providerId: 'doubao',
+            name: 'doubao-seed-2-1-pro',
+            group: 'doubao',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    // No stored pin, so the model inherits; the chip names where that lands rather than pretending
+    // the effective route was chosen.
+    expect(
+      within(preferredField).getByRole('radio', { name: /settings\.models\.add\.preferred_endpoint\.inherit/ })
+    ).toBeChecked()
+
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
+
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'doubao',
+      'doubao-seed-2-1-pro',
+      expect.objectContaining({
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      })
+    )
+    expect(updateModelMock.mock.calls.at(-1)?.[2]).not.toHaveProperty('endpointTypes')
+  })
+
+  it('leaves the endpoint declaration alone when only the preference changes', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://open.cherryin.net' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: { baseUrl: 'https://open.cherryin.net' }
+        }
+      }
     })
 
     render(
@@ -896,8 +1579,8 @@ describe('Model drawers', () => {
             providerId: 'cherryin',
             name: 'qwen-image-edit',
             group: 'Image',
-            capabilities: [],
-            endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
+            capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -908,64 +1591,19 @@ describe('Model drawers', () => {
       />
     )
 
-    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
-    expect(within(endpointField).getByText('endpoint_type.image-edit')).toBeInTheDocument()
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.image-edit' }))
 
-    await act(async () => {
-      fireEvent.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai' }))
-    })
-
+    // A preference-only interaction must not emit an unrelated endpoint declaration patch.
+    const patches = updateModelMock.mock.calls.map(([, , patch]) => patch)
+    expect(patches).not.toHaveLength(0)
+    for (const patch of patches) {
+      expect(patch.endpointTypes).toBeUndefined()
+    }
     expect(updateModelMock).toHaveBeenCalledWith(
       'cherryin',
       'qwen-image-edit',
-      expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]
-      })
-    )
-  })
-
-  it('allows clearing the last endpoint type from the edit drawer', async () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
-    })
-
-    render(
-      <EditModelDrawer
-        providerId="cherryin"
-        open
-        onClose={vi.fn()}
-        model={
-          {
-            id: 'cherryin::claude-4-sonnet',
-            providerId: 'cherryin',
-            name: 'claude-4-sonnet',
-            group: 'Anthropic',
-            capabilities: [],
-            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
-            supportsStreaming: true,
-            pricing: {
-              input: { perMillionTokens: 0, currency: 'USD' },
-              output: { perMillionTokens: 0, currency: 'USD' }
-            }
-          } as any
-        }
-      />
-    )
-
-    const responseEndpointButton = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
-      'button',
-      { name: 'endpoint_type.openai-response' }
-    )
-    expect(responseEndpointButton).not.toHaveAttribute('aria-disabled')
-
-    await act(async () => {
-      fireEvent.click(responseEndpointButton)
-    })
-
-    expect(updateModelMock).toHaveBeenCalledWith(
-      'cherryin',
-      'claude-4-sonnet',
-      expect.objectContaining({ endpointTypes: [] })
+      expect.objectContaining({ preferredEndpointType: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT })
     )
   })
 
@@ -1066,7 +1704,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'preset-model',
             group: 'OpenAI',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true
           } as any
         }

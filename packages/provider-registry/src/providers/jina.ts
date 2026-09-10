@@ -5,6 +5,10 @@ export default openaiCompatible({
   name: 'Jina',
   availableInEditions: ['global'],
   baseUrl: 'https://api.jina.ai',
+  additionalEndpointConfigs: {
+    'jina-rerank': { adapterFamily: 'jina-rerank' },
+    'openai-embeddings': { adapterFamily: 'openai-compatible' }
+  },
   website: {
     apiKey: 'https://jina.ai/',
     docs: 'https://api.jina.ai/scalar',

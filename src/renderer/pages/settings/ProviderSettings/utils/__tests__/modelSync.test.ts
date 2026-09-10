@@ -81,6 +81,65 @@ describe('fetchResolvedProviderModels', () => {
     })
   })
 
+  it('keeps discovered operation capabilities for a model without a registry match', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'new-api::opaque-embedding-model',
+        providerId: 'new-api',
+        apiModelId: 'opaque-embedding-model',
+        name: 'opaque-embedding-model',
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'new-api::opaque-embedding-model',
+        providerId: 'new-api',
+        apiModelId: 'opaque-embedding-model',
+        name: 'Opaque Embedding Model',
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+      }
+    ])
+
+    const models = await fetchResolvedProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+    })
+  })
+
+  it('never lets registry metadata rewrite an explicit routing preference', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'doubao::doubao-seed-2-1-pro',
+        providerId: 'doubao',
+        apiModelId: 'doubao-seed-2-1-pro',
+        name: 'doubao-seed-2-1-pro',
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'doubao::doubao-seed-2-1-pro',
+        providerId: 'doubao',
+        apiModelId: 'doubao-seed-2-1-pro',
+        name: 'Doubao Seed 2.1 Pro',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      }
+    ])
+
+    const models = await fetchResolvedProviderModels('doubao')
+
+    expect(models[0]).toMatchObject({
+      name: 'Doubao Seed 2.1 Pro',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+    })
+  })
+
   it('uses registry reasoning controls while preserving discovered thinking support', async () => {
     listModelsMock.mockResolvedValueOnce([
       {
@@ -250,7 +309,7 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('does not forward capabilities for a preset-backed model', () => {
+  it('inherits capabilities and endpoints for a preset-backed model', () => {
     const dto = toCreateModelDto('ppio', {
       id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
       providerId: 'ppio',
@@ -266,11 +325,31 @@ describe('toCreateModelDto', () => {
     } as Model)
 
     expect(dto.capabilities).toBeUndefined()
+    expect(dto.endpointTypes).toBeUndefined()
     expect(dto).toMatchObject({
       providerId: 'ppio',
-      modelId: 'bge-reranker-v2-m3',
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      modelId: 'bge-reranker-v2-m3'
     })
+  })
+
+  it('leaves name, group and context window to the registry for a preset-backed model', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::qwen3:32b' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3:32b',
+      presetModelId: 'qwen3-32b',
+      name: 'Qwen3 32B',
+      group: 'Qwen',
+      contextWindow: 40960,
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto).not.toHaveProperty('name')
+    expect(dto).not.toHaveProperty('group')
+    expect(dto).not.toHaveProperty('contextWindow')
   })
 
   it('forwards all discovered capabilities for a custom model', () => {
@@ -286,6 +365,22 @@ describe('toCreateModelDto', () => {
     } as Model)
 
     expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(dto.supportsStreaming).toBe(true)
+  })
+
+  it('states an empty capability list for a custom model instead of leaving it to the server', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::acme:latest' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'acme:latest',
+      name: 'acme:latest',
+      capabilities: [],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto).toMatchObject({ capabilities: [], supportsStreaming: false })
   })
 
   it('persists a discovered context window so the runtime can send num_ctx', () => {
@@ -336,4 +431,40 @@ describe('toCreateModelDto', () => {
 
     expect(dto.capabilities).toBeUndefined()
   })
+})
+
+describe('discovered endpoint provenance', () => {
+  const preset = {
+    id: 'doubao::doubao-seed-2-1-pro-260628',
+    apiModelId: 'doubao-seed-2-1-pro-260628',
+    providerId: 'doubao',
+    presetModelId: 'doubao-seed-2-1-pro',
+    name: 'Doubao',
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+    endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  } satisfies Model
+
+  it('inherits endpoint declarations when adding only from the catalog', async () => {
+    dataApiGetMock.mockResolvedValueOnce({ models: [preset] })
+    const [model] = await fetchProviderCatalogModels('doubao')
+    expect(
+      toCreateModelDto('doubao', model, resolveCreateModelEndpointTypes({ id: 'doubao' }, model))
+    ).not.toHaveProperty('endpointTypes')
+  })
+
+  it.each([undefined, [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]])(
+    'preserves only protocols explicitly reported upstream (%s)',
+    async (endpointTypes) => {
+      listModelsMock.mockResolvedValueOnce([{ ...preset, presetModelId: undefined, endpointTypes }])
+      dataApiGetMock.mockResolvedValueOnce([preset])
+      const [model] = await fetchResolvedProviderModels('doubao')
+      const dto = toCreateModelDto('doubao', model, resolveCreateModelEndpointTypes({ id: 'doubao' }, model))
+      if (endpointTypes) expect(dto.endpointTypes).toEqual(endpointTypes)
+      else expect(dto).not.toHaveProperty('endpointTypes')
+      expect(model.endpointTypes).toEqual(endpointTypes ?? preset.endpointTypes)
+    }
+  )
 })

@@ -106,7 +106,9 @@ describe('buildPiProviderInjection', () => {
     const provider = makeProvider({
       id: 'cherryin',
       name: 'CherryIN',
-      defaultChatEndpoint: 'openai-chat-completions',
+      // The compat flag is what this covers, so route to Anthropic the way the rest of the chain
+      // now does — through the provider default rather than the declaration order.
+      defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: {
         'anthropic-messages': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
         'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
@@ -125,7 +127,7 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.models?.[0]?.compat).toEqual({ allowEmptySignature: true })
   })
 
-  it('prefers Anthropic Messages when a Pi model also supports OpenAI Chat', () => {
+  it('honors the provider default when Pi supports both routes', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-chat-completions',
       endpointConfigs: {
@@ -137,11 +139,33 @@ describe('buildPiProviderInjection', () => {
 
     const injection = buildPiProviderInjection(provider, model, REAL_KEY)
 
-    expect(injection.providerConfig.api).toBe('anthropic-messages')
-    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com')
+    expect(injection.providerConfig.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com/v1')
   })
 
-  it('does not prefer Anthropic Messages for other endpoint combinations', () => {
+  it('keeps a persisted OpenAI Chat route ahead of the declared Anthropic route', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://gateway.example.com/chat'
+        },
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com/anthropic' }
+      }
+    })
+    const model = makeModel({
+      endpointTypes: ['anthropic-messages', 'openai-chat-completions'],
+      preferredEndpointType: 'openai-chat-completions'
+    })
+
+    const injection = buildPiProviderInjection(provider, model, REAL_KEY)
+
+    expect(injection.providerConfig.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com/chat/v1')
+  })
+
+  it('uses Responses when it is declared before Anthropic Messages', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-responses',
       endpointConfigs: {
@@ -740,7 +764,7 @@ describe('modelInjection service resolution', () => {
       name: 'DeepSeek Free',
       group: CHERRY_CLOUD_MODEL_GROUP,
       endpointTypes: ['anthropic-messages'],
-      capabilities: [],
+      capabilities: ['text-generation'],
       contextWindow: 128_000,
       maxOutputTokens: 8_192
     })
@@ -756,7 +780,7 @@ describe('modelInjection service resolution', () => {
       name: 'P',
       defaultChatEndpoint: 'openai-chat-completions',
       endpointConfigs: {
-        'openai-chat-completions': { adapterFamily: 'bedrock', baseUrl: 'https://gateway.example.com' },
+        'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.example.com' },
         'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://gateway.example.com' }
       }
     })
@@ -764,9 +788,10 @@ describe('modelInjection service resolution', () => {
       id: 'p::m',
       providerId: 'p',
       name: 'M',
-      capabilities: [],
+      capabilities: ['text-generation'],
       contextWindow: 128_000,
-      endpointTypes: ['openai-chat-completions', 'anthropic-messages']
+      endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+      preferredEndpointType: 'anthropic-messages'
     })
 
     await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()

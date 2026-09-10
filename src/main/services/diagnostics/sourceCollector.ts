@@ -1,7 +1,6 @@
-import { once } from 'node:events'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
-import { finished } from 'node:stream/promises'
+import { pipeline } from 'node:stream/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -340,30 +339,27 @@ export async function stageSourceCandidate(
 ): Promise<StagedSource> {
   const snapshot = await openReadableFileSnapshot(candidate.sourcePath)
   const writer = createAtomicWriteStream(destination)
-  const completion = finished(writer)
-  // Observe writer failures immediately while the read loop may still be awaiting another event.
-  void completion.catch(() => undefined)
   let bytes = 0
   let malformedLineCount = 0
 
   try {
-    if (!canStageSnapshot(candidate, snapshot)) throw new SourceChangedError()
+    await pipeline(async function* () {
+      if (!canStageSnapshot(candidate, snapshot)) throw new SourceChangedError()
 
-    for await (const line of readRawLines(snapshot, candidate.identity.size)) {
-      const classified = classifyLine(line, candidate.kind, range)
-      if (classified === 'malformed') {
-        malformedLineCount += 1
-        continue
+      for await (const line of readRawLines(snapshot, candidate.identity.size)) {
+        const classified = classifyLine(line, candidate.kind, range)
+        if (classified === 'malformed') {
+          malformedLineCount += 1
+          continue
+        }
+        if (!classified) continue
+        bytes += classified.data.length
+        yield classified.data
       }
-      if (!classified) continue
-      bytes += classified.data.length
-      if (!writer.write(classified.data)) await once(writer, 'drain')
-    }
-    if (bytes !== candidate.eligibleBytes || malformedLineCount !== candidate.malformedLineCount) {
-      throw new SourceChangedError()
-    }
-    writer.end()
-    await completion
+      if (bytes !== candidate.eligibleBytes || malformedLineCount !== candidate.malformedLineCount) {
+        throw new SourceChangedError()
+      }
+    }, writer)
     return {
       archiveName: candidate.archiveName,
       bytes,
@@ -372,7 +368,6 @@ export async function stageSourceCandidate(
       path: destination
     }
   } catch (error) {
-    if (!writer.destroyed) await writer.abort().catch(() => undefined)
     await remove(destination).catch(() => undefined)
     throw error
   } finally {

@@ -75,6 +75,27 @@ export default defineCreator({
   ],
   models: [
     {
+      // DashScope serves it as a chat model (`qwenChatModels`), and it answers a text turn with
+      // text + audio. Hand-listed because the generator only defaults an operation onto a model
+      // that declares none, so `audio-generation` alone would keep it out of every chat picker.
+      id: 'qwen3-omni-flash',
+      name: 'Qwen3-Omni Flash',
+      family: 'qwen',
+      capabilities: [
+        'text-generation',
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'audio-recognition',
+        'audio-generation',
+        'video-recognition'
+      ],
+      inputModalities: ['text', 'image', 'audio', 'video'],
+      outputModalities: ['text', 'audio'],
+      contextWindow: 65536,
+      maxOutputTokens: 16384
+    },
+    {
       id: 'qwen3-5-4b',
       name: 'Qwen3.5 4B',
       family: 'qwen',

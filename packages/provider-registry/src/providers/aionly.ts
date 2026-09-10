@@ -5,6 +5,12 @@ export default openaiCompatible({
   name: 'AIOnly',
   availableInEditions: ['global'],
   baseUrl: 'https://api.aiionly.com',
+  anthropic: 'https://api.aiionly.com',
+  additionalEndpointConfigs: {
+    'jina-rerank': { adapterFamily: 'openai-compatible' },
+    'openai-embeddings': { adapterFamily: 'openai-compatible' },
+    'openai-image-generation': { adapterFamily: 'openai-compatible' }
+  },
   website: {
     apiKey: 'https://maas.aiionly.com/keyApi',
     docs: 'https://maas.aiionly.com/document',

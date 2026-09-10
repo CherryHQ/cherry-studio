@@ -139,6 +139,68 @@ describe('DeepSeek Harness config transaction', () => {
     ).toThrow('has no DeepSeek Harness compatible endpoint')
   })
 
+  it('routes on the pinned endpoint ahead of the declaration order', () => {
+    const relay = provider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://proxy.example/anthropic' }
+      }
+    })
+    const pinned = model({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    })
+
+    expect(resolveDeepSeekHarnessEndpoint(relay, pinned)).toMatchObject({
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      protocol: 'anthropic-messages'
+    })
+
+    // A pin the harness cannot speak, or the provider does not serve, is ignored rather than fatal.
+    expect(
+      resolveDeepSeekHarnessEndpoint(relay, model({ ...pinned, preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES }))
+    ).toMatchObject({ endpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
+  })
+
+  it('ignores a served preference outside the model declaration', () => {
+    expect(
+      resolveDeepSeekHarnessEndpoint(
+        provider(),
+        model({
+          endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+          preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+        })
+      )
+    ).toEqual({
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      protocol: 'anthropic-messages',
+      baseUrl: 'https://api.anthropic.com'
+    })
+    expect(() =>
+      resolveDeepSeekHarnessEndpoint(
+        provider(),
+        model({
+          endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+          preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+        })
+      )
+    ).toThrow('has no DeepSeek Harness compatible endpoint')
+  })
+
+  it('honors a declared provider default ahead of declaration order', () => {
+    expect(
+      resolveDeepSeekHarnessEndpoint(
+        provider({ defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES }),
+        model({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_RESPONSES] })
+      )
+    ).toEqual({
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
+    })
+  })
+
   it('uses the selected OpenAI endpoint regardless of developer-role support', () => {
     const openAiFirstProvider = provider({
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,

@@ -21,7 +21,6 @@ import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
-  ENDPOINT_TYPE,
   type EndpointType,
   MODALITY,
   type Model,
@@ -129,12 +128,9 @@ export async function materializePiProviderStream(injection: PiProviderInjection
 }
 
 function resolvePiEndpoint(provider: Provider, model: Model) {
-  const preferredEndpoint =
-    model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
-    model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-      ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-      : undefined
-  return resolveEffectiveEndpoint(provider, model, preferredEndpoint)
+  return resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
 }
 
 /**

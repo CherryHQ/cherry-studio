@@ -13,7 +13,7 @@ import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import type { Assistant } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { resolveEffectiveEndpoint } from '../provider/endpoint'
 
@@ -76,7 +76,9 @@ function loadAssistant(assistantId: string | undefined): Assistant | undefined {
 
 function endpointTypeOf(model: Model): EndpointType | undefined {
   try {
-    return resolveEffectiveEndpoint(providerService.getByProviderId(model.providerId), model).endpointType
+    return resolveEffectiveEndpoint(providerService.getByProviderId(model.providerId), model, {
+      operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+    }).endpointType
   } catch (error) {
     logger.warn('could not resolve endpoint for output reservation', { modelId: model.id, error })
     return undefined

@@ -8,8 +8,14 @@
  */
 
 import { application } from '@application'
-import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import type { ModelEndpointContractInput, ModelLookupResult } from '@cherrystudio/provider-registry'
+import {
+  getModelEndpointContractIssues,
+  getModelOperationCapabilities,
+  inferReasoningOwnedBy,
+  isEndpointCompatibleWithOperation
+} from '@cherrystudio/provider-registry'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -18,8 +24,8 @@ import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import {
   createCustomModel,
+  ensureOperationCapability,
   inferCustomModelReasoning,
-  matchesModelPricingBaseline,
   mergePresetModel,
   projectRuntimeReasoning,
   providerRegistryService,
@@ -47,8 +53,8 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
+import { isModelEndpointTypeAvailable } from '@shared/utils/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
-import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -80,6 +86,7 @@ const PRESET_DELTA_FIELDS = [
   'inputModalities',
   'outputModalities',
   'endpointTypes',
+  'preferredEndpointType',
   'contextWindow',
   'maxInputTokens',
   'maxOutputTokens',
@@ -91,6 +98,9 @@ const PRESET_DELTA_FIELDS = [
 type PresetDeltaField = (typeof PRESET_DELTA_FIELDS)[number]
 
 const PRESET_DELTA_FIELD_SET: ReadonlySet<string> = new Set(PRESET_DELTA_FIELDS)
+
+/** Columns `user_model_custom_config_check` requires on a custom row. */
+const CUSTOM_ROW_REQUIRED_FIELDS: ReadonlySet<string> = new Set(['name', 'capabilities', 'supportsStreaming'])
 
 function isPresetDeltaField(field: string): field is PresetDeltaField {
   return PRESET_DELTA_FIELD_SET.has(field)
@@ -170,6 +180,7 @@ export interface UserModelOverlay {
   inputModalities?: Modality[] | null
   outputModalities?: Modality[] | null
   endpointTypes?: EndpointType[] | null
+  preferredEndpointType?: EndpointType | null
   contextWindow?: number | null
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
@@ -197,6 +208,9 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   }
   if (overlay.endpointTypes != null) {
     result.endpointTypes = [...overlay.endpointTypes]
+  }
+  if (overlay.preferredEndpointType != null) {
+    result.preferredEndpointType = overlay.preferredEndpointType
   }
   if (overlay.inputModalities != null) {
     result.inputModalities = [...overlay.inputModalities]
@@ -290,6 +304,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'inputModalities',
   'outputModalities',
   'endpointTypes',
+  'preferredEndpointType',
   ['parameterSupport', 'parameters'],
   'supportsStreaming',
   'contextWindow',
@@ -309,18 +324,18 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     providerId: dto.providerId,
     modelId: dto.modelId,
     presetModelId: null,
-    name: dto.name ?? dto.modelId,
+    name: dto.name ?? null,
     description: dto.description ?? null,
     group: dto.group ?? null,
-    capabilities: (dto.capabilities ?? []) as ModelCapability[],
+    capabilities: (dto.capabilities ?? null) as ModelCapability[] | null,
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
-    inputModalitiesExplicit: dto.inputModalities !== undefined,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
+    preferredEndpointType: (dto.preferredEndpointType ?? null) as EndpointType | null,
     contextWindow: dto.contextWindow ?? null,
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
-    supportsStreaming: dto.supportsStreaming ?? true,
+    supportsStreaming: dto.supportsStreaming ?? null,
     reasoning: null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
@@ -332,35 +347,6 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
 function dtoKeyToDbKey(key: keyof UpdateModelDto): string {
   const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
   return mapping && Array.isArray(mapping) ? mapping[1] : key
-}
-
-function getBaselineField(model: Model, field: PresetDeltaField): unknown {
-  if (field === 'parameters') return model.parameterSupport
-  return model[field as keyof Model]
-}
-
-function matchesBaseline(value: unknown, baseline: unknown, field: PresetDeltaField): boolean {
-  if (field === 'pricing') {
-    return matchesModelPricingBaseline(value, baseline)
-  }
-  return isEqual(value, baseline)
-}
-
-function collectPresetDeltaFields(dto: CreateModelDto | UpdateModelDto, baseline: Model | null): PresetDeltaField[] {
-  const deltaFields = new Set<PresetDeltaField>()
-
-  for (const key of Object.keys(dto) as (keyof UpdateModelDto)[]) {
-    const field = dtoKeyToDbKey(key)
-    if (!isPresetDeltaField(field)) continue
-
-    const value = dto[key]
-    if (value === undefined) continue
-    if (!baseline || !matchesBaseline(value, getBaselineField(baseline, field), field)) {
-      deltaFields.add(field)
-    }
-  }
-
-  return [...deltaFields]
 }
 
 function presetDeltaToNewUserModel(
@@ -379,9 +365,11 @@ function presetDeltaToNewUserModel(
     group: fields.has('group') ? (dto.group ?? null) : null,
     capabilities: fields.has('capabilities') ? ((dto.capabilities ?? null) as ModelCapability[] | null) : null,
     inputModalities: fields.has('inputModalities') ? ((dto.inputModalities ?? null) as Modality[] | null) : null,
-    inputModalitiesExplicit: fields.has('inputModalities'),
     outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
     endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
+    preferredEndpointType: fields.has('preferredEndpointType')
+      ? ((dto.preferredEndpointType ?? null) as EndpointType | null)
+      : null,
     contextWindow: fields.has('contextWindow') ? (dto.contextWindow ?? null) : null,
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
@@ -394,6 +382,19 @@ function presetDeltaToNewUserModel(
   }
 }
 
+/**
+ * An inherited endpoint list is narrowed to the row's own operations: dropping an operation
+ * must not turn the registry's list into an override just to keep the contract satisfied.
+ */
+function narrowInheritedEndpoints(model: Model, row: UserModelRow): Model {
+  if (row.endpointTypes !== null || row.capabilities === null || !model.endpointTypes) return model
+  const operations = getModelOperationCapabilities(model.capabilities)
+  const endpointTypes = model.endpointTypes.filter((endpointType) =>
+    operations.some((operation) => isEndpointCompatibleWithOperation(endpointType, operation))
+  )
+  return endpointTypes.length === model.endpointTypes.length ? model : { ...model, endpointTypes }
+}
+
 function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
   return applyUserOverlay(baseline, {
     name: row.name,
@@ -403,6 +404,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
     endpointTypes: row.endpointTypes,
+    preferredEndpointType: row.preferredEndpointType,
     contextWindow: row.contextWindow,
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
@@ -445,6 +447,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     maxInputTokens: row.maxInputTokens ?? undefined,
     maxOutputTokens: row.maxOutputTokens ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
+    preferredEndpointType: row.preferredEndpointType ?? undefined,
     supportsStreaming: row.supportsStreaming,
     // Strip legacy fields (notably `type`) and materialize the runtime-only
     // selection list until registry enrichment projects the active profile.
@@ -456,6 +459,17 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     isDeprecated: row.isDeprecated,
     notes: row.notes ?? undefined
   }
+}
+
+/** The stored delta's shape: every preset-delta column that is not null is an override. */
+function readOverrides(row: UserModelRow): Model['overrides'] {
+  const overrides: Partial<NonNullable<Model['overrides']>> = {}
+  for (const field of PRESET_DELTA_FIELDS) {
+    if (row[field as keyof UserModelRow] !== null) {
+      overrides[field === 'parameters' ? 'parameterSupport' : field] = true
+    }
+  }
+  return Object.keys(overrides).length > 0 ? overrides : undefined
 }
 
 function applyStoredModelState(model: Model, row: UserModelRow): Model {
@@ -478,29 +492,72 @@ function createPresetFallback(
   serviceTierControl?: ResolvedServiceTierControl
 ): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile, serviceTierControl)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
+  return applyStoredModelState(
+    { ...ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline), overrides: readOverrides(row) },
+    row
+  )
+}
+
+/** Field → messages, so an update can reject only the violations it introduces. */
+type EndpointContractIssues = { capabilities: string[]; preferredEndpointType: string[] }
+
+const PREFERRED_ENDPOINT_UNAVAILABLE = 'Preferred endpoint is not available for this model and provider'
+
+function hasNewIssues(before: string[], after: string[]): boolean {
+  const known = new Set(before)
+  return after.some((issue) => !known.has(issue))
 }
 
 class ModelService {
-  private getRegistryBaseline(
+  /**
+   * The contract holds over the *effective* model — the stored row joined with its registry baseline
+   * and the provider's live endpoint configs — so a row can turn invalid without being touched, when
+   * a provider drops an endpoint or the contract itself tightens. Collect rather than throw so a
+   * write can tell an inherited violation from one it causes.
+   */
+  private collectEffectiveEndpointIssues(
     providerId: string,
     modelId: string,
-    reasoningConfigCache?: Map<string, ReasoningProviderContext>
-  ): Model | null {
-    const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = providerRegistryService.lookupModel(
-      providerId,
-      modelId,
-      reasoningConfigCache
-    )
-    if (!presetModel) return null
-    return mergePresetModel(
-      presetModel,
-      registryOverride,
-      providerId,
-      reasoningProfile.wire,
-      reasoningProfile.support,
-      serviceTierControl
-    )
+    model: ModelEndpointContractInput
+  ): EndpointContractIssues {
+    const issues: EndpointContractIssues = {
+      capabilities: getModelEndpointContractIssues(model),
+      preferredEndpointType: []
+    }
+
+    const preferredEndpointType = model.preferredEndpointType
+    if (!preferredEndpointType) return issues
+
+    const provider = providerService.getByProviderId(providerId)
+    if (
+      !isModelEndpointTypeAvailable(
+        {
+          id: createUniqueModelId(providerId, modelId),
+          apiModelId: modelId,
+          endpointTypes: model.endpointTypes ? [...model.endpointTypes] : undefined,
+          preferredEndpointType
+        },
+        provider,
+        preferredEndpointType
+      )
+    ) {
+      issues.preferredEndpointType.push(PREFERRED_ENDPOINT_UNAVAILABLE)
+    }
+    return issues
+  }
+
+  private assertEffectiveEndpointContract(
+    providerId: string,
+    modelId: string,
+    model: ModelEndpointContractInput
+  ): void {
+    const issues = this.collectEffectiveEndpointIssues(providerId, modelId, model)
+    if (issues.capabilities.length > 0) {
+      throw DataApiErrorFactory.validation({ capabilities: issues.capabilities })
+    }
+    if (issues.preferredEndpointType.length > 0) {
+      throw DataApiErrorFactory.validation({ preferredEndpointType: issues.preferredEndpointType })
+    }
   }
 
   private buildCreateValues(dto: CreateModelDto, registryData?: CreateModelRegistryData): NewUserModelInput {
@@ -516,11 +573,28 @@ class ModelService {
         registryData?.reasoningProfile.support,
         registryData?.serviceTierControl
       )
-      const deltaFields = collectPresetDeltaFields(dto, baseline)
-      return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
+      this.assertEffectiveEndpointContract(dto.providerId, dto.modelId, {
+        capabilities: dto.capabilities ?? baseline.capabilities,
+        endpointTypes: dto.endpointTypes ?? baseline.endpointTypes,
+        preferredEndpointType:
+          dto.preferredEndpointType === null ? undefined : (dto.preferredEndpointType ?? baseline.preferredEndpointType)
+      })
+      const overriddenFields = (Object.keys(dto) as (keyof CreateModelDto)[])
+        .filter((key) => dto[key] !== undefined)
+        .map((key) => dtoKeyToDbKey(key as keyof UpdateModelDto))
+        .filter(isPresetDeltaField)
+      return presetDeltaToNewUserModel(dto, presetModel.id, overriddenFields)
     }
 
-    // No preset: a custom model. When the id/capabilities say the model reasons,
+    // No preset: a custom model owns every field `user_model_custom_config_check` requires.
+    const missing = (['name', 'capabilities', 'supportsStreaming'] as const).filter((key) => dto[key] == null)
+    if (missing.length > 0) {
+      throw DataApiErrorFactory.validation(
+        Object.fromEntries(missing.map((key) => [key, ['A custom model must own this field']]))
+      )
+    }
+
+    // When the id/capabilities say the model reasons,
     // infer the controls from the registry heuristics so custom rows are
     // descriptor-driven like catalog rows (#16598).
     if (dtoValues.reasoning == null) {
@@ -538,45 +612,39 @@ class ModelService {
       if (inferred) dtoValues.reasoning = inferred
     }
 
+    this.assertEffectiveEndpointContract(dto.providerId, dto.modelId, {
+      capabilities: dtoValues.capabilities ?? undefined,
+      endpointTypes: dtoValues.endpointTypes ?? undefined,
+      preferredEndpointType: dtoValues.preferredEndpointType ?? undefined
+    })
+
     return dtoValues
   }
 
   private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
-    const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
-      .map(dtoKeyToDbKey)
-      .some(isPresetDeltaField)
-
-    let baseline: Model | null = null
-    if (existing.presetModelId && hasPresetDeltaField) {
-      try {
-        baseline = this.getRegistryBaseline(existing.providerId, existing.modelId)
-      } catch (error) {
-        logger.warn('Registry baseline lookup failed; preserving model fields as user overrides', {
-          providerId: existing.providerId,
-          modelId: existing.modelId,
-          error
-        })
-      }
-    }
-
     for (const entry of UPDATE_MODEL_FIELD_MAP) {
       const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
       const value = dto[dtoKey]
       if (value === undefined) continue
-
-      if (existing.presetModelId && isPresetDeltaField(String(dbKey))) {
-        const field = String(dbKey) as PresetDeltaField
-        if (baseline && matchesBaseline(value, getBaselineField(baseline, field), field)) {
-          ;(updates as Record<string, unknown>)[dbKey] = null
-        } else {
-          ;(updates as Record<string, unknown>)[dbKey] = value
-        }
-      } else {
-        ;(updates as Record<string, unknown>)[dbKey] = value
+      // `null` hands a preset-backed field back to the registry; a custom row has nowhere to hand it.
+      if (value === null && !existing.presetModelId && CUSTOM_ROW_REQUIRED_FIELDS.has(String(dbKey))) {
+        throw DataApiErrorFactory.validation({ [dtoKey]: ['A custom model must own this field'] })
       }
+      ;(updates as Record<string, unknown>)[dbKey] = value
     }
-    if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
+
+    // Reject only the contract violations this patch introduces: a row can already violate the
+    // contract without being touched, and the read path tolerates that.
+    const [before, after] = this.enrichRowsFromRegistry([existing, { ...existing, ...updates }])
+    const issuesBefore = this.collectEffectiveEndpointIssues(existing.providerId, existing.modelId, before)
+    const issuesAfter = this.collectEffectiveEndpointIssues(existing.providerId, existing.modelId, after)
+    if (hasNewIssues(issuesBefore.capabilities, issuesAfter.capabilities)) {
+      throw DataApiErrorFactory.validation({ capabilities: issuesAfter.capabilities })
+    }
+    if (hasNewIssues(issuesBefore.preferredEndpointType, issuesAfter.preferredEndpointType)) {
+      throw DataApiErrorFactory.validation({ preferredEndpointType: issuesAfter.preferredEndpointType })
+    }
     return updates
   }
 
@@ -631,6 +699,30 @@ class ModelService {
       })
     }
 
+    // `knowledge_base.embedding_model_id` has no ON DELETE clause, so deleting a referenced model
+    // aborts the whole reconcile transaction. Skip those rows instead of failing the batch.
+    const knowledgeBaseModelIds = new Set(
+      db
+        .select({ id: knowledgeBaseTable.embeddingModelId })
+        .from(knowledgeBaseTable)
+        .where(
+          inArray(
+            knowledgeBaseTable.embeddingModelId,
+            rows.map((row) => row.id)
+          )
+        )
+        .all()
+        .map((row) => row.id)
+        .filter((id): id is string => id != null)
+    )
+    if (knowledgeBaseModelIds.size > 0) {
+      logger.warn('Skipped knowledge-base embedding model removal during reconcile', {
+        providerId,
+        skippedCount: knowledgeBaseModelIds.size,
+        skippedIds: [...knowledgeBaseModelIds]
+      })
+    }
+
     const removableCustomModelIds = new Set([...customModelIds].filter((id) => !userDefaultIds.has(id)))
 
     if (managedDefaultIds.size > 0) {
@@ -651,7 +743,11 @@ class ModelService {
 
     return {
       toRemove: toRemove.filter(
-        (id) => !managedDefaultIds.has(id) && !userDefaultIds.has(id) && !removableCustomModelIds.has(id)
+        (id) =>
+          !managedDefaultIds.has(id) &&
+          !userDefaultIds.has(id) &&
+          !removableCustomModelIds.has(id) &&
+          !knowledgeBaseModelIds.has(id)
       ),
       presetBackedRemovalIds
     }
@@ -711,8 +807,21 @@ class ModelService {
     return rows.map((row) => {
       if (row.presetModelId) {
         try {
-          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-            providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
+          const modelEndpointSelection =
+            row.endpointTypes || row.preferredEndpointType
+              ? {
+                  endpointTypes: row.endpointTypes ?? undefined,
+                  preferredEndpointType: row.preferredEndpointType ?? undefined
+                }
+              : undefined
+          const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = modelEndpointSelection
+            ? providerRegistryService.lookupModel(
+                row.providerId,
+                row.modelId,
+                reasoningConfigCache,
+                modelEndpointSelection
+              )
+            : providerRegistryService.lookupModel(row.providerId, row.modelId, reasoningConfigCache)
           if (!presetModel) {
             return createPresetFallback(row, reasoningProfile.wire, serviceTierControl)
           }
@@ -725,9 +834,15 @@ class ModelService {
             reasoningProfile.support,
             serviceTierControl
           )
-          const resolved = applyStoredPresetDeltas(baseline, row)
+          const resolved = narrowInheritedEndpoints(
+            ensureOperationCapability(applyStoredPresetDeltas(baseline, row), baseline),
+            row
+          )
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
-          return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
+          return applyStoredModelState(
+            { ...(imageGeneration ? { ...resolved, imageGeneration } : resolved), overrides: readOverrides(row) },
+            row
+          )
         } catch (error) {
           logger.warn('Registry enrichment failed; serving preset-backed model with a minimal fallback', {
             providerId: row.providerId,
@@ -738,12 +853,20 @@ class ModelService {
         }
       }
 
-      const model = customRowToRuntimeModel(row)
+      const model = ensureOperationCapability(customRowToRuntimeModel(row), null)
       const modelId = model.apiModelId
       if (!modelId) return model
       try {
-        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
-          providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
+        const modelEndpointSelection =
+          model.endpointTypes || model.preferredEndpointType
+            ? {
+                endpointTypes: model.endpointTypes,
+                preferredEndpointType: model.preferredEndpointType
+              }
+            : undefined
+        const { presetModel, registryOverride, reasoningProfile, serviceTierControl } = modelEndpointSelection
+          ? providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache, modelEndpointSelection)
+          : providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const registryModel = presetModel
           ? mergePresetModel(
@@ -761,9 +884,7 @@ class ModelService {
         if (model.description === undefined && registryModel?.description !== undefined) {
           updates.description = registryModel.description
         }
-        const hasExplicitInputModalities =
-          row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
-        if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
+        if (row.inputModalities === null && registryModel?.inputModalities !== undefined) {
           updates.inputModalities = registryModel.inputModalities
         }
         if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {
@@ -1169,7 +1290,14 @@ class ModelService {
             .orderBy(asc(userModelTable.orderKey))
             .all() as UserModelRow[]
         }),
-      createModelsSqliteHandlers(values)
+      {
+        ...createModelsSqliteHandlers(values),
+        // The provider is asserted before the transaction, so a foreign key violation here is the
+        // delete side: a row still referenced by another table, not a missing parent.
+        ...(payload.toRemove.length > 0
+          ? deleteModelsSqliteHandlers(`${payload.toRemove.length} model(s) during reconcile`)
+          : {})
+      }
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()

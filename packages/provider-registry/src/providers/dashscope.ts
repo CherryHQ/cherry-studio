@@ -370,10 +370,19 @@ export default defineProvider({
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-chat' }
     },
+    'openai-embeddings': {
+      adapterFamily: 'dashscope'
+    },
+    'openai-image-generation': {
+      adapterFamily: 'dashscope'
+    },
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
       reasoningFormat: { type: 'openai-responses' }
+    },
+    'jina-rerank': {
+      adapterFamily: 'dashscope'
     }
   },
   serverTools: [

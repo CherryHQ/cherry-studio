@@ -39,6 +39,12 @@ export default defineProvider({
       baseUrl: 'http://localhost:3000',
       reasoningFormat: { type: 'openai-chat' }
     },
+    'openai-embeddings': {
+      adapterFamily: 'newapi'
+    },
+    'openai-image-generation': {
+      adapterFamily: 'newapi'
+    },
     // `newapi` on every endpoint, so all four route through the NewAPI adapter and get the
     // per-route version segment. Left inferred, these two resolve to the plain `openai` / `google`
     // adapters, which read the host verbatim: `/responses` with no `/v1`, and `/v1/…:generateContent`
@@ -47,6 +53,9 @@ export default defineProvider({
       adapterFamily: 'newapi'
     },
     'google-generate-content': {
+      adapterFamily: 'newapi'
+    },
+    'jina-rerank': {
       adapterFamily: 'newapi'
     }
   },
@@ -58,7 +67,12 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels, ...openAIWebSearchModels],
-      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview'],
+      imageModelIds: [
+        'gemini-3-pro-image',
+        'gemini-3-pro-image-preview',
+        'gemini-3-1-flash-image',
+        'gemini-3-1-flash-image-preview'
+      ],
       vendors: ['anthropic', 'gemini', 'openai']
     },
     {
