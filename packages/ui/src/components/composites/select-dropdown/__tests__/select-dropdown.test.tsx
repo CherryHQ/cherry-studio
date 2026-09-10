@@ -1,10 +1,35 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { SelectDropdown } from '../index'
+
+const virtualizer = vi.hoisted(() => ({
+  startIndex: 0,
+  scrollToIndex: vi.fn((index: number) => {
+    virtualizer.startIndex = index
+  })
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count, estimateSize }: { count: number; estimateSize: () => number }) => ({
+    getTotalSize: () => count * estimateSize(),
+    getVirtualItems: () => {
+      const indexes = virtualizer.startIndex === 0 ? [0, 1] : [virtualizer.startIndex]
+      return indexes
+        .filter((index) => index < count)
+        .map((index) => ({
+          index,
+          key: index,
+          size: estimateSize(),
+          start: index * estimateSize()
+        }))
+    },
+    scrollToIndex: virtualizer.scrollToIndex
+  })
+}))
 
 type Item = { id: string; label: string }
 
@@ -33,6 +58,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  virtualizer.startIndex = 0
 })
 
 describe('SelectDropdown', () => {
@@ -57,11 +83,55 @@ describe('SelectDropdown', () => {
     it('opens popover and shows items on trigger click', () => {
       render(<SelectDropdown {...defaultProps} />)
       // Click the trigger button to open
-      fireEvent.click(screen.getByRole('button'))
+      const trigger = screen.getByRole('button')
+      fireEvent.click(trigger)
       // All items should be visible
       expect(screen.getByText('Alpha')).toBeInTheDocument()
       expect(screen.getByText('Beta')).toBeInTheDocument()
       expect(screen.getByText('Gamma')).toBeInTheDocument()
+      expect(trigger).toHaveAttribute('aria-haspopup', 'listbox')
+      expect(trigger).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('listbox')).toHaveAttribute('aria-labelledby', trigger.id)
+      expect(screen.getAllByRole('option')).toHaveLength(3)
+    })
+
+    it('moves focus between options with arrow keys', () => {
+      render(<SelectDropdown {...defaultProps} />)
+      fireEvent.click(screen.getByRole('button'))
+      const options = screen.getAllByRole('option')
+      options[0].focus()
+
+      fireEvent.keyDown(options[0], { key: 'ArrowDown' })
+      expect(options[1]).toHaveFocus()
+      fireEvent.keyDown(options[1], { key: 'End' })
+      expect(options[2]).toHaveFocus()
+      fireEvent.keyDown(options[2], { key: 'ArrowDown' })
+      expect(options[0]).toHaveFocus()
+    })
+
+    it('supports option navigation immediately after the listbox opens', async () => {
+      render(<SelectDropdown {...defaultProps} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      const firstOption = screen.getByRole('option', { name: 'Alpha' })
+      await waitFor(() => expect(firstOption).toHaveFocus())
+      fireEvent.keyDown(firstOption, { key: 'End' })
+
+      expect(screen.getByRole('option', { name: 'Gamma' })).toHaveFocus()
+    })
+
+    it('moves focus to options outside the rendered virtual window', async () => {
+      render(<SelectDropdown {...defaultProps} virtualize />)
+      fireEvent.click(screen.getByRole('button'))
+      const firstOption = screen.getByRole('option', { name: 'Alpha' })
+      firstOption.focus()
+
+      fireEvent.keyDown(firstOption, { key: 'End' })
+
+      expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(2, { align: 'auto' })
+      await waitFor(() => {
+        expect(screen.getByRole('option', { name: 'Gamma' })).toHaveFocus()
+      })
     })
 
     it('calls onSelect when an item is clicked', () => {
@@ -70,6 +140,18 @@ describe('SelectDropdown', () => {
       fireEvent.click(screen.getByRole('button'))
       fireEvent.click(screen.getByText('Alpha'))
       expect(onSelect).toHaveBeenCalledWith('1')
+    })
+
+    it('keeps the public remove action separate from selection', () => {
+      const onRemove = vi.fn()
+      const onSelect = vi.fn()
+      render(<SelectDropdown {...defaultProps} onRemove={onRemove} onSelect={onSelect} removeLabel="Remove item" />)
+      fireEvent.click(screen.getByRole('button'))
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Remove item' })[1])
+
+      expect(onRemove).toHaveBeenCalledWith('2')
+      expect(onSelect).not.toHaveBeenCalled()
     })
 
     it('handles wheel scrolling for non-virtualized lists rendered inside modal dialogs', () => {
@@ -94,19 +176,6 @@ describe('SelectDropdown', () => {
       render(<SelectDropdown {...defaultProps} items={[]} emptyText="Nothing here" />)
       fireEvent.click(screen.getByRole('button'))
       expect(screen.getByText('Nothing here')).toBeInTheDocument()
-    })
-  })
-
-  describe('remove callback', () => {
-    it('renders remove button and calls onRemove', () => {
-      const onRemove = vi.fn()
-      render(<SelectDropdown {...defaultProps} onRemove={onRemove} removeLabel="Delete" />)
-      fireEvent.click(screen.getByRole('button'))
-      // Find remove buttons by aria-label
-      const removeBtns = screen.getAllByLabelText('Delete')
-      expect(removeBtns).toHaveLength(3)
-      fireEvent.click(removeBtns[0])
-      expect(onRemove).toHaveBeenCalledWith('1')
     })
   })
 

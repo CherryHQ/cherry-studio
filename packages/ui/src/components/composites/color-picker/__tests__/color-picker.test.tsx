@@ -1,0 +1,302 @@
+// @vitest-environment jsdom
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import {
+  ColorPicker,
+  ColorPickerAlpha,
+  type ColorPickerAlphaProps,
+  ColorPickerEyeDropper,
+  ColorPickerFormat,
+  ColorPickerHue,
+  type ColorPickerHueProps,
+  ColorPickerOutput,
+  ColorPickerSelection
+} from '../index'
+
+const formatLabels = {
+  alphaPercentage: 'Opacity',
+  css: 'CSS value',
+  hex: 'Hex value',
+  hsl: ['Hue', 'Saturation', 'Lightness'] as const,
+  rgb: ['Red', 'Green', 'Blue'] as const
+}
+
+const mockSelectionRect = (selection: HTMLElement) => {
+  vi.spyOn(selection, 'getBoundingClientRect').mockReturnValue({
+    bottom: 100,
+    height: 100,
+    left: 0,
+    right: 100,
+    top: 0,
+    width: 100,
+    x: 0,
+    y: 0,
+    toJSON: () => ({})
+  })
+}
+
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('ColorPicker', () => {
+  it('renders the fallback color when the supplied value is invalid', () => {
+    render(
+      <ColorPicker value="#zzz">
+        <ColorPickerFormat labels={formatLabels} />
+      </ColorPicker>
+    )
+
+    expect(screen.getByLabelText<HTMLInputElement>('Hex value').value).toBe('#000000')
+  })
+
+  it('uses caller-provided labels for the format selector and readout', () => {
+    render(
+      <ColorPicker>
+        <ColorPickerOutput aria-label="Color format" />
+        <ColorPickerFormat labels={formatLabels} />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Color format' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'Hex value' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'Opacity' })).toBeTruthy()
+  })
+
+  it('does not fire onChange on mount when controlled', () => {
+    const onChange = vi.fn()
+    render(<ColorPicker value="#3366ff" onChange={onChange} />)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('does not fire onChange when the controlled value is re-fed (no round-trip)', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<ColorPicker value="#3366ff" onChange={onChange} />)
+    rerender(<ColorPicker value="#22aa55" onChange={onChange} />)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('resyncs to the controlled value when the parent rejects the change', () => {
+    const onChange = vi.fn()
+    render(
+      <ColorPicker value="#3366ff" onChange={onChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+    const initialSaturation = selection.getAttribute('aria-valuenow')
+
+    // ArrowLeft nudges saturation down; the parent keeps value unchanged (rejection)
+    fireEvent.keyDown(selection, { key: 'ArrowLeft', shiftKey: true })
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(selection.getAttribute('aria-valuenow')).toBe(initialSaturation)
+  })
+
+  it('syncs to a later (debounced) value commit even when onChange already fired', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <ColorPicker value="#3366ff" onChange={onChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+    const initialSaturation = selection.getAttribute('aria-valuenow')
+    const initialValueText = selection.getAttribute('aria-valuetext')
+
+    // Debounced parent: onChange fires but the value prop stays put for now
+    fireEvent.keyDown(selection, { key: 'ArrowLeft', shiftKey: true })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(selection.getAttribute('aria-valuenow')).toBe(initialSaturation)
+
+    // The debounce later commits a new value: the picker must adopt it
+    rerender(
+      <ColorPicker value="#22aa55" onChange={onChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+    expect(selection.getAttribute('aria-valuetext')).not.toBe(initialValueText)
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('follows the interaction when the parent accepts the change', () => {
+    const Harness = () => {
+      const [color, setColor] = useState('#3366ff')
+      return (
+        <ColorPicker value={color} onChange={([r, g, b, a]) => setColor(`rgba(${r}, ${g}, ${b}, ${a})`)}>
+          <ColorPickerSelection />
+        </ColorPicker>
+      )
+    }
+    render(<Harness />)
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+    const initialSaturation = Number(selection.getAttribute('aria-valuenow'))
+
+    fireEvent.keyDown(selection, { key: 'ArrowLeft', shiftKey: true })
+
+    expect(Number(selection.getAttribute('aria-valuenow'))).toBeLessThan(initialSaturation)
+  })
+
+  it('preserves caller event handlers while the color surface handles interactions', () => {
+    const onKeyDown = vi.fn()
+    const onPointerDown = vi.fn()
+    render(
+      <ColorPicker defaultValue="#3366ff">
+        <ColorPickerSelection onKeyDown={onKeyDown} onPointerDown={onPointerDown} />
+      </ColorPicker>
+    )
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+    mockSelectionRect(selection)
+
+    fireEvent.keyDown(selection, { key: 'ArrowLeft' })
+    fireEvent.pointerDown(selection, { clientX: 50, clientY: 50 })
+
+    expect(onKeyDown).toHaveBeenCalledTimes(1)
+    expect(onPointerDown).toHaveBeenCalledTimes(1)
+  })
+
+  it('maps the visible HSV plane to the emitted color', async () => {
+    const onChange = vi.fn()
+    render(
+      <ColorPicker defaultValue="#ff0000" onChange={onChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+    mockSelectionRect(selection)
+
+    fireEvent(
+      selection,
+      new MouseEvent('pointerdown', {
+        bubbles: true,
+        clientX: 50,
+        clientY: 0
+      })
+    )
+
+    await waitFor(() => {
+      expect(onChange).toHaveBeenLastCalledWith([255, 128, 128, 1])
+    })
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retain a notification after a boundary no-op', () => {
+    const initialOnChange = vi.fn()
+    const nextOnChange = vi.fn()
+    const { rerender } = render(
+      <ColorPicker value="#000000" onChange={initialOnChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+
+    fireEvent.keyDown(selection, { key: 'ArrowLeft' })
+    expect(initialOnChange).not.toHaveBeenCalled()
+
+    rerender(
+      <ColorPicker value="#000000" onChange={nextOnChange}>
+        <ColorPickerSelection />
+      </ColorPicker>
+    )
+
+    expect(nextOnChange).not.toHaveBeenCalled()
+  })
+
+  it('labels the interactive hue slider thumb', () => {
+    render(
+      <ColorPicker>
+        <ColorPickerHue aria-label="Localized hue" />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider', { name: 'Localized hue' })).toBeTruthy()
+  })
+
+  it('lets callers localize the selection value description', () => {
+    render(
+      <ColorPicker defaultValue="#3366ff">
+        <ColorPickerSelection aria-valuetext="Localized saturation and brightness" />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('Localized saturation and brightness')
+  })
+
+  it('labels the interactive alpha slider thumb', () => {
+    render(
+      <ColorPicker>
+        <ColorPickerAlpha aria-label="Localized alpha" />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider', { name: 'Localized alpha' })).toBeTruthy()
+  })
+
+  it('keeps channel lower bounds owned by the picker', () => {
+    const hueProps: ColorPickerHueProps = {
+      // @ts-expect-error Hue starts at zero by contract.
+      min: 10
+    }
+    const alphaProps: ColorPickerAlphaProps = {
+      // @ts-expect-error Alpha starts at zero by contract.
+      min: 10
+    }
+    render(
+      <ColorPicker>
+        <ColorPickerHue {...hueProps} aria-label="Hue range" />
+        <ColorPickerAlpha {...alphaProps} aria-label="Alpha range" />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider', { name: 'Hue range' }).getAttribute('aria-valuemin')).toBe('0')
+    expect(screen.getByRole('slider', { name: 'Alpha range' }).getAttribute('aria-valuemin')).toBe('0')
+  })
+
+  it('emits alpha on the 0-1 scale when the alpha slider changes', () => {
+    const onChange = vi.fn()
+    render(
+      <ColorPicker defaultValue="#3366ff" onChange={onChange}>
+        <ColorPickerAlpha />
+      </ColorPicker>
+    )
+
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Alpha' }), { key: 'ArrowLeft' })
+
+    expect(onChange).toHaveBeenCalled()
+    const emittedAlpha = onChange.mock.lastCall?.[0][3]
+    expect(emittedAlpha).toBeGreaterThan(0)
+    expect(emittedAlpha).toBeLessThanOrEqual(1)
+    expect(emittedAlpha).toBe(0.99)
+  })
+
+  it('preserves the eyedropper action when a caller also handles the click', async () => {
+    const open = vi.fn().mockResolvedValue({ sRGBHex: '#22c55e' })
+    const onClick = vi.fn()
+    vi.stubGlobal(
+      'EyeDropper',
+      class {
+        open = open
+      }
+    )
+
+    render(
+      <ColorPicker>
+        <ColorPickerEyeDropper aria-label="Pick a color" onClick={onClick} />
+      </ColorPicker>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Pick a color' }))
+
+    expect(onClick).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1))
+  })
+})

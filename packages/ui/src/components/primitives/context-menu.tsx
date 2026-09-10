@@ -378,10 +378,20 @@ function ContextMenuItemContent(props: ContextMenuItemContentProps) {
   const { icon, children, badge, className } = props
   const shortcut = 'shortcut' in props ? props.shortcut : undefined
   const hasSubmenu = 'hasSubmenu' in props ? props.hasSubmenu : false
+  // ContextMenuItem/DropdownMenuItem default uncolored svgs to text-muted-foreground, which
+  // fights the app-wide "icons follow their surrounding text" convention. Default icons here to
+  // the item's own text color instead (callers that pass their own text-* class still win, since
+  // cn puts the caller's class last). A wrapping span can't do this — the item's svg-targeted
+  // color rule reaches straight through it — so the color has to land on the icon element itself.
+  const coloredIcon =
+    icon && React.isValidElement<{ className?: string }>(icon)
+      ? // eslint-disable-next-line @eslint-react/no-clone-element
+        React.cloneElement(icon, { className: cn('text-current', icon.props.className) })
+      : icon
   return (
     <>
       <span className={cn('flex min-w-0 flex-1 items-center gap-2', className)}>
-        {icon && <span className="size-4 shrink-0">{icon}</span>}
+        {coloredIcon && <span className="size-4 shrink-0">{coloredIcon}</span>}
         <span className="min-w-0 flex-1 truncate">{children}</span>
       </span>
       <span className="ml-auto flex items-center gap-1">

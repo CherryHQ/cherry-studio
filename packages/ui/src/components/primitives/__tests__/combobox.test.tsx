@@ -55,6 +55,14 @@ describe('Combobox', () => {
     expect(trigger).not.toHaveClass('aria-expanded:border-primary')
   })
 
+  it('exposes the semantic density on the standard trigger', () => {
+    render(<Combobox aria-label="Compact model" options={options} size="sm" />)
+
+    const trigger = screen.getByRole('button', { name: 'Compact model' })
+    expect(trigger).toHaveAttribute('data-size', 'sm')
+    expect(trigger).toHaveClass('h-8')
+  })
+
   it('maps the selected value to the trigger placeholder when opened', async () => {
     render(
       <Combobox

@@ -32,9 +32,9 @@ const comboboxTriggerVariants = cva(
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
-        sm: 'px-2 text-xs gap-1',
-        default: 'px-3 gap-2',
-        lg: 'px-4 gap-2'
+        sm: 'h-8 px-2 text-xs gap-1',
+        default: 'h-9 px-3 gap-2',
+        lg: 'h-10 px-4 gap-2'
       }
     },
     defaultVariants: {
@@ -503,6 +503,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onClick={handleTriggerInputClick}
               onChange={handleTriggerInputChange}
               onKeyDown={handleTriggerInputKeyDown}
+              size={inputSize}
               style={triggerStyle}
               className={cn(
                 'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
@@ -538,6 +539,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           aria-expanded={open}
           aria-invalid={error}
           aria-disabled={disabled}
+          data-size={inputSize}
           style={{ width: triggerWidth, ...triggerStyle }}
           className={cn(
             comboboxTriggerVariants({ state, size }),
@@ -596,6 +598,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           <Button
             variant="outline"
             size={size}
+            data-size={size ?? 'default'}
             disabled={disabled}
             style={{ width: triggerWidth, ...triggerStyle }}
             className={cn(comboboxTriggerVariants({ state, size }), className)}
