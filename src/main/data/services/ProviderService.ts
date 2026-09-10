@@ -13,8 +13,8 @@ import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/us
 import { type StoredEndpointConfigOverride, userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
-import { isMigratedFromV1 } from '@data/migration/v1MigrationOrigin'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
+import { defineEditionScope, type EditionDecision } from '@data/services/editionPolicy'
 import { pinService } from '@data/services/PinService'
 import type { ProviderDisplayMetadata } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -25,7 +25,6 @@ import {
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
-import { getAppEdition } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -70,30 +69,39 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 export type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
-function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
-  const availableInEditions = provider.availableInEditions
-  return isMigratedFromV1() || !availableInEditions || availableInEditions.includes(getAppEdition())
-}
+/**
+ * Providers are edition-scoped by their preset identity. A fully custom row has no
+ * preset, so no edition rule applies to it; a preset the registry does not describe
+ * yields empty metadata, which declares no restriction and therefore is not withheld.
+ */
+const providerScope = defineEditionScope<ProviderIdentity, ProviderDisplayMetadata>({
+  lookup: (row) => ({
+    entry: getDataService('ProviderRegistryService').getProviderDisplayMetadata(row.providerId, row.presetProviderId),
+    scoped: row.presetProviderId !== null
+  })
+})
 
-function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
+/**
+ * The single seam where a persisted row becomes surfaceable. `null` means this build
+ * does not offer the provider — withheld by the edition, or retired outright.
+ *
+ * `rowToRuntimeProvider` takes the returned decision as a required argument and only
+ * this function produces one, so a provider the build withholds cannot be materialized
+ * at all. Read paths stay filtered without repeating a check, and a future mapper that
+ * skips the rule fails to compile rather than leaking.
+ */
+function resolveProviderDecision(row: ProviderIdentity): EditionDecision<ProviderDisplayMetadata> | null {
   if (isRetiredProvider(row.providerId, row.presetProviderId)) return null
-
-  const metadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
-    row.providerId,
-    row.presetProviderId
-  )
-  return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
+  return providerScope.resolve(row)
 }
 
 /**
- * Edition availability of a persisted provider, decided from the identity columns
- * alone: static registry metadata, the build-time edition, and the preboot v1-origin
- * flag. Callers that already hold `providerId` / `presetProviderId` — anything reading
- * inside someone else's transaction — must use this instead of a service method that
- * opens its own connection.
+ * Whether this build surfaces the provider owning a persisted row. Callers that
+ * already hold the identity columns — anything reading inside someone else's
+ * transaction — use this instead of a service method that opens its own connection.
  */
 export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
-  return getAvailableProviderMetadata(row) !== null
+  return resolveProviderDecision(row) !== null
 }
 
 /**
@@ -152,13 +160,33 @@ function assertManagedCherryProviderMutationAllowed(providerId: string, operatio
   throw DataApiErrorFactory.invalidOperation(operation, 'managed Cherry provider cannot be modified')
 }
 
-function assertProviderAvailable<T extends ProviderIdentity>(
+/**
+ * Retired vendors stay frozen: the service is gone, so the row is readable history,
+ * not editable configuration. This is deliberately NOT the edition rule — editions
+ * share one database, so an edition never blocks a write. Keeping them apart is why
+ * the edition rule lives at materialization alone.
+ */
+function assertProviderNotRetired<T extends ProviderIdentity>(
   row: T | null | undefined,
   providerId: string
 ): asserts row is T {
-  if (!row || !isProviderIdentityAvailable(row)) {
+  if (!row || isRetiredProvider(row.providerId, row.presetProviderId)) {
     throw DataApiErrorFactory.notFound('Provider', providerId)
   }
+}
+
+/**
+ * The only way to materialize a runtime `Provider` from a row. `rowToRuntimeProvider`
+ * takes the display metadata as a required argument and this is where that argument
+ * comes from, so a provider the edition does not offer cannot be constructed at all —
+ * read paths stay filtered without each one repeating the check.
+ */
+function toRuntimeProvider(row: UserProviderRow): Provider {
+  const decision = resolveProviderDecision(row)
+  if (!decision) {
+    throw DataApiErrorFactory.notFound('Provider', row.providerId)
+  }
+  return rowToRuntimeProvider(row, decision)
 }
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
@@ -269,10 +297,9 @@ function projectEndpointConfigOverrides(
 /**
  * Convert database row to Provider entity
  */
-function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMetadata): Provider {
+function rowToRuntimeProvider(row: UserProviderRow, decision: EditionDecision<ProviderDisplayMetadata>): Provider {
   const providerRegistryService = getDataService('ProviderRegistryService')
-  const presetMetadata =
-    metadata ?? providerRegistryService.getProviderDisplayMetadata(row.providerId, row.presetProviderId)
+  const presetMetadata = decision.entry
 
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars
@@ -372,8 +399,8 @@ class ProviderService {
 
     const providers: Provider[] = []
     for (const row of rows) {
-      const metadata = getAvailableProviderMetadata(row)
-      if (metadata) providers.push(rowToRuntimeProvider(row, metadata))
+      const decision = resolveProviderDecision(row)
+      if (decision) providers.push(rowToRuntimeProvider(row, decision))
     }
     return providers
   }
@@ -414,33 +441,15 @@ class ProviderService {
     return row !== undefined && isProviderIdentityAvailable(row)
   }
 
-  /** Assert that a persisted provider is available to runtime callers in this application edition. */
-  assertAvailable(providerId: string): void {
-    const [row] = application
-      .get('DbService')
-      .getDb()
-      .select({
-        providerId: userProviderTable.providerId,
-        presetProviderId: userProviderTable.presetProviderId
-      })
-      .from(userProviderTable)
-      .where(eq(userProviderTable.providerId, providerId))
-      .limit(1)
-      .all()
-
-    assertProviderAvailable(row, providerId)
-  }
-
   /**
    * Get a provider by its provider ID
    */
   getByProviderId(providerId: string): Provider {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
+    assertProviderNotRetired(row, providerId)
 
-    assertProviderAvailable(row, providerId)
-
-    return rowToRuntimeProvider(row)
+    return toRuntimeProvider(row)
   }
 
   /**
@@ -457,16 +466,17 @@ class ProviderService {
       dto.providerId,
       dto.presetProviderId ?? null
     )
-    const presetMetadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
-      dto.providerId,
-      dto.presetProviderId ?? null
-    )
-    if (!isProviderAvailableInCurrentEdition(presetMetadata)) {
+    const registry = getDataService('ProviderRegistryService')
+    const presetProviderId = dto.presetProviderId ?? null
+    // The one place with no row to scope, so the identity is scoped directly: a copy of
+    // a preset this build withholds must not be creatable either.
+    if (!providerScope.resolve({ providerId: dto.providerId, presetProviderId })) {
       throw DataApiErrorFactory.invalidOperation(
         `create provider ${dto.providerId}`,
         'provider is unavailable in the current application edition'
       )
     }
+    const presetMetadata = registry.getProviderDisplayMetadata(dto.providerId, presetProviderId)
     const defaultChatEndpoint =
       dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
@@ -499,7 +509,7 @@ class ProviderService {
 
     logger.info('Created provider', { providerId: dto.providerId })
 
-    return rowToRuntimeProvider(row)
+    return toRuntimeProvider(row)
   }
 
   /**
@@ -532,8 +542,7 @@ class ProviderService {
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
         .all()
-
-      assertProviderAvailable(current, providerId)
+      assertProviderNotRetired(current, providerId)
 
       const updates: Partial<InsertUserProviderRow> = {}
 
@@ -598,7 +607,7 @@ class ProviderService {
 
     logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
 
-    return rowToRuntimeProvider(row)
+    return toRuntimeProvider(row)
   }
 
   /**
@@ -637,8 +646,7 @@ class ProviderService {
   resolveApiKey(providerId: string, override?: string): ResolvedProviderApiKey {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
-
-    assertProviderAvailable(row, providerId)
+    assertProviderNotRetired(row, providerId)
 
     const allKeys = row.apiKeys ?? []
     if (override !== undefined) {
@@ -692,8 +700,7 @@ class ProviderService {
   getApiKeys(providerId: string, options: { enabled?: boolean } = {}): ApiKeyEntry[] {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
-
-    assertProviderAvailable(row, providerId)
+    assertProviderNotRetired(row, providerId)
 
     const apiKeys = row.apiKeys ?? []
     return options.enabled ? apiKeys.filter((k) => k.isEnabled) : apiKeys
@@ -705,8 +712,7 @@ class ProviderService {
   getAuthConfig(providerId: string): AuthConfig | null {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
-
-    assertProviderAvailable(row, providerId)
+    assertProviderNotRetired(row, providerId)
 
     return row.authConfig ?? null
   }
@@ -726,14 +732,13 @@ class ProviderService {
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
         .all()
-
-      assertProviderAvailable(row, providerId)
+      assertProviderNotRetired(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
 
       // Skip if key value already exists
       if (existingKeys.some((k) => k.key === key)) {
-        return { provider: rowToRuntimeProvider(row), added: false }
+        return { provider: toRuntimeProvider(row), added: false }
       }
 
       const newEntry = {
@@ -752,7 +757,7 @@ class ProviderService {
         .returning()
         .all()
 
-      return { provider: rowToRuntimeProvider(updated), added: true }
+      return { provider: toRuntimeProvider(updated), added: true }
     })
 
     if (added) {
@@ -772,18 +777,6 @@ class ProviderService {
 
     const db = application.get('DbService').getDb()
     const provider = db.transaction((tx) => {
-      const [current] = tx
-        .select({
-          providerId: userProviderTable.providerId,
-          presetProviderId: userProviderTable.presetProviderId
-        })
-        .from(userProviderTable)
-        .where(eq(userProviderTable.providerId, providerId))
-        .limit(1)
-        .all()
-
-      assertProviderAvailable(current, providerId)
-
       const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
       const [row] = tx
         .update(userProviderTable)
@@ -791,12 +784,13 @@ class ProviderService {
         .where(eq(userProviderTable.providerId, providerId))
         .returning()
         .all()
+      assertProviderNotRetired(row, providerId)
 
       if (!row) {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
 
-      return rowToRuntimeProvider(row)
+      return toRuntimeProvider(row)
     })
 
     logger.info('Replaced provider API keys', { providerId, count: apiKeys.length })
@@ -826,8 +820,7 @@ class ProviderService {
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
         .all()
-
-      assertProviderAvailable(row, providerId)
+      assertProviderNotRetired(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
       const keyIndex = existingKeys.findIndex((entry) => entry.id === keyId)
@@ -874,7 +867,7 @@ class ProviderService {
         .returning()
         .all()
 
-      return rowToRuntimeProvider(updated)
+      return toRuntimeProvider(updated)
     })
 
     logger.info('Updated API key', { providerId, keyId, changes: Object.keys(updates) })
@@ -896,8 +889,7 @@ class ProviderService {
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
         .all()
-
-      assertProviderAvailable(row, providerId)
+      assertProviderNotRetired(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
       const updatedKeys = existingKeys.filter((entry) => entry.id !== keyId)
@@ -913,7 +905,7 @@ class ProviderService {
         .returning()
         .all()
 
-      return rowToRuntimeProvider(updated)
+      return toRuntimeProvider(updated)
     })
 
     logger.info('Deleted API key from provider', { providerId, keyId })
@@ -938,8 +930,7 @@ class ProviderService {
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
         .all()
-
-      assertProviderAvailable(provider, providerId)
+      assertProviderNotRetired(provider, providerId)
 
       // Block deletion of canonical preset rows. `presetProviderId === providerId`
       // covers presets that group under themselves; the registry check also
@@ -990,7 +981,6 @@ class ProviderService {
 
   move(providerId: string, anchor: OrderRequest): void {
     assertManagedCherryProviderMutationAllowed(providerId, `move provider ${providerId}`)
-    this.assertAvailable(providerId)
 
     const db = application.get('DbService').getDb()
 
@@ -1009,7 +999,6 @@ class ProviderService {
   reorder(moves: OrderBatchRequest['moves']): void {
     for (const move of moves) {
       assertManagedCherryProviderMutationAllowed(move.id, `move provider ${move.id}`)
-      this.assertAvailable(move.id)
     }
 
     const db = application.get('DbService').getDb()

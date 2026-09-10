@@ -134,12 +134,6 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
   throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI default model cannot be modified')
 }
 
-function assertProvidersAvailable(providerIds: Iterable<string>): void {
-  for (const providerId of new Set(providerIds)) {
-    providerService.assertAvailable(providerId)
-  }
-}
-
 /**
  * Registry data for model creation.
  * Must stay in sync with the return type of {@link ProviderRegistryService.lookupModel}.
@@ -874,22 +868,19 @@ class ModelService {
    * Get a model by composite key (providerId + modelId)
    */
   getByKey(providerId: string, modelId: string): Model {
-    providerService.assertAvailable(providerId)
-
-    const db = application.get('DbService').getDb()
-
-    const [row] = db
-      .select()
-      .from(userModelTable)
+    const [row] = selectWithProviderIdentity(application.get('DbService').getDb())
       .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
       .limit(1)
       .all()
 
-    if (!row) {
+    // A model owned by a provider this build withholds is not surfaced, exactly as
+    // in `list`: the join carries the provider identity, so the same pure predicate
+    // decides here without a second lookup.
+    if (!row || !isProviderIdentityAvailable(row)) {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    return this.enrichRowsFromRegistry([row])[0]
+    return this.enrichRowsFromRegistry([row.model])[0]
   }
 
   /**
@@ -913,7 +904,6 @@ class ModelService {
    */
   create(items: CreateModelInput[]): Model[] {
     if (items.length === 0) return []
-    assertProvidersAvailable(items.map(({ dto }) => dto.providerId))
     for (const { dto } of items) {
       assertManagedCherryAiDefaultModelMutationAllowed(
         dto.providerId,
@@ -972,7 +962,6 @@ class ModelService {
    * Update an existing model
    */
   update(providerId: string, modelId: string, dto: UpdateModelDto): Model {
-    providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
     const db = application.get('DbService').getDb()
@@ -1020,7 +1009,6 @@ class ModelService {
    */
   bulkUpdate(items: Array<{ providerId: string; modelId: string; patch: UpdateModelDto }>): Model[] {
     if (items.length === 0) return []
-    assertProvidersAvailable(items.map((item) => item.providerId))
 
     const db = application.get('DbService').getDb()
 
@@ -1081,7 +1069,6 @@ class ModelService {
    * one. Pins for removed models are purged in the same transaction.
    */
   reconcileForProvider(providerId: string, payload: { toAdd: CreateModelInput[]; toRemove: string[] }): Model[] {
-    providerService.assertAvailable(providerId)
     if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
       return this.list({ providerId })
     }
@@ -1180,7 +1167,6 @@ class ModelService {
    * Delete a model
    */
   delete(providerId: string, modelId: string): void {
-    providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
     const uniqueModelId = createUniqueModelId(providerId, modelId)
@@ -1213,7 +1199,6 @@ class ModelService {
    */
   bulkDelete(items: { providerId: string; modelId: string }[]): void {
     if (items.length === 0) return
-    assertProvidersAvailable(items.map((item) => item.providerId))
 
     const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
 
