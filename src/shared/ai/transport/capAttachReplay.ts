@@ -1,3 +1,5 @@
+import type { UIMessageChunk } from 'ai'
+
 import type { StreamChunkPayload } from './stream'
 
 export const MAX_ATTACH_REPLAY_CHUNKS = 1000
@@ -14,10 +16,6 @@ export const MAX_ATTACH_REPLAY_CHUNKS = 1000
 
 function scopedPartKey(payload: StreamChunkPayload, kind: 'text' | 'reasoning' | 'tool-input', id: string): string {
   return JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, `${kind}:${id}`])
-}
-
-function toolCallIdOf(chunk: { id?: string; toolCallId?: string }): string | undefined {
-  return (chunk as { toolCallId?: string }).toolCallId ?? (chunk as { id?: string }).id
 }
 
 function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamChunkPayload[] {
@@ -84,11 +82,12 @@ export function capAttachReplayChunks(
   // tail-starting delta can still synthesize with the real name/dynamic flag.
   const toolInfoByKey = new Map<string, { toolName: string; dynamic?: boolean }>()
   for (const payload of chunks) {
-    const c = payload.chunk as { type: string; toolCallId?: string; id?: string; toolName?: string; dynamic?: boolean }
+    const c = payload.chunk
     if ((c.type === 'tool-input-start' || c.type === 'tool-input-available') && c.toolName) {
-      const tid = toolCallIdOf(c)
-      if (tid)
-        toolInfoByKey.set(scopedPartKey(payload, 'tool-input', tid), { toolName: c.toolName, dynamic: c.dynamic })
+      toolInfoByKey.set(scopedPartKey(payload, 'tool-input', c.toolCallId), {
+        toolName: c.toolName,
+        dynamic: c.dynamic
+      })
     }
   }
 
@@ -97,43 +96,37 @@ export function capAttachReplayChunks(
   const out: StreamChunkPayload[] = []
 
   for (const payload of tail) {
-    const chunk = payload.chunk as { type: string; id?: string; toolCallId?: string; toolName?: string }
+    const chunk = payload.chunk
     switch (chunk.type) {
       case 'text-start':
       case 'reasoning-start': {
         const kind = chunk.type === 'text-start' ? 'text' : 'reasoning'
-        openParts.add(scopedPartKey(payload, kind, (chunk as { id: string }).id))
+        openParts.add(scopedPartKey(payload, kind, chunk.id))
         out.push(payload)
         break
       }
       case 'tool-input-start': {
-        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
-        if (tid) {
-          const key = scopedPartKey(payload, 'tool-input', tid)
-          openParts.add(key)
-          seenToolInput.add(key)
-        }
+        const key = scopedPartKey(payload, 'tool-input', chunk.toolCallId)
+        openParts.add(key)
+        seenToolInput.add(key)
         out.push(payload)
         break
       }
       case 'text-delta':
       case 'reasoning-delta': {
         const kind = chunk.type === 'text-delta' ? 'text' : 'reasoning'
-        const key = scopedPartKey(payload, kind, (chunk as { id: string }).id)
+        const key = scopedPartKey(payload, kind, chunk.id)
         if (!openParts.has(key)) {
           openParts.add(key)
-          out.push({
-            ...payload,
-            chunk: { type: `${kind}-start`, id: (chunk as { id: string }).id }
-          } as StreamChunkPayload)
+          const startChunk: UIMessageChunk =
+            kind === 'text' ? { type: 'text-start', id: chunk.id } : { type: 'reasoning-start', id: chunk.id }
+          out.push({ ...payload, chunk: startChunk })
         }
         out.push(payload)
         break
       }
       case 'tool-input-delta': {
-        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
-        if (!tid) break
-        const key = scopedPartKey(payload, 'tool-input', tid)
+        const key = scopedPartKey(payload, 'tool-input', chunk.toolCallId)
         if (!openParts.has(key)) {
           const known = toolInfoByKey.get(key)
           // No authoritative name — dropping avoids `tool-unknown` pollution
@@ -141,14 +134,10 @@ export function capAttachReplayChunks(
           if (!known) break
           openParts.add(key)
           seenToolInput.add(key)
-          const startChunk: Record<string, unknown> = {
-            type: 'tool-input-start',
-            toolCallId: tid,
-            id: tid,
-            toolName: known.toolName,
-            ...(known.dynamic ? { dynamic: true } : {})
-          }
-          out.push({ ...payload, chunk: startChunk } as unknown as StreamChunkPayload)
+          const startChunk: UIMessageChunk = known.dynamic
+            ? { type: 'tool-input-start', toolCallId: chunk.toolCallId, toolName: known.toolName, dynamic: true }
+            : { type: 'tool-input-start', toolCallId: chunk.toolCallId, toolName: known.toolName }
+          out.push({ ...payload, chunk: startChunk })
         } else {
           seenToolInput.add(key)
         }
@@ -156,48 +145,46 @@ export function capAttachReplayChunks(
         break
       }
       case 'tool-input-available': {
-        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
-        if (tid) seenToolInput.add(scopedPartKey(payload, 'tool-input', tid))
+        seenToolInput.add(scopedPartKey(payload, 'tool-input', chunk.toolCallId))
         out.push(payload)
         break
       }
       case 'text-end':
       case 'reasoning-end': {
         const kind = chunk.type === 'text-end' ? 'text' : 'reasoning'
-        const key = scopedPartKey(payload, kind, (chunk as { id: string }).id)
-        if (!openParts.has(key)) break
-        out.push(payload)
-        openParts.delete(key)
-        break
-      }
-      case 'tool-input-end': {
-        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
-        if (!tid) {
-          out.push(payload)
-          break
-        }
-        const key = scopedPartKey(payload, 'tool-input', tid)
+        const key = scopedPartKey(payload, kind, chunk.id)
         if (!openParts.has(key)) break
         out.push(payload)
         openParts.delete(key)
         break
       }
       default: {
+        // Legacy DeepSeek DSML `tool-input-end` (uses `id`): not in UIMessageChunk,
+        // so handle it here without widening the StreamChunkPayload contract.
+        const chunkType: string = chunk.type
+        if (chunkType === 'tool-input-end') {
+          const legacy = chunk as unknown as { toolCallId?: string; id?: string }
+          const tid = legacy.toolCallId ?? legacy.id
+          if (!tid) {
+            out.push(payload)
+            break
+          }
+          const key = scopedPartKey(payload, 'tool-input', tid)
+          if (!openParts.has(key)) break
+          out.push(payload)
+          openParts.delete(key)
+          break
+        }
         // Orphan tool-output / approval chunks without a retained input start
         // make `readUIMessageStream` throw UIMessageStreamError and silently
         // terminate the stream, dropping all later chunks.
-        const t = chunk.type
         if (
-          t === 'tool-output-available' ||
-          t === 'tool-output-error' ||
-          t === 'tool-output-denied' ||
-          t === 'tool-approval-request'
+          chunk.type === 'tool-output-available' ||
+          chunk.type === 'tool-output-error' ||
+          chunk.type === 'tool-output-denied' ||
+          chunk.type === 'tool-approval-request'
         ) {
-          const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
-          if (tid) {
-            const key = scopedPartKey(payload, 'tool-input', tid)
-            if (!seenToolInput.has(key)) break
-          }
+          if (!seenToolInput.has(scopedPartKey(payload, 'tool-input', chunk.toolCallId))) break
         }
         out.push(payload)
         break

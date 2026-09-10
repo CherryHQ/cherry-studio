@@ -282,7 +282,7 @@ describe('buildCompactReplay', () => {
         { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'hi' } as UIMessageChunk }
       ]
 
-      evictOldestReplayEntry(buffer, new Set(['tc1']))
+      expect(evictOldestReplayEntry(buffer, new Set(['tc1']))).toBe(true)
 
       expect(buffer).toEqual([
         {
@@ -307,7 +307,7 @@ describe('buildCompactReplay', () => {
       expect(buffer).toEqual([{ topicId: 't', chunk: { type: 'text-start', id: 'p1' } }])
     })
 
-    it('falls back to the oldest entry when every entry is pinned', () => {
+    it('keeps pinned openers when every entry is pinned and reports no eviction', () => {
       const buffer = [
         {
           topicId: 't',
@@ -315,9 +315,8 @@ describe('buildCompactReplay', () => {
         }
       ]
 
-      evictOldestReplayEntry(buffer, new Set(['tc1']))
-
-      expect(buffer).toEqual([])
+      expect(evictOldestReplayEntry(buffer, new Set(['tc1']))).toBe(false)
+      expect(buffer).toHaveLength(1)
     })
   })
 

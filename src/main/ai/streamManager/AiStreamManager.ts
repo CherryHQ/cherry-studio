@@ -1328,8 +1328,11 @@ export class AiStreamManager extends BaseService {
         exec.buffer[exec.buffer.length - 1] = merged
       } else {
         if (exec.buffer.length >= bufferLimit && !exec.pendingApprovalToolCallIds?.size) {
-          evictOldestReplayEntry(exec.buffer, exec.openToolInputIds)
+          const evicted = evictOldestReplayEntry(exec.buffer, exec.openToolInputIds)
           exec.droppedChunks += 1
+          // Every entry is a still-open tool opener: evicting one would orphan
+          // later live deltas, so drop the incoming segment and keep the ring bounded.
+          if (!evicted) continue
         }
         exec.buffer.push(segment)
       }
@@ -1816,8 +1819,7 @@ export class AiStreamManager extends BaseService {
     }
     logger.info('attach: replay size', {
       topicId: req.topicId,
-      bufferedChunks: bufferedChunks.length,
-      bytes: JSON.stringify(bufferedChunks).length
+      bufferedChunks: bufferedChunks.length
     })
     return { status: 'attached', bufferedChunks }
   }
