@@ -1,5 +1,6 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import type { ProviderType } from '@renderer/types/provider'
@@ -10,6 +11,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import UrlSchemaInfoPopup from '../UrlSchemaInfoPopup'
+import { syncProviderModelsForProvider } from './useProviderModelSync'
 
 const logger = loggerService.withContext('useProviderDeepLinkImport')
 
@@ -36,6 +38,7 @@ interface ImportedProviderSearchData {
   baseUrl: string
   type?: ProviderType
   name?: string
+  autoSyncModels?: boolean
 }
 
 /** Consumes one provider deep-link import payload from the URL into create/update + add-api-key calls. */
@@ -47,6 +50,7 @@ export function useProviderDeepLinkImport(
   const navigate = useNavigate()
   const { createProvider } = useProviders()
   const { updateProviderById } = useProviderActions()
+  const { createModels } = useModelMutations()
   const { trigger: addApiKeyTrigger } = useMutation('POST', '/providers/:providerId/api-keys', {
     refresh: ({ args }) => [
       '/providers',
@@ -86,26 +90,41 @@ export function useProviderDeepLinkImport(
             }
           : undefined
 
-        if (isNew) {
-          await createProvider({
-            providerId,
-            name: updatedProvider.name || providerData.id,
-            defaultChatEndpoint,
-            endpointConfigs
-          })
-        } else {
-          await updateProviderById(providerId, {
-            name: updatedProvider.name,
-            defaultChatEndpoint,
-            endpointConfigs
-          })
-        }
+        const persistedProvider = isNew
+          ? await createProvider({
+              providerId,
+              name: updatedProvider.name || providerData.id,
+              defaultChatEndpoint,
+              endpointConfigs
+            })
+          : await updateProviderById(providerId, {
+              name: updatedProvider.name,
+              defaultChatEndpoint,
+              endpointConfigs
+            })
 
         if (updatedProvider.apiKey.trim()) {
           await addApiKeyTrigger({
             params: { providerId },
             body: { key: updatedProvider.apiKey.trim() }
           })
+        }
+
+        // New providers only: an existing key would otherwise be sent to the imported base URL.
+        if (popupResult.autoSyncModels && isNew) {
+          try {
+            const models = await syncProviderModelsForProvider({
+              providerId,
+              endpointProvider: persistedProvider,
+              createModels
+            })
+            if (models.length > 0) {
+              await updateProviderById(providerId, { isEnabled: true })
+            }
+          } catch (error) {
+            logger.error('Failed to sync models after provider deep-link import', { providerId, error })
+            toast.warning(t('settings.models.manage.sync_pull_failed'))
+          }
         }
 
         onSelectProvider(providerId)
@@ -133,5 +152,14 @@ export function useProviderDeepLinkImport(
       toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       void navigate({ to: '/settings/provider' })
     }
-  }, [addApiKeyTrigger, createProvider, navigate, onSelectProvider, searchAddProviderData, t, updateProviderById])
+  }, [
+    addApiKeyTrigger,
+    createModels,
+    createProvider,
+    navigate,
+    onSelectProvider,
+    searchAddProviderData,
+    t,
+    updateProviderById
+  ])
 }

@@ -16,6 +16,65 @@ interface UseProviderModelSyncOptions {
   existingModels?: Model[]
 }
 
+interface SyncProviderModelsOptions {
+  providerId: string
+  endpointProvider?: Parameters<typeof resolveCreateModelEndpointTypes>[0]
+  existingModels?: readonly Model[]
+  createModels: ReturnType<typeof useModelMutations>['createModels']
+}
+
+/**
+ * Populate an empty provider from its remote model endpoint.
+ *
+ * Skips remote discovery when any local model already exists. Deep-link
+ * auto-sync must therefore only call this for a newly created provider.
+ */
+export async function syncProviderModelsForProvider({
+  providerId,
+  endpointProvider,
+  existingModels = [],
+  createModels
+}: SyncProviderModelsOptions): Promise<Model[]> {
+  const latestModels: Model[] =
+    existingModels.length > 0
+      ? [...existingModels]
+      : await dataApiService.get('/models', {
+          query: { providerId }
+        })
+
+  if (latestModels.length > 0) {
+    logger.info('Skipping provider model creation because models already exist', {
+      providerId,
+      modelCount: latestModels.length
+    })
+    return latestModels
+  }
+
+  logger.info('Fetching remote provider models for sync', { providerId })
+  const resolvedModels = await fetchResolvedProviderModels(providerId)
+  if (resolvedModels.length === 0) {
+    logger.info('No remote provider models were resolved for sync', { providerId })
+    return []
+  }
+
+  const existingModelIds = new Set<UniqueModelId>(latestModels.map((model) => model.id))
+  const payload = resolvedModels
+    .filter((model) => !existingModelIds.has(model.id))
+    .map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(endpointProvider, model)))
+
+  const createdModels: Model[] = []
+  for (const chunk of chunkArray(payload, MODELS_BATCH_MAX_ITEMS)) {
+    const created = await createModels(chunk)
+    createdModels.push(...created)
+  }
+
+  logger.info('Completed provider model sync', {
+    providerId,
+    createdModelCount: createdModels.length
+  })
+  return [...latestModels, ...createdModels]
+}
+
 export function useProviderModelSync(providerId: string, options: UseProviderModelSyncOptions = {}) {
   const fallbackModelsQuery = useModels(
     { providerId },
@@ -35,73 +94,12 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
         localModelCount: models.length
       })
 
-      // `useModels` returns a readonly SWR slice — copy into a mutable array so
-      // the function's `Promise<Model[]>` return type is satisfied without
-      // pushing `readonly` all the way through the public API.
-      const latestModels: Model[] =
-        models.length > 0
-          ? [...models]
-          : await dataApiService.get('/models', {
-              query: { providerId }
-            })
-
-      if (latestModels.length > 0) {
-        logger.info('Skipping provider model creation because models already exist', {
-          providerId,
-          modelCount: latestModels.length
-        })
-        return latestModels
-      }
-
-      logger.info('Fetching remote provider models for sync', {
-        providerId
-      })
-      const resolvedModels = await fetchResolvedProviderModels(providerId)
-      if (resolvedModels.length === 0) {
-        logger.info('No remote provider models were resolved for sync', {
-          providerId
-        })
-        return []
-      }
-
-      logger.info('Resolved remote provider models for sync', {
+      return syncProviderModelsForProvider({
         providerId,
-        resolvedModelCount: resolvedModels.length
+        endpointProvider,
+        existingModels: models,
+        createModels
       })
-
-      const existingModelIds = new Set<UniqueModelId>(latestModels.map((model) => model.id))
-      const payload = resolvedModels
-        .filter((model) => !existingModelIds.has(model.id))
-        .map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(endpointProvider, model)))
-
-      if (payload.length === 0) {
-        logger.info('Skipping provider model creation because resolved models are already present', {
-          providerId,
-          resolvedModelCount: resolvedModels.length
-        })
-        return latestModels
-      }
-
-      const chunks = chunkArray(payload, MODELS_BATCH_MAX_ITEMS)
-      const createdModels: Model[] = []
-
-      logger.info('Creating provider models from resolved remote list', {
-        providerId,
-        createCount: payload.length,
-        chunkCount: chunks.length
-      })
-
-      for (const chunk of chunks) {
-        const created = await createModels(chunk)
-        createdModels.push(...created)
-      }
-
-      logger.info('Completed provider model sync', {
-        providerId,
-        createdModelCount: createdModels.length
-      })
-
-      return [...latestModels, ...createdModels]
     },
     [createModels, models, provider, providerId]
   )
