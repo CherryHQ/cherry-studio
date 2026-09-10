@@ -22,10 +22,31 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      startsWith(github.event.workflow_run.head_branch, 'release/v')
+      startsWith(github.event.workflow_run.head_branch, 'release/')
     runs-on: ubuntu-latest
     steps:
+      - name: Check out trusted release resolver
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+      - uses: pnpm/action-setup@v5
+      - name: Install resolver dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Resolve unpublished release version
+        id: prepared
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { resolveLineBuild } = require('./scripts/release/release-line-build')
+            const run = context.payload.workflow_run
+            const build = await resolveLineBuild({ github, repo: context.repo, branch: run.head_branch, sha: run.head_sha })
+            core.setOutput('ready', Boolean(build))
       - name: Revalidate and dispatch release build
+        if: steps.prepared.outputs.ready == 'true'
         shell: bash
         env:
           BRANCH: ${{ github.event.workflow_run.head_branch }}
@@ -34,12 +55,6 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           export LC_ALL=C
-          TAG="${BRANCH#release/}"
-          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "Ignoring invalid release branch $BRANCH"
-            exit 0
-          fi
-
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
           if [ "$BRANCH_SHA" != "$CI_SHA" ]; then
             echo "Ignoring stale CI result for $CI_SHA; $BRANCH now points to $BRANCH_SHA"

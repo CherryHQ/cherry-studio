@@ -4,6 +4,9 @@ sources:
   - .github/release-lines.json
   - scripts/release/release-lines.js
   - scripts/release/backport-release-line.js
+  - scripts/release/prepare-release-line.js
+  - scripts/release/release-line-build.js
+  - scripts/release/validate-prepared-release.js
   - commitlint.config.mjs
   - .github/workflows/commitlint.yml
   - docs/references/data/database-construction.md
@@ -24,7 +27,7 @@ sources:
 
 Cherry Studio's release strategy and maintainer operations live in this document. See [Branching Strategy](./branching-strategy.md) for contribution entry points.
 
-> **Rollout:** Commitlint and minor-line backport routing are implemented. Routing remains in `exact-version` mode until multi-release preparation and publication are complete. Use the [active exact-version runbook](#exact-version-runbook-active) for production operations; the version-line model below describes the staged replacement.
+> **Rollout:** Commitlint, minor-line backports, reviewed release preparation, and exact-head builds are implemented. Routing remains in `exact-version` mode until publication and metadata synchronization are complete. Use the [active exact-version runbook](#exact-version-runbook-active) for production operations; the version-line model below describes the staged replacement.
 
 Cherry Studio is adopting a simplified [GitLab Flow](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/) for versioned desktop releases. All development converges on `main`; supported release branches receive only selected fixes from `main`. We do not use a separate `develop` branch, merge all of `main` into a release branch, or merge a release branch back into `main`.
 
@@ -147,9 +150,9 @@ When pull requests are squash-merged, the pull request title is the authoritativ
 
 The default unit of review is one source pull request backported to one release line. This keeps provenance, CI, reverts, and failure handling independent. Emergency batches may combine fixes only when every source is recorded explicitly and remains independently auditable.
 
-## Release Flow (Remaining Implementation)
+## Release Flow
 
-Minor-line preparation, building, publishing, and metadata synchronization are not enabled yet. The target flow for each supported line is:
+Minor-line preparation and building are implemented but remain inactive; publication and metadata synchronization still need implementation. The complete target flow for each supported line is:
 
 1. Select the fixes for the next exact version and assign its milestone.
 2. Resolve every requested backport as accepted, deferred, rejected, or blocked.
@@ -211,7 +214,7 @@ Security support beyond the two-line window is an explicit release-team exceptio
 
 ## Implementation Status and Routing
 
-The version-line model and label-driven backport engine are implemented behind `.github/release-lines.json`. The checked-in mode is `exact-version`; all existing release operations below remain active. **Do not enable `minor-line` until preparation, builds, publication, and metadata synchronization support it.** This configuration selects exactly one backport route; it is not a fallback between two competing destinations.
+The version-line model, label-driven backports, preparation, and builds are implemented behind `.github/release-lines.json`. The checked-in mode is `exact-version`; existing release operations below remain active. **Do not enable `minor-line` until publication and metadata synchronization support it.** This configuration selects exactly one release route; it is not a fallback between two competing destinations.
 
 After the remaining publishing work, an example configuration would be:
 
@@ -247,7 +250,7 @@ Status labels are `backport-open/<line>`, `backported/<line>`, and `backport-fai
 
 Both `fix` and `hotfix` use explicit targets. A target requests a reviewed backport; it does not authorize bypassing compatibility review or directly updating a release branch. The engine has no dependency on a draft GitHub Release.
 
-Backport preparation uses trusted scripts against an isolated temporary worktree. It preserves the complete intended source patch for merge, squash, and rebase merges, and rejects conflicts instead of guessing. Source version changes and changes to generated release metadata require manual adaptation. Backports preserve source release notes in their PR body but do not regenerate version metadata; the remaining preparation work will own that per-version operation.
+Backport preparation uses trusted scripts against an isolated temporary worktree. It preserves the complete intended source patch for merge, squash, and rebase merges, and rejects conflicts instead of guessing. Source version changes and changes to generated release metadata require manual adaptation. Backports preserve source release notes in both their commit message and PR body but do not regenerate version metadata; Pre Release owns that per-version operation. Preserve the release-note block when squash-merging a backport so preparation can collect it from Git history.
 
 Each generated commit is GitHub Verified and DCO-signed off. If a commit exists but PR creation failed, a retry checks its signature, source, parent, and exact patch tree before opening the PR. An unrecognized orphan branch is preserved for manual recovery. No retry force-pushes an existing branch.
 
@@ -255,20 +258,39 @@ After a conflict, create or repair the standard backport branch from the target 
 
 For retry, run **Backport Release Hotfixes** from the default branch with `source_pr=123` and `line=2.0.x`. Keep the source's target label present. Reopening preserves the previous work and requires the existing branch to still exist; recover a deleted branch manually.
 
+## Minor-Line Preparation and Builds (Inactive)
+
+After activation, run **Pre Release** from `main` with an explicit `line` and `version`:
+
+| Intent | Inputs | Source and result |
+| --- | --- | --- |
+| Next maintained patch | `line=2.0.x`, `version=patch` or `2.0.14` | Freeze `release/2.0.x`; collect notes since its own latest published version |
+| First candidate | `line=2.2.x`, `version=2.2.0-rc.1` | If the configured candidate branch is absent, cut it from the frozen dispatch SHA on main |
+
+Current and previous lines must already exist and prepare stable patches only. A candidate's first version must be explicit. The new version must advance the source package version and the published baseline, belong to the selected line, and have no existing release or tag. Different lines select their own highest published semantic version, not the most recently published release across the repository.
+
+Preparation freezes the source SHA and baseline once, then opens `release-prep/<line>/v<version>` against `release/<line>`. Only the existing release metadata files are submitted; there is no additional preparation record or marker protocol. A fresh job validates the artifact against the frozen source before creating a GitHub Verified, DCO-signed commit. The workflow never commits metadata directly to the maintained release branch.
+
+Review the bilingual notes and merge the preparation PR through normal review, conflict resolution, and CI. Later source-branch progress or unrelated draft releases do not invalidate the frozen preparation. **Auto Release Build** selects the unpublished package version on the supported line after successful push CI and dispatches **Release** for that exact head, all platforms, and both editions. Published versions, stale CI, and a candidate branch cut still carrying main's previous-line version do not trigger a build.
+
+A later backport may rebuild the same unpublished version after CI; it does not require another preparation PR. If its user-facing notes change, update the bilingual notes, stable history, and generated manifest as needed in an ordinary reviewed metadata PR. Pre Release prepares a new higher version, not a same-version refresh. All-platform rebuilding replaces the draft artifacts and moves only the unpublished draft tag after upload; a single-platform retry still requires the unchanged tagged SHA.
+
+The generated changes section uses the latest published semantic version below the target on its own line, or the current line for the first candidate. Preparing/building different minor lines uses separate `release-state-release/<line>` concurrency groups. Exact-version operations retain their existing repository-wide lock. The current **Publish Release** workflow intentionally accepts only exact-version branches, so minor-line builds cannot yet publish automatically.
+
+Retries never force-reset preparation branches. If a previous attempt left a branch without a PR, inspect its signature, source, and metadata, then recover the PR manually; a conflicting or unknown branch is preserved. Activation still requires a production smoke test for permissions, branch protection, signed API commits, and CI propagation.
+
 ## Remaining Multi-Release Work
 
 | Workflow | Required change before activation |
 | --- | --- |
-| Pre Release | Prepare patches from the selected line, cut candidates from main, and open reviewed per-version metadata PRs |
-| Auto Release Build / Release | Resolve line, exact version, and SHA independently; build only prepared unpublished versions; invalidate drafts after new fixes |
 | Publish Release | Check this version's planned backports, preserve immutable published tags, and prevent older-line releases from taking Latest |
 | Post Release | Merge history by version; never overwrite main's newer version, notes, or product manifest with older-line metadata |
 | CI | Enforce the patch storage contract and migration-chain compatibility on prepared releases |
-| Release coordination | Serialize each line's mutable release state independently, with short serialization for shared Latest/main updates |
+| Release coordination | Extend line-scoped locking to publication, with short serialization for shared Latest/main updates |
 
-The release engine must select each line's own previous version for release notes, capture intended changes at preparation, and report pending requests before freezing a release. GitHub App/PAT writes or explicit workflow dispatch must propagate automation into CI; status-label writes must not recursively enqueue backports. The current engine uses the existing `TOKEN_GITHUB_WRITE` credential for signed commits and PRs.
+Publication must report pending requests against the prepared version before freezing a release. GitHub App/PAT writes or explicit workflow dispatch must propagate automation into CI; status-label writes must not recursively enqueue backports. The current engine uses the existing `TOKEN_GITHUB_WRITE` credential for signed commits and PRs.
 
-Finish active exact-version releases and their metadata synchronization before switching. Establish protected minor-line branches from verified commits, validate both release lines, then update the reviewed configuration. Do not rename or move published tags.
+Finish active exact-version releases and their metadata synchronization before switching. Establish protected maintenance branches from their published version commits and backport the release tooling and CI branch filters before activation; dispatching Release from a branch uses that branch's workflow and scripts. Validate both lines, then update the reviewed configuration. Do not import newer product code from main to bootstrap an older line, and do not rename or move published tags.
 
 ## Exact-Version Runbook (Active)
 

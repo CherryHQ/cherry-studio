@@ -238,9 +238,10 @@ async function reconcileLineBackport({ github, repo, source, line, retry = false
     } else {
       const { data: publisher } = await github.rest.users.getAuthenticated()
       const email = `${publisher.id}+${publisher.login}@users.noreply.github.com`
+      const note = /```release-note\s*\n([\s\S]*?)```/.exec(pr.body || '')?.[1].trim() || 'NONE'
       const message = {
         headline: `fix(release): backport #${source} to ${line}`,
-        body: `Backport: #${source} to ${releaseBranch}\n\nSource: ${pr.merge_commit_sha}\n\nSigned-off-by: ${publisher.login} <${email}>`
+        body: `Backport: #${source} to ${releaseBranch}\n\nSource: ${pr.merge_commit_sha}\n\n\`\`\`release-note\n${note}\n\`\`\`\n\nSigned-off-by: ${publisher.login} <${email}>`
       }
       if (!branchSha) await github.rest.git.createRef({ ...repo, ref: `refs/heads/${branch}`, sha: baseSha })
       const response = await github.graphql(

@@ -20,7 +20,7 @@ on:
         type: string
 
 concurrency:
-  group: release-state
+  group: ${{ endsWith(github.ref_name, '.x') && format('release-state-{0}', github.ref_name) || 'release-state' }}
   cancel-in-progress: false
 
 permissions:
@@ -36,6 +36,7 @@ jobs:
     outputs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
+      baseline-tag: ${{ steps.release-ref.outputs.baseline-tag }}
     steps:
       - name: Verify automatically selected release commit
         if: inputs.expected_sha != ''
@@ -54,31 +55,24 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
 
-      - name: Validate release branch and version
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+      - uses: pnpm/action-setup@v5
+      - name: Install release resolver dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Resolve release branch and version
         id: release-ref
-        shell: bash
-        run: |
-          export LC_ALL=C
-          BRANCH="${GITHUB_REF_NAME}"
-          TAG="${BRANCH#release/}"
-
-          if [ "$GITHUB_REF_TYPE" != "branch" ] || [[ "$BRANCH" != release/v* ]]; then
-            echo "Release must run from a release/v<semver> branch, not $GITHUB_REF" >&2
-            exit 1
-          fi
-
-          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "Invalid release branch: $BRANCH" >&2
-            exit 1
-          fi
-
-          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
-            echo "Branch $BRANCH does not match package.json version $PACKAGE_VERSION" >&2
-            exit 1
-          fi
-
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        uses: actions/github-script@v8
+        with:
+          script: |
+            if (!context.ref.startsWith('refs/heads/')) throw new Error('Release builds require a branch')
+            const { resolveLineBuild } = require('./scripts/release/release-line-build')
+            const build = await resolveLineBuild({ github, repo: context.repo, branch: context.ref.slice(11), sha: context.sha })
+            if (!build) throw new Error('No buildable release version exists on this branch')
+            core.setOutput('tag', build.tag)
+            core.setOutput('baseline-tag', build.baselineTag || '')
 
       - name: Verify release commit passed CI
         shell: bash
@@ -475,14 +469,18 @@ jobs:
           RELEASE_ID: ${{ steps.draft-release.outputs.id }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
+          LINE_BASELINE: ${{ needs.prepare.outputs.baseline-tag }}
         run: |
-          # every release branch forks from main, so GitHub cannot infer the previous tag by ancestry
-          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
-          PREVIOUS_TAG="$(jq -r \
-            --arg tag "$TAG" \
-            --argjson includePrereleases "$PRERELEASE" \
-            '[.[][] | select(.draft | not) | select(.tag_name != $tag) | select($includePrereleases or (.prerelease | not))]
-             | sort_by(.published_at) | (last | .tag_name) // empty' <<< "$RELEASE_PAGES")"
+          PREVIOUS_TAG="$LINE_BASELINE"
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # Exact-version branches fork from main, so ancestry alone cannot select their baseline.
+            RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+            PREVIOUS_TAG="$(jq -r \
+              --arg tag "$TAG" \
+              --argjson includePrereleases "$PRERELEASE" \
+              '[.[][] | select(.draft | not) | select(.tag_name != $tag) | select($includePrereleases or (.prerelease | not))]
+               | sort_by(.published_at) | (last | .tag_name) // empty' <<< "$RELEASE_PAGES")"
+          fi
           if [ -z "$PREVIOUS_TAG" ]; then
             echo "No published release is available as the previous tag for $TAG" >&2
             exit 1

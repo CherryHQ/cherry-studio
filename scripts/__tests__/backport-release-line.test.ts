@@ -222,6 +222,7 @@ describe('line backport execution', () => {
       expect(f.git(['log', '-1', '--format=%B', branch])).toContain(
         'Signed-off-by: publisher <1+publisher@users.noreply.github.com>'
       )
+      expect(f.git(['log', '-1', '--format=%B', branch])).toContain('```release-note\n[Startup] Restore startup.\n```')
     }
     expect(f.prs[1].body).toContain('<!-- release-backport-source-pr: 42 -->')
     expect(f.prs[1].body).toContain('[Startup] Restore startup.')
