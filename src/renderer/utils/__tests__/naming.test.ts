@@ -359,7 +359,7 @@ describe('naming', () => {
         isSystem: true
       }
       // beforeAll 已将 i18n 切到 en-US
-      expect(getFancyProviderName(mockSystemProvider)).toBe('Alibaba Cloud')
+      expect(getFancyProviderName(mockSystemProvider)).toBe('Qwen AI Platform')
     })
 
     it('should get name for custom provider', () => {

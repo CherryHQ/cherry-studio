@@ -1528,7 +1528,7 @@
     {
       "availableInEditions": ["global", "cn"],
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Bailian - AI model provider",
+      "description": "Qwen AI Platform - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "anthropic",
@@ -1552,13 +1552,13 @@
       "id": "dashscope",
       "metadata": {
         "website": {
-          "apiKey": "https://bailian.console.aliyun.com/?tab=model#/api-key",
-          "docs": "https://help.aliyun.com/zh/model-studio/getting-started/",
-          "models": "https://bailian.console.aliyun.com/?tab=model#/model-market",
-          "official": "https://www.aliyun.com/product/bailian"
+          "apiKey": "https://platform.qianwenai.com/home/api-keys",
+          "docs": "https://platform.qianwenai.com/docs/developer-guides/getting-started/first-api-call",
+          "models": "https://www.qianwenai.com/models",
+          "official": "https://www.qianwenai.com/"
         }
       },
-      "name": "Bailian",
+      "name": "Qwen AI Platform",
       "serverTools": [
         {
           "id": "web-search",
@@ -2576,5 +2576,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2ae935b5d779a43b"
+  "version": "a6b4f84f4cda24b1"
 }

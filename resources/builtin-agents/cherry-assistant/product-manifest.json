@@ -462,7 +462,7 @@
     }
   ],
   "providers": {
-    "version": "2ae935b5d779a43b",
+    "version": "a6b4f84f4cda24b1",
     "count": 63,
     "entries": [
       {
@@ -607,7 +607,7 @@
       },
       {
         "id": "dashscope",
-        "name": "Bailian"
+        "name": "Qwen AI Platform"
       },
       {
         "id": "qwencloud",
