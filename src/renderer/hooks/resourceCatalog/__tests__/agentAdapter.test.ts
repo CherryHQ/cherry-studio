@@ -1,20 +1,151 @@
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentMutations, useAgentMutationsById } from '../agentAdapter'
+import { agentAdapter, useAgentMutations, useAgentMutationsById } from '../agentAdapter'
 
 const triggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
+const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+const hiddenBuiltinVisibilityMock = vi.hoisted(() => ({ ids: [] as string[], isLoading: false }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
   useMutation: useMutationMock,
-  useQuery: vi.fn()
+  useQuery: useQueryMock
+}))
+
+vi.mock('@renderer/hooks/agent/useBuiltinAgentListVisibility', () => ({
+  useBuiltinAgentListVisibility: () => {
+    const isHiddenBuiltin = (agent: { id: string; configuration?: { builtin_role?: string } }) =>
+      hiddenBuiltinVisibilityMock.ids.includes(agent.id) &&
+      ['assistant', 'support'].includes(agent.configuration?.builtin_role ?? '')
+
+    return {
+      filterHiddenBuiltinAgents: <T extends { id: string; configuration?: { builtin_role?: string } }>(agents: T[]) =>
+        agents.filter(isHiddenBuiltin),
+      hasHiddenBuiltinAgents: hiddenBuiltinVisibilityMock.ids.length > 0,
+      isLoading: hiddenBuiltinVisibilityMock.isLoading
+    }
+  }
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+
+describe('agentAdapter.useList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    hiddenBuiltinVisibilityMock.ids = []
+    hiddenBuiltinVisibilityMock.isLoading = false
+  })
+
+  it('includes hidden protected built-ins omitted from the main catalog page', () => {
+    hiddenBuiltinVisibilityMock.ids = ['cherry-support']
+    useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
+      data: {
+        items: options.query.builtinRoles
+          ? [
+              {
+                id: 'cherry-support',
+                name: 'Cherry Support',
+                configuration: { builtin_role: 'support' }
+              }
+            ]
+          : [{ id: 'agent-1', name: 'Agent', configuration: {} }]
+      },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1', 'cherry-support'])
+  })
+
+  it('keeps the primary catalog available when the supplemental hidden-agent query fails', () => {
+    hiddenBuiltinVisibilityMock.ids = ['cherry-support']
+    const supplementalError = new Error('supplemental query failed')
+    useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
+      data: options.query.builtinRoles ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
+      isLoading: false,
+      isRefreshing: false,
+      error: options.query.builtinRoles ? supplementalError : undefined,
+      refetch: vi.fn()
+    }))
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1'])
+    expect(result.current.error).toBeUndefined()
+  })
+
+  it('keeps the primary catalog visible while supplemental hidden-agent metadata loads', () => {
+    hiddenBuiltinVisibilityMock.ids = ['cherry-support']
+    useQueryMock.mockImplementation((_path: string, options: { query: { builtinRoles?: string[] } }) => ({
+      data: options.query.builtinRoles ? undefined : { items: [{ id: 'agent-1', name: 'Agent', configuration: {} }] },
+      isLoading: !!options.query.builtinRoles,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn()
+    }))
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1'])
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('keeps the catalog loading until hidden built-in visibility is resolved', () => {
+    hiddenBuiltinVisibilityMock.isLoading = true
+    useQueryMock.mockReturnValue({
+      data: { items: [{ id: 'cherry-support', name: 'Cherry Support', configuration: { builtin_role: 'support' } }] },
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.isLoading).toBe(true)
+  })
+
+  it('recovers a hidden protected built-in after the Agent API limit of stale ids', () => {
+    hiddenBuiltinVisibilityMock.ids = [
+      ...Array.from({ length: AGENTS_MAX_LIMIT }, (_, index) => `stale-${index}`),
+      'builtin-assistant'
+    ]
+    useQueryMock.mockImplementation(
+      (_path: string, options: { query: { builtinRoles?: string[]; ids?: string[] } }) => ({
+        data: {
+          items: options.query.builtinRoles
+            ? [
+                {
+                  id: 'builtin-assistant',
+                  name: 'Cherry Assistant',
+                  configuration: { builtin_role: 'assistant' }
+                }
+              ]
+            : options.query.ids
+              ? []
+              : [{ id: 'agent-1', name: 'Agent', configuration: {} }]
+        },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn()
+      })
+    )
+
+    const { result } = renderHook(() => agentAdapter.useList({ enabled: true }))
+
+    expect(result.current.data.map((agent) => agent.id)).toEqual(['agent-1', 'builtin-assistant'])
+  })
+})
 
 describe('useAgentMutationsById', () => {
   beforeEach(() => {

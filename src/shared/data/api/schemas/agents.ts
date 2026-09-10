@@ -6,7 +6,7 @@
  * a response payload and an entity). DTOs are derived via .pick().
  */
 
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
+import { BUILTIN_AGENT_ROLE, PROTECTED_BUILTIN_AGENT_ROLES } from '@shared/ai/builtinAgent'
 import { AgentLanguageSchema } from '@shared/data/types/agentLanguage'
 import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -256,6 +256,14 @@ export const AGENTS_MAX_LIMIT = 500
 export const ListAgentsQuerySchema = z.strictObject({
   /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
+  /** Exact Agent identities to return. */
+  ids: z.array(z.string().min(1)).min(1).max(AGENTS_MAX_LIMIT).optional(),
+  /** Server-owned built-in Agent roles to return. */
+  builtinRoles: z
+    .array(z.enum(PROTECTED_BUILTIN_AGENT_ROLES))
+    .min(1)
+    .max(PROTECTED_BUILTIN_AGENT_ROLES.length)
+    .optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
   page: z.int().positive().default(AGENTS_DEFAULT_PAGE),
   /** Positive integer, max {@link AGENTS_MAX_LIMIT}, defaults to {@link AGENTS_DEFAULT_LIMIT}. */

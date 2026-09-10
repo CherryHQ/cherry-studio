@@ -1,20 +1,12 @@
 import type { PreferenceKeyType, PreferenceUpdateOptions } from '@shared/data/preference/preferenceTypes'
 import { vi } from 'vitest'
 
-import { mockPreferenceDefaults } from './PreferenceService'
+import { mockPreferenceDefaults, mockPreferenceState } from './PreferenceService'
 
 /**
  * Mock usePreference hooks for testing
  * Provides comprehensive mocks for preference management hooks
  */
-
-// Mock preference state storage
-const mockPreferenceState = new Map<PreferenceKeyType, any>()
-
-// Initialize with defaults
-Object.entries(mockPreferenceDefaults).forEach(([key, value]) => {
-  mockPreferenceState.set(key as PreferenceKeyType, value)
-})
 
 // Mock subscribers for preference changes
 const mockPreferenceSubscribers = new Map<PreferenceKeyType, Set<() => void>>()
@@ -39,15 +31,15 @@ const notifyPreferenceSubscribers = (key: PreferenceKeyType) => {
 export const mockUsePreference = vi.fn(
   <K extends PreferenceKeyType>(key: K, options?: PreferenceUpdateOptions): [any, (value: any) => Promise<void>] => {
     // Get current value
-    const currentValue = mockPreferenceState.get(key) ?? mockPreferenceDefaults[key] ?? null
+    const currentValue = mockPreferenceState[key] ?? mockPreferenceDefaults[key] ?? null
 
     // Mock setValue function
     const setValue = vi.fn(async (value: any) => {
-      const oldValue = mockPreferenceState.get(key)
+      const oldValue = mockPreferenceState[key]
 
       // Simulate optimistic updates (default behavior)
       if (options?.optimistic !== false) {
-        mockPreferenceState.set(key, value)
+        mockPreferenceState[key] = value
         notifyPreferenceSubscribers(key)
       }
 
@@ -56,7 +48,7 @@ export const mockUsePreference = vi.fn(
 
       // For pessimistic updates, update after delay
       if (options?.optimistic === false) {
-        mockPreferenceState.set(key, value)
+        mockPreferenceState[key] = value
         notifyPreferenceSubscribers(key)
       }
 
@@ -64,7 +56,7 @@ export const mockUsePreference = vi.fn(
       if ((options as any)?.shouldError) {
         // Rollback optimistic update on error
         if (options?.optimistic !== false) {
-          mockPreferenceState.set(key, oldValue)
+          mockPreferenceState[key] = oldValue
           notifyPreferenceSubscribers(key)
         }
         throw new Error(`Mock preference error for key: ${key}`)
@@ -87,7 +79,7 @@ export const mockUseMultiplePreferences = vi.fn(
     const currentValues = {} as { [K in keyof T]: any }
     Object.entries(keys).forEach(([alias, key]) => {
       currentValues[alias as keyof T] =
-        mockPreferenceState.get(key as PreferenceKeyType) ?? mockPreferenceDefaults[key as string] ?? null
+        mockPreferenceState[key as PreferenceKeyType] ?? mockPreferenceDefaults[key as string] ?? null
     })
 
     // Mock setValues function
@@ -99,7 +91,7 @@ export const mockUseMultiplePreferences = vi.fn(
         Object.entries(values).forEach(([alias, value]) => {
           const key = keys[alias as keyof T] as PreferenceKeyType
           if (value !== undefined) {
-            mockPreferenceState.set(key, value)
+            mockPreferenceState[key] = value
             currentValues[alias as keyof T] = value as any
             notifyPreferenceSubscribers(key)
           }
@@ -114,7 +106,7 @@ export const mockUseMultiplePreferences = vi.fn(
         Object.entries(values).forEach(([alias, value]) => {
           const key = keys[alias as keyof T] as PreferenceKeyType
           if (value !== undefined) {
-            mockPreferenceState.set(key, value)
+            mockPreferenceState[key] = value
             currentValues[alias as keyof T] = value as any
             notifyPreferenceSubscribers(key)
           }
@@ -127,7 +119,7 @@ export const mockUseMultiplePreferences = vi.fn(
         if (options?.optimistic !== false) {
           Object.entries(oldValues).forEach(([alias, value]) => {
             const key = keys[alias as keyof T] as PreferenceKeyType
-            mockPreferenceState.set(key, value)
+            mockPreferenceState[key] = value
             currentValues[alias as keyof T] = value
             notifyPreferenceSubscribers(key)
           })
@@ -160,10 +152,8 @@ export const MockUsePreferenceUtils = {
     mockUseMultiplePreferences.mockClear()
 
     // Reset state to defaults
-    mockPreferenceState.clear()
-    Object.entries(mockPreferenceDefaults).forEach(([key, value]) => {
-      mockPreferenceState.set(key as PreferenceKeyType, value)
-    })
+    Object.keys(mockPreferenceState).forEach((key) => delete mockPreferenceState[key])
+    Object.assign(mockPreferenceState, mockPreferenceDefaults)
 
     // Clear subscribers
     mockPreferenceSubscribers.clear()
@@ -173,7 +163,7 @@ export const MockUsePreferenceUtils = {
    * Set a preference value for testing
    */
   setPreferenceValue: <K extends PreferenceKeyType>(key: K, value: any) => {
-    mockPreferenceState.set(key, value)
+    mockPreferenceState[key] = value
     notifyPreferenceSubscribers(key)
   },
 
@@ -181,7 +171,7 @@ export const MockUsePreferenceUtils = {
    * Get current preference value
    */
   getPreferenceValue: <K extends PreferenceKeyType>(key: K): any => {
-    return mockPreferenceState.get(key) ?? mockPreferenceDefaults[key] ?? null
+    return mockPreferenceState[key] ?? mockPreferenceDefaults[key] ?? null
   },
 
   /**
@@ -189,7 +179,7 @@ export const MockUsePreferenceUtils = {
    */
   setMultiplePreferenceValues: (values: Record<string, any>) => {
     Object.entries(values).forEach(([key, value]) => {
-      mockPreferenceState.set(key as PreferenceKeyType, value)
+      mockPreferenceState[key as PreferenceKeyType] = value
       notifyPreferenceSubscribers(key as PreferenceKeyType)
     })
   },
@@ -199,7 +189,7 @@ export const MockUsePreferenceUtils = {
    */
   getAllPreferenceValues: (): Record<string, any> => {
     const result: Record<string, any> = {}
-    mockPreferenceState.forEach((value, key) => {
+    Object.entries(mockPreferenceState).forEach(([key, value]) => {
       result[key] = value
     })
     return result
@@ -209,7 +199,7 @@ export const MockUsePreferenceUtils = {
    * Simulate preference change from external source
    */
   simulateExternalPreferenceChange: <K extends PreferenceKeyType>(key: K, value: any) => {
-    mockPreferenceState.set(key, value)
+    mockPreferenceState[key] = value
     notifyPreferenceSubscribers(key)
   },
 
@@ -223,7 +213,7 @@ export const MockUsePreferenceUtils = {
       }
 
       // Default behavior for other keys
-      const defaultValue = mockPreferenceState.get(preferenceKey) ?? mockPreferenceDefaults[preferenceKey] ?? null
+      const defaultValue = mockPreferenceState[preferenceKey] ?? mockPreferenceDefaults[preferenceKey] ?? null
       return [defaultValue, vi.fn().mockResolvedValue(undefined)]
     })
   },
@@ -235,12 +225,12 @@ export const MockUsePreferenceUtils = {
     mockUsePreference.mockImplementation((preferenceKey) => {
       if (preferenceKey === key) {
         const setValue = vi.fn().mockRejectedValue(error)
-        const currentValue = mockPreferenceState.get(key) ?? mockPreferenceDefaults[key] ?? null
+        const currentValue = mockPreferenceState[key] ?? mockPreferenceDefaults[key] ?? null
         return [currentValue, setValue]
       }
 
       // Default behavior for other keys
-      const defaultValue = mockPreferenceState.get(preferenceKey) ?? mockPreferenceDefaults[preferenceKey] ?? null
+      const defaultValue = mockPreferenceState[preferenceKey] ?? mockPreferenceDefaults[preferenceKey] ?? null
       return [defaultValue, vi.fn().mockResolvedValue(undefined)]
     })
   },

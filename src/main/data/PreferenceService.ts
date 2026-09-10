@@ -267,6 +267,19 @@ export class PreferenceService extends BaseService {
       }
     )
 
+    this.ipcHandle(
+      IpcChannel.Preference_CompareAndSet,
+      async (
+        event,
+        key: UnifiedPreferenceKeyType,
+        expected: UnifiedPreferenceType[UnifiedPreferenceKeyType],
+        value: UnifiedPreferenceType[UnifiedPreferenceKeyType]
+      ) => {
+        this.assertTrustedSender(event, IpcChannel.Preference_CompareAndSet)
+        return this.compareAndSet(key, expected, value)
+      }
+    )
+
     this.ipcHandle(IpcChannel.Preference_GetMultipleRaw, (event, keys: UnifiedPreferenceKeyType[]) => {
       this.assertTrustedSender(event, IpcChannel.Preference_GetMultipleRaw)
       return this.getMultipleRaw(keys)
@@ -406,6 +419,22 @@ export class PreferenceService extends BaseService {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
     }
+  }
+
+  /**
+   * Set a preference only when its main-process value still matches the caller's read.
+   */
+  public async compareAndSet<K extends UnifiedPreferenceKeyType>(
+    key: K,
+    expected: UnifiedPreferenceType[K],
+    value: UnifiedPreferenceType[K]
+  ): Promise<boolean> {
+    if (!isEqual(this.get(key), expected)) {
+      return false
+    }
+
+    await this.set(key, value)
+    return true
   }
 
   /**

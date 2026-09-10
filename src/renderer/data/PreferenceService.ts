@@ -9,6 +9,9 @@ import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
 import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('PreferenceService')
+const PREFERENCE_READ_RETRY_INITIAL_DELAY_MS = 1000
+const PREFERENCE_READ_RETRY_MAX_DELAY_MS = 30_000
+const PREFERENCE_READ_RETRY_MAX_EXPONENT = 5
 
 /**
  * Renderer-side PreferenceService providing cached access to preferences with real-time synchronization
@@ -29,6 +32,8 @@ export class PreferenceService {
   private changeListenerCleanup: (() => void) | null = null
 
   private subscribedKeys = new Set<string>()
+  private readRetryAttempts = new Map<UnifiedPreferenceKeyType, number>()
+  private readRetryTimers = new Map<UnifiedPreferenceKeyType, number>()
 
   private fullCacheLoaded = false
 
@@ -49,7 +54,9 @@ export class PreferenceService {
     UnifiedPreferenceKeyType,
     Array<{
       requestId: string
-      value: any
+      resolveValue: (currentValue: any) => any
+      skipIfEqual: boolean
+      atomic: boolean
       resolve: (value: void | PromiseLike<void>) => void
       reject: (reason?: any) => void
     }>
@@ -71,6 +78,7 @@ export class PreferenceService {
 
     this.changeListenerCleanup = window.api.preference.onChanged((key, value) => {
       const oldValue = this.cache[key]
+      this.clearReadRetry(key)
 
       // Deep equality filters self-induced IPC echoes: the main-process broadcast
       // intentionally does NOT exclude the sender (it relies on this gate to drop
@@ -89,14 +97,42 @@ export class PreferenceService {
    * @param key The preference key that changed
    */
   private notifyChangeListeners(key: string) {
+    const notify = (listener: () => void) => {
+      try {
+        listener()
+      } catch (error) {
+        logger.error(`Preference change listener failed for ${key}:`, error as Error)
+      }
+    }
+
     // Notify global listeners
-    this.allChangesListeners.forEach((listener) => listener())
+    this.allChangesListeners.forEach(notify)
 
     // Notify specific key listeners
     const keyListeners = this.keyChangeListeners.get(key)
     if (keyListeners) {
-      keyListeners.forEach((listener) => listener())
+      keyListeners.forEach(notify)
     }
+  }
+
+  private clearReadRetry(key: UnifiedPreferenceKeyType) {
+    const timer = this.readRetryTimers.get(key)
+    if (timer !== undefined) window.clearTimeout(timer)
+    this.readRetryTimers.delete(key)
+    this.readRetryAttempts.delete(key)
+  }
+
+  private scheduleReadRetry(key: UnifiedPreferenceKeyType) {
+    if (!this.keyChangeListeners.has(key) || this.readRetryTimers.has(key)) return
+
+    const exponent = this.readRetryAttempts.get(key) ?? 0
+    const delay = Math.min(PREFERENCE_READ_RETRY_INITIAL_DELAY_MS * 2 ** exponent, PREFERENCE_READ_RETRY_MAX_DELAY_MS)
+    const timer = window.setTimeout(() => {
+      this.readRetryTimers.delete(key)
+      void this.get(key)
+    }, delay)
+    this.readRetryAttempts.set(key, Math.min(exponent + 1, PREFERENCE_READ_RETRY_MAX_EXPONENT))
+    this.readRetryTimers.set(key, timer)
   }
 
   /**
@@ -107,6 +143,7 @@ export class PreferenceService {
   public async get<K extends UnifiedPreferenceKeyType>(key: K): Promise<UnifiedPreferenceType[K]> {
     // Check cache first
     if (key in this.cache && this.cache[key] !== undefined) {
+      this.clearReadRetry(key)
       if (!this.subscribedKeys.has(key)) {
         // Heal cached-but-unsubscribed keys (failed subscription, set()-seeded
         // cache) — fire-and-forget like subscribeChange.
@@ -120,6 +157,7 @@ export class PreferenceService {
     try {
       // Fetch from main process if not cached
       const value = await window.api.preference.get(key)
+      this.clearReadRetry(key)
       this.cache[key] = value
 
       // since not cached, notify change listeners to receive the value
@@ -131,6 +169,7 @@ export class PreferenceService {
       return value
     } catch (error) {
       logger.error(`Failed to get preference ${key}:`, error as Error)
+      this.scheduleReadRetry(key)
       return getDefaultValue(key)
     }
   }
@@ -155,6 +194,17 @@ export class PreferenceService {
   }
 
   /**
+   * Queue an optimistic read-modify-write against the latest value for a key.
+   */
+  public async update<K extends UnifiedPreferenceKeyType>(
+    key: K,
+    updater: (currentValue: UnifiedPreferenceType[K]) => UnifiedPreferenceType[K]
+  ): Promise<void> {
+    const requestId = this.generateRequestId()
+    return this.enqueueRequest(key, requestId, updater, true, true)
+  }
+
+  /**
    * Optimistic update: Queue request to prevent race conditions
    * Updates UI immediately, then syncs to database with rollback on failure
    * @param key The preference key to update
@@ -166,7 +216,7 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K]
   ): Promise<void> {
     const requestId = this.generateRequestId()
-    return this.enqueueRequest(key, requestId, value)
+    return this.enqueueRequest(key, requestId, () => value)
   }
 
   /**
@@ -207,6 +257,47 @@ export class PreferenceService {
       this.rollbackOptimistic(key, requestId)
       logger.error(`Optimistic update failed for ${key} (${requestId}), rolling back:`, error as Error)
       throw error
+    }
+  }
+
+  private async executeAtomicUpdate(
+    key: UnifiedPreferenceKeyType,
+    resolveValue: (currentValue: any) => any,
+    requestId: string
+  ): Promise<void> {
+    while (true) {
+      const currentValue = await window.api.preference.get(key)
+      const value = resolveValue(currentValue)
+
+      if (isEqual(currentValue, value)) {
+        if (!isEqual(this.cache[key], currentValue)) {
+          this.cache[key] = currentValue
+          this.notifyChangeListeners(key)
+        }
+        return
+      }
+
+      this.cache[key] = value
+      this.notifyChangeListeners(key)
+      this.optimisticValues.set(key, {
+        value,
+        originalValue: currentValue,
+        timestamp: Date.now(),
+        requestId,
+        isFirst: true
+      })
+
+      try {
+        if (await window.api.preference.compareAndSet(key, currentValue, value)) {
+          this.confirmOptimistic(key, requestId)
+          return
+        }
+
+        this.rollbackOptimistic(key, requestId)
+      } catch (error) {
+        this.rollbackOptimistic(key, requestId)
+        throw error
+      }
     }
   }
 
@@ -458,6 +549,7 @@ export class PreferenceService {
         keyListeners.delete(callback)
         if (keyListeners.size === 0) {
           this.keyChangeListeners.delete(key)
+          this.clearReadRetry(key)
         }
       }
     }
@@ -544,9 +636,6 @@ export class PreferenceService {
     if (optimisticState && optimisticState.requestId === requestId) {
       this.optimisticValues.delete(key)
       logger.debug(`Optimistic update confirmed for ${key} (${requestId})`)
-
-      // Process next queued request
-      this.completeQueuedRequest(key)
     } else {
       logger.warn(
         `Attempted to confirm mismatched request for ${key}: expected ${optimisticState?.requestId}, got ${requestId}`
@@ -571,9 +660,6 @@ export class PreferenceService {
 
       const duration = Date.now() - optimisticState.timestamp
       logger.warn(`Optimistic update rolled back for ${key} (${requestId}) after ${duration}ms to original value`)
-
-      // Process next queued request
-      this.completeQueuedRequest(key)
     } else {
       logger.warn(
         `Attempted to rollback mismatched request for ${key}: expected ${optimisticState?.requestId}, got ${requestId}`
@@ -615,17 +701,24 @@ export class PreferenceService {
    * Add request to queue for a specific key to prevent race conditions
    * @param key The preference key to update
    * @param requestId Unique identifier for this request
-   * @param value The value to set
+   * @param resolveValue Resolves the queued value from the latest cached value
+   * @param skipIfEqual Whether to skip persistence when the resolved value is unchanged
    * @returns Promise that resolves when the request is processed
    */
-  private enqueueRequest(key: UnifiedPreferenceKeyType, requestId: string, value: any): Promise<void> {
+  private enqueueRequest(
+    key: UnifiedPreferenceKeyType,
+    requestId: string,
+    resolveValue: (currentValue: any) => any,
+    skipIfEqual = false,
+    atomic = false
+  ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (!this.requestQueues.has(key)) {
         this.requestQueues.set(key, [])
       }
 
       const queue = this.requestQueues.get(key)!
-      queue.push({ requestId, value, resolve, reject })
+      queue.push({ requestId, resolveValue, skipIfEqual, atomic, resolve, reject })
 
       // If this is the first request in queue, process it immediately
       if (queue.length === 1) {
@@ -647,10 +740,25 @@ export class PreferenceService {
 
     const currentRequest = queue[0]
     try {
-      await this.executeOptimisticUpdate(key, currentRequest.value, currentRequest.requestId)
+      if (currentRequest.atomic) {
+        await this.executeAtomicUpdate(key, currentRequest.resolveValue, currentRequest.requestId)
+        currentRequest.resolve()
+        return
+      }
+
+      const currentValue = this.cache[key] !== undefined ? this.cache[key] : getDefaultValue(key)
+      const value = currentRequest.resolveValue(currentValue)
+      if (currentRequest.skipIfEqual && isEqual(currentValue, value)) {
+        currentRequest.resolve()
+        return
+      }
+
+      await this.executeOptimisticUpdate(key, value, currentRequest.requestId)
       currentRequest.resolve()
     } catch (error) {
       currentRequest.reject(error)
+    } finally {
+      this.completeQueuedRequest(key)
     }
   }
 
@@ -677,6 +785,9 @@ export class PreferenceService {
    * Clear all cached preferences for testing/debugging
    */
   public clearCache(): void {
+    this.readRetryTimers.forEach((timer) => window.clearTimeout(timer))
+    this.readRetryTimers.clear()
+    this.readRetryAttempts.clear()
     this.cache = {}
     this.fullCacheLoaded = false
     logger.debug('Preference cache cleared')

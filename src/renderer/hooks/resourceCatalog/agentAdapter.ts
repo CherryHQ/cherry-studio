@@ -1,10 +1,12 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useBuiltinAgentListVisibility } from '@renderer/hooks/agent/useBuiltinAgentListVisibility'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import { PROTECTED_BUILTIN_AGENT_ROLES } from '@shared/ai/builtinAgent'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
@@ -16,22 +18,48 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  * filter on top.
  */
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
-    enabled: query?.enabled !== false,
+  const enabled = query?.enabled !== false
+  const {
+    filterHiddenBuiltinAgents,
+    hasHiddenBuiltinAgents,
+    isLoading: isVisibilityLoading
+  } = useBuiltinAgentListVisibility()
+  const primary = useQuery('/agents', {
+    enabled,
     query: {
       limit: query?.limit ?? AGENTS_MAX_LIMIT,
       ...(query?.search ? { search: query.search } : {})
     }
   })
+  const hiddenBuiltin = useQuery('/agents', {
+    enabled: enabled && hasHiddenBuiltinAgents,
+    query: {
+      builtinRoles: [...PROTECTED_BUILTIN_AGENT_ROLES],
+      limit: PROTECTED_BUILTIN_AGENT_ROLES.length,
+      ...(query?.search ? { search: query.search } : {})
+    }
+  })
 
-  const items = data?.items ?? []
-  const stableRefetch = useCallback(() => refetch(), [refetch])
+  const items = useMemo(() => {
+    const primaryItems = primary.data?.items ?? []
+    const primaryIds = new Set(primaryItems.map((agent) => agent.id))
+    const missingHiddenBuiltins = filterHiddenBuiltinAgents(hiddenBuiltin.data?.items ?? []).filter(
+      (agent) => !primaryIds.has(agent.id)
+    )
+    return [...primaryItems, ...missingHiddenBuiltins]
+  }, [filterHiddenBuiltinAgents, hiddenBuiltin.data?.items, primary.data?.items])
+  const primaryRefetch = primary.refetch
+  const hiddenBuiltinRefetch = hiddenBuiltin.refetch
+  const stableRefetch = useCallback(() => {
+    void primaryRefetch()
+    if (hasHiddenBuiltinAgents) void hiddenBuiltinRefetch()
+  }, [hasHiddenBuiltinAgents, hiddenBuiltinRefetch, primaryRefetch])
 
   return {
     data: items,
-    isLoading,
-    isRefreshing,
-    error,
+    isLoading: primary.isLoading || isVisibilityLoading,
+    isRefreshing: primary.isRefreshing || hiddenBuiltin.isRefreshing,
+    error: primary.error,
     refetch: stableRefetch
   }
 }

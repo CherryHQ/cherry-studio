@@ -1,9 +1,11 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { preferenceService } from '@data/PreferenceService'
 import type * as DndKitUtilities from '@dnd-kit/utilities'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -253,10 +255,23 @@ const pinMocks = vi.hoisted(() => ({
   usePins: vi.fn()
 }))
 
-const preferenceMocks = vi.hoisted(() => ({
-  values: new Map<string, unknown>(),
-  setPreference: vi.fn()
-}))
+const preferenceMocks = vi.hoisted(() => {
+  const values = new Map<string, unknown>()
+  const state = new Proxy<Record<string, unknown>>(
+    {},
+    {
+      deleteProperty: (_target, key) => values.delete(String(key)),
+      get: (_target, key) => values.get(String(key)),
+      getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true }),
+      ownKeys: () => [...values.keys()],
+      set: (_target, key, value) => {
+        values.set(String(key), value)
+        return true
+      }
+    }
+  )
+  return { state, values, setPreference: vi.fn() }
+})
 
 const cacheMocks = vi.hoisted(() => ({
   state: { activeSessionId: 'session-a' as string | null },
@@ -402,6 +417,11 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
     vi.fn()
   ]
 }))
+
+vi.mock('@data/PreferenceService', async () => {
+  const { createMockPreferenceService } = await import('@test-mocks/renderer/PreferenceService')
+  return { preferenceService: createMockPreferenceService({}, preferenceMocks.state) }
+})
 
 vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
   const React = require('react')
@@ -563,6 +583,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.agent.delete.content': 'Delete all tasks for this agent. The agent itself will not be deleted.',
         'agent.session.agent.delete.title': 'Delete agent tasks',
         'agent.session.agent.delete.trigger': 'Delete agent tasks',
+        'agent.session.agent.hide_from_list': 'Hide from list',
         'agent.edit.title': 'Edit Agent',
         'agent.icon.type': 'Agent icon',
         'agent.session.auto_rename': 'Generate task name',
@@ -842,9 +863,11 @@ function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
 describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
+    vi.mocked(preferenceService.update).mockClear()
     cacheMocks.values.clear()
     imageCaptureTargetsMock.targets = undefined
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
     preferenceMocks.values.set('agent.icon_type', 'emoji')
     preferenceMocks.values.set('agent.session.position', 'left')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
@@ -1433,6 +1456,33 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
   })
 
+  it('keeps Agent history available when more than 500 missing owners need supplemental metadata', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    const sessions = Array.from({ length: 501 }, (_, index) =>
+      createSession({
+        id: `session-${index}`,
+        name: `Session ${index}`,
+        agentId: `missing-agent-${index}`,
+        orderKey: `${index}`
+      })
+    )
+    agentDataMocks.useAgents.mockImplementation((options?: { ids?: readonly string[] }) => {
+      const ids = options?.ids ?? []
+      return {
+        agents: ids.map((id) => ({ id, model: 'model-a', name: id, configuration: {} })),
+        isLoading: false,
+        error: ids.length > 500 ? new Error('Too many Agent ids') : undefined,
+        refetch: dataApiMocks.refetchAgents
+      }
+    })
+    setupSessions({ sessions })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('Session 0')).toBeInTheDocument()
+  })
+
   it('keeps a pinned session in its expanded agent group', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
@@ -1791,6 +1841,47 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(sessionDataMocks.reload).toHaveBeenCalled()
+  })
+
+  it('hides a protected built-in after the Agent API limit of stale hidden ids', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [
+      ...Array.from({ length: AGENTS_MAX_LIMIT }, (_, index) => `stale-${index}`),
+      'cherry-support'
+    ])
+    agentDataMocks.useAgents.mockImplementation(
+      (options: { builtinRoles?: readonly string[]; enabled?: boolean; ids?: readonly string[] } = {}) => ({
+        agents:
+          options.enabled === false
+            ? []
+            : options.builtinRoles
+              ? [
+                  {
+                    id: 'cherry-support',
+                    model: 'model-a',
+                    name: 'Cherry Support',
+                    configuration: { builtin_role: 'support' }
+                  }
+                ]
+              : options.ids
+                ? []
+                : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+        isLoading: false,
+        error: undefined,
+        refetch: dataApiMocks.refetchAgents
+      })
+    )
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
   it('shows the first grouped session page while the remaining pages load', () => {
@@ -2378,6 +2469,42 @@ describe('Sessions', () => {
       )
     )
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
+  })
+
+  it('does not select a hidden built-in Agent task after deleting the active visible task', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        {
+          id: 'cherry-support',
+          model: 'model-b',
+          name: 'Cherry Support',
+          configuration: { builtin_role: 'support' }
+        }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Visible task', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'support-session', name: 'Hidden support task', agentId: 'cherry-support', orderKey: 'b' })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+
+    render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+    const deleteButton = within(
+      screen.getByText('Visible task').closest('[role="option"]') as HTMLElement
+    ).getByLabelText('Delete')
+    fireEvent.click(deleteButton)
+    fireEvent.click(deleteButton)
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
+    expect(setActiveSessionId).toHaveBeenCalledWith(null, null)
+    expect(setActiveSessionId).not.toHaveBeenCalledWith('support-session', expect.anything())
   })
 
   it('selects the display-order neighbour (not the raw API head) after deleting the active sidebar session', async () => {
@@ -3728,12 +3855,186 @@ describe('Sessions', () => {
     expect(toast.success).toHaveBeenCalledWith('Deleted successfully')
   })
 
+  it('hides protected built-in Agent tasks without hiding ordinary Agents', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support', 'agent-b'])
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        {
+          id: 'cherry-support',
+          model: 'model-a',
+          name: 'Cherry Support',
+          configuration: { builtin_role: 'support' }
+        },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByRole('button', { name: 'Cherry Support' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Beta agent' })).toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+  })
+
+  it('hides protected built-in tasks even when the main Agent page omits their identity', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    agentDataMocks.useAgents.mockImplementation((options?: { builtinRoles?: readonly string[] }) => ({
+      agents: options?.builtinRoles
+        ? [
+            {
+              id: 'cherry-support',
+              model: 'model-a',
+              name: 'Cherry Support',
+              configuration: { builtin_role: 'support' }
+            }
+          ]
+        : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+  })
+
+  it('does not reveal hidden protected built-in tasks while their metadata is loading', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    agentDataMocks.useAgents.mockImplementation((options?: { builtinRoles?: readonly string[] }) => ({
+      agents: options?.builtinRoles ? [] : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+      isLoading: !!options?.builtinRoles,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+  })
+
+  it('does not reveal Agent tasks before the hidden built-in preference is resolved', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.delete('agent.session.hidden_builtin_ids')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        {
+          id: 'cherry-support',
+          model: 'model-a',
+          name: 'Cherry Support',
+          configuration: { builtin_role: 'support' }
+        },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+  })
+
+  it('does not reveal hidden protected built-in tasks when their metadata fails to load', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    const hiddenAgentError = new Error('Hidden Agent request failed')
+    agentDataMocks.useAgents.mockImplementation((options?: { builtinRoles?: readonly string[] }) => ({
+      agents: options?.builtinRoles ? [] : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+      isLoading: false,
+      error: options?.builtinRoles ? hiddenAgentError : undefined,
+      refetch: dataApiMocks.refetchAgents
+    }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Hidden Agent request failed')
+  })
+
+  it('recovers protected built-in Agent actions when the main Agent page omits their identity', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
+    agentDataMocks.useAgents.mockImplementation((options?: { ids?: readonly string[] }) => ({
+      agents: options?.ids?.includes('cherry-support')
+        ? [
+            {
+              id: 'cherry-support',
+              model: 'model-a',
+              name: 'Cherry Support',
+              configuration: { builtin_role: 'support' }
+            }
+          ]
+        : options?.ids
+          ? []
+          : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    const agentGroup = screen.getByRole('button', { name: 'Cherry Support' }).closest('div')
+    expect(agentGroup).not.toBeNull()
+    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    expect(screen.getAllByRole('menuitem', { name: 'Hide from list' })).not.toHaveLength(0)
+  })
+
   it.each([
     { builtinRole: 'assistant' as const, name: 'Cherry Assistant' },
     { builtinRole: 'support' as const, name: 'Cherry Support' }
-  ])('deletes only tasks from the protected built-in $name group', async ({ builtinRole, name }) => {
-    const onActiveAgentDeleted = vi.fn()
+  ])('hides the protected built-in $name group without deleting its tasks', async ({ builtinRole, name }) => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         {
@@ -3750,33 +4051,29 @@ describe('Sessions', () => {
     setupSessions({
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
     })
-    dataApiMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-a', 'session-not-loaded'] })
-
-    render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
+    const view = render(<SessionsForTest />)
 
     const agentGroup = screen.getByRole('button', { name }).closest('div')
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const deleteTasksMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Delete agent tasks' })
+    const hideMenuItem = screen
+      .getAllByRole('menuitem', { name: 'Hide from list' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
-    expect(deleteTasksMenuItem).toBeDefined()
+    expect(hideMenuItem).toBeDefined()
     expect(screen.queryByRole('menuitem', { name: 'Delete Agent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Delete agent tasks' })).not.toBeInTheDocument()
 
-    fireEvent.click(deleteTasksMenuItem as HTMLElement)
+    fireEvent.click(hideMenuItem as HTMLElement)
 
-    await vi.waitFor(() =>
-      expect(dataApiMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
-    )
+    await vi.waitFor(() => expect(preferenceMocks.values.get('agent.session.hidden_builtin_ids')).toEqual(['agent-a']))
+    expect(preferenceService.update).toHaveBeenCalledWith('agent.session.hidden_builtin_ids', expect.any(Function))
     expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
-    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-not-loaded'])
-    expect(popup.confirm).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: 'Delete all tasks for this agent. The agent itself will not be deleted.',
-        title: 'Delete agent tasks'
-      })
-    )
-    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
+    expect(dataApiMocks.deleteAgentSessions).not.toHaveBeenCalled()
+    expect(popup.confirm).not.toHaveBeenCalled()
+
+    view.rerender(<SessionsForTest historyRecordsActive={false} />)
+    expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
   })
 
   it('collapses agent groups from the display options menu', async () => {
@@ -3908,5 +4205,26 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(sessionDataMocks.reload).toHaveBeenCalled()
+  })
+
+  it('retries later Agent metadata sources when hidden built-in refresh fails', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    const refetchHiddenBuiltinAgents = vi.fn().mockRejectedValue(new Error('hidden refresh failed'))
+    agentDataMocks.useAgents.mockImplementation((options: { builtinRoles?: readonly string[] } = {}) => ({
+      agents: options.builtinRoles
+        ? [{ id: 'cherry-support', configuration: { builtin_role: 'support' }, name: 'Cherry Support' }]
+        : [{ id: 'agent-a', model: 'provider-a::model-a', modelName: 'Model A', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: options.builtinRoles ? refetchHiddenBuiltinAgents : dataApiMocks.refetchAgents
+    }))
+    setupSessions({ refreshError: new Error('refresh failed') })
+
+    render(<SessionsForTest />)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await vi.waitFor(() => expect(refetchHiddenBuiltinAgents).toHaveBeenCalled())
+    await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
   })
 })
