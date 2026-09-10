@@ -8,9 +8,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { applyMigrations } from '@data/db/applyMigrations'
-import { applyMigrations } from '@data/db/applyMigrations'
 import { LegacyFileCleanupPolicySeeder } from '@data/db/seeding/seeders/legacyFileCleanupPolicySeeder'
-import type { DbType } from '@data/db/types'
 import type { DbType } from '@data/db/types'
 
 /**

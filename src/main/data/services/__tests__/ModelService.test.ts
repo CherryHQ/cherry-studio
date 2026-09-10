@@ -3,14 +3,10 @@
  */
 
 import { setupTestDatabase } from '@test-helpers/db'
-import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { and, eq, or } from 'drizzle-orm'
-import { and, eq, or } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { application } from '@application'
 import { application } from '@application'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
