@@ -59,6 +59,38 @@ export type ComposerUnifiedPanelSelectHandler = (
   }
 ) => void
 
+export function prepareComposerQuickPanelSearch({
+  inputAdapter,
+  queryAnchor,
+  triggerInfo
+}: Pick<ComposerUnifiedPanelResourceContext, 'inputAdapter' | 'queryAnchor' | 'triggerInfo'>) {
+  const text = inputAdapter?.getText()
+  const cursorOffset = inputAdapter ? (inputAdapter.getCursorOffset?.() ?? text?.length ?? 0) : undefined
+  // type:input deletion is queryAnchor-owned. Falling back to position here would return a
+  // button-tracked anchor at the leftover draft and let dismiss-time consume wipe it.
+  let searchAnchor =
+    triggerInfo?.type === 'input' ? queryAnchor : (queryAnchor ?? triggerInfo?.position ?? cursorOffset)
+
+  if (inputAdapter && triggerInfo?.type === 'input' && queryAnchor !== undefined) {
+    const liveText = inputAdapter.getText()
+    const rangeEnd = inputAdapter.getCursorOffset?.() ?? liveText.length
+    if (rangeEnd > queryAnchor) {
+      inputAdapter.deleteTriggerRange({ from: queryAnchor, to: rangeEnd })
+      inputAdapter.focus()
+      // The trigger is gone; a leftover typed prefix must not be tracked as a query.
+      searchAnchor = undefined
+    }
+  }
+
+  return {
+    queryAnchor: searchAnchor,
+    trackInputQuery: true,
+    consumeQueryOnDismiss: true,
+    triggerInfo:
+      searchAnchor === undefined ? { type: 'button' as const } : { type: 'button' as const, position: searchAnchor }
+  }
+}
+
 function createQuickPanelWithParent(
   quickPanel: QuickPanelContextType,
   parentPanel?: QuickPanelOpenOptions
@@ -272,13 +304,16 @@ function createUnifiedPanelListItem(
     action: ({ context, parentPanel: actionParentPanel, queryAnchor, searchText }) => {
       const parentPanel = actionParentPanel ?? options.getRootPanelOptions?.()
       const triggerInfo = context.triggerInfo ?? options.quickPanel.triggerInfo
+      // handleItemAction already consumed a type:input trigger. Forwarding that pre-consume
+      // queryAnchor would track leftover composer text as the submenu's live filter.
+      const nextQueryAnchor = triggerInfo?.type === 'input' ? undefined : queryAnchor
 
       if (children.length > 0) {
         openUnifiedPanelSubmenu(launcher, {
           ...options,
           ancestorLauncherIds: nextAncestorLauncherIds,
           parentPanel,
-          queryAnchor,
+          queryAnchor: nextQueryAnchor,
           searchText,
           triggerInfo
         })
@@ -290,7 +325,7 @@ function createUnifiedPanelListItem(
         createUnifiedPanelActionOptions({
           ...options,
           parentPanel,
-          queryAnchor,
+          queryAnchor: nextQueryAnchor,
           searchText,
           triggerInfo
         })

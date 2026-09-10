@@ -1,10 +1,15 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
 import { Globe2, Settings2 } from 'lucide-react'
-import { isValidElement } from 'react'
+import { isValidElement, useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { installSyncRafMock } from '../../../../../../../tests/__mocks__/requestAnimationFrame'
+import { QuickPanelProvider } from '../../../../QuickPanel/QuickPanelProvider'
+import { QuickPanelView } from '../../../../QuickPanel/QuickPanelView'
+import type { QuickPanelFooterAction, QuickPanelInputAdapter, QuickPanelListItem } from '../../../../QuickPanel/types'
+import { useQuickPanel } from '../../../../QuickPanel/useQuickPanel'
 import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
 
 const mocks = vi.hoisted(() => ({
@@ -109,9 +114,34 @@ function getRegisteredFooterActions(launcher: ToolLauncherApi) {
   if (!actions) throw new Error('Expected footer actions to be registered')
   return actions
 }
-import { installSyncRafMock } from '../../../../../../../tests/__mocks__/requestAnimationFrame'
 
 const ASSISTANT_ID = '550e8400-e29b-41d4-a716-446655440001'
+
+function FilteredPromptPanel({
+  footerActions,
+  items,
+  inputAdapter
+}: {
+  footerActions: QuickPanelFooterAction[]
+  items: QuickPanelListItem[]
+  inputAdapter: QuickPanelInputAdapter
+}) {
+  const { open } = useQuickPanel()
+
+  useEffect(() => {
+    open({
+      footerActions,
+      list: items,
+      symbol: 'quick-phrases',
+      title: 'settings.prompts.title',
+      trackInputQuery: true,
+      queryAnchor: 0,
+      triggerInfo: { type: 'input', position: 0, originalText: inputAdapter.getText() }
+    })
+  }, [footerActions, inputAdapter, items, open])
+
+  return <QuickPanelView inputAdapter={inputAdapter} />
+}
 
 let restoreRequestAnimationFrame: (() => void) | undefined
 describe('QuickPhrasesToolRuntime', () => {
@@ -145,6 +175,13 @@ describe('QuickPhrasesToolRuntime', () => {
       position: 0,
       originalText: '/prompt'
     }
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 6,
+      getText: () => 'prompt',
+      insertText: vi.fn()
+    }
 
     render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
 
@@ -158,6 +195,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     act(() => {
       quickPhrasesLauncher.action?.({
+        inputAdapter,
         parentPanel,
         queryAnchor: 0,
         quickPanel: {} as never,
@@ -174,6 +212,8 @@ describe('QuickPhrasesToolRuntime', () => {
       })
     )
     expect(mocks.quickPanelClose).not.toHaveBeenCalled()
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+    expect(inputAdapter.focus).toHaveBeenCalled()
     expect(mocks.setTimeoutTimer).not.toHaveBeenCalledWith(
       'openQuickPhrasesRootMenu',
       expect.any(Function),
@@ -182,10 +222,55 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         parentPanel,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         symbol: 'quick-phrases',
-        triggerInfo: { type: 'button' },
-        trackInputQuery: true
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true,
+        triggerInfo: { type: 'button' }
+      })
+    )
+  })
+
+  it('leaves leftover composer text after deleting a slash-triggered prompt query', async () => {
+    // Bug: returning the pre-deletion queryAnchor lets consumeInputQuery wipe `hello world`.
+    const trigger = '/prompt '
+    let text = `${trigger}hello world`
+    let cursorOffset = trigger.length
+    const launcher = createLauncherApi()
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(({ from, to }: { from: number; to: number }) => {
+        text = `${text.slice(0, from)}${text.slice(to)}`
+        cursorOffset = cursorOffset <= from ? cursorOffset : Math.max(from, cursorOffset - (to - from))
+      }),
+      focus: vi.fn(),
+      getCursorOffset: () => cursorOffset,
+      getText: () => text,
+      insertText: vi.fn()
+    }
+
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        inputAdapter,
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'input', position: 0, originalText: `${trigger}hello world` }
+      })
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: trigger.length })
+    expect(text).toBe('hello world')
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryAnchor: undefined,
+        consumeQueryOnDismiss: true,
+        triggerInfo: { type: 'button' }
       })
     )
   })
@@ -414,5 +499,55 @@ describe('QuickPhrasesToolRuntime', () => {
         body: { title: 'New prompt', content: 'New content', visibility: 'global' }
       })
     )
+  })
+
+  it('keeps footer actions visible when no prompt matches the composer query', async () => {
+    const launcher = createLauncherApi()
+
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'button' }
+      })
+    })
+
+    const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    const footerActions = getRegisteredFooterActions(launcher)
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 15,
+      getText: () => '/does-not-exist',
+      insertText: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <FilteredPromptPanel footerActions={footerActions} items={panelOptions.list} inputAdapter={inputAdapter} />
+      </QuickPanelProvider>
+    )
+
+    const footer = await screen.findByTestId('quick-panel-footer-actions')
+    const visibleActions = within(footer)
+      .getAllByRole('button')
+      .map((row) => row.textContent)
+
+    expect(screen.queryByText('Prompt 1')).not.toBeInTheDocument()
+    expect(visibleActions).toEqual(['common.add', 'settings.quickPanel.scope.global'])
+
+    act(() => {
+      fireEvent.click(within(footer).getByText('settings.quickPanel.scope.global'))
+    })
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/prompts')
+    expect(mocks.openResourceEditDialog).not.toHaveBeenCalled()
   })
 })

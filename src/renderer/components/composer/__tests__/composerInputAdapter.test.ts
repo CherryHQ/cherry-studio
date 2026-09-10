@@ -36,4 +36,15 @@ describe('createComposerInputAdapter', () => {
     expect(draft.tokens).toEqual([])
     expect(draft.text).toBe('echo ${HOME}')
   })
+
+  it('reports the selected text end to toolbar-opened quick panels', () => {
+    const currentEditor = createEditor()
+    currentEditor.commands.setContent('prefix selected suffix')
+    currentEditor.commands.setTextSelection({ from: 8, to: 16 })
+
+    const adapter = createComposerInputAdapter(currentEditor)
+
+    expect(adapter.getCursorOffset?.()).toBe(7)
+    expect(adapter.getSelectionEndOffset?.()).toBe(15)
+  })
 })
