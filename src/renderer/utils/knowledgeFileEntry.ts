@@ -1,6 +1,8 @@
+import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 export interface KnowledgeFileItemData {
   source: string
@@ -20,6 +22,11 @@ export const resolveKnowledgeFileData = async (
   const result = AbsoluteFilePathSchema.safeParse(source)
   if (!result.success) {
     throw new Error(`Failed to resolve an absolute local path for "${displayName}"`)
+  }
+
+  const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(result.data))
+  if (!metadata || metadata.kind !== 'file') {
+    throw new Error(`Failed to read a local file for "${displayName}"`)
   }
 
   return {
