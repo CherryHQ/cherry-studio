@@ -10,6 +10,7 @@ interface Props {
 /**
  * Mount beside the page's Activity boundary. The anchor supplies presentation
  * only; removing it preserves the guest, its effects and its last viewport.
+ * Opacity hides presentation without suppressing the guest's compositor surface.
  */
 export function WebviewSurface({ anchor, children }: Props) {
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -17,7 +18,8 @@ export function WebviewSurface({ anchor, children }: Props) {
   useLayoutEffect(() => {
     const surface = surfaceRef.current
     if (!surface) return
-    surface.style.visibility = 'hidden'
+    surface.style.opacity = '0'
+    surface.style.pointerEvents = 'none'
     surface.inert = true
     if (!anchor) return
 
@@ -26,7 +28,8 @@ export function WebviewSurface({ anchor, children }: Props) {
       frame = undefined
       const rect = anchor.getBoundingClientRect()
       const visible = anchor.isConnected && rect.width > 0 && rect.height > 0
-      surface.style.visibility = visible ? 'visible' : 'hidden'
+      surface.style.opacity = visible ? '1' : '0'
+      surface.style.pointerEvents = visible ? 'auto' : 'none'
       surface.inert = !visible
       if (!visible) return
       Object.assign(surface.style, {
@@ -54,7 +57,8 @@ export function WebviewSurface({ anchor, children }: Props) {
       mutation.disconnect()
       window.removeEventListener('resize', schedule)
       window.removeEventListener('scroll', schedule, true)
-      surface.style.visibility = 'hidden'
+      surface.style.opacity = '0'
+      surface.style.pointerEvents = 'none'
       surface.inert = true
     }
   }, [anchor])
@@ -64,7 +68,7 @@ export function WebviewSurface({ anchor, children }: Props) {
       ref={surfaceRef}
       data-webview-surface=""
       className="fixed z-10 overflow-hidden"
-      style={{ width: 960, height: 720, visibility: 'hidden' }}>
+      style={{ left: 0, top: 0, width: 960, height: 720, opacity: 0, pointerEvents: 'none' }}>
       {children}
     </div>,
     document.body
