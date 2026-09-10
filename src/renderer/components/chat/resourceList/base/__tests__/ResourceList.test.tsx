@@ -942,7 +942,7 @@ describe('ResourceList', () => {
               <ResourceList.Item item={item} data-testid="resource-row">
                 <ResourceList.ItemLeadingSlot data-testid="resource-leading-slot">#</ResourceList.ItemLeadingSlot>
                 <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
-                <ResourceList.ItemActions>
+                <ResourceList.ItemActions discoverable>
                   <ResourceList.ItemAction aria-label="Item action">#</ResourceList.ItemAction>
                 </ResourceList.ItemActions>
               </ResourceList.Item>
@@ -980,9 +980,16 @@ describe('ResourceList', () => {
       'focus-visible:text-accent-foreground!'
     )
     // The action rail owns its intrinsic layout reserve; Item no longer needs to inspect React child types.
+    // Coarse pointers and selected rows keep the stable More affordance discoverable without hover.
     expect(
       screen.getByRole('button', { name: 'Item action' }).closest('[data-resource-list-item-actions]')
-    ).toHaveClass('grid-cols-[0fr]', 'group-hover:grid-cols-[1fr]', 'focus-within:grid-cols-[1fr]')
+    ).toHaveClass(
+      'grid-cols-[0fr]',
+      'group-hover:grid-cols-[1fr]',
+      'focus-within:grid-cols-[1fr]',
+      'pointer-coarse:grid-cols-[1fr]',
+      'group-data-[selected=true]:grid-cols-[1fr]'
+    )
   })
 
   it('cancels inline rename with Escape without committing the draft name', () => {

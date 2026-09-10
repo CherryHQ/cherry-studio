@@ -581,20 +581,23 @@ function ItemLeadingSlot(props: ItemLeadingSlotProps) {
 }
 
 type ItemActionProps = ComponentProps<'button'> & {
+  alwaysVisible?: boolean
   ref?: Ref<HTMLButtonElement>
 }
 
-function ItemAction({ className, ref, type = 'button', ...props }: ItemActionProps) {
+function ItemAction({ alwaysVisible = false, className, ref, type = 'button', ...props }: ItemActionProps) {
   return (
     <button
       ref={ref}
       type={type}
       className={cn(
-        'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
         'hover:bg-accent hover:text-accent-foreground!',
         'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground! focus-visible:opacity-100 focus-visible:outline-none',
         RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
-        'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
+        alwaysVisible
+          ? 'pointer-events-auto opacity-100'
+          : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
         className
       )}
       {...props}
@@ -604,18 +607,22 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
 
 type ItemActionsProps = ComponentProps<'div'> & {
   active?: boolean
+  discoverable?: boolean
   ref?: Ref<HTMLDivElement>
 }
 
-function ItemActions({ active, children, className, ref, ...props }: ItemActionsProps) {
+function ItemActions({ active, children, className, discoverable = false, ref, ...props }: ItemActionsProps) {
   return (
     <div
       ref={ref}
       data-active={active || undefined}
+      data-discoverable={discoverable || undefined}
       data-resource-list-item-actions="true"
       className={cn(
         '-ml-1.5 -mr-1 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0 motion-reduce:transition-none',
         'focus-within:pointer-events-auto focus-within:grid-cols-[1fr] focus-within:opacity-100 group-hover:pointer-events-auto group-hover:grid-cols-[1fr] group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:grid-cols-[1fr] data-[active=true]:opacity-100',
+        discoverable &&
+          'pointer-coarse:pointer-events-auto pointer-coarse:grid-cols-[1fr] pointer-coarse:opacity-100 group-data-[selected=true]:pointer-events-auto group-data-[selected=true]:grid-cols-[1fr] group-data-[selected=true]:opacity-100',
         className
       )}
       {...props}>

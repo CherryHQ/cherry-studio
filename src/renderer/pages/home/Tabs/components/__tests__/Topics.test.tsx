@@ -3049,7 +3049,7 @@ describe('Topics', () => {
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
-    expect(screen.getByText('Beta Assistant')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(screen.getByText('No conversations')).toBeInTheDocument()
     expect(screen.getByText('First page topic')).toBeInTheDocument()
     expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(1)

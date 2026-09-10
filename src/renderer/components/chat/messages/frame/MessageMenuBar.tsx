@@ -31,7 +31,6 @@ interface Props {
   message: MessageListItem
   isGrouped?: boolean
   isLastMessage: boolean
-  forceVisible?: boolean
   isAssistantMessage: boolean
   isProcessing: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
@@ -41,12 +40,14 @@ interface Props {
   variant?: 'footer' | 'header'
 }
 
+const STABLE_MESSAGE_ACTION_IDS = new Set(['more-menu'])
+const COARSE_POINTER_STABLE_MESSAGE_ACTION_IDS = new Set(['copy'])
+
 const MessageMenuBar: FC<Props> = (props) => {
   const {
     message,
     isGrouped,
     isLastMessage,
-    forceVisible = false,
     isAssistantMessage,
     isProcessing,
     messageContainerRef,
@@ -161,21 +162,37 @@ const MessageMenuBar: FC<Props> = (props) => {
         data-ui="part:message-actions"
         className={classNames(
           'menubar flex select-none flex-row items-center justify-end gap-1.5',
-          isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',
-          (isLastMessage || forceVisible) && 'show'
+          isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]'
         )}>
-        {toolbarActions.map((action) => (
-          <MessageMenuBarToolbarAction
-            key={action.id}
-            action={action}
-            actionContext={actionContext}
-            executeAction={executeAction}
-            menuActions={menuActions}
-            onMenuOpenChange={onMenuOpenChange}
-            softHoverBg={softHoverBg}
-            translationItems={translationItems}
-          />
-        ))}
+        {toolbarActions.map((action) => {
+          const isStable = isLastMessage || STABLE_MESSAGE_ACTION_IDS.has(action.id)
+          const isCoarsePointerStable = COARSE_POINTER_STABLE_MESSAGE_ACTION_IDS.has(action.id)
+
+          return (
+            <span
+              key={action.id}
+              data-message-action-id={action.id}
+              className={classNames(
+                'shrink-0 transition-opacity duration-200 motion-reduce:transition-none',
+                isStable
+                  ? 'pointer-events-auto opacity-100'
+                  : classNames(
+                      'pointer-events-none opacity-0 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100',
+                      isCoarsePointerStable && 'pointer-coarse:pointer-events-auto pointer-coarse:opacity-100'
+                    )
+              )}>
+              <MessageMenuBarToolbarAction
+                action={action}
+                actionContext={actionContext}
+                executeAction={executeAction}
+                menuActions={menuActions}
+                onMenuOpenChange={onMenuOpenChange}
+                softHoverBg={softHoverBg}
+                translationItems={translationItems}
+              />
+            </span>
+          )
+        })}
       </div>
       {showMessageTokens && <MessageTokens message={message} />}
     </>
