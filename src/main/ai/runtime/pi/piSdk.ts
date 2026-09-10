@@ -10,7 +10,7 @@
  * `import type` elsewhere is compile-only and safe.
  */
 import type { ProviderConfig } from '@earendil-works/pi-coding-agent'
-import type { PiApi } from '@shared/ai/piModelCompatibility'
+import type { PiApi } from '@shared/ai/agentModelCompatibility'
 
 export function loadPiSdk() {
   return import('@earendil-works/pi-coding-agent')

@@ -1,8 +1,7 @@
+import { isAgentCompatibleModel } from '@shared/ai/agentModelCompatibility'
 import { claudeUserFacingTools } from '@shared/ai/claudecode/toolRegistry'
 import { DSH_BUILTIN_TOOLS } from '@shared/ai/dshBuiltinTools'
-import { isDshCompatibleModel } from '@shared/ai/dshModelCompatibility'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
-import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { AgentType } from '@shared/data/types/agent'
@@ -135,7 +134,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     // free-quota default is barred too — like claude, pi must not drive it directly.
     isModelCompatible: (provider, model) =>
       !!provider &&
-      isPiCompatibleModel(provider, model) &&
+      isAgentCompatibleModel('pi', provider, model) &&
       !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
     transport: 'pi-agent',
     builtinTools: () =>
@@ -166,7 +165,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     // protocol, so no provider ⇒ not drivable. The managed CherryAI default is barred like pi's.
     isModelCompatible: (provider, model) =>
       !!provider &&
-      isDshCompatibleModel(provider, model) &&
+      isAgentCompatibleModel('dsh', provider, model) &&
       !isManagedCherryAiDefaultModel(model.providerId, model.apiModelId ?? parseUniqueModelId(model.id).modelId),
     transport: 'dsh-agent',
     builtinTools: () => [

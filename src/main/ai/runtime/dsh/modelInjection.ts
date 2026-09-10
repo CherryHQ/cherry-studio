@@ -16,7 +16,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { type DshApi, mapEndpointToDshApi } from '@shared/ai/dshModelCompatibility'
+import { type DshApi, mapEndpointToAgentApi } from '@shared/ai/agentModelCompatibility'
 import { type Model, MODEL_CAPABILITY, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -153,7 +153,7 @@ function resolveDshEndpoint(provider: Provider, model: Model) {
 }
 
 /**
- * Effective-endpoint variant of shared `resolveDshApi`: services resolve the
+ * Effective-endpoint variant of shared `resolveAgentApi('dsh', ...)`: services resolve the
  * concrete route, so this is the branch condition for native vs gateway.
  */
 export function resolveDshInjectionApi(provider: Provider, model: Model): DshApi | undefined {
@@ -162,7 +162,7 @@ export function resolveDshInjectionApi(provider: Provider, model: Model): DshApi
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
     : undefined
-  return mapEndpointToDshApi(resolvedEndpoint.endpointType, adapterFamily)
+  return mapEndpointToAgentApi('dsh', resolvedEndpoint.endpointType, adapterFamily)
 }
 
 /** Whether DSH must use the local Gateway by provider policy or protocol fallback. */
@@ -184,10 +184,8 @@ export function buildDshProviderInjection(
   credentialReceipt?: AiUsageCredentialReceipt,
   reasoningEffort: ReasoningEffortOption = 'default'
 ): DshProviderInjection {
-  // Unsupported-provider beats missing-key: a login-based provider has no key
-  // by design, and "missing API key" would misdiagnose it. dsh runs as a
-  // subprocess with no per-request transport injection, so every login-based
-  // provider is undrivable (parity with shared `resolveDshApi`).
+  // Reject unsupported providers before checking keys: login-based providers have no key
+  // by design, and DSH has no per-request transport injection to drive them directly.
   const resolvedEndpoint = resolveDshEndpoint(provider, model)
   const api = resolveDshInjectionApi(provider, model)
   if (!api) {

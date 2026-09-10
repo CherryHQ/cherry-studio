@@ -17,7 +17,7 @@ import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { mapEndpointToAgentApi, type PiApi } from '@shared/ai/agentModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
@@ -155,7 +155,7 @@ export function buildPiProviderInjection(
   const api =
     isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)
       ? undefined
-      : mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
+      : mapEndpointToAgentApi('pi', resolvedEndpoint.endpointType, adapterFamily)
   if (!api) {
     throw new PiUnsupportedProviderError(provider.id)
   }
@@ -237,7 +237,7 @@ export function buildPiGatewayInjection(
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
     : undefined
-  const api = mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
+  const api = mapEndpointToAgentApi('pi', resolvedEndpoint.endpointType, adapterFamily)
   if (!api) throw new PiUnsupportedProviderError(provider.id)
 
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
@@ -354,7 +354,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
     const adapterFamily = resolvedEndpoint.endpointType
       ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
       : undefined
-    if (!mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)) {
+    if (!mapEndpointToAgentApi('pi', resolvedEndpoint.endpointType, adapterFamily)) {
       throw new PiUnsupportedProviderError(providerId)
     }
     return
@@ -369,7 +369,7 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
     : undefined
   if (
     (isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)) ||
-    !mapEndpointToPiApi(resolvedEndpoint.endpointType, adapterFamily)
+    !mapEndpointToAgentApi('pi', resolvedEndpoint.endpointType, adapterFamily)
   ) {
     throw new PiUnsupportedProviderError(providerId)
   }

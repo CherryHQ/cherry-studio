@@ -19,7 +19,7 @@ import {
 } from '@cherrystudio/dsh-bridge'
 import { isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import type { DshApi } from '@shared/ai/dshModelCompatibility'
+import type { DshApi } from '@shared/ai/agentModelCompatibility'
 import { stringify } from 'yaml'
 
 import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
