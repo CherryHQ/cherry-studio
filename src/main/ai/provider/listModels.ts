@@ -50,6 +50,7 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
+  LMStudioModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
@@ -805,6 +806,53 @@ const openAICompatibleFetcher: ModelFetcher = {
   }
 }
 
+/**
+ * LM Studio's `/v1/models` only lists downloaded models while JIT loading is on; with it off a pull
+ * silently returns just the loaded ones. `/api/v0/models` always lists everything and carries the
+ * model type and context window, which that endpoint has no room for.
+ */
+const lmStudioFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
+  fetch: async (provider, signal) => {
+    const baseUrl = withoutTrailingSlash(getBaseUrl(provider))
+      .replace(/\/v1$/, '')
+      .replace(/\/api\/v0$/, '')
+    let response: z.infer<typeof LMStudioModelsResponseSchema>
+    try {
+      response = await getFromApi({
+        url: `${baseUrl}/api/v0/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: LMStudioModelsResponseSchema,
+        abortSignal: signal
+      })
+    } catch (error) {
+      // LM Studio below 0.3.6 has no /api/v0 — fall back to the endpoint every version serves.
+      // A genuine failure (auth, server down) surfaces from the fallback call instead.
+      logger.warn('LM Studio /api/v0/models failed; falling back to /v1/models', {
+        providerId: provider.id,
+        errorType: getErrorType(error)
+      })
+      return openAICompatibleFetcher.fetch(provider, signal)
+    }
+
+    return dedup(response.data, (m) => m.id).map((m) => {
+      const type = m.type?.toLowerCase()
+      // `embeddings` on /api/v0, `embedding` on the 0.4 v1 API.
+      const endpointTypes = type?.startsWith('embedding') ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
+      const capability =
+        endpointImpliedCapability(endpointTypes?.[0]) ??
+        (type === 'vlm' ? MODEL_CAPABILITY.IMAGE_RECOGNITION : undefined)
+
+      return toModel(m.id, provider, {
+        ownedBy: m.publisher,
+        ...(endpointTypes ? { endpointTypes } : {}),
+        ...(capability ? { capabilities: [capability] } : {}),
+        ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
+      })
+    })
+  }
+}
+
 // ── Ollama probe ──
 
 /** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
@@ -839,6 +887,7 @@ export async function probeOllamaModel(
 const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
+  lmStudioFetcher,
   geminiFetcher,
   vertexFetcher,
   copilotFetcher,
