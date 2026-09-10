@@ -4,6 +4,7 @@
   "agent.session.new": "新任务",
   "agent.session.run_status.busy": "Agent 会话正忙，请稍后重试。",
   "agent.session.run_status.unavailable": "Agent 会话已不可用。",
+  "agent.session.workspace_status.filesystem_root": "文件系统根目录不能用作工作区，请选择一个子文件夹：{{path}}",
   "agent.session.workspace_status.inaccessible": "工作区路径不可访问：{{path}}",
   "agent.session.workspace_status.missing": "工作区路径不存在：{{path}}",
   "agent.session.workspace_status.not_directory": "工作区路径不是目录：{{path}}",

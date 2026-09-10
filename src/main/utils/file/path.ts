@@ -24,6 +24,13 @@ function normalizePathForComparison(value: string): string {
   return isMac || isWin ? resolved.toLowerCase() : resolved
 }
 
+/** True iff `candidate` resolves to the current filesystem volume root. */
+export function isFilesystemRoot(candidate: string): boolean {
+  const resolved = path.resolve(candidate)
+  const normalized = path.normalize(resolved.replace(/^\\\\\?\\UNC\\/i, '\\\\'))
+  return normalized === path.parse(normalized).root
+}
+
 /**
  * True iff `child` is a strict descendant of `parent`.
  *

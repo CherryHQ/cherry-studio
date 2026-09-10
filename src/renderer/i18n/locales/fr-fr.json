@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Sélectionner le répertoire de travail",
   "agent.session.workspace_selector.search_placeholder": "Rechercher dans les répertoires de travail",
   "agent.session.workspace_selector.select_failed": "Échec de la sélection du dossier.",
+  "agent.session.workspace_status.filesystem_root": "Les racines du système de fichiers ne peuvent pas servir d’espaces de travail. Choisissez un sous-dossier : {{path}}",
   "agent.session.workspace_status.inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
   "agent.session_delivery.from": "De {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Accepté",

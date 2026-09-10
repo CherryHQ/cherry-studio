@@ -5,7 +5,20 @@ import path from 'node:path'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { canWrite, isOutsidePath, isPathInside, isSameOrInside } from '../path'
+import { canWrite, isFilesystemRoot, isOutsidePath, isPathInside, isSameOrInside } from '../path'
+
+describe('isFilesystemRoot', () => {
+  it.each(['/', '/./', '/tmp/..'])('identifies a path that resolves to the POSIX filesystem root: %s', (value) => {
+    expect(isFilesystemRoot(value)).toBe(true)
+  })
+
+  it.each(['/tmp', '/tmp/project', '/tmp/../workspace'])(
+    'does not reject a path that resolves below the POSIX filesystem root: %s',
+    (value) => {
+      expect(isFilesystemRoot(value)).toBe(false)
+    }
+  )
+})
 
 describe('isPathInside', () => {
   it('returns true when child is directly inside parent', () => {

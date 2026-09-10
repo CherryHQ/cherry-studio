@@ -69,7 +69,7 @@ export interface ParsedPath {
  */
 const WINDOWS_DRIVE_PATTERN = /^[A-Za-z]:/
 /** `\\server\share` — both components required, matching `AbsoluteFilePathSchema`. */
-const WINDOWS_UNC_PATTERN = /^\\\\[^\\/]+[\\/][^\\/]+/
+const WINDOWS_UNC_PATTERN = /^\\\\[^\\/]+[\\/]+[^\\/]+/
 
 const toSegments = (body: string, separator: RegExp): string[] =>
   body.split(separator).filter((segment) => segment !== '')

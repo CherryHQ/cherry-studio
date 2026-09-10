@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Επιλέξτε κατάλογο εργασίας",
   "agent.session.workspace_selector.search_placeholder": "Αναζήτηση καταλόγων εργασίας",
   "agent.session.workspace_selector.select_failed": "Αποτυχία επιλογής φακέλου.",
+  "agent.session.workspace_status.filesystem_root": "Οι ρίζες του συστήματος αρχείων δεν μπορούν να χρησιμοποιηθούν ως χώροι εργασίας. Επιλέξτε έναν υποφάκελο: {{path}}",
   "agent.session.workspace_status.inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
   "agent.session_delivery.from": "Από {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Αποδεκτό",

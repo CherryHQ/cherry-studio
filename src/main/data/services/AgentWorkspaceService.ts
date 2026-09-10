@@ -7,6 +7,8 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { t } from '@main/i18n'
+import { isFilesystemRoot } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -74,6 +76,11 @@ export class AgentWorkspaceService {
     if (!path.isAbsolute(trimmed)) {
       throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
     }
+    if (isFilesystemRoot(trimmed)) {
+      throw DataApiErrorFactory.validation({
+        path: [t('agent.session.workspace_status.filesystem_root', { path: trimmed })]
+      })
+    }
     const normalized = path.normalize(trimmed)
     const root = path.parse(normalized).root
     let end = normalized.length
@@ -89,7 +96,9 @@ export class AgentWorkspaceService {
       .where(options.includeSystem ? undefined : eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
       .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
       .all()
-    return rows.map(rowToAgentWorkspace)
+    return rows
+      .filter((row) => row.type !== AGENT_WORKSPACE_TYPE.USER || !isFilesystemRoot(row.path))
+      .map(rowToAgentWorkspace)
   }
 
   getById(id: string, options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity {
@@ -108,7 +117,9 @@ export class AgentWorkspaceService {
       ? eq(agentWorkspaceTable.id, id)
       : and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
     const [row] = tx.select().from(agentWorkspaceTable).where(predicate).limit(1).all()
-    if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
+    if (!row || (row.type === AGENT_WORKSPACE_TYPE.USER && isFilesystemRoot(row.path))) {
+      throw DataApiErrorFactory.notFound('Workspace', id)
+    }
     return row
   }
 

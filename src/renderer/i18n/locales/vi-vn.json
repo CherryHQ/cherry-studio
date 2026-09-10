@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Chọn thư mục làm việc",
   "agent.session.workspace_selector.search_placeholder": "Tìm kiếm thư mục làm việc",
   "agent.session.workspace_selector.select_failed": "Không thể chọn thư mục.",
+  "agent.session.workspace_status.filesystem_root": "Không thể dùng thư mục gốc của hệ thống tệp làm không gian làm việc. Hãy chọn một thư mục con: {{path}}",
   "agent.session.workspace_status.inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
   "agent.session_delivery.from": "Từ {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Đã tiếp nhận",

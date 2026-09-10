@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Arbeitsverzeichnis auswählen",
   "agent.session.workspace_selector.search_placeholder": "Arbeitsverzeichnisse durchsuchen",
   "agent.session.workspace_selector.select_failed": "Ordnerauswahl fehlgeschlagen.",
+  "agent.session.workspace_status.filesystem_root": "Dateisystem-Stammverzeichnisse können nicht als Arbeitsbereiche verwendet werden. Wähle einen Unterordner: {{path}}",
   "agent.session.workspace_status.inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
   "agent.session_delivery.from": "Von {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Angenommen",

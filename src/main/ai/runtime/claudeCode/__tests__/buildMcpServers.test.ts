@@ -72,7 +72,8 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('@main/utils/file', () => ({
-  getPathStatus: mockGetPathStatus
+  getPathStatus: mockGetPathStatus,
+  isFilesystemRoot: () => false
 }))
 
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({

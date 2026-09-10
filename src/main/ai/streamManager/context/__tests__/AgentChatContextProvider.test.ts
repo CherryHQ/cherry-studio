@@ -160,6 +160,9 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeValidateSession).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'session-1', workspace: { path: '/tmp' } })
     )
+    expect(mocks.runtimeValidateSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.runtimeBeginTurn.mock.invocationCallOrder[0]
+    )
     expect(mocks.saveMessagesTx).toHaveBeenCalledOnce()
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(provider.isPersistentConversation).toBe(true)

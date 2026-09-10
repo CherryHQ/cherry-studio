@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Seleccionar carpeta de trabajo",
   "agent.session.workspace_selector.search_placeholder": "Buscar carpetas de trabajo",
   "agent.session.workspace_selector.select_failed": "Error al seleccionar la carpeta.",
+  "agent.session.workspace_status.filesystem_root": "Las raíces del sistema de archivos no se pueden usar como espacios de trabajo. Elige una subcarpeta: {{path}}",
   "agent.session.workspace_status.inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
   "agent.session_delivery.from": "De {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Aceptado",

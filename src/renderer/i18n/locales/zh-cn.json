@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "选择工作目录",
   "agent.session.workspace_selector.search_placeholder": "搜索工作目录",
   "agent.session.workspace_selector.select_failed": "选择文件夹失败。",
+  "agent.session.workspace_status.filesystem_root": "文件系统根目录不能用作工作区，请选择一个子文件夹：{{path}}",
   "agent.session.workspace_status.inaccessible": "工作区路径不可访问：{{path}}",
   "agent.session_delivery.from": "来自 {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "已接受",

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { ipcApi } from '@renderer/ipc'
-import { joinPath } from '@renderer/utils/path'
+import { isFilesystemRoot, joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -646,8 +646,9 @@ export function useArtifactFileTreeModel({
   onExpandedIdsChange
 }: UseArtifactFileTreeModelParams): ArtifactFileTreeModel {
   const workspacePathResult = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : null
-  const validWorkspacePath = workspacePathResult?.success ? workspacePathResult.data : undefined
-  const invalidWorkspacePath = Boolean(workspacePath && !workspacePathResult?.success)
+  const rootWorkspacePath = workspacePathResult?.success && isFilesystemRoot(workspacePathResult.data)
+  const validWorkspacePath = workspacePathResult?.success && !rootWorkspacePath ? workspacePathResult.data : undefined
+  const invalidWorkspacePath = Boolean(workspacePath && (!workspacePathResult?.success || rootWorkspacePath))
 
   useEffect(() => {
     if (invalidWorkspacePath) {

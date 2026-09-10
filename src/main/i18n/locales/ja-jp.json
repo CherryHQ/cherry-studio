@@ -4,6 +4,7 @@
   "agent.session.new": "新しいタスク",
   "agent.session.run_status.busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
   "agent.session.run_status.unavailable": "Agent セッションは利用できなくなりました。",
+  "agent.session.workspace_status.filesystem_root": "ファイルシステムのルートはワークスペースとして使用できません。サブフォルダーを選択してください: {{path}}",
   "agent.session.workspace_status.inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
   "agent.session.workspace_status.missing": "ワークスペースパスが存在しません: {{path}}",
   "agent.session.workspace_status.not_directory": "ワークスペースパスがフォルダーではありません: {{path}}",

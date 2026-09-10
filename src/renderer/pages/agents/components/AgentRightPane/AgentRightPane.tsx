@@ -57,6 +57,7 @@ import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@rendere
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
+import { isFilesystemRoot } from '@renderer/utils/path'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
@@ -129,6 +130,11 @@ function containsFile(root: TreeDirRoot | null): boolean {
     return false
   })
   return found
+}
+
+function isWorkspaceFilesystemRoot(workspacePath: string | undefined): boolean {
+  const parsedWorkspacePath = AbsoluteFilePathSchema.safeParse(workspacePath)
+  return parsedWorkspacePath.success && isFilesystemRoot(parsedWorkspacePath.data)
 }
 
 function getFlowTabValue(toolCallId: string): string {
@@ -317,7 +323,11 @@ function AgentRightPaneActionsProvider({
     }
   }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
-  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
+  const canOpenArtifactFile =
+    workspaceCurrent &&
+    Boolean(workspacePath) &&
+    !isWorkspaceFilesystemRoot(workspacePath) &&
+    panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
@@ -1209,6 +1219,7 @@ function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentR
 
 function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
   if (scope.meta.conversationState !== 'ready') return scope.meta.conversationState
+  if (isWorkspaceFilesystemRoot(scope.meta.workspacePath)) return 'unavailable'
   if (scope.meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM && !scope.hasSystemWorkspaceFiles) {
     return 'unavailable'
   }

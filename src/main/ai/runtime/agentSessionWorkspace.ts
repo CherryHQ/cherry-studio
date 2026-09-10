@@ -4,7 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { ensureAgentStorageDirectory } from '@main/ai/agents/agentDataDirectory'
 import { t } from '@main/i18n'
-import { getPathStatus, type PathStatus } from '@main/utils/file'
+import { getPathStatus, isFilesystemRoot, type PathStatus } from '@main/utils/file'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -29,6 +29,9 @@ export function isAgentSessionWorkspaceError(error: unknown): error is AgentSess
 
 export async function prepareAgentSessionWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {
   const workspace = session.workspace
+  if (isFilesystemRoot(workspace.path)) {
+    throw new AgentSessionWorkspaceError(t('agent.session.workspace_status.filesystem_root', { path: workspace.path }))
+  }
   switch (workspace.type) {
     case AGENT_WORKSPACE_TYPE.SYSTEM:
       // System workspaces are app-owned session directories; user workspaces
