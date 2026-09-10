@@ -2333,6 +2333,23 @@ describe('SkillService', () => {
       })
     })
 
+    it('still rejects a descriptor that grows past the limit between stat and read', async () => {
+      const skillDir = path.join(mirrorRoot, 'growing')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), 'x'.repeat(SKILL_FILE_PREVIEW_MAX_SIZE_BYTES + 1))
+      // Simulate the stat/read race: stat underreports while the real content is oversized.
+      const statSpy = vi.spyOn(fs.promises, 'stat').mockResolvedValue({ size: 1 } as unknown as import('node:fs').Stats)
+
+      try {
+        await expect(new SkillService().readSkillMdByFolderName('growing')).resolves.toEqual({
+          status: 'error',
+          reason: 'too-large'
+        })
+      } finally {
+        statSpy.mockRestore()
+      }
+    })
+
     it('rejects a skill directory that resolves outside the mirror root', async () => {
       const outsideDir = path.join(path.dirname(mirrorRoot), 'outside-skill')
       await fs.promises.mkdir(outsideDir, { recursive: true })

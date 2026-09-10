@@ -133,7 +133,13 @@ export class SkillService {
     } catch {
       // An unreadable mirror root falls through to the shared three-state read.
     }
-    return this.readSkillMdState(target)
+    const state = await this.readSkillMdState(target)
+    // Re-check after the read: the file can grow between stat and readFile, and the
+    // content must never reach the system prompt over the limit.
+    if (state.status === 'found' && Buffer.byteLength(state.content) > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) {
+      return { status: 'error', reason: 'too-large' }
+    }
+    return state
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
