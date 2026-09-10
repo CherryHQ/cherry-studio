@@ -269,7 +269,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // The workspace is always trusted: the user picked it by hand in Cherry, so there is
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
-      const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
+      // Keep Cherry's runtime isolated from pi's other settings, while honoring the shell
+      // explicitly selected by the user in ~/.pi/agent/settings.json (or the workspace override).
+      const shellPath = pi.SettingsManager.create(workspacePath, undefined, { projectTrusted: true }).getShellPath()
+      const settingsManager = pi.SettingsManager.inMemory(shellPath ? { shellPath } : {}, { projectTrusted: true })
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 

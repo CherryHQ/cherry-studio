@@ -89,7 +89,9 @@ const mocks = vi.hoisted(() => ({
   createOpts: undefined as Record<string, unknown> | undefined,
   bashToolOptions: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
+  settingsCreateArgs: undefined as unknown[] | undefined,
   settingsArgs: undefined as unknown[] | undefined,
+  getShellPath: vi.fn(),
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
   isStreaming: false,
@@ -220,6 +222,10 @@ const fakePi = {
     inMemory: () => ({ registerProvider: mocks.registerProvider, find: () => ({ id: 'm', provider: 'p' }) })
   },
   SettingsManager: {
+    create: (...args: unknown[]) => {
+      mocks.settingsCreateArgs = args
+      return { getShellPath: mocks.getShellPath }
+    },
     inMemory: (...args: unknown[]) => {
       mocks.settingsArgs = args
       return { setShellCommandPrefix: mocks.setShellCommandPrefix }
@@ -300,7 +306,9 @@ beforeEach(() => {
   mocks.createOpts = undefined
   mocks.bashToolOptions = undefined
   mocks.loaderOpts = undefined
+  mocks.settingsCreateArgs = undefined
   mocks.settingsArgs = undefined
+  mocks.getShellPath.mockReturnValue(undefined)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
@@ -1415,6 +1423,7 @@ describe('PiRuntimeConnection', () => {
 
   it('trusts the user-selected workspace: context files load, executable/managed discovery stays off', async () => {
     await new PiRuntimeConnection(input).start()
+    expect(mocks.settingsCreateArgs).toEqual([WORKSPACE, undefined, { projectTrusted: true }])
     expect(mocks.settingsArgs).toEqual([{}, { projectTrusted: true }])
     expect(mocks.loaderOpts).toMatchObject({
       noExtensions: true,
@@ -1424,6 +1433,18 @@ describe('PiRuntimeConnection', () => {
       noContextFiles: false
     })
     expect(mocks.reload).toHaveBeenCalledWith()
+  })
+
+  it('honors the configured pi shell path without importing other pi settings', async () => {
+    mocks.getShellPath.mockReturnValue('C:\\Program Files\\Git\\bin\\bash.exe')
+
+    await new PiRuntimeConnection(input).start()
+
+    expect(mocks.settingsCreateArgs).toEqual([WORKSPACE, undefined, { projectTrusted: true }])
+    expect(mocks.settingsArgs).toEqual([
+      { shellPath: 'C:\\Program Files\\Git\\bin\\bash.exe' },
+      { projectTrusted: true }
+    ])
   })
 
   it('injects the agent enabled managed skills as additionalSkillPaths while keeping noSkills', async () => {
