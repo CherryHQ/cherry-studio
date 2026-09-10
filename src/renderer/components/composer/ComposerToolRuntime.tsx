@@ -3,7 +3,6 @@ import {
   ComposerToolDerivedStateProvider,
   type ComposerToolDispatch,
   ComposerToolProvider,
-  type ComposerToolsRegistryApi,
   type ComposerToolState,
   useComposerToolProviderDispatch,
   useComposerToolProviderLaunchers,
@@ -30,7 +29,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
 import type { ComposerSerializedToken } from './tokens'
-import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
 
 interface ComposerToolRuntimeActions {
   addNewTopic: () => void
@@ -63,6 +62,7 @@ interface ComposerToolRuntimeBootstrapProps {
   assistant?: Assistant
   model: Model
   session?: ToolContext['session']
+  disabled?: boolean
 }
 
 type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
@@ -73,7 +73,6 @@ interface ComposerToolRuntimeEntryProps extends ComposerToolRuntimeBootstrapProp
   toolState: ComposerToolState
   toolActions: ToolActionMap
   launcher: AnyToolRenderContext['launcher']
-  toolsRegistry: ComposerToolsRegistryApi
   t: ReturnType<typeof useTranslation>['t']
 }
 
@@ -82,13 +81,26 @@ const ComposerToolRuntimeEntry = ({
   toolState,
   toolActions,
   launcher,
-  toolsRegistry,
   scope,
   assistant,
   model,
   session,
+  disabled,
   t
 }: ComposerToolRuntimeEntryProps) => {
+  const effectiveLauncher = useMemo(
+    () =>
+      disabled
+        ? {
+            registerLaunchers: (entries: ComposerToolLauncher[], footerActions?: ComposerToolFooterAction[]) =>
+              launcher.registerLaunchers(
+                entries.map((entry) => ({ ...entry, disabled: true })),
+                footerActions
+              )
+          }
+        : launcher,
+    [disabled, launcher]
+  )
   const context = useMemo<AnyToolRenderContext>(() => {
     const state: Record<string, unknown> = {}
     for (const key of tool.dependencies?.state ?? []) state[key] = toolState[key]
@@ -106,15 +118,15 @@ const ComposerToolRuntimeEntry = ({
       session,
       state,
       actions,
-      launcher,
+      launcher: effectiveLauncher,
       t
     } as AnyToolRenderContext
-  }, [assistant, launcher, model, scope, session, t, tool, toolActions, toolState])
+  }, [assistant, effectiveLauncher, model, scope, session, t, tool, toolActions, toolState])
 
   useEffect(() => {
     if (!tool.composer?.menuItems) return
-    return toolsRegistry.registerLaunchers(tool.key, tool.composer.menuItems.createItems(context))
-  }, [context, tool, toolsRegistry])
+    return effectiveLauncher.registerLaunchers(tool.composer.menuItems.createItems(context))
+  }, [context, effectiveLauncher, tool])
 
   const Runtime = tool.composer?.runtime
   return Runtime ? <Runtime context={context} /> : null
@@ -124,11 +136,11 @@ const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previou
   if (
     previous.tool !== next.tool ||
     previous.launcher !== next.launcher ||
-    previous.toolsRegistry !== next.toolsRegistry ||
     previous.scope !== next.scope ||
     previous.assistant !== next.assistant ||
     previous.model !== next.model ||
     previous.session !== next.session ||
+    previous.disabled !== next.disabled ||
     previous.t !== next.t
   ) {
     return false
@@ -144,22 +156,68 @@ const MemoizedComposerToolRuntimeEntry = memo(ComposerToolRuntimeEntry, (previou
   return true
 })
 
-export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
+export const ComposerToolRuntimeHost = ({
+  scope,
+  assistant,
+  model,
+  session,
+  disabled = false
+}: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
   const toolState = useComposerToolProviderState()
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
     useComposerToolProviderDispatch()
+  const disabledRef = useRef(disabled)
+  disabledRef.current = disabled
+  const addNewTopicFromTool = useCallback(() => {
+    if (disabledRef.current) return
+    addNewTopic()
+  }, [addNewTopic])
+  const onTextChangeFromTool = useCallback<ComposerToolDispatch['onTextChange']>(
+    (updater) => {
+      if (disabledRef.current) return
+      onTextChange(updater)
+    },
+    [onTextChange]
+  )
+  const setFilesFromTool = useCallback<ComposerToolDispatch['setFiles']>(
+    (nextFiles) => {
+      if (disabledRef.current) return
+      setFiles(nextFiles)
+    },
+    [setFiles]
+  )
+  const setMentionedModelsFromTool = useCallback<ComposerToolDispatch['setMentionedModels']>(
+    (nextModels) => {
+      if (disabledRef.current) return
+      setMentionedModels(nextModels)
+    },
+    [setMentionedModels]
+  )
+  const setSelectedKnowledgeBasesFromTool = useCallback<ComposerToolDispatch['setSelectedKnowledgeBases']>(
+    (nextBases) => {
+      if (disabledRef.current) return
+      setSelectedKnowledgeBases(nextBases)
+    },
+    [setSelectedKnowledgeBases]
+  )
   const launcherApiCacheRef = useRef(new Map<string, ToolRenderContext<any, any>['launcher']>())
 
   const toolActions = useMemo<ToolActionMap>(
     () => ({
-      addNewTopic,
-      onTextChange,
-      setFiles,
-      setMentionedModels,
-      setSelectedKnowledgeBases
+      addNewTopic: addNewTopicFromTool,
+      onTextChange: onTextChangeFromTool,
+      setFiles: setFilesFromTool,
+      setMentionedModels: setMentionedModelsFromTool,
+      setSelectedKnowledgeBases: setSelectedKnowledgeBasesFromTool
     }),
-    [addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases]
+    [
+      addNewTopicFromTool,
+      onTextChangeFromTool,
+      setFilesFromTool,
+      setMentionedModelsFromTool,
+      setSelectedKnowledgeBasesFromTool
+    ]
   )
 
   const availableTools = useMemo(() => {
@@ -191,11 +249,11 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
           toolState={toolState}
           toolActions={toolActions}
           launcher={getLauncherApiForTool(tool.key)}
-          toolsRegistry={toolsRegistry}
           scope={scope}
           assistant={assistant}
           model={model}
           session={session}
+          disabled={disabled}
           t={t}
         />
       ))}

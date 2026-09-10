@@ -1,9 +1,11 @@
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { FileUIPart } from '@shared/data/types/message'
+import { readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildFilePartsForAttachments } from '../buildFileParts'
+import { buildFilePartsForAttachments, withComposerFilePartMeta } from '../buildFileParts'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
@@ -115,5 +117,28 @@ describe('buildFilePartsForAttachments', () => {
       fileTokenSourceId: 'source-1',
       composerFileKind: 'pasted-text'
     })
+  })
+
+  it('removes a stale pasted-text marker when an edited attachment is no longer previewable', () => {
+    const originalPart = withCherryMeta(
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: 'https://example.com/pasted.txt'
+      } satisfies FileUIPart,
+      {
+        fileEntryId: 'fe-1',
+        fileTokenSourceId: 'old-source',
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+      }
+    )
+
+    const editedPart = withComposerFilePartMeta(originalPart, attachment({ fileTokenSourceId: 'new-source' }))
+
+    expect(readCherryMeta(editedPart)).toEqual({
+      fileEntryId: 'fe-1',
+      fileTokenSourceId: 'new-source'
+    })
+    expect(readCherryMeta(editedPart)).not.toHaveProperty('composerFileKind')
   })
 })

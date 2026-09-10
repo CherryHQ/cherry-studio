@@ -57,11 +57,15 @@ export function buildInsertedInlineContent(
   return createPromptVariableInlineContent(text, { startIndex: getNextPromptVariableIndex(editor) })
 }
 
-export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
+export function createComposerInputAdapter(
+  editor: Editor,
+  isEditable: () => boolean = () => true
+): QuickPanelInputAdapter {
   return {
     getText: () => getComposerInputText(editor),
     getCursorOffset: () => getComposerCursorTextOffset(editor),
     insertText: (insertedText, options) => {
+      if (!isEditable()) return
       editor
         .chain()
         .focus()
@@ -69,12 +73,15 @@ export function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapt
         .run()
     },
     insertToken: (token, options) => {
+      if (!isEditable()) return
       insertComposerTokenAtCursor(editor, token as ComposerDraftToken, options)
     },
     deleteTriggerRange: (range) => {
+      if (!isEditable()) return
       deleteComposerTextRange(editor, range)
     },
     focus: () => {
+      if (!isEditable()) return
       editor.commands.focus()
     }
   }

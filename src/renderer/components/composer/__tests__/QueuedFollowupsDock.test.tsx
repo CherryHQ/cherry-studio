@@ -130,6 +130,28 @@ describe('QueuedFollowupsDock', () => {
     expect(onSteer).not.toHaveBeenCalled()
   })
 
+  it('disables editing while its caller is restoring another draft', () => {
+    const onEdit = vi.fn()
+
+    render(
+      <QueuedFollowupsDock
+        items={[items[0]]}
+        paused={false}
+        onTogglePause={vi.fn()}
+        onSteer={vi.fn()}
+        onEdit={onEdit}
+        onRemove={vi.fn()}
+        onReorder={vi.fn()}
+        editDisabled
+      />
+    )
+
+    const editButton = screen.getByLabelText('chat.input.followup_queue.edit')
+    expect(editButton).toBeDisabled()
+    fireEvent.click(editButton)
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
   it('renders a token-only draft without repeating its prompt text or reserving text spacing', () => {
     const url = 'https://example.com/docs'
     const { container } = render(

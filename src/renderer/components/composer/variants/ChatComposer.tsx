@@ -64,7 +64,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
+import { getKnowledgeBaseIdsFromParts, readCherryMeta, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { Eraser } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -575,6 +575,7 @@ const ChatComposerInner = ({
   const directSendInFlightRef = useRef(false)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
+  const [restoredEditingSessionId, setRestoredEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
@@ -611,13 +612,30 @@ const ChatComposerInner = ({
     Boolean(editingMessageForCurrentTopic) ||
     rootPanelVisible ||
     knowledgeBasePanelVisible
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
-    enabled: knowledgeBasesDataEnabled
-  })
+  const {
+    bases: allKnowledgeBases,
+    isLoading: isKnowledgeBasesLoading,
+    error: knowledgeBasesError
+  } = useKnowledgeBases({ enabled: knowledgeBasesDataEnabled })
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
   const editingMessageForCurrentTopicRef = useLatest(editingMessageForCurrentTopic)
+  const restoringEditingSessionIdRef = useRef<number | null>(null)
+  useLayoutEffect(
+    () => () => {
+      restoringEditingSessionIdRef.current = null
+    },
+    []
+  )
+  const isEditingDraftRestoring = Boolean(
+    editingMessageForCurrentTopic && restoredEditingSessionId !== editingMessageForCurrentTopic.editingSessionId
+  )
+  useEffect(() => {
+    if (isEditingDraftRestoring && quickPanel?.isVisible) {
+      quickPanel.close('message_edit_restore')
+    }
+  }, [isEditingDraftRestoring, quickPanel])
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
   const applyHistoryDraft = useCallback(
@@ -660,22 +678,25 @@ const ChatComposerInner = ({
       applyDraft: applyHistoryDraft
     })
   const handleInputHistoryNavigate = useCallback(
-    (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
-    [actionsRef, navigateHistory]
+    (direction: InputHistoryDirection) => {
+      if (isEditingDraftRestoring) return false
+      return navigateHistory(direction, actionsRef.current.getDraft())
+    },
+    [actionsRef, isEditingDraftRestoring, navigateHistory]
   )
   const handleTextChange = useCallback(
     (nextText: string) => {
+      if (isEditingDraftRestoring) return
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       skipDraftCacheWriteForHistoryPreviewRef.current = false
       setText(nextText)
     },
-    [resetHistoryIndex]
+    [isEditingDraftRestoring, resetHistoryIndex]
   )
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const editSaveInFlightSessionIdRef = useRef<number | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
-  const restoredEditingSessionIdRef = useRef<number | null>(null)
   const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
@@ -1158,6 +1179,7 @@ const ChatComposerInner = ({
   ])
 
   const handleCancelEditing = useCallback(() => {
+    restoringEditingSessionIdRef.current = null
     restoreSavedDraft()
     cancelEditing()
   }, [cancelEditing, restoreSavedDraft])
@@ -1167,8 +1189,14 @@ const ChatComposerInner = ({
     void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + editingMessageId, true)
   }, [editingMessageId])
 
-  const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
-    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts)
+  const restoreEditableMessageDraft = useEffectEvent(async (nextEditingMessage: NonNullable<typeof editingMessage>) => {
+    const editableDraft = await createEditableMessageDraft(nextEditingMessage.parts)
+    if (
+      editingMessageForCurrentTopicRef.current?.editingSessionId !== nextEditingMessage.editingSessionId ||
+      restoringEditingSessionIdRef.current !== nextEditingMessage.editingSessionId
+    ) {
+      return
+    }
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
       (part): part is ComposerFilePart => part.type === 'file' && !!part.url
@@ -1183,16 +1211,34 @@ const ChatComposerInner = ({
     setDraftTokens(editableDraft.draftTokens)
     setFiles(editableDraft.files)
     setSelectedKnowledgeBases(getEditableKnowledgeBases(editableDraft.draftTokens, selectableKnowledgeBases))
+    restoringEditingSessionIdRef.current = null
+    setRestoredEditingSessionId(nextEditingMessage.editingSessionId)
   })
 
   useEffect(() => {
     if (!editingMessageForCurrentTopic) {
-      restoredEditingSessionIdRef.current = null
+      restoringEditingSessionIdRef.current = null
       editingOriginalFilePartsByTokenIdRef.current = new Map()
       return
     }
-    if (restoredEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId) return
-    restoredEditingSessionIdRef.current = editingMessageForCurrentTopic.editingSessionId
+    if (isKnowledgeBasesLoading) return
+    const hasKnowledgeBaseScope =
+      (getKnowledgeBaseIdsFromParts(editingMessageForCurrentTopic.parts)?.length ?? 0) > 0 ||
+      editingMessageForCurrentTopic.parts.some(
+        (part) =>
+          part.type === 'text' && readCherryMeta(part)?.composer?.tokens.some((token) => token.kind === 'knowledge')
+      )
+    if (knowledgeBasesError && hasKnowledgeBaseScope) {
+      restoringEditingSessionIdRef.current = null
+      return
+    }
+    if (
+      restoredEditingSessionId === editingMessageForCurrentTopic.editingSessionId ||
+      restoringEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId
+    ) {
+      return
+    }
+    restoringEditingSessionIdRef.current = editingMessageForCurrentTopic.editingSessionId
 
     if (savedDraftBeforeEditingRef.current?.text === undefined) {
       const historyPreview = exitInputHistoryPreview()
@@ -1213,19 +1259,23 @@ const ChatComposerInner = ({
       exitInputHistoryPreview()
     }
 
-    restoreEditableMessageDraft(editingMessageForCurrentTopic)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases; this effect is keyed by editingSessionId.
+    void restoreEditableMessageDraft(editingMessageForCurrentTopic)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases.
   }, [
     actionsRef,
     editingMessageForCurrentTopic,
     exitInputHistoryPreview,
     filesRef,
+    isKnowledgeBasesLoading,
+    knowledgeBasesError,
     mentionedModelsRef,
+    restoredEditingSessionId,
     selectedKnowledgeBasesRef
   ])
 
   useEffect(() => {
     if (!staleEditingMessage) return
+    restoringEditingSessionIdRef.current = null
     restoreSavedDraft()
     stopEditing()
   }, [restoreSavedDraft, staleEditingMessage, stopEditing])
@@ -1242,10 +1292,11 @@ const ChatComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
   const handleTokensChange = useCallback(
     (nextDraftTokens: readonly ComposerSerializedToken[]) => {
+      if (isEditingDraftRestoring) return
       reconcileTokens(nextDraftTokens)
       setDraftTokenRevision((revision) => revision + 1)
     },
-    [reconcileTokens]
+    [isEditingDraftRestoring, reconcileTokens]
   )
 
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
@@ -1405,7 +1456,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, !isEditingDraftRestoring)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
@@ -1614,6 +1665,7 @@ const ChatComposerInner = ({
     async (draft: ComposerSerializedDraft, resend: boolean) => {
       if (!editingMessageForCurrentTopic) return
       const editingSessionId = editingMessageForCurrentTopic.editingSessionId
+      if (restoredEditingSessionId !== editingSessionId) return
       if (editSaveInFlightSessionIdRef.current === editingSessionId) return
 
       const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
@@ -1683,6 +1735,7 @@ const ChatComposerInner = ({
       fastMode,
       isMentionedModelSelectorLocked,
       reasoningEffort,
+      restoredEditingSessionId,
       serviceTier,
       restoreSavedDraft,
       speedControlModel,
@@ -1865,7 +1918,12 @@ const ChatComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
+        <ComposerToolRuntimeHost
+          scope={scope}
+          assistant={displayAssistant}
+          model={runtimeModel}
+          disabled={isEditingDraftRestoring}
+        />
       )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
@@ -1886,6 +1944,7 @@ const ChatComposerInner = ({
           sendDisabled={
             (text.trim().length === 0 && files.length === 0) ||
             (loading && !canSteer) ||
+            isEditingDraftRestoring ||
             isSavingEdit ||
             isDirectSending ||
             sendDisabled ||
@@ -1897,7 +1956,7 @@ const ChatComposerInner = ({
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
+            isEditingDraftRestoring || isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }
@@ -1912,7 +1971,9 @@ const ChatComposerInner = ({
                   onCancel: handleCancelEditing,
                   // Assistant edits already save in place on send; only user edits need a save-only path.
                   onSave:
-                    editingMessageForCurrentTopic.message.role === 'assistant' ? undefined : handleSaveEditedMessage
+                    editingMessageForCurrentTopic.message.role === 'assistant' || isEditingDraftRestoring
+                      ? undefined
+                      : handleSaveEditedMessage
                 }
               : undefined
           }
@@ -1932,6 +1993,7 @@ const ChatComposerInner = ({
                   if (sent) removeFollowup(id)
                 }}
                 onEdit={(id) => {
+                  if (isEditingDraftRestoring) return
                   const item = queuedFollowups.find((entry) => entry.id === id)
                   if (!item) return
                   restoreFollowupDraft(item)
@@ -1939,6 +2001,7 @@ const ChatComposerInner = ({
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
+                editDisabled={isEditingDraftRestoring}
                 isSteerDisabled={isQueuedFollowupSteerDisabled}
               />
             ) : undefined
@@ -1948,10 +2011,10 @@ const ChatComposerInner = ({
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}
-          quickPanelEnabled={config.enableQuickPanel ?? true}
-          enableDragDrop={config.enableDragDrop ?? true}
+          quickPanelEnabled={!isEditingDraftRestoring && (config.enableQuickPanel ?? true)}
+          enableDragDrop={!isEditingDraftRestoring && (config.enableDragDrop ?? true)}
           enableSpellCheck={enableSpellCheck}
-          editable={!searching && !isDirectSending}
+          editable={!searching && !isDirectSending && !isEditingDraftRestoring}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}

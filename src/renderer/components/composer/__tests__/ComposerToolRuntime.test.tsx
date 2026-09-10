@@ -144,12 +144,38 @@ const LauncherActionReader = ({
   return null
 }
 
+const LauncherReader = ({ readRef }: { readRef: { current: () => ComposerToolLauncher[] } }) => {
+  const { getLaunchers } = useComposerToolLauncherActions()
+  readRef.current = getLaunchers
+  return null
+}
+
 const FileStateObserver = ({ onSnapshot }: { onSnapshot: (files: any[]) => void }) => {
   const { files } = useComposerToolState()
 
   useEffect(() => {
     onSnapshot(files)
   }, [files, onSnapshot])
+
+  return null
+}
+
+const KnowledgeStateObserver = ({ onSnapshot }: { onSnapshot: (bases: any[]) => void }) => {
+  const { selectedKnowledgeBases } = useComposerToolState()
+
+  useEffect(() => {
+    onSnapshot(selectedKnowledgeBases)
+  }, [onSnapshot, selectedKnowledgeBases])
+
+  return null
+}
+
+const MentionedModelStateObserver = ({ onSnapshot }: { onSnapshot: (models: any[]) => void }) => {
+  const { mentionedModels } = useComposerToolState()
+
+  useEffect(() => {
+    onSnapshot(mentionedModels)
+  }, [mentionedModels, onSnapshot])
 
   return null
 }
@@ -263,6 +289,138 @@ const renderRuntime = (tools: any[], node: ReactNode) => {
 }
 
 describe('ComposerToolRuntimeHost', () => {
+  it('blocks pending tool writes when edit restoration disables the runtime', async () => {
+    let completeSelection: (() => void) | undefined
+    const Runtime = ({
+      context
+    }: {
+      context: ToolRenderContext<
+        readonly [],
+        readonly ['addNewTopic', 'onTextChange', 'setFiles', 'setMentionedModels', 'setSelectedKnowledgeBases']
+      >
+    }) => {
+      useEffect(
+        () =>
+          context.launcher.registerLaunchers([
+            {
+              ...runtimeLauncher,
+              action: () => {
+                completeSelection = () => {
+                  context.actions.addNewTopic?.()
+                  context.actions.onTextChange?.('late text')
+                  context.actions.setFiles?.([{ id: 'late-file' } as any])
+                  context.actions.setMentionedModels?.([{ id: 'late-model' } as any])
+                  context.actions.setSelectedKnowledgeBases?.([{ id: 'late-knowledge', name: 'Late' } as any])
+                }
+              }
+            }
+          ]),
+        [context]
+      )
+      return null
+    }
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'attachment',
+        label: 'Attachment',
+        dependencies: {
+          actions: ['addNewTopic', 'onTextChange', 'setFiles', 'setMentionedModels', 'setSelectedKnowledgeBases']
+        },
+        composer: { runtime: Runtime }
+      }
+    ])
+
+    const addNewTopic = vi.fn()
+    const onTextChange = vi.fn()
+    const files = vi.fn()
+    const knowledgeBases = vi.fn()
+    const mentionedModels = vi.fn()
+    const launchers = { current: () => [] as ComposerToolLauncher[] }
+    const renderTree = (disabled: boolean) => (
+      <ComposerToolRuntimeProvider actions={{ addNewTopic, onTextChange }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} disabled={disabled} />
+        <LauncherReader readRef={launchers} />
+        <FileStateObserver onSnapshot={files} />
+        <KnowledgeStateObserver onSnapshot={knowledgeBases} />
+        <MentionedModelStateObserver onSnapshot={mentionedModels} />
+      </ComposerToolRuntimeProvider>
+    )
+    const view = render(renderTree(false))
+
+    await waitFor(() => expect(launchers.current()).toHaveLength(1))
+    act(() => launchers.current()[0].action?.({} as any))
+    expect(completeSelection).toBeDefined()
+
+    view.rerender(renderTree(true))
+    await waitFor(() => expect(launchers.current()[0].disabled).toBe(true))
+    act(() => completeSelection?.())
+
+    expect(files.mock.lastCall?.[0]).toEqual([])
+    expect(knowledgeBases.mock.lastCall?.[0]).toEqual([])
+    expect(mentionedModels.mock.lastCall?.[0]).toEqual([])
+    expect(addNewTopic).not.toHaveBeenCalled()
+    expect(onTextChange).not.toHaveBeenCalled()
+  })
+
+  it('disables declarative tool menu launchers with the runtime', async () => {
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'fake-menu-tool',
+        label: 'Fake menu tool',
+        composer: { menuItems: { createItems: () => [menuLauncher] } }
+      }
+    ])
+    const launchers = { current: () => [] as ComposerToolLauncher[] }
+    const renderTree = (disabled: boolean) => (
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} disabled={disabled} />
+        <LauncherReader readRef={launchers} />
+      </ComposerToolRuntimeProvider>
+    )
+    const view = render(renderTree(false))
+
+    await waitFor(() => expect(launchers.current()[0].disabled).not.toBe(true))
+    view.rerender(renderTree(true))
+
+    await waitFor(() => expect(launchers.current()[0].disabled).toBe(true))
+  })
+
+  it('keeps tool footer actions registered while the runtime is disabled', async () => {
+    const Runtime = ({ context }: { context: ToolRenderContext<readonly [], readonly []> }) => {
+      useEffect(
+        () =>
+          context.launcher.registerLaunchers(
+            [runtimeLauncher],
+            [footerAction('manage-disabled-tool', 'quick-phrases', 10)]
+          ),
+        [context]
+      )
+      return null
+    }
+    mockGetToolsForScope.mockReturnValue([
+      {
+        key: 'fake-runtime-tool',
+        label: 'Fake runtime tool',
+        composer: { runtime: Runtime }
+      }
+    ])
+    const footerActions = { current: () => [] as string[] }
+    const FooterActionsReader = () => {
+      const { triggers } = useComposerToolDispatch()
+      footerActions.current = () => triggers.getFooterActions('quick-phrases').map((action) => action.id)
+      return null
+    }
+
+    render(
+      <ComposerToolRuntimeProvider actions={{ addNewTopic: vi.fn(), onTextChange: vi.fn() }}>
+        <ComposerToolRuntimeHost scope={TopicType.Chat} assistant={assistant} model={model} disabled />
+        <FooterActionsReader />
+      </ComposerToolRuntimeProvider>
+    )
+
+    await waitFor(() => expect(footerActions.current()).toEqual(['manage-disabled-tool']))
+  })
+
   it('normalizes initial composer files with file token source ids', async () => {
     const onSnapshot = vi.fn()
 

@@ -575,6 +575,7 @@ export default function ComposerSurfaceRuntime({
   const newlineShortcutRef = useRef(newlineShortcut)
   const steerShortcutRef = useRef(steerShortcut)
   const setFilesRef = useRef(setFiles)
+  const editableRef = useRef(editable)
   const onSendDraftRef = useRef(onSendDraft)
   const isInputHistoryActiveRef = useRef(isInputHistoryActive)
   const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
@@ -598,11 +599,13 @@ export default function ComposerSurfaceRuntime({
     newlineShortcutRef.current = newlineShortcut
     steerShortcutRef.current = steerShortcut
     setFilesRef.current = setFiles
+    editableRef.current = editable
     onSendDraftRef.current = onSendDraft
     isInputHistoryActiveRef.current = isInputHistoryActive
     onInputHistoryNavigateRef.current = onInputHistoryNavigate
   }, [
     filesCount,
+    editable,
     steerShortcut,
     isExpanded,
     isInputHistoryActive,
@@ -680,35 +683,43 @@ export default function ComposerSurfaceRuntime({
 
   const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
     (value) => {
+      if (!editableRef.current) return
       const nextText = typeof value === 'function' ? value(textRef.current) : value
       applyComposerText(nextText)
     },
     [applyComposerText]
   )
 
+  const setFilesIfEditable = useCallback<React.Dispatch<React.SetStateAction<ComposerAttachment[]>>>((nextFiles) => {
+    if (!editableRef.current) return
+    setFilesRef.current(nextFiles)
+  }, [])
+
   const pasteHandlerOptions = useMemo(
     () => ({
       supportedExts,
-      setFiles,
+      setFiles: setFilesIfEditable,
       onResize: undefined,
       pasteLongTextAsFile,
       pasteLongTextThreshold,
       t
     }),
-    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
+    [supportedExts, setFilesIfEditable, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
   const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
 
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
-    setFiles,
+    setFiles: setFilesIfEditable,
     onFolderPathDropped: (path) => {
+      if (!editableRef.current) return
       const editor = editorRef.current
       if (!editor || editor.isDestroyed) return
       insertComposerTokenAtCursor(editor, createComposerFolderToken(path))
     },
     onTextDropped: (droppedText) => {
+      if (!editableRef.current) return
       const editor = editorRef.current
       if (!editor) return
       editor
@@ -831,6 +842,7 @@ export default function ComposerSurfaceRuntime({
 
   const handleTextChangeFromTool = useCallback(
     (updater: string | ((prev: string) => string)) => {
+      if (!editableRef.current) return
       const currentText = editorRef.current ? serializeComposerDocument(editorRef.current).text : textRef.current
       const nextText = typeof updater === 'function' ? updater(currentText) : updater
       applyComposerText(nextText)
@@ -839,6 +851,7 @@ export default function ComposerSurfaceRuntime({
   )
 
   const removeToken = useCallback((tokenId: string) => {
+    if (!editableRef.current) return
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
     removeComposerTokens(editor, (token) => token.id === tokenId)
@@ -853,6 +866,7 @@ export default function ComposerSurfaceRuntime({
 
       try {
         const fileText = await window.api.fs.readText(file.path)
+        if (!editableRef.current) return
         const currentText = serializeComposerDocument(editor).text
         const textToInsert = getComposerInputTextWithinLimit(currentText, fileText)
         const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
@@ -878,7 +892,7 @@ export default function ComposerSurfaceRuntime({
           }
         }
 
-        setFiles((prev) =>
+        setFilesIfEditable((prev) =>
           prev.filter(
             (candidate) => candidate.fileTokenSourceId !== file.fileTokenSourceId || candidate.path !== file.path
           )
@@ -887,10 +901,11 @@ export default function ComposerSurfaceRuntime({
         toast.error(t('chat.input.file_error'))
       }
     },
-    [setFiles, t]
+    [setFilesIfEditable, t]
   )
 
   const insertToken = useCallback((token: ComposerDraftToken) => {
+    if (!editableRef.current) return
     const editor = editorRef.current
     if (!editor || editor.isDestroyed) return
 
@@ -1257,7 +1272,7 @@ export default function ComposerSurfaceRuntime({
           }
 
           openUnifiedComposerPanel({
-            inputAdapter: createComposerInputAdapter(editor),
+            inputAdapter: createComposerInputAdapter(editor, () => editableRef.current),
             queryAnchor,
             requestRootPanelOpen: false,
             triggerInfo
@@ -1542,7 +1557,7 @@ export default function ComposerSurfaceRuntime({
           filesCountRef.current > 0 &&
           (!editorRef.current || !hasComposerTokenBeforeSelection(editorRef.current))
         ) {
-          setFilesRef.current((prev) => prev.slice(0, -1))
+          setFilesIfEditable((prev) => prev.slice(0, -1))
           event.preventDefault()
           return true
         }
@@ -1550,6 +1565,7 @@ export default function ComposerSurfaceRuntime({
         return false
       },
       handleTextInput: (view, from, to, insertedText) => {
+        if (!editableRef.current) return true
         const editor = editorRef.current
         if (!editor || editor.isDestroyed) return false
         const selectedPromptVariable = getSelectedPromptVariableToken(editor)
@@ -1626,13 +1642,23 @@ export default function ComposerSurfaceRuntime({
           const editor = editorRef.current
           const composingToken = promptVariableCompositionRef.current
           promptVariableCompositionRef.current = null
+          const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
+          const nextValue = data || composingToken?.text || ''
 
-          if (!editor || editor.isDestroyed || !composingToken) return false
+          if (!editableRef.current) {
+            promptVariableEditRef.current = null
+            promptVariableSkipTextInputRef.current =
+              composingToken && nextValue ? { tokenId: composingToken.tokenId, text: nextValue } : null
+            return false
+          }
+          if (!editor || editor.isDestroyed || !composingToken) {
+            promptVariableEditRef.current = null
+            promptVariableSkipTextInputRef.current = null
+            return false
+          }
           const selectedPromptVariable = getSelectedPromptVariableToken(editor)
           if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
 
-          const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
-          const nextValue = data || composingToken.text
           if (!nextValue) return true
           const limitedNextValue = getComposerInputTextWithinLimit(
             textRef.current,
@@ -1648,7 +1674,7 @@ export default function ComposerSurfaceRuntime({
         }
       }
     }),
-    [editorElementStyle, hasCustomHeight, submitDraft]
+    [editorElementStyle, hasCustomHeight, setFilesIfEditable, submitDraft]
   )
 
   const memoizedHandlePaste = useCallback(
@@ -1713,7 +1739,7 @@ export default function ComposerSurfaceRuntime({
           event.preventDefault()
           insertComposerPastedContent(editor, clipboardPasteOverride.content)
           if (clipboardPasteOverride.files.length > 0) {
-            setFilesRef.current((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
+            setFilesIfEditable((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
           }
           return true
         }
@@ -1758,6 +1784,7 @@ export default function ComposerSurfaceRuntime({
       pasteLongTextThreshold,
       resolveSkillMarker,
       resolveKnowledgeBaseMarker,
+      setFilesIfEditable,
       supportedExts
     ]
   )
@@ -1884,7 +1911,7 @@ export default function ComposerSurfaceRuntime({
     if (!editor) return undefined
 
     return {
-      ...createComposerInputAdapter(editor),
+      ...createComposerInputAdapter(editor, () => editableRef.current),
       subscribeInput: (listener) => {
         inputListenersRef.current.add(listener)
         return () => {
@@ -1988,9 +2015,10 @@ export default function ComposerSurfaceRuntime({
   ])
 
   useEffect(() => {
+    if (!editable) return
     pasteHandling.init()
     return pasteHandling.registerHandler('inputbar', handlePaste)
-  }, [handlePaste])
+  }, [editable, handlePaste])
 
   const sendDraft = useCallback(() => {
     if (!editor) return
@@ -2128,7 +2156,7 @@ export default function ComposerSurfaceRuntime({
       'composerDeferredIntent',
       () => {
         if (editor.isDestroyed) return
-        if (pendingToken) {
+        if (pendingToken && editableRef.current) {
           editor.commands.setTextSelection({
             from: getComposerPositionAtTextOffset(editor, pendingToken.selection.start),
             to: getComposerPositionAtTextOffset(editor, pendingToken.selection.end)
