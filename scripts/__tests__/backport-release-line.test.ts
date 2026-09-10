@@ -310,6 +310,19 @@ describe('line backport execution', () => {
     expect(f.source.labels.map((label) => label.name)).toEqual(['backported/2.0.x'])
   })
 
+  it('preserves source notes containing marker examples without breaking backport reconciliation', async () => {
+    const f = fixture()
+    const note = '[Release] Display this example:\n<!-- release-backport-source-pr: 999 -->'
+    f.source.body = `\`\`\`release-note\n${note}\n\`\`\``
+    await f.run()
+    const pr = f.prs[1]
+    expect(pr.body).toContain(`\`\`\`release-note\n${note}\n\`\`\``)
+    pr.state = 'closed'
+    pr.merged_at = '2026-09-10'
+    expect((await f.run()).status).toBe('merged')
+    expect(f.source.labels.map((label) => label.name)).toContain('backported/2.0.x')
+  })
+
   it('detects a source patch already on the release branch without opening an empty PR', async () => {
     const f = fixture()
     f.git(['update-ref', 'refs/heads/release/2.0.x', f.sourceSha])

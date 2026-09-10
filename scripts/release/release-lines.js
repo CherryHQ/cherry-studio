@@ -59,7 +59,8 @@ function backportIdentity(pr, repoName) {
   if (!match || !LINE_PATTERN.test(match[1]) || pr.head.repo?.full_name !== repoName) return null
   const [, line, number] = match
   if (pr.base.ref !== `release/${line}`) throw new Error('Backport branch and base release line disagree')
-  const markers = [...(pr.body || '').matchAll(/^<!-- release-backport-source-pr: ([1-9][0-9]*) -->\r?$/gm)]
+  const body = (pr.body || '').replace(/```release-note\s*\n[\s\S]*?```/g, '')
+  const markers = [...body.matchAll(/^<!-- release-backport-source-pr: ([1-9][0-9]*) -->\r?$/gm)]
   if (markers.length !== 1 || markers[0][1] !== number)
     throw new Error('Backport source marker does not match its branch')
   return { line, source: sourceNumber(number) }

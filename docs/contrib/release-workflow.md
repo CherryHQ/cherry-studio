@@ -125,8 +125,7 @@ The repository extends `@commitlint/config-conventional` with these project-spec
   ],
   'scope-case': [2, 'always', 'kebab-case'],
   'subject-empty': [2, 'never'],
-  'header-max-length': [2, 'always', 100],
-  'breaking-change-exclamation-mark': [2, 'always']
+  'header-max-length': [2, 'always', 100]
 }
 ```
 
@@ -137,7 +136,7 @@ Both `fix` and `hotfix` map to a SemVer patch change. The target workflow also r
 - It must reference the incident or issue and include a regression test, or explain why an automated test is not possible.
 - A release maintainer must approve its urgency and every requested backport target.
 
-When pull requests are squash-merged, the pull request title is the authoritative final commit header and must pass the same commitlint rules. The `prek` `commit-msg` hook provides local feedback, and the **Commitlint** workflow revalidates every non-draft pull request title, including title edits. Critical impact, urgency, and regression coverage remain maintainer review decisions. No additional PR-description or severity-label validation workflow is planned.
+When pull requests are squash-merged, the pull request title is the authoritative final commit header and must pass the same commitlint rules. The `prek` `commit-msg` hook provides local feedback. The **Commitlint** workflow checks non-draft PRs targeting `main`, `develop`, `v2`, `release/v*`, or `release/*.x` on opening, title/body edits, reopening, becoming ready for review, and source updates. It uses the trusted workflow commit's toolchain, even when the target branch predates Commitlint; standard Commitlint default ignores still apply. A breaking-change title such as `feat(chat)!: change the message format` is valid without a footer; the title-only check does not inspect the PR description. Critical impact, urgency, and regression coverage remain maintainer review decisions. No additional PR-description or severity-label validation workflow is planned.
 
 ## Backport Flow
 
@@ -204,6 +203,8 @@ Security support beyond the two-line window is an explicit release-team exceptio
 
 ## Versioned Workflow Invariants
 
+These invariants apply to `minor-line` mode. The active `exact-version` route still selects its backport target from the unique matching draft release, as described in its runbook below.
+
 - Every product fix lands in `main` before it is backported.
 - Release branches accept changes only through reviewed pull requests.
 - Never merge all of `main` into a supported release branch.
@@ -258,7 +259,7 @@ Backport preparation uses trusted scripts against an isolated temporary worktree
 
 Each generated commit is GitHub Verified and DCO-signed off. If a commit exists but PR creation failed, a retry checks its signature, source, parent, and exact patch tree before opening the PR. An unrecognized orphan branch is preserved for manual recovery. No retry force-pushes an existing branch.
 
-After a conflict, create or repair the standard backport branch from the target line, apply only the source change, and add exactly one `<!-- release-backport-source-pr: 123 -->` marker on its own line. Use a same-repository PR with a matching head and base. Its lifecycle events then maintain source status automatically. Assign the exact version milestone to that backport PR and wait for its CI and review before merging.
+After a conflict, create or repair the standard backport branch from the target line, apply only the source change, and add exactly one `<!-- release-backport-source-pr: 123 -->` marker on its own line outside the `release-note` block. Marker examples inside release notes are preserved as content, not treated as provenance. Use a same-repository PR with a matching head and base. Its lifecycle events then maintain source status automatically. Assign the exact version milestone to that backport PR and wait for its CI and review before merging.
 
 For retry, run **Backport Release Hotfixes** from the default branch with `source_pr=123` and `line=2.0.x`. Keep the source's target label present. Reopening preserves the previous work and requires the existing branch to still exist; recover a deleted branch manually.
 
@@ -386,6 +387,8 @@ To explicitly abandon an unpublished release, first set `TAG=v<version>` and `BR
 Pushing `release/v<version>` automatically starts **CI**. After CI succeeds, **Auto Release Build** rechecks that the successful SHA is still the live branch head and dispatches **Release** with `all`. A stale CI completion is ignored, and an exact-head build is never dispatched twice.
 
 The **Release** workflow checks GitHub Actions for a successful `ci.yml` push run whose `head_sha` exactly equals the commit being released. A successful run for an older commit does not satisfy this gate.
+
+In both release modes, the prepare job checks out trusted validation scripts and dependencies from `main` without persisting checkout credentials. Its `contents: write` permission is needed to see draft releases; it does not execute the selected release branch's code. Version lookup and CI/state validation still use the selected release SHA. The build jobs check out that release SHA with read-only repository permissions.
 
 If CI is queued, running, cancelled, or failing, no build is dispatched. Fix or rerun CI first.
 

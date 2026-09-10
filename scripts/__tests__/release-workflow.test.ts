@@ -997,6 +997,43 @@ describe('release publication state', () => {
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
 
+  it('uses trusted title-validation tools even when the target branch predates commitlint', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'commitlint.yml'), 'utf8'))
+    const checkout = workflow.jobs['pull-request-title'].steps.find((step: { uses?: string }) =>
+      step.uses?.startsWith('actions/checkout@')
+    )
+    expect(checkout.with.ref).toBe('${{ github.workflow_sha }}')
+    expect(checkout.with['persist-credentials']).toBe(false)
+  })
+
+  it.each([
+    ['fix(chat): preserve attachments', true],
+    ['hotfix(database): prevent data loss', true],
+    ['feat(chat)!: change the message format', true],
+    ['unknown(chat): change messages', false],
+    ['fix(chat):', false]
+  ])('validates the PR title %s without requiring a commit footer', (title, valid) => {
+    const repoRoot = path.resolve(workflowRoot, '../..')
+    const result = spawnSync(process.execPath, [path.join(repoRoot, 'node_modules/@commitlint/cli/cli.js')], {
+      cwd: repoRoot,
+      input: `${title}\n`,
+      encoding: 'utf8'
+    })
+    expect(result.status, result.stdout + result.stderr).toBe(valid ? 0 : 1)
+  })
+
+  it('reads drafts with trusted prepare code while keeping builds read-only and bound to the release SHA', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const prepare = workflow.jobs.prepare
+    const checkout = prepare.steps.find((step: { uses?: string }) => step.uses?.startsWith('actions/checkout@'))
+    const resolve = prepare.steps.find((step: { id?: string }) => step.id === 'release-ref')
+    expect(prepare.permissions).toEqual({ actions: 'read', contents: 'write' })
+    expect(checkout.with.ref).toBe('main')
+    expect(checkout.with['persist-credentials']).toBe(false)
+    expect(resolve.with.script).toContain('sha: context.sha')
+    expect(workflow.jobs.release.permissions.contents).toBe('read')
+  })
+
   it('builds and stages both editions for every selected release platform', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
     const releaseJob = workflow.jobs.release

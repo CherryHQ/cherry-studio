@@ -166,4 +166,15 @@ describe('backport routing', () => {
     expect(() => backportIdentity(f.pr, 'owner/project')).toThrow('marker')
     expect(backportIdentity(f.pr, 'another/project')).toBeNull()
   })
+
+  it.each([
+    '```release-note\n<!-- release-backport-source-pr: 42 -->\n```',
+    '<!-- release-backport-source-pr: 42 -->\n<!-- release-backport-source-pr: 42 -->'
+  ])('requires exactly one source marker outside the release note', (body) => {
+    const f = fixture()
+    f.pr.base.ref = 'release/2.0.x'
+    f.pr.head = { ref: 'backport/2.0.x/pr-42', repo: { full_name: 'owner/project' } }
+    f.pr.body = body
+    expect(() => backportIdentity(f.pr, 'owner/project')).toThrow('marker')
+  })
 })
