@@ -133,7 +133,7 @@ export interface ChatScrollAnchor {
 
 export interface CacheComposerSerializedToken {
   id: string
-  kind: ComposerMessageTokenKind | 'promptVariable'
+  kind: ComposerMessageTokenKind | 'promptVariable' | 'messagePart'
   label: string
   icon?: string
   description?: string

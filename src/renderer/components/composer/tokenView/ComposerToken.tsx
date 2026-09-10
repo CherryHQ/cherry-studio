@@ -17,7 +17,7 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import { Blocks, Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -55,7 +55,8 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   knowledge: <Boxes className={tokenIconClassName} />,
   reference: <MessagesSquare className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
-  promptVariable: <BracesVariableIcon className={tokenIconClassName} />
+  promptVariable: <BracesVariableIcon className={tokenIconClassName} />,
+  messagePart: <Blocks className={tokenIconClassName} />
 }
 
 function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
@@ -967,6 +968,13 @@ export function PromptVariableComposerToken(props: ComposerTokenProps) {
   return <ActiveComposerToken {...props} icon={tokenIconByKind.promptVariable} colorClassName="text-info" />
 }
 
+export function MessagePartComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.messagePart
+  })
+}
+
 export const composerInputTokenComponentByKind = {
   skill: SkillComposerToken,
   link: LinkComposerToken,
@@ -975,7 +983,8 @@ export const composerInputTokenComponentByKind = {
   knowledge: KnowledgeComposerToken,
   reference: ReferenceComposerToken,
   quote: QuoteComposerToken,
-  promptVariable: PromptVariableComposerToken
+  promptVariable: PromptVariableComposerToken,
+  messagePart: MessagePartComposerToken
 } satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>
 
 export function ComposerToken(props: ComposerTokenProps) {
