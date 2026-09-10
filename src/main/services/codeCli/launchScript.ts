@@ -35,6 +35,7 @@ export function writeLaunchScript(cliTool: string, body: string, ext: '.sh' | '.
     fs.chmodSync(scriptPath, 0o600)
     logger.info(`Created launch script: ${scriptPath}`)
   } catch (error) {
+    logger.error(`Failed to create launch script: ${error}`)
     throw new Error(`Failed to create launch script: ${error}`)
   }
 
