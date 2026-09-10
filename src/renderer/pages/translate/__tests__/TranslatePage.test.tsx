@@ -55,6 +55,9 @@ const translateCoreMock = vi.hoisted(() => ({
   updateHistory: vi.fn(),
   historyHookOptions: vi.fn(),
   detectLanguage: vi.fn(),
+  startTask: vi.fn(),
+  cancelTask: vi.fn(),
+  attachState: undefined as unknown,
   setTimeoutTimer: vi.fn(),
   translateText: vi.fn(),
   isAbortError: vi.fn(),
@@ -77,6 +80,8 @@ const historyFilesMock = vi.hoisted(() => ({
 }))
 
 /** The tab session id the mocked route search hands to the page. */
+const TEST_TASK_ID = '11111111-1111-4111-8111-111111111111'
+const TEST_STREAM_ID = `translate:${TEST_TASK_ID}`
 const TEST_TAB_SESSION = 'test-tab-session'
 
 vi.mock('react-i18next', () => ({
@@ -120,18 +125,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
 
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
   ...(await importOriginal<typeof TranslateHooks>()),
-  detectLanguageOrUnknown: async (
-    text: string,
-    detectLanguage: (text: string) => Promise<string>,
-    onError: (error: unknown) => void
-  ) => {
-    try {
-      return await detectLanguage(text)
-    } catch (error) {
-      onError(error)
-      return 'unknown'
-    }
-  },
   useTranslateHistory: (options?: unknown) => {
     translateCoreMock.historyHookOptions(options)
     return { add: translateCoreMock.addHistory, update: translateCoreMock.updateHistory }
@@ -140,10 +133,6 @@ vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
 
 vi.mock('@tanstack/react-router', () => ({
   getRouteApi: () => ({ useSearch: () => ({ tabSession: TEST_TAB_SESSION }) })
-}))
-
-vi.mock('@renderer/hooks/translate/useDetectLang', () => ({
-  useDetectLang: () => translateCoreMock.detectLanguage
 }))
 
 vi.mock('@renderer/hooks/useDrag', () => ({
@@ -466,6 +455,18 @@ import { tabSessionRegistry } from '@renderer/services/TabSessionRegistry'
 
 import TranslatePage from '../TranslatePage'
 
+/** The page follows a main-owned task, so tests drive it the way main does. */
+const emitIpc = (event: string, payload: unknown) => {
+  act(() => {
+    ipcEventHandlers.get(event)?.(payload)
+  })
+}
+const streamChunk = (delta: string) =>
+  emitIpc('ai.stream.chunk', { topicId: TEST_STREAM_ID, chunk: { type: 'text-delta', delta } })
+const completeTask = (text: string, sourceLangCode?: string) =>
+  emitIpc('translate.task.completed', { taskId: TEST_TASK_ID, text, sourceLangCode })
+const failTask = (messageKey: string) => emitIpc('translate.task.failed', { taskId: TEST_TASK_ID, messageKey })
+
 describe('TranslatePage', () => {
   beforeEach(() => {
     // The session registry is a window-wide singleton; without this a run left over from the
@@ -478,7 +479,6 @@ describe('TranslatePage', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.setCacheValue(`translate.input.${TEST_TAB_SESSION}`, '')
     MockUseCacheUtils.setCacheValue(`translate.output.${TEST_TAB_SESSION}`, '')
-    MockUseCacheUtils.setCacheValue(`translate.detecting.${TEST_TAB_SESSION}`, false)
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': null,
       'feature.translate.page.source_language': 'auto',
@@ -514,6 +514,20 @@ describe('TranslatePage', () => {
       if (channel === 'file_processing.start_job') return fileMock.startJob(payload)
       if (channel === 'binary.get_tool_snapshots') return Promise.resolve(binaryMock.snapshots)
       if (channel === 'binary.install_tool') return Promise.resolve(undefined)
+      if (channel === 'translate.task.start') {
+        translateCoreMock.startTask(payload)
+        return Promise.resolve({ taskId: TEST_TASK_ID, streamId: TEST_STREAM_ID })
+      }
+      if (channel === 'translate.task.cancel') {
+        translateCoreMock.cancelTask(payload)
+        return Promise.resolve(undefined)
+      }
+      if (channel === 'translate.task.attach') return Promise.resolve(translateCoreMock.attachState)
+      if (channel === 'translate.detect') {
+        return translateCoreMock
+          .detectLanguage((payload as { text: string }).text)
+          .then((langCode: string) => ({ langCode }))
+      }
       return Promise.resolve(undefined)
     })
     fileMock.readExternal.mockResolvedValue('document content')
@@ -525,6 +539,9 @@ describe('TranslatePage', () => {
     dropMock.getFilesFromDropEvent.mockResolvedValue(null)
     dropMock.getTextFromDropEvent.mockReset()
     dropMock.getTextFromDropEvent.mockResolvedValue(null)
+    translateCoreMock.startTask.mockReset()
+    translateCoreMock.cancelTask.mockReset()
+    translateCoreMock.attachState = undefined
     translateCoreMock.addHistory.mockReset()
     translateCoreMock.addHistory.mockResolvedValue(undefined)
     translateCoreMock.detectLanguage.mockReset()
@@ -853,13 +870,6 @@ describe('TranslatePage', () => {
     fileMock.getFileExtension.mockReturnValue('.pdf')
     fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
     fileMock.readExternal.mockResolvedValue('PDF extracted text')
-    translateCoreMock.translateText.mockImplementationOnce(
-      async (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
-        onResponse?.('streamed translation', false)
-        return 'translated text'
-      }
-    )
-
     render(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
 
@@ -870,15 +880,13 @@ describe('TranslatePage', () => {
 
     await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/input.pdf', true))
     await waitFor(() =>
-      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
-        'PDF extracted text',
-        'zh-cn',
-        expect.any(Function),
-        expect.any(AbortSignal),
-        expect.any(String)
+      expect(translateCoreMock.startTask).toHaveBeenCalledWith(
+        expect.objectContaining({ text: 'PDF extracted text', targetLangCode: 'zh-cn' })
       )
     )
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
+
+    streamChunk('streamed translation')
     expect(screen.getByTestId('translate-output-content')).toHaveTextContent('streamed translation')
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
@@ -886,7 +894,7 @@ describe('TranslatePage', () => {
     expect(MockUseCacheUtils.getCacheValue(`translate.output.${TEST_TAB_SESSION}`)).toBe('')
   })
 
-  it('does not start PDF text fallback translation after closing during language detection', async () => {
+  it('cancels the running task when the PDF it belongs to is closed', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'auto',
@@ -896,23 +904,17 @@ describe('TranslatePage', () => {
     fileMock.getFileExtension.mockReturnValue('.pdf')
     fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
     fileMock.readExternal.mockResolvedValue('PDF extracted text')
-    let resolveDetection!: (language: string) => void
-    translateCoreMock.detectLanguage.mockReturnValue(
-      new Promise((resolve) => {
-        resolveDetection = resolve
-      })
-    )
-
     render(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('PDF extracted text'))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
 
+    // The renderer used to guard a late continuation with a request id; the task is main's now,
+    // so closing the PDF has to end it rather than let it finish unwatched.
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
-    await act(async () => resolveDetection('en-us'))
 
-    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+    expect(translateCoreMock.cancelTask).toHaveBeenCalledWith({ taskId: TEST_TASK_ID })
   })
 
   it('installs BabelDOC Stream from the PDF prompt without starting translation', async () => {
@@ -1014,7 +1016,7 @@ describe('TranslatePage', () => {
         expect.objectContaining({ textFallback: expect.objectContaining({ ocrRequired: true }) })
       )
     )
-    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+    expect(translateCoreMock.startTask).not.toHaveBeenCalled()
   })
 
   it('clears extracted PDF text cache when a different PDF is selected', async () => {
@@ -1257,10 +1259,10 @@ describe('TranslatePage', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalledTimes(1))
   })
 
-  it('translates to the selected target without blocking on a matching stored source language', async () => {
+  it('hands the language configuration to main rather than resolving the target itself', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn',
@@ -1272,24 +1274,18 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
+    // Same source and target is a case the task reports back as a failure; the page does not
+    // pre-empt it, so what it must get right is passing the configuration through unchanged.
     await waitFor(() =>
-      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
-        'hello',
-        'zh-cn',
-        expect.any(Function),
-        expect.any(AbortSignal),
-        expect.any(String)
-      )
-    )
-    expect(toast.warning).not.toHaveBeenCalledWith('translate.language.same')
-    await waitFor(() =>
-      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
-        sourceText: 'hello',
-        targetText: 'translated text',
-        sourceLanguage: null,
-        targetLanguage: 'zh-cn'
+      expect(translateCoreMock.startTask).toHaveBeenCalledWith({
+        text: 'hello',
+        sourceLangCode: 'zh-cn',
+        targetLangCode: 'zh-cn',
+        bidirectional: false,
+        bidirectionalPair: expect.any(Array)
       })
     )
+    expect(toast.warning).not.toHaveBeenCalledWith('translate.language.same')
   })
 
   it('stores single-direction history before detecting and backfills its source language', async () => {
@@ -1310,8 +1306,10 @@ describe('TranslatePage', () => {
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
+    completeTask('translated text')
 
-    // The user-visible translation completes while detection is still pending.
+    // The user-visible translation completes while the backfill detection is still pending.
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('translate.complete'))
     expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
       sourceText: 'hello',
@@ -1343,6 +1341,8 @@ describe('TranslatePage', () => {
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
+    completeTask('translated text')
 
     await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('hello'))
     await act(async () => {
@@ -1363,6 +1363,8 @@ describe('TranslatePage', () => {
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
+    completeTask('translated text')
 
     await waitFor(() =>
       expect(translateCoreMock.updateHistory).toHaveBeenCalledWith('history-deleted', {
@@ -1382,65 +1384,26 @@ describe('TranslatePage', () => {
     })
   })
 
-  it('continues translating with the selected target when auto detection returns unknown in bidirectional mode', async () => {
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'feature.translate.model_id': 'openai::gpt-4.1',
-      'feature.translate.page.source_language': 'auto',
-      'feature.translate.page.target_language': 'en-us',
-      'feature.translate.page.bidirectional_enabled': true,
-      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
-    })
-    translateCoreMock.detectLanguage.mockResolvedValueOnce('unknown')
-
-    const { rerender } = render(<TranslatePage />)
-    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
-    rerender(<TranslatePage />)
-    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-
-    await waitFor(() =>
-      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
-        'hello',
-        'en-us',
-        expect.any(Function),
-        expect.any(AbortSignal),
-        expect.any(String)
-      )
-    )
-    expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
-    await waitFor(() =>
-      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
-        sourceText: 'hello',
-        targetText: 'translated text',
-        sourceLanguage: 'unknown',
-        targetLanguage: 'en-us'
-      })
-    )
-  })
-
-  it('detects the source language to choose the opposite bidirectional target', async () => {
+  it('passes the bidirectional pair through and records the source main detected', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'en-us',
       'feature.translate.page.bidirectional_enabled': true,
       'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
     })
-    translateCoreMock.detectLanguage.mockResolvedValueOnce('zh-cn')
-
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: '你好' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
     await waitFor(() =>
-      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
-        '你好',
-        'en-us',
-        expect.any(Function),
-        expect.any(AbortSignal),
-        expect.any(String)
+      expect(translateCoreMock.startTask).toHaveBeenCalledWith(
+        expect.objectContaining({ text: '你好', bidirectional: true, bidirectionalPair: ['en-us', 'zh-cn'] })
       )
     )
-    expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('你好')
+
+    completeTask('translated text', 'zh-cn')
+
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
         sourceText: '你好',
@@ -1465,28 +1428,27 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalledTimes(1))
     expect(toast.success).not.toHaveBeenCalled()
     expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
   })
 
-  it('shows failure toast and resets translating state when translate throws non-abort error', async () => {
+  it('shows the failure main reported and returns the page to idle', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    const translateError = new Error('translate failed')
-    translateCoreMock.translateText.mockRejectedValueOnce(translateError)
-    translateCoreMock.formatErrorMessageWithPrefix.mockImplementationOnce((_error: unknown, prefix: string) => {
-      return `${prefix}: reason`
-    })
-
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.error.failed: reason'))
+    // Main reports the key; translating it and deciding to show it is the page's job.
+    failTask('translate.error.failed')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.error.failed'))
+    expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeInTheDocument()
   })
 
   it('triggers translate on Cmd/Ctrl+Enter keyboard shortcut', async () => {
@@ -1502,7 +1464,7 @@ describe('TranslatePage', () => {
 
     fireEvent.keyDown(screen.getByLabelText('translate.input.placeholder'), { key: 'Enter', ctrlKey: true })
 
-    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalledTimes(1))
   })
 
   it('ignores duplicate translate trigger while translating is in progress', async () => {
@@ -1525,7 +1487,7 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
 
-    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalledTimes(1))
     await act(async () => {
       resolveTranslate('done')
     })
@@ -1538,24 +1500,16 @@ describe('TranslatePage', () => {
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    let signal: AbortSignal | undefined
-    translateCoreMock.translateText.mockImplementationOnce(
-      (_text: string, _targetLanguage: string, _onResponse?: unknown, abortSignal?: AbortSignal) => {
-        signal = abortSignal
-        return new Promise<string>(() => {})
-      }
-    )
-
     const { rerender, unmount } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-    await waitFor(() => expect(signal).toBeDefined())
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
     unmount()
 
-    expect(signal?.aborted).toBe(false)
+    expect(translateCoreMock.cancelTask).not.toHaveBeenCalled()
 
-    // Remounting picks the same run back up rather than showing an idle page.
+    // Remounting picks the same task back up rather than showing an idle page.
     render(<TranslatePage />)
     expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument()
   })
@@ -1565,26 +1519,18 @@ describe('TranslatePage', () => {
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    let streamId: string | undefined
-    translateCoreMock.translateText.mockImplementationOnce(
-      (_text: string, _targetLanguage: string, _onResponse?: unknown, _signal?: AbortSignal, id?: string) => {
-        streamId = id
-        return new Promise<string>(() => {})
-      }
-    )
-
     const { rerender, unmount } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-    await waitFor(() => expect(streamId).toBeDefined())
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
     unmount()
 
-    // The tab closed or navigated away: its session id is no longer reachable. Nothing holds the
-    // run's AbortController any more, so the session cancels main's stream by id.
+    // The tab closed or navigated away: its session id is no longer reachable. The task id it
+    // held is the only handle on a translation running in main, so the session cancels by it.
     tabSessionRegistry.sweep(new Set())
 
-    expect(ipcRequestMock).toHaveBeenCalledWith('ai.stream.abort', { topicId: streamId })
+    expect(translateCoreMock.cancelTask).toHaveBeenCalledWith({ taskId: TEST_TASK_ID })
   })
 
   it('cancels in-flight translation when stop is clicked', async () => {
@@ -1592,14 +1538,6 @@ describe('TranslatePage', () => {
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    let signal: AbortSignal | undefined
-    translateCoreMock.translateText.mockImplementationOnce(
-      (_text: string, _targetLanguage: string, _onResponse?: unknown, abortSignal?: AbortSignal) => {
-        signal = abortSignal
-        return new Promise<string>(() => {})
-      }
-    )
-
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
@@ -1608,7 +1546,7 @@ describe('TranslatePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
 
-    expect(signal?.aborted).toBe(true)
+    expect(translateCoreMock.cancelTask).toHaveBeenCalledWith({ taskId: TEST_TASK_ID })
     expect(toast.info).toHaveBeenCalledWith('translate.info.aborted')
   })
 
@@ -1656,29 +1594,23 @@ describe('TranslatePage', () => {
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    let report: ((text: string, isComplete: boolean) => void) | undefined
-    let finish: ((text: string) => void) | undefined
-    translateCoreMock.translateText.mockImplementationOnce(
-      (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
-        report = onResponse
-        onResponse?.('partial', false)
-        return new Promise<string>((resolve) => {
-          finish = resolve
-        })
-      }
-    )
-
     const first = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     first.rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
+    streamChunk('partial')
     await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial'))
 
     first.unmount()
-    await act(async () => {
-      report?.('partial and the rest', true)
-      finish?.('partial and the rest')
-    })
+    // The task kept running in main; a page coming back asks it for what it produced meanwhile.
+    translateCoreMock.attachState = {
+      taskId: TEST_TASK_ID,
+      streamId: TEST_STREAM_ID,
+      busy: false,
+      accumulated: 'partial and the rest',
+      detectedSourceLanguage: null
+    }
 
     render(<TranslatePage />)
     await waitFor(() =>
@@ -1687,24 +1619,19 @@ describe('TranslatePage', () => {
   })
 
   it('does not replay a finished run over an output the user replaced', async () => {
-    // The trace outlives the run so a page that missed the end can catch up. Once this page has
-    // taken it, a later re-attach must not put it back over whatever the user did next.
+    // A page that missed the end catches up by re-attaching. Once the task has settled main drops
+    // it, so a later mount has nothing to replay over whatever the user did next.
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn'
     })
-    translateCoreMock.translateText.mockImplementationOnce(
-      async (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
-        onResponse?.('translated text', true)
-        return 'translated text'
-      }
-    )
-
     const first = render(<TranslatePage />)
     const input = screen.getByLabelText('translate.input.placeholder')
     fireEvent.change(input, { target: { value: 'hello' } })
     first.rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
+    completeTask('translated text')
     await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('translated text'))
 
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: '' } })
@@ -1723,35 +1650,18 @@ describe('TranslatePage', () => {
       'feature.translate.page.source_language': 'zh-cn',
       'feature.translate.page.auto_copy': true
     })
-    const abortError = new Error('aborted')
-    let signal: AbortSignal | undefined
-    translateCoreMock.translateText.mockImplementationOnce(
-      (
-        _text: string,
-        _targetLanguage: string,
-        onResponse?: (text: string, isComplete: boolean) => void,
-        abortSignal?: AbortSignal
-      ) => {
-        signal = abortSignal
-        onResponse?.('partial text', false)
-
-        return new Promise<string>((_resolve, reject) => {
-          abortSignal?.addEventListener('abort', () => reject(abortError), { once: true })
-        })
-      }
-    )
-    translateCoreMock.isAbortError.mockImplementation((error: unknown) => error === abortError)
-
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
+    streamChunk('partial text')
 
     await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
     await waitFor(() => expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
 
-    expect(signal?.aborted).toBe(true)
+    expect(translateCoreMock.cancelTask).toHaveBeenCalledWith({ taskId: TEST_TASK_ID })
     await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
     expect(MockUseCacheUtils.getCacheValue(`translate.output.${TEST_TAB_SESSION}`)).toBe('partial text')
     expect(toast.info).toHaveBeenCalledWith('translate.info.aborted')
@@ -1771,6 +1681,8 @@ describe('TranslatePage', () => {
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.startTask).toHaveBeenCalled())
+    completeTask('translated text')
 
     await waitFor(() =>
       expect(translateCoreMock.setTimeoutTimer).toHaveBeenCalledWith('auto-copy', expect.any(Function), 100)

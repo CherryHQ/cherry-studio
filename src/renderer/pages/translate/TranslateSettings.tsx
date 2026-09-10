@@ -27,7 +27,6 @@ import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type {
   AutoDetectionMethod,
@@ -37,6 +36,7 @@ import type {
 import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import { UNKNOWN_LANG_CODE } from '@shared/utils/translateLanguage'
 import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'

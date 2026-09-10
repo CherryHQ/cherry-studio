@@ -49,20 +49,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   Tooltip: ({ children }: React.PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/hooks/translate', () => ({
-  detectLanguageOrUnknown: async (
-    text: string,
-    detectLanguage: (text: string) => Promise<TranslateLangCode>,
-    onError: (error: unknown) => void
-  ) => {
-    try {
-      return await detectLanguage(text)
-    } catch (error) {
-      onError(error)
-      return 'unknown'
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: async (route: string, payload: { text: string }) => {
+      if (route !== 'translate.detect') throw new Error(`Unexpected route ${route}`)
+      return { langCode: await state.detectLanguage(payload.text) }
     }
-  },
-  useDetectLang: () => state.detectLanguage,
+  }
+}))
+
+vi.mock('@renderer/hooks/translate', () => ({
   useTranslate: () => ({
     translate: state.translate,
     isTranslating: false,

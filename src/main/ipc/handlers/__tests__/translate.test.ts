@@ -1,21 +1,38 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, cancelPdfMock, ipcSendMock, openMock, translatePdfMock } = vi.hoisted(() => ({
+const {
+  appGetMock,
+  attachTaskMock,
+  cancelPdfMock,
+  cancelTaskMock,
+  ipcSendMock,
+  openMock,
+  startTaskMock,
+  translatePdfMock
+} = vi.hoisted(() => ({
   appGetMock: vi.fn(),
+  attachTaskMock: vi.fn(),
   cancelPdfMock: vi.fn(),
+  cancelTaskMock: vi.fn(),
   ipcSendMock: vi.fn(),
   openMock: vi.fn(),
+  startTaskMock: vi.fn(),
   translatePdfMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('@main/services/translate/translateService', () => ({ translateService: { open: openMock } }))
 
 import { translateHandlers } from '../translate'
 
 const webContents = {}
 const windowManager = { getWindow: vi.fn(() => ({ webContents })) }
 const pdfTranslationService = { cancel: cancelPdfMock, translate: translatePdfMock }
+const translateService = {
+  open: openMock,
+  startTask: startTaskMock,
+  cancelTask: cancelTaskMock,
+  attachTask: attachTaskMock
+}
 const req = { streamId: 'translate:1', text: 'hi', targetLangCode: 'en' } as Parameters<
   (typeof translateHandlers)['translate.open']
 >[0]
@@ -26,6 +43,7 @@ beforeEach(() => {
     if (name === 'WindowManager') return windowManager
     if (name === 'PdfTranslationService') return pdfTranslationService
     if (name === 'IpcApiService') return { send: ipcSendMock }
+    if (name === 'TranslateService') return translateService
     throw new Error(`Unexpected application.get(${name})`)
   })
 })

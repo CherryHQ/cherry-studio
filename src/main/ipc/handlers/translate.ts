@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { translateService } from '@main/services/translate/translateService'
+import { detectLanguageOrUnknown } from '@main/services/translate/detectLanguage'
 import type { translateRequestSchemas } from '@shared/ipc/schemas/translate'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 
@@ -17,8 +17,9 @@ export const translateHandlers: IpcHandlersFor<typeof translateRequestSchemas> =
   'translate.open': async (request, { senderId }) => {
     const wc = senderWebContents(senderId)
     if (!wc) throw new Error('translate.open requires a managed window')
-    return translateService.open(wc, request)
+    return application.get('TranslateService').open(wc, request)
   },
+  'translate.detect': async ({ text }) => ({ langCode: await detectLanguageOrUnknown(text) }),
   'translate.pdf.start': async (request, { senderId }) => {
     if (!senderId) throw new Error('translate.pdf.start requires a managed window')
     return application.get('PdfTranslationService').translate(
@@ -37,5 +38,18 @@ export const translateHandlers: IpcHandlersFor<typeof translateRequestSchemas> =
   'translate.pdf.cancel': async ({ jobId }, { senderId }) => {
     if (!senderId) throw new Error('translate.pdf.cancel requires a managed window')
     application.get('PdfTranslationService').cancel(jobId)
+  },
+  'translate.task.start': async (request, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc || senderId == null) throw new Error('translate.task.start requires a managed window')
+    return application.get('TranslateService').startTask(senderId, wc, request)
+  },
+  'translate.task.cancel': async ({ taskId }) => {
+    application.get('TranslateService').cancelTask(taskId)
+  },
+  'translate.task.attach': async ({ taskId }, { senderId }) => {
+    const wc = senderWebContents(senderId)
+    if (!wc || senderId == null) throw new Error('translate.task.attach requires a managed window')
+    return application.get('TranslateService').attachTask(taskId, senderId, wc)
   }
 }

@@ -10,13 +10,7 @@ import { loggerService } from '@logger'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
-import {
-  detectLanguageOrUnknown,
-  useDetectLang,
-  useTranslate,
-  useTranslateHistory,
-  useTranslateSession
-} from '@renderer/hooks/translate'
+import { useTranslateHistory, useTranslateSession, useTranslateTask } from '@renderer/hooks/translate'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
@@ -35,12 +29,7 @@ import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
-import {
-  createInputScrollHandler,
-  createOutputScrollHandler,
-  determineTargetLanguage,
-  UNKNOWN_LANG_CODE
-} from '@renderer/utils/translate'
+import { createInputScrollHandler, createOutputScrollHandler } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import {
   BABELDOC_MINIMUM_VERSION,
@@ -56,6 +45,7 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
+import { determineTargetLanguage, UNKNOWN_LANG_CODE } from '@shared/utils/translateLanguage'
 import { getRouteApi } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
@@ -224,7 +214,6 @@ const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
-  const detectLanguage = useDetectLang()
   const { add: addHistory, update: updateHistory } = useTranslateHistory({
     update: { showErrorToast: false, rethrowError: false }
   })
@@ -247,51 +236,72 @@ const TranslatePage: FC = () => {
 
   const [translateInput, setTranslateInput] = useCache(`translate.input.${session.id}`)
   const [translateOutput, setTranslateOutput] = useCache(`translate.output.${session.id}`)
-  const [isDetecting, setIsDetecting] = useCache(`translate.detecting.${session.id}`)
+  const initialOutputRef = useRef(translateOutput)
+  const smoothRef = useRef<{ reset: (text?: string) => void; update: (text: string, done: boolean) => void }>({
+    reset: () => undefined,
+    update: () => undefined
+  })
+
+  const autoCopyRef = useRef(autoCopy)
+  autoCopyRef.current = autoCopy
+  const lastRequestRef = useRef<{ text: string; targetLangCode: TranslateLangCode } | null>(null)
 
   const {
-    translate: runTranslate,
-    isTranslating,
+    isBusy: isTranslating,
+    detectedSourceLanguage,
+    start: startTranslateTask,
     cancel
-  } = useTranslate({ loggerContext: 'TranslatePage', owner: session })
+  } = useTranslateTask(session, {
+    onText: (accumulated) => {
+      if (accumulated) smoothRef.current.update(accumulated, false)
+      else smoothRef.current.reset('')
+    },
+    onCompleted: (text, sourceLangCode) => {
+      // One-shot reactions: a page that was away while the task finished misses them, which is
+      // the intent — nothing should write the clipboard for a tab nobody is looking at.
+      toast.success(t('translate.complete'))
+      if (autoCopyRef.current) {
+        setTimeoutTimer(
+          'auto-copy',
+          async () => {
+            try {
+              await navigator.clipboard.writeText(text)
+              setOutputCopied(true)
+            } catch (error) {
+              logger.error('Failed to auto copy translated text', error as Error)
+              toast.error(t('translate.error.auto_copy_failed'))
+            }
+          },
+          100
+        )
+      }
+      const request = lastRequestRef.current
+      if (!request) return
+      void addHistory({
+        sourceText: request.text,
+        targetText: text,
+        sourceLanguage: sourceLangCode ?? null,
+        targetLanguage: request.targetLangCode
+      }).then((history) => {
+        if (history && !sourceLangCode) backfillHistorySourceLanguage(history.id, request.text)
+      })
+    },
+    onFailed: (messageKey) => {
+      toast.error(t(messageKey))
+    }
+  })
 
-  // Resume the playout where the last mount left it rather than retyping the whole text, and take
-  // completion from the session: a run that outlived the previous mount reports neither to this
-  // one.
-  const initialOutputRef = useRef(translateOutput)
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({
     onUpdate: setTranslateOutput,
     initialText: initialOutputRef.current,
     streamDone: !isTranslating
   })
-
-  // Follow the run while it is in flight, so a page that attached mid-run catches up on what it
-  // missed and then plays out every chunk after.
-  useEffect(() => {
-    if (!isTranslating) return
-    return session.onProgress((pending) => {
-      if (pending) smoothUpdate(pending, false)
-    })
-  }, [isTranslating, session, smoothUpdate])
-
-  const outputRef = useRef(translateOutput)
-  outputRef.current = translateOutput
-
-  // The run's text is stream state and the output is UI state, which nothing should change while
-  // there is no UI — so a run that ended with this page detached is taken here, the one moment it
-  // comes back. Taking is also what ends the run's claim on the output.
-  useEffect(() => {
-    if (isTranslating) return
-    // With nothing to take, still realign the player: its queue and displayed text outlive a tab
-    // hide, and the revived loop would write that stale text straight over the output.
-    smoothReset(session.takeProgress() ?? outputRef.current)
-  }, [isTranslating, session, smoothReset])
+  smoothRef.current = { reset: smoothReset, update: smoothUpdate }
 
   const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
   const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
   const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(null)
@@ -312,6 +322,15 @@ const TranslatePage: FC = () => {
   const isProgrammaticScroll = useRef(false)
   const pdfHandleRef = useRef<PdfTranslationHandle | null>(null)
   const pdfTextCacheRef = useRef<{ filePath: string; text: string } | null>(null)
+  const releasePdfJobRef = useRef<(() => void) | undefined>(undefined)
+  const handlePdfJobChange = useCallback(
+    (jobId: string | null) => {
+      releasePdfJobRef.current?.()
+      releasePdfJobRef.current = jobId ? session.addPdfJob(jobId) : undefined
+    },
+    [session]
+  )
+
   const pdfTextRequestIdRef = useRef(0)
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
@@ -406,47 +425,6 @@ const TranslatePage: FC = () => {
     )
   }, [notesPath, translateOutput])
 
-  const translate = useCallback(
-    async (
-      rawText: string,
-      actualSourceLanguage: TranslateLangCode | null,
-      actualTargetLanguage: TranslateLangCode
-    ): Promise<TranslateHistory | undefined> => {
-      if (isTranslating) return
-
-      smoothReset('')
-      const translated = await runTranslate(rawText, actualTargetLanguage)
-      if (!translated) {
-        return
-      }
-      toast.success(t('translate.complete'))
-
-      if (autoCopy) {
-        setTimeoutTimer(
-          'auto-copy',
-          async () => {
-            try {
-              await navigator.clipboard.writeText(translated)
-              setOutputCopied(true)
-            } catch (error) {
-              logger.error('Failed to auto copy translated text', error as Error)
-              toast.error(t('translate.error.auto_copy_failed'))
-            }
-          },
-          100
-        )
-      }
-
-      return addHistory({
-        sourceText: rawText,
-        targetText: translated,
-        sourceLanguage: actualSourceLanguage,
-        targetLanguage: actualTargetLanguage
-      })
-    },
-    [addHistory, autoCopy, isTranslating, runTranslate, setOutputCopied, setTimeoutTimer, smoothReset, t]
-  )
-
   // Off the translation critical path: a failed detection or patch just leaves
   // the stored source language unset, so every outcome stays silent.
   //
@@ -456,74 +434,42 @@ const TranslatePage: FC = () => {
   // nothing here reads that state — revisit if this call site ever does.
   const backfillHistorySourceLanguage = useCallback(
     (historyId: string, rawText: string) => {
-      void detectLanguageOrUnknown(rawText, detectLanguage, () => undefined)
-        .then((language) => {
+      void ipcApi
+        .request('translate.detect', { text: rawText })
+        .then(({ langCode: language }) => {
           if (language === UNKNOWN_LANG_CODE) return
           return updateHistory(historyId, { sourceLanguage: language })
         })
         .catch(() => undefined)
     },
-    [detectLanguage, updateHistory]
+    [updateHistory]
   )
 
+  /**
+   * Hand the translation to main, which owns it from here: it detects the source language when
+   * one is needed, resolves the target, and streams — none of which ends when this page does.
+   */
   const translateTextContent = useCallback(
-    async (rawText: string, allowBidirectional: boolean, isCurrent?: () => boolean): Promise<void> => {
-      if (!rawText.trim() || !selectedModelId || isDetecting || isTranslating) return
+    async (rawText: string, allowBidirectional: boolean): Promise<void> => {
+      if (!rawText.trim() || !selectedModelId || isTranslating) return
 
-      if (allowBidirectional && !isBidirectional) {
-        setDetectedLanguage(null)
-        const history = await translate(rawText, null, targetLanguage)
-        if (history) backfillHistorySourceLanguage(history.id, rawText)
-        return
-      }
-
-      let actualSourceLanguage = sourceLanguage
-      if ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto') {
-        setIsDetecting(true)
-        try {
-          actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
-            logger.error('Failed to detect language', error as Error)
-          })
-          if (isCurrent && !isCurrent()) return
-          setDetectedLanguage(actualSourceLanguage)
-        } finally {
-          setIsDetecting(false)
-        }
-      } else {
-        setDetectedLanguage(null)
-      }
-
-      const shouldUseBidirectionalTarget =
-        allowBidirectional && isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
-      const targetResult = determineTargetLanguage(
-        actualSourceLanguage,
-        targetLanguage,
-        shouldUseBidirectionalTarget,
+      lastRequestRef.current = { text: rawText, targetLangCode: targetLanguage }
+      await startTranslateTask({
+        text: rawText,
+        sourceLangCode: sourceLanguage,
+        targetLangCode: targetLanguage,
+        bidirectional: allowBidirectional && isBidirectional,
         bidirectionalPair
-      )
-
-      if (!targetResult.success) {
-        toast.warning(
-          targetResult.errorType === 'same_language' ? t('translate.language.same') : t('translate.language.not_pair')
-        )
-        return
-      }
-
-      await translate(rawText, actualSourceLanguage, targetResult.language)
+      })
     },
     [
-      backfillHistorySourceLanguage,
       bidirectionalPair,
-      detectLanguage,
       isBidirectional,
-      isDetecting,
       isTranslating,
       selectedModelId,
-      setIsDetecting,
       sourceLanguage,
-      t,
-      targetLanguage,
-      translate
+      startTranslateTask,
+      targetLanguage
     ]
   )
 
@@ -550,7 +496,7 @@ const TranslatePage: FC = () => {
         return
       }
 
-      await translateTextContent(extractedText, false, () => pdfTextRequestIdRef.current === requestId)
+      await translateTextContent(extractedText, false)
     } catch (error) {
       if (pdfTextRequestIdRef.current !== requestId) return
       logger.error('Failed to extract PDF text', error as Error)
@@ -614,13 +560,12 @@ const TranslatePage: FC = () => {
   }, [cancel, isTranslating, pdfStatus.running, t])
 
   const handleExchange = useCallback(() => {
-    if (pdfFile || sourceLanguage === 'auto' || isTranslating || isDetecting) return
+    if (pdfFile || sourceLanguage === 'auto' || isTranslating) return
     void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
     void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
     setTranslateInput(translateOutput)
     setTranslateOutput(translateInput)
   }, [
-    isDetecting,
     safePersist,
     setSourceLanguage,
     setTargetLanguage,
@@ -936,13 +881,12 @@ const TranslatePage: FC = () => {
       !pdfStatus.running &&
       !isTranslating &&
       !isProcessing
-    : !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isDetecting && !isProcessing && !isOcrRunning
+    : !isEmpty(translateInput) && !!selectedModelId && !isTranslating && !isProcessing && !isOcrRunning
   const couldExchange =
     !isPdfMode &&
     sourceLanguage !== 'auto' &&
     sourceLanguage !== targetLanguage &&
     !isTranslating &&
-    !isDetecting &&
     !isProcessing &&
     !isOcrRunning
 
@@ -967,7 +911,7 @@ const TranslatePage: FC = () => {
             onSourceChange={(language) => void safePersist(setSourceLanguage(language), 'translate source language')}
             targetLanguage={targetLanguage}
             onTargetChange={(language) => void safePersist(setTargetLanguage(language), 'translate target language')}
-            detectedLanguage={detectedLanguage}
+            detectedLanguage={detectedSourceLanguage}
             isBidirectional={isPdfMode ? false : isBidirectional}
             showSourceControls={isPdfMode}
             bidirectionalPair={bidirectionalPair}
@@ -1100,7 +1044,7 @@ const TranslatePage: FC = () => {
                           ref={outputTextRef}
                           translatedContent={translateOutput}
                           enableMarkdown={enableMarkdown}
-                          translating={isTranslating || isDetecting || isPdfTextExtracting}
+                          translating={isTranslating || isPdfTextExtracting}
                           copied={outputCopied}
                           onCopy={onCopyOutput}
                           onExportToNotes={onExportOutputToNotes}
@@ -1112,6 +1056,7 @@ const TranslatePage: FC = () => {
               }
               onClose={resetPdfMode}
               onHandleChange={handlePdfHandleChange}
+              onJobChange={handlePdfJobChange}
               onStatusChange={handlePdfStatusChange}
               onInstallBabelDoc={() => void babelDoc.install()}
               onBabelDocUnavailable={babelDoc.refresh}
@@ -1137,7 +1082,7 @@ const TranslatePage: FC = () => {
                 copied={inputCopied}
                 onCopy={onCopyInput}
                 onCancelOcr={clearOcrJob}
-                disabled={isTranslating || isDetecting || isProcessing || isOcrRunning}
+                disabled={isTranslating || isProcessing || isOcrRunning}
                 ocrProcessing={isOcrRunning}
                 selecting={selecting}
               />
@@ -1147,7 +1092,7 @@ const TranslatePage: FC = () => {
                 ref={outputTextRef}
                 translatedContent={translateOutput}
                 enableMarkdown={enableMarkdown}
-                translating={isTranslating || isDetecting}
+                translating={isTranslating}
                 copied={outputCopied}
                 onCopy={onCopyOutput}
                 onExportToNotes={onExportOutputToNotes}

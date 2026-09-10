@@ -1,5 +1,4 @@
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateLanguage } from '@shared/data/types/translate'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,76 +6,52 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => `t(${key})` })
 }))
 
-const translateTextMock =
-  vi.fn<
-    (
-      text: string,
-      lang: unknown,
-      onResponse?: (text: string, done: boolean) => void,
-      signal?: AbortSignal,
-      streamId?: string
-    ) => Promise<string>
-  >()
-vi.mock('@renderer/utils/translate', () => ({
-  createTranslateStreamId: () => `translate:${(streamSeq += 1)}`,
-  translateText: (...args: any[]) => translateTextMock(...(args as Parameters<typeof translateTextMock>))
-}))
-
-let streamSeq = 0
-
-const abortRequest = vi.fn().mockResolvedValue(undefined)
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: (...args: unknown[]) => abortRequest(...args) } }))
-
-/** What the session would abort by — the id `useTranslate` handed to `translateText`. */
-const abortedStreams = () => abortRequest.mock.calls.map(([, payload]) => (payload as { topicId: string }).topicId)
-
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: (err: unknown, prefix: string) => `${prefix}: ${String(err)}`,
-  isAbortError: (err: unknown) => (err as Error)?.name === 'AbortError'
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+const ipcHandlers = vi.hoisted(() => new Map<string, (payload: never) => void>())
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => ipcRequestMock(...args) },
+  useIpcOn: (event: string, handler: (payload: never) => void) => {
+    ipcHandlers.set(event, handler)
+  }
 }))
 
 import { tabSessionRegistry } from '@renderer/services/TabSessionRegistry'
 
-import { useTranslate } from '../useTranslate'
 import { useTranslateSession } from '../useTranslateSession'
+import { useTranslateTask } from '../useTranslateTask'
 
-const TARGET = {
-  langCode: parseTranslateLangCode('en-us'),
-  value: 'English',
-  emoji: '🇺🇸',
-  createdAt: '2026-01-01T00:00:00.000Z',
-  updatedAt: '2026-01-01T00:00:00.000Z'
-} as TranslateLanguage
+const TARGET = parseTranslateLangCode('en-us')
 
-/** A translateText that never settles on its own, so a run can be observed mid-flight. */
-function pendingTranslateText() {
-  let signal: AbortSignal | undefined
-  let streamId: string | undefined
-  let report: ((text: string, done: boolean) => void) | undefined
-  translateTextMock.mockImplementationOnce(
-    (_text, _lang, onResponse, abortSignal, id) =>
-      new Promise<string>((_resolve, reject) => {
-        signal = abortSignal
-        streamId = id
-        report = onResponse
-        abortSignal?.addEventListener('abort', () => {
-          const error = new Error('aborted')
-          error.name = 'AbortError'
-          reject(error)
-        })
-      })
-  )
-  return { getSignal: () => signal, getStreamId: () => streamId, emitChunk: (text: string) => report?.(text, false) }
+const REQUEST = {
+  text: 'hello',
+  sourceLangCode: 'auto' as const,
+  targetLangCode: TARGET,
+  bidirectional: false,
+  bidirectionalPair: [parseTranslateLangCode('en-us'), parseTranslateLangCode('zh-cn')] as [
+    ReturnType<typeof parseTranslateLangCode>,
+    ReturnType<typeof parseTranslateLangCode>
+  ]
 }
 
 let sessionSeq = 0
-/** The real translate session, so these tests exercise the runtime the page actually gets. */
+/** The real session, so these tests exercise the runtime the page actually gets. */
 const newSession = () => renderHook(() => useTranslateSession(`session-${(sessionSeq += 1)}`)).result.current
 
+const noop = { onText: () => undefined, onCompleted: () => undefined, onFailed: () => undefined }
+
+const emit = (event: string, payload: unknown) => {
+  act(() => ipcHandlers.get(event)?.(payload as never))
+}
+
+const requestsFor = (route: string) => ipcRequestMock.mock.calls.filter(([name]) => name === route)
+
 beforeEach(() => {
-  vi.clearAllMocks()
-  translateTextMock.mockReset()
-  abortRequest.mockClear()
+  ipcRequestMock.mockReset()
+  ipcHandlers.clear()
+  ipcRequestMock.mockImplementation((route: string) => {
+    if (route === 'translate.task.start') return Promise.resolve({ taskId: 'task-1', streamId: 'translate:task-1' })
+    return Promise.resolve(undefined)
+  })
 })
 
 describe('useTranslateSession', () => {
@@ -87,166 +62,146 @@ describe('useTranslateSession', () => {
   })
 })
 
-describe('useTranslate with a tab session', () => {
-  it('keeps the run alive when the page unmounts', async () => {
-    // #18885: switching tabs unmounts the page under `Activity`; the run must not be cancelled.
-    const { getSignal } = pendingTranslateText()
+describe('useTranslateTask', () => {
+  it('leaves the task running when the page unmounts', async () => {
+    // #18885: switching tabs unmounts the page under `Activity`; the translation must not stop.
     const session = newSession()
-    const { result, unmount } = renderHook(() => useTranslate({ owner: session }))
+    const { result, unmount } = renderHook(() => useTranslateTask(session, noop))
 
-    act(() => {
-      void result.current.translate('source', TARGET)
+    await act(async () => {
+      await result.current.start(REQUEST)
     })
     expect(session.isBusy()).toBe(true)
 
     unmount()
 
-    expect(getSignal()?.aborted).toBe(false)
+    expect(requestsFor('translate.task.cancel')).toHaveLength(0)
     expect(session.isBusy()).toBe(true)
   })
 
-  it('still reports isTranslating to a page that remounted mid-run', async () => {
-    pendingTranslateText()
+  it('still reports the task as running to a page that mounted mid-run', async () => {
     const session = newSession()
-    const first = renderHook(() => useTranslate({ owner: session }))
-
-    act(() => {
-      void first.result.current.translate('source', TARGET)
+    const first = renderHook(() => useTranslateTask(session, noop))
+    await act(async () => {
+      await first.result.current.start(REQUEST)
     })
     first.unmount()
 
-    const second = renderHook(() => useTranslate({ owner: session }))
+    const second = renderHook(() => useTranslateTask(session, noop))
 
-    expect(second.result.current.isTranslating).toBe(true)
+    expect(second.result.current.isBusy).toBe(true)
   })
 
-  it('reports progress to the page mounted now, not to the one that started the run', async () => {
-    // The run's chunk callback belongs to the mount that started it. Left as the only recipient,
-    // a page that remounts mid-run plays out its own stale copy alongside it.
-    const { emitChunk } = pendingTranslateText()
+  it('replays what a page missed while it was away', async () => {
+    // The text lives in main, so a page coming back asks for it rather than reconstructing it.
     const session = newSession()
-    const first = renderHook(() => useTranslate({ owner: session }))
+    const first = renderHook(() => useTranslateTask(session, noop))
     await act(async () => {
-      void first.result.current.translate('hello', TARGET)
+      await first.result.current.start(REQUEST)
     })
-    act(() => emitChunk('partial'))
     first.unmount()
+
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'translate.task.attach'
+        ? Promise.resolve({
+            taskId: 'task-1',
+            streamId: 'translate:task-1',
+            busy: true,
+            accumulated: 'partial and more',
+            detectedSourceLanguage: null
+          })
+        : Promise.resolve(undefined)
+    )
 
     const seen: string[] = []
-    const stopFollowing = session.onProgress((text) => seen.push(text))
-    expect(seen).toEqual(['partial'])
+    await act(async () => {
+      renderHook(() => useTranslateTask(session, { ...noop, onText: (text) => seen.push(text) }))
+    })
 
-    act(() => emitChunk('partial and more'))
-    expect(seen).toEqual(['partial', 'partial and more'])
-    stopFollowing()
+    expect(requestsFor('translate.task.attach')[0][1]).toEqual({ taskId: 'task-1' })
+    expect(seen).toContain('partial and more')
   })
 
-  it("clears the previous run's progress before the session reports busy", async () => {
-    // A page follows the run only while the session is busy, so it reads the progress on that
-    // transition. A clear landing after it would hand the new run the finished one's text.
-    const firstRun = pendingTranslateText()
+  it('lets a page cancel a task it never started', async () => {
+    // The Stop button after a tab switch — this mount started nothing, so the task id held by the
+    // session is the only handle on the translation.
     const session = newSession()
-    const { result } = renderHook(() => useTranslate({ owner: session }))
+    const first = renderHook(() => useTranslateTask(session, noop))
     await act(async () => {
-      void result.current.translate('one', TARGET)
-    })
-    act(() => firstRun.emitChunk('the first run'))
-    act(() => result.current.cancel())
-
-    let progress = ''
-    const stopFollowing = session.onProgress((text) => {
-      progress = text
-    })
-    expect(progress).toBe('the first run')
-
-    const progressWhenBusy: string[] = []
-    const stopWatching = session.subscribe(() => {
-      if (session.isBusy()) progressWhenBusy.push(progress)
-    })
-
-    pendingTranslateText()
-    await act(async () => {
-      void result.current.translate('two', TARGET)
-    })
-
-    expect(progressWhenBusy).toEqual([''])
-    stopWatching()
-    stopFollowing()
-  })
-
-  it('lets a remounted page cancel a run it never started', async () => {
-    // The Stop button after a tab switch — this mount started nothing, so the stream id held by
-    // the session is the only handle on the run.
-    const { getStreamId } = pendingTranslateText()
-    const session = newSession()
-    const first = renderHook(() => useTranslate({ owner: session }))
-
-    act(() => {
-      void first.result.current.translate('source', TARGET)
+      await first.result.current.start(REQUEST)
     })
     first.unmount()
 
-    const second = renderHook(() => useTranslate({ owner: session }))
-    act(() => {
-      second.result.current.cancel()
-    })
+    const second = renderHook(() => useTranslateTask(session, noop))
+    act(() => second.result.current.cancel())
 
-    expect(abortedStreams()).toContain(getStreamId())
-    expect(second.result.current.isTranslating).toBe(false)
+    expect(requestsFor('translate.task.cancel')[0][1]).toEqual({ taskId: 'task-1' })
+    expect(second.result.current.isBusy).toBe(false)
   })
 
-  it('aborts the run when the session is released', async () => {
-    const { getStreamId } = pendingTranslateText()
+  it('cancels the task when the session is released', async () => {
     const session = newSession()
-    const { result } = renderHook(() => useTranslate({ owner: session }))
-
-    act(() => {
-      void result.current.translate('source', TARGET)
+    const { result } = renderHook(() => useTranslateTask(session, noop))
+    await act(async () => {
+      await result.current.start(REQUEST)
     })
 
     act(() => {
       tabSessionRegistry.sweep(new Set())
     })
 
-    expect(abortedStreams()).toContain(getStreamId())
+    expect(requestsFor('translate.task.cancel')[0][1]).toEqual({ taskId: 'task-1' })
+  })
+
+  it('ends a running PDF job when the session is released', async () => {
+    // #20114: the PDF view used to cancel its job on unmount, so hiding or hibernating the tab
+    // killed a translation the user started. The tab is what should end it.
+    const session = newSession()
+    session.addPdfJob('pdf-job-1')
+
+    act(() => {
+      tabSessionRegistry.sweep(new Set())
+    })
+
+    expect(requestsFor('translate.pdf.cancel')[0][1]).toEqual({ jobId: 'pdf-job-1' })
+  })
+
+  it('reports a running PDF job as busy, so navigation will not replace the tab', async () => {
+    const session = newSession()
+    expect(session.isBusy()).toBe(false)
+
+    const finish = session.addPdfJob('pdf-job-2')
+    expect(session.isBusy()).toBe(true)
+
+    finish()
+    expect(session.isBusy()).toBe(false)
   })
 
   it('keeps two sessions independent', async () => {
-    const runA = pendingTranslateText()
-    const runB = pendingTranslateText()
+    // #18879: a translation in one tab must not put the other one in a running state.
     const sessionA = newSession()
     const sessionB = newSession()
-    const a = renderHook(() => useTranslate({ owner: sessionA }))
-    const b = renderHook(() => useTranslate({ owner: sessionB }))
+    const a = renderHook(() => useTranslateTask(sessionA, noop))
+    const b = renderHook(() => useTranslateTask(sessionB, noop))
 
-    act(() => {
-      void a.result.current.translate('a', TARGET)
+    await act(async () => {
+      await a.result.current.start(REQUEST)
     })
 
-    // #18879: a run in one translate tab must not put the other one in a running state.
-    expect(a.result.current.isTranslating).toBe(true)
-    expect(b.result.current.isTranslating).toBe(false)
-
-    act(() => {
-      void b.result.current.translate('b', TARGET)
-      a.result.current.cancel()
-    })
-
-    expect(abortedStreams()).toContain(runA.getStreamId())
-    expect(abortedStreams()).not.toContain(runB.getStreamId())
-    expect(b.result.current.isTranslating).toBe(true)
+    expect(a.result.current.isBusy).toBe(true)
+    expect(b.result.current.isBusy).toBe(false)
   })
 
-  it('still aborts on unmount when no session owns the run', async () => {
-    // Popups and overlays genuinely do own their run — that behaviour must not change.
-    const { getSignal } = pendingTranslateText()
-    const { result, unmount } = renderHook(() => useTranslate())
-
-    act(() => {
-      void result.current.translate('source', TARGET)
+  it('surfaces a failure as its i18n key, leaving the page to decide what to show', async () => {
+    const session = newSession()
+    const failures: string[] = []
+    const { result } = renderHook(() => useTranslateTask(session, { ...noop, onFailed: (key) => failures.push(key) }))
+    await act(async () => {
+      await result.current.start(REQUEST)
     })
-    unmount()
 
-    expect(getSignal()?.aborted).toBe(true)
+    emit('translate.task.failed', { taskId: 'task-1', messageKey: 'translate.language.same' })
+
+    expect(failures).toEqual(['translate.language.same'])
   })
 })

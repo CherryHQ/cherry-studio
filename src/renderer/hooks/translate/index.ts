@@ -1,7 +1,7 @@
-export { detectLanguageOrUnknown, useDetectLang } from './useDetectLang'
 export type { UseTranslateOptions, UseTranslateResult } from './useTranslate'
 export { useTranslate } from './useTranslate'
 export { useTranslateHistories } from './useTranslateHistories'
 export { useTranslateHistory } from './useTranslateHistory'
 export { useLanguages, useTranslateLanguages } from './useTranslateLanguages'
 export { useTranslateSession } from './useTranslateSession'
+export { useTranslateTask } from './useTranslateTask'

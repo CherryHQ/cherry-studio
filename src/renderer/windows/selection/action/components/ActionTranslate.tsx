@@ -4,13 +4,14 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { detectLanguageOrUnknown, useDetectLang, useLanguages, useTranslate } from '@renderer/hooks/translate'
+import { useLanguages, useTranslate } from '@renderer/hooks/translate'
+import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
-import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@shared/utils/translateLanguage'
 import { ArrowRight, ChevronDown, CircleHelp, Globe2, Loader2, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -43,7 +44,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [alterLangCode, setAlterLangCode] = usePreference('feature.translate.action.alter_lang')
   const { languages, getLanguage } = useLanguages()
   const isLanguagesLoaded = languages !== undefined
-  const detectLanguage = useDetectLang()
   // The stored default is zh-cn, so preserve the matching UI-locale fallback for zh-TW.
   const effectivePreferredLangCode =
     language === 'zh-TW' && preferredLangCode === BUILTIN_LANGUAGE.zhCN.langCode
@@ -186,11 +186,15 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     clear()
 
     setIsDetecting(true)
-    const sourceLanguageCode = await detectLanguageOrUnknown(selectedText, detectLanguage, (error) => {
-      logger.error('Error detecting language:', error as Error)
-    }).finally(() => {
-      setIsDetecting(false)
-    })
+    const { langCode: sourceLanguageCode } = await ipcApi
+      .request('translate.detect', { text: selectedText })
+      .catch((error: unknown) => {
+        logger.error('Error detecting language:', error as Error)
+        return { langCode: UNKNOWN_LANG_CODE }
+      })
+      .finally(() => {
+        setIsDetecting(false)
+      })
 
     const detectedLang = getLanguage(sourceLanguageCode) ?? null
     setDetectedLanguage(detectedLang)
@@ -215,7 +219,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     } finally {
       setIsPreparing(false)
     }
-  }, [selectedText, initialized, clear, detectLanguage, getLanguage, alterLanguage, targetLanguage, runTranslate, t])
+  }, [selectedText, initialized, clear, getLanguage, alterLanguage, targetLanguage, runTranslate, t])
 
   useEffect(() => {
     // Kick the result-renderer chunk off immediately — rendering waits for the

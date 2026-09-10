@@ -2,7 +2,7 @@ import type { TranslateBidirectionalPair } from '@shared/data/preference/prefere
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { describe, expect, it } from 'vitest'
 
-import { determineTargetLanguage, pickBidirectionalTarget } from '../language'
+import { determineTargetLanguage, pickBidirectionalTarget } from '../translateLanguage'
 
 const lang = (langCode: string, value: string): TranslateLanguage =>
   ({

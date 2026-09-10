@@ -34,6 +34,8 @@ vi.mock('@renderer/components/FilePreview', () => ({
   FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="pdf-preview" data-file-path={filePath} />
 }))
 
+const onJobChange = vi.fn()
+
 describe('PdfTranslationView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -61,6 +63,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="available"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={(next) => {
           handle = next
         }}
@@ -112,6 +115,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="available"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={(next) => {
           handle = next
         }}
@@ -268,6 +272,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="available"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={(next) => {
           handle = next
         }}
@@ -293,7 +298,7 @@ describe('PdfTranslationView', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
-  it('cancels an active job on unmount and leaves the output that wins the completion race alone', async () => {
+  it('leaves a running job alone on unmount, and reports it so the tab can end it', async () => {
     let resolveStart!: (result: { fileName: string; outputPath: string }) => void
     const startPromise = new Promise<{ fileName: string; outputPath: string }>((resolve) => {
       resolveStart = resolve
@@ -311,6 +316,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="available"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={(next) => {
           handle = next
         }}
@@ -323,17 +329,18 @@ describe('PdfTranslationView', () => {
     act(() => handle!.start('zh-cn'))
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('translate.pdf.start', expect.anything()))
 
+    // Hiding a tab tears this view's effects down and hibernating one unmounts it outright;
+    // neither should end a translation the user started (#20114). The job id went to the session,
+    // which is what ends it when the tab does.
+    expect(onJobChange).toHaveBeenCalledWith('b289bad7-a813-4cf7-91c0-2a9dc82235b2')
+
     unmount()
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('translate.pdf.cancel', {
-      jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2'
-    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('translate.pdf.cancel', expect.anything())
 
     resolveStart({ fileName: 'paper.zh-CN.pdf', outputPath: '/tmp/files/entry-1.pdf' })
     // A run that finishes after unmount already recorded itself in history and handed its
     // PDF to FileManager, so there is nothing left for the renderer to clean up.
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
-    expect(mocks.ipcRequest.mock.calls.map(([route]) => route)).toEqual(['translate.pdf.start', 'translate.pdf.cancel'])
-    expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories')
+    await waitFor(() => expect(mocks.invalidateCache).toHaveBeenCalledWith('/translate/histories'))
   })
 
   it('mounts straight into the side-by-side result when reopened from history', () => {
@@ -346,6 +353,7 @@ describe('PdfTranslationView', () => {
         babelDocInstalling={false}
         restoredOutput={{ fileName: 'paper.zh-CN.pdf', outputPath: '/tmp/files/entry-1.pdf' as AbsoluteFilePath }}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={vi.fn()}
         onStatusChange={vi.fn()}
         onInstallBabelDoc={vi.fn()}
@@ -380,6 +388,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="available"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={(next) => {
           handle = next
         }}
@@ -415,6 +424,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="available"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={(next) => {
           handle = next
         }}
@@ -448,6 +458,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="available"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={(next) => {
           handle = next
         }}
@@ -481,6 +492,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="available"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={(next) => {
           handle = next
         }}
@@ -508,6 +520,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="missing"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={vi.fn()}
         onStatusChange={vi.fn()}
         onInstallBabelDoc={onInstallBabelDoc}
@@ -530,6 +543,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="missing"
         babelDocInstalling
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={vi.fn()}
         onStatusChange={vi.fn()}
         onInstallBabelDoc={vi.fn()}
@@ -552,6 +566,7 @@ describe('PdfTranslationView', () => {
         babelDocAvailability="outdated"
         babelDocInstalling={false}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={vi.fn()}
         onStatusChange={vi.fn()}
         onInstallBabelDoc={onInstallBabelDoc}
@@ -575,6 +590,7 @@ describe('PdfTranslationView', () => {
         babelDocInstalling={false}
         textFallback={{ content: <div>streamed translation</div>, ocrRequired: false }}
         onClose={vi.fn()}
+        onJobChange={onJobChange}
         onHandleChange={vi.fn()}
         onStatusChange={vi.fn()}
         onInstallBabelDoc={vi.fn()}
