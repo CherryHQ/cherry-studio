@@ -128,4 +128,80 @@ describe('createMinimaxProvider', () => {
     )
     expect(result.images).toEqual([image])
   })
+
+  it.each([
+    ['https://api.minimax.io/v1', 'https://api.minimax.io/v1/files/upload'],
+    ['https://api.minimaxi.com/v1', 'https://api.minimaxi.com/v1/files/upload']
+  ])('uploads clone audio and creates a voice through %s', async (baseURL, uploadUrl) => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ file: { file_id: 123456 }, base_resp: { status_code: 0 } }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ voice_id: 'CustomVoice001', base_resp: { status_code: 0 } }), { status: 200 })
+      )
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', baseURL, fetch })
+
+    const result = await provider.cloneVoice({
+      audio: new Blob(['voice sample'], { type: 'audio/mpeg' }),
+      fileName: 'sample.mp3',
+      voiceId: 'CustomVoice001',
+      model: 'speech-2.8-hd'
+    })
+
+    expect(fetch).toHaveBeenNthCalledWith(1, uploadUrl, expect.objectContaining({ method: 'POST' }))
+    const form = fetch.mock.calls[0][1]?.body as FormData
+    expect(form.get('purpose')).toBe('voice_clone')
+    expect((form.get('file') as File).name).toBe('sample.mp3')
+    expect(fetch).toHaveBeenNthCalledWith(2, `${baseURL}/voice_clone`, expect.objectContaining({ method: 'POST' }))
+    expect(JSON.parse(fetch.mock.calls[1][1]?.body as string)).toEqual({
+      file_id: 123456,
+      voice_id: 'CustomVoice001',
+      model: 'speech-2.8-hd'
+    })
+    expect(result).toEqual({ voiceId: 'CustomVoice001' })
+  })
+
+  it('rejects unsupported clone audio before upload', async () => {
+    const fetch = vi.fn()
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', fetch })
+
+    await expect(
+      provider.cloneVoice({
+        audio: new Blob(['voice sample']),
+        fileName: 'sample.ogg',
+        voiceId: 'CustomVoice001',
+        model: 'speech-2.8-hd'
+      })
+    ).rejects.toThrow('Unsupported MiniMax voice clone audio format: ogg')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('surfaces clone API errors', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ file: { file_id: 123456 }, base_resp: { status_code: 0 } }), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ base_resp: { status_code: 1004, status_msg: 'invalid voice ID' } }), {
+          status: 200,
+          headers: { 'x-request-id': 'request-123' }
+        })
+      )
+    const provider = createMinimaxProvider({ apiKey: 'sk-test', fetch })
+
+    await expect(
+      provider.cloneVoice({
+        audio: new Blob(['voice sample']),
+        fileName: 'sample.wav',
+        voiceId: 'CustomVoice001',
+        model: 'speech-01-hd'
+      })
+    ).rejects.toMatchObject({
+      message: 'invalid voice ID',
+      responseHeaders: { 'x-request-id': 'request-123' }
+    })
+  })
 })
