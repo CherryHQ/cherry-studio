@@ -1,5 +1,6 @@
 import * as z from 'zod'
 
+import type { BrowserCursorState } from '../../types/browserCursor'
 import { defineRoute } from '../define'
 import { BrowserImportOptionsSchema, BrowserImportResultSchema, BrowserImportSourceSchema } from './browserImport'
 
@@ -14,6 +15,19 @@ export const browserRequestSchemas = {
     input: z.strictObject({ sessionId: z.uuid(), webviewId: z.number().int().positive() }),
     output: z.strictObject({ tabId: z.uuid() })
   }),
+  'browser.cursor.present': defineRoute({
+    input: z.strictObject({ sessionId: z.uuid(), tabId: z.uuid(), presented: z.boolean() }),
+    output: z.void()
+  }),
+  'browser.cursor.arrive': defineRoute({
+    input: z.strictObject({
+      sessionId: z.uuid(),
+      tabId: z.uuid(),
+      documentId: z.string().min(1),
+      sequence: z.number().int().positive()
+    }),
+    output: z.void()
+  }),
   'browser.pane.detach': defineRoute({
     input: z.strictObject({ sessionId: z.uuid(), tabId: z.uuid() }),
     output: z.void()
@@ -21,5 +35,6 @@ export const browserRequestSchemas = {
 }
 
 export type BrowserEventSchemas = {
+  'browser.cursor.state': BrowserCursorState
   'browser.pane.open_requested': { sessionId: string; url?: string }
 }

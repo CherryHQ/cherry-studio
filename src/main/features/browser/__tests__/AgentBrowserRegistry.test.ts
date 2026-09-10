@@ -4,7 +4,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { BaseService, Signal } from '@main/core/lifecycle'
+import { BaseService, Emitter, Signal } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -27,7 +27,7 @@ describe('Agent browser authority and control lifetime', () => {
   let service: BrowserSessionService
   let controller: AgentBrowserController
   let fixture: ReturnType<typeof createGuest>
-  const host = {} as Electron.WebContents
+  const host = { getZoomFactor: () => 1 } as Electron.WebContents
 
   beforeEach(async () => {
     events = new EventEmitter()
@@ -60,8 +60,13 @@ describe('Agent browser authority and control lifetime', () => {
       )
       .run()
     vi.mocked(application.get('WindowManager').getWindow).mockReturnValue({
-      webContents: host
-    } as Electron.BrowserWindow)
+      webContents: host,
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      isDestroyed: () => false,
+      isFocused: () => true,
+      isMinimized: () => false
+    } as unknown as Electron.BrowserWindow)
     await application.get('PreferenceService').set('app.browser.agent_control.enabled', true)
     BaseService.resetInstances()
     service = new BrowserSessionService()
@@ -73,6 +78,7 @@ describe('Agent browser authority and control lifetime', () => {
     fixture = createGuest(1)
     Object.assign(fixture.mock, {
       getType: () => 'webview',
+      getZoomFactor: () => 1,
       setWindowOpenHandler: vi.fn(),
       loadURL: vi.fn(async (url: string) => {
         fixture.mock.getURL.mockReturnValue(url)
@@ -89,6 +95,59 @@ describe('Agent browser authority and control lifetime', () => {
     vi.restoreAllMocks()
   })
 
+  it('rejects cursor acknowledgements from a different owner window', () => {
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    expect(() => service.agentBrowser.getCursor(sessionId, tabId, 'other' as WindowId)).toThrow(
+      expect.objectContaining({ code: 'not_allowed' })
+    )
+    expect(service.agentBrowser.getCursor(sessionId, 'old-tab', windowId)).toBeUndefined()
+  })
+
+  it('ends only the matching turn cursor while keeping the MCP connection and guest alive', async () => {
+    const terminal = new Emitter<{
+      sessionId: string
+      assistantMessageId: string
+      boundary: 'turn'
+      status: 'success'
+    }>()
+    let messageId = 'new-turn'
+    const runtime = { getLiveAssistantMessageId: () => messageId, onTurnTerminal: terminal.event }
+    const get = application.get.bind(application)
+    vi.spyOn(application, 'get').mockImplementation((name) => {
+      if (name === 'AgentSessionRuntimeService') return runtime as never
+      return get(name)
+    })
+    const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
+    const cursor = service.agentBrowser.getCursor(sessionId, tabId, windowId)!
+    cursor.setPresented(true)
+    const { pointer } = await controller.getSession(false, tabId)
+    const pending = pointer.move({ x: 20, y: 20 }, {})
+    let settled = false
+    void pending.then(
+      () => {
+        settled = true
+      },
+      () => {
+        settled = true
+      }
+    )
+    terminal.fire({ sessionId, assistantMessageId: 'old-turn', boundary: 'turn', status: 'success' })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    const rejected = expect(pending).rejects.toMatchObject({ code: 'not_found' })
+    terminal.fire({ sessionId, assistantMessageId: messageId, boundary: 'turn', status: 'success' })
+    await rejected
+    expect(controller.signal.aborted).toBe(false)
+    expect(service.agentBrowser.get({ sessionId, agentId })?.guest).toBe(fixture.guest)
+    messageId = 'following-turn'
+    const next = pointer.move({ x: 40, y: 40 }, {})
+    const stopped = expect(next).rejects.toMatchObject({ code: 'not_found' })
+    service.agentBrowser.detach(sessionId, tabId, windowId)
+    await stopped
+    expect(fixture.guest.isDestroyed()).toBe(false)
+    terminal.dispose()
+  })
+
   it('reveals an explicitly requested HTML file in the artifact profile', async () => {
     service.agentBrowser.attach(sessionId, 1, windowId)
     const url = 'file:///workspace/local%20page.html'
@@ -101,6 +160,7 @@ describe('Agent browser authority and control lifetime', () => {
     const artifact = createGuest(2)
     Object.assign(artifact.mock, {
       getType: () => 'webview',
+      getZoomFactor: () => 1,
       hostWebContents: host,
       session: session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
     })

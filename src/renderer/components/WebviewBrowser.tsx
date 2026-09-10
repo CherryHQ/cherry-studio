@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { BrowserCursorOverlay } from './BrowserCursorOverlay'
 import type { WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 import { WebviewHost } from './WebviewHost'
 import { WebviewImportBanner } from './WebviewImportBanner'
@@ -76,7 +77,7 @@ export function WebviewBrowser({
   )
   const webviewRef = useRef<WebviewTag | null>(null)
   const [webviewRevision, setWebviewRevision] = useState(0)
-  useAgentBrowserGuest(agentSessionId, webviewRef.current, webviewRevision)
+  const browserTabId = useAgentBrowserGuest(agentSessionId, webviewRef.current, webviewRevision)
   const [isReady, setIsReady] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -190,6 +191,15 @@ export function WebviewBrowser({
           onDidFinishLoad={handleDidFinishLoad}
           onDidFailLoad={handleDidFailLoad}
         />
+        {agentSessionId && browserTabId && webviewRef.current && (
+          <BrowserCursorOverlay
+            key={browserTabId}
+            sessionId={agentSessionId}
+            tabId={browserTabId}
+            guest={webviewRef.current}
+            active={isHostActive && isReady && !loadFailed}
+          />
+        )}
         {isLoading && !isReady ? (
           <div
             role="status"

@@ -1,6 +1,7 @@
 import type { Protocol } from 'devtools-protocol'
 import type TurndownService from 'turndown'
 
+import type { BrowserPointerFeedback } from '../BrowserCursor'
 import type { GuestSession } from '../session/GuestSession'
 import { logger } from './types'
 
@@ -10,7 +11,7 @@ export abstract class BrowserPageController {
   abstract getSession(
     privateMode?: boolean,
     tabId?: string
-  ): Promise<{ tabId: string; session: GuestSession; signal?: AbortSignal }>
+  ): Promise<{ tabId: string; session: GuestSession; signal?: AbortSignal; pointer?: BrowserPointerFeedback }>
   abstract open(
     url: string,
     timeout?: number,

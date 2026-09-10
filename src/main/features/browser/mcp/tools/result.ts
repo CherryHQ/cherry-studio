@@ -1,4 +1,4 @@
-import type { CommandOptions } from '../../browserUse'
+import type { BrowserActionOptions } from '../../BrowserCursor'
 import { BrowserSessionError } from '../../session/BrowserSessionError'
 import type { GuestSession } from '../../session/GuestSession'
 import { sanitizeSnapshotUrl } from '../../snapshot/serializeSnapshot'
@@ -11,19 +11,29 @@ export async function browserResult(
   controller: BrowserController,
   target: TabTarget,
   signal: AbortSignal | undefined,
-  action: (session: GuestSession, options: CommandOptions) => Promise<Record<string, unknown>>
+  action: (session: GuestSession, options: BrowserActionOptions) => Promise<Record<string, unknown>>
 ) {
   try {
     signal?.throwIfAborted()
-    const { tabId, session, signal: targetSignal } = await controller.getSession(target.privateMode, target.tabId)
+    const {
+      tabId,
+      session,
+      signal: targetSignal,
+      pointer
+    } = await controller.getSession(target.privateMode, target.tabId)
     signal = targetSignal ? AbortSignal.any(signal ? [signal, targetSignal] : [targetSignal]) : signal
     return await session.run(
       async () => {
         let result: Record<string, unknown>
         try {
           signal?.throwIfAborted()
-          result = { ok: true, navigated: false, ...(await action(session, { deadline: Date.now() + 30_000, signal })) }
+          result = {
+            ok: true,
+            navigated: false,
+            ...(await action(session, { deadline: Date.now() + 30_000, signal, pointer }))
+          }
         } catch (error) {
+          pointer?.hide()
           result = {
             ok: false,
             navigated: false,
