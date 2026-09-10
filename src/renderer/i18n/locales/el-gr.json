@@ -5140,7 +5140,6 @@
   "translate.error.failed": "Η μετάφραση απέτυχε",
   "translate.error.languages_load_failed": "Αποτυχία φόρτωσης γλωσσών μετάφρασης. Ορισμένες λειτουργίες ενδέχεται να μην είναι διαθέσιμες.",
   "translate.error.not_configured": "Το μοντέλο μετάφρασης δεν είναι ρυθμισμένο",
-  "translate.exchange.label": "Ανταλλαγή γλώσσας πηγής και γλώσσας προορισμού",
   "translate.files.drag_text": "Σύρετε και αφήστε εδώ",
   "translate.files.error.check_type": "Παρουσιάστηκε σφάλμα κατά τον έλεγχο του τύπου αρχείου",
   "translate.files.error.multiple": "Δεν επιτρέπεται η μεταφόρτωση πολλαπλών αρχείων",

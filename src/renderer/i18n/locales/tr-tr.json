@@ -5140,7 +5140,6 @@
   "translate.error.failed": "Çeviri başarısız oldu",
   "translate.error.languages_load_failed": "Çeviri dilleri yüklenemedi. Bazı özellikler kullanılamayabilir.",
   "translate.error.not_configured": "Çeviri modeli yapılandırılmamış",
-  "translate.exchange.label": "Kaynak ve hedef dilleri değiştir",
   "translate.files.drag_text": "Buraya bırakın",
   "translate.files.error.check_type": "Dosya türü kontrol edilirken bir hata oluştu",
   "translate.files.error.multiple": "Birden fazla dosya yüklenemez",
