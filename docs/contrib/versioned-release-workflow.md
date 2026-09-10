@@ -1,6 +1,9 @@
 ---
 description: Simplified GitLab Flow for maintaining the current and previous minor release lines through selective backports
 sources:
+  - commitlint.config.mjs
+  - .pre-commit-config.yaml
+  - .github/workflows/commitlint.yml
   - docs/contrib/branching-strategy.md
   - docs/contrib/release-workflow.md
   - docs/references/data/database-construction.md
@@ -11,7 +14,9 @@ sources:
 
 # Versioned Release Workflow
 
-Cherry Studio uses a simplified [GitLab Flow](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/) for versioned desktop releases. All development converges on `main`; supported release branches receive only selected fixes from `main`. We do not use a separate `develop` branch, merge all of `main` into a release branch, or merge a release branch back into `main`.
+> **Status:** This chapter defines the target release workflow. Commitlint and pull request title validation are implemented; the minor-line branches, target labels, and per-line backport labels below still require release-workflow changes. Until then, the existing exact-version release workflow remains authoritative.
+
+Cherry Studio is adopting a simplified [GitLab Flow](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/) for versioned desktop releases. All development converges on `main`; supported release branches receive only selected fixes from `main`. We do not use a separate `develop` branch, merge all of `main` into a release branch, or merge a release branch back into `main`.
 
 This workflow maintains exactly two minor release lines:
 
@@ -86,7 +91,7 @@ Do not use `fix!` to mean critical. The `!` marker denotes a breaking change. Re
 
 ## Commit and Pull Request Linting
 
-Commitlint validates syntax and declared intent; it cannot determine whether the underlying incident is genuinely critical. Semantic eligibility is enforced by pull request metadata and maintainer review.
+Commitlint validates local commit messages and non-draft pull request titles; it cannot determine whether the underlying incident is genuinely critical. Semantic eligibility remains a release-policy decision.
 
 The allowed commit types are:
 
@@ -94,7 +99,7 @@ The allowed commit types are:
 build, chore, ci, docs, feat, fix, hotfix, perf, refactor, revert, style, test
 ```
 
-The baseline commitlint rules are:
+The repository extends `@commitlint/config-conventional` with these project-specific rules:
 
 ```javascript
 {
@@ -110,7 +115,7 @@ The baseline commitlint rules are:
 }
 ```
 
-Both `fix` and `hotfix` map to a SemVer patch change. Pull request validation adds the rules that commitlint cannot express:
+Both `fix` and `hotfix` map to a SemVer patch change. The target workflow also requires metadata and maintainer review that commitlint cannot express:
 
 - A `hotfix` pull request must have the `severity/critical` label.
 - A `hotfix` pull request must name at least one supported `target/<minor-line>`.
@@ -118,7 +123,7 @@ Both `fix` and `hotfix` map to a SemVer patch change. Pull request validation ad
 - It must reference the incident or issue and include a regression test, or explain why an automated test is not possible.
 - A release maintainer must approve its urgency and every requested backport target.
 
-When pull requests are squash-merged, the pull request title is the authoritative final commit header and must pass the same commitlint rules. A local `commit-msg` hook provides early feedback, while CI validates the pull request title and release metadata.
+When pull requests are squash-merged, the pull request title is the authoritative final commit header and must pass the same commitlint rules. The `prek` `commit-msg` hook provides local feedback, and the **Commitlint** workflow revalidates every non-draft pull request title, including title edits. The semantic metadata requirements above remain manual until their dedicated workflow validation is implemented.
 
 ## Backport Flow
 

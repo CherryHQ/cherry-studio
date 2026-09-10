@@ -1,4 +1,4 @@
-default_install_hook_types: [pre-commit, post-checkout, post-merge]
+default_install_hook_types: [pre-commit, commit-msg, post-checkout, post-merge]
 
 repos:
   - repo: local
@@ -22,6 +22,14 @@ repos:
         language: system
         entry: pnpm biome format --write --no-errors-on-unmatched
         files: '\.(json|yml|yaml|css|html)$'
+        pass_filenames: true
+
+      - id: commitlint
+        name: Commitlint
+        language: system
+        entry: pnpm commitlint --edit
+        stages: [commit-msg]
+        always_run: true
         pass_filenames: true
 
       - id: post-checkout-install

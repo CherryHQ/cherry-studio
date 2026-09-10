@@ -1,0 +1,37 @@
+name: Commitlint
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+      - v2
+      - "release/v*"
+    types: [opened, edited, reopened, ready_for_review, synchronize]
+
+jobs:
+  pull-request-title:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Validate pull request title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | pnpm commitlint
