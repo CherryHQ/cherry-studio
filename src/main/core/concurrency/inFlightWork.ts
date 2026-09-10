@@ -6,8 +6,16 @@
  */
 export type InFlightWorkTracker = {
   track: <T>(work: Promise<T>) => Promise<T>
-  drain: () => Promise<void>
+  /**
+   * Wait out the tracked work, looping while settling work enqueues
+   * follow-ups. Bounded by `timeoutMs` so a producer still live during
+   * shutdown cannot stall `stop()` forever; returns false when the deadline
+   * was hit with work still in flight.
+   */
+  drain: (options?: { timeoutMs?: number }) => Promise<boolean>
 }
+
+const DEFAULT_DRAIN_TIMEOUT_MS = 15_000
 
 export function createInFlightWorkTracker(): InFlightWorkTracker {
   const inFlight = new Set<Promise<unknown>>()
@@ -18,10 +26,27 @@ export function createInFlightWorkTracker(): InFlightWorkTracker {
       void work.then(done, done)
       return work
     },
-    async drain() {
+    async drain({ timeoutMs = DEFAULT_DRAIN_TIMEOUT_MS } = {}) {
+      const deadline = Date.now() + timeoutMs
       while (inFlight.size > 0) {
-        await Promise.allSettled([...inFlight])
+        const remaining = deadline - Date.now()
+        if (remaining <= 0) return false
+        // Race the settle round against the deadline: awaiting allSettled
+        // alone would block forever on a never-settling promise.
+        let timer: ReturnType<typeof setTimeout> | undefined
+        try {
+          const round = await Promise.race([
+            Promise.allSettled([...inFlight]).then(() => 'settled' as const),
+            new Promise<'timeout'>((resolve) => {
+              timer = setTimeout(() => resolve('timeout'), remaining)
+            })
+          ])
+          if (round === 'timeout') return false
+        } finally {
+          clearTimeout(timer)
+        }
       }
+      return true
     }
   }
 }

@@ -83,6 +83,21 @@ describe('readHeartbeat', () => {
     expect(handle.readFile).not.toHaveBeenCalled()
   })
 
+  it('on Windows, refuses a pre-existing symlink via lstat (O_NOFOLLOW is a no-op there)', async () => {
+    // libuv drops O_NOFOLLOW on Windows, so the read path falls back to an
+    // lstat guard — non-atomic, but the only refusal that platform offers.
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    mockedLstat.mockResolvedValue({ isFile: () => true, isSymbolicLink: () => true } as never)
+    try {
+      const result = await readHeartbeat('/workspace')
+
+      expect(result).toBeUndefined()
+      expect(mockedOpen).not.toHaveBeenCalled()
+    } finally {
+      platformSpy.mockRestore()
+    }
+  })
+
   it('returns undefined when file is empty', async () => {
     mockedOpen.mockResolvedValue(readableHandle('   \n  ') as never)
     const result = await readHeartbeat('/workspace')
@@ -158,14 +173,22 @@ describe('ensureHeartbeatFile', () => {
   })
 
   it('unlinks a zero-byte corpse when the template write fails, so the next sync re-provisions', async () => {
+    // The handle must close BEFORE the unlink: Windows refuses to delete an
+    // open file (EPERM), and a swallowed failure there would leave the corpse.
+    const calls: string[] = []
     const handle = {
       writeFile: vi.fn().mockRejectedValue(new Error('ENOSPC')),
-      close: vi.fn().mockResolvedValue(undefined)
+      close: vi.fn().mockImplementation(async () => {
+        calls.push('close')
+      })
     }
     mockedOpen.mockResolvedValueOnce(handle as never)
+    mockedUnlink.mockImplementation(async () => {
+      calls.push('unlink')
+    })
 
     await expect(ensureHeartbeatFile('/workspace')).rejects.toThrow('ENOSPC')
-    expect(handle.close).toHaveBeenCalled()
+    expect(calls).toEqual(['close', 'unlink'])
     expect(mockedUnlink).toHaveBeenCalledWith(expect.stringContaining('heartbeat.md'))
   })
 

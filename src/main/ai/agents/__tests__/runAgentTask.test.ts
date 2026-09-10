@@ -292,6 +292,24 @@ describe('runAgentTask', () => {
     expect(mockStartRun).not.toHaveBeenCalled()
   })
 
+  // A runtime-type change does not travel through the heartbeat config keys,
+  // so the run side gates on the capability table too — otherwise a row armed
+  // before the change keeps firing model calls for a runtime without support.
+  it('skips a heartbeat when the agent runtime lacks the heartbeat capability', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce({
+      ...makeAgent({ heartbeat_enabled: true }),
+      type: 'dsh'
+    })
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ result: 'Skipped (capability)' })
+    expect(agentSessionService.create).not.toHaveBeenCalled()
+    expect(readHeartbeat).not.toHaveBeenCalled()
+  })
+
   // Same renamed schedule, heartbeat on: it must run heartbeat.md, not hand the raw
   // sentinel to the model (whose reply then reached every subscribed channel).
   it('runs a disambiguated heartbeat from heartbeat.md rather than the raw sentinel', async () => {

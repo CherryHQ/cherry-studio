@@ -12,6 +12,8 @@
  * writes a checklist.
  */
 
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import {
@@ -78,11 +80,14 @@ function isHeartbeatRow(row: { jobInputTemplate: unknown }, agentId: string): bo
 
 /** Self-heal identity: whitespace-corrupted sentinel + reserved name + agentId. */
 function matchesFallbackIdentity(row: JobScheduleSnapshot, agentId: string): boolean {
-  // Free-text prompt = user task on the reserved name — never rewrite it.
+  // Free-text prompt = user task on the reserved name — never rewrite it. A
+  // non-string/missing prompt is foreign too (legacy/manual writes): repair
+  // overwrites the template wholesale, so only a string that trims to the
+  // sentinel counts as a corrupted heartbeat row.
   if (row.name !== `heartbeat_${agentId}`) return false
   const template = row.jobInputTemplate as { agentId?: unknown; prompt?: unknown } | null
   if (template?.agentId !== agentId) return false
-  return typeof template.prompt !== 'string' || template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL
+  return typeof template.prompt === 'string' && template.prompt.trim() === HEARTBEAT_PROMPT_SENTINEL
 }
 
 /** Heartbeat identity by sentinel prompt, or the corrupted-sentinel fallback. */
@@ -136,8 +141,12 @@ const inFlightWork = createInFlightWorkTracker()
 
 const trackWork = inFlightWork.track
 
-/** Wait out all in-flight heartbeat work; loops since settling work can enqueue follow-ups. */
-export const drainHeartbeatWork: () => Promise<void> = inFlightWork.drain
+/**
+ * Wait out all in-flight heartbeat work; loops since settling work can
+ * enqueue follow-ups. Returns false when the drain deadline was hit with
+ * work still in flight (a producer outliving shutdown must not stall stop).
+ */
+export const drainHeartbeatWork: (options?: { timeoutMs?: number }) => Promise<boolean> = inFlightWork.drain
 
 /**
  * Converge the agent's heartbeat schedule with its configuration. Safe to
@@ -222,7 +231,17 @@ async function runSync(
     }
     if (createdWorkspaceId) {
       const workspaceId = createdWorkspaceId
-      application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, workspaceId))
+      // Guarded delete, same as the deletion sweep: a concurrent bind in the
+      // provisioning window may have attached sessions/channels to the row.
+      const removed = application
+        .get('DbService')
+        .withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
+      if (!removed) {
+        logger.info('Kept heartbeat workspace still referenced after mid-sync agent deletion', {
+          agentId,
+          workspaceId
+        })
+      }
     }
     return 'skipped-missing-agent'
   }
@@ -371,16 +390,43 @@ async function runSync(
         logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
         return finalize('created')
       } catch (error) {
+        if (!isScheduleNameConflict(error)) throw error
         const winner = jobScheduleService.getByTypeAndName(AGENT_TASK_TYPE, scheduleName)
         // Benign only when the (type, name) winner is this agent's heartbeat
         // row — sentinel OR corrupted-sentinel fallback identity, never a
         // foreign row sharing the reserved name.
-        if (!isScheduleNameConflict(error) || !winner || !matchesHeartbeatIdentity(winner, agentId)) throw error
-        logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
+        if (winner && matchesHeartbeatIdentity(winner, agentId)) {
+          logger.info('Heartbeat create raced a concurrent sync; repairing winner', {
+            agentId,
+            scheduleId: winner.id
+          })
+          return finalize(repairRow(winner))
+        }
+        // A foreign row squats the reserved name (a task created before this
+        // agent existed, or a manual write). Rewriting it would destroy user
+        // data, but rethrowing wedges every future sync on the same conflict
+        // — so register under a disambiguated name instead. Identity is
+        // sentinel-based, never name-based: the label does not matter.
+        const disambiguated = `${scheduleName}__${randomUUID().slice(0, 8)}`
+        logger.warn('Reserved heartbeat schedule name is used by a foreign row; using a disambiguated name', {
           agentId,
-          scheduleId: winner.id
+          scheduleName,
+          disambiguated,
+          winnerId: winner?.id
         })
-        return finalize(repairRow(winner))
+        const { id } = application.get('DbService').withWriteTx((tx) =>
+          jobManager.registerJobScheduleTx(tx, {
+            type: AGENT_TASK_TYPE,
+            name: disambiguated,
+            trigger,
+            jobInputTemplate,
+            catchUpPolicy: { kind: 'skip-missed' }
+          })
+        )
+        jobManager.syncJobScheduleTimerById(id)
+        touchedScheduleIds.push(id)
+        logger.info('Heartbeat schedule created', { agentId, scheduleId: id, intervalMinutes })
+        return finalize('created')
       }
     }
 
@@ -388,8 +434,18 @@ async function runSync(
   } catch (error) {
     // A workspace row created by this call is orphaned (no heartbeat row
     // points at it) when provisioning fails before the schedule commits.
+    // Guarded delete: a concurrent bind may already reference it.
     if (createdWorkspaceId && touchedScheduleIds.length === 0) {
-      application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, createdWorkspaceId))
+      const workspaceId = createdWorkspaceId
+      const removed = application
+        .get('DbService')
+        .withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
+      if (!removed) {
+        logger.info('Kept heartbeat workspace still referenced after provisioning rollback', {
+          agentId,
+          workspaceId
+        })
+      }
     }
     throw error
   }

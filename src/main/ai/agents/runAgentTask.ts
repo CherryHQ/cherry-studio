@@ -43,6 +43,7 @@ import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
 import { isHeartbeatEnabled } from '@shared/ai/agentHeartbeat'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
@@ -163,6 +164,17 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     if (!isHeartbeatEnabled(config)) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { result: 'Skipped (disabled)' }
+    }
+    // Capability gate on the run side: a runtime-type change does not travel
+    // through the heartbeat config keys, so without this a row armed before
+    // the change would keep firing model calls for a runtime (e.g. dsh) that
+    // no longer supports heartbeats. `in` would walk the prototype chain.
+    const capabilities = Object.hasOwn(AGENT_RUNTIME_CAPABILITIES, agent.type)
+      ? AGENT_RUNTIME_CAPABILITIES[agent.type]
+      : undefined
+    if (capabilities?.heartbeat !== true) {
+      logger.debug('Heartbeat skipped (runtime lacks the capability)', { agentId, scheduleId, type: agent.type })
+      return { result: 'Skipped (capability)' }
     }
     switch (workspace.type) {
       case AGENT_WORKSPACE_TYPE.SYSTEM:

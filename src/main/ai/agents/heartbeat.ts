@@ -35,6 +35,17 @@ export async function readHeartbeat(workspacePath: string): Promise<string | und
   }
 
   try {
+    // libuv drops O_NOFOLLOW on Windows (UV_FS_O_NOFOLLOW unsupported), so
+    // the open below would silently follow a symlink there. Refuse a
+    // pre-existing symlink via lstat on that platform — non-atomic, but the
+    // only guard Windows offers.
+    if (process.platform === 'win32') {
+      const linkStat = await lstat(resolved).catch(() => null)
+      if (linkStat?.isSymbolicLink()) {
+        logger.warn(`Heartbeat path is a symlink; refusing to read: ${resolved}`)
+        return undefined
+      }
+    }
     // O_NOFOLLOW + fstat on the open handle: a pre-existing symlink at
     // heartbeat.md — or one swapped in between any check and the read — fails
     // the open with ELOOP instead of streaming its target (e.g. ~/.ssh)
@@ -124,12 +135,14 @@ async function writeTemplate(resolved: string): Promise<void> {
   try {
     await handle.writeFile(HEARTBEAT_TEMPLATE, 'utf-8')
   } catch (error) {
+    // Close BEFORE unlink: Windows refuses to delete an open file (EPERM),
+    // and a swallowed failure there would leave the corpse behind forever.
+    await handle.close().catch(() => undefined)
     // A failed write leaves a zero-byte/partial file behind; every later
     // ensure short-circuits on EEXIST and the heartbeat is silently empty
     // forever. Drop the corpse so the next sync re-provisions.
     await unlink(resolved).catch(() => undefined)
     throw error
-  } finally {
-    await handle.close()
   }
+  await handle.close()
 }

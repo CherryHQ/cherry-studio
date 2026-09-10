@@ -436,11 +436,12 @@ describe('heartbeatSchedule', () => {
     expect(scheduler.has(`schedule:${id}`)).toBe(true)
   })
 
-  it("does not treat a name-conflict winner as benign when it is not this agent's heartbeat row", async () => {
+  it("converges under a disambiguated name when a foreign row squats this agent's reserved name", async () => {
     // A non-heartbeat schedule that happens to share the reserved heartbeat
-    // name (manual DB edit, legacy row, future feature) must not be silently
-    // overwritten with the heartbeat template. The conflict is only benign when
-    // the winner carries this agent's id + the sentinel prompt.
+    // name (created before this agent existed, manual DB edit, legacy row)
+    // must not be silently overwritten — but rethrowing would wedge every
+    // future sync on the same UNIQUE conflict, so sync registers under a
+    // disambiguated name instead (identity is sentinel-based, not the name).
     seedAgent(AGENT_ID)
     seedAgent(OTHER_AGENT_ID)
     const foreignName = `heartbeat_${AGENT_ID}`
@@ -461,13 +462,19 @@ describe('heartbeatSchedule', () => {
     })
     const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
 
-    await expect(syncHeartbeatSchedule(AGENT_ID, [])).rejects.toThrow()
+    const outcome = await syncHeartbeatSchedule(AGENT_ID, [])
 
+    expect(outcome).toBe('created')
     // The non-heartbeat row must be untouched: same id, same template, still enabled.
     const row = jobScheduleService.getById(id)
     expect(row?.jobInputTemplate).toEqual(templateBefore)
     expect(row?.enabled).toBe(true)
     expect(row?.trigger).toEqual({ kind: 'interval', ms: 5 * 60_000 })
+    expect(row?.name).toBe(foreignName)
+    // The heartbeat converged under a disambiguated label.
+    const hb = heartbeatRows(AGENT_ID)
+    expect(hb).toHaveLength(1)
+    expect(hb[0].name).toMatch(new RegExp(`^${foreignName}__[0-9a-f]{8}$`))
   })
 
   it('scans the schedule table once across all agents in the repair pass', async () => {
@@ -517,7 +524,7 @@ describe('heartbeatSchedule', () => {
   it('never rewrites a user task that owns the reserved heartbeat name', async () => {
     // Pre-reservation data or a manual DB edit: same agent, reserved name, but
     // a real user prompt. The self-heal fallback must not claim the row — sync
-    // fails on the UNIQUE conflict instead of overwriting the user's prompt.
+    // converges under a disambiguated name instead of overwriting the prompt.
     seedAgent(AGENT_ID)
     const { id } = jobManager.registerJobSchedule({
       type: 'agent.task',
@@ -534,11 +541,46 @@ describe('heartbeatSchedule', () => {
     })
     const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
 
-    await expect(syncHeartbeatSchedule(AGENT_ID)).rejects.toThrow()
+    const outcome = await syncHeartbeatSchedule(AGENT_ID)
 
+    expect(outcome).toBe('created')
     const row = jobScheduleService.getById(id)
     expect(row?.jobInputTemplate).toEqual(templateBefore)
     expect(row?.enabled).toBe(true)
+    expect(row?.name).toBe(`heartbeat_${AGENT_ID}`)
+    expect(heartbeatRows(AGENT_ID)).toHaveLength(1)
+  })
+
+  it('treats a same-agent reserved-name row with a non-string prompt as foreign', async () => {
+    // jobInputTemplate is z.unknown(): legacy/manual writes can hold
+    // prompt: null. The self-heal fallback only claims a string that trims to
+    // the sentinel — a non-string prompt is not a corrupted heartbeat, and
+    // repair would overwrite the template wholesale.
+    seedAgent(AGENT_ID)
+    const { id } = jobManager.registerJobSchedule({
+      type: 'agent.task',
+      name: `heartbeat_${AGENT_ID}`,
+      trigger: { kind: 'interval', ms: 5 * 60_000 },
+      jobInputTemplate: {
+        agentId: AGENT_ID,
+        // The column is z.unknown() at runtime; the register helper types it
+        // tighter, so the corrupt-row fixture needs the cast.
+        prompt: null as never,
+        timeoutMinutes: 2,
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      },
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+    const templateBefore = structuredClone(jobScheduleService.getById(id)?.jobInputTemplate)
+
+    const outcome = await syncHeartbeatSchedule(AGENT_ID, [])
+
+    expect(outcome).toBe('created')
+    expect(jobScheduleService.getById(id)?.jobInputTemplate).toEqual(templateBefore)
+    const hb = heartbeatRows(AGENT_ID)
+    expect(hb).toHaveLength(1)
+    expect(hb[0].id).not.toBe(id)
   })
 
   it('serializes same-agent syncs — a racing config save reads fresh and commits last', async () => {

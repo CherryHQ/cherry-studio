@@ -107,6 +107,9 @@ export class AgentJobsService extends BaseService {
     // post-commit, after the agent row is already gone.
     this.registerDisposable(
       agentService.onAgentDeleted(({ agentId }) => {
+        // Gate producers during shutdown: the drain in onStop must converge,
+        // not chase an ever-refilling set.
+        if (this.isShuttingDown) return
         this.trackWork(
           this.deleteSchedulesForAgent(agentId).catch((error) => {
             logger.warn('Failed to delete schedules for removed agent', { agentId, error })
@@ -115,10 +118,12 @@ export class AgentJobsService extends BaseService {
       })
     )
 
-    // The restore path (ensureBuiltinAgent) never goes through createAgent —
-    // the creation event is the seam that covers both.
+    // The restore path (ensureBuiltinAgent) never goes through createAgent;
+    // the creation event is the seam that covers both — a soft-deleted
+    // builtin restored via claimBuiltinSupportIdentityTx re-fires it.
     this.registerDisposable(
       agentService.onAgentCreated(({ agentId }) => {
+        if (this.isShuttingDown) return
         void syncHeartbeatSchedule(agentId).catch((error) => {
           logger.warn('Failed to provision heartbeat schedule for created agent', { agentId, error })
         })
@@ -130,6 +135,7 @@ export class AgentJobsService extends BaseService {
     // changes take effect on the next tick instead of after a restart.
     this.registerDisposable(
       agentService.onAgentUpdated(({ updates, agent }) => {
+        if (this.isShuttingDown) return
         const configPatch = updates.configuration
         if (!configPatch) return
         if (!('heartbeat_enabled' in configPatch) && !('heartbeat_interval' in configPatch)) return
@@ -159,10 +165,17 @@ export class AgentJobsService extends BaseService {
     this.isShuttingDown = true
     // Drain at stop, not destroy: dependency ordering stops this service
     // before JobManager/DbService, so the work we wait out still has live
-    // infrastructure underneath it. Subscriptions stay live until the
-    // post-stop disposable cleanup, so loop until quiescent.
-    await this.inFlightWork.drain()
-    await drainHeartbeatWork()
+    // infrastructure underneath it. Producers are gated on isShuttingDown
+    // above and both drains carry a deadline, so a stray event mid-shutdown
+    // cannot stall stop() indefinitely.
+    const settled = await this.inFlightWork.drain()
+    const heartbeatSettled = await drainHeartbeatWork()
+    if (!settled || !heartbeatSettled) {
+      logger.warn('Stopped with schedule work still in flight past the drain deadline', {
+        settled,
+        heartbeatSettled
+      })
+    }
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {

@@ -347,6 +347,37 @@ describe('AgentService', () => {
       expect(activeBuiltinRows()).toHaveLength(1)
     })
 
+    it('re-fires onAgentCreated when a soft-deleted Support agent is restored in place', () => {
+      // The claim path restores the reserved support row WITHOUT creating a
+      // new one (created: false) — post-commit provisioning subscribers (the
+      // heartbeat schedule sync) must still hear about it.
+      const supportDefaults: Parameters<typeof agentService.ensureBuiltinAgent>[0] = {
+        ...defaults,
+        builtinRole: 'support',
+        name: 'Cherry Support'
+      }
+      const first = agentService.ensureBuiltinAgent(supportDefaults)
+      dbh.db
+        .update(agentTable)
+        .set({ deletedAt: Date.UTC(2026, 0, 1) })
+        .where(eq(agentTable.id, first.id))
+        .run()
+
+      const events: string[] = []
+      const disposable = agentService.onAgentCreated(({ agentId }) => events.push(agentId))
+      try {
+        const restored = agentService.ensureBuiltinAgent(supportDefaults)
+        // Restored in place under the reserved identity — not a fresh row.
+        expect(restored.id).toBe(first.id)
+        // An active repeat fires nothing.
+        agentService.ensureBuiltinAgent(supportDefaults)
+      } finally {
+        disposable.dispose()
+      }
+
+      expect(events).toEqual([first.id])
+    })
+
     it('leaves the model unset when the default cannot run the Agent runtime', () => {
       dbh.db
         .insert(userProviderTable)
