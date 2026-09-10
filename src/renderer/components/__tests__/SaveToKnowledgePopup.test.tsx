@@ -13,7 +13,8 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 const mocks = vi.hoisted(() => ({
   getMessageTitle: vi.fn(),
   processMessageContent: vi.fn(),
-  submitKnowledgeItems: vi.fn()
+  submitKnowledgeItems: vi.fn(),
+  ipcRequest: vi.fn()
 }))
 
 // This suite renders the real popup under a real PopupHost, so opt out of the
@@ -26,6 +27,10 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
@@ -199,6 +204,23 @@ describe('SaveToKnowledgePopup', () => {
       submit: mocks.submitKnowledgeItems
     })
     mocks.submitKnowledgeItems.mockResolvedValue(undefined)
+    mocks.ipcRequest.mockImplementation(async (route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') {
+        return undefined
+      }
+      const path = handle?.path
+      if (!path || path.includes('missing')) {
+        return null
+      }
+      return {
+        kind: 'file',
+        type: 'document',
+        mime: 'application/pdf',
+        size: 1024,
+        createdAt: 0,
+        modifiedAt: 0
+      }
+    })
     Object.assign(window, {
       api: {
         file: {
@@ -334,5 +356,50 @@ describe('SaveToKnowledgePopup', () => {
     expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
 
     await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
+  })
+
+  it('saves remaining text and files when an absolute referenced file is missing', async () => {
+    const files = [createFile('/tmp/ok.pdf', 'ok'), createFile('E:\\Documents\\missing.docx', 'missing')]
+    const message = {
+      ...createMessageWithFiles(files),
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Keep this conversation note' }]
+    } as MessageExportView
+    mocks.processMessageContent.mockReturnValue({
+      text: 'Keep this conversation note',
+      files
+    })
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessage>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessage(message)
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'note',
+        data: {
+          source: 'All tools are working',
+          content: 'Keep this conversation note'
+        }
+      },
+      {
+        type: 'file',
+        data: {
+          source: '/tmp/ok.pdf',
+          path: '/tmp/ok.pdf'
+        }
+      }
+    ])
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+    expect(toast.error).not.toHaveBeenCalled()
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 2 })
   })
 })

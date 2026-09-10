@@ -39,6 +39,24 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: vi.fn(async (route: string) => {
+      if (route !== 'file.get_metadata') {
+        return undefined
+      }
+      return {
+        kind: 'file',
+        type: 'document',
+        mime: 'application/pdf',
+        size: 1024,
+        createdAt: 0,
+        modifiedAt: 0
+      }
+    })
+  }
+}))
+
 // The note picker's real data layer (useNotesSettings → NotesService → @renderer/utils)
 // pulls in the i18n bootstrap at module load, which throws under the react-i18next mock.
 // Stub the three note modules so the dialog graph stays bootstrap-free and the note list
