@@ -4954,6 +4954,7 @@
   "settings.tool.websearch.provider_description.parallel": "API tìm kiếm web dành cho tác nhân AI, trả về liên kết được xếp hạng và các đoạn trích giàu thông tin.",
   "settings.tool.websearch.provider_description.querit": "Dịch vụ tìm kiếm cho ứng dụng AI với kết quả truy xuất web.",
   "settings.tool.websearch.provider_description.searxng": "Công cụ tìm kiếm meta internet miễn phí có thể tự lưu trữ trên nhiều nguồn khác nhau.",
+  "settings.tool.websearch.provider_description.serply": "API tìm kiếm Serply trả về kết quả Google dưới dạng JSON có cấu trúc cho các ứng dụng AI.",
   "settings.tool.websearch.provider_description.tavily": "Công cụ tìm kiếm được tối ưu hóa cho các mô hình ngôn ngữ lớn.",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Tìm kiếm Web để truy xuất web trực tiếp và thông tin hiện tại.",
   "settings.tool.websearch.search_max_result.label": "Số kết quả tìm kiếm",

@@ -4954,6 +4954,7 @@
   "settings.tool.websearch.provider_description.parallel": "Yapay zekâ ajanları için sıralanmış bağlantılar ve yoğun bilgi içeren kısa alıntılar döndüren web arama API'si.",
   "settings.tool.websearch.provider_description.querit": "Yapay zekâ uygulamaları için web sonuçlarını ve sayfa içeriğini alan Querit arama ve içerik API'leri.",
   "settings.tool.websearch.provider_description.searxng": "Birçok kaynakta arama yapan, kendi sunucunuzda barındırılabilen ücretsiz internet meta arama motoru.",
+  "settings.tool.websearch.provider_description.serply": "Yapay zeka uygulamaları için Google sonuçlarını yapılandırılmış JSON olarak döndüren Serply arama API'si.",
   "settings.tool.websearch.provider_description.tavily": "LLM'ler için optimize edilmiş arama motoru.",
   "settings.tool.websearch.provider_description.zhipu": "Canlı web erişimi ve güncel bilgiler için Zhipu GLM Web Search.",
   "settings.tool.websearch.search_max_result.label": "Arama sonucu sayısı",

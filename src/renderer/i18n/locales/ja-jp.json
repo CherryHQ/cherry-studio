@@ -4954,6 +4954,7 @@
   "settings.tool.websearch.provider_description.parallel": "AI エージェント向けのウェブ検索 API。関連度順のリンクと情報密度の高い抜粋を返します。",
   "settings.tool.websearch.provider_description.querit": "AIアプリ向けのWeb検索結果を含む検索サービス",
   "settings.tool.websearch.provider_description.searxng": "多くのソースにまたがる、セルフホスティング可能な無料インターネットメタ検索エンジン。",
+  "settings.tool.websearch.provider_description.serply": "Serply 検索 API。Google の検索結果を構造化された JSON で返し、AI アプリに適しています。",
   "settings.tool.websearch.provider_description.tavily": "LLM向けに最適化された検索エンジン。",
   "settings.tool.websearch.provider_description.zhipu": "Zhipu GLM Web Searchは、ライブなWeb検索と最新情報の取得を可能にします。",
   "settings.tool.websearch.search_max_result.label": "検索結果の数",

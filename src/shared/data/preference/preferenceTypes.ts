@@ -246,7 +246,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'fetch',
   'jina',
   'firecrawl',
-  'parallel'
+  'parallel',
+  'serply'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
