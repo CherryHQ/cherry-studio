@@ -78,7 +78,10 @@ const MiniAppsPage: FC = () => {
 
   const filteredApps = search
     ? miniApps.filter(
-        (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())
+        (app) =>
+          app.name.toLowerCase().includes(search.toLowerCase()) ||
+          (app.nameKey && t(app.nameKey).toLowerCase().includes(search.toLowerCase())) ||
+          app.url.includes(search.toLowerCase())
       )
     : miniApps
   const filteredBuiltins = search

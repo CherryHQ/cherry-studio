@@ -1207,7 +1207,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original instructions',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     await waitFor(() =>
@@ -1487,6 +1488,33 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('normalizes unsafe max tokens before auto-save persistence', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: { ...ASSISTANT.settings, enableMaxTokens: true }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    const maxTokensInput = await screen.findByRole('spinbutton', { name: 'Max tokens' })
+
+    fireEvent.focus(maxTokensInput)
+    fireEvent.change(maxTokensInput, { target: { value: String(Number.MAX_SAFE_INTEGER + 1) } })
+    fireEvent.blur(maxTokensInput)
+
+    expect(maxTokensInput).toHaveValue(String(Number.MAX_SAFE_INTEGER))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: { settings: { maxTokens: Number.MAX_SAFE_INTEGER } }
+      })
+    )
+  })
+
   it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
     render(
       <AssistantEditDialog
@@ -1547,7 +1575,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original prompt',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
@@ -1569,7 +1598,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('You are a Prompt Generator.'),
       content: 'Alpha Assistant',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
       'Create a useful system prompt from the supplied name or title.'

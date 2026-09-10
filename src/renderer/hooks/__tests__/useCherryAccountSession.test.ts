@@ -84,6 +84,8 @@ describe('useCherryAccountSession', () => {
 
   it.each([
     ['login', new IpcError(cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE), 'error.http.503'],
+    ['login', new IpcError('CHERRY_CLOUD_UPGRADE_REQUIRED'), 'settings.provider.cherry_cloud.upgrade_required'],
+    ['login', new Error('Cherry Cloud login request failed (400)'), 'settings.provider.cherry_cloud.sign_in_failed'],
     ['cancelLogin', new Error('cancel failed'), 'settings.provider.cherry_cloud.sign_in_failed'],
     ['revokeSession', new Error('revoke failed'), 'settings.provider.cherry_cloud.logout_failed']
   ] as const)('translates %s failures', async (action, error, message) => {
@@ -94,5 +96,7 @@ describe('useCherryAccountSession', () => {
     await act(() => result.current[action]())
 
     expect(mocks.toastError).toHaveBeenCalledWith(message)
+    expect(result.current.isStartingLogin).toBe(false)
+    expect(result.current.status).toEqual(signedOut)
   })
 })

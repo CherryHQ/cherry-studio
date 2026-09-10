@@ -389,14 +389,14 @@ describe('AutoBackupService', () => {
     expect(service.getStateSnapshot().pendingNotifications).toEqual([])
   })
 
-  it('keeps the last result in snapshots while the next backup is running', () => {
+  it('publishes the latest state per backup type', () => {
     ;(service as any).emit({ type: 'webdav', status: 'succeeded', timestamp: 123 })
     ;(service as any).emit({ type: 'webdav', status: 'running' })
 
-    expect(service.getStateSnapshot().events.filter((event) => event.type === 'webdav')).toMatchObject([
-      { status: 'succeeded', timestamp: 123 },
-      { status: 'running' }
-    ])
+    expect(MockMainCacheServiceExport.cacheService.getShared('backup.auto_sync.state.webdav')).toMatchObject({
+      type: 'webdav',
+      status: 'running'
+    })
   })
 
   it('forwards data.backup.webdav.allow_self_signed_tls into the backup config', async () => {

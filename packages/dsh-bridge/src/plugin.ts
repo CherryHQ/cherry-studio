@@ -26,6 +26,7 @@ import {
   type BridgeCommandResult,
   type BridgeContextUsage,
   type BridgeHostParams,
+  type BridgePluginRequestMap,
   type BridgePolicy,
   type BridgeSubagentChild,
   type BridgeToolDescriptor
@@ -301,7 +302,7 @@ export function apply(ctx: Context): void {
               'question/ask',
               {
                 sessionId: request.agent?.id ?? '',
-                callId: correlatePlanReviewCallId(request),
+                ...correlatePlanReviewCall(request),
                 questions: request.questions
               },
               request.signal
@@ -366,7 +367,27 @@ export function apply(ctx: Context): void {
     // Not an agent call: delegate to dsh's own chain (which fail-closes on ask).
     if (agent === undefined) return next()
     const delegated = agent.session.header.parentSession !== undefined
-    const policy = policies.get(rootSessionOf(agent))
+    const rootSessionId = rootSessionOf(agent)
+    try {
+      const guard = await link.request(
+        'guard/check',
+        {
+          sessionId: rootSessionId,
+          toolName: exec.name,
+          args: exec.arguments,
+          cwd: agent.session.header.cwd
+        },
+        exec.signal
+      )
+      if (guard.kind === 'deny') return guard
+    } catch {
+      return {
+        kind: 'deny' as const,
+        reason: 'The Cherry Studio safety guard could not verify this tool call.'
+      }
+    }
+
+    const policy = policies.get(rootSessionId)
     if (policy === undefined) {
       // Non-bridge root sessions keep dsh's chain; a delegated agent whose root
       // policy is unreachable fails closed (every root here is bridge-opened).
@@ -399,6 +420,7 @@ export function apply(ctx: Context): void {
         'approval/ask',
         {
           sessionId: req.agent.id,
+          sessionEventSeq: req.agent.session.events.at(-1)!.seq,
           toolName: req.toolName,
           callId: req.callId,
           args: correlateCallArguments(req),
@@ -451,7 +473,9 @@ function correlateCallArguments(req: ApprovalRequest): unknown {
 }
 
 /** Correlate the plan-review question with the newest matching durable tool call. */
-function correlatePlanReviewCallId(request: AskUserQuestionRequest): string {
+function correlatePlanReviewCall(
+  request: AskUserQuestionRequest
+): Pick<BridgePluginRequestMap['question/ask']['params'], 'callId' | 'sessionEventSeq'> {
   const review = request.questions.length === 1 ? request.questions[0] : undefined
   const plan = review?.intent?.kind === 'plan-review' ? review.detail : undefined
   if (!request.agent || typeof plan !== 'string') {
@@ -464,7 +488,7 @@ function correlatePlanReviewCallId(request: AskUserQuestionRequest): string {
     if (event.type !== 'tool/call' || event.data.name !== 'exit_plan_mode') continue
     try {
       const args = JSON.parse(event.data.arguments) as { plan?: unknown } | null
-      if (args?.plan === plan) return String(event.data.callId)
+      if (args?.plan === plan) return { callId: event.data.callId, sessionEventSeq: event.seq }
     } catch {
       continue
     }
