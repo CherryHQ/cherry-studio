@@ -76,6 +76,7 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
  */
 async function buildSkillInstructionsSection(folderNames: readonly string[]): Promise<string> {
   const blocks: string[] = []
+  let totalBytes = 0
   for (const folderName of folderNames) {
     const state = await skillService.readSkillMdByFolderName(folderName)
     if (state.status !== 'found') {
@@ -86,6 +87,13 @@ async function buildSkillInstructionsSection(folderNames: readonly string[]): Pr
             ? `SKILL.md exceeds the ${SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MB limit`
             : 'SKILL.md unreadable'
       throw new Error(`Skill "${folderName}" cannot be read (${detail}). Remove it from the message or reinstall it.`)
+    }
+    // Each descriptor alone fits the limit; the combined section must fit it too.
+    totalBytes += Buffer.byteLength(state.content)
+    if (totalBytes > SKILL_FILE_PREVIEW_MAX_SIZE_BYTES) {
+      throw new Error(
+        `The attached skills together exceed the ${SKILL_FILE_PREVIEW_MAX_SIZE_BYTES / (1024 * 1024)} MB limit. Remove some of them.`
+      )
     }
     blocks.push(`<skill name="${folderName}">\n${state.content.trim()}\n</skill>`)
   }

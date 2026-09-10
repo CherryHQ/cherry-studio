@@ -1543,13 +1543,12 @@ const ChatComposerInner = ({
     updateQuickPanelList(skillItems)
   }, [skillsPanelVisible, skillItems, updateQuickPanelList])
 
-  // A skill uninstalled while its chip sits in a cached draft must not survive into a later send
-  // (main would fail the turn). Validate once per restore; in-session round-trips keep tokens.
-  const [shouldValidateSkills, setShouldValidateSkills] = useState(getCachedSkillTokens(initialDraft.tokens).length > 0)
+  // A skill that becomes unavailable (uninstalled or globally disabled) while its chip sits in
+  // the composer must not survive into a later send: prune chips on every refresh of the
+  // installed-skills data, not only after a draft restore.
   useEffect(() => {
-    if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
+    if (isAvailableSkillsLoading || availableSkillsError) return
 
-    setShouldValidateSkills(false)
     const stale = selectedSkills.filter((skill) => !skillByFilename.has(skill.filename))
     if (stale.length === 0) return
 
@@ -1569,7 +1568,6 @@ const ChatComposerInner = ({
     selectedSkills,
     setSelectedSkills,
     setText,
-    shouldValidateSkills,
     skillByFilename
   ])
 
@@ -1641,7 +1639,7 @@ const ChatComposerInner = ({
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
       const skillFolderNames = selectedSkills
-        .filter((skill) => tokenIds.has(agentComposerTokenId.skill(skill)))
+        .filter((skill) => tokenIds.has(agentComposerTokenId.skill(skill)) && skillByFilename.has(skill.filename))
         .map((skill) => skill.filename)
       return {
         ...payload,
@@ -1660,6 +1658,7 @@ const ChatComposerInner = ({
       selectedKnowledgeBasesInScope,
       selectedSkills,
       serviceTier,
+      skillByFilename,
       speedControlModel,
       submittedMentionedModels
     ]
@@ -1808,14 +1807,14 @@ const ChatComposerInner = ({
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
       const skillFolderNames = selectedSkills
-        .filter((skill) => tokenIds.has(agentComposerTokenId.skill(skill)))
+        .filter((skill) => tokenIds.has(agentComposerTokenId.skill(skill)) && skillByFilename.has(skill.filename))
         .map((skill) => skill.filename)
       return {
         draft: normalizedDraft,
         parts: withSkillScopePart(withKnowledgeScopePart(messageParts, knowledgeBaseIds), skillFolderNames)
       }
     },
-    [files, selectedKnowledgeBasesInScope, selectedSkills]
+    [files, selectedKnowledgeBasesInScope, selectedSkills, skillByFilename]
   )
 
   /** `resend` = fork the user message and regenerate; otherwise save the edit in place. */
