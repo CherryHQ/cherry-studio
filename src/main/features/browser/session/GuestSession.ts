@@ -54,6 +54,7 @@ export class GuestSession implements Disposable {
   private revision?: SnapshotRevision
   private readonly snapshotMutex = new Mutex(new BrowserSessionError('debugger_unavailable'))
   private operations = 0
+  private captures = 0
   private readonly actionMutex = new Mutex(new BrowserSessionError('debugger_unavailable'))
   private readonly events = new Emitter<CdpEvent>()
   readonly onEvent = this.events.event
@@ -268,6 +269,7 @@ export class GuestSession implements Disposable {
       throw new BrowserSessionError('dialog_open', this.pendingDialog)
     this.lastActive = Date.now()
     this.operations++
+    let capturing = false
     try {
       await this.ensureAttached(options)
       options.signal?.throwIfAborted()
@@ -275,10 +277,17 @@ export class GuestSession implements Disposable {
       if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
       if (this.pendingDialog && method !== 'Page.handleJavaScriptDialog')
         throw new BrowserSessionError('dialog_open', this.pendingDialog)
+      if (method === 'Page.captureScreenshot' && this.guest.getType() === 'webview') {
+        // Keep Chromium producing frames until the CDP copy completes, even for an occluded guest.
+        if (this.captures === 0) this.guest.beginFrameSubscription(true, () => undefined)
+        this.captures++
+        capturing = true
+      }
       const result = await this.wait(this.dispatch(method, params), options)
       if (method === 'Page.handleJavaScriptDialog') this.clearDialog()
       return result
     } finally {
+      if (capturing && --this.captures === 0 && !this.guest.isDestroyed()) this.guest.endFrameSubscription()
       this.operations--
       this.lastActive = Date.now()
     }
