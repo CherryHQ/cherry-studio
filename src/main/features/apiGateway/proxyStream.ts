@@ -24,8 +24,10 @@ import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { Provider } from '@shared/data/types/provider'
-import type { UIMessageChunk } from 'ai'
+import { supportsDynamicallyLoadedTools } from '@shared/utils/model'
+import { tool, type ToolSet, type UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
@@ -56,6 +58,18 @@ const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set(
 
 function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
   return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
+}
+
+function withInternalToolSearch(tools: ToolSet | undefined): ToolSet {
+  if (tools?.ToolSearch) return tools
+
+  return {
+    ...tools,
+    ToolSearch: tool({
+      description: 'Search and load deferred tools. Use select:<tool-name>[,<tool-name>...] to load exact tools.',
+      inputSchema: z.object({ query: z.string() })
+    })
+  }
 }
 
 /**
@@ -194,10 +208,14 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     }
   }
 
+  const enableDeferredToolLoading =
+    isInternalAnthropicAgentRequest && supportsDynamicallyLoadedTools(model.apiModelId ?? model.id)
+
   // 2. Build converter and extract messages / tools / sampling / provider options.
   const converter = MessageConverterFactory.create(inputFormat, {
     googleReasoningCache,
-    openRouterReasoningCache
+    openRouterReasoningCache,
+    enableDeferredToolLoading
   })
 
   const convertedMessages = converter.toUIMessages(effectiveParams)
@@ -211,7 +229,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(positionedMessages)
     : positionedMessages
-  const tools = converter.toAiSdkTools?.(effectiveParams)
+  const convertedTools = converter.toAiSdkTools?.(effectiveParams)
+  const tools = enableDeferredToolLoading ? withInternalToolSearch(convertedTools) : convertedTools
   const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.

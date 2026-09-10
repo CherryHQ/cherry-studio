@@ -38,7 +38,10 @@ const {
     (provider: unknown, model: unknown, params: MessageCreateParams, maxOutputTokens?: number) => undefined
   >(() => undefined),
   mockLoggerWarn: vi.fn(),
-  captured: { listener: undefined as StreamListener | undefined }
+  captured: {
+    listener: undefined as StreamListener | undefined,
+    converterOptions: undefined as { enableDeferredToolLoading?: boolean } | undefined
+  }
 }))
 
 vi.mock('@application', () => ({
@@ -76,12 +79,15 @@ vi.mock('@logger', () => ({
 // Deterministic converter + adapter + formatter so frame output is predictable.
 vi.mock('../adapters', () => ({
   MessageConverterFactory: {
-    create: () => ({
-      toUIMessages: mockToUIMessages,
-      toAiSdkTools: mockToAiSdkTools,
-      extractStreamOptions: mockExtractStreamOptions,
-      extractProviderOptions: mockExtractProviderOptions
-    })
+    create: (_format: unknown, options: { enableDeferredToolLoading?: boolean }) => {
+      captured.converterOptions = options
+      return {
+        toUIMessages: mockToUIMessages,
+        toAiSdkTools: mockToAiSdkTools,
+        extractStreamOptions: mockExtractStreamOptions,
+        extractProviderOptions: mockExtractProviderOptions
+      }
+    }
   },
   StreamAdapterFactory: {
     createAdapter: () => ({
@@ -139,6 +145,7 @@ function convertMockAnthropicMessages(params: MessageCreateParams): CherryUIMess
 beforeEach(() => {
   vi.clearAllMocks()
   captured.listener = undefined
+  captured.converterOptions = undefined
   mockGetProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
   mockListModels.mockReturnValue([
     {
@@ -238,6 +245,111 @@ async function processAndCaptureStreamMessages(
 }
 
 describe('processMessage (internal Agent continuation normalization)', () => {
+  it('exposes ToolSearch when the internal Agent request omits top-level tools', async () => {
+    useGatewayModel('deepseek-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'deepseek')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams(
+      'deepseek-chat',
+      [{ role: 'user', content: 'Find product info' }],
+      true,
+      'deepseek'
+    )
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.tools).toHaveProperty('ToolSearch')
+  })
+
+  it('exposes ToolSearch to the provider when an internal Agent request contains deferred tools', async () => {
+    useGatewayModel('deepseek-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'deepseek')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams(
+      'deepseek-chat',
+      [{ role: 'user', content: 'Find product info' }],
+      true,
+      'deepseek'
+    )
+    params.tools = [
+      {
+        name: 'mcp__assistant__product_info',
+        description: 'Read product information',
+        input_schema: { type: 'object', properties: {} },
+        defer_loading: true
+      }
+    ]
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(captured.converterOptions?.enableDeferredToolLoading).toBe(true)
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.tools).toHaveProperty('ToolSearch')
+  })
+
+  it('exposes ToolSearch when an internal Agent request declares the Anthropic ToolSearch server tool', async () => {
+    useGatewayModel('deepseek-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'deepseek')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams(
+      'deepseek-chat',
+      [{ role: 'user', content: 'Find product info' }],
+      true,
+      'deepseek'
+    )
+    params.tools = [
+      {
+        name: 'tool_search_tool_regex',
+        type: 'tool_search_tool_regex_20251119'
+      }
+    ]
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides.tools).toHaveProperty('ToolSearch')
+  })
+
+  it('does not expose client-side ToolSearch for external Anthropic requests', async () => {
+    useGatewayModel('deepseek-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'deepseek')
+    const params = createAnthropicParams(
+      'deepseek-chat',
+      [{ role: 'user', content: 'Find product info' }],
+      true,
+      'deepseek'
+    )
+    params.tools = [
+      {
+        name: 'mcp__assistant__product_info',
+        description: 'Read product information',
+        input_schema: { type: 'object', properties: {} },
+        defer_loading: true
+      }
+    ]
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(captured.converterOptions?.enableDeferredToolLoading).toBe(false)
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides).not.toHaveProperty('tools')
+  })
+
+  it('does not expose ToolSearch to an incompatible internal Agent model', async () => {
+    useGatewayModel('kimi-for-coding', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'moonshot')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const params = createAnthropicParams(
+      'kimi-for-coding',
+      [{ role: 'user', content: 'Find product info' }],
+      true,
+      'moonshot'
+    )
+    params.tools = [
+      {
+        name: 'tool_search_tool_regex',
+        type: 'tool_search_tool_regex_20251119'
+      }
+    ]
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(captured.converterOptions?.enableDeferredToolLoading).toBe(false)
+    expect(mockStreamPrompt.mock.calls[0][0].callOverrides).not.toHaveProperty('tools')
+  })
+
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
     useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
     mockIsInternalAgentRequest.mockReturnValue(true)
