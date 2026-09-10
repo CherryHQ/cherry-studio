@@ -1521,7 +1521,10 @@ const ChatComposerInner = ({
     setPaused: setFollowupPaused,
     failedItemId: failedFollowupId,
     retryFailed: retryFailedFollowup,
-    skipFailed: skipFailedFollowup
+    skipFailed: skipFailedFollowup,
+    drainingId: drainingFollowupId,
+    tryClaimSend: tryClaimFollowupSend,
+    releaseSend: releaseFollowupSend
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
@@ -1532,8 +1535,10 @@ const ChatComposerInner = ({
     (item) => (item.payload.mentionedModels?.length ?? 0) > 0
   )
   const isQueuedFollowupSteerDisabled = useCallback(
-    (item: FollowupQueueItem) => (isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch',
-    [awaitingApproval, isPending]
+    (item: FollowupQueueItem) =>
+      item.id === drainingFollowupId ||
+      ((isPending || awaitingApproval) && item.payload.chatTarget?.mode === 'reserved-branch'),
+    [awaitingApproval, drainingFollowupId, isPending]
   )
   const { models: allModels } = useModels({ enabled: true }, { fetchEnabled: queuedFollowupModelsDataEnabled })
 
@@ -1743,8 +1748,13 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        if (!enqueueFollowup(draft, payload)) {
-          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
+        const followupResult = enqueueFollowup(draft, payload)
+        if (followupResult !== 'ok') {
+          toast.error(
+            followupResult === 'full'
+              ? t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT })
+              : t('chat.input.followup_queue.persist_failed')
+          )
           return
         }
         clearCurrentDraft()
@@ -1936,6 +1946,9 @@ const ChatComposerInner = ({
                   if (steeringIdsRef.current.has(id)) return
                   const item = queuedFollowups.find((entry) => entry.id === id)
                   if (!item) return
+                  // Claim the queue's shared send slot so a concurrent auto-drain
+                  // cannot submit the same payload twice.
+                  if (!tryClaimFollowupSend(id)) return
                   steeringIdsRef.current.add(id)
                   try {
                     // Only drop the item once the send actually succeeds; a failed manual
@@ -1943,6 +1956,7 @@ const ChatComposerInner = ({
                     const sent = await sendQueuedPayload(item.payload)
                     if (sent) removeFollowup(id)
                   } finally {
+                    releaseFollowupSend(id)
                     steeringIdsRef.current.delete(id)
                   }
                 }}

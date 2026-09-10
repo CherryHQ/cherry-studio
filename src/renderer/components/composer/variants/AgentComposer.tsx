@@ -1529,7 +1529,10 @@ const AgentComposerInner = ({
     setPaused: setFollowupPaused,
     failedItemId: failedFollowupId,
     retryFailed: retryFailedFollowup,
-    skipFailed: skipFailedFollowup
+    skipFailed: skipFailedFollowup,
+    drainingId: drainingFollowupId,
+    tryClaimSend: tryClaimFollowupSend,
+    releaseSend: releaseFollowupSend
   } = useFollowupQueue({
     scopeKey: `${agentId}:${sessionTopicId}`,
     isFulfilled: sessionFulfilled,
@@ -1585,8 +1588,13 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer) {
-        if (!enqueueFollowup(draft, payload)) {
-          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
+        const followupResult = enqueueFollowup(draft, payload)
+        if (followupResult !== 'ok') {
+          toast.error(
+            followupResult === 'full'
+              ? t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT })
+              : t('chat.input.followup_queue.persist_failed')
+          )
           return
         }
         clearCurrentDraft()
@@ -1794,6 +1802,9 @@ const AgentComposerInner = ({
                     if (steeringIdsRef.current.has(id)) return
                     const item = queuedFollowups.find((entry) => entry.id === id)
                     if (!item) return
+                    // Claim the queue's shared send slot so a concurrent auto-drain
+                    // cannot submit the same payload twice.
+                    if (!tryClaimFollowupSend(id)) return
                     steeringIdsRef.current.add(id)
                     try {
                       // Only drop the item once the send actually succeeds; a failed manual
@@ -1801,6 +1812,7 @@ const AgentComposerInner = ({
                       const sent = await sendQueuedPayload(item.payload)
                       if (sent) removeFollowup(id)
                     } finally {
+                      releaseFollowupSend(id)
                       steeringIdsRef.current.delete(id)
                     }
                   }}
@@ -1817,6 +1829,7 @@ const AgentComposerInner = ({
                   onRetryFailed={retryFailedFollowup}
                   onSkipFailed={skipFailedFollowup}
                   onAbortQueue={clearFollowups}
+                  isSteerDisabled={(item) => item.id === drainingFollowupId}
                 />
               ) : undefined}
             </>

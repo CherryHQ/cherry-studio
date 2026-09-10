@@ -5,6 +5,17 @@
  * stays generic. The service delegates to `mergeFollowupQueues` via a narrow
  * per-key hook; when more keys need custom merging, promote this to a
  * `PersistMergeRegistry` (key → mergeFn) instead of adding more `if (key === ...)` branches.
+ *
+ * Snapshot limits (accepted tradeoffs, not bugs to re-report): both sides merge
+ * whole-map snapshots with no versions or vector clocks, so a stale snapshot can
+ * still win over a fresher one — e.g. a null tombstone broadcast from a window
+ * that had not yet seen a concurrent enqueue deletes an entry the other window
+ * just created. Within one conversation the merge unions by id (a same-scope
+ * snapshot missing an item may predate that item's enqueue), so only a clear-all
+ * — empty items or the null tombstone — propagates as a deletion; an individual
+ * removal racing a stale snapshot can resurrect. Per-item tombstones or
+ * versioning would make this causally safe; until then the policy prefers never
+ * losing a queued message over never resurrecting a removed one.
  */
 
 export function mergeFollowupQueues(
