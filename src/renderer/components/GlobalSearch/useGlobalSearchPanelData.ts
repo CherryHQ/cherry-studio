@@ -174,6 +174,7 @@ export function useGlobalSearchPanelData({
   messageSourceFilter,
   panelMode,
   recentItems,
+  recentDisplayTitles,
   timeFilter
 }: {
   deferredQuery: string
@@ -183,6 +184,7 @@ export function useGlobalSearchPanelData({
   messageSourceFilter: GlobalMessageSearchSourceFilter
   panelMode: GlobalSearchPanelMode
   recentItems: readonly GlobalSearchRecentEntry[] | undefined
+  recentDisplayTitles?: ReadonlyMap<string, string>
   timeFilter: GlobalSearchTimeFilter
 }) {
   const hasQuery = deferredQuery.length > 0
@@ -341,6 +343,7 @@ export function useGlobalSearchPanelData({
         query: deferredQuery,
         filter,
         recentItems: recentItems ?? [],
+        recentDisplayTitles,
         response: data
       }),
     [
@@ -350,6 +353,7 @@ export function useGlobalSearchPanelData({
       filter,
       messageSearchItems,
       recentItems,
+      recentDisplayTitles,
       shouldShowGlobalMessagePreview
     ]
   )

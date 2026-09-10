@@ -53,6 +53,7 @@ export type GlobalSearchPanelItem =
       kind: 'recent'
       id: string
       recent: GlobalSearchRecentEntry
+      displayTitle?: string
     }
   | {
       kind: 'message-parent'
@@ -301,6 +302,7 @@ export function buildGlobalSearchGroups({
   query,
   filter,
   recentItems,
+  recentDisplayTitles,
   response
 }: {
   expandedGroupIds?: ReadonlySet<GlobalSearchGroupId>
@@ -308,13 +310,15 @@ export function buildGlobalSearchGroups({
   query: string
   filter: GlobalSearchFilter
   recentItems: readonly GlobalSearchRecentEntry[]
+  recentDisplayTitles?: ReadonlyMap<string, string>
   response?: EntitySearchResponse
 }): GlobalSearchPanelGroup[] {
   if (!query.trim()) {
     const panelItems = getDisplayGlobalSearchRecentEntries(recentItems).map<GlobalSearchPanelItem>((recent) => ({
       kind: 'recent',
       id: getGlobalSearchRecentEntryId(recent),
-      recent
+      recent,
+      displayTitle: recentDisplayTitles?.get(getGlobalSearchRecentEntryId(recent))
     }))
 
     return panelItems.length > 0 ? [{ id: 'recent', items: panelItems }] : []

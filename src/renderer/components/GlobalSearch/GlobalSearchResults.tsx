@@ -170,7 +170,7 @@ export function GlobalSearchRow({
 }) {
   const { t } = useTranslation()
   const isRecent = item.kind === 'recent'
-  const title = isRecent ? item.recent.title : item.result.title
+  const title = isRecent ? (item.displayTitle ?? item.recent.title) : item.result.title
   const subtitle = isRecent ? undefined : getResultSubtitle(item.result, t)
   const Icon = isRecent ? RECENT_ICONS[item.recent.kind] : RESULT_ICONS[item.result.type]
   const emoji =
