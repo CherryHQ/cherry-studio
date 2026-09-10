@@ -40,7 +40,8 @@ interface Props {
   variant?: 'footer' | 'header'
 }
 
-const STABLE_MESSAGE_ACTION_IDS = new Set(['copy', 'more-menu'])
+const STABLE_MESSAGE_ACTION_IDS = new Set(['more-menu'])
+const COARSE_POINTER_STABLE_MESSAGE_ACTION_IDS = new Set(['copy'])
 
 const MessageMenuBar: FC<Props> = (props) => {
   const {
@@ -165,6 +166,7 @@ const MessageMenuBar: FC<Props> = (props) => {
         )}>
         {toolbarActions.map((action) => {
           const isStable = isLastMessage || STABLE_MESSAGE_ACTION_IDS.has(action.id)
+          const isCoarsePointerStable = COARSE_POINTER_STABLE_MESSAGE_ACTION_IDS.has(action.id)
 
           return (
             <span
@@ -174,7 +176,10 @@ const MessageMenuBar: FC<Props> = (props) => {
                 'shrink-0 transition-opacity duration-200 motion-reduce:transition-none',
                 isStable
                   ? 'pointer-events-auto opacity-100'
-                  : 'pointer-events-none opacity-0 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100'
+                  : classNames(
+                      'pointer-events-none opacity-0 group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100',
+                      isCoarsePointerStable && 'pointer-coarse:pointer-events-auto pointer-coarse:opacity-100'
+                    )
               )}>
               <MessageMenuBarToolbarAction
                 action={action}

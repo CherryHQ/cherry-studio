@@ -147,7 +147,7 @@ describe('MessageMenuBar', () => {
     expect(container.querySelector('.message-tokens')).toHaveTextContent('42 Tokens')
   })
 
-  it('keeps copy and more actions available for historical messages without hover', () => {
+  it('keeps more stable and exposes copy on coarse pointers for historical messages', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
@@ -158,7 +158,11 @@ describe('MessageMenuBar', () => {
       />
     )
 
-    expect(container.querySelector('[data-message-action-id="copy"]')).toHaveClass('opacity-100')
+    expect(container.querySelector('[data-message-action-id="copy"]')).not.toHaveClass('opacity-100')
+    expect(container.querySelector('[data-message-action-id="copy"]')).toHaveClass(
+      'pointer-coarse:pointer-events-auto',
+      'pointer-coarse:opacity-100'
+    )
     expect(container.querySelector('[data-message-action-id="more-menu"]')).toHaveClass('opacity-100')
   })
 })

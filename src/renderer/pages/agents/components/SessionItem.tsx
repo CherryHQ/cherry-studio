@@ -330,7 +330,7 @@ const SessionItem = ({
 
       <ResourceList.ItemActions
         active={isConfirmingDeletion}
-        alwaysVisible={!rowState.renaming && hasVisibleMoreMenuActions}
+        discoverable={!rowState.renaming && hasVisibleMoreMenuActions}
         onClick={(event) => event.stopPropagation()}>
         {!rowState.renaming && hasVisibleMoreMenuActions && (
           <ResourceListMoreAction actions={moreMenuActions} onAction={handleMenuAction} />
