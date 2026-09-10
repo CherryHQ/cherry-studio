@@ -38,7 +38,7 @@ describe('WebviewSurface', () => {
     )
     expect(view.getByTestId('guest')).toBe(guest)
     expect(live).toBe(1)
-    expect(surface).toHaveStyle({ visibility: 'hidden', width: '640px', height: '480px' })
+    expect(surface).toHaveStyle({ opacity: '0', width: '640px', height: '480px' })
     expect(surface.inert).toBe(true)
 
     view.rerender(
@@ -47,7 +47,7 @@ describe('WebviewSurface', () => {
       </WebviewSurface>
     )
     expect(view.getByTestId('guest')).toBe(guest)
-    expect(surface).toHaveStyle({ visibility: 'visible' })
+    expect(surface).toHaveStyle({ opacity: '1' })
     act(() => view.unmount())
     expect(live).toBe(0)
     expect(guest.isConnected).toBe(false)
