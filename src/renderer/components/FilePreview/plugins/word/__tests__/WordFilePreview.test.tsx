@@ -89,92 +89,175 @@ afterEach(() => {
 })
 
 describe('WordFilePreview', () => {
-  /** Puts a body-level paragraph into the rendered body and selects it, the way docx-preview would. */
-  async function selectRenderedParagraph(text: string, attributes: Record<string, string>) {
+  /** Puts a paragraph into the rendered body the way docx-preview would, and returns it for clicking. */
+  function renderParagraph(text: string, attributes: Record<string, string>): HTMLParagraphElement {
     const bodyContainer = screen.getByTestId('docx-preview-content')
     const paragraph = document.createElement('p')
     for (const [name, value] of Object.entries(attributes)) paragraph.setAttribute(name, value)
-    const textNode = document.createTextNode(text)
-    paragraph.appendChild(textNode)
+    paragraph.appendChild(document.createTextNode(text))
     bodyContainer.appendChild(paragraph)
-
-    const range = document.createRange()
-    range.setStart(textNode, 0)
-    range.setEnd(textNode, textNode.length)
-    const selection = window.getSelection()
-    selection?.removeAllRanges()
-    selection?.addRange(range)
-    document.dispatchEvent(new Event('selectionchange'))
+    return paragraph
   }
 
-  it('turns a selection in the rendered body into a reference for the host', async () => {
-    const onSelectionReference = vi.fn()
-    render(
+  function renderWithCapture(onSelectionReference?: (reference: unknown) => void) {
+    return render(
       <WordFilePreview
         filePath={filePath}
         fileName="report.docx"
         metadata={{ size: 1024, modifiedAt: 7 }}
         refreshKey={0}
-        onSelectionReference={onSelectionReference}
+        onSelectionReference={onSelectionReference as never}
       />
     )
-    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+  }
 
-    await selectRenderedParagraph('selected sentence', {
+  it('reports the clicked body paragraph as a reference and marks it as picked', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('picked sentence', {
       'data-docx-part': 'body',
       'data-docx-index': '3',
       'data-para-id': '1A2B3C4D'
     })
 
-    await waitFor(() => expect(onSelectionReference).toHaveBeenCalled())
+    fireEvent.click(paragraph)
+
     expect(onSelectionReference).toHaveBeenLastCalledWith({
       path: filePath,
       anchor: { format: 'docx', paragraph: 3, paraId: '1A2B3C4D' },
-      excerpt: 'selected sentence',
+      excerpt: 'picked sentence',
       fileStamp: { size: 1024, mtimeMs: 7 }
     })
+    expect(paragraph).toHaveAttribute('data-docx-picked', 'true')
+    expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-picker', 'true')
   })
 
-  it('reports null when the selection leaves the rendered body', async () => {
+  it('moves the pick to the next clicked paragraph and clears it when the same one is clicked again', async () => {
     const onSelectionReference = vi.fn()
-    render(
-      <WordFilePreview
-        filePath={filePath}
-        fileName="report.docx"
-        metadata={{ size: 1024, modifiedAt: 7 }}
-        refreshKey={0}
-        onSelectionReference={onSelectionReference}
-      />
-    )
+    renderWithCapture(onSelectionReference)
     await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
-    await selectRenderedParagraph('selected sentence', { 'data-docx-part': 'body', 'data-docx-index': '3' })
-    await waitFor(() => expect(onSelectionReference).toHaveBeenCalled())
-    onSelectionReference.mockClear()
+    const first = renderParagraph('first', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    const second = renderParagraph('second', { 'data-docx-part': 'body', 'data-docx-index': '1' })
 
-    window.getSelection()?.removeAllRanges()
-    document.dispatchEvent(new Event('selectionchange'))
+    fireEvent.click(first)
+    fireEvent.click(second)
+    expect(first).not.toHaveAttribute('data-docx-picked')
+    expect(second).toHaveAttribute('data-docx-picked', 'true')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(expect.objectContaining({ excerpt: 'second' }))
 
-    await waitFor(() => expect(onSelectionReference).toHaveBeenLastCalledWith(null))
+    fireEvent.click(second)
+    expect(second).not.toHaveAttribute('data-docx-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
   })
 
   it('reports null for a paragraph the docx-preview patch left unnumbered', async () => {
-    // Headers, footers and text boxes render without a body ordinal; anchoring them would name a
-    // paragraph the document does not address that way.
     const onSelectionReference = vi.fn()
-    render(
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('text box paragraph', { 'data-docx-part': 'body' })
+
+    fireEvent.click(paragraph)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('does not mark an empty paragraph as picked and reports null', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const picked = renderParagraph('picked sentence', { 'data-docx-part': 'body', 'data-docx-index': '3' })
+    fireEvent.click(picked)
+    expect(picked).toHaveAttribute('data-docx-picked', 'true')
+
+    const empty = renderParagraph('', { 'data-docx-part': 'body', 'data-docx-index': '12' })
+    fireEvent.click(empty)
+
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+    expect(empty).not.toHaveAttribute('data-docx-picked')
+    expect(picked).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('prevents a hyperlink from navigating when the click is a pick', async () => {
+    const onSelectionReference = vi.fn()
+    renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('see ', { 'data-docx-part': 'body', 'data-docx-index': '5' })
+    const link = document.createElement('a')
+    link.href = 'https://example.com/'
+    link.textContent = 'ref'
+    paragraph.appendChild(link)
+
+    let observed: boolean | undefined
+    // jsdom attempts a real navigation for an unprevented click on an <a href>, logging "Not
+    // implemented: navigation" noise under whichever test runs next; observe defaultPrevented as the
+    // event reaches document, then cancel it ourselves so jsdom never gets there.
+    const observe = (event: Event) => {
+      observed = event.defaultPrevented
+      event.preventDefault()
+    }
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(link)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(true)
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ excerpt: expect.stringContaining('ref') })
+    )
+
+    cleanup()
+    renderWithCapture(undefined)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(2))
+    const plainParagraph = renderParagraph('see ', { 'data-docx-part': 'body', 'data-docx-index': '5' })
+    const plainLink = document.createElement('a')
+    plainLink.href = 'https://example.com/'
+    plainLink.textContent = 'ref'
+    plainParagraph.appendChild(plainLink)
+
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(plainLink)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(false)
+  })
+
+  it('neither marks the body nor reacts to clicks when the host is not capturing', async () => {
+    renderWithCapture(undefined)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('plain reading', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+
+    fireEvent.click(paragraph)
+
+    expect(screen.getByTestId('docx-preview-content')).not.toHaveAttribute('data-picker')
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+  })
+
+  it('drops the picked marker when the host stops capturing', async () => {
+    const onSelectionReference = vi.fn()
+    const view = renderWithCapture(onSelectionReference)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+    const paragraph = renderParagraph('picked', { 'data-docx-part': 'body', 'data-docx-index': '0' })
+    fireEvent.click(paragraph)
+    expect(paragraph).toHaveAttribute('data-docx-picked', 'true')
+
+    view.rerender(
       <WordFilePreview
         filePath={filePath}
         fileName="report.docx"
         metadata={{ size: 1024, modifiedAt: 7 }}
         refreshKey={0}
-        onSelectionReference={onSelectionReference}
       />
     )
-    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
 
-    await selectRenderedParagraph('header text', { 'data-docx-part': 'header', 'data-docx-index': '0' })
-
-    await waitFor(() => expect(onSelectionReference).toHaveBeenLastCalledWith(null))
+    expect(paragraph).not.toHaveAttribute('data-docx-picked')
+    expect(screen.getByTestId('docx-preview-content')).not.toHaveAttribute('data-picker')
   })
 
   it('loads and renders DOCX pages with a centered standalone toolbar', async () => {
