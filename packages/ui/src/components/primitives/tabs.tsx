@@ -114,7 +114,9 @@ const tabsTriggerVariants = cva(
           'data-[state=active]:text-foreground data-[state=active]:font-semibold',
           'data-[state=active]:underline data-[state=active]:underline-offset-4 data-[state=active]:decoration-1',
           "[&:not(:first-child)]:before:content-['›']",
-          '[&:not(:first-child)]:before:mr-3 [&:not(:first-child)]:before:text-base',
+          // A mirrored transform cannot apply to the inline ::before box, so RTL swaps the character.
+          "rtl:[&:not(:first-child)]:before:content-['‹']",
+          '[&:not(:first-child)]:before:me-3 [&:not(:first-child)]:before:text-base',
           '[&:not(:first-child)]:before:font-normal [&:not(:first-child)]:before:no-underline',
           '[&:not(:first-child)]:before:text-muted-foreground'
         ]

@@ -121,6 +121,7 @@ function DialogContent({
         ref={handleRef}
         data-slot="dialog-content"
         className={cn(
+          // This physical offset and translation center the surface independently of writing direction.
           // no-drag punches the dialog's area out of any titlebar drag region it overlaps,
           // so the close button stays clickable when the dialog reaches max height (Electron).
           'bg-card text-card-foreground fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 p-6 shadow-xl [-webkit-app-region:no-drag]',
@@ -156,7 +157,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col gap-2 text-center sm:text-left', className)}
+      className={cn('flex flex-col gap-2 text-center sm:text-start', className)}
       {...props}
     />
   )

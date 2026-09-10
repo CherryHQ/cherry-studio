@@ -5,7 +5,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { Switch } from '../switch'
+import { DescriptionSwitch, Switch } from '../switch'
 
 afterEach(() => {
   cleanup()
@@ -46,5 +46,26 @@ describe('Switch', () => {
     expect(svg).not.toHaveAttribute('height', 'inherit')
     // Sizing is handled by the cva class so the svg fills the fixed-size thumb.
     expect(svg).toHaveClass('size-full')
+  })
+
+  it('uses logical thumb spacing and reverses checked travel in RTL', () => {
+    const { container } = render(<Switch size="md" />)
+    const thumb = container.querySelector('[data-slot="switch-thumb"]')
+
+    expect(thumb).toHaveClass('ms-0.5')
+    expect(thumb).toHaveClass('data-[state=checked]:translate-x-[21px]')
+    expect(thumb).toHaveClass('rtl:data-[state=checked]:-translate-x-[21px]')
+  })
+})
+
+describe('DescriptionSwitch', () => {
+  it('places the control at logical end by default', () => {
+    const { container } = render(<DescriptionSwitch label="Notifications" />)
+    expect(container.firstElementChild).not.toHaveClass('flex-row-reverse')
+  })
+
+  it('places the control at logical start when requested', () => {
+    const { container } = render(<DescriptionSwitch label="Notifications" controlPosition="start" />)
+    expect(container.firstElementChild).toHaveClass('flex-row-reverse')
   })
 })

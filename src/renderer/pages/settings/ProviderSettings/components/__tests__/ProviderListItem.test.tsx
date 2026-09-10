@@ -168,7 +168,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).not.toBeInTheDocument()
+    expect(container.querySelector('span[aria-hidden].bg-success')).not.toBeInTheDocument()
   })
 
   it('does not reserve a trailing slot when there is no dot or row action', () => {

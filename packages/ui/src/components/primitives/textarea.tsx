@@ -51,6 +51,7 @@ function TextareaInput({
   onValueChange,
   hasError = false,
   className,
+  dir,
   ref,
   ...props
 }: TextareaInputProps) {
@@ -72,6 +73,7 @@ function TextareaInput({
     <textarea
       data-slot="textarea-input"
       {...props}
+      dir={dir ?? 'auto'}
       ref={ref}
       value={value}
       onChange={composeEventHandlers(props.onChange, handleChange)}
@@ -99,7 +101,7 @@ function TextareaCharCount({ value = '', maxLength, className, ...props }: Texta
     <div
       data-slot="textarea-char-count"
       {...props}
-      className={cn('absolute bottom-2 right-2 text-xs text-muted-foreground', className)}>
+      className={cn('absolute bottom-2 end-2 text-xs text-muted-foreground', className)}>
       {value.length}/{maxLength}
     </div>
   )

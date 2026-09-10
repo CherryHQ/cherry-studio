@@ -65,7 +65,6 @@ function PageSidePanel({
   const portalContainer = scopedContainer ?? (typeof document === 'undefined' ? null : document.body)
   const isScopedPortal =
     typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
-
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
       event?.preventDefault()
@@ -151,7 +150,7 @@ function PageSidePanel({
                     aria-label={closeLabel}
                     data-slot="page-side-panel-close"
                     className={cn(
-                      'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
+                      'ms-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
                       closeButtonClassName
                     )}>
                     <XIcon size={16} />

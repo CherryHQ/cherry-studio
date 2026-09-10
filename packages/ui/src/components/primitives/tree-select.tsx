@@ -6,6 +6,7 @@ import * as React from 'react'
 
 import { cn } from '../../lib/utils'
 import { Button } from './button'
+import { DirectionalIcon } from './directional-icon'
 import { Input } from './input'
 import { Popover, PopoverContent, PopoverTrigger } from './popover'
 
@@ -302,7 +303,7 @@ export function TreeSelect({
 
       return (
         <React.Fragment key={rowKey}>
-          <div className="flex items-center gap-1" style={{ paddingLeft: depth * 14 }}>
+          <div className="flex items-center gap-1" style={{ paddingInlineStart: depth * 14 }}>
             {hasChildren ? (
               <button
                 type="button"
@@ -310,7 +311,10 @@ export function TreeSelect({
                 aria-expanded={expanded}
                 onClick={() => toggleExpanded(option.value)}
                 className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-                <ChevronRight className={cn('size-4 transition-transform', expanded && 'rotate-90')} />
+                <DirectionalIcon>
+                  {/* The mirror from DirectionalIcon composes with rotation, so RTL rotates the other way. */}
+                  <ChevronRight className={cn('size-4 transition-transform', expanded && 'rotate-90 rtl:-rotate-90')} />
+                </DirectionalIcon>
               </button>
             ) : (
               <span className="size-6 shrink-0" />
@@ -322,7 +326,7 @@ export function TreeSelect({
               disabled={option.disabled}
               onClick={() => handleSelect(option)}
               className={cn(
-                'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors',
+                'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm outline-none transition-colors',
                 selected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60',
                 option.disabled && 'pointer-events-none opacity-50',
                 option.selectable === false && 'text-muted-foreground'

@@ -114,8 +114,8 @@ export const WithToolbar: Story = {
         data={filtered}
         columns={columns}
         rowKey="id"
-        headerLeft={<span className="text-muted-foreground text-sm">{filtered.length} tasks</span>}
-        headerRight={
+        headerStart={<span className="text-muted-foreground text-sm">{filtered.length} tasks</span>}
+        headerEnd={
           <Input className="w-48" placeholder="Search tasks" value={query} onChange={(e) => setQuery(e.target.value)} />
         }
       />
@@ -139,7 +139,7 @@ export const MultipleSelection: Story = {
           onChange: setSelectedRowKeys,
           getCheckboxProps: (task) => ({ disabled: task.locked })
         }}
-        headerLeft={<span className="text-muted-foreground text-sm">{selectedRowKeys.length} selected</span>}
+        headerStart={<span className="text-muted-foreground text-sm">{selectedRowKeys.length} selected</span>}
       />
     )
   }

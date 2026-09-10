@@ -344,7 +344,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       <button
         type="button"
         aria-label={labels.close}
-        className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="-me-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={(event) => {
           event.stopPropagation()
           store.remove(toast.key)

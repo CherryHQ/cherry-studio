@@ -7,9 +7,12 @@ import {
   type DropdownNavProps,
   type DropdownProps,
   getDefaultClassNames,
-  type MonthCaptionProps
+  type MonthCaptionProps,
+  useDayPicker
 } from 'react-day-picker'
 
+import { useDirection } from './direction'
+import { DirectionalIcon } from './directional-icon'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
@@ -20,12 +23,15 @@ function Calendar({
   components,
   showOutsideDays = true,
   captionLayout = 'dropdown',
+  dir,
   ...props
 }: CalendarProps) {
   const defaultClassNames = getDefaultClassNames()
+  const direction = useDirection()
 
   return (
     <DayPicker
+      dir={dir ?? direction}
       showOutsideDays={showOutsideDays}
       captionLayout={captionLayout}
       className={cn('p-3', className)}
@@ -68,8 +74,8 @@ function Calendar({
         outside: cn(defaultClassNames.outside, 'text-muted-foreground opacity-50'),
         disabled: cn(defaultClassNames.disabled, 'text-muted-foreground opacity-40'),
         range_middle: cn(defaultClassNames.range_middle, 'rounded-none bg-accent text-accent-foreground'),
-        range_start: cn(defaultClassNames.range_start, 'rounded-l-md bg-primary text-primary-foreground'),
-        range_end: cn(defaultClassNames.range_end, 'rounded-r-md bg-primary text-primary-foreground'),
+        range_start: cn(defaultClassNames.range_start, 'rounded-s-md bg-primary text-primary-foreground'),
+        range_end: cn(defaultClassNames.range_end, 'rounded-e-md bg-primary text-primary-foreground'),
         hidden: cn(defaultClassNames.hidden, 'invisible'),
         ...classNames
       }}
@@ -138,10 +144,21 @@ function handleCalendarDropdownChange(value: string | number, onChange: Dropdown
 }
 
 function CalendarChevron({ className, orientation, disabled, ...props }: ChevronProps) {
+  const { dayPickerProps } = useDayPicker()
   const iconClassName = cn('size-4', disabled && 'opacity-40', className)
 
-  if (orientation === 'left') return <ChevronLeft className={iconClassName} {...props} />
-  if (orientation === 'right') return <ChevronRight className={iconClassName} {...props} />
+  if (orientation === 'left' || orientation === 'right') {
+    const icon =
+      orientation === 'left' ? (
+        <ChevronLeft className={iconClassName} {...props} />
+      ) : (
+        <ChevronRight className={iconClassName} {...props} />
+      )
+
+    // With `around`, DayPicker swaps physical chevrons itself. Its Nav component
+    // keeps fixed chevrons for the other layouts, so those still need mirroring.
+    return dayPickerProps.navLayout === 'around' ? icon : <DirectionalIcon>{icon}</DirectionalIcon>
+  }
   if (orientation === 'up') return <ChevronUp className={iconClassName} {...props} />
   return <ChevronDown className={iconClassName} {...props} />
 }
