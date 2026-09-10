@@ -218,8 +218,8 @@ function error(msg: string): SerializedError {
   return { name: 'Error', message: msg, stack: null }
 }
 
-function req(topicId: string) {
-  const request = { chatId: topicId, trigger: 'submit-message', messages: [] } as any
+function req(topicId: string): AiStreamRequest {
+  const request: AiStreamRequest = { conversation: { id: topicId, topicId }, trigger: 'submit-message', messages: [] }
   // Production agent-session turns always carry their runtime identity on the
   // request (AgentSessionRuntimeService), which the terminal classification
   // reads instead of sniffing the topic id.
@@ -302,11 +302,27 @@ describe('AiStreamManager', () => {
       })
 
       expect(mockStreamText).toHaveBeenCalledWith(
-        expect.objectContaining({ chatId: 'gateway-request-1', contextOwner: 'caller' })
+        expect.objectContaining({
+          conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' },
+          contextOwner: 'caller'
+        })
       )
     })
 
-    it('keeps stream identity separate from conversation identity', () => {
+    it('makes an anonymous prompt stream its own conversation', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        listener: new FakeListener('gateway:request-1')
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ conversation: { id: 'gateway-request-1', topicId: 'gateway-request-1' } })
+      )
+    })
+
+    it('keeps a trusted Agent SDK call in its agent session conversation', () => {
       mgr.streamPrompt({
         streamId: 'gateway-request-1',
         uniqueModelId: 'provider-a::model-a',
@@ -322,7 +338,10 @@ describe('AiStreamManager', () => {
       })
 
       expect(mockStreamText).toHaveBeenCalledWith(
-        expect.objectContaining({ chatId: 'session-1', tokenUsageSource: 'agent' })
+        expect.objectContaining({
+          conversation: { id: 'session-1', topicId: 'gateway-request-1' },
+          tokenUsageSource: 'agent'
+        })
       )
     })
   })
@@ -2948,7 +2967,7 @@ describe('AiStreamManager', () => {
 
     it('keeps the thrown error when a lossy error chunk precedes it', async () => {
       // The chunk carries only `error.message`; rebuilding from it would drop the
-      // statusCode / responseBody that error classification and the error block need.
+      // status code and safe provider detail that classification and the error block need.
       vi.useRealTimers()
 
       const apiError = new APICallError({
@@ -2983,9 +3002,19 @@ describe('AiStreamManager', () => {
 
       await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
 
-      expect(listener.errorResults[0].error).toMatchObject({
+      expect(listener.errorResults[0].error).toEqual({
+        name: 'AI_APICallError',
+        message: 'no access to this model',
+        providerErrorCategory: 'permission',
+        stack: null,
+        cause: null,
+        url: '',
+        requestBodyValues: null,
         statusCode: 403,
-        responseBody: '{"detail":"no access to this model"}'
+        responseHeaders: null,
+        responseBody: null,
+        isRetryable: false,
+        data: null
       })
     })
   })

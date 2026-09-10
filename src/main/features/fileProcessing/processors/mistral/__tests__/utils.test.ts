@@ -2,12 +2,7 @@ import fs from 'node:fs/promises'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  buildMarkdownConversionResult,
-  deleteUploadedDocument,
-  getUploadedDocumentSignedUrl,
-  uploadDocument
-} from '../utils'
+import { buildMarkdownConversionResult, buildTextExtractionResult, uploadDocument } from '../utils'
 
 describe('mistral utils', () => {
   beforeEach(() => {
@@ -34,7 +29,6 @@ describe('mistral utils', () => {
       } as never)
     ).resolves.toBe('file-1')
 
-    expect(fs.readFile).toHaveBeenCalledWith('/tmp/input.pdf')
     expect(upload).toHaveBeenCalledWith(
       {
         file: {
@@ -42,58 +36,6 @@ describe('mistral utils', () => {
           content: new Uint8Array(Buffer.from('pdf-data'))
         },
         purpose: 'ocr'
-      },
-      {
-        signal: undefined
-      }
-    )
-  })
-
-  it('gets signed urls for uploaded documents', async () => {
-    const getSignedUrl = vi.fn().mockResolvedValue({ url: 'https://signed.example.com/input.pdf' })
-
-    await expect(
-      getUploadedDocumentSignedUrl(
-        {
-          client: {
-            files: {
-              getSignedUrl
-            }
-          }
-        } as never,
-        'file-1'
-      )
-    ).resolves.toBe('https://signed.example.com/input.pdf')
-
-    expect(getSignedUrl).toHaveBeenCalledWith(
-      {
-        fileId: 'file-1'
-      },
-      {
-        signal: undefined
-      }
-    )
-  })
-
-  it('deletes uploaded documents', async () => {
-    const deleteFile = vi.fn().mockResolvedValue({})
-
-    await expect(
-      deleteUploadedDocument(
-        {
-          client: {
-            files: {
-              delete: deleteFile
-            }
-          }
-        } as never,
-        'file-1'
-      )
-    ).resolves.toBeUndefined()
-
-    expect(deleteFile).toHaveBeenCalledWith(
-      {
-        fileId: 'file-1'
       },
       {
         signal: undefined
@@ -110,6 +52,61 @@ describe('mistral utils', () => {
     ).toEqual({
       kind: 'markdown',
       markdownContent: '# Page 1\n\nPage 2'
+    })
+  })
+
+  it('inlines separated tables at their placeholders with content copied verbatim', () => {
+    expect(
+      buildMarkdownConversionResult({
+        model: 'mistral-ocr-latest',
+        pages: [
+          {
+            markdown: '# Report\n\n[tbl-0.html](tbl-0.html)\n\nNotes\n\n[tbl-1.html](tbl-1.html)',
+            tables: [
+              { id: 'tbl-0.html', content: '<table><tr><td>42</td></tr></table>', format: 'html' },
+              { id: 'tbl-1.html', content: "<table><tr><td>$&7 $' $$</td></tr></table>", format: 'html' }
+            ]
+          }
+        ]
+      } as never)
+    ).toEqual({
+      kind: 'markdown',
+      markdownContent:
+        "# Report\n\n<table><tr><td>42</td></tr></table>\n\nNotes\n\n<table><tr><td>$&7 $' $$</td></tr></table>"
+    })
+  })
+
+  it('keeps table content when its placeholder is missing from the page markdown', () => {
+    expect(
+      buildMarkdownConversionResult({
+        model: 'mistral-ocr-latest',
+        pages: [
+          {
+            markdown: 'Body',
+            tables: [{ id: 'tbl-0.html', content: '<table><tr><td>42</td></tr></table>', format: 'html' }]
+          }
+        ]
+      } as never)
+    ).toEqual({
+      kind: 'markdown',
+      markdownContent: 'Body\n\n<table><tr><td>42</td></tr></table>'
+    })
+  })
+
+  it('inlines separated tables in text extraction output', () => {
+    expect(
+      buildTextExtractionResult({
+        model: 'mistral-ocr-latest',
+        pages: [
+          {
+            markdown: 'Body\n\n[tbl-0.html](tbl-0.html)',
+            tables: [{ id: 'tbl-0.html', content: '<table><tr><td>42</td></tr></table>', format: 'html' }]
+          }
+        ]
+      } as never)
+    ).toEqual({
+      kind: 'text',
+      text: 'Body\n\n<table><tr><td>42</td></tr></table>'
     })
   })
 

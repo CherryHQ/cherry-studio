@@ -32,12 +32,12 @@
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
     "@ai-sdk/google": "^3.0.113",
-    "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/openai": "^3.0.109",
     "ai": "^6.0.116"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.103",
-    "@ai-sdk/azure": "^3.0.54",
+    "@ai-sdk/azure": "^3.0.116",
     "@ai-sdk/deepseek": "^2.0.57",
     "@ai-sdk/openai-compatible": "^2.0.72",
     "@ai-sdk/provider": "^3.0.15",

@@ -1,10 +1,17 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { defaultServiceInstances } from '@test-mocks/main/application'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
+import type { AiStreamRequest } from '../types/requests'
+import type * as CustomFetchModule from '../utils/customFetch'
 import { makeProvider } from './fixtures/provider'
 
 const mockGenerateImage = vi.fn()
@@ -30,6 +37,10 @@ const mockBuildFallbackModels = vi.fn((options?: unknown) => {
   void options
   return [] as unknown[]
 })
+const mockBuildApiKeyFallbackModels = vi.fn((options?: unknown) => {
+  void options
+  return [] as unknown[]
+})
 const mockReadRetryPolicy = vi.fn(() => ({
   enabled: true,
   maxAttempts: 3,
@@ -39,6 +50,7 @@ const mockReadRetryPolicy = vi.fn(() => ({
 const mockGetImageGenerationSupport = vi.fn()
 const mockResolveImageTransport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
+const mockIsRegistryProvider = vi.fn()
 const mockListModelsFromProvider = vi.fn()
 const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
@@ -80,7 +92,8 @@ vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
   registerBuiltinTools: (...args: unknown[]) => mockRegisterBuiltinTools(...args)
 }))
 
-vi.mock('../utils/customFetch', () => ({
+vi.mock('../utils/customFetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof CustomFetchModule>()),
   installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor(),
   // The inline health-check probe resolves the real provider config, which
   // defaults providerSettings.fetch to customFetch — a stub keeps it inert.
@@ -104,7 +117,8 @@ vi.mock('@main/data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args),
-    listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args)
+    listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args),
+    isRegistryProvider: (...args: unknown[]) => mockIsRegistryProvider(...args)
   }
 }))
 
@@ -202,6 +216,10 @@ vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
   buildFallbackModels: (options: unknown) => mockBuildFallbackModels(options)
 }))
 
+vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', () => ({
+  buildApiKeyFallbackModels: (options: unknown) => mockBuildApiKeyFallbackModels(options)
+}))
+
 vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
   readRetryPolicy: () => mockReadRetryPolicy()
 }))
@@ -238,6 +256,7 @@ describe('AiService', () => {
     })
     mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
     mockProviderGetRotatedApiKey.mockReturnValue('test-key')
+    mockIsRegistryProvider.mockReturnValue(false)
     mockProviderResolveApiKey.mockImplementation((_id: string, override?: string) => ({
       value: override ?? 'test-key',
       apiKeySelection: { attribution: override ? ('matched' as const) : ('unknown' as const) }
@@ -266,6 +285,58 @@ describe('AiService', () => {
     mockRecordRequest.mockResolvedValue(undefined)
   })
 
+  it.each(['embedding', 'rerank', 'image'] as const)(
+    'preserves developer HTTP traces for direct %s requests without a conversation',
+    async (modality) => {
+      const service = createService()
+      const exporter = new InMemorySpanExporter()
+      const tracerProvider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+      vi.spyOn(trace, 'getTracer').mockReturnValue(tracerProvider.getTracer('test'))
+      mockApplicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
+        if (name === 'FileManager') return {}
+        throw new Error(`Unexpected service: ${name}`)
+      })
+      mockProviderGetByProviderId.mockReturnValue(makeProvider())
+      const { customFetch } = await import('../utils/customFetch')
+      vi.mocked(customFetch).mockResolvedValue(new Response(null, { status: 204 }))
+      const sdkRequest = async (_providerId: string, settings: { fetch: FetchFunction }) => {
+        const response = await settings.fetch(`https://provider.test/${modality}`, { method: 'POST' })
+        expect(response.status).toBe(204)
+        return { embeddings: [[1]], ranking: [{ originalIndex: 0, score: 1 }], images: [] }
+      }
+      mockEmbedMany.mockImplementation(sdkRequest)
+      mockRerank.mockImplementation(sdkRequest)
+      mockGenerateImage.mockImplementation(sdkRequest)
+      try {
+        for (const enabled of [false, true]) {
+          exporter.reset()
+          MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', enabled)
+          const request = { uniqueModelId: createUniqueModelId('test-provider', 'test-model') }
+          if (modality === 'embedding') await service.embedMany({ ...request, values: ['hello'] })
+          else if (modality === 'rerank') await service.rerank({ ...request, query: 'hello', documents: ['hello'] })
+          else await service.generateImage({ ...request, prompt: 'a cherry', paramValues: {}, cleanupPolicy: 'manual' })
+          const spans = exporter.getFinishedSpans()
+          expect(spans).toHaveLength(enabled ? 1 : 0)
+          if (enabled) {
+            expect(spans[0].name).toBe('http.request')
+            expect(spans[0].attributes['http.url']).toBe(`https://provider.test/${modality}`)
+            expect(spans[0].attributes['trace.modelName']).toBe('Test Model')
+            expect(spans[0].attributes['trace.topicId']).toBeUndefined()
+          }
+        }
+      } finally {
+        MockMainPreferenceServiceUtils.resetMocks()
+        await tracerProvider.shutdown()
+      }
+    }
+  )
+
+  it('requires one stream topic while allowing a distinct conversation identity', () => {
+    expectTypeOf<AiStreamRequest['conversation']>().toExtend<{ id: string; topicId: string }>()
+    expectTypeOf<AiStreamRequest>().not.toHaveProperty('chatId')
+  })
+
   it('routes agent-session runtime requests directly to the runtime service', async () => {
     const service = createService()
     const stream = new ReadableStream()
@@ -274,11 +345,11 @@ describe('AiService', () => {
 
     await expect(
       service.streamText({
-        chatId: 'agent-session:session-1',
+        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
         trigger: 'submit-message',
         runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
         requestOptions: { signal: new AbortController().signal }
-      } as any)
+      })
     ).resolves.toBe(stream)
 
     expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
@@ -295,10 +366,10 @@ describe('AiService', () => {
 
     await expect(
       service.streamText({
-        chatId: 'agent-session:session-1',
+        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
         trigger: 'submit-message',
         requestOptions: { signal: new AbortController().signal }
-      } as any)
+      })
     ).rejects.toThrow('requires an agent-session runtime request')
 
     expect(buildAgentParamsFor).not.toHaveBeenCalled()
@@ -428,7 +499,7 @@ describe('AiService', () => {
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
@@ -493,6 +564,7 @@ describe('AiService', () => {
         size: '1024x1024',
         aspectRatio: '9:19.5',
         seed: 7,
+        maxRetries: 0,
         providerOptions: {
           'test-provider': {
             negative_prompt: 'blurry',
@@ -532,9 +604,34 @@ describe('AiService', () => {
     expect(result).toEqual({ files: [fileEntry] })
   })
 
+  it('honors an explicit retry override for direct image requests', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'test-provider',
+        providerSettings: {},
+        modelId: 'test-model'
+      }
+    } as never)
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      cleanupPolicy: 'delete_when_unreferenced',
+      prompt: 'draw a cat',
+      paramValues: {},
+      requestOptions: { maxRetries: 3 }
+    })
+
+    expect(mockGenerateImage.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ maxRetries: 3 }))
+  })
+
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
@@ -568,7 +665,7 @@ describe('AiService', () => {
 
   it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
     } as never)
 
@@ -610,7 +707,7 @@ describe('AiService', () => {
   // local persistence happens after the provider output has been recorded.
   describe('generateImage — AI usage record (direct path)', () => {
     function stubDirectImage(service: InstanceType<typeof AiService>) {
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -649,7 +746,7 @@ describe('AiService', () => {
         name: 'Image Assistant',
         emoji: '🎨'
       })
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' },
         assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
@@ -695,7 +792,7 @@ describe('AiService', () => {
   // contract was tested.
   describe('embedMany — AI usage record', () => {
     function stubEmbedding(service: InstanceType<typeof AiService>) {
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embedding-model' },
         credentialReceipt: {
           attribution: 'explicit',
@@ -1134,7 +1231,7 @@ describe('AiService tool approval', () => {
   it('routes rerank requests through ai-core rerank', async () => {
     const service = createService()
     const abortController = new AbortController()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
@@ -1208,7 +1305,7 @@ describe('AiService tool approval', () => {
   it('caps embedMany parallelism and derives maxRetries from the retry preference', async () => {
     const service = createService()
     vi.spyOn(service as never, 'trackUsage').mockReturnValue(undefined as never)
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
@@ -1243,7 +1340,7 @@ describe('AiService tool approval', () => {
     // retries to 0 — this PR adds retry behavior, it never removes it.
     const service = createService()
     vi.spyOn(service as never, 'trackUsage').mockReturnValue(undefined as never)
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
@@ -1265,7 +1362,7 @@ describe('AiService tool approval', () => {
 
   it('derives rerank maxRetries from the retry preference (0 when disabled)', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
@@ -1288,7 +1385,7 @@ describe('AiService tool approval', () => {
 
   it('keeps rerank retries disabled when the retry feature is disabled', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
@@ -1326,15 +1423,192 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { maxRetries: 0, signal: new AbortController().signal }
-    } as never)
+    })
 
     // Explicit per-request maxRetries:0 → no ai-retry wrapper / no fallback build.
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
     expect(mockBuildFallbackModels).not.toHaveBeenCalled()
+  })
+
+  it('wires API key failover when model retry is disabled', async () => {
+    const service = createService()
+    const keyFallback = vi.fn()
+    mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback])
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: false,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: []
+    })
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    } as never)
+
+    await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      messages: [],
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyFallbacks: [keyFallback],
+        retryPolicy: expect.objectContaining({ enabled: false })
+      })
+    )
+  })
+
+  it('normalizes explicit fractional retries with API key failover when model retry is disabled', async () => {
+    const service = createService()
+    const keyFallback = vi.fn()
+    mockAgentGenerate.mockResolvedValue({
+      text: 'ok',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2, inputTokenDetails: {}, outputTokenDetails: {} },
+      steps: []
+    })
+    mockCreateAgent.mockResolvedValue({ generate: mockAgentGenerate })
+    mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback]).mockReturnValueOnce([keyFallback])
+    mockCreateRetryableWrap.mockReturnValue(((model: unknown) => model) as never)
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: false,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: ['fallback::model']
+    })
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: { maxRetries: 0.5 },
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    } as never)
+
+    await service.streamText({
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
+      trigger: 'submit-message',
+      messages: [],
+      requestOptions: { maxRetries: 0.5, signal: new AbortController().signal }
+    })
+    await service.generateText({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'hello',
+      requestOptions: { maxRetries: 0.5 }
+    } as never)
+
+    expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(2)
+    for (const [retryOptions] of mockCreateRetryableWrap.mock.calls) {
+      expect(retryOptions).toEqual(
+        expect.objectContaining({
+          apiKeyFallbacks: [keyFallback],
+          retryPolicy: {
+            enabled: true,
+            maxAttempts: 1,
+            backoffEnabled: true,
+            fallbackModelIds: []
+          }
+        })
+      )
+    }
+    expect(mockBuildFallbackModels).toHaveBeenCalledTimes(2)
+    for (const [fallbackOptions] of mockBuildFallbackModels.mock.calls) {
+      expect(fallbackOptions).toEqual(
+        expect.objectContaining({
+          retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 1, fallbackModelIds: [] })
+        })
+      )
+    }
+  })
+
+  it('switches tool-call repair to the activated fallback credential', async () => {
+    const service = createService()
+    const primaryRepair = vi.fn().mockResolvedValue(null)
+    const fallbackRepair = vi.fn().mockResolvedValue(null)
+    mockCreateRetryableWrap.mockReturnValueOnce(((model: unknown) => model) as never)
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: { repairToolCall: primaryRepair },
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    } as never)
+
+    await service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' } as never)
+
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
+      onFallbackActivated: (fallback: { repairToolCall: typeof fallbackRepair }) => void
+      onPrimaryActivated: () => void
+    }
+    const agentOptions = mockCreateAgent.mock.calls[0][0] as {
+      agentSettings: { experimental_repairToolCall: (options: never) => Promise<null> }
+    }
+    const repair = agentOptions.agentSettings.experimental_repairToolCall
+    await repair({} as never)
+    expect(primaryRepair).toHaveBeenCalledOnce()
+
+    retryOptions.onFallbackActivated({ repairToolCall: fallbackRepair })
+    await repair({} as never)
+    expect(fallbackRepair).toHaveBeenCalledOnce()
+
+    retryOptions.onPrimaryActivated()
+    await repair({} as never)
+    expect(primaryRepair).toHaveBeenCalledTimes(2)
+  })
+
+  it('passes an explicit API key override to key-pool resolution', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'matched', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    } as never)
+
+    await service.generateText({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'hello',
+      apiKeyOverride: 'sk-selected'
+    } as never)
+
+    expect(mockBuildApiKeyFallbackModels).toHaveBeenCalledWith(
+      expect.objectContaining({ request: expect.objectContaining({ apiKeyOverride: 'sk-selected' }) })
+    )
   })
 
   it('builds the chat retry wrapper when no explicit maxRetries override is given', async () => {
@@ -1361,11 +1635,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { signal: new AbortController().signal }
-    } as never)
+    })
 
     expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(1)
     expect(mockBuildFallbackModels).toHaveBeenCalledWith(
@@ -1408,6 +1682,7 @@ describe('AiService tool approval', () => {
     } as never)
 
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
     expect(mockBuildFallbackModels).not.toHaveBeenCalled()
   })
 

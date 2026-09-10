@@ -6,7 +6,7 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
+import { captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -504,8 +504,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
       if (action === 'copy') {
-        const canvas = await captureScrollable(captureRef)
-        const blob = canvas ? await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')) : null
+        const imageData = await captureScrollableAsDataUrl(captureRef)
+        const blob = imageData ? await fetch(imageData).then((response) => response.blob()) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
         }

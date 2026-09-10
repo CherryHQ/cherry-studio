@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
     ],
     'feature.paintings.default_provider': 'zhipu'
   } as Record<string, unknown>,
+  casualCache: new Map<string, unknown>(),
   persistCacheValues: {
     'ui.chat.last_used_topic_id': undefined,
     'ui.agent.last_used_session_id': undefined
@@ -371,7 +372,11 @@ vi.mock('@renderer/utils/routeTitle', () => ({
 }))
 
 vi.mock('@data/CacheService', () => ({
-  cacheService: { set: mocks.cacheSet }
+  cacheService: {
+    set: mocks.cacheSet,
+    hasCasual: (key: string) => mocks.casualCache.has(key),
+    setCasual: (key: string, value: unknown) => mocks.casualCache.set(key, value)
+  }
 }))
 
 vi.mock('@data/DataApiService', () => {
@@ -546,7 +551,7 @@ vi.mock('react-i18next', () => ({
 
 import { toast } from '@renderer/services/toast'
 
-import { GlobalSearchPanel, testOnlyClearRefreshHistory } from '../GlobalSearchPanel'
+import { GlobalSearchPanel } from '../GlobalSearchPanel'
 import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
 
 afterEach(() => {
@@ -556,7 +561,7 @@ afterEach(() => {
 
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
-    testOnlyClearRefreshHistory()
+    mocks.casualCache.clear()
     // Conversation tabs open on the conversation's own URL (`/app/chat?topicId=…`), so match the
     // route prefix rather than the bare path.
     mocks.openTab.mockImplementation((route: string) => {

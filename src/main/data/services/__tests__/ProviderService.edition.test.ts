@@ -7,12 +7,17 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationEdition } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' as AppEdition }
+const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
+  applicationEdition: { current: 'cn' as AppEdition },
+  migrationOrigin: { current: false }
 }))
 
 vi.mock('@main/utils/appEdition', () => ({
   getAppEdition: () => applicationEdition.current
+}))
+
+vi.mock('@data/migration/v1MigrationOrigin', () => ({
+  isMigratedFromV1: () => migrationOrigin.current
 }))
 
 vi.mock('@cherrystudio/provider-registry/node', () => {
@@ -47,6 +52,7 @@ describe('ProviderService edition availability', () => {
 
   beforeEach(() => {
     applicationEdition.current = 'cn'
+    migrationOrigin.current = false
   })
 
   it('makes a persisted global-only provider unavailable to every runtime read and mutation in China', async () => {
@@ -146,5 +152,17 @@ describe('ProviderService edition availability', () => {
     })
 
     expect(providerService.getByProviderId('global-only').id).toBe('global-only')
+  })
+
+  it('keeps every persisted provider available for users migrated from v1', async () => {
+    migrationOrigin.current = true
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'global-only',
+      presetProviderId: 'global-only',
+      name: 'Global only',
+      orderKey: 'a0'
+    })
+
+    expect(providerService.list({}).map((provider) => provider.id)).toEqual(['global-only'])
   })
 })

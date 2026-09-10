@@ -19,7 +19,8 @@ import type {
   BridgePluginRequestMap,
   BridgeToolCallResult
 } from '@cherrystudio/dsh-bridge'
-import type { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import type { JsonRpcLineTransport, SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
@@ -36,7 +37,10 @@ export interface DshBridgeServerOptions {
   /** Agent-session id — keys the neutral approval registry so close()/abort target the right approvals. */
   sessionId: string
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
-  emit: (event: AgentRuntimeEvent) => void
+  emit: (
+    event: AgentRuntimeEvent,
+    source: { sessionId: SessionEventNotification['sessionId']; seq: SessionEvent['seq'] }
+  ) => void
   /** Resolve responder availability at ask-time so warm connections follow the current turn. */
   getInteractionState: () => { userResponse: 'stream' | 'message' | 'unavailable' }
   /** Dispatch one registered dsh native tool into Cherry's in-process MCP bridge. */
@@ -322,17 +326,20 @@ export class DshBridgeServer {
       // Only surface the approval card when the request is actually pending; a synchronous
       // resolve already settled the promise, and emitting would leave an unanswerable card.
       if (!pending) return
-      this.options.emit({
-        type: 'tool-approval-request',
-        request: {
-          approvalId,
-          toolCallId,
-          toolName,
-          input: { ...input },
-          presentation,
-          providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
-        }
-      })
+      this.options.emit(
+        {
+          type: 'tool-approval-request',
+          request: {
+            approvalId,
+            toolCallId,
+            toolName,
+            input: { ...input },
+            presentation,
+            providerMetadata: { cherry: { transport: DSH_TRANSPORT, toolName } satisfies CherryToolMeta }
+          }
+        },
+        { sessionId: ask.sessionId, seq: ask.sessionEventSeq }
+      )
     })
   }
 
@@ -380,19 +387,22 @@ export class DshBridgeServer {
         }
       })
       if (!pending) return
-      this.options.emit({
-        type: 'tool-approval-request',
-        request: {
-          approvalId,
-          toolCallId,
-          toolName: 'exit_plan_mode',
-          input: { ...input },
-          presentation,
-          providerMetadata: {
-            cherry: { transport: DSH_TRANSPORT, toolName: 'exit_plan_mode' } satisfies CherryToolMeta
+      this.options.emit(
+        {
+          type: 'tool-approval-request',
+          request: {
+            approvalId,
+            toolCallId,
+            toolName: 'exit_plan_mode',
+            input: { ...input },
+            presentation,
+            providerMetadata: {
+              cherry: { transport: DSH_TRANSPORT, toolName: 'exit_plan_mode' } satisfies CherryToolMeta
+            }
           }
-        }
-      })
+        },
+        { sessionId: ask.sessionId, seq: ask.sessionEventSeq }
+      )
     })
   }
 
