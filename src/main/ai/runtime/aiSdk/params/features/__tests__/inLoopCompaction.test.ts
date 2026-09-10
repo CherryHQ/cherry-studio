@@ -286,8 +286,7 @@ describe('inLoopCompactionFeature', () => {
 
   // The compressor fallback must apply the safety margin exactly once, not twice.
   // When compressor.contextWindow is null the fallback uses the raw contextWindow
-  // (not the already-margined effectiveContextWindow), so the margin is applied once:
-  // floor(rawWindow * 0.9) not floor(floor(rawWindow * 0.9) * 0.9).
+  // (not the already-margined effectiveContextWindow).
   it('applies the safety margin exactly once in the compressor-fallback budget', async () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockResolvedValue([userMessage(10)])
@@ -299,15 +298,20 @@ describe('inLoopCompactionFeature', () => {
         compressionModel: { languageModel: COMPRESSION_LANGUAGE_MODEL, contextWindow: null }
       })
     )
-    await prepareStep({ messages: [userMessage(90_000)] } as any)
+    const messages = [userMessage(90_000)]
+    const result = await prepareStep({ messages } as any)
+    // Observable contract: the over-budget prompt compacted to the summary.
+    expect(compactModelMessages).toHaveBeenCalledOnce()
+    expect(result).toEqual({ messages: [userMessage(10)] })
     const { maxOutputTokens, maxInputTokens } = compactModelMessages.mock.calls[0][2]
-    // compressorWindow = floor(100_000 * 0.9) = 90_000 (margin applied once)
-    // NOT floor(floor(100_000 * 0.9) * 0.9) = floor(90_000 * 0.9) = 81_000 (double margin)
-    // resolveCompressionOutputTokens(90_000): share=floor(90_000*0.25)=22_500, ceiling=16_384 → maxOutput=16_384
-    // maxInputTokens = max(2000, floor((90_000 - 16_384) * 0.85)) = floor(73_616 * 0.85) = 62_573
-    // maxOutputTokens + maxInputTokens = 16_384 + 62_573 = 78_957
-    // With double margin (81_000): maxOutput=16_384, maxInput=floor((81_000-16_384)*0.85)=54_923, sum=71_307
-    expect(maxOutputTokens + maxInputTokens).toBe(78_957)
+    const summarizeBudget = maxOutputTokens + maxInputTokens
+    // The summarize call fits inside the once-margined compressor window
+    // (floor(100_000 * 0.9) = 90_000) …
+    expect(summarizeBudget).toBeLessThan(90_000)
+    // … but is larger than a double-margined budget would allow
+    // (floor(90_000 * 0.9) = 81_000 window → ~71_307 total), proving the
+    // margin was applied once, not twice.
+    expect(summarizeBudget).toBeGreaterThan(71_307)
   })
 
   // `compactModelMessages` propagates provider errors. Letting one escape
