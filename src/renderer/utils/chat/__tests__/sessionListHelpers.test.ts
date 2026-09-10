@@ -11,12 +11,14 @@ import {
   createSessionWorkdirDisplayMaps,
   createSessionWorkdirLabelMap,
   getPrimarySessionWorkdir,
+  getSessionSourceGroupId,
   moveSessionWorkdirGroupAfterDrop,
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
   SESSION_NO_PROJECT_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
-  sortSessionsForDisplayGroups
+  sortSessionsForDisplayGroups,
+  withSessionSourceGroups
 } from '../sessionListHelpers'
 import { createResourceListGroupReorderPayload, createResourceListItemReorderPayload } from './resourceListFixtures'
 
@@ -122,6 +124,7 @@ describe('SessionList helpers', () => {
       ['same workdir group', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-a', true],
       ['different workdir groups', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-b', false],
       ['pinned group', 'workdir', 'session:pinned', 'session:pinned', false],
+      ['source group', 'agent', 'session:source:task:task-a', 'session:source:task:task-a', false],
       ['time mode', 'time', 'session:workspace:ws-a', 'session:workspace:ws-a', false]
     ] as const
 
@@ -150,6 +153,56 @@ describe('SessionList helpers', () => {
       id: 'session:time:earlier',
       label: 'Earlier'
     })
+  })
+
+  it('aggregates scheduled-task and channel sessions by their stable owner', () => {
+    const groupSession = withSessionSourceGroups(
+      createSessionDisplayGroupResolver({ labels: SESSION_GROUP_LABELS, mode: 'time' })
+    )
+    const scheduled = createSession({
+      source: { kind: 'scheduled-task', taskId: 'task:daily', taskName: 'Daily summary' }
+    })
+    const sameChannelConversation = createSession({
+      source: {
+        kind: 'channel',
+        channelId: 'channel:ops',
+        channelName: 'Ops bot',
+        channelType: 'telegram',
+        conversationId: 'chat:42'
+      }
+    })
+    const otherChannelConversation = createSession({
+      source: {
+        kind: 'channel',
+        channelId: 'channel:ops',
+        channelName: 'Ops bot',
+        channelType: 'telegram',
+        conversationId: 'chat:84'
+      }
+    })
+
+    expect(groupSession(scheduled)).toEqual({
+      id: 'session:source:task:task%3Adaily',
+      label: 'Daily summary'
+    })
+    expect(groupSession(sameChannelConversation)).toEqual({
+      id: 'session:source:channel:channel%3Aops:chat%3A42',
+      label: 'Ops bot · chat:42'
+    })
+    expect(getSessionSourceGroupId(otherChannelConversation)).not.toBe(getSessionSourceGroupId(sameChannelConversation))
+  })
+
+  it('keeps pinned source sessions in the pinned group', () => {
+    const groupSession = withSessionSourceGroups(
+      createSessionDisplayGroupResolver({ labels: SESSION_GROUP_LABELS, mode: 'time' })
+    )
+    const pinnedTaskSession = createSession({
+      pinned: true,
+      source: { kind: 'scheduled-task', taskId: 'task-1', taskName: 'Daily summary' }
+    })
+
+    expect(groupSession(pinnedTaskSession)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
+    expect(getSessionSourceGroupId(pinnedTaskSession)).toBeUndefined()
   })
 
   it('drops the time bucket label when every session falls into the same bucket', () => {

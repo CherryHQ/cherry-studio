@@ -22,6 +22,7 @@ const mockCreateChannel = vi.fn()
 const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
+const mockNotifySourceProjectionChange = vi.fn()
 const mockGetSession = vi.fn()
 const mockListSessions = vi.fn()
 const mockSearchSessions = vi.fn()
@@ -50,7 +51,8 @@ vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mockGetSession,
     listAddressableByCursor: mockListSessions,
-    searchWithMetadataEvidence: mockSearchSessions
+    searchWithMetadataEvidence: mockSearchSessions,
+    notifySourceProjectionChange: mockNotifySourceProjectionChange
   }
 }))
 
@@ -1404,6 +1406,7 @@ describe('CherryAutonomyTools', () => {
           existingChannel
         ])
         mockGetChannel.mockReturnValue(updatedChannel)
+        mockUpdateChannel.mockReturnValueOnce(updatedChannel)
         mockWaitForQrUrl.mockResolvedValue('https://accounts.larksuite.com/device/abc123')
         mockQRCodeToDataURL.mockResolvedValue('data:image/png;base64,iVBORw0KGgo=')
 
@@ -1440,6 +1443,7 @@ describe('CherryAutonomyTools', () => {
           isActive: true
         })
         expect(mockWaitForQrUrl).toHaveBeenCalledWith('agent_1', 'ch_existing', 30_000)
+        expect(mockNotifySourceProjectionChange).toHaveBeenCalledOnce()
         expect(result.content.filter((item: { type: string }) => item.type === 'image')).toHaveLength(1)
       })
 

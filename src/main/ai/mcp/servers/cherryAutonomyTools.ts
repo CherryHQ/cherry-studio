@@ -986,11 +986,12 @@ export class CherryAutonomyTools {
 
       if (existingChannel) {
         const config = ChannelConfigSchema.parse({ type, ...cfg })
-        channelService.updateChannel(existingChannel.id, {
+        const updated = channelService.updateChannel(existingChannel.id, {
           name,
           config,
           isActive: true
         })
+        if (updated && updated.name !== existingChannel.name) agentSessionService.notifySourceProjectionChange()
         return await this.configReconnectChannel({ channel_id: existingChannel.id })
       }
     }

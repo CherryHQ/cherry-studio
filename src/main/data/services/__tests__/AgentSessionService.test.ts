@@ -2,10 +2,12 @@ import '@data/services/AgentSessionMessageService'
 
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelSessionTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
+import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
@@ -1409,6 +1411,65 @@ describe('AgentSessionService', () => {
     const page2 = agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
+  })
+
+  it('projects stable scheduled-task and channel sources on session reads', async () => {
+    const task = createTaskSchedule()
+    expect(task.name).not.toBeNull()
+    const firstTaskSession = agentSessionService.create(
+      {
+        agentId: 'agent-session-test',
+        name: task.name!,
+        workspace: { type: 'system' }
+      },
+      { taskId: task.id }
+    )
+    const secondTaskSession = agentSessionService.create(
+      {
+        agentId: 'agent-session-test',
+        name: task.name!,
+        workspace: { type: 'system' }
+      },
+      { taskId: task.id }
+    )
+    const channel = agentChannelService.createChannel({
+      type: 'telegram',
+      name: 'Ops bot',
+      agentId: 'agent-session-test',
+      workspace: { type: 'system' },
+      config: { bot_token: 'token' },
+      isActive: true
+    })
+    const channelSession = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Channel session',
+      workspace: { type: 'system' }
+    })
+    await dbh.db.insert(agentChannelSessionTable).values({
+      sessionId: channelSession.id,
+      channelId: channel.id,
+      conversationId: 'chat-42',
+      isActive: true
+    })
+
+    expect(agentSessionService.getById(firstTaskSession.id).source).toEqual({
+      kind: 'scheduled-task',
+      taskId: task.id,
+      taskName: task.name
+    })
+    expect(agentSessionService.getById(channelSession.id).source).toEqual({
+      kind: 'channel',
+      channelId: channel.id,
+      channelName: channel.name,
+      channelType: 'telegram',
+      conversationId: 'chat-42'
+    })
+    expect(
+      agentSessionService
+        .listByCursor()
+        .items.filter((session) => session.source?.kind === 'scheduled-task')
+        .map((session) => session.id)
+    ).toEqual(expect.arrayContaining([firstTaskSession.id, secondTaskSession.id]))
   })
 
   it('returns pinned sessions first ordered by pin.orderKey, then unpinned by orderKey', async () => {

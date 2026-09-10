@@ -46,7 +46,7 @@ import type { AgentSessionExportOptions } from '@renderer/services/agentSessionE
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
-import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { withSoleGroupLabelHidden } from '@renderer/utils/chat/resourceListBase'
 import {
@@ -60,7 +60,9 @@ import {
   createSessionWorkdirDisplayMaps,
   getAgentIdFromSessionGroupId,
   getSessionAgentGroupId,
+  getSessionSourceGroupId,
   getWorkdirPathFromSessionGroupId,
+  isSessionSourceGroupId,
   isSystemWorkspaceSession,
   moveSessionAgentGroupAfterDrop,
   moveSessionWorkdirGroupAfterDrop,
@@ -71,23 +73,25 @@ import {
   SESSION_NO_WORKDIR_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
   SESSION_PINNED_SECTION_ID,
+  SESSION_SOURCE_SECTION_ID,
   SESSION_UNKNOWN_AGENT_GROUP_ID,
   SESSION_WORKDIR_SECTION_ID,
   type SessionListItem,
-  sortSessionsForDisplayGroups
+  sortSessionsForDisplayGroups,
+  withSessionSourceGroups
 } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionEntity, AgentSessionSource } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { Folder, FolderOpen, MoreHorizontal, Plus } from 'lucide-react'
+import { CalendarClock, Folder, FolderOpen, MoreHorizontal, Plus } from 'lucide-react'
 import { lazy, memo, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -433,15 +437,6 @@ const Sessions = ({
       rejectPendingActions: rejectPendingAgentSessionImageActions
     })
 
-  const { data: channels } = useQuery('/agent-channels', { enabled: dataEnabled })
-  const channelTypeMap = useMemo(() => {
-    const map: Record<string, string> = {}
-    for (const ch of channels ?? []) {
-      if (ch.sessionId) map[ch.sessionId] = ch.type
-    }
-    return map
-  }, [channels])
-
   const displayMode: AgentSessionDisplayMode = isRightPanel
     ? 'time'
     : sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent'
@@ -649,6 +644,14 @@ const Sessions = ({
     if (!agentIdFilter) return []
     return groupedSessions.filter((session) => session.agentId === agentIdFilter)
   }, [agentIdFilter, groupedSessions, isRightPanel])
+  const sessionSourceByGroupId = useMemo(() => {
+    const sources = new Map<string, AgentSessionSource>()
+    for (const session of filteredGroupedSessions) {
+      const groupId = getSessionSourceGroupId(session)
+      if (groupId && session.source) sources.set(groupId, session.source)
+    }
+    return sources
+  }, [filteredGroupedSessions])
 
   const sessionOrderSignature = useMemo(
     () =>
@@ -672,28 +675,30 @@ const Sessions = ({
 
   const sessionGroupBy = useMemo(
     () =>
-      createSessionDisplayGroupResolver({
-        agentById,
-        labels: {
-          pinned: t('selector.common.pinned_title'),
-          time: {
-            today: t('agent.session.group.today'),
-            yesterday: t('agent.session.group.yesterday'),
-            'this-week': t('agent.session.group.this_week'),
-            earlier: t('agent.session.group.earlier')
+      withSessionSourceGroups(
+        createSessionDisplayGroupResolver({
+          agentById,
+          labels: {
+            pinned: t('selector.common.pinned_title'),
+            time: {
+              today: t('agent.session.group.today'),
+              yesterday: t('agent.session.group.yesterday'),
+              'this-week': t('agent.session.group.this_week'),
+              earlier: t('agent.session.group.earlier')
+            },
+            agent: {
+              unknown: t('agent.session.group.unknown_agent')
+            },
+            workdir: {
+              none: t('agent.session.group.no_workdir')
+            }
           },
-          agent: {
-            unknown: t('agent.session.group.unknown_agent')
-          },
-          workdir: {
-            none: t('agent.session.group.no_workdir')
-          }
-        },
-        mode: displayMode,
-        now: groupNow,
-        pinnedAsSection: displayMode === 'workdir',
-        workdirDisplay
-      }),
+          mode: displayMode,
+          now: groupNow,
+          pinnedAsSection: displayMode === 'workdir',
+          workdirDisplay
+        })
+      ),
     [agentById, displayMode, groupNow, t, workdirDisplay]
   )
   // Time mode only: "Earlier" above a list with nothing newer restates the list itself.
@@ -701,10 +706,10 @@ const Sessions = ({
     () =>
       displayMode === 'time'
         ? withSoleGroupLabelHidden(sessionGroupBy, filteredGroupedSessions, {
-            ignoreGroupIds: [SESSION_PINNED_GROUP_ID]
+            ignoreGroupIds: [SESSION_PINNED_GROUP_ID, ...sessionSourceByGroupId.keys()]
           })
         : sessionGroupBy,
-    [displayMode, filteredGroupedSessions, sessionGroupBy]
+    [displayMode, filteredGroupedSessions, sessionGroupBy, sessionSourceByGroupId]
   )
   const createSessionSeedIndex = useMemo(
     () => buildCreateSessionSeedIndex(filteredGroupedSessions, (session) => sessionGroupBy(session)?.id),
@@ -727,6 +732,8 @@ const Sessions = ({
       if (displayMode === 'workdir' && session.pinned) {
         return { id: SESSION_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
+
+      if (session.source) return { id: SESSION_SOURCE_SECTION_ID, label: '' }
 
       if (displayMode === 'workdir' && isSystemWorkspaceSession(session)) {
         return { id: SESSION_NO_PROJECT_SECTION_ID, label: t('agent.session.group.tasks') }
@@ -1444,11 +1451,13 @@ const Sessions = ({
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: ResourceListGroup) =>
-      displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
+      displayMode === 'agent' && group.id !== SESSION_PINNED_GROUP_ID && !isSessionSourceGroupId(group.id)
+        ? 'select-first-then-toggle'
+        : 'toggle',
     [displayMode]
   )
   const canDragSessionItem = useCallback(
-    ({ item }: { item: SessionListItem }) => itemDragReady && !item.pinned,
+    ({ item }: { item: SessionListItem }) => itemDragReady && !item.pinned && !item.source,
     [itemDragReady]
   )
 
@@ -1639,6 +1648,7 @@ const Sessions = ({
   const getGroupHeaderAction = useCallback(
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
+      if (isSessionSourceGroupId(group.id)) return null
       if (displayMode === 'time') return null
 
       const agentGroupId = displayMode === 'agent' ? getAgentIdFromSessionGroupId(group.id) : undefined
@@ -1773,6 +1783,13 @@ const Sessions = ({
     (group: ResourceListGroup, context: { collapsed: boolean }) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return undefined
 
+      const source = sessionSourceByGroupId.get(group.id)
+      if (source?.kind === 'scheduled-task') return <CalendarClock size={13} />
+      if (source?.kind === 'channel') {
+        const icon = getChannelTypeIcon(source.channelType)
+        return icon ? <img src={icon} alt="" className="size-3.5 rounded-[2px] object-contain" /> : null
+      }
+
       if (displayMode === 'workdir') {
         if (group.id === SESSION_NO_WORKDIR_GROUP_ID || group.id === SESSION_NO_PROJECT_GROUP_ID) return null
         // Open vs closed is the group's state, not a hover affordance — swapping it under the pointer
@@ -1787,7 +1804,7 @@ const Sessions = ({
       const agent = agentId ? agentById.get(agentId) : undefined
       return renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
     },
-    [agentById, assistantIconType, defaultModelId, displayMode]
+    [agentById, assistantIconType, defaultModelId, displayMode, sessionSourceByGroupId]
   )
   // Which headers name a task's owner (an agent, a folder) and which merely gather rows. Declared by
   // id rather than inferred from "does this header happen to have buttons": a group that is still
@@ -1807,6 +1824,7 @@ const Sessions = ({
   const isGroupHeaderIconVisible = useCallback(
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return false
+      if (isSessionSourceGroupId(group.id)) return true
 
       if (displayMode === 'workdir') {
         return group.id !== SESSION_NO_WORKDIR_GROUP_ID && group.id !== SESSION_NO_PROJECT_GROUP_ID
@@ -1830,6 +1848,7 @@ const Sessions = ({
   const getGroupHeaderContextMenu = useCallback(
     (group: ResourceListGroup) => {
       if (group.id === SESSION_PINNED_GROUP_ID) return null
+      if (isSessionSourceGroupId(group.id)) return null
 
       if (displayMode === 'agent') {
         const agentId = getAgentIdFromSessionGroupId(group.id)
@@ -2046,7 +2065,6 @@ const Sessions = ({
       {refreshError && <ResourceRefreshErrorBanner onRetry={handleRetry} retrying={listValidating} />}
       <SessionListBody
         activeSessionId={activeSessionId}
-        channelTypeMap={channelTypeMap}
         displayMode={displayMode}
         error={listError}
         isDraggable={isDraggableMode && !isRightPanel}
@@ -2109,7 +2127,6 @@ const Sessions = ({
 
 interface SessionListBodyProps {
   activeSessionId: string | null
-  channelTypeMap: Record<string, string>
   displayMode: AgentSessionDisplayMode
   error?: unknown
   isDraggable: boolean
@@ -2129,7 +2146,6 @@ interface SessionListBodyProps {
 
 function SessionListBody({
   activeSessionId,
-  channelTypeMap,
   displayMode,
   error,
   isDraggable,
@@ -2154,11 +2170,11 @@ function SessionListBody({
         key={session.id}
         session={session}
         active={session.id === activeSessionId}
-        channelType={channelTypeMap[session.id]}
+        channelType={session.pinned && session.source?.kind === 'channel' ? session.source.channelType : undefined}
         pinned={session.pinned}
         reserveLeadingIconSlot={
           displayMode === 'agent' ||
-          (displayMode === 'workdir' && !session.pinned && !isSystemWorkspaceSession(session))
+          (!session.pinned && (!!session.source || (displayMode === 'workdir' && !isSystemWorkspaceSession(session))))
         }
         onTogglePin={onTogglePin}
         onDelete={onDeleteSession}
@@ -2173,7 +2189,6 @@ function SessionListBody({
     ),
     [
       activeSessionId,
-      channelTypeMap,
       displayMode,
       onDeleteSession,
       onOpenInNewTab,
