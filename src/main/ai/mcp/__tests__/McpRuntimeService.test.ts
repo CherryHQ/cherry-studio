@@ -40,7 +40,12 @@ vi.mock('@main/utils/shellEnv', () => ({
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
   hasMiseInPath: (pathValue?: string) =>
     !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  isMiseEnvVar: (key: string) => key.startsWith('MISE_')
+  isMiseEnvVar: (key: string) => key.startsWith('MISE_'),
+  hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
+    Object.keys(env).some((key) => key.startsWith('MISE_')) ||
+    ((Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '') as string)
+      .split(/[:;]/)
+      .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
 }))
 
 const commandResolverMock = vi.hoisted(() => ({

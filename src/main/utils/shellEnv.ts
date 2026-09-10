@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { spawn } from 'child_process'
 
 import { application } from '@application'
@@ -18,11 +19,13 @@ export function getPathFromEnvironment(env: Record<string, string | undefined>):
   return pathKey ? env[pathKey] : undefined
 }
 
-/** Whether a PATH string contains a mise-owned directory (e.g. `~/.local/share/mise/shims`). */
+/** Whether a PATH string contains a mise-owned directory (`mise/shims`, `mise/installs`). */
 export function hasMiseInPath(pathValue: string | undefined): boolean {
   if (!pathValue) return false
   const delimiter = isWin ? ';' : ':'
-  return pathValue.split(delimiter).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
+  return pathValue
+    .split(delimiter)
+    .some((segment) => /(^|[\\/])\.?mise[\\/](shims|installs)([\\/]|$)/i.test(segment.trim()))
 }
 
 export function isMiseEnvVar(key: string): boolean {
@@ -33,6 +36,31 @@ export function getMiseEnvEntries(env: Record<string, string | undefined>): Arra
   return Object.entries(env).filter(
     (entry): entry is [string, string] => entry[1] !== undefined && isMiseEnvVar(entry[0])
   )
+}
+
+/** Whether an env shows a user-owned mise installation: MISE_* vars or a mise-owned PATH dir. */
+export function hasUserMiseEnv(env: Record<string, string | undefined>): boolean {
+  return getMiseEnvEntries(env).length > 0 || hasMiseInPath(getPathFromEnvironment(env))
+}
+
+/** Drop one directory from every PATH key in `env`, matching Windows paths case-insensitively. */
+export function removePathEntry(env: Record<string, string | undefined>, dir: string): void {
+  if (!dir) return
+  const target = isWin ? path.normalize(dir).toLowerCase() : path.normalize(dir)
+  const delimiter = isWin ? ';' : ':'
+  const normalize = (value: string) => (isWin ? path.normalize(value).toLowerCase() : path.normalize(value))
+  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  for (const key of pathKeys) {
+    const value = env[key]
+    if (typeof value !== 'string' || !value) continue
+    env[key] = value
+      .split(delimiter)
+      .filter((segment) => normalize(segment.trim()) !== target)
+      .join(delimiter)
+  }
+  if (!isWin && pathKeys.length > 0 && !pathKeys.includes('PATH')) {
+    env.PATH = env[pathKeys[0]]
+  }
 }
 
 /**

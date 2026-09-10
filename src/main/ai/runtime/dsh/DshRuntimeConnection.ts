@@ -27,7 +27,7 @@ import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqlit
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getBinaryExecutionEnv, getBinarySearchDirs, getBinaryShimsDir, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
-import { getPathFromEnvironment, getRawShellEnv, hasMiseInPath, isMiseEnvVar } from '@main/utils/shellEnv'
+import { getMiseEnvEntries, getPathFromEnvironment, getRawShellEnv, hasUserMiseEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -393,9 +393,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Cherry-managed shims remain reachable as PATH tails; Cherry's
       // MISE vars are added only where the user has no mise of their own
       // (vars OR PATH-embedded shims like ~/.local/share/mise/shims).
-      const rawMiseEnv = Object.fromEntries(Object.entries(rawShellEnv).filter(([key]) => isMiseEnvVar(key)))
-      const hasUserMiseInPath = hasMiseInPath(loginPath)
-      const hasUserMise = Object.keys(rawMiseEnv).length > 0 || hasUserMiseInPath
+      const rawMiseEnv = Object.fromEntries(getMiseEnvEntries(rawShellEnv))
+      const hasUserMise = hasUserMiseEnv(rawShellEnv)
       const cherryToolDirs = getBinarySearchDirs()
       const managedShimsDir = getBinaryShimsDir()
       const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)

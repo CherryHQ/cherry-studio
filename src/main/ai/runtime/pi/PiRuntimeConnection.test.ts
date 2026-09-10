@@ -179,7 +179,28 @@ vi.mock('@main/utils/shellEnv', () => ({
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
   hasMiseInPath: (pathValue?: string) =>
     !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  isMiseEnvVar: (key: string) => key.startsWith('MISE_')
+  isMiseEnvVar: (key: string) => key.startsWith('MISE_'),
+  getMiseEnvEntries: (env: Record<string, string | undefined> = {}) =>
+    Object.entries(env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined && entry[0].startsWith('MISE_')
+    ),
+  hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
+    Object.keys(env).some((key) => key.startsWith('MISE_')) ||
+    ((Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '') as string)
+      .split(/[:;]/)
+      .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
+  removePathEntry: (env: Record<string, string | undefined>, dir: string) => {
+    const target = dir.trim().toLowerCase()
+    const delimiter = process.platform === 'win32' ? ';' : ':'
+    for (const key of Object.keys(env).filter((k) => k.toLowerCase() === 'path')) {
+      const value = env[key]
+      if (typeof value !== 'string' || !value) continue
+      env[key] = value
+        .split(/[:;]/)
+        .filter((segment) => segment.trim().toLowerCase() !== target)
+        .join(delimiter)
+    }
+  }
 }))
 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
@@ -686,6 +707,34 @@ describe('PiRuntimeConnection', () => {
     })
     expect(result.env.MISE_CONFIG_DIR).toBeUndefined()
     expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
+  })
+
+  it('drops Cherry mise shims and vars for a PATH-only user mise installation', async () => {
+    mocks.getRawShellEnv.mockResolvedValueOnce({
+      PATH: ['/home/user/.local/share/mise/shims', '/usr/bin'].join(path.delimiter)
+    })
+    await new PiRuntimeConnection(input).start()
+
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'node --version',
+      cwd: WORKSPACE,
+      env: { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter) }
+    })
+
+    expect(result.env.MISE_DATA_DIR).toBeUndefined()
+    expect(result.env.MISE_SHIMS_DIR).toBeUndefined()
+    expect(result.env.MISE_CONFIG_DIR).toBeUndefined()
+    expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
+    expect(result.env.PATH?.split(path.delimiter)).toContain('/pi/agent/bin')
   })
 
   it('keeps authenticated proxy requests on the credential-aware Node transport', async () => {

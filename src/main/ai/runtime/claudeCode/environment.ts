@@ -16,12 +16,12 @@ import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import {
-  getPathFromEnvironment,
+  getMiseEnvEntries,
   getRawShellEnv,
   getShellEnv,
-  hasMiseInPath,
-  isMiseEnvVar,
-  refreshShellEnv
+  hasUserMiseEnv,
+  refreshShellEnv,
+  removePathEntry
 } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -147,10 +147,8 @@ export async function getClaudeCodeLoginShellEnvironment(
   // redirected to Cherry's data dir (#19738). A user mise installation
   // may be visible only as a shims directory in PATH without MISE_* vars.
   const rawShellEnv = await getRawShellEnv()
-  const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => isMiseEnvVar(key))
-  const hasUserMise =
-    rawMiseEntries.length > 0 ||
-    hasMiseInPath(getPathFromEnvironment(rawShellEnv as Record<string, string | undefined>))
+  const rawMiseEntries = getMiseEnvEntries(rawShellEnv)
+  const hasUserMise = hasUserMiseEnv(rawShellEnv)
   if (hasUserMise) {
     // User has mise activated — replace the contract wholesale: drop
     // Cherry-only MISE keys, then restore the user's values.
@@ -175,17 +173,7 @@ export async function getClaudeCodeLoginShellEnvironment(
       stripped[key] = value
     }
     const shimsDir = getBinaryShimsDir()
-    const pathKey = Object.keys(stripped).find((k) => k.toLowerCase() === 'path')
-    if (pathKey && stripped[pathKey]) {
-      const delimiter = isWin ? ';' : ':'
-      const normalize = (value: string) => (isWin ? path.normalize(value).toLowerCase() : path.normalize(value))
-      const shimsCanonical = normalize(shimsDir)
-      stripped[pathKey] = stripped[pathKey]
-        .split(delimiter)
-        .filter((segment) => normalize(segment.trim()) !== shimsCanonical)
-        .join(delimiter)
-      if (!isWin) stripped.PATH = stripped[pathKey]
-    }
+    removePathEntry(stripped, shimsDir)
   }
   return stripped
 }
