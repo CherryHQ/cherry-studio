@@ -237,6 +237,22 @@ const createSkillQuickPanelItems = (
   }))
 }
 
+/** Folder names still attached as chips. Unknown availability (catalog loading or failed) defers
+ *  to main's read verdict instead of silently dropping the skill from the send. */
+function deriveAttachedSkillFolderNames(
+  selectedSkills: readonly LocalSkill[],
+  tokenIds: ReadonlySet<string>,
+  skillByFilename: ReadonlyMap<string, LocalSkill>,
+  availabilityKnown: boolean
+): string[] {
+  return selectedSkills
+    .filter(
+      (skill) =>
+        tokenIds.has(agentComposerTokenId.skill(skill)) && (!availabilityKnown || skillByFilename.has(skill.filename))
+    )
+    .map((skill) => skill.filename)
+}
+
 type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
   topBarPortalAvailable: boolean
   topBarPortalIconOnly: boolean
@@ -1638,15 +1654,12 @@ const ChatComposerInner = ({
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
-      const skillFolderNames = selectedSkills
-        // While the installed-skills query is still loading the availability filter is unknown —
-        // send the attachment through and let main's read verdict decide, instead of dropping it.
-        .filter(
-          (skill) =>
-            tokenIds.has(agentComposerTokenId.skill(skill)) &&
-            (!isAvailableSkillsLoading || skillByFilename.has(skill.filename))
-        )
-        .map((skill) => skill.filename)
+      const skillFolderNames = deriveAttachedSkillFolderNames(
+        selectedSkills,
+        tokenIds,
+        skillByFilename,
+        !isAvailableSkillsLoading && !availableSkillsError
+      )
       return {
         ...payload,
         userMessageParts: withSkillScopePart(
@@ -1657,6 +1670,7 @@ const ChatComposerInner = ({
     },
     [
       assistantId,
+      availableSkillsError,
       chatTarget,
       fastMode,
       files,
@@ -1813,21 +1827,25 @@ const ChatComposerInner = ({
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
-      const skillFolderNames = selectedSkills
-        // While the installed-skills query is still loading the availability filter is unknown —
-        // send the attachment through and let main's read verdict decide, instead of dropping it.
-        .filter(
-          (skill) =>
-            tokenIds.has(agentComposerTokenId.skill(skill)) &&
-            (!isAvailableSkillsLoading || skillByFilename.has(skill.filename))
-        )
-        .map((skill) => skill.filename)
+      const skillFolderNames = deriveAttachedSkillFolderNames(
+        selectedSkills,
+        tokenIds,
+        skillByFilename,
+        !isAvailableSkillsLoading && !availableSkillsError
+      )
       return {
         draft: normalizedDraft,
         parts: withSkillScopePart(withKnowledgeScopePart(messageParts, knowledgeBaseIds), skillFolderNames)
       }
     },
-    [files, isAvailableSkillsLoading, selectedKnowledgeBasesInScope, selectedSkills, skillByFilename]
+    [
+      availableSkillsError,
+      files,
+      isAvailableSkillsLoading,
+      selectedKnowledgeBasesInScope,
+      selectedSkills,
+      skillByFilename
+    ]
   )
 
   /** `resend` = fork the user message and regenerate; otherwise save the edit in place. */
