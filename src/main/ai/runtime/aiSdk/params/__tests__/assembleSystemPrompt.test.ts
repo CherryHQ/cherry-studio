@@ -252,6 +252,18 @@ describe('assembleSystemPrompt', () => {
     ).rejects.toThrow('attached skills together exceed the')
   })
 
+  it('escapes characters that would break the pseudo-XML skill wrapper', async () => {
+    readSkillMdByFolderName.mockResolvedValue({ status: 'found', content: 'instructions' })
+
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      skillFolderNames: ['weird"name<&>']
+    })
+
+    expect(out).toContain('<skill name="weird&#34;name&#60;&#38;&#62;">')
+  })
+
   it('adds no skill section when no skill is attached', async () => {
     readSkillMdByFolderName.mockResolvedValue({ status: 'found', content: 'unused' })
 
