@@ -19,8 +19,9 @@ import {
 } from '@cherrystudio/ui'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
+import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
 import { type McpServer, type McpServerType, McpServerTypeSchema } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
+import { BuiltinMcpServerNames, normalizeMcpBaseUrl } from '@shared/utils/mcp'
 import type React from 'react'
 import { useCallback, useState } from 'react'
 import type { DefaultValues, UseFormReturn } from 'react-hook-form'
@@ -59,8 +60,20 @@ export const buildMcpSchema = (t: (key: string) => string) =>
 export type McpFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
 export type McpForm = UseFormReturn<McpFormValues>
 
-export function resolveMcpConfigTransportType(type: McpServer['type'], name: string): McpServer['type'] {
-  return type === 'inMemory' && name === BuiltinMcpServerNames.mcpAutoInstall ? 'stdio' : type
+export function resolveMcpConfigTransportType(
+  type: McpServer['type'],
+  name: string,
+  command?: string,
+  baseUrl?: string
+): McpServer['type'] {
+  if (type === 'inMemory') {
+    if (name === BuiltinMcpServerNames.mcpAutoInstall) return 'stdio'
+    const hasInMemoryImplementation = PRESET_MCP_SERVERS.some(
+      (server) => server.name === name && server.type === 'inMemory'
+    )
+    if (hasInMemoryImplementation) return type
+  }
+  return !normalizeMcpBaseUrl(baseUrl) && command ? 'stdio' : type
 }
 
 /**
@@ -216,7 +229,7 @@ export function toMcpFormDefaultValues(server: McpServer): DefaultValues<McpForm
   return {
     name: server.name,
     description: server.description ?? '',
-    serverType: resolveMcpConfigTransportType(server.type, server.name),
+    serverType: resolveMcpConfigTransportType(server.type, server.name, server.command, server.baseUrl),
     baseUrl: server.baseUrl || '',
     command: server.command || '',
     registryUrl: server.registryUrl || '',

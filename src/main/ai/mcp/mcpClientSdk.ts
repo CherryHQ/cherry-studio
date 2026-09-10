@@ -15,6 +15,7 @@ import type {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
+import { normalizeMcpBaseUrl } from '@shared/utils/mcp'
 
 export type McpClientSdk = {
   Client: typeof Client
@@ -68,7 +69,7 @@ export function loadMcpClientSdk(): Promise<McpClientSdk> {
 // This bridges legacy SSE servers and modern Streamable HTTP servers (which reject the
 // SSE GET handshake with 405) without the user having to know the difference.
 export function getTransportCandidates(server: McpServer): McpServerType[] | null {
-  if (!server.baseUrl) return null
+  if (!normalizeMcpBaseUrl(server.baseUrl)) return null
   if (server.type === 'sse') return ['sse', 'streamableHttp']
   if (server.type === 'streamableHttp') return ['streamableHttp', 'sse']
   return null

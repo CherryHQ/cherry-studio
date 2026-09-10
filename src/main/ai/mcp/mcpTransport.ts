@@ -14,11 +14,12 @@ import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/std
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
+import { normalizeMcpBaseUrl } from '@shared/utils/mcp'
 import { redactDeep } from '@shared/utils/redaction'
 import { net } from 'electron'
 
 import type { McpClientSdk, McpTransport } from './mcpClientSdk'
-import { buildStdioEnvironment, resolveLaunchCommand } from './mcpLaunch'
+import { buildStdioEnvironment, resolveLaunchCommand, validateLaunchCommand } from './mcpLaunch'
 import type { McpOAuthClientProvider } from './oauth/provider'
 
 type CreateTransportInput = {
@@ -30,6 +31,7 @@ type CreateTransportInput = {
   authProvider: McpOAuthClientProvider
   logger: LoggerService
   onServerLog: (entry: McpServerLogEntry) => void
+  onTransportError?: (error: Error, details: Record<string, number | string>) => void
 }
 
 function fetchViaNet(url: string | URL | Request, init?: RequestInit): Promise<Response> {
@@ -67,7 +69,7 @@ function hasAuthorization(headers: Record<string, string>): boolean {
 export function isMcpOAuthEnabled(server: McpServer): boolean {
   const type = server.type ?? 'sse'
   return (
-    Boolean(server.baseUrl) &&
+    Boolean(normalizeMcpBaseUrl(server.baseUrl)) &&
     (type === 'sse' || type === 'streamableHttp') &&
     !hasAuthorization(buildHttpHeaders(server))
   )
@@ -113,7 +115,10 @@ async function createInMemory({ sdk, server, args, logger }: CreateTransportInpu
     logger.debug(`In-memory server started`)
   } catch (error: any) {
     logger.error(`Error starting in-memory server`, error as Error)
-    throw new Error(`Failed to start in-memory server: ${error.message}`)
+    throw Object.assign(new Error(`Failed to start in-memory server: ${error.message}`), {
+      code: error.code,
+      path: error.path
+    })
   }
   return clientTransport
 }
@@ -146,7 +151,7 @@ function createUrlTransport(
 }
 
 async function createStdio(
-  { sdk, server, args, logger, onServerLog }: CreateTransportInput,
+  { sdk, server, args, logger, onServerLog, onTransportError }: CreateTransportInput,
   configuredCommand: string
 ): Promise<McpTransport> {
   let command = configuredCommand
@@ -158,9 +163,6 @@ async function createStdio(
   // getServerLogs / the caches (which see the un-mutated server) never query. Keep server.env
   // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
   const connectEnv: Record<string, string> = { ...server.env }
-
-  // Note: getShellEnv() is memoized, so subsequent calls are fast
-  const loginShellEnv = await getShellEnv()
 
   // For package servers, use resolved configuration with platform overrides and variable substitution
   if (server.dxtPath) {
@@ -174,6 +176,11 @@ async function createStdio(
       logger.warn(`Failed to resolve package config, falling back to manifest values`)
     }
   }
+
+  command = validateLaunchCommand(command)
+
+  // Note: getShellEnv() is memoized, so subsequent calls are fast
+  const loginShellEnv = await getShellEnv()
 
   const launch = await resolveLaunchCommand({
     command,
@@ -209,6 +216,7 @@ async function createStdio(
   transport.onerror = (error) => {
     const details = getStdioTransportErrorDetails(error)
     logger.error(`Stdio transport error`, error, details)
+    onTransportError?.(error, details)
     onServerLog({
       timestamp: Date.now(),
       level: 'error',
@@ -239,8 +247,9 @@ export async function createTransport(input: CreateTransportInput): Promise<McpT
   if (server.type === 'inMemory' && hasInMemoryImplementation(server.name)) {
     return createInMemory(input)
   }
-  if (server.baseUrl) {
-    return createUrlTransport(input, server.baseUrl)
+  const baseUrl = normalizeMcpBaseUrl(server.baseUrl)
+  if (baseUrl) {
+    return createUrlTransport(input, baseUrl)
   }
   if (server.command) {
     return createStdio(input, server.command)
