@@ -701,9 +701,10 @@ function boundExplicitThinkingByTotalOutput(
   const thinkingOptions = thinking as Record<string, unknown>
   if (thinkingOptions.type !== 'enabled' || typeof thinkingOptions.budgetTokens !== 'number') return undefined
 
-  if (totalOutputTokens <= ANTHROPIC_MIN_THINKING_BUDGET) {
+  const budgetTokens = Math.min(thinkingOptions.budgetTokens, totalOutputTokens - 1)
+  if (budgetTokens < ANTHROPIC_MIN_THINKING_BUDGET) {
     const disabledThinking = { ...thinkingOptions, type: 'disabled' }
-    delete disabledThinking.budgetTokens
+    Reflect.deleteProperty(disabledThinking, 'budgetTokens')
     return {
       providerOptions: {
         ...providerOptions,
@@ -713,7 +714,6 @@ function boundExplicitThinkingByTotalOutput(
     }
   }
 
-  const budgetTokens = Math.min(thinkingOptions.budgetTokens, totalOutputTokens - 1)
   return {
     providerOptions: {
       ...providerOptions,
