@@ -14,6 +14,8 @@ type FileItemCore = {
   trashed: boolean
   danglingState?: DanglingState
   isMissing?: boolean
+  /** Filesystem or external path used to distinguish same-name rows. Not a preview URL. */
+  sourcePath?: string
 }
 
 type InternalFileItemFields = {
