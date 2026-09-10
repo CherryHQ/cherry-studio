@@ -399,6 +399,7 @@ export function UserAccountPanel({
         </div>
       ) : null}
       <ConfirmDialog
+        contentClassName="gap-3 p-4 sm:max-w-sm"
         open={logoutConfirmOpen}
         onOpenChange={setLogoutConfirmOpen}
         title={t('settings.provider.cherry_cloud.logout_confirm_title')}
