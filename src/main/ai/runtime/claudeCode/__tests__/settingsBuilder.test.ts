@@ -244,36 +244,11 @@ vi.mock('@main/utils/rtk', () => ({
   rtkRewrite: mocks.rtkRewrite
 }))
 
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
   getShellEnv: mocks.getShellEnv,
   getRawShellEnv: mocks.getRawShellEnv,
-  refreshShellEnv: mocks.refreshShellEnv,
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
-  hasMiseInPath: (pathValue?: string) =>
-    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  isMiseEnvVar: (key: string) => key.startsWith('MISE_'),
-  getMiseEnvEntries: (env: Record<string, string | undefined> = {}) =>
-    Object.entries(env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined && entry[0].startsWith('MISE_')
-    ),
-  hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
-    Object.keys(env).some((key) => key.startsWith('MISE_')) ||
-    (Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '')
-      .split(/[:;]/)
-      .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  removePathEntry: (env: Record<string, string | undefined>, dir: string) => {
-    const target = dir.trim().toLowerCase()
-    const delimiter = process.platform === 'win32' ? ';' : ':'
-    for (const key of Object.keys(env).filter((k) => k.toLowerCase() === 'path')) {
-      const value = env[key]
-      if (typeof value !== 'string' || !value) continue
-      env[key] = value
-        .split(/[:;]/)
-        .filter((segment) => segment.trim().toLowerCase() !== target)
-        .join(delimiter)
-    }
-  }
+  refreshShellEnv: mocks.refreshShellEnv
 }))
 
 vi.mock('@main/ai/toolApproval/ToolApprovalRegistry', () => ({

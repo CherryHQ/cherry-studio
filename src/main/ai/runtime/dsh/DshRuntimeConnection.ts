@@ -25,9 +25,14 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getBinaryExecutionEnv, getBinarySearchDirs, getBinaryShimsDir, mergePathSuffixes } from '@main/utils/binaryEnv'
-import { getBundledGitDir } from '@main/utils/bundledGit'
-import { getMiseEnvEntries, getPathFromEnvironment, getRawShellEnv, hasUserMiseEnv } from '@main/utils/shellEnv'
+import { getBinaryExecutionEnv, mergePathSuffixes } from '@main/utils/binaryEnv'
+import {
+  getMiseEnvEntries,
+  getPathFromEnvironment,
+  getRawShellEnv,
+  hasUserMiseEnv,
+  resolveCherryPathTailDirs
+} from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -395,17 +400,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // (vars OR PATH-embedded shims like ~/.local/share/mise/shims).
       const rawMiseEnv = Object.fromEntries(getMiseEnvEntries(rawShellEnv))
       const hasUserMise = hasUserMiseEnv(rawShellEnv)
-      const cherryToolDirs = getBinarySearchDirs()
-      const managedShimsDir = getBinaryShimsDir()
-      const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)
-      const bundledGitDir = getBundledGitDir()
-      const tailDirs = hasUserMise
-        ? bundledGitDir
-          ? [...standaloneDirs, bundledGitDir]
-          : standaloneDirs
-        : bundledGitDir
-          ? [...cherryToolDirs, bundledGitDir]
-          : cherryToolDirs
+      const tailDirs = resolveCherryPathTailDirs(hasUserMise)
       const binaryExecutionEnv = mergePathSuffixes(loginPath !== undefined ? { PATH: loginPath } : {}, tailDirs)
       const cherryMiseEnv = getBinaryExecutionEnv()
       const miseEnv = hasUserMise ? rawMiseEnv : cherryMiseEnv

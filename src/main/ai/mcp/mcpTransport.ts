@@ -11,11 +11,10 @@ import {
   getBuiltinRegistryEnv,
   hasInMemoryImplementation
 } from '@main/ai/mcp/servers/factory'
-import { getBinaryExecutionEnv, getBinarySearchDirs, getBinaryShimsDir, mergePathSuffixes } from '@main/utils/binaryEnv'
-import { getBundledGitDir } from '@main/utils/bundledGit'
+import { getBinaryExecutionEnv, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getRawShellEnv, hasUserMiseEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv, hasUserMiseEnv, resolveCherryPathTailDirs } from '@main/utils/shellEnv'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import { redactDeep } from '@shared/utils/redaction'
@@ -169,18 +168,7 @@ async function createStdio(
   // instead of the default user location, matching DSH/Pi branching.
   const rawShellEnv = await getRawShellEnv()
   const hasUserMise = hasUserMiseEnv(rawShellEnv)
-  const cherryToolDirs = getBinarySearchDirs()
-  const managedShimsDir = getBinaryShimsDir()
-  const standaloneDirs = cherryToolDirs.filter((dir) => dir !== managedShimsDir)
-  const bundledGitDir = getBundledGitDir()
-  const tailDirs = hasUserMise
-    ? bundledGitDir
-      ? [...standaloneDirs, bundledGitDir]
-      : standaloneDirs
-    : bundledGitDir
-      ? [...cherryToolDirs, bundledGitDir]
-      : cherryToolDirs
-  const baseShellEnv = mergePathSuffixes(rawShellEnv, tailDirs)
+  const baseShellEnv = mergePathSuffixes(rawShellEnv, resolveCherryPathTailDirs(hasUserMise))
   const loginShellEnv = hasUserMise ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
 
   // For package servers, use resolved configuration with platform overrides and variable substitution

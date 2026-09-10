@@ -151,23 +151,10 @@ vi.mock('../dshSdk', () => ({
     })
   })
 }))
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
   getShellEnv: runtimeMocks.getShellEnv,
-  getRawShellEnv: runtimeMocks.getShellEnv,
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
-  hasMiseInPath: (pathValue?: string) =>
-    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  isMiseEnvVar: (key: string) => key.startsWith('MISE_'),
-  getMiseEnvEntries: (env: Record<string, string | undefined> = {}) =>
-    Object.entries(env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined && entry[0].startsWith('MISE_')
-    ),
-  hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
-    Object.keys(env).some((key) => key.startsWith('MISE_')) ||
-    (Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '')
-      .split(/[:;]/)
-      .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
+  getRawShellEnv: runtimeMocks.getShellEnv
 }))
 vi.mock('@main/ai/agents/agentDataDirectory', () => ({
   ensureAgentDataDirectory: vi.fn().mockResolvedValue('/agent-data')

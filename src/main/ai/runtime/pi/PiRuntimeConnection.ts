@@ -41,7 +41,8 @@ import {
   getRawShellEnv,
   getShellEnv,
   hasUserMiseEnv,
-  removePathEntry
+  removePathEntry,
+  resolveCherryPathTailDirs
 } from '@main/utils/shellEnv'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -279,7 +280,15 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // no separate "do you trust this project?" prompt. What actually loads from it is
       // still governed by the explicit `no*` flags below.
       const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
-      const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(await getShellEnv()))
+      // One snapshot for the shell prefix and the bash hook below so both agree
+      // on whether the user owns mise.
+      const connectionRawShellEnv = await getRawShellEnv()
+      // A user-owned mise installation must not see Cherry's shims in the shell
+      // prefix: a Cherry shim would run under the user's MISE contract (#19738).
+      const loginPathSource = hasUserMiseEnv(connectionRawShellEnv)
+        ? mergePathSuffixes(connectionRawShellEnv, resolveCherryPathTailDirs(true))
+        : await getShellEnv()
+      const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(loginPathSource))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
 
       // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
@@ -373,11 +382,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         (toolName) => this.disabledTools.has(toolName),
         authorizeTool
       )
-      // Pre-capture the user's raw mise env so the bash spawn hook can
-      // restore it over Cherry's isolated values. A system mise shim
-      // (e.g. pnpx) reads MISE_DATA_DIR to locate its target; Cherry's
-      // isolated value redirects it to the wrong data dir (#19738).
-      const rawShellEnvForBash = await getRawShellEnv()
+      // Restore the user's raw mise env over Cherry's isolated values. A system
+      // mise shim (e.g. pnpx) reads MISE_DATA_DIR to locate its target (#19738).
+      const rawShellEnvForBash = connectionRawShellEnv
       const rawMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(rawShellEnvForBash))
       const hasUserMiseForBash = hasUserMiseEnv(rawShellEnvForBash)
       const cherryMiseEnvForBash = getBinaryExecutionEnv()
@@ -386,14 +393,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
         spawnHook: (context) => {
           const merged = mergePiBashExecutionEnv(context.env)
-          if (hasUserMiseForBash) {
+          // The snapshot can predate the spawn: honor the live spawn env's mise
+          // markers too, with live MISE values winning over the snapshot.
+          const contextMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(context.env))
+          const userMiseEnvForBash = { ...rawMiseEnvForBash, ...contextMiseEnvForBash }
+          if (hasUserMiseForBash || hasUserMiseEnv(context.env)) {
             const isWindows = process.platform === 'win32'
-            const rawMiseKeysNormalized = new Set(
-              Object.keys(rawMiseEnvForBash).map((k) => (isWindows ? k.toUpperCase() : k))
+            const userMiseKeysNormalized = new Set(
+              Object.keys(userMiseEnvForBash).map((k) => (isWindows ? k.toUpperCase() : k))
             )
             for (const key of Object.keys(cherryMiseEnvForBash)) {
               const normalizedKey = isWindows ? key.toUpperCase() : key
-              if (!rawMiseKeysNormalized.has(normalizedKey)) {
+              if (!userMiseKeysNormalized.has(normalizedKey)) {
                 const existingKey = Object.keys(merged).find((k) =>
                   isWindows ? k.toUpperCase() === key.toUpperCase() : k === key
                 )
@@ -401,15 +412,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
               }
             }
             if (isWindows) {
-              for (const key of Object.keys(rawMiseEnvForBash)) {
+              for (const key of Object.keys(userMiseEnvForBash)) {
                 const existingKey = Object.keys(merged).find((k) => k.toLowerCase() === key.toLowerCase() && k !== key)
                 if (existingKey) delete merged[existingKey]
               }
             }
-            Object.assign(merged, rawMiseEnvForBash)
-            // A PATH-only mise install leaves rawMiseEnvForBash empty, and the merge
-            // above may have prepended Cherry's shims when context.env carried no
-            // mise markers — drop it so the user's shims resolve first.
+            Object.assign(merged, userMiseEnvForBash)
+            // A PATH-only mise install leaves userMiseEnvForBash empty, and the
+            // merge above may have prepended Cherry's shims — drop them.
             removePathEntry(merged, getBinaryShimsDir())
           }
           return { ...context, env: merged }

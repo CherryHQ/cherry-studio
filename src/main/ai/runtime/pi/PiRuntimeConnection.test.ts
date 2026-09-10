@@ -172,35 +172,10 @@ vi.mock('./piSdk', () => ({
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
   getShellEnv: mocks.getShellEnv,
-  getRawShellEnv: mocks.getRawShellEnv,
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
-  hasMiseInPath: (pathValue?: string) =>
-    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  isMiseEnvVar: (key: string) => key.startsWith('MISE_'),
-  getMiseEnvEntries: (env: Record<string, string | undefined> = {}) =>
-    Object.entries(env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined && entry[0].startsWith('MISE_')
-    ),
-  hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
-    Object.keys(env).some((key) => key.startsWith('MISE_')) ||
-    (Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '')
-      .split(/[:;]/)
-      .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  removePathEntry: (env: Record<string, string | undefined>, dir: string) => {
-    const target = dir.trim().toLowerCase()
-    const delimiter = process.platform === 'win32' ? ';' : ':'
-    for (const key of Object.keys(env).filter((k) => k.toLowerCase() === 'path')) {
-      const value = env[key]
-      if (typeof value !== 'string' || !value) continue
-      env[key] = value
-        .split(/[:;]/)
-        .filter((segment) => segment.trim().toLowerCase() !== target)
-        .join(delimiter)
-    }
-  }
+  getRawShellEnv: mocks.getRawShellEnv
 }))
 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
@@ -735,6 +710,54 @@ describe('PiRuntimeConnection', () => {
     expect(result.env.MISE_CONFIG_DIR).toBeUndefined()
     expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
     expect(result.env.PATH?.split(path.delimiter)).toContain('/pi/agent/bin')
+  })
+
+  it('keeps Cherry shims out of the pi shell prefix when the user owns mise', async () => {
+    // Exercise the POSIX prefix branch everywhere: on win32 no prefix is set at all.
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    try {
+      mocks.getRawShellEnv.mockResolvedValueOnce({
+        PATH: ['/home/user/.local/share/mise/shims', '/usr/bin'].join(path.delimiter)
+      })
+      await new PiRuntimeConnection(input).start()
+
+      const prefix = mocks.setShellCommandPrefix.mock.calls[0]?.[0] as string
+      expect(prefix).toContain('/home/user/.local/share/mise/shims')
+      expect(prefix).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
+      // Standalone fallback stays reachable; the mock returns it verbatim.
+      expect(prefix).toContain('/cherry/bin')
+    } finally {
+      platformSpy.mockRestore()
+    }
+  })
+
+  it('prefers the live spawn env mise values over a stale connection snapshot', async () => {
+    mocks.getRawShellEnv.mockResolvedValueOnce({
+      PATH: '/usr/bin',
+      MISE_DATA_DIR: '/snapshot/mise'
+    })
+    await new PiRuntimeConnection(input).start()
+
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'node --version',
+      cwd: WORKSPACE,
+      env: {
+        PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter),
+        MISE_DATA_DIR: '/live/mise'
+      }
+    })
+
+    expect(result.env.MISE_DATA_DIR).toBe('/live/mise')
+    expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
   })
 
   it('keeps authenticated proxy requests on the credential-aware Node transport', async () => {

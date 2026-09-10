@@ -50,6 +50,7 @@ vi.mock('../bundledGit', () => ({
 }))
 
 // Import AFTER mocks are registered so the module binds to mocked values.
+import { getBinaryShimsDir } from '../binaryEnv'
 import { getBundledGitDir } from '../bundledGit'
 import {
   getMiseEnvEntries,
@@ -59,7 +60,8 @@ import {
   hasMiseInPath,
   hasUserMiseEnv,
   refreshShellEnv,
-  removePathEntry
+  removePathEntry,
+  resolveCherryPathTailDirs
 } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
@@ -328,5 +330,32 @@ describe('mise environment ownership', () => {
     const env: Record<string, string | undefined> = { Path: 'C:\\Windows' }
     removePathEntry(env, 'C:\\cherry\\shims')
     expect(env.Path).toBe('C:\\Windows')
+  })
+})
+
+describe('resolveCherryPathTailDirs', () => {
+  it('keeps the managed shims dir for users without mise so installed tools resolve', () => {
+    expect(resolveCherryPathTailDirs(false)[0]).toBe(getBinaryShimsDir())
+  })
+
+  it('drops the managed shims dir for user-mise owners so Cherry shims cannot run under their contract', () => {
+    expect(resolveCherryPathTailDirs(true)).not.toContain(getBinaryShimsDir())
+  })
+})
+
+describe('mise ownership on POSIX', () => {
+  it('ignores a lowercase `path` variable when classifying mise ownership', async () => {
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isWin: false,
+      isMac: false,
+      isLinux: true,
+      isDev: false,
+      isPortable: false
+    }))
+    const posixShellEnv = await import('../shellEnv')
+    expect(posixShellEnv.hasUserMiseEnv({ path: '/home/user/.local/share/mise/shims:/usr/bin' })).toBe(false)
+    expect(posixShellEnv.hasUserMiseEnv({ PATH: '/home/user/.local/share/mise/shims:/usr/bin' })).toBe(true)
+    expect(posixShellEnv.hasUserMiseEnv({ PATH: '/usr/bin', path: '/home/user/.local/share/mise/shims' })).toBe(false)
   })
 })

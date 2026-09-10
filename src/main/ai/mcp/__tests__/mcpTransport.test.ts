@@ -22,19 +22,10 @@ vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: vi.fn(() => ''), getPath: vi.fn(() => '/mock') },
   net: { fetch: vi.fn() }
 }))
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
   getShellEnv: async () => ({ PATH: '/shell/bin' }),
-  getRawShellEnv: async () => ({ PATH: '/shell/bin' }),
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
-  hasMiseInPath: (pathValue?: string) =>
-    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  isMiseEnvVar: (key: string) => key.startsWith('MISE_'),
-  hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
-    Object.keys(env).some((key) => key.startsWith('MISE_')) ||
-    (Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '')
-      .split(/[:;]/)
-      .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
+  getRawShellEnv: async () => ({ PATH: '/shell/bin' })
 }))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',
@@ -165,12 +156,12 @@ describe('createTransport', () => {
     expect(transport.params.command).toBe('/usr/local/bin/npx')
     expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
     const pathValue = transport.params.env.PATH as string
-    // User PATH entries must stay before Cherry fallbacks (load-bearing order).
-    // Normalize backslashes for Windows so the assertion is platform-agnostic.
+    // Full fallback order: user entries first, then Cherry's shims, bundled
+    // binaries, and git tail — nothing else, in layout order.
     const normalizedPath = pathValue.replace(/\\/g, '/')
-    expect(normalizedPath.split(/[:;]/)[0]).toBe('/shell/bin')
-    expect(normalizedPath).toContain('/mock/feature.binary.data/shims')
-    expect(normalizedPath.indexOf('/shell/bin')).toBeLessThan(normalizedPath.indexOf('/mock/feature.binary.data'))
+    expect(normalizedPath.split(/[:;]/)).toEqual(['/shell/bin', '/mock/feature.binary.data/shims', '/mock/cherry.bin'])
+    // With no user mise, Cherry's execution env keeps its shims resolvable.
+    expect(transport.params.env.MISE_DATA_DIR).toBe('/mock/feature.binary.data')
     expect(transport.params.stderr).toBe('pipe')
   })
 

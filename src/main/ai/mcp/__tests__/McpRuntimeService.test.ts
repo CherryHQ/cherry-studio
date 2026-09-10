@@ -33,19 +33,10 @@ const shellEnvMock = vi.hoisted(() => ({
   getShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' }),
   getRawShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
 }))
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
   getShellEnv: shellEnvMock.getShellEnv,
-  getRawShellEnv: shellEnvMock.getRawShellEnv,
-  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
-    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1],
-  hasMiseInPath: (pathValue?: string) =>
-    !!pathValue && pathValue.split(/[:;]/).some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
-  isMiseEnvVar: (key: string) => key.startsWith('MISE_'),
-  hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
-    Object.keys(env).some((key) => key.startsWith('MISE_')) ||
-    (Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '')
-      .split(/[:;]/)
-      .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim()))
+  getRawShellEnv: shellEnvMock.getRawShellEnv
 }))
 
 const commandResolverMock = vi.hoisted(() => ({
