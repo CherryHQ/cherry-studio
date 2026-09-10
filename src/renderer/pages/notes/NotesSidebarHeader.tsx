@@ -1,4 +1,5 @@
 import {
+  Button,
   Input,
   MenuDivider,
   MenuItem,
@@ -8,11 +9,32 @@ import {
   PopoverTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { NotesSortType } from '@renderer/types/note'
 import { ArrowLeft, ArrowUpNarrowWide, Check, FilePlus2, FolderPlus, Search, Star, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { ComponentPropsWithRef, FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+interface HeaderIconButtonProps extends ComponentPropsWithRef<typeof Button> {
+  label: string
+  children: ReactNode
+}
+
+const HeaderIconButton = ({ ref, label, children, className, ...props }: HeaderIconButtonProps) => (
+  <Tooltip content={label} delay={800}>
+    <Button
+      ref={ref}
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={label}
+      className={cn('size-6 text-muted-foreground hover:text-foreground', className)}
+      {...props}>
+      {children}
+    </Button>
+  </Tooltip>
+)
 
 interface NotesSidebarHeaderProps {
   isShowStarred: boolean
@@ -61,31 +83,19 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
       <div className="flex items-center gap-1">
         {!isShowStarred && !isShowSearch && (
           <>
-            <Tooltip content={t('notes.new_note')} delay={800}>
-              <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={onCreateNote}>
-                <FilePlus2 size={18} />
-              </div>
-            </Tooltip>
+            <HeaderIconButton label={t('notes.new_note')} onClick={onCreateNote}>
+              <FilePlus2 size={18} />
+            </HeaderIconButton>
 
-            <Tooltip content={t('notes.new_folder')} delay={800}>
-              <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={onCreateFolder}>
-                <FolderPlus size={18} />
-              </div>
-            </Tooltip>
+            <HeaderIconButton label={t('notes.new_folder')} onClick={onCreateFolder}>
+              <FolderPlus size={18} />
+            </HeaderIconButton>
 
             <Popover open={sortOpen} onOpenChange={setSortOpen}>
               <PopoverTrigger asChild>
-                <div>
-                  <Tooltip content={t('assistants.presets.sorting.title')} delay={800}>
-                    <div className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground">
-                      <ArrowUpNarrowWide size={18} />
-                    </div>
-                  </Tooltip>
-                </div>
+                <HeaderIconButton label={t('assistants.presets.sorting.title')}>
+                  <ArrowUpNarrowWide size={18} />
+                </HeaderIconButton>
               </PopoverTrigger>
               <PopoverContent align="center" className="w-52 p-1.5">
                 <MenuList>
@@ -109,41 +119,25 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
               </PopoverContent>
             </Popover>
 
-            <Tooltip content={t('notes.show_starred')} delay={800}>
-              <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={onToggleStarredView}>
-                <Star size={18} />
-              </div>
-            </Tooltip>
+            <HeaderIconButton label={t('notes.show_starred')} onClick={onToggleStarredView}>
+              <Star size={18} />
+            </HeaderIconButton>
 
-            <Tooltip content={t('common.search')} delay={800}>
-              <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={onToggleSearchView}>
-                <Search size={18} />
-              </div>
-            </Tooltip>
+            <HeaderIconButton label={t('common.search')} onClick={onToggleSearchView}>
+              <Search size={18} />
+            </HeaderIconButton>
           </>
         )}
         {isShowStarred && (
-          <Tooltip content={t('common.back')} delay={800}>
-            <div
-              className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-              onClick={onToggleStarredView}>
-              <ArrowLeft size={18} />
-            </div>
-          </Tooltip>
+          <HeaderIconButton label={t('common.back')} onClick={onToggleStarredView}>
+            <ArrowLeft size={18} />
+          </HeaderIconButton>
         )}
         {isShowSearch && (
           <>
-            <Tooltip content={t('common.back')} delay={800}>
-              <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={onToggleSearchView}>
-                <ArrowLeft size={18} />
-              </div>
-            </Tooltip>
+            <HeaderIconButton label={t('common.back')} onClick={onToggleSearchView}>
+              <ArrowLeft size={18} />
+            </HeaderIconButton>
             <div className="relative ml-2 max-w-45 flex-1">
               <Input
                 placeholder={t('knowledge.search_placeholder')}
@@ -153,13 +147,15 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
                 autoFocus
               />
               {searchKeyword && (
-                <button
+                <Button
                   type="button"
-                  className="-translate-y-1/2 absolute top-1/2 right-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="-translate-y-1/2 absolute top-1/2 right-1 size-5 text-muted-foreground"
                   onClick={() => onSetSearchKeyword('')}
                   aria-label={t('common.clear')}>
                   <X size={13} />
-                </button>
+                </Button>
               )}
             </div>
           </>
