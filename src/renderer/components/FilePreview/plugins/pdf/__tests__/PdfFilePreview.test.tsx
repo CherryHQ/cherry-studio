@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   pdfDocument: {
     destroy: vi.fn(),
     getOutline: vi.fn(),
+    getPage: vi.fn(),
     numPages: 3
   },
   pdfViewerCleanup: vi.fn(),
@@ -245,22 +246,24 @@ function renderPreview(refreshKey = 0, size = 1024, onSelectionReference?: (refe
   )
 }
 
-/** Selects text inside a rendered pdf.js page, which carries pdf.js's own 1-based page marker. */
-function selectInPage(pageNumber: string | null, text: string) {
-  const container = screen.getByTestId('pdfjs-viewer-container')
+/** Mounts a page the way pdf.js's PDFViewer would, and returns it for clicking. */
+function renderPage(pageNumber: string | null): HTMLDivElement {
+  const viewer = screen.getByTestId('pdfjs-viewer')
   const page = document.createElement('div')
+  page.className = 'page'
   if (pageNumber !== null) page.setAttribute('data-page-number', pageNumber)
-  const textNode = document.createTextNode(text)
-  page.appendChild(textNode)
-  container.appendChild(page)
+  page.textContent = 'rendered page'
+  viewer.appendChild(page)
+  return page
+}
 
-  const range = document.createRange()
-  range.setStart(textNode, 0)
-  range.setEnd(textNode, textNode.length)
-  const selection = window.getSelection()
-  selection?.removeAllRanges()
-  selection?.addRange(range)
-  document.dispatchEvent(new Event('selectionchange'))
+/** The <a href> pdf.js's annotation layer renders for a link annotation. */
+function renderLinkAnnotation(page: HTMLDivElement): HTMLAnchorElement {
+  const link = document.createElement('a')
+  link.href = 'https://example.com/'
+  link.textContent = 'ref'
+  page.appendChild(link)
+  return link
 }
 
 async function flushPdfEffects() {
@@ -270,32 +273,182 @@ async function flushPdfEffects() {
 }
 
 describe('PdfFilePreview', () => {
-  it('turns a page selection into a reference for the host', async () => {
+  it('reports the clicked page as a reference with the page text as excerpt, and marks it as picked', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({
+      getTextContent: async () => ({
+        items: [{ str: 'results were' }, { str: 'reproduced' }, { type: 'endOfContent' }]
+      })
+    })
     const onSelectionReference = vi.fn()
     renderPreview(0, 1024, onSelectionReference)
-    await flushPdfEffects()
+    await act(flushPdfEffects)
     await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('3')
 
-    selectInPage('3', 'results were reproduced')
+    fireEvent.click(page)
 
-    await waitFor(() => expect(onSelectionReference).toHaveBeenCalled())
-    expect(onSelectionReference).toHaveBeenLastCalledWith({
-      path: filePath,
-      anchor: { format: 'pdf', page: 3 },
-      excerpt: 'results were reproduced',
-      fileStamp: { size: 1024, mtimeMs: 1 }
-    })
+    await waitFor(() =>
+      expect(onSelectionReference).toHaveBeenLastCalledWith({
+        path: filePath,
+        anchor: { format: 'pdf', page: 3 },
+        excerpt: 'results were reproduced',
+        fileStamp: { size: 1024, mtimeMs: 1 }
+      })
+    )
+    expect(mocks.pdfDocument.getPage).toHaveBeenCalledWith(3)
+    expect(page).toHaveAttribute('data-pdf-picked', 'true')
+    expect(screen.getByTestId('pdfjs-viewer-container')).toHaveAttribute('data-picker', 'true')
   })
 
-  it('reports null when the selection is not inside a rendered page', async () => {
+  it('clears the pick on a second click and reports null outside any page', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
     const onSelectionReference = vi.fn()
     renderPreview(0, 1024, onSelectionReference)
-    await flushPdfEffects()
+    await act(flushPdfEffects)
     await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('2')
+    const chrome = renderPage(null)
 
-    selectInPage(null, 'text with no page marker')
+    fireEvent.click(page)
+    await waitFor(() => expect(page).toHaveAttribute('data-pdf-picked', 'true'))
+    fireEvent.click(page)
+    expect(page).not.toHaveAttribute('data-pdf-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+
+    fireEvent.click(chrome)
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it('keeps the pick and its marker across a viewer rebuild, and still clears on the next click', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('2')
+
+    fireEvent.click(page)
+    await waitFor(() =>
+      expect(onSelectionReference).toHaveBeenLastCalledWith(
+        expect.objectContaining({ anchor: { format: 'pdf', page: 2 } })
+      )
+    )
+    const callsWhenPicked = onSelectionReference.mock.calls.length
+
+    // What pdf.js does when it re-renders its page list: the viewer element's children are replaced
+    // with fresh page divs. The host still holds the reference, so the pick must survive the rebuild
+    // and the rebuild must report nothing.
+    screen.getByTestId('pdfjs-viewer').replaceChildren()
+    const rebuilt = renderPage('2')
+
+    await waitFor(() => expect(rebuilt).toHaveAttribute('data-pdf-picked', 'true'))
+    expect(onSelectionReference).toHaveBeenCalledTimes(callsWhenPicked)
+
+    fireEvent.click(rebuilt)
+
+    expect(rebuilt).not.toHaveAttribute('data-pdf-picked')
+    expect(onSelectionReference).toHaveBeenLastCalledWith(null)
+  })
+
+  it('does not mark a page whose text is empty and reports null', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [] }) })
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('1')
+
+    fireEvent.click(page)
 
     await waitFor(() => expect(onSelectionReference).toHaveBeenLastCalledWith(null))
+    await waitFor(() =>
+      expect(screen.getByTestId('pdfjs-viewer').querySelector('[data-pdf-picked]')).not.toBeInTheDocument()
+    )
+  })
+
+  it('does not report a pick whose text arrives after the preview unmounted', async () => {
+    let resolveText: (value: { items: Array<{ str: string }> }) => void = () => {}
+    mocks.pdfDocument.getPage.mockResolvedValue({
+      getTextContent: () =>
+        new Promise((resolve) => {
+          resolveText = resolve
+        })
+    })
+    const onSelectionReference = vi.fn()
+    const view = renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('2')
+
+    fireEvent.click(page)
+    await act(flushPdfEffects)
+    const callsBeforeUnmount = onSelectionReference.mock.calls.length
+
+    view.unmount()
+    resolveText({ items: [{ str: 'late text' }] })
+    await act(flushPdfEffects)
+
+    expect(onSelectionReference).not.toHaveBeenCalledWith(expect.objectContaining({ excerpt: 'late text' }))
+    expect(onSelectionReference).toHaveBeenCalledTimes(callsBeforeUnmount)
+  })
+
+  it('prevents a link annotation from navigating when the click is a pick', async () => {
+    mocks.pdfDocument.getPage.mockResolvedValue({ getTextContent: async () => ({ items: [{ str: 'page text' }] }) })
+    const onSelectionReference = vi.fn()
+    renderPreview(0, 1024, onSelectionReference)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const link = renderLinkAnnotation(renderPage('1'))
+
+    let observed: boolean | undefined
+    // jsdom attempts a real navigation for an unprevented click on an <a href>, logging "Not
+    // implemented: navigation" noise; observe defaultPrevented as the event reaches document, then
+    // cancel it ourselves so jsdom never gets there.
+    const observe = (event: Event) => {
+      observed = event.defaultPrevented
+      event.preventDefault()
+    }
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(link)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(true)
+    await waitFor(() =>
+      expect(onSelectionReference).toHaveBeenLastCalledWith(
+        expect.objectContaining({ anchor: { format: 'pdf', page: 1 } })
+      )
+    )
+
+    cleanup()
+    renderPreview(0, 1024, undefined)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const plainLink = renderLinkAnnotation(renderPage('1'))
+
+    document.addEventListener('click', observe)
+    try {
+      fireEvent.click(plainLink)
+    } finally {
+      document.removeEventListener('click', observe)
+    }
+
+    expect(observed).toBe(false)
+  })
+
+  it('does not mark the viewer or react to clicks when the host is not capturing', async () => {
+    renderPreview(0, 1024, undefined)
+    await act(flushPdfEffects)
+    await waitFor(() => expect(screen.getByTestId('pdfjs-viewer-container')).toBeInTheDocument())
+    const page = renderPage('1')
+
+    fireEvent.click(page)
+
+    expect(mocks.pdfDocument.getPage).not.toHaveBeenCalled()
+    expect(screen.getByTestId('pdfjs-viewer-container')).not.toHaveAttribute('data-picker')
+    expect(page).not.toHaveAttribute('data-pdf-picked')
   })
 
   beforeEach(() => {
@@ -305,6 +458,7 @@ describe('PdfFilePreview', () => {
     mocks.rangeTransportInstances.length = 0
     mocks.viewerInstances.length = 0
     mocks.pdfDocument.numPages = 3
+    mocks.pdfDocument.getPage.mockReset()
     initialDataTheme = document.documentElement.getAttribute('data-theme')
     themeBackground = 'rgb(10, 11, 12)'
     const getPropertyValue = CSSStyleDeclaration.prototype.getPropertyValue
