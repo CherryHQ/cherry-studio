@@ -1575,6 +1575,95 @@ describe('useMutation trigger identity & option freshness', () => {
     expect(firstRefresh).not.toHaveBeenCalled()
   })
 
+  it('rolls back optimistic data and preserves the request error when onError throws', async () => {
+    const requestError = new Error('provider update failed')
+    const callbackError = new Error('onError failed')
+    const provider = { id: 'provider-1', name: 'Provider One' }
+    const optimisticProvider = { ...provider, name: 'Updating' }
+    let rejectRequest!: (error: Error) => void
+    vi.spyOn(dataApiService, 'patch').mockImplementation(
+      () =>
+        new Promise((_, reject) => {
+          rejectRequest = reject
+        }) as never
+    )
+    const onError = vi.fn(() => {
+      throw callbackError
+    })
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        provider: useSWR(['/providers/provider-1'], async () => provider),
+        mutation: useMutation('PATCH', '/providers/:providerId', {
+          optimisticData: optimisticProvider as never,
+          onError
+        })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.provider.data).toEqual(provider))
+
+    let update!: Promise<unknown>
+    act(() => {
+      update = result.current.mutation.trigger({
+        params: { providerId: 'provider-1' },
+        body: { name: 'Updated' }
+      })
+    })
+    await waitFor(() => expect(result.current.provider.data).toEqual(optimisticProvider))
+
+    await act(async () => {
+      rejectRequest(requestError)
+      await expect(update).rejects.toBe(requestError)
+    })
+
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(requestError)
+    expect(result.current.provider.data).toEqual(provider)
+  })
+
+  it('preserves success and revalidation when onSuccess throws', async () => {
+    const callbackError = new Error('onSuccess failed')
+    const provider = { id: 'provider-1', name: 'Provider One' }
+    const updatedProvider = { ...provider, name: 'Updated' }
+    let persistedProvider = provider
+    vi.spyOn(dataApiService, 'patch').mockImplementation(async () => {
+      persistedProvider = updatedProvider
+      return updatedProvider as never
+    })
+    const onSuccess = vi.fn(() => {
+      throw callbackError
+    })
+    const onError = vi.fn()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        provider: useSWR(['/providers/provider-1'], async () => persistedProvider),
+        mutation: useMutation('PATCH', '/providers/:providerId', {
+          optimisticData: { ...provider, name: 'Updating' } as never,
+          onSuccess,
+          onError
+        })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.provider.data).toEqual(provider))
+
+    await act(async () => {
+      await expect(
+        result.current.mutation.trigger({
+          params: { providerId: 'provider-1' },
+          body: { name: 'Updated' }
+        })
+      ).resolves.toEqual(updatedProvider)
+    })
+
+    expect(onSuccess).toHaveBeenCalledOnce()
+    expect(onSuccess).toHaveBeenCalledWith(updatedProvider)
+    expect(onError).not.toHaveBeenCalled()
+    expect(result.current.provider.data).toEqual(updatedProvider)
+  })
+
   it('keeps trigger identity on template paths with function-form refresh (crash-site shape)', () => {
     const { Wrapper } = makeWrapper()
     // Mirrors useUpdateAgent (useAgent.ts), the consumer that crashed in
@@ -1594,6 +1683,7 @@ describe('useMutation trigger identity & option freshness', () => {
 
   it('keeps each concurrent template mutation bound to its own request outcome', async () => {
     const firstError = new Error('session-1 delete failed')
+    const onError = vi.fn()
     let rejectSessionOne!: (error: Error) => void
     let resolveSessionTwo!: (value: unknown) => void
     vi.spyOn(dataApiService, 'delete').mockImplementation((path) => {
@@ -1610,9 +1700,10 @@ describe('useMutation trigger identity & option freshness', () => {
       throw new Error(`Unexpected DELETE path: ${path}`)
     })
     const { Wrapper } = makeWrapper()
-    const { result } = renderHook(() => useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId'), {
-      wrapper: Wrapper
-    })
+    const { result } = renderHook(
+      () => useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', { onError }),
+      { wrapper: Wrapper }
+    )
 
     let sessionOneDelete!: Promise<unknown>
     let sessionTwoDelete!: Promise<unknown>
@@ -1635,6 +1726,88 @@ describe('useMutation trigger identity & option freshness', () => {
       { status: 'rejected', reason: firstError },
       { status: 'fulfilled', value: undefined }
     ])
+    expect(onError).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(firstError)
+  })
+
+  it('keeps concurrent optimistic rollback and success side effects scoped to each request', async () => {
+    const firstError = new Error('provider-1 update failed')
+    const providerOne = { id: 'provider-1', name: 'Provider One' }
+    const providerTwo = { id: 'provider-2', name: 'Provider Two' }
+    const updatedProviderTwo = { ...providerTwo, name: 'Provider Two Updated' }
+    const optimisticProvider = { id: 'optimistic', name: 'Updating' }
+    let rejectProviderOne!: (error: Error) => void
+    let resolveProviderTwo!: (value: unknown) => void
+    vi.spyOn(dataApiService, 'patch').mockImplementation((path) => {
+      if (path === '/providers/provider-1') {
+        return new Promise((_, reject) => {
+          rejectProviderOne = reject
+        }) as never
+      }
+      if (path === '/providers/provider-2') {
+        return new Promise((resolve) => {
+          resolveProviderTwo = resolve
+        }) as never
+      }
+      throw new Error(`Unexpected PATCH path: ${path}`)
+    })
+    const refresh = vi.fn(() => [])
+    const onSuccess = vi.fn()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(
+      () => ({
+        providerOne: useSWR(['/providers/provider-1'], async () => providerOne),
+        providerTwo: useSWR(['/providers/provider-2'], async () => updatedProviderTwo),
+        mutation: useMutation('PATCH', '/providers/:providerId', {
+          optimisticData: optimisticProvider as never,
+          refresh,
+          onSuccess
+        })
+      }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => {
+      expect(result.current.providerOne.data).toEqual(providerOne)
+      expect(result.current.providerTwo.data).toEqual(updatedProviderTwo)
+    })
+
+    let providerOneUpdate!: Promise<unknown>
+    let providerTwoUpdate!: Promise<unknown>
+    act(() => {
+      providerOneUpdate = result.current.mutation.trigger({
+        params: { providerId: 'provider-1' },
+        body: { name: 'Provider One Updated' }
+      })
+      providerTwoUpdate = result.current.mutation.trigger({
+        params: { providerId: 'provider-2' },
+        body: { name: 'Provider Two Updated' }
+      })
+    })
+    await waitFor(() => expect(dataApiService.patch).toHaveBeenCalledTimes(2))
+    expect(result.current.providerOne.data).toEqual(optimisticProvider)
+    expect(result.current.providerTwo.data).toEqual(optimisticProvider)
+
+    await act(async () => {
+      resolveProviderTwo(updatedProviderTwo)
+      await providerTwoUpdate
+    })
+    await act(async () => {
+      rejectProviderOne(firstError)
+      await expect(providerOneUpdate).rejects.toBe(firstError)
+    })
+
+    expect(result.current.providerOne.data).toEqual(providerOne)
+    expect(result.current.providerTwo.data).toEqual(updatedProviderTwo)
+    expect(refresh).toHaveBeenCalledOnce()
+    expect(refresh).toHaveBeenCalledWith({
+      args: {
+        params: { providerId: 'provider-2' },
+        body: { name: 'Provider Two Updated' }
+      },
+      result: updatedProviderTwo
+    })
+    expect(onSuccess).toHaveBeenCalledOnce()
+    expect(onSuccess).toHaveBeenCalledWith(updatedProviderTwo)
   })
 })
 

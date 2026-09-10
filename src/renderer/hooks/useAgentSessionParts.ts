@@ -125,11 +125,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   })
   const inFlightDeletePromisesRef = useRef(new Map<string, Promise<void>>())
   const deleteQueuesRef = useRef(new Map<string, Promise<void>>())
-  const locallyRemovedIdsRef = useRef({ ids: new Set<string>(), sessionId })
-  if (locallyRemovedIdsRef.current.sessionId !== sessionId) {
-    locallyRemovedIdsRef.current = { ids: new Set<string>(), sessionId }
-  }
-  const locallyRemovedIds = locallyRemovedIdsRef.current.ids
+  const locallyRemovedIds = useMemo(() => ({ ids: new Set<string>(), sessionId }), [sessionId]).ids
   useDataChange(
     '/agent-sessions/:sessionId/messages',
     () => {

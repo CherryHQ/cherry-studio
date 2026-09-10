@@ -449,8 +449,8 @@ export function useQuery<TPath extends ApiPath>(
  *    in "stale, pending revalidation" state — avoid manual optimistic
  *    `mutate(...)` here as it races with the pending revalidation.
  * 4. If `optimisticData` was set, the mutated cache key is re-validated.
- * A thrown `refresh` callback is caught and logged; it does not cause the
- * `trigger` promise to reject or skip `onSuccess`.
+ * Thrown `refresh`, `onSuccess`, and `onError` callbacks are caught and logged;
+ * they do not replace the mutation outcome or skip cache reconciliation.
  *
  * @remarks
  * The returned `trigger` is memoized and reads options through a ref: passing
@@ -519,7 +519,6 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
   } = useSWRMutation(path as string, fetcher, {
     populateCache: false,
     revalidate: false,
-    onError: (err) => optionsRef.current?.onError?.(err),
     ...options?.swrOptions
   })
 
@@ -594,7 +593,13 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
           }
         }
 
-        opts?.onSuccess?.(result)
+        try {
+          opts?.onSuccess?.(result)
+        } catch (callbackErr) {
+          logger.warn(`onSuccess callback failed after successful ${method} ${String(path)}`, {
+            error: callbackErr
+          })
+        }
 
         // Revalidate after optimistic update completes
         if (hasOptimisticData) {
@@ -606,6 +611,13 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
         // Rollback optimistic update on error
         if (hasOptimisticData) {
           await globalMutate([resolvedPath])
+        }
+        try {
+          opts?.onError?.(err as Error)
+        } catch (callbackErr) {
+          logger.warn(`onError callback failed while handling ${method} ${String(path)}`, {
+            error: callbackErr
+          })
         }
         throw err
       } finally {

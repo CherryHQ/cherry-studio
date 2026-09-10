@@ -3,6 +3,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
+import { createElement, type ReactNode, startTransition, Suspense } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dataApiMocks = MockUseDataApi
@@ -477,6 +478,43 @@ describe('useAgentSessionParts', () => {
     expect(live.trigger).toHaveBeenLastCalledWith({
       params: { sessionId: 'session-1', messageId: 'message-1' }
     })
+  })
+
+  it('preserves committed deletion state when an alternate session render is interrupted', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
+    live.setItems('session-2', [sessionMessageRow('message-2', 'session-2')])
+    const never = new Promise<never>(() => undefined)
+    const SuspenseWrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Suspense, { fallback: null }, children)
+    const { result, rerender } = renderHook(
+      ({ sessionId, shouldSuspend }) => {
+        const parts = useAgentSessionParts(sessionId)
+        if (shouldSuspend) throw never
+        return parts
+      },
+      {
+        wrapper: SuspenseWrapper,
+        initialProps: { sessionId: 'session-1', shouldSuspend: false }
+      }
+    )
+
+    await act(async () => {
+      await result.current.deleteMessage('message-1')
+    })
+    act(() => {
+      startTransition(() => rerender({ sessionId: 'session-2', shouldSuspend: true }))
+    })
+    act(() => {
+      live.setItems('session-1', [sessionMessageRow('message-1')])
+    })
+    rerender({ sessionId: 'session-1', shouldSuspend: false })
+
+    await act(async () => {
+      await result.current.deleteMessage('message-1')
+    })
+
+    expect(live.trigger).toHaveBeenCalledOnce()
+    expect(live.getIds('session-1')).toEqual([])
   })
 
   it('does not send a second DELETE while the first request is in flight', async () => {
