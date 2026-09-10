@@ -75,14 +75,16 @@ vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => null
 }))
 
-vi.mock('../../UserPopup', () => ({
-  default: {
-    show: vi.fn()
-  }
+vi.mock('../../UserAccountPanel', () => ({
+  UserAccountPanel: () => null
 }))
 
 vi.mock('../../layout/ShellTabBarActions', () => ({
-  SidebarShellActions: () => null
+  AppUpdateButton: () => null
+}))
+
+vi.mock('../../layout/HelpMenu', () => ({
+  HelpMenu: () => null
 }))
 
 import Sidebar from '../Sidebar'

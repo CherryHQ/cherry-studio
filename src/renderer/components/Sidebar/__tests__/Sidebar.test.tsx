@@ -1,8 +1,11 @@
+import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import type * as MenuListModule from '@cherrystudio/ui/components/composites/menu-list'
+import type * as PopoverModule from '@cherrystudio/ui/components/primitives/popover'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
-import type { CSSProperties, ReactNode } from 'react'
+import { type CSSProperties, type ReactElement, type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -29,48 +32,27 @@ const uiMocks = vi.hoisted(() => ({
   contextMenuOpenChange: undefined as ((open: boolean) => void) | undefined
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  MenuItem: ({
-    icon,
-    label,
-    onClick,
-    onMouseDown,
-    onAuxClick,
-    className,
-    active
-  }: {
-    icon?: ReactNode
-    label: string
-    onClick?: () => void
-    onMouseDown?: (e: React.MouseEvent) => void
-    onAuxClick?: (e: React.MouseEvent) => void
-    className?: string
-    active?: boolean
-  }) => (
-    <button
-      type="button"
-      data-active={active ? 'true' : 'false'}
-      className={className}
-      onClick={onClick}
-      onMouseDown={onMouseDown}
-      onAuxClick={onAuxClick}>
-      {icon}
-      <span>{label}</span>
-    </button>
-  ),
-  Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
-    uiMocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
-    const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
+vi.mock('@cherrystudio/ui', async () => {
+  const menuList = await vi.importActual<typeof MenuListModule>('@cherrystudio/ui/components/composites/menu-list')
+  const popover = await vi.importActual<typeof PopoverModule>('@cherrystudio/ui/components/primitives/popover')
 
-    return (
-      <div>
-        {items.map((item: any) => (
-          <div key={getKey(item)}>{renderItem(item)}</div>
-        ))}
-      </div>
-    )
+  return {
+    ...menuList,
+    ...popover,
+    Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
+      uiMocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
+      const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
+
+      return (
+        <div>
+          {items.map((item: any) => (
+            <div key={getKey(item)}>{renderItem(item)}</div>
+          ))}
+        </div>
+      )
+    }
   }
-}))
+})
 
 vi.mock('../Tooltip', () => ({
   SidebarTooltip: ({ children }: { children: ReactNode }) => children
@@ -326,9 +308,77 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
-  it('runs the header action when the visible title is clicked', async () => {
+  it.each([
+    { name: 'icon', width: SIDEBAR_ICON_WIDTH, isFloating: false },
+    { name: 'full', width: SIDEBAR_FULL_THRESHOLD, isFloating: false },
+    { name: 'floating', width: 0, isFloating: true }
+  ])('renders the $name account entry as an accessible footer button', async ({ width, isFloating }) => {
     const user = userEvent.setup()
-    const onHeaderClick = vi.fn()
+    const onAccountClick = vi.fn()
+    render(
+      <Sidebar
+        width={width}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        user={{ name: 'User', onClick: onAccountClick }}
+        isFloating={isFloating}
+        renderUserTrigger={(trigger: ReactElement) => <div data-testid="footer-account-trigger">{trigger}</div>}
+      />
+    )
+
+    const accountButton = screen.getByRole('button', { name: 'User' })
+
+    expect(screen.getByTestId('footer-account-trigger')).toContainElement(accountButton)
+    await user.click(accountButton)
+    expect(onAccountClick).toHaveBeenCalledOnce()
+  })
+
+  it('exposes account menu state and restores focus to its footer trigger', async () => {
+    const user = userEvent.setup()
+
+    function AccountSidebar() {
+      const [open, setOpen] = useState(false)
+
+      return (
+        <Popover open={open} onOpenChange={setOpen}>
+          <Sidebar
+            width={SIDEBAR_FULL_THRESHOLD}
+            setWidth={vi.fn()}
+            active={{ activeItem: 'chat' }}
+            entries={entries}
+            user={{ name: 'User' }}
+            renderUserTrigger={(trigger: ReactElement) => <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
+          />
+          {open ? (
+            <PopoverContent align="start" side="top" sideOffset={8}>
+              Account settings
+            </PopoverContent>
+          ) : null}
+        </Popover>
+      )
+    }
+
+    render(<AccountSidebar />)
+
+    const trigger = screen.getByRole('button', { name: /User$/ })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(trigger)
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Account settings')).toBeVisible()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByText('Account settings')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('keeps the full footer update action independent from the account trigger', async () => {
+    const user = userEvent.setup()
+    const onAccountClick = vi.fn()
+    const onUpdateClick = vi.fn()
 
     render(
       <Sidebar
@@ -336,21 +386,20 @@ describe('Sidebar resize handle', () => {
         setWidth={vi.fn()}
         active={{ activeItem: 'chat' }}
         entries={entries}
-        title="User"
-        logo={<span>avatar</span>}
-        onHeaderClick={onHeaderClick}
+        user={{ name: 'User', onClick: onAccountClick }}
+        userAction={(layout) => (
+          <button type="button" aria-label={`Install update ${layout}`} onClick={onUpdateClick}>
+            update
+          </button>
+        )}
       />
     )
 
-    const headerAction = screen.getByRole('button', { name: /User$/ })
-    // Interactive controls must opt out of Electron's window drag region.
-    expect(headerAction).toHaveClass('[-webkit-app-region:no-drag]')
-    // The sidebar foreground token must win over MenuItem's generic foreground.
-    expect(headerAction).toHaveClass('text-sidebar-foreground')
+    await user.click(screen.getByRole('button', { name: 'Install update full' }))
 
-    await user.click(headerAction)
-
-    expect(onHeaderClick).toHaveBeenCalledTimes(1)
+    expect(onUpdateClick).toHaveBeenCalledOnce()
+    expect(onAccountClick).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'User' })).not.toHaveTextContent('›')
   })
 
   it('wires context menu actions and keeps blank sidebar space clickable while the menu is open', async () => {
