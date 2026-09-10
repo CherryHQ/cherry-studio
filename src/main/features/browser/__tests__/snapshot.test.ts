@@ -191,6 +191,28 @@ describe('browser snapshots', () => {
     expect(JSON.stringify(tree)).not.toContain('SECRET')
   })
 
+  it.each(['', '/cart', undefined])('preserves empty, populated and absent href attributes: %s', async (href) => {
+    const { session, raw } = setup()
+    if (href !== undefined) {
+      const key = raw.dom!.strings.push('href') - 1
+      const value = href === '' ? -1 : raw.dom!.strings.push(href) - 1
+      raw.dom!.documents[0].nodes.attributes[2] = [key, value]
+    }
+    const result = await session.snapshot({ full: true, maxChars: 6000 })
+    const button = result.snapshot.nodes.find((node) => node.backendNodeId === 3)!
+    expect(button.ref).toBeDefined()
+    expect(button.props.filter((prop) => prop.startsWith('href='))).toEqual(href === undefined ? [] : [`href=${href}`])
+    expect(result.text).toContain('textbox "Name" value="Alice"')
+    expect(result.text).not.toContain('SECRET')
+  })
+
+  it('keeps visible targets when Chromium encodes an empty computed style with -1', () => {
+    const raw = fixture()
+    raw.dom!.documents[0].layout.styles[2][3] = -1
+    const tree = buildSnapshotTree(raw, (id) => `e${id}`)
+    expect(tree.nodes.find((node) => node.backendNodeId === 3)).toMatchObject({ ref: 'e3', name: 'Submit' })
+  })
+
   it('preserves document identity and refs on a same-document navigation', async () => {
     const { session, mock } = setup()
     const previous = await session.snapshot()
