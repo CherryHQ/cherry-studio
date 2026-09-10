@@ -14,6 +14,8 @@
  * for the mutated file.
  */
 
+import { isMac, isWin } from '@main/core/platform'
+
 /** Exploration tools monitored for stuck loops and consecutive read budgets. */
 export const EXPLORER_TOOLS: ReadonlySet<string> = new Set(['Read', 'Grep', 'Glob'])
 
@@ -52,9 +54,15 @@ export interface ExplorerLoopEvaluation {
   filePath?: string
 }
 
-export function normalizePath(p: string | undefined): string {
+/**
+ * Normalizes file paths for comparison and deduplication.
+ * Conforms to host filesystem case-sensitivity semantics (case-insensitive on Windows and macOS default,
+ * case-preserving on Linux).
+ */
+export function normalizePath(p: string | undefined, caseInsensitive: boolean = isMac || isWin): string {
   if (!p || typeof p !== 'string') return ''
-  return p.trim().replace(/\\/g, '/').toLowerCase()
+  const normalized = p.trim().replace(/\\/g, '/')
+  return caseInsensitive ? normalized.toLowerCase() : normalized
 }
 
 /** Canonicalizes tool name and its arguments so key order and formatting differences do not drift. */
@@ -63,20 +71,18 @@ export function normalizeExplorerSignature(
   input: Readonly<Record<string, unknown>> | undefined
 ): string {
   if (!input) return `${toolName}:{}`
-  const targetPath =
-    typeof input.file_path === 'string' ? input.file_path : typeof input.path === 'string' ? input.path : undefined
-
-  if (targetPath) {
-    const offset = typeof input.offset === 'number' ? `:${input.offset}` : ''
-    const limit = typeof input.limit === 'number' ? `:${input.limit}` : ''
-    const pattern = typeof input.pattern === 'string' ? `:${input.pattern.trim()}` : ''
-    return `${toolName}:${normalizePath(targetPath)}${pattern}${offset}${limit}`
-  }
 
   const sortedKeys = Object.keys(input).sort()
   const sortedObj: Record<string, unknown> = {}
   for (const k of sortedKeys) {
-    sortedObj[k] = input[k]
+    const val = input[k]
+    if ((k === 'file_path' || k === 'path') && typeof val === 'string') {
+      sortedObj[k] = normalizePath(val)
+    } else if (typeof val === 'string') {
+      sortedObj[k] = val.trim()
+    } else {
+      sortedObj[k] = val
+    }
   }
   return `${toolName}:${JSON.stringify(sortedObj)}`
 }

@@ -347,10 +347,14 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
           typeof input.tool_input === 'object' && input.tool_input !== null
             ? (((input.tool_input as Record<string, unknown>).file_path as string | undefined) ??
               ((input.tool_input as Record<string, unknown>).path as string | undefined) ??
+              ((input.tool_input as Record<string, unknown>).output_path as string | undefined) ??
               ((input.tool_input as Record<string, unknown>).notebook_path as string | undefined))
             : undefined
         sessionState().recordExplorerRunBreak(sessionId, mutatedPath, agentId)
-      } else if (input.hook_event_name === 'PostToolUse' && EXPLORER_TOOLS.has(input.tool_name)) {
+      } else if (
+        (input.hook_event_name === 'PostToolUse' || input.hook_event_name === 'PostToolUseFailure') &&
+        EXPLORER_TOOLS.has(input.tool_name)
+      ) {
         sessionState().recordExplorerOutcome(
           sessionId,
           input.tool_name,

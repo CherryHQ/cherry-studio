@@ -11,25 +11,35 @@ import {
 } from '../explorerLoop'
 
 describe('normalizePath', () => {
-  it('converts Windows backslashes to forward slashes and lowercases', () => {
+  it('converts Windows backslashes to forward slashes and lowercases by default on win32', () => {
     expect(normalizePath('src\\Core\\Main.TS ')).toBe('src/core/main.ts')
     expect(normalizePath(undefined)).toBe('')
+  })
+
+  it('preserves casing when caseInsensitive is false (e.g. Linux filesystem)', () => {
+    expect(normalizePath('src\\Core\\Main.TS ', false)).toBe('src/Core/Main.TS')
   })
 })
 
 describe('normalizeExplorerSignature', () => {
   it('normalizes file_path by replacing backslashes and trimming', () => {
-    expect(normalizeExplorerSignature('Read', { file_path: 'src\\main\\index.ts ' })).toBe('Read:src/main/index.ts')
+    expect(normalizeExplorerSignature('Read', { file_path: 'src\\main\\index.ts ' })).toBe(
+      'Read:{"file_path":"src/main/index.ts"}'
+    )
   })
 
   it('includes offset and limit in signature for slice reads', () => {
     expect(normalizeExplorerSignature('Read', { file_path: 'src/main.ts', offset: 10, limit: 50 })).toBe(
-      'Read:src/main.ts:10:50'
+      'Read:{"file_path":"src/main.ts","limit":50,"offset":10}'
     )
   })
 
-  it('normalizes Grep with pattern and path', () => {
-    expect(normalizeExplorerSignature('Grep', { path: 'src/main', pattern: 'foo' })).toBe('Grep:src/main:foo')
+  it('normalizes Grep with pattern and path, and preserves behavior-affecting flags', () => {
+    const sigWithoutFlag = normalizeExplorerSignature('Grep', { path: 'src/main', pattern: 'foo' })
+    const sigWithFlag = normalizeExplorerSignature('Grep', { path: 'src/main', pattern: 'foo', '-i': true })
+    expect(sigWithoutFlag).toBe('Grep:{"path":"src/main","pattern":"foo"}')
+    expect(sigWithFlag).toBe('Grep:{"-i":true,"path":"src/main","pattern":"foo"}')
+    expect(sigWithoutFlag).not.toBe(sigWithFlag)
   })
 
   it('sorts generic parameters deterministically', () => {

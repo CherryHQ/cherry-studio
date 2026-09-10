@@ -87,11 +87,56 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
       )
     )
 
+  const firePostToolUseFailure = (toolName: string, input: Record<string, unknown>, agentId?: string) =>
+    Promise.all(
+      postToolUseHooks.map((h) =>
+        h(
+          {
+            hook_event_name: 'PostToolUseFailure',
+            tool_name: toolName,
+            tool_input: input,
+            error: 'Error: file not found',
+            tool_use_id: 'tu-test-fail',
+            ...(agentId ? { agent_id: agentId } : {})
+          } as never,
+          undefined,
+          {} as never
+        )
+      )
+    )
+
   it('records explorer outcomes on PostToolUse and returns expected status', async () => {
     await firePostToolUse('Read', { file_path: 'src/index.ts', offset: 1, limit: 100 })
     const status = svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/index.ts', offset: 1, limit: 100 })
     expect(status?.identicalRun).toBe(2)
     expect(status?.consecutiveReads).toBe(2)
+  })
+
+  it('records explorer outcomes on PostToolUseFailure', async () => {
+    await firePostToolUseFailure('Read', { file_path: 'src/missing.ts' })
+    const status = svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/missing.ts' })
+    expect(status?.identicalRun).toBe(2)
+    expect(status?.consecutiveReads).toBe(2)
+  })
+
+  it('resets explorer loop state when save_attachment completes with output_path', async () => {
+    for (let i = 0; i < 10; i++) {
+      await firePostToolUse('Read', { file_path: 'src/asset.png', offset: i * 50, limit: 50 })
+    }
+    const capStatus = svc.getExplorerLoopStatus(SESSION, 'Read', { file_path: 'src/asset.png', offset: 500, limit: 50 })
+    expect(capStatus?.sameFileCapReached).toBe(true)
+
+    // Fire save_attachment with output_path
+    await firePostToolUse('mcp__assistant-files__save_attachment', {
+      filename: 'remote.png',
+      output_path: 'src/asset.png'
+    })
+    const unlockedStatus = svc.getExplorerLoopStatus(SESSION, 'Read', {
+      file_path: 'src/asset.png',
+      offset: 500,
+      limit: 50
+    })
+    expect(unlockedStatus?.sameFileCapReached).toBeFalsy()
   })
 
   it('resets explorer loop state with per-file scope when Edit completes', async () => {
