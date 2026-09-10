@@ -650,6 +650,60 @@ describe('buildAgentParams standard model parameters', () => {
     expect(result.options.maxOutputTokens).toBe(32_000)
   })
 
+  it('clamps the actual OpenAI-compatible request to the selected model output limit', async () => {
+    let sentBody: Record<string, unknown> | undefined
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai-chat',
+        providerSettings: {
+          apiKey: 'sk-test',
+          baseURL: 'https://gateway.test/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+            return Response.json({
+              id: 'chatcmpl-test',
+              object: 'chat.completion',
+              created: 0,
+              model: 'deepseek-v4',
+              choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+              usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const provider = makeProvider({
+      id: 'gateway',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai' }
+      }
+    })
+    const model = makeModel({
+      id: 'gateway::deepseek-v4',
+      providerId: 'gateway',
+      apiModelId: 'deepseek-v4',
+      maxOutputTokens: 300_000
+    })
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 393_216 } })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      maxOutputTokens: result.options.maxOutputTokens
+    })
+
+    expect(sentBody?.max_tokens).toBe(300_000)
+  })
+
   it('subtracts the effective API Gateway thinking override from the caller total-token cap', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 
@@ -672,6 +726,27 @@ describe('buildAgentParams standard model parameters', () => {
       anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
     })
     expect(result.options.maxOutputTokens).toBe(6000)
+  })
+
+  it('reserves Anthropic reasoning tokens after clamping the total output budget', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 300_000)
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          maxOutputTokens: 393_216,
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.maxOutputTokens).toBe(296_000)
   })
 
   it('does not apply a model catalog limit to a non-Anthropic endpoint', async () => {

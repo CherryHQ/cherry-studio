@@ -23,7 +23,8 @@ const logger = loggerService.withContext('ai:outputReservation')
  * The `max_tokens` this request will put on the wire, or `undefined` when it
  * will send none. Precedence: explicit call override → custom parameter →
  * the assistant's own limit when enabled → the model's ceiling, but only on the
- * Anthropic endpoint, whose API requires the field.
+ * Anthropic endpoint, whose API requires the field. Any requested value is then
+ * bounded by a trustworthy selected-model ceiling before it reaches the wire.
  */
 export function resolveRequestedMaxOutputTokens(
   requestMaxOutputTokens: number | undefined,
@@ -32,13 +33,26 @@ export function resolveRequestedMaxOutputTokens(
   model: Model,
   endpointType: EndpointType | undefined
 ): number | undefined {
-  if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
-  if (typeof customMaxOutputTokens === 'number') return customMaxOutputTokens
+  let requested: number | undefined
+  if (requestMaxOutputTokens !== undefined) requested = requestMaxOutputTokens
+  else if (typeof customMaxOutputTokens === 'number') requested = customMaxOutputTokens
+  else {
+    const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
+    if (enableMaxTokens) requested = assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+    else if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) requested = model.maxOutputTokens
+  }
 
-  const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
-  if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+  const ceiling = model.maxOutputTokens
+  if (requested === undefined || ceiling === undefined || !Number.isFinite(ceiling) || ceiling <= 0) return requested
 
-  return endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? model.maxOutputTokens : undefined
+  if (requested > ceiling) {
+    logger.info('Clamping requested max output tokens to the selected model limit', {
+      modelId: model.id,
+      requested,
+      ceiling
+    })
+  }
+  return Math.min(requested, ceiling)
 }
 
 /**
