@@ -1235,7 +1235,9 @@ describe('ModelService.list — registry enrichment', () => {
       presetModelId: null,
       name: 'Future Model',
       description: 'Registry description',
-      capabilities: [],
+      // The create DTO carried no capabilities, so the row is not user-owned and the
+      // snapshot self-heals from the registry once a match appears (#20239).
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       contextWindow: 256_000,
@@ -2760,5 +2762,99 @@ describe('ModelService.reconcileForProvider', () => {
       skippedIds: [modelId]
     })
     warnSpy.mockRestore()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom-row capabilities healing — issue #20239
+// Rows migrated under an early catalog (before the model's registry entry
+// existed) carry a snapshot that must self-heal from the current registry,
+// unless the user has explicitly edited capabilities.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService custom-row capabilities healing (#20239)', () => {
+  const dbh = setupTestDatabase()
+
+  const GLM_REGISTRY_HIT = {
+    presetModel: {
+      id: 'glm-5-3-flash',
+      name: 'GLM-5.3-Flash',
+      capabilities: ['function-call', 'reasoning'],
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      contextWindow: 1_000_000,
+      maxOutputTokens: 131_072
+    } as any,
+    registryOverride: null,
+    reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+  }
+
+  /** Early-catalog migration shape: no preset link, snapshot capabilities, not user-edited. */
+  async function seedCustomRow(values: Partial<InsertUserModelRow> = {}) {
+    await dbh.db.insert(userProviderTable).values(providerRow('zhipu', 'ZhiPu'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('zhipu', 'glm-5.3-flash', {
+        capabilities: [],
+        capabilitiesExplicit: false,
+        ...values
+      })
+    )
+  }
+
+  it('heals an early-catalog custom row from the current registry', async () => {
+    await seedCustomRow()
+    lookupModelMock.mockReturnValue(GLM_REGISTRY_HIT)
+
+    const [model] = modelService.list({ providerId: 'zhipu' })
+
+    expect(model.capabilities).toContain(MODEL_CAPABILITY.FUNCTION_CALL)
+  })
+
+  it('keeps the snapshot when the user has explicitly edited capabilities', async () => {
+    await seedCustomRow({ capabilitiesExplicit: true })
+    lookupModelMock.mockReturnValue(GLM_REGISTRY_HIT)
+
+    const [model] = modelService.list({ providerId: 'zhipu' })
+
+    expect(model.capabilities).toEqual([])
+  })
+
+  it('keeps the snapshot when the registry has no entry', async () => {
+    await seedCustomRow({ capabilities: ['reasoning'] })
+
+    const [model] = modelService.list({ providerId: 'zhipu' })
+
+    expect(model.capabilities).toEqual(['reasoning'])
+  })
+
+  it('marks the row explicit when an update submits capabilities', async () => {
+    await seedCustomRow()
+
+    modelService.update('zhipu', 'glm-5.3-flash', { capabilities: ['function-call'] })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'zhipu'), eq(userModelTable.modelId, 'glm-5.3-flash')))
+    expect(row.capabilitiesExplicit).toBe(true)
+  })
+
+  it('marks a created custom row explicit when the DTO carries capabilities', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('zhipu', 'ZhiPu'))
+
+    modelService.create([
+      {
+        dto: {
+          providerId: 'zhipu',
+          modelId: 'glm-5.3-flash',
+          name: 'GLM-5.3-Flash',
+          capabilities: ['function-call']
+        } as any,
+        registryData: undefined
+      }
+    ])
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.modelId, 'glm-5.3-flash'))
+    expect(row.capabilitiesExplicit).toBe(true)
   })
 })

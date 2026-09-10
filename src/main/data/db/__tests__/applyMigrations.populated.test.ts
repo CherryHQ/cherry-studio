@@ -1050,7 +1050,10 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    // Pinned to the 0020 backfill migration: the default tip baseline would drift
+    // forward past it once a later migration exists (0021+), skipping the backfill
+    // for the seed rows inserted after the baseline.
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
     const now = Date.now()
     const insert = sqlite.prepare(
       `INSERT INTO job

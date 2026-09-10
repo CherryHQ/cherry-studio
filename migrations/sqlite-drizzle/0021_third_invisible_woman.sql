@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `capabilities_explicit` integer DEFAULT false NOT NULL;
