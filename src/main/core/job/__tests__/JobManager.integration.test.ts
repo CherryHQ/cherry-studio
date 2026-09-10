@@ -31,6 +31,7 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
@@ -1047,6 +1048,126 @@ describe('JobManager integration', () => {
 
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('onEnqueued', () => {
+    it('exposes a timer-fired pending row while its queue is full', async () => {
+      const observed: JobSnapshot[] = []
+      const release = Promise.withResolvers<void>()
+      const entered = Promise.withResolvers<void>()
+      const handler: JobHandler = {
+        recovery: 'abandon',
+        defaultConcurrency: 1,
+        onEnqueued(snapshot) {
+          observed.push(jobService.getById(snapshot.id)!)
+        },
+        async execute() {
+          entered.resolve()
+          await release.promise
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['enqueue.observe', handler]],
+        keepFakeTimers: true
+      })
+      try {
+        const first = jobManager.enqueue('enqueue.observe' as never, {} as never)
+        await entered.promise
+        const schedule = jobManager.registerJobSchedule({
+          type: 'enqueue.observe' as never,
+          trigger: { kind: 'once', at: Date.now() + 1000 },
+          jobInputTemplate: {} as never,
+          catchUpPolicy: { kind: 'skip-missed' }
+        })
+        await vi.advanceTimersByTimeAsync(1000)
+
+        expect(observed).toHaveLength(2)
+        expect(observed[0]).toMatchObject({ id: first.id, status: 'pending' })
+        expect(observed[1]).toMatchObject({ scheduleId: schedule.id, status: 'pending', startedAt: null })
+        expect(jobService.getById(observed[1].id)?.status).toBe('pending')
+      } finally {
+        release.resolve()
+        await drainAllQueues(jobManager)
+        await teardownManager(scheduler, jobManager)
+        vi.useRealTimers()
+      }
+    })
+
+    it('notifies only committed new rows, never rolled-back or idempotently reused rows', async () => {
+      const observed: JobSnapshot[] = []
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [
+          [
+            'enqueue.tx',
+            {
+              recovery: 'abandon',
+              onEnqueued(snapshot) {
+                observed.push(jobService.getById(snapshot.id)!)
+              },
+              async execute() {}
+            }
+          ]
+        ]
+      })
+      jobManager.pause()
+      try {
+        const dbSvc = application.get('DbService')
+        const handle = dbSvc.withWriteTx((tx) => {
+          const created = jobManager.enqueueTx(tx, 'enqueue.tx' as never, {} as never, { idempotencyKey: 'one' })
+          expect(observed).toEqual([])
+          return created
+        })
+        await Promise.resolve()
+        expect(observed).toHaveLength(1)
+        expect(observed[0]).toMatchObject({ id: handle.id, status: 'pending' })
+
+        expect(() =>
+          dbSvc.withWriteTx((tx) => {
+            jobManager.enqueueTx(tx, 'enqueue.tx' as never, {} as never)
+            throw new Error('rollback')
+          })
+        ).toThrow('rollback')
+        const reused = jobManager.enqueue('enqueue.tx' as never, {} as never, { idempotencyKey: 'one' })
+        const reusedTx = dbSvc.withWriteTx((tx) =>
+          jobManager.enqueueTx(tx, 'enqueue.tx' as never, {} as never, { idempotencyKey: 'one' })
+        )
+        await Promise.resolve()
+        expect(reused.id).toBe(handle.id)
+        expect(reusedTx.id).toBe(handle.id)
+        expect(observed).toHaveLength(1)
+      } finally {
+        await teardownManager(scheduler, jobManager)
+      }
+    })
+
+    it('still dispatches committed jobs when the enqueue observer throws', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [
+          [
+            'enqueue.throws',
+            {
+              recovery: 'abandon',
+              onEnqueued() {
+                throw new Error('observer failed')
+              },
+              async execute() {
+                return 'done'
+              }
+            }
+          ]
+        ]
+      })
+      try {
+        const direct = jobManager.enqueue('enqueue.throws' as never, {} as never)
+        const transactional = application
+          .get('DbService')
+          .withWriteTx((tx) => jobManager.enqueueTx(tx, 'enqueue.throws' as never, {} as never))
+        expect(await direct.finished).toMatchObject({ status: 'completed', output: 'done' })
+        expect(await transactional.finished).toMatchObject({ status: 'completed', output: 'done' })
+      } finally {
+        await teardownManager(scheduler, jobManager)
+      }
     })
   })
 

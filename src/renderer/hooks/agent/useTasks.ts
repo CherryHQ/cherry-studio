@@ -212,11 +212,14 @@ export const useDeleteTask = () => {
 }
 
 export const useTaskLogs = (agentId: string | null, taskId: string | null) => {
-  const { data, error, isLoading } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
+  const { data, error, isLoading, refetch } = useQuery('/agents/:agentId/tasks/:taskId/logs', {
     params: { agentId: agentId!, taskId: taskId! },
     query: { limit: 50 },
     enabled: !!(agentId && taskId),
     swrOptions: { keepPreviousData: false }
+  })
+  useDataChange('/agents/:agentId/tasks/:taskId/logs', () => refetch(), {
+    routeParams: taskId ? { taskId } : undefined
   })
   return {
     logs: data?.items ?? [],

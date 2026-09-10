@@ -52,16 +52,26 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
    */
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
 
+  onEnqueued(snapshot) {
+    if (snapshot.scheduleId) {
+      agentTaskService.notifyRunChange(snapshot.scheduleId, snapshot.id, 'membership')
+    }
+  },
+
   async execute(ctx) {
     // The row is already `running` here; publish so open task lists leave the
     // previous run's state. JobContext carries no scheduleId — resolve the row.
     const scheduleId = jobService.getById(ctx.jobId)?.scheduleId
-    if (scheduleId) agentTaskService.notifyReadModelChange([scheduleId])
+    if (scheduleId) {
+      agentTaskService.notifyRunChange(scheduleId, ctx.jobId, 'projection')
+    }
     return await runAgentTask(ctx)
   },
 
   async onSettled(event) {
-    if (event.scheduleId) agentTaskService.notifyReadModelChange([event.scheduleId])
+    if (event.scheduleId) {
+      agentTaskService.notifyRunChange(event.scheduleId, event.jobId, 'projection')
+    }
     if (event.status !== 'failed' || !event.scheduleId) return
 
     const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)
