@@ -2325,16 +2325,11 @@ describe('SkillService', () => {
     it('reports error when the descriptor exists but cannot be read', async () => {
       const skillDir = path.join(mirrorRoot, 'locked')
       await fs.promises.mkdir(skillDir, { recursive: true })
-      const descriptor = path.join(skillDir, 'SKILL.md')
-      await fs.promises.writeFile(descriptor, 'secret')
-      // chmod 000 makes the read throw EACCES — the "exists but unreadable" third state.
-      await fs.promises.chmod(descriptor, 0o000)
+      // A directory named SKILL.md makes readFile reject with a non-ENOENT error on every
+      // platform — chmod 000 is a no-op on NTFS, so it cannot fake unreadability on Windows.
+      await fs.promises.mkdir(path.join(skillDir, 'SKILL.md'))
 
-      try {
-        await expect(new SkillService().readSkillMdByFolderName('locked')).resolves.toEqual({ status: 'error' })
-      } finally {
-        await fs.promises.chmod(descriptor, 0o644)
-      }
+      await expect(new SkillService().readSkillMdByFolderName('locked')).resolves.toEqual({ status: 'error' })
     })
   })
 })
