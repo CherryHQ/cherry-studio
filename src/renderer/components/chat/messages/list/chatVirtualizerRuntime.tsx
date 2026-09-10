@@ -133,7 +133,7 @@ export interface ChatVirtualizerRuntime<T> {
   /** Mark a wheel that will reach this viewport through native boundary chaining. */
   notifyWheelIntent(deltaY: number): void
   /** Apply a wheel forwarded from an isolated child document under this runtime's ownership. */
-  scrollByWheel(deltaY: number): boolean
+  scrollByWheel(deltaY: number, maxDeltaY?: number): boolean
   /**
    * Mark that a real user scroll input just happened. Wheel is wired through
    * `scrollerProps.onWheel`; the host calls this for pointer drags and
@@ -815,11 +815,11 @@ export function useChatVirtualizerRuntime<T>({
   )
 
   const scrollByWheel = useCallback(
-    (deltaY: number) => {
+    (deltaY: number, maxDeltaY?: number) => {
       const scroller = scrollerRef.current
       if (!scroller) return false
 
-      const boundedDeltaY = clampForwardedWheelDelta(deltaY)
+      const boundedDeltaY = clampForwardedWheelDelta(deltaY, maxDeltaY)
       notifyWheelIntent(boundedDeltaY)
       scroller.scrollBy({ top: boundedDeltaY })
       return true
