@@ -259,7 +259,7 @@ vi.mock('@main/utils/shellEnv', () => ({
     ),
   hasUserMiseEnv: (env: Record<string, string | undefined> = {}) =>
     Object.keys(env).some((key) => key.startsWith('MISE_')) ||
-    ((Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '') as string)
+    (Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '')
       .split(/[:;]/)
       .some((segment) => /(^|[\\/])mise([\\/]|$)/i.test(segment.trim())),
   removePathEntry: (env: Record<string, string | undefined>, dir: string) => {
