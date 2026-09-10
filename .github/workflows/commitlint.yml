@@ -4,7 +4,7 @@ permissions:
   contents: read
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - main
       - develop
@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
 
       - name: Install Node.js
         uses: actions/setup-node@v6
