@@ -10,12 +10,14 @@ on:
       - main
       - v2
       - "release/v*"
+      - "release/*.x"
   pull_request:
     branches:
       - main
       - develop
       - v2
       - "release/v*"
+      - "release/*.x"
     types: [ready_for_review, synchronize, opened, reopened]
 
 jobs:
@@ -67,6 +69,7 @@ jobs:
               - 'packages/provider-registry/**'
             scripts:
               - 'scripts/**'
+              - '.github/release-lines.json'
               - '.github/workflows/auto-release-build.yml'
               - '.github/workflows/backport-release-fixes.yml'
               - '.github/workflows/post-release.yml'

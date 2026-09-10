@@ -12,9 +12,8 @@
 | [🖥️ Develop](./contrib/development.md) | Developer environment setup covering IDE configuration, Windows symlink support, and project install steps |
 | [Feishu Notification Script](./contrib/feishu-notify.md) | CLI script that sends Feishu webhook card notifications from GitHub Actions workflows, with command reference |
 | [Linux Packaging](./contrib/linux-packaging.md) | Linux packaging flow using pinned better-sqlite3 prebuilds, with build commands and prebuild update steps |
-| [Release Workflow Operations](./contrib/release-workflow.md) | Maintainer runbook for preparing, validating, hotfixing, publishing, and synchronizing release branches |
+| [Release Workflow](./contrib/release-workflow.md) | Versioned release strategy, label-driven backports, and the active exact-version release runbook |
 | [Test Plan](./contrib/test-plan.md) | The Test Plan process for beta and rc testing, covering user participation and maintainer PR workflow |
-| [Versioned Release Workflow](./contrib/versioned-release-workflow.md) | Simplified GitLab Flow for maintaining the current and previous minor release lines through selective backports |
 
 ## References
 

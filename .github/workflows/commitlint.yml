@@ -10,6 +10,7 @@ on:
       - develop
       - v2
       - "release/v*"
+      - "release/*.x"
     types: [opened, edited, reopened, ready_for_review, synchronize]
 
 jobs:

@@ -8,6 +8,8 @@ Cherry Studio implements a structured branching strategy to maintain code qualit
 
 > **Current model.** `main` is the default branch for all active development — submit features, refactors, optimizations, and fixes here.
 
+The [release workflow](./release-workflow.md) also documents the staged minor-line backport model. `.github/release-lines.json` currently selects `exact-version`; the operations below remain active until the multi-release rollout is complete.
+
 ## Main Branches
 
 - `main`: Main development branch

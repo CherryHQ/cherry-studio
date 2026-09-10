@@ -5,7 +5,21 @@ on:
     branches:
       - main
       - "release/v*"
-    types: [opened, edited, reopened, closed]
+      - "release/*.x"
+    types: [opened, edited, reopened, closed, labeled, unlabeled, synchronize]
+  push:
+    branches: [main]
+    paths: ['.github/release-lines.json']
+  workflow_dispatch:
+    inputs:
+      source_pr:
+        description: Merged source pull request number (minor-line mode only)
+        required: true
+        type: string
+      line:
+        description: Target release line, for example 2.1.x (target label must still be present)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,9 +30,67 @@ env:
   HOTFIX_TITLE_PATTERN: '^hotfix(\([a-z0-9]+(-[a-z0-9]+)*\))?: [^[:space:]].*$'
 
 jobs:
+  route:
+    if: github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      targets: ${{ steps.plan.outputs.targets }}
+    steps:
+      - name: Check out trusted routing scripts
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Select release routing
+        id: plan
+        uses: actions/github-script@v8
+        env:
+          INPUTS_JSON: ${{ toJSON(inputs) }}
+        with:
+          script: |
+            if (context.eventName === 'workflow_dispatch' && context.ref !== `refs/heads/${context.payload.repository.default_branch}`) {
+              throw new Error('Backport retries must use the default branch workflow')
+            }
+            const { planLineBackports } = require('./scripts/release/release-lines.js')
+            const plan = await planLineBackports({ github, context, inputs: JSON.parse(process.env.INPUTS_JSON) })
+            core.setOutput('mode', plan.mode)
+            core.setOutput('targets', plan.targets)
+
+  line-backport:
+    needs: route
+    if: needs.route.outputs.mode == 'minor-line' && needs.route.outputs.targets != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.route.outputs.targets) }}
+    concurrency:
+      group: line-backport-${{ matrix.target.source }}-${{ matrix.target.line }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted backport scripts
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconcile one source and release line
+        uses: actions/github-script@v8
+        env:
+          TARGET_JSON: ${{ toJSON(matrix.target) }}
+        with:
+          github-token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          script: |
+            const { reconcileLineBackport } = require('./scripts/release/backport-release-line.js')
+            const result = await reconcileLineBackport({ github, repo: context.repo, ...JSON.parse(process.env.TARGET_JSON) })
+            core.info(JSON.stringify(result))
+
   classify:
+    needs: route
     name: Classify release hotfix
     if: |
+      needs.route.outputs.mode == 'exact-version' &&
       github.repository == 'CherryHQ/cherry-studio' &&
       github.event.pull_request.base.ref == 'main' &&
       github.event.pull_request.state == 'open' &&
@@ -64,8 +136,10 @@ jobs:
           fi
 
   backport:
+    needs: route
     name: Prepare hotfix backport pull request
     if: |
+      needs.route.outputs.mode == 'exact-version' &&
       github.repository == 'CherryHQ/cherry-studio' &&
       github.event.pull_request.base.ref == 'main' &&
       github.event.action == 'closed' &&
@@ -683,8 +757,10 @@ jobs:
           gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$FAILURE_MESSAGE Review the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) and complete the backport manually."
 
   track-backport-pr:
+    needs: route
     name: Track backport pull request
     if: |
+      needs.route.outputs.mode == 'exact-version' &&
       github.repository == 'CherryHQ/cherry-studio' &&
       startsWith(github.event.pull_request.base.ref, 'release/v') &&
       startsWith(github.event.pull_request.head.ref, 'backport/')
