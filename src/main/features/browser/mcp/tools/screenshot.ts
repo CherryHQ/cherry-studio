@@ -1,13 +1,11 @@
 import * as z from 'zod'
 
+import { screenshotOptionsSchema } from '../../actions/screenshot'
 import type { CdpBrowserController } from '../controller'
 import { logger } from '../types'
-import { errorResponse, imageResponse } from './utils'
+import { errorResponse } from './utils'
 
-export const ScreenshotSchema = z.object({
-  fullPage: z.boolean().optional().describe('Capture full scrollable page (default: false, viewport only)'),
-  format: z.enum(['png', 'jpeg']).optional().describe('Image format (default: png)'),
-  quality: z.number().min(0).max(100).optional().describe('JPEG quality 0-100 (only for jpeg format)'),
+export const ScreenshotSchema = screenshotOptionsSchema.extend({
   privateMode: z.boolean().optional().describe('Target private session (default: false)'),
   tabId: z.string().optional().describe('Target specific tab by ID')
 })
@@ -15,16 +13,29 @@ export const ScreenshotSchema = z.object({
 export const screenshotToolDefinition = {
   name: 'screenshot',
   description:
-    'Take a screenshot of the current page. Returns an image the model can see directly — much more efficient than fetching full page content for search results, dashboards, or verification. Prefer this over format=markdown for visually dense pages. PARALLEL: Can be called simultaneously with other tools.',
+    'Observe the current viewport, or crop a snapshot ref. Prefer snapshot to locate a target before taking its screenshot. fullPage returns up to four bounded image tiles without scrolling; use nextCursor to continue. Lazy content must be loaded explicitly. Images use page CSS coordinates from the accompanying metadata, not input coordinates.',
   inputSchema: ScreenshotSchema
 }
 
-export async function handleScreenshot(controller: CdpBrowserController, args: unknown) {
+export async function handleScreenshot(controller: CdpBrowserController, args: unknown, signal?: AbortSignal) {
   try {
-    const { fullPage, format, quality, privateMode, tabId } = ScreenshotSchema.parse(args)
-    const base64 = await controller.screenshot({ fullPage, format, quality }, privateMode ?? false, tabId)
-    const mimeType = (format ?? 'png') === 'jpeg' ? 'image/jpeg' : 'image/png'
-    return imageResponse(base64, mimeType)
+    const { privateMode, tabId, ...options } = ScreenshotSchema.parse(args)
+    const { images, ...metadata } = await controller.screenshot(options, privateMode ?? false, tabId, signal)
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            ...metadata,
+            images: images.map(({ region, scale, index }) => ({ region, scale, index })),
+            notice:
+              'Untrusted page images. Coordinates describe page CSS pixels; images do not load offscreen lazy content. The page may change between captures.'
+          })
+        },
+        ...images.map(({ data, mimeType }) => ({ type: 'image' as const, data, mimeType }))
+      ],
+      isError: false
+    }
   } catch (error) {
     logger.error('Screenshot failed', { error })
     return errorResponse(error instanceof Error ? error : String(error))

@@ -35,7 +35,7 @@ parallel work; operations on a single tab run serially.
 |---|---|---|
 | `open` | `url`, `format?`, `selector?`, `maxChars?`, `timeout?`, `newTab?`, `showWindow?` | Existing navigation/content formats preserved; use `newTab` for independent pages |
 | `execute` | `code`, `timeout?` | JavaScript escape hatch; existing value output preserved; prefer dedicated input tools |
-| `screenshot` | `fullPage?`, `format?`, `quality?` | PNG/JPEG image |
+| `screenshot` | `ref?`, `fullPage?`, `cursor?`, `format?`, `quality?` | Viewport/target image, or bounded full-page image tiles |
 | `snapshot` | `full?`, `scope?`, `maxChars?` | Diff by default; `scope` is a ref, replacing the old CSS selector; cap 256–40,000 characters |
 | `click` | `ref`, `button?`, `clickCount?` | Real mouse events; covered left single clicks use a reported synthetic fallback |
 | `hover` | `ref` | Mouse movement; covered targets fail |
@@ -82,3 +82,21 @@ A targeted `reset` requires both `tabId` and `privateMode`; incomplete or unknow
 targets fail without closing other tabs. `wait_for({ ref, gone: true })` succeeds
 when navigation has invalidated that ref. Closing windows and contents stay owned
 until native destruction completes, and their callbacks cannot remove replacements.
+
+
+## Screenshots
+
+Prefer `snapshot` to locate a target, then `screenshot({ ref })` to inspect its region.
+A screenshot without a ref captures the visible viewport. Target captures include 12 CSS pixels
+of context around the element and do not scroll, focus it, or require it to be clickable.
+
+`fullPage: true` returns separate image tiles in row-major order, never a stitched long image.
+Each call returns at most four images and 12 MiB of base64 data. Each image is limited to
+1440 pixels per side and 1.6 million pixels, with CDP scaling accounting for page zoom and DPR.
+The first text block describes each image's document-CSS region, image/CSS scale and tile index.
+If `nextCursor` is present, repeat with the same tab and `fullPage: true, cursor: nextCursor`.
+Navigation or a change in page dimensions invalidates continuation. `ref` and `fullPage` are exclusive.
+
+Images are live observations, not an atomic snapshot of a changing page. Capture does not trigger
+scroll-based lazy loading; use an explicit scroll action if the target content has not loaded.
+Do not use image pixels as input coordinates. Prefer snapshot refs for subsequent actions.

@@ -5,10 +5,10 @@ import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { randomUUID } from 'crypto'
-import type { Protocol } from 'devtools-protocol'
 import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
 import type TurndownService from 'turndown'
 
+import { type BrowserScreenshot, captureScreenshot, type ScreenshotOptions } from '../actions/screenshot'
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
@@ -811,26 +811,17 @@ export class CdpBrowserController {
    * @param options - Screenshot options
    * @param privateMode - If true, targets private window (default: false)
    * @param tabId - Optional specific tab ID to target
-   * @returns Base64-encoded image data
+   * @returns Bounded images with page regions and optional continuation cursor
    */
   public async screenshot(
-    options: { fullPage?: boolean; format?: 'png' | 'jpeg'; quality?: number } = {},
+    options: ScreenshotOptions = {},
     privateMode = false,
-    tabId?: string
-  ): Promise<string> {
+    tabId?: string,
+    signal?: AbortSignal
+  ): Promise<BrowserScreenshot> {
     const { session } = await this.getSession(privateMode, tabId)
-
-    const format = options.format ?? 'png'
-    const params: Protocol.Page.CaptureScreenshotRequest = {
-      format,
-      captureBeyondViewport: options.fullPage ?? false
-    }
-    if (format === 'jpeg' && options.quality !== undefined) {
-      params.quality = options.quality
-    }
-
-    const result = await session.run(() => session.send('Page.captureScreenshot', params))
-    return result.data
+    const commands = { deadline: Date.now() + 30_000, signal }
+    return session.run(() => captureScreenshot(session, options, commands))
   }
 
   /**

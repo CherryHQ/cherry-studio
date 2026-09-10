@@ -8,6 +8,8 @@ const allowedMethods = [
   'Page.getNavigationHistory',
   'Page.navigateToHistoryEntry',
   'Page.captureScreenshot',
+  'Page.getLayoutMetrics',
+  'DOM.getBoxModel',
   'Network.enable',
   'DOM.scrollIntoViewIfNeeded',
   'DOM.getContentQuads',
