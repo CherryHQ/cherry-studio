@@ -85,12 +85,46 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     // that mounts already enabled. Watching the frame catches both the editor's
     // insertion and its later content edits, and the measurement below reruns
     // off the resulting revision bump.
-    const mutationObserver = new MutationObserver(requestMeasurement)
+    const mutationObserver = new MutationObserver(() => {
+      attachEditorResizeObserver()
+      requestMeasurement()
+    })
     mutationObserver.observe(frame, {
       characterData: true,
       childList: true,
       subtree: true
     })
+
+    // Focus-driven affordances (the focus shortcut hint leaving the layout
+    // while the editor is focused) change the editor's inline size without
+    // touching the inputbar's outer width or the content, so neither observer
+    // above would notice: text that fit while focused can wrap on blur and get
+    // clipped by the fixed-height compact frame. Watch the editor width itself
+    // and remeasure on change; the width-equality guard keeps presentation
+    // flips from re-requesting in a cycle.
+    let observedEditorElement: HTMLElement | null = null
+    let lastEditorWidth = 0
+    let editorResizeObserver: ResizeObserver | null = null
+    const composerFrame: HTMLElement = frame
+
+    function attachEditorResizeObserver() {
+      if (typeof ResizeObserver === 'undefined') return
+      const editorElement = composerFrame.querySelector<HTMLElement>('.composer-tiptap')
+      if (!editorElement || editorElement === observedEditorElement) return
+
+      editorResizeObserver?.disconnect()
+      observedEditorElement = editorElement
+      lastEditorWidth = editorElement.getBoundingClientRect().width
+      editorResizeObserver = new ResizeObserver((entries) => {
+        const nextEditorWidth = entries[0]?.contentRect.width ?? editorElement.getBoundingClientRect().width
+        if (nextEditorWidth === lastEditorWidth) return
+
+        lastEditorWidth = nextEditorWidth
+        requestMeasurement()
+      })
+      editorResizeObserver.observe(editorElement)
+    }
+    attachEditorResizeObserver()
 
     let lastInputbarWidth = inputbarElement.getBoundingClientRect().width
     const resizeObserver =
@@ -108,6 +142,7 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     return () => {
       mutationObserver.disconnect()
       resizeObserver?.disconnect()
+      editorResizeObserver?.disconnect()
     }
   }, [enabled, frameRef, requestMeasurement])
 
