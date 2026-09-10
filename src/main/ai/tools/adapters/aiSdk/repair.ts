@@ -25,6 +25,8 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
   providerSettings: AppProviderSettingsMap[T]
   /** Same model id as the main request. */
   modelId: string
+  /** Per-call headers from the owning chat request. */
+  headers?: Record<string, string | undefined>
   /** Reuse the request's usage middleware so repair is its own invocation. */
   getUsagePlugins?: () => AiPlugin[]
 }
@@ -115,6 +117,7 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
         ctx.providerSettings,
         {
           model: ctx.modelId,
+          headers: ctx.headers,
           prompt,
           output: Output.object({ schema: jsonSchema(schemaJson) })
         },

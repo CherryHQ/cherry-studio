@@ -1,12 +1,19 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { trace } from '@opentelemetry/api'
+import { BasicTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
+import { defaultServiceInstances } from '@test-mocks/main/application'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { NoImageGeneratedError } from 'ai'
 import type * as FileTypeModule from 'file-type'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
+import type { AiStreamRequest } from '../types/requests'
+import type * as CustomFetchModule from '../utils/customFetch'
 import { makeProvider } from './fixtures/provider'
 
 const mockGenerateImage = vi.fn()
@@ -95,7 +102,8 @@ vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
   registerBuiltinTools: (...args: unknown[]) => mockRegisterBuiltinTools(...args)
 }))
 
-vi.mock('../utils/customFetch', () => ({
+vi.mock('../utils/customFetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof CustomFetchModule>()),
   installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor(),
   // The inline health-check probe resolves the real provider config, which
   // defaults providerSettings.fetch to customFetch — a stub keeps it inert.
@@ -297,6 +305,58 @@ describe('AiService', () => {
     mockRecordRequest.mockResolvedValue(undefined)
   })
 
+  it.each(['embedding', 'rerank', 'image'] as const)(
+    'preserves developer HTTP traces for direct %s requests without a conversation',
+    async (modality) => {
+      const service = createService()
+      const exporter = new InMemorySpanExporter()
+      const tracerProvider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)] })
+      vi.spyOn(trace, 'getTracer').mockReturnValue(tracerProvider.getTracer('test'))
+      mockApplicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return defaultServiceInstances.PreferenceService
+        if (name === 'FileManager') return {}
+        throw new Error(`Unexpected service: ${name}`)
+      })
+      mockProviderGetByProviderId.mockReturnValue(makeProvider())
+      const { customFetch } = await import('../utils/customFetch')
+      vi.mocked(customFetch).mockResolvedValue(new Response(null, { status: 204 }))
+      const sdkRequest = async (_providerId: string, settings: { fetch: FetchFunction }) => {
+        const response = await settings.fetch(`https://provider.test/${modality}`, { method: 'POST' })
+        expect(response.status).toBe(204)
+        return { embeddings: [[1]], ranking: [{ originalIndex: 0, score: 1 }], images: [] }
+      }
+      mockEmbedMany.mockImplementation(sdkRequest)
+      mockRerank.mockImplementation(sdkRequest)
+      mockGenerateImage.mockImplementation(sdkRequest)
+      try {
+        for (const enabled of [false, true]) {
+          exporter.reset()
+          MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', enabled)
+          const request = { uniqueModelId: createUniqueModelId('test-provider', 'test-model') }
+          if (modality === 'embedding') await service.embedMany({ ...request, values: ['hello'] })
+          else if (modality === 'rerank') await service.rerank({ ...request, query: 'hello', documents: ['hello'] })
+          else await service.generateImage({ ...request, prompt: 'a cherry', paramValues: {}, cleanupPolicy: 'manual' })
+          const spans = exporter.getFinishedSpans()
+          expect(spans).toHaveLength(enabled ? 1 : 0)
+          if (enabled) {
+            expect(spans[0].name).toBe('http.request')
+            expect(spans[0].attributes['http.url']).toBe(`https://provider.test/${modality}`)
+            expect(spans[0].attributes['trace.modelName']).toBe('Test Model')
+            expect(spans[0].attributes['trace.topicId']).toBeUndefined()
+          }
+        }
+      } finally {
+        MockMainPreferenceServiceUtils.resetMocks()
+        await tracerProvider.shutdown()
+      }
+    }
+  )
+
+  it('requires one stream topic while allowing a distinct conversation identity', () => {
+    expectTypeOf<AiStreamRequest['conversation']>().toExtend<{ id: string; topicId: string }>()
+    expectTypeOf<AiStreamRequest>().not.toHaveProperty('chatId')
+  })
+
   it('routes agent-session runtime requests directly to the runtime service', async () => {
     const service = createService()
     const stream = new ReadableStream()
@@ -305,11 +365,11 @@ describe('AiService', () => {
 
     await expect(
       service.streamText({
-        chatId: 'agent-session:session-1',
+        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
         trigger: 'submit-message',
         runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: 'turn-1' },
         requestOptions: { signal: new AbortController().signal }
-      } as any)
+      })
     ).resolves.toBe(stream)
 
     expect(mockApplicationGet).toHaveBeenCalledWith('AgentSessionRuntimeService')
@@ -326,10 +386,10 @@ describe('AiService', () => {
 
     await expect(
       service.streamText({
-        chatId: 'agent-session:session-1',
+        conversation: { id: 'session-1', topicId: 'agent-session:session-1' },
         trigger: 'submit-message',
         requestOptions: { signal: new AbortController().signal }
-      } as any)
+      })
     ).rejects.toThrow('requires an agent-session runtime request')
 
     expect(buildAgentParamsFor).not.toHaveBeenCalled()
@@ -459,7 +519,7 @@ describe('AiService', () => {
 
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
@@ -572,7 +632,7 @@ describe('AiService', () => {
 
   it('honors an explicit retry override for direct image requests', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
@@ -597,7 +657,7 @@ describe('AiService', () => {
 
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
@@ -631,7 +691,7 @@ describe('AiService', () => {
 
   it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
     } as never)
 
@@ -671,7 +731,7 @@ describe('AiService', () => {
   describe('generateImage — output validation', () => {
     it('reports an empty output when the AI SDK rejects zero processed images', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -693,7 +753,7 @@ describe('AiService', () => {
 
     it('keeps total URL download failure on the provider-error path', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -719,7 +779,7 @@ describe('AiService', () => {
 
     it('propagates cancellation during direct image URL processing', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -749,7 +809,7 @@ describe('AiService', () => {
 
     it('does not persist images when cancellation happens during validation', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -779,7 +839,7 @@ describe('AiService', () => {
 
     it('keeps malformed URL candidates on the provider-error path', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -809,7 +869,7 @@ describe('AiService', () => {
 
     it('rejects non-empty malformed base64 image data', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -838,7 +898,7 @@ describe('AiService', () => {
 
     it('rejects valid base64 when the decoded bytes are not an image', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -867,7 +927,7 @@ describe('AiService', () => {
 
     it('persists valid SVG literals while rejecting non-SVG XML and real DTDs', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -942,7 +1002,7 @@ describe('AiService', () => {
 
     it('isolates image type detection failures to the invalid output', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -978,7 +1038,7 @@ describe('AiService', () => {
 
     it('reports why every provider image was rejected without issuing another request', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -1016,7 +1076,7 @@ describe('AiService', () => {
 
     it('keeps valid images from a mixed response and reports only the rejected entries', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -1056,7 +1116,7 @@ describe('AiService', () => {
 
     it('reports a failed URL download when another direct image succeeds', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -1097,7 +1157,7 @@ describe('AiService', () => {
 
     it('preserves a failed URL index after a base64 candidate', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -1132,7 +1192,7 @@ describe('AiService', () => {
 
     it('preserves a dropped candidate index before a successful URL', async () => {
       const service = createService()
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -1180,7 +1240,7 @@ describe('AiService', () => {
   // local persistence happens after the provider output has been recorded.
   describe('generateImage — AI usage record (direct path)', () => {
     function stubDirectImage(service: InstanceType<typeof AiService>) {
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' }
       } as never)
@@ -1219,7 +1279,7 @@ describe('AiService', () => {
         name: 'Image Assistant',
         emoji: '🎨'
       })
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
         model: { id: 'test-provider::test-model', providerId: 'test-provider' },
         assistant: { id: 'assistant-1', name: 'Image Assistant', emoji: '🎨' }
@@ -1265,7 +1325,7 @@ describe('AiService', () => {
   // contract was tested.
   describe('embedMany — AI usage record', () => {
     function stubEmbedding(service: InstanceType<typeof AiService>) {
-      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embedding-model' },
         credentialReceipt: {
           attribution: 'explicit',
@@ -1704,7 +1764,7 @@ describe('AiService tool approval', () => {
   it('routes rerank requests through ai-core rerank', async () => {
     const service = createService()
     const abortController = new AbortController()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
@@ -1778,7 +1838,7 @@ describe('AiService tool approval', () => {
   it('caps embedMany parallelism and derives maxRetries from the retry preference', async () => {
     const service = createService()
     vi.spyOn(service as never, 'trackUsage').mockReturnValue(undefined as never)
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
@@ -1813,7 +1873,7 @@ describe('AiService tool approval', () => {
     // retries to 0 — this PR adds retry behavior, it never removes it.
     const service = createService()
     vi.spyOn(service as never, 'trackUsage').mockReturnValue(undefined as never)
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
@@ -1835,7 +1895,7 @@ describe('AiService tool approval', () => {
 
   it('derives rerank maxRetries from the retry preference (0 when disabled)', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
@@ -1858,7 +1918,7 @@ describe('AiService tool approval', () => {
 
   it('keeps rerank retries disabled when the retry feature is disabled', async () => {
     const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+    vi.spyOn(service as never, 'resolveTransportFor').mockResolvedValue({
       sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-reranker' },
       credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
       provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
@@ -1896,11 +1956,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { maxRetries: 0, signal: new AbortController().signal }
-    } as never)
+    })
 
     // Explicit per-request maxRetries:0 → no ai-retry wrapper / no fallback build.
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
@@ -1934,11 +1994,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { signal: new AbortController().signal }
-    } as never)
+    })
 
     expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1981,11 +2041,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { maxRetries: 0.5, signal: new AbortController().signal }
-    } as never)
+    })
     await service.generateText({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'hello',
@@ -2108,11 +2168,11 @@ describe('AiService tool approval', () => {
     } as never)
 
     await service.streamText({
-      chatId: 'topic-1',
+      conversation: { id: 'conversation-1', topicId: 'topic-1' },
       trigger: 'submit-message',
       messages: [],
       requestOptions: { signal: new AbortController().signal }
-    } as never)
+    })
 
     expect(mockCreateRetryableWrap).toHaveBeenCalledTimes(1)
     expect(mockBuildFallbackModels).toHaveBeenCalledWith(

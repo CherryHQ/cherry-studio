@@ -303,9 +303,9 @@ describe('attention state', () => {
       .run()
   }
   const fullyConsented = ['storage.delete', 'storage.get', 'storage.keys', 'storage.set']
-  const broadcast = () => vi.mocked(application.get('IpcApiService').broadcast)
+  const setShared = () => vi.mocked(application.get('CacheService').setShared)
 
-  beforeEach(() => broadcast().mockClear())
+  beforeEach(() => setShared().mockClear())
 
   it('flags only the app whose declared wildcard grew past what the user consented to', () => {
     // Both directions: an app with a full baseline must NOT be flagged, or the badge is
@@ -331,7 +331,7 @@ describe('attention state', () => {
 
     svc.snoozePending('com.example.stale')
     expect(svc.attentionState()).toEqual([])
-    expect(broadcast()).toHaveBeenLastCalledWith('mini_app.runtime.attention', { apps: [] })
+    expect(setShared()).toHaveBeenLastCalledWith('mini_app.attention', [])
 
     svc.clearPendingSnooze('com.example.stale')
     expect(svc.attentionState()).toHaveLength(1)
@@ -347,11 +347,11 @@ describe('attention state', () => {
     const lit = [{ appId: 'com.example.a', updateVersion: '1.1.0', pendingPermissions: [], updating: null }]
     expect(svc.attentionState()).toEqual(lit)
     expect(svc.updateVersionOf('com.example.a')).toBe('1.1.0')
-    expect(broadcast()).toHaveBeenLastCalledWith('mini_app.runtime.attention', { apps: lit })
+    expect(setShared()).toHaveBeenLastCalledWith('mini_app.attention', lit)
 
     svc.noteUpdateAvailable('com.example.a', null)
     expect(svc.attentionState()).toEqual([])
-    expect(broadcast()).toHaveBeenLastCalledWith('mini_app.runtime.attention', { apps: [] })
+    expect(setShared()).toHaveBeenLastCalledWith('mini_app.attention', [])
   })
 
   it('reports an update in flight with its progress, and refuses a second one', () => {
@@ -371,10 +371,10 @@ describe('attention state', () => {
     ])
     expect(() => svc.beginUpdate('com.example.a', '1.1.0')).toThrow(/already being updated/i)
 
-    broadcast().mockClear()
+    setShared().mockClear()
     svc.noteUpdateProgress('com.example.a', 0.5)
     svc.noteUpdateProgress('com.example.a', 0.505) // under the 2% step: nothing to tell
-    expect(broadcast()).toHaveBeenCalledTimes(1)
+    expect(setShared()).toHaveBeenCalledTimes(1)
     expect(svc.attentionState()[0].updating).toEqual({ version: '1.1.0', fraction: 0.5 })
 
     svc.endUpdate('com.example.a')
@@ -392,7 +392,7 @@ describe('attention state', () => {
     // `void`: the badge half runs synchronously, and the awaited half — the log removal —
     // has its own case in `MiniAppRuntimeService.activity.test.ts`.
     void svc.forgetApp('com.example.a')
-    expect(broadcast()).toHaveBeenLastCalledWith('mini_app.runtime.attention', { apps: [] })
+    expect(setShared()).toHaveBeenLastCalledWith('mini_app.attention', [])
     seed('com.example.a', fullyConsented)
 
     expect(svc.attentionState()).toEqual([])

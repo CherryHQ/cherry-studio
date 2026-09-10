@@ -6,14 +6,14 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
-import type { AiBaseRequest, AppProviderSettingsMap } from '../../../types'
+import type { AiChatRequest, AppProviderSettingsMap } from '../../../types'
 import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
 import type { FallbackResolver } from './createRetryableWrap'
 import { resolveApiKeyFallbacks } from './resolveApiKeyFallbacks'
 
 export interface BuildApiKeyFallbackModelsArgs {
-  request: AiBaseRequest & { chatId?: string; messageId?: string; compactionSink?: CompactionSink }
+  request: AiChatRequest & { messageId?: string; compactionSink?: CompactionSink }
   provider: Provider
   model: Model
   assistant: Assistant | undefined

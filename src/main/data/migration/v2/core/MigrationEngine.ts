@@ -65,10 +65,9 @@ import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
+import { MIGRATION_V2_STATUS, readMigrationV2Status } from './migrationStatus'
 
 const logger = loggerService.withContext('MigrationEngine')
-
-const MIGRATION_V2_STATUS = 'migration_v2_status'
 
 /**
  * All tables migration writes into — the single source of truth for what
@@ -201,10 +200,9 @@ export class MigrationEngine {
    */
   async needsMigration(): Promise<boolean> {
     const db = this.getDb()
-    const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const statusValue = readMigrationV2Status(db)
 
-    if (status?.value) {
-      const statusValue = status.value as MigrationStatusValue
+    if (statusValue) {
       this.migratedFromV1 = statusValue.status === 'completed' && statusValue.migratedFromV1 === true
       return statusValue.status !== 'completed'
     }
@@ -243,10 +241,9 @@ export class MigrationEngine {
    */
   getLastError(): string | null {
     const db = this.getDb()
-    const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const statusValue = readMigrationV2Status(db)
 
-    if (status?.value) {
-      const statusValue = status.value as MigrationStatusValue
+    if (statusValue) {
       if (statusValue.status === 'failed') {
         return statusValue.error || 'Unknown error'
       }
