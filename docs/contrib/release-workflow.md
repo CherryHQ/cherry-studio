@@ -29,7 +29,7 @@ sources:
 
 Cherry Studio's release strategy and maintainer operations live in this document. See [Branching Strategy](./branching-strategy.md) for contribution entry points.
 
-> **Rollout:** Commitlint, minor-line backports, reviewed preparation, exact-head builds/publication, Latest selection, and version-owned metadata synchronization are implemented. Routing remains in `exact-version` mode until storage-contract CI and activation checks are complete. Use the [active exact-version runbook](#exact-version-runbook-active) for production operations; the version-line model below describes the staged replacement.
+> **Rollout:** Commitlint, minor-line backports, reviewed preparation, exact-head builds/publication, Latest selection, and version-owned metadata synchronization are implemented. Routing remains in `exact-version` mode until activation checks are complete. Use the [active exact-version runbook](#exact-version-runbook-active) for production operations; the version-line model below describes the staged replacement.
 
 Cherry Studio is adopting a simplified [GitLab Flow](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/) for versioned desktop releases. All development converges on `main`; supported release branches receive only selected fixes from `main`. We do not use a separate `develop` branch, merge all of `main` into a release branch, or merge a release branch back into `main`.
 
@@ -154,7 +154,7 @@ The default unit of review is one source pull request backported to one release 
 
 ## Release Flow
 
-The minor-line release flow is implemented but remains inactive pending storage-contract CI and activation checks. The flow for each supported line is:
+The minor-line release flow is implemented but remains inactive pending activation checks. The flow for each supported line is:
 
 1. Select the fixes for the next exact version and assign its milestone.
 2. Resolve every requested backport as accepted, deferred, rejected, or blocked.
@@ -173,6 +173,8 @@ Patch releases freeze the persisted storage contract. They must not add or modif
 A lossless, idempotent repair over the existing schema requires explicit approval from the data owner and upgrade-path tests. A fix that requires a new persisted contract ships in the next minor release. If it cannot wait, cut an expedited minor instead of weakening the patch contract. Classifying a change as `hotfix` does not override this rule.
 
 At each minor cut, the older line's database migration chain must be an exact prefix of every later supported line's chain. For example, if `2.0.x` contains migrations `A, B`, then `2.1.y` may contain `A, B, C, D`. Because the `2.0.x` schema remains frozen after its branch cut, upgrading from `2.0.x` to `2.1.y` applies only `C, D` and follows the same forward migration path as a fresh `2.1.y` installation.
+
+Maintainers assess this policy during backport review and minor cuts, with targeted upgrade or data regression tests where needed. Existing CI checks for migration-chain integrity and schema/migration consistency remain in place. No additional schema-freeze or cross-line storage-contract CI gate is planned or required for activation.
 
 ## Backport Policy
 
@@ -216,7 +218,7 @@ Security support beyond the two-line window is an explicit release-team exceptio
 
 ## Implementation Status and Routing
 
-The version-line model, label-driven backports, preparation, builds, publication, and metadata synchronization are implemented behind `.github/release-lines.json`. The checked-in mode is `exact-version`; existing release operations below remain active. **Do not enable `minor-line` until storage-contract CI and activation checks are complete.** This configuration selects exactly one release route; it is not a fallback between two competing destinations.
+The version-line model, label-driven backports, preparation, builds, publication, and metadata synchronization are implemented behind `.github/release-lines.json`. The checked-in mode is `exact-version`; existing release operations below remain active. **Do not enable `minor-line` until activation checks are complete.** This configuration selects exactly one release route; it is not a fallback between two competing destinations.
 
 After the activation checks, an example configuration would be:
 
@@ -295,10 +297,7 @@ Metadata PR creation uses the shared `release-state` group; normal review and Gi
 
 ## Remaining Multi-Release Work
 
-| Workflow | Required change before activation |
-| --- | --- |
-| CI | Enforce the patch storage contract and migration-chain compatibility on prepared releases |
-| Activation | Bootstrap protected release branches and tooling, verify credentials/CI propagation, smoke-test both lines, and switch the reviewed configuration |
+Only activation remains: bootstrap protected release branches and tooling, verify credentials and CI propagation, smoke-test both lines, and switch the reviewed configuration. Storage compatibility remains a maintainer review responsibility, not a new CI prerequisite.
 
 GitHub App/PAT writes or explicit workflow dispatch must propagate automation into CI; status-label writes must not recursively enqueue backports. The current engine uses the existing `TOKEN_GITHUB_WRITE` credential for signed commits, publication, and PRs.
 
