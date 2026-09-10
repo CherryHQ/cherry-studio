@@ -145,6 +145,20 @@ describe('useChatWriteActions — canvas branch targets', () => {
       })
   }
 
+  it('returns the activated leaf so branch views can reveal the continuation', async () => {
+    const user = persisted('other-user', 'user', 'vroot')
+    const answer = persisted('other-answer', 'assistant', user.id)
+    MockDataApiUtils.setCustomResponse('/topics/t1/path', 'GET', [user, answer])
+    const { actions, cache } = renderActions([uiMsg('selected-user', 'user', 'vroot')])
+
+    await expect(actions.setActiveBranch(user.id)).resolves.toBe(answer.id)
+
+    expect(cache.setActiveNodeTrigger).toHaveBeenCalledWith({
+      params: { id: 't1' },
+      body: { nodeId: answer.id }
+    })
+  })
+
   it('regenerates against the requested branch history and parent instead of the selected branch', async () => {
     seedBranch(persisted('other-user', 'user', 'vroot'), [persisted('other-answer', 'assistant', 'other-user')])
     const { actions, regenerate, setMessages } = renderActions([uiMsg('selected-user', 'user', 'vroot')])

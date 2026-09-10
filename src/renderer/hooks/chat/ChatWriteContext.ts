@@ -68,10 +68,10 @@ export interface ChatWriteActions {
    * topic's active node — so the conversation view shows the full
    * follow-up chain rather than truncating mid-branch.
    *
-   * Used by sibling navigation (per-message `< i/N >`) and multi-model
-   * tab switches.
+   * Returns the selected leaf ID, or undefined if the source or leaf is missing.
+   * Used by sibling navigation, multi-model tab switches, and Advanced View.
    */
-  setActiveBranch: (throughNodeId: string) => Promise<void>
+  setActiveBranch: (throughNodeId: string) => Promise<string | undefined>
   refresh: () => Promise<unknown>
 }
 

@@ -1,4 +1,3 @@
-import { dataApiService } from '@data/DataApiService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -11,11 +10,12 @@ import {
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
+import type { TreeResponse } from '@shared/data/types/message'
 import { CopyPlus, CornerDownRight, GitBranch } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
@@ -53,9 +53,8 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
   const [revealNodeId, setRevealNodeId] = useState<string>()
   const [branchActionPending, setBranchActionPending] = useState(false)
   const { isPending, status } = useTopicStreamStatus(topicId)
-  const actionsDisabled = branchActionPending || isPending || status === 'awaiting-approval'
-  const messagesCachePath = `/topics/${topicId}/messages` as const
-  const treeCachePath = `/topics/${topicId}/tree` as const
+  const chatWrite = useChatWrite()
+  const actionsDisabled = !chatWrite || branchActionPending || isPending || status === 'awaiting-approval'
   const { data, error, isLoading, refetch } = useQuery('/topics/:topicId/tree', {
     enabled: open,
     params: { topicId },
@@ -68,9 +67,6 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
     },
     { routeParams: { topicId } }
   )
-  const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
-    refresh: [messagesCachePath, treeCachePath]
-  })
   const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
     refresh: ['/topics']
   })
@@ -84,7 +80,7 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
 
   const handleActivateNodeBranch = useCallback(
     async (messageId: string) => {
-      if (actionsDisabled) return
+      if (!chatWrite || actionsDisabled) return
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
       setBranchActionPending(true)
       let leafId = messageId
@@ -92,31 +88,20 @@ const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layou
         if (selectedNode?.data.isOnActivePath) {
           if (!selectedNode.data.isAwaitingInput) onLocateMessage?.(messageId)
         } else {
-          const path = (await dataApiService.get(`/topics/${topicId}/path`, {
-            query: { nodeId: messageId }
-          })) as DbMessage[]
-          if (path.length > 0) {
-            leafId = path[path.length - 1].id
-          }
-          await setActiveNode({
-            params: { id: topicId },
-            body: { nodeId: leafId }
-          })
+          const activatedLeafId = await chatWrite.setActiveBranch(messageId)
+          if (!activatedLeafId) return
+          leafId = activatedLeafId
         }
         setRevealNodeId(leafId)
         void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId })
       } catch (err) {
-        if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
-          logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })
-          return
-        }
         logger.error('Failed to set active branch from topic flow', err as Error)
         toast.error(t('common.error'))
       } finally {
         setBranchActionPending(false)
       }
     },
-    [actionsDisabled, graph.nodes, onLocateMessage, setActiveNode, t, topicId]
+    [actionsDisabled, chatWrite, graph.nodes, onLocateMessage, t, topicId]
   )
 
   const handleStartNodeBranch = useCallback(

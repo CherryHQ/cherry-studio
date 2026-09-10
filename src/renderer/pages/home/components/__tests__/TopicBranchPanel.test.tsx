@@ -1,6 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TopicBranchPanel from '../TopicBranchPanel'
@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   deleteAwaitingInputMessage: vi.fn().mockResolvedValue({ deletedIds: ['branch-empty-user'] }),
   reserveBranch: vi.fn().mockResolvedValue({ id: 'reserved-user' }),
   refetchTree: vi.fn(),
-  setActiveNode: vi.fn().mockResolvedValue(undefined),
+  setActiveBranch: vi.fn<() => Promise<string | undefined>>(),
+  chatWriteAvailable: true,
   topicPending: false,
   eventEmit: vi.fn(),
   useDataChange: vi.fn(),
@@ -24,10 +25,8 @@ vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: mocks.useQuery
 }))
 
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    get: vi.fn()
-  }
+vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
+  useChatWrite: () => (mocks.chatWriteAvailable ? { setActiveBranch: mocks.setActiveBranch } : null)
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -177,6 +176,8 @@ describe('TopicBranchPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.topicPending = false
+    mocks.chatWriteAvailable = true
+    mocks.setActiveBranch.mockResolvedValue('leaf-1')
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'active-1',
@@ -198,9 +199,6 @@ describe('TopicBranchPanel', () => {
       isLoading: false,
       refetch: mocks.refetchTree
     })
-    mocks.useMutation.mockReturnValue({
-      trigger: mocks.setActiveNode
-    })
     mocks.useMutation.mockImplementation((_method: string, path: string) => {
       if (path === '/topics/:id/duplicate') {
         return { trigger: mocks.copyBranchToNewTopic }
@@ -211,9 +209,8 @@ describe('TopicBranchPanel', () => {
       if (path === '/messages/:id/branches') {
         return { trigger: mocks.reserveBranch }
       }
-      return { trigger: mocks.setActiveNode }
+      throw new Error(`Unexpected mutation: ${path}`)
     })
-    vi.mocked(dataApiService.get).mockResolvedValue([{ id: 'message-1' }, { id: 'leaf-1' }])
   })
 
   it('renders the canvas without a secondary statistics header', () => {
@@ -251,24 +248,38 @@ describe('TopicBranchPanel', () => {
     expect(mocks.refetchTree).toHaveBeenCalledOnce()
   })
 
-  it('sets the active branch without a redundant tree refetch', async () => {
+  it('activates the selected branch through chat write before focusing the composer', async () => {
+    const user = userEvent.setup()
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
-    fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
+    await user.click(screen.getByRole('button', { name: 'Hello' }))
 
     await waitFor(() => {
-      expect(dataApiService.get).toHaveBeenCalledWith('/topics/topic-1/path', {
-        query: { nodeId: 'message-1' }
-      })
+      expect(mocks.eventEmit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', { topicId: 'topic-1' })
     })
-    expect(mocks.setActiveNode).toHaveBeenCalledWith({
-      body: { nodeId: 'leaf-1' },
-      params: { id: 'topic-1' }
-    })
-    expect(mocks.useMutation).toHaveBeenCalledWith('PUT', '/topics/:id/active-node', {
-      refresh: ['/topics/topic-1/messages', '/topics/topic-1/tree']
-    })
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.setActiveBranch).toHaveBeenCalledWith('message-1')
+  })
+
+  it('does not focus the composer when the requested branch is unavailable', async () => {
+    mocks.setActiveBranch.mockResolvedValueOnce(undefined)
+    const user = userEvent.setup()
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    await user.click(screen.getByRole('button', { name: 'Hello' }))
+
+    expect(mocks.setActiveBranch).toHaveBeenCalledWith('message-1')
+    expect(mocks.eventEmit).not.toHaveBeenCalled()
+  })
+
+  it('disables branch activation when chat write is unavailable', async () => {
+    mocks.chatWriteAvailable = false
+    const user = userEvent.setup()
+    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+
+    await user.click(screen.getByRole('button', { name: 'Hello' }))
+
+    expect(mocks.setActiveBranch).not.toHaveBeenCalled()
+    expect(mocks.eventEmit).not.toHaveBeenCalled()
   })
 
   it('locates the current active node without writing branch state', async () => {
@@ -302,8 +313,7 @@ describe('TopicBranchPanel', () => {
     await Promise.resolve()
 
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
-    expect(dataApiService.get).not.toHaveBeenCalled()
-    expect(mocks.setActiveNode).not.toHaveBeenCalled()
+    expect(mocks.setActiveBranch).not.toHaveBeenCalled()
     expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
@@ -348,8 +358,7 @@ describe('TopicBranchPanel', () => {
     await Promise.resolve()
 
     expect(onLocateMessage).toHaveBeenCalledWith('message-1')
-    expect(dataApiService.get).not.toHaveBeenCalled()
-    expect(mocks.setActiveNode).not.toHaveBeenCalled()
+    expect(mocks.setActiveBranch).not.toHaveBeenCalled()
     expect(mocks.refetchTree).not.toHaveBeenCalled()
   })
 
@@ -447,7 +456,7 @@ describe('TopicBranchPanel', () => {
     expect(branchButton).toBeDisabled()
     fireEvent.click(branchButton)
     expect(mocks.reserveBranch).not.toHaveBeenCalled()
-    expect(mocks.setActiveNode).not.toHaveBeenCalled()
+    expect(mocks.setActiveBranch).not.toHaveBeenCalled()
     expect(mocks.eventEmit).not.toHaveBeenCalled()
   })
 
@@ -494,11 +503,7 @@ describe('TopicBranchPanel', () => {
       isLoading: false,
       refetch: mocks.refetchTree
     })
-    vi.mocked(dataApiService.get).mockResolvedValueOnce([
-      { id: 'user-1' },
-      { id: 'assistant-old' },
-      { id: 'awaiting-input-user' }
-    ])
+    mocks.setActiveBranch.mockResolvedValueOnce('awaiting-input-user')
 
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
@@ -508,10 +513,7 @@ describe('TopicBranchPanel', () => {
     fireEvent.click(awaitingInputNode)
 
     await waitFor(() => {
-      expect(mocks.setActiveNode).toHaveBeenCalledWith({
-        body: { nodeId: 'awaiting-input-user' },
-        params: { id: 'topic-1' }
-      })
+      expect(mocks.setActiveBranch).toHaveBeenCalledWith('awaiting-input-user')
     })
     expect(mocks.refetchTree).not.toHaveBeenCalled()
   })

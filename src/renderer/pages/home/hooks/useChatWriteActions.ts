@@ -23,7 +23,8 @@ import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiSta
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
-import { branchMessagesToFullUIMessages, sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
+import { loadMessageBranch } from '@renderer/utils/message/loadMessageBranch'
+import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
@@ -135,15 +136,7 @@ export function useChatWriteActions(params: Params): Result {
     async (messageId?: string) => {
       if (!messageId || uiMessages.some((message) => message.id === messageId)) return uiMessages
 
-      const path = (await dataApiService.get(`/topics/${topic.id}/path`, {
-        query: { nodeId: messageId }
-      })) as DbMessage[]
-      const leaf = path.at(-1)
-      if (!leaf) throw new Error('Message branch is unavailable')
-      const branch = (await dataApiService.get(`/topics/${topic.id}/messages`, {
-        query: { nodeId: leaf.id, limit: path.length, includeSiblings: true }
-      })) as BranchMessagesResponse
-      return branchMessagesToFullUIMessages(branch.items)
+      return loadMessageBranch(topic.id, messageId)
     },
     [topic.id, uiMessages]
   )
@@ -546,6 +539,7 @@ export function useChatWriteActions(params: Params): Result {
         }
         throw err
       }
+      return leafId
     },
     [setActiveNodeTrigger, topic.id]
   )

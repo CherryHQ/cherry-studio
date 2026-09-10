@@ -28,7 +28,11 @@ import {
   flushPendingMessageImageActions,
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
-import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import {
+  getDirectAssistantModelsByUserId,
+  getMessageListItemModel,
+  toMessageListItem
+} from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -45,6 +49,7 @@ import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/erro
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { loadMessageBranch } from '@renderer/utils/message/loadMessageBranch'
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
@@ -118,7 +123,14 @@ export function useHomeMessageListProviderValue({
   })
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
-  const { editingMessage, editingMessageId, startEditing } = useMessageEditing()
+  const { editingMessage, editingMessageId, startEditing: startEditingSnapshot } = useMessageEditing()
+  const editingRequestIdRef = useRef(0)
+  useEffect(
+    () => () => {
+      editingRequestIdRef.current += 1
+    },
+    [topicId, editingMessage?.editingSessionId]
+  )
   const canStartNewContext =
     normalInteractionsEnabled && Boolean(chatWrite?.canStartNewContext) && editingMessage?.message.topicId !== topicId
   const resolvedAssistantId = assistant?.id ?? assistantId
@@ -154,6 +166,44 @@ export function useHomeMessageListProviderValue({
   }, [messages, resolvedAssistantId, topicId])
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
+  const startEditing = useCallback<NonNullable<MessageListActions['startEditing']>>(
+    (message, parts, options) => {
+      const requestId = ++editingRequestIdRef.current
+      if (options || message.role !== 'user') {
+        startEditingSnapshot(message, parts, options)
+        return
+      }
+
+      const startEditingWithModels = (models?: SharedModel[]) => {
+        startEditingSnapshot(message, parts, {
+          lockedMentionedModels: models && models.length > 1 ? models : undefined
+        })
+      }
+      const loadedModels = message.isActiveBranch
+        ? getDirectAssistantModelsByUserId(messagesRef.current).get(message.id)
+        : undefined
+      if (loadedModels?.length) {
+        startEditingWithModels(loadedModels)
+        return
+      }
+
+      void loadMessageBranch(topicId, message.id)
+        .then((branch) => {
+          if (requestId !== editingRequestIdRef.current) return
+          const branchItems = branch.map((item) =>
+            toMessageListItem(item, { assistantId: resolvedAssistantId, topicId })
+          )
+          startEditingWithModels(getDirectAssistantModelsByUserId(branchItems).get(message.id))
+        })
+        .catch((error) => {
+          if (requestId !== editingRequestIdRef.current) return
+          logger.error('Failed to load models for message editing', { error, messageId: message.id, topicId })
+          toast.error(t('common.error'))
+        })
+    },
+    [resolvedAssistantId, startEditingSnapshot, t, topicId]
+  )
+
   const partsByMessageIdRef = useRef(partsByMessageId)
   const getMessageParts = useCallback(async (messageId: string) => {
     return partsByMessageIdRef.current[messageId] ?? (await dataApiService.get(`/messages/${messageId}`)).data.parts
@@ -695,7 +745,9 @@ export function useHomeMessageListProviderValue({
   )
 
   const setActiveBranch = useCallback<NonNullable<MessageListActions['setActiveBranch']>>(
-    (messageId) => requireChatWrite('setActiveBranch').setActiveBranch(messageId),
+    async (messageId) => {
+      await requireChatWrite('setActiveBranch').setActiveBranch(messageId)
+    },
     [requireChatWrite]
   )
 

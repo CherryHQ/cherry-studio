@@ -1,4 +1,5 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import type * as MessageListItemModule from '@renderer/components/chat/messages/utils/messageListItem'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
@@ -94,7 +95,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', async (importOriginal) => ({
+  ...(await importOriginal<typeof MessageListItemModule>()),
   getMessageListItemModel: vi.fn(() => undefined),
   toMessageListItem: vi.fn((message) => message)
 }))
