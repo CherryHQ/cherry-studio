@@ -91,7 +91,6 @@ const mocks = vi.hoisted(() => ({
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
   autoDiscoverGitBash: vi.fn(),
-  validateGitBashPath: vi.fn(),
   setShellCommandPrefix: vi.fn(),
   getShellEnv: vi.fn(),
   isStreaming: false,
@@ -139,8 +138,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
 vi.mock('@main/utils/commandResolver', () => ({
-  autoDiscoverGitBash: mocks.autoDiscoverGitBash,
-  validateGitBashPath: mocks.validateGitBashPath
+  autoDiscoverGitBash: mocks.autoDiscoverGitBash
 }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
@@ -308,7 +306,6 @@ beforeEach(() => {
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
   mocks.autoDiscoverGitBash.mockReturnValue(null)
-  mocks.validateGitBashPath.mockImplementation((value: string) => value)
   mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
@@ -1461,6 +1458,7 @@ describe('PiRuntimeConnection', () => {
     const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const shellPath = 'C:\\PortableGit\\bin\\bash.exe'
     vi.stubEnv('CLAUDE_CODE_GIT_BASH_PATH', shellPath)
+    mocks.autoDiscoverGitBash.mockReturnValue(shellPath)
 
     try {
       await new PiRuntimeConnection(input).start()
@@ -1469,27 +1467,25 @@ describe('PiRuntimeConnection', () => {
       platform.mockRestore()
     }
 
-    expect(mocks.validateGitBashPath).toHaveBeenCalledTimes(2)
-    expect(mocks.validateGitBashPath).toHaveBeenCalledWith(shellPath)
-    expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
+    expect(mocks.autoDiscoverGitBash).toHaveBeenCalledTimes(2)
     expect(mocks.createBashToolDefinition).toHaveBeenCalledTimes(2)
     expect(mocks.bashToolOptions).toMatchObject({ shellPath })
   })
 
-  it('fails closed when the explicit Cherry Git Bash path is invalid', async () => {
+  it('falls back to an auto-discovered Git Bash when the explicit override is invalid', async () => {
     const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     vi.stubEnv('CLAUDE_CODE_GIT_BASH_PATH', 'C:\\missing\\bash.exe')
-    mocks.validateGitBashPath.mockReturnValue(null)
+    const fallbackPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    mocks.autoDiscoverGitBash.mockReturnValue(fallbackPath)
 
     try {
-      await expect(new PiRuntimeConnection(input).start()).rejects.toThrow(
-        'Configured Git Bash path is invalid or unavailable: C:\\missing\\bash.exe'
-      )
+      await new PiRuntimeConnection(input).start()
     } finally {
       platform.mockRestore()
     }
-    expect(mocks.autoDiscoverGitBash).not.toHaveBeenCalled()
-    expect(mocks.createAgentSession).not.toHaveBeenCalled()
+    expect(mocks.autoDiscoverGitBash).toHaveBeenCalledOnce()
+    expect(mocks.settingsArgs).toEqual([{ shellPath: fallbackPath }, { projectTrusted: true }])
+    expect(mocks.bashToolOptions).toMatchObject({ shellPath: fallbackPath })
   })
 
   it('injects the agent enabled managed skills as additionalSkillPaths while keeping noSkills', async () => {

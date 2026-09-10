@@ -32,7 +32,7 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
-import { autoDiscoverGitBash, validateGitBashPath } from '@main/utils/commandResolver'
+import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -99,15 +99,7 @@ export function buildPiLoginPathPrefix(
 
 function resolvePiShellPath(): string | undefined {
   if (process.platform !== 'win32') return undefined
-
-  const configuredPath = process.env.CLAUDE_CODE_GIT_BASH_PATH
-  if (!configuredPath) return autoDiscoverGitBash() ?? undefined
-
-  const shellPath = validateGitBashPath(configuredPath)
-  if (!shellPath) {
-    throw new Error(`Configured Git Bash path is invalid or unavailable: ${configuredPath}`)
-  }
-  return shellPath
+  return autoDiscoverGitBash() ?? undefined
 }
 const PI_AUTO_APPROVED_MCP_TOOLS = new Set(
   listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
