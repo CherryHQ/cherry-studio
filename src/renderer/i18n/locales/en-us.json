@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} items",
   "agent.preview_pane.no_search_results": "No files match your search",
   "agent.preview_pane.office.title": "Opening {{extension}} files here is not supported yet",
+  "agent.preview_pane.pick_selection": "Select region",
   "agent.preview_pane.preview": "Preview",
   "agent.preview_pane.quote_selection": "Quote selection",
   "agent.preview_pane.refresh": "Refresh",

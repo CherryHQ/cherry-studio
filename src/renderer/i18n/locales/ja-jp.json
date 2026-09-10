@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}}個のアイテム",
   "agent.preview_pane.no_search_results": "検索に一致するファイルはありません",
   "agent.preview_pane.office.title": "ここでは {{extension}} ファイルを開くことはまだサポートされていません",
+  "agent.preview_pane.pick_selection": "範囲を選択",
   "agent.preview_pane.preview": "プレビュー",
   "agent.preview_pane.quote_selection": "選択範囲を引用",
   "agent.preview_pane.refresh": "リフレッシュ",

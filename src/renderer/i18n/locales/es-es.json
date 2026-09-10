@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} elementos",
   "agent.preview_pane.no_search_results": "No hay archivos que coincidan con tu búsqueda",
   "agent.preview_pane.office.title": "Abrir archivos {{extension}} aquí aún no está soportado",
+  "agent.preview_pane.pick_selection": "Seleccionar región",
   "agent.preview_pane.preview": "Vista previa",
   "agent.preview_pane.quote_selection": "Citar selección",
   "agent.preview_pane.refresh": "Actualizar",

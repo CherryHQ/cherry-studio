@@ -133,6 +133,7 @@
   "agent.preview_pane.items_other": "{{count}} Artikel",
   "agent.preview_pane.no_search_results": "Keine Dateien entsprechen Ihrer Suche",
   "agent.preview_pane.office.title": "Das Öffnen von {{extension}}-Dateien wird hier noch nicht unterstützt",
+  "agent.preview_pane.pick_selection": "Bereich auswählen",
   "agent.preview_pane.preview": "Vorschau",
   "agent.preview_pane.quote_selection": "Auswahl zitieren",
   "agent.preview_pane.refresh": "Aktualisieren",
