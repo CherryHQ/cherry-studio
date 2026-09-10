@@ -1639,7 +1639,13 @@ const ChatComposerInner = ({
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
       const skillFolderNames = selectedSkills
-        .filter((skill) => tokenIds.has(agentComposerTokenId.skill(skill)) && skillByFilename.has(skill.filename))
+        // While the installed-skills query is still loading the availability filter is unknown —
+        // send the attachment through and let main's read verdict decide, instead of dropping it.
+        .filter(
+          (skill) =>
+            tokenIds.has(agentComposerTokenId.skill(skill)) &&
+            (!isAvailableSkillsLoading || skillByFilename.has(skill.filename))
+        )
         .map((skill) => skill.filename)
       return {
         ...payload,
@@ -1654,6 +1660,7 @@ const ChatComposerInner = ({
       chatTarget,
       fastMode,
       files,
+      isAvailableSkillsLoading,
       reasoningEffort,
       selectedKnowledgeBasesInScope,
       selectedSkills,
@@ -1807,14 +1814,20 @@ const ChatComposerInner = ({
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
       const skillFolderNames = selectedSkills
-        .filter((skill) => tokenIds.has(agentComposerTokenId.skill(skill)) && skillByFilename.has(skill.filename))
+        // While the installed-skills query is still loading the availability filter is unknown —
+        // send the attachment through and let main's read verdict decide, instead of dropping it.
+        .filter(
+          (skill) =>
+            tokenIds.has(agentComposerTokenId.skill(skill)) &&
+            (!isAvailableSkillsLoading || skillByFilename.has(skill.filename))
+        )
         .map((skill) => skill.filename)
       return {
         draft: normalizedDraft,
         parts: withSkillScopePart(withKnowledgeScopePart(messageParts, knowledgeBaseIds), skillFolderNames)
       }
     },
-    [files, selectedKnowledgeBasesInScope, selectedSkills, skillByFilename]
+    [files, isAvailableSkillsLoading, selectedKnowledgeBasesInScope, selectedSkills, skillByFilename]
   )
 
   /** `resend` = fork the user message and regenerate; otherwise save the edit in place. */
