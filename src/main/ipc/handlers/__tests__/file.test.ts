@@ -14,6 +14,7 @@ const {
   readChunkByPathMock,
   safeOpenMock,
   showPathInFolderMock,
+  validateNotesDirectoryMock,
   writeIfUnchangedByPathMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -24,6 +25,7 @@ const {
   readChunkByPathMock: vi.fn(),
   safeOpenMock: vi.fn(),
   showPathInFolderMock: vi.fn(),
+  validateNotesDirectoryMock: vi.fn(),
   writeIfUnchangedByPathMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
@@ -63,6 +65,7 @@ vi.mock('@main/services/file', async () => {
     readChunkByPath: readChunkByPathMock,
     safeOpen: safeOpenMock,
     showInFolder: showPathInFolderMock,
+    validateNotesDirectory: validateNotesDirectoryMock,
     writeIfUnchangedByPath: writeIfUnchangedByPathMock
   }
 })
@@ -448,6 +451,15 @@ describe('fileHandlers', () => {
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(fileManager.open).not.toHaveBeenCalled()
     expect(fileManager.showInFolder).not.toHaveBeenCalled()
+  })
+
+  it('validates Notes directories through the typed file route', async () => {
+    validateNotesDirectoryMock.mockReturnValueOnce(true)
+
+    await expect(fileHandlers['file.validate_notes_directory']('/tmp/notes' as AbsoluteFilePath, ctx)).resolves.toBe(
+      true
+    )
+    expect(validateNotesDirectoryMock).toHaveBeenCalledWith('/tmp/notes')
   })
 
   it('dispatches range reads for entry and path handles through file.read', async () => {

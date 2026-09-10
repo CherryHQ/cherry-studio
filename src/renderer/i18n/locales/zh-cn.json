@@ -640,6 +640,7 @@
   "chat.input.reference_panel.session.no_results.description": "没有名称匹配的会话",
   "chat.input.reference_panel.session.no_results.label": "无匹配会话",
   "chat.input.reference_panel.session.title": "会话",
+  "chat.input.reference_panel.title": "引用",
   "chat.input.reference_panel.topic.no_results.description": "没有名称匹配的话题",
   "chat.input.reference_panel.topic.no_results.label": "无匹配话题",
   "chat.input.reference_panel.topic.title": "话题",

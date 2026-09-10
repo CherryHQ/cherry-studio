@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import type { TFunction } from 'i18next'
 import { MessageSquare, MousePointerClick } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +13,7 @@ import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../qui
 import { fetchEntityReferencePromptText } from './entityReferenceContext'
 
 const REFERENCE_RESULT_LIMIT = 50
+const EMPTY_QUERY_GROUP_LIMIT = 5
 // List endpoints page pinned-first in manual order, so recency sorting happens client-side
 // over the first page; entities beyond it are reachable by typing a name query instead.
 const REFERENCE_LIST_FETCH_LIMIT = 200
@@ -206,30 +208,92 @@ export interface EntityReferenceMentionSource {
   hasPendingReference: boolean
 }
 
-/** The chat composer's standalone `@` suggestion source for topic references. */
-export function useEntityReferenceMentionSource(options: EntityReferenceMentionOptions): EntityReferenceMentionSource {
-  const { entityType } = options
+interface AdditionalReferenceMentionItems {
+  getItems: (options: { query: string; editor: Editor }) => Promise<ComposerSuggestionItem[]>
+  onExit?: () => void
+  title: string
+}
+
+interface EntityReferenceMentionSourceOptions extends EntityReferenceMentionOptions {
+  additionalItems?: AdditionalReferenceMentionItems
+}
+
+const createGroupHeaderItem = (id: string, label: string): ComposerSuggestionItem => ({
+  id,
+  label,
+  disabled: true,
+  command: () => undefined
+})
+
+const getEntityTitle = (entityType: 'topic' | 'session', t: TFunction) =>
+  entityType === 'topic' ? t('chat.input.reference_panel.topic.title') : t('chat.input.reference_panel.session.title')
+
+const getEntityNoResultsLabel = (entityType: 'topic' | 'session', t: TFunction) =>
+  entityType === 'topic'
+    ? t('chat.input.reference_panel.topic.no_results.label')
+    : t('chat.input.reference_panel.session.no_results.label')
+
+const getEntityNoResultsDescription = (entityType: 'topic' | 'session', t: TFunction) =>
+  entityType === 'topic'
+    ? t('chat.input.reference_panel.topic.no_results.description')
+    : t('chat.input.reference_panel.session.no_results.description')
+
+/** The chat composer's standalone `@` suggestion source for conversation and optional extra references. */
+export function useEntityReferenceMentionSource({
+  entityType,
+  excludeId,
+  additionalItems
+}: EntityReferenceMentionSourceOptions): EntityReferenceMentionSource {
   const { t } = useTranslation()
-  const { getItems, hasPendingReference } = useEntityReferenceMentionItems(options)
+  const { getItems, hasPendingReference } = useEntityReferenceMentionItems({ entityType, excludeId })
 
   // The standalone panel shows a disabled empty-state row; when merged into another
   // panel (agent `@`), the raw item list stays empty so the host's empty handling wins.
   const getItemsWithEmptyState = useCallback(
     async (args: { query: string; editor: Editor }): Promise<ComposerSuggestionItem[]> => {
-      const items = await getItems(args)
-      if (items.length > 0) return items
+      if (!additionalItems) {
+        const items = await getItems(args)
+        if (items.length > 0) return items
+        return [
+          {
+            id: 'entity-reference:no-results',
+            label: getEntityNoResultsLabel(entityType, t),
+            description: getEntityNoResultsDescription(entityType, t),
+            icon: entityType === 'topic' ? <MessageSquare size={16} /> : <MousePointerClick size={16} />,
+            disabled: true,
+            command: () => undefined
+          }
+        ]
+      }
+
+      const [itemsResult, extraItemsResult] = await Promise.allSettled([getItems(args), additionalItems.getItems(args)])
+      if (itemsResult.status === 'rejected' && extraItemsResult.status === 'rejected') throw itemsResult.reason
+
+      const items = itemsResult.status === 'fulfilled' ? itemsResult.value : []
+      const extraItems = extraItemsResult.status === 'fulfilled' ? extraItemsResult.value : []
+
+      if (additionalItems && !args.query.trim() && items.length > 0 && extraItems.length > 0) {
+        return [
+          createGroupHeaderItem('entity-reference:additional-header', additionalItems.title),
+          ...extraItems.slice(0, EMPTY_QUERY_GROUP_LIMIT),
+          createGroupHeaderItem(`entity-reference:${entityType}-header`, getEntityTitle(entityType, t)),
+          ...items.slice(0, EMPTY_QUERY_GROUP_LIMIT)
+        ]
+      }
+
+      const combinedItems = [...extraItems, ...items]
+      if (combinedItems.length > 0) return combinedItems
       return [
         {
           id: 'entity-reference:no-results',
-          label: t(`chat.input.reference_panel.${entityType}.no_results.label`),
-          description: t(`chat.input.reference_panel.${entityType}.no_results.description`),
+          label: t('common.no_results'),
           icon: entityType === 'topic' ? <MessageSquare size={16} /> : <MousePointerClick size={16} />,
           disabled: true,
           command: () => undefined
         }
       ]
     },
-    [entityType, getItems, t]
+    [additionalItems, entityType, getItems, t]
   )
 
   const sources = useMemo(
@@ -237,12 +301,13 @@ export function useEntityReferenceMentionSource(options: EntityReferenceMentionO
       {
         pluginKey: 'entity-reference-mention-suggestion',
         char: '@',
-        title: t(`chat.input.reference_panel.${entityType}.title`),
+        title: additionalItems ? t('chat.input.reference_panel.title') : getEntityTitle(entityType, t),
         allowedPrefixes: [' ', '\n'],
+        onExit: additionalItems?.onExit,
         items: getItemsWithEmptyState
       }
     ],
-    [entityType, getItemsWithEmptyState, t]
+    [additionalItems, entityType, getItemsWithEmptyState, t]
   )
 
   return { sources, hasPendingReference }

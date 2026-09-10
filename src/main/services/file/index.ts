@@ -88,6 +88,7 @@ export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/con
 // IPC batch-metadata handler.
 export { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
 export { getMetadataByPath } from './utils/metadata'
+export { validateNotesDirectory } from './utils/notesDirectory'
 
 // Directory listing primitives. Consumed by legacy IPC directory routes
 // (pending IpcApi migration).

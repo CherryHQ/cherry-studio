@@ -640,6 +640,7 @@
   "chat.input.reference_panel.session.no_results.description": "Нет сеансов, соответствующих вашему поиску",
   "chat.input.reference_panel.session.no_results.label": "Сеансы не найдены",
   "chat.input.reference_panel.session.title": "Сессии",
+  "chat.input.reference_panel.title": "Ссылки",
   "chat.input.reference_panel.topic.no_results.description": "Нет тем, соответствующих вашему поиску",
   "chat.input.reference_panel.topic.no_results.label": "Темы не найдены",
   "chat.input.reference_panel.topic.title": "Темы",

@@ -8,6 +8,7 @@ import {
   readChunkByPath,
   safeOpen,
   showInFolder as showPathInFolder,
+  validateNotesDirectory,
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError } from '@main/services/file'
@@ -153,6 +154,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
   },
+  'file.validate_notes_directory': async (path) => validateNotesDirectory(path),
   'file.tree.create': async ({ rootPath, options }, { senderId }) => {
     try {
       return await application.get('DirectoryTreeManager').create(requireSenderWebContents(senderId), rootPath, options)

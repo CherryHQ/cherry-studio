@@ -640,6 +640,7 @@
   "chat.input.reference_panel.session.no_results.description": "Nenhuma sessão corresponde à sua pesquisa",
   "chat.input.reference_panel.session.no_results.label": "Nenhuma sessão encontrada",
   "chat.input.reference_panel.session.title": "Sessões",
+  "chat.input.reference_panel.title": "Referências",
   "chat.input.reference_panel.topic.no_results.description": "Nenhum tópico corresponde à sua pesquisa",
   "chat.input.reference_panel.topic.no_results.label": "Nenhum tópico encontrado",
   "chat.input.reference_panel.topic.title": "Tópicos",

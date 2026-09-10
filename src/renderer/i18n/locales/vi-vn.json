@@ -640,6 +640,7 @@
   "chat.input.reference_panel.session.no_results.description": "Không có phiên nào khớp với tìm kiếm của bạn",
   "chat.input.reference_panel.session.no_results.label": "Không tìm thấy phiên làm việc nào",
   "chat.input.reference_panel.session.title": "Phiên họp",
+  "chat.input.reference_panel.title": "Tham chiếu",
   "chat.input.reference_panel.topic.no_results.description": "Không có chủ đề nào khớp với tìm kiếm của bạn",
   "chat.input.reference_panel.topic.no_results.label": "Không Tìm Thấy Chủ Đề Nào",
   "chat.input.reference_panel.topic.title": "Chủ đề",

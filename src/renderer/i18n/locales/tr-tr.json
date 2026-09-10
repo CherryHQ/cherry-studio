@@ -640,6 +640,7 @@
   "chat.input.reference_panel.session.no_results.description": "Aramayla eşleşen oturum yok",
   "chat.input.reference_panel.session.no_results.label": "Oturum Bulunamadı",
   "chat.input.reference_panel.session.title": "Oturumlar",
+  "chat.input.reference_panel.title": "Referanslar",
   "chat.input.reference_panel.topic.no_results.description": "Aramayla eşleşen konu yok",
   "chat.input.reference_panel.topic.no_results.label": "Konu Bulunamadı",
   "chat.input.reference_panel.topic.title": "Konular",
