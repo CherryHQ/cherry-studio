@@ -12,12 +12,19 @@ import {
 
 describe('normalizePath', () => {
   it('converts Windows backslashes to forward slashes and lowercases by default on win32', () => {
-    expect(normalizePath('src\\Core\\Main.TS ')).toBe('src/core/main.ts')
+    expect(normalizePath('src\\Core\\Main.TS ', true)).toBe('src/core/main.ts')
     expect(normalizePath(undefined)).toBe('')
   })
 
   it('preserves casing when caseInsensitive is false (e.g. Linux filesystem)', () => {
     expect(normalizePath('src\\Core\\Main.TS ', false)).toBe('src/Core/Main.TS')
+  })
+
+  it('normalizes path aliases, redundant segments, and trailing slashes', () => {
+    expect(normalizePath('./src/main.ts', true)).toBe('src/main.ts')
+    expect(normalizePath('src//main.ts', true)).toBe('src/main.ts')
+    expect(normalizePath('src/sub/../main.ts', true)).toBe('src/main.ts')
+    expect(normalizePath('src/main.ts/', true)).toBe('src/main.ts')
   })
 })
 
@@ -42,6 +49,14 @@ describe('normalizeExplorerSignature', () => {
     expect(sigWithoutFlag).not.toBe(sigWithFlag)
   })
 
+  it('preserves meaningful whitespace in non-path string arguments', () => {
+    const sigLeading = normalizeExplorerSignature('Grep', { path: 'src/main', pattern: ' foo' })
+    const sigTrimmed = normalizeExplorerSignature('Grep', { path: 'src/main', pattern: 'foo' })
+    expect(sigLeading).toBe('Grep:{"path":"src/main","pattern":" foo"}')
+    expect(sigTrimmed).toBe('Grep:{"path":"src/main","pattern":"foo"}')
+    expect(sigLeading).not.toBe(sigTrimmed)
+  })
+
   it('sorts generic parameters deterministically', () => {
     const sig1 = normalizeExplorerSignature('Glob', { pattern: '*.ts', path: 'src' })
     const sig2 = normalizeExplorerSignature('Glob', { path: 'src', pattern: '*.ts' })
@@ -63,6 +78,18 @@ describe('evaluateIncomingExplorerCall & cap logic', () => {
       recordExplorerCallState(state, 'Read', { file_path: 'src/main.ts', offset: i * 50 + 1, limit: 50 })
     }
 
+    const peek11 = evaluateIncomingExplorerCall(state, 'Read', { file_path: 'src/main.ts', offset: 501, limit: 50 })
+    expect(peek11.sameFileCapReached).toBe(true)
+  })
+
+  it('tracks path aliases under the same file record for cap enforcement', () => {
+    const state = createInitialExplorerState()
+    for (let i = 0; i < 5; i++) {
+      recordExplorerCallState(state, 'Read', { file_path: './src/main.ts', offset: i * 50 + 1, limit: 50 })
+    }
+    for (let i = 5; i < 10; i++) {
+      recordExplorerCallState(state, 'Read', { file_path: 'src//main.ts', offset: i * 50 + 1, limit: 50 })
+    }
     const peek11 = evaluateIncomingExplorerCall(state, 'Read', { file_path: 'src/main.ts', offset: 501, limit: 50 })
     expect(peek11.sameFileCapReached).toBe(true)
   })

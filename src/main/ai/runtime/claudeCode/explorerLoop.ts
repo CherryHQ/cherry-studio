@@ -14,6 +14,8 @@
  * for the mutated file.
  */
 
+import path from 'node:path'
+
 import { isMac, isWin } from '@main/core/platform'
 
 /** Exploration tools monitored for stuck loops and consecutive read budgets. */
@@ -56,12 +58,18 @@ export interface ExplorerLoopEvaluation {
 
 /**
  * Normalizes file paths for comparison and deduplication.
- * Conforms to host filesystem case-sensitivity semantics (case-insensitive on Windows and macOS default,
- * case-preserving on Linux).
+ * Canonicalizes path separators, resolves redundant relative segments (./, ../, //),
+ * strips trailing slashes, and conforms to host filesystem case-sensitivity semantics
+ * (case-insensitive on Windows and macOS default, case-preserving on Linux).
  */
 export function normalizePath(p: string | undefined, caseInsensitive: boolean = isMac || isWin): string {
   if (!p || typeof p !== 'string') return ''
-  const normalized = p.trim().replace(/\\/g, '/')
+  const trimmed = p.trim().replace(/\\/g, '/')
+  if (!trimmed) return ''
+  let normalized = path.posix.normalize(trimmed)
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
   return caseInsensitive ? normalized.toLowerCase() : normalized
 }
 
@@ -78,8 +86,6 @@ export function normalizeExplorerSignature(
     const val = input[k]
     if ((k === 'file_path' || k === 'path') && typeof val === 'string') {
       sortedObj[k] = normalizePath(val)
-    } else if (typeof val === 'string') {
-      sortedObj[k] = val.trim()
     } else {
       sortedObj[k] = val
     }
@@ -111,7 +117,12 @@ export function evaluateIncomingExplorerCall(
     consecutiveReads: nextConsecutiveReads
   }
 
-  const rawPath = typeof input?.file_path === 'string' ? input.file_path : undefined
+  const rawPath =
+    typeof input?.file_path === 'string'
+      ? input.file_path
+      : typeof input?.path === 'string'
+        ? input.path
+        : undefined
   const normPath = normalizePath(rawPath)
 
   if (toolName === 'Read' && normPath) {
@@ -145,7 +156,12 @@ export function recordExplorerCallState(
     state.lastSignature = signature
   }
 
-  const rawPath = typeof input?.file_path === 'string' ? input.file_path : undefined
+  const rawPath =
+    typeof input?.file_path === 'string'
+      ? input.file_path
+      : typeof input?.path === 'string'
+        ? input.path
+        : undefined
   const normPath = normalizePath(rawPath)
 
   if (toolName === 'Read' && normPath) {
