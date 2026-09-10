@@ -835,6 +835,33 @@ describe('MessageGroup', () => {
     expect(horizontalGroup.scrollLeft).toBe(160)
   })
 
+  it('contains Shift+wheel input at the horizontal scroll boundary', () => {
+    const parentWheel = vi.fn()
+    const messages = [createMessage('msg-1', 0, 'horizontal'), createMessage('msg-2', 1, 'horizontal')]
+
+    const { container } = render(
+      <div onWheel={parentWheel}>
+        <MessageGroup messages={messages} />
+      </div>
+    )
+
+    const outerWrapper = container.querySelector('#message-msg-1') as HTMLElement
+    const horizontalGroup = outerWrapper.parentElement as HTMLElement
+    setElementSize(horizontalGroup, {
+      clientWidth: 500,
+      scrollLeft: 500,
+      scrollWidth: 1000
+    })
+
+    const wheelEvent = createEvent.wheel(horizontalGroup, { deltaY: 120, shiftKey: true })
+    fireEvent(horizontalGroup, wheelEvent)
+
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(parentWheel).not.toHaveBeenCalled()
+    expect(horizontalGroup.scrollLeft).toBe(500)
+    expect(mocks.scrollByWheel).not.toHaveBeenCalled()
+  })
+
   it('registers horizontal wheel handling as a native non-passive listener', () => {
     const addEventListenerSpy = vi.spyOn(HTMLElement.prototype, 'addEventListener')
 

@@ -273,9 +273,11 @@ const MessageGroup = ({
       const canScrollHorizontally =
         horizontalDelta < 0 ? groupContainer.scrollLeft > 0 : groupContainer.scrollLeft < maxScrollLeft
 
+      if (!canScrollHorizontally && !event.shiftKey) return
+
+      event.preventDefault()
+      event.stopPropagation()
       if (canScrollHorizontally) {
-        event.preventDefault()
-        event.stopPropagation()
         groupContainer.scrollLeft += horizontalDelta
       }
     },
