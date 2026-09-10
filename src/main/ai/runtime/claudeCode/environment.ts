@@ -20,7 +20,7 @@ import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isExternalCliProvider } from '@shared/utils/provider'
+import { isAnthropicProvider, isExternalCliProvider } from '@shared/utils/provider'
 
 import {
   type Environment,
@@ -81,14 +81,10 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  // Only the canonical system providers report an accurate window;
-  // a relay must not inherit trust by cloning the preset or merely reusing
-  // the endpoint type — a custom baseUrl confirms an untrusted channel that
-  // can overstate the window (e.g. #18894). The preset itself defines
-  // `https://api.anthropic.com`, which is merged into every provider's
-  // runtime endpointConfigs, so the check must compare against that value
-  // rather than merely testing for existence. `claude-code` (external-cli)
-  // is the second official Anthropic channel and must be trusted alike.
+  // A custom baseUrl confirms an untrusted channel that can overstate the
+  // window (e.g. #18894). The preset itself defines `https://api.anthropic.com`,
+  // which is merged into every provider's runtime endpointConfigs, so the check
+  // must compare against that value rather than merely testing for existence.
   const ANTHROPIC_PRESET_BASE_URL = 'https://api.anthropic.com'
   const normalizeAnthropicBaseUrl = (url: string): string => {
     let n = url.trim().replace(/\/+$/, '')
@@ -101,12 +97,13 @@ export function resolveAutoCompactWindow(
   const normalizedPreset = normalizeAnthropicBaseUrl(ANTHROPIC_PRESET_BASE_URL)
   const hasCustomAnthropicBaseUrl =
     normalizedActual !== undefined && normalizedActual !== '' && normalizedActual !== normalizedPreset
-  const TRUSTED_ANTHROPIC_IDS = new Set(['anthropic', 'claude-code'])
+  // Trust any channel that resolves to the official Anthropic endpoint — a custom
+  // provider cloned from the preset (or inheriting its endpoint type) reports an
+  // accurate window when it keeps the official baseUrl. Only a custom baseUrl
+  // proves an untrusted relay that can overstate the window (e.g. #18894).
+  // `claude-code` (external-cli) is the second official channel and is trusted alike.
   const isTrustedAnthropic =
-    provider != null &&
-    TRUSTED_ANTHROPIC_IDS.has(provider.id) &&
-    provider.presetProviderId === provider.id &&
-    !hasCustomAnthropicBaseUrl
+    provider != null && (isAnthropicProvider(provider) || isExternalCliProvider(provider)) && !hasCustomAnthropicBaseUrl
   // For tiny windows the 0.6 margin would make the MIN floor even more
   // provider-unsafe (e.g. 100K * 0.6 = 60K - 32K = 28K room vs 68K raw room,
   // both capped to 100K). Skip the margin when the margined room falls below
@@ -146,6 +143,14 @@ export function resolveAutoCompactWindow(
   // #18894); large windows stay capped to their safety-adjusted room.
   const capped = Math.min(clamped, Math.max(inputRoom, 0))
   if (capped < MIN_AUTO_COMPACT_WINDOW) {
+    // A large output cap can outrun the safety-adjusted room even at the trigger
+    // point (trigger fires at 80% of the window) — pinning MIN would oversize the
+    // budget, so omit the window and fall back to the CLI defaults instead.
+    // Default-size outputs keep the intentional SDK-floor compromise for tiny windows.
+    const triggerTotal = (MIN_AUTO_COMPACT_WINDOW * AUTO_COMPACT_TRIGGER_PCT) / 100 + requestedOutput
+    if (requestedOutput > DEFAULT_REQUESTED_OUTPUT_TOKENS && triggerTotal > effectiveContextWindow) {
+      return undefined
+    }
     return MIN_AUTO_COMPACT_WINDOW
   }
   return capped

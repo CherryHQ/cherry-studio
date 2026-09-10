@@ -740,6 +740,52 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
   })
 
+  // A large output cap cannot fit alongside the SDK floor inside the
+  // safety-adjusted room — pinning 100K would oversize the budget, so the
+  // window is omitted and the CLI defaults apply instead.
+  it('omits the auto-compact window for a large output cap that outruns the margined room', async () => {
+    const untrustedProvider = {
+      id: 'openrouter',
+      presetProviderId: 'openrouter',
+      defaultChatEndpoint: 'openai-chat-completions'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      untrustedProvider,
+      { contextWindow: 256_000, maxOutputTokens: 128_000 }
+    )
+
+    expect(settings.settings).not.toHaveProperty('autoCompactWindow')
+  })
+
+  // A custom provider cloned from the Anthropic preset reports an accurate
+  // window while it keeps the official endpoint, so it must not pay the 0.6 margin.
+  it('trusts a custom provider that keeps the official Anthropic endpoint', async () => {
+    const customAnthropic = {
+      id: 'my-anthropic-relay',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: 'https://api.anthropic.com' }
+      }
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      customAnthropic,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
+  })
+
   it.each([undefined, 64_000, 99_999])(
     'omits a model context window below Claude Code limits (%s)',
     async (contextWindow) => {
