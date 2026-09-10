@@ -51,7 +51,16 @@ vi.mock('../bundledGit', () => ({
 
 // Import AFTER mocks are registered so the module binds to mocked values.
 import { getBundledGitDir } from '../bundledGit'
-import { getPathFromEnvironment, getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
+import {
+  getMiseEnvEntries,
+  getPathFromEnvironment,
+  getRawShellEnv,
+  getShellEnv,
+  hasMiseInPath,
+  hasUserMiseEnv,
+  refreshShellEnv,
+  removePathEntry
+} from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -282,5 +291,42 @@ describe('getPathFromEnvironment', () => {
     expect(getPathFromEnvironment({ Path: 'C:\\Users\\tester\\bin', SECRET: 'hidden' })).toBe('C:\\Users\\tester\\bin')
     expect(getPathFromEnvironment({ PATH: '/opt/homebrew/bin' })).toBe('/opt/homebrew/bin')
     expect(getPathFromEnvironment({ HOME: '/Users/tester' })).toBeUndefined()
+  })
+})
+
+describe('mise environment ownership', () => {
+  it('detects mise-owned shims and installs dirs in PATH', () => {
+    expect(hasMiseInPath('C:\\Users\\me\\AppData\\Local\\mise\\shims;C:\\Windows')).toBe(true)
+    expect(hasMiseInPath('C:\\Users\\me\\AppData\\Local\\Mise\\installs\\python\\3.14.6;C:\\Windows')).toBe(true)
+    expect(hasMiseInPath(undefined)).toBe(false)
+    expect(hasMiseInPath('')).toBe(false)
+  })
+
+  it('ignores unrelated directories that merely contain "mise"', () => {
+    expect(hasMiseInPath('C:\\projects\\mise;C:\\Windows')).toBe(false)
+    expect(hasMiseInPath('C:\\tools\\promise\\bin;C:\\Windows')).toBe(false)
+    expect(hasMiseInPath('C:\\opt\\mise-tools\\bin;C:\\Windows')).toBe(false)
+  })
+
+  it('treats MISE_* vars or a mise-owned PATH dir as user mise ownership', () => {
+    expect(hasUserMiseEnv({ MISE_DATA_DIR: 'C:\\Users\\me\\mise-data', Path: 'C:\\Windows' })).toBe(true)
+    expect(hasUserMiseEnv({ Path: 'C:\\Users\\me\\AppData\\Local\\mise\\shims;C:\\Windows' })).toBe(true)
+    expect(hasUserMiseEnv({ Path: 'C:\\Windows' })).toBe(false)
+    expect(hasUserMiseEnv({ Path: 'C:\\projects\\mise;C:\\Windows' })).toBe(false)
+    expect(getMiseEnvEntries({ MISE_DATA_DIR: 'x', Path: 'C:\\Windows' })).toEqual([['MISE_DATA_DIR', 'x']])
+  })
+
+  it('removes one directory from PATH case-insensitively', () => {
+    const env: Record<string, string | undefined> = {
+      Path: 'C:\\cherry\\shims;C:\\Windows;C:\\cherry\\SHIMS'
+    }
+    removePathEntry(env, 'c:\\CHERRY\\shims')
+    expect(env.Path).toBe('C:\\Windows')
+  })
+
+  it('leaves PATH untouched when the directory is absent', () => {
+    const env: Record<string, string | undefined> = { Path: 'C:\\Windows' }
+    removePathEntry(env, 'C:\\cherry\\shims')
+    expect(env.Path).toBe('C:\\Windows')
   })
 })
