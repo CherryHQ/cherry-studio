@@ -1,8 +1,4 @@
-import { useAgent } from '@renderer/hooks/agent/useAgent'
-import { useSession } from '@renderer/hooks/agent/useSession'
-import { useAssistantApiById } from '@renderer/hooks/useAssistant'
-import { useTopicById } from '@renderer/hooks/useTopic'
-import { getPrimarySessionWorkdir } from '@renderer/utils/chat/sessionListHelpers'
+import { useGlobalSearchSessionContext, useGlobalSearchTopicContext } from '@renderer/hooks/useGlobalSearchEntryContext'
 import { memo } from 'react'
 
 function EntryContext({ name, workspaceName, path }: { name?: string; workspaceName?: string; path?: string }) {
@@ -19,9 +15,8 @@ function EntryContext({ name, workspaceName, path }: { name?: string; workspaceN
 }
 
 export const GlobalSearchTopicContext = memo(function GlobalSearchTopicContext({ topicId }: { topicId: string }) {
-  const { topic } = useTopicById(topicId)
-  const { assistant } = useAssistantApiById(topic?.assistantId ?? undefined)
-  return <EntryContext name={assistant?.name} />
+  const context = useGlobalSearchTopicContext(topicId)
+  return <EntryContext {...context} />
 })
 
 export const GlobalSearchSessionContext = memo(function GlobalSearchSessionContext({
@@ -29,14 +24,6 @@ export const GlobalSearchSessionContext = memo(function GlobalSearchSessionConte
 }: {
   sessionId: string
 }) {
-  const { session } = useSession(sessionId)
-  const { agent } = useAgent(session?.agentId ?? null)
-  const path = session ? getPrimarySessionWorkdir(session) : null
-  return (
-    <EntryContext
-      name={agent?.name}
-      workspaceName={path ? session?.workspace.name : undefined}
-      path={path ?? undefined}
-    />
-  )
+  const context = useGlobalSearchSessionContext(sessionId)
+  return <EntryContext {...context} />
 })
