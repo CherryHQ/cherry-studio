@@ -14,6 +14,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -700,6 +701,153 @@ describe('AgentJobsService', () => {
           .all()
           .map((row) => row.id)
       ).toEqual(['ws-user-1'])
+    })
+
+    it('keeps a heartbeat workspace row that still has a session bound (no cascade)', async () => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-shared',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-shared',
+          type: 'user',
+          orderKey: 'ws-hb-shared'
+        })
+        .run()
+      // A session bound to the row — deleting the workspace would cascade it
+      // away (agent_session.workspaceId is ON DELETE CASCADE).
+      dbh.db
+        .insert(agentSessionTable)
+        .values({ id: 'sess-1', name: 'kept session', workspaceId: 'ws-hb-shared', orderKey: 'sess-1' })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-shared' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      // The schedule goes, but the referenced workspace row AND its session stay.
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-hb-shared'])
+      expect(
+        dbh.db
+          .select()
+          .from(agentSessionTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['sess-1'])
+    })
+
+    it("keeps a heartbeat workspace row referenced by another agent's task schedule", async () => {
+      seedAgent(OTHER_AGENT_ID)
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-shared',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-shared',
+          type: 'user',
+          orderKey: 'ws-hb-shared'
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-shared' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      // Another agent's task pointing at the same row: deleting the row would
+      // leave this template's workspaceId dangling.
+      const foreign = service.createTask(OTHER_AGENT_ID, {
+        ...form,
+        name: 'foreign-on-shared-ws',
+        workspace: { type: 'user', workspaceId: 'ws-hb-shared' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-hb-shared'])
+      expect(jobScheduleService.getById(foreign.id)).not.toBeNull()
+    })
+
+    it('keeps a heartbeat workspace row referenced by a channel', async () => {
+      dbh.db
+        .insert(agentWorkspaceTable)
+        .values({
+          id: 'ws-hb-shared',
+          name: 'Heartbeat — Agent agent-1',
+          path: '/tmp/hb-ws-shared',
+          type: 'user',
+          orderKey: 'ws-hb-shared'
+        })
+        .run()
+      dbh.db
+        .insert(agentChannelTable)
+        .values({
+          id: CHANNEL_ID,
+          type: 'telegram',
+          name: 'ch on shared ws',
+          agentId: AGENT_ID,
+          workspace: { type: 'user', workspaceId: 'ws-hb-shared' },
+          config: {}
+        })
+        .run()
+      jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: `heartbeat_${AGENT_ID}`,
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: '__heartbeat__',
+          timeoutMinutes: 2,
+          workspace: { type: 'user', workspaceId: 'ws-hb-shared' },
+          reuseRevision: 0
+        },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(1)
+
+      expect(
+        dbh.db
+          .select()
+          .from(agentWorkspaceTable)
+          .all()
+          .map((row) => row.id)
+      ).toEqual(['ws-hb-shared'])
+      // The channel's workspace reference is untouched.
+      expect(dbh.db.select().from(agentChannelTable).all()[0]?.workspace).toEqual({
+        type: 'user',
+        workspaceId: 'ws-hb-shared'
+      })
     })
 
     it('agent deletion fires the cleanup through onAgentDeleted', async () => {

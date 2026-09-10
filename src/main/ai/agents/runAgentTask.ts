@@ -37,6 +37,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
+import { assertAgentStoragePath } from '@main/ai/agents/agentDataDirectory'
 import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
@@ -223,6 +224,21 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       throw new Error(`Heartbeat workspace must be user-owned: ${workspace.workspaceId}`)
     }
     const workspacePath = workspaceRow.path
+    // The provisioning-time storage check is not enough: a parent directory
+    // swapped for a symlink afterwards would make the heartbeat.md read escape
+    // managed storage (readHeartbeat only lstats the file itself). Re-validate
+    // the full chain on every fire and skip the tick when it no longer holds.
+    try {
+      await assertAgentStoragePath(application.getPath('feature.agents.data'), workspacePath)
+    } catch (error) {
+      logger.warn('Heartbeat workspace failed the storage check; skipping tick', {
+        agentId,
+        scheduleId,
+        workspacePath,
+        error
+      })
+      return { sessionId: null, result: 'Skipped (untrusted workspace path)' }
+    }
     const content = await readHeartbeat(workspacePath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })

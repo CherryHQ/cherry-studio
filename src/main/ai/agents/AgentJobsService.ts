@@ -344,7 +344,17 @@ export class AgentJobsService extends BaseService {
     }
     for (const workspaceId of heartbeatWorkspaceIds) {
       try {
-        application.get('DbService').withWriteTx((tx) => agentWorkspaceService.deleteByIdTx(tx, workspaceId))
+        // find-or-create may have reused a workspace the user created at the
+        // agent data path, and the row may since have been shared with
+        // sessions (FK cascade), channels, or other agents' task schedules —
+        // deleting a referenced row would cascade unrelated sessions and
+        // leave dangling template references, so only an unreferenced row goes.
+        const removed = application
+          .get('DbService')
+          .withWriteTx((tx) => agentWorkspaceService.deleteIfUnreferencedTx(tx, workspaceId))
+        if (!removed) {
+          logger.info('Kept heartbeat workspace still referenced after agent removal', { agentId, workspaceId })
+        }
       } catch (error) {
         logger.warn('Failed to delete heartbeat workspace for removed agent', { agentId, workspaceId, error })
       }
