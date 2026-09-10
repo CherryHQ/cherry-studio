@@ -1,4 +1,5 @@
-import { useAgentBrowserGuest } from '@renderer/hooks/agent/useAgentBrowserGuest'
+import { agentBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
+import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type {
@@ -12,7 +13,8 @@ import type {
 } from 'electron'
 import { LoaderCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import type { WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
@@ -76,11 +78,41 @@ export function WebviewBrowser({
   )
   const webviewRef = useRef<WebviewTag | null>(null)
   const [webviewRevision, setWebviewRevision] = useState(0)
-  useAgentBrowserGuest(agentSessionId, webviewRef.current, webviewRevision)
-  const [isReady, setIsReady] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [loadFailed, setLoadFailed] = useState(false)
-  const [pageTitle, setPageTitle] = useState('')
+  const resource = useSyncExternalStore(browserRuntime.subscribe, () =>
+    agentSessionId ? browserRuntime.get(agentSessionId) : undefined
+  )
+  const configuredSource = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!agentSessionId) return
+    const key = `${agentSessionId}:${securityProfile}:${initialUrl}`
+    if (configuredSource.current !== key || !browserRuntime.get(agentSessionId)) {
+      configuredSource.current = key
+      browserRuntime.ensure(agentSessionId, initialUrl, securityProfile)
+    }
+  }, [agentSessionId, initialUrl, securityProfile])
+  useEffect(() => {
+    if (agentSessionId) browserRuntime.update(agentSessionId, { reloadKey })
+  }, [agentSessionId, reloadKey, resource?.sessionId])
+  const [anchor, setAnchor] = useState<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    if (!agentSessionId) return
+    browserRuntime.update(agentSessionId, { anchor: isHostActive ? anchor : null })
+    return () => browserRuntime.update(agentSessionId, { anchor: null })
+  }, [agentSessionId, anchor, isHostActive, resource?.sessionId])
+  useLayoutEffect(() => {
+    if (!agentSessionId) return
+    webviewRef.current = resource?.guest ?? null
+    setWebviewRevision((revision) => revision + 1)
+  }, [agentSessionId, resource?.guest])
+  const [localReady, setIsReady] = useState(false)
+  const [localLoading, setIsLoading] = useState(true)
+  const [localFailed, setLoadFailed] = useState(false)
+  const [localTitle, setPageTitle] = useState('')
+  const isReady = agentSessionId ? (resource?.ready ?? false) : localReady
+  const isLoading = agentSessionId ? (resource?.loading ?? true) : localLoading
+  const loadFailed = agentSessionId ? (resource?.failed ?? false) : localFailed
+  const pageTitle = agentSessionId ? (resource?.title ?? '') : localTitle
+  const activeProfile = resource?.securityProfile ?? securityProfile
   const guestAuthorizationKey = getGuestAuthorizationKey(securityProfile, initialUrl)
 
   const handleWebviewChange = useCallback((webview: WebviewTag | null) => {
@@ -152,14 +184,39 @@ export function WebviewBrowser({
     setLoadFailed(true)
   }, [])
 
+  const overlays = (
+    <>
+      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} targetId={target.id} />
+      {isLoading && !isReady ? (
+        <div
+          role="status"
+          className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-muted-foreground text-sm">
+          <LoaderCircle className="size-4 animate-spin" aria-hidden />
+          <span>{t('webview.browser.loading')}</span>
+        </div>
+      ) : null}
+      {loadFailed ? (
+        <div
+          role="alert"
+          className="absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
+          {t(
+            activeProfile === WebviewSecurityProfile.AgentHtmlArtifact
+              ? 'webview.navigation.load_failed'
+              : 'webview.browser.load_failed'
+          )}
+        </div>
+      ) : null}
+    </>
+  )
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <WebviewNavigation
         webviewRef={webviewRef}
         webviewRevision={webviewRevision}
-        initialUrl={initialUrl}
+        initialUrl={resource?.url ?? initialUrl}
         pageTitle={pageTitle}
-        historyEnabled={securityProfile === WebviewSecurityProfile.AgentBrowser}
+        historyEnabled={activeProfile === WebviewSecurityProfile.AgentBrowser}
         onNavigate={handleNavigate}
         isWebviewReady={isReady}
         isHostActive={isHostActive}
@@ -167,63 +224,34 @@ export function WebviewBrowser({
         onAnnotationSaved={onAnnotationSaved}
         toolbarActions={toolbarActions}
       />
-      {securityProfile === WebviewSecurityProfile.AgentBrowser && <WebviewImportBanner />}
+      {activeProfile === WebviewSecurityProfile.AgentBrowser && <WebviewImportBanner />}
       <div className="relative min-h-0 flex-1 bg-white">
-        <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} targetId={target.id} />
-        <WebviewHost
-          key={`${agentSessionId ?? ''}:${guestAuthorizationKey}`}
-          id={target.id}
-          src={initialUrl}
-          partition={getWebviewPartition(securityProfile)}
-          allowPopups={!!agentSessionId || securityProfile === WebviewSecurityProfile.AgentBrowser}
-          reloadKey={reloadKey}
-          ariaLabel={target.label}
-          testId="webview-browser-guest"
-          className="inline-flex h-full w-full bg-white"
-          onWebviewChange={handleWebviewChange}
-          onDomReady={handleDomReady}
-          onDidStartLoading={handleDidStartLoading}
-          onDidStartNavigation={handleDidStartNavigation}
-          onDidNavigate={handleDidNavigate}
-          onPageTitleUpdated={handlePageTitleUpdated}
-          onPageFaviconUpdated={handlePageFaviconUpdated}
-          onDidFinishLoad={handleDidFinishLoad}
-          onDidFailLoad={handleDidFailLoad}
-        />
-        {isLoading && !isReady ? (
-          <div
-            role="status"
-            className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-muted-foreground text-sm">
-            <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            <span>{t('webview.browser.loading')}</span>
-          </div>
-        ) : null}
-        {loadFailed ? (
-          <div
-            role="alert"
-            className="absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
-            {t(
-              securityProfile === WebviewSecurityProfile.AgentHtmlArtifact
-                ? 'webview.navigation.load_failed'
-                : 'webview.browser.load_failed'
-            )}
-          </div>
-        ) : null}
+        {agentSessionId ? (
+          <div ref={setAnchor} className="h-full w-full" />
+        ) : (
+          <WebviewHost
+            key={`${agentSessionId ?? ''}:${guestAuthorizationKey}`}
+            id={target.id}
+            src={initialUrl}
+            partition={getWebviewPartition(securityProfile)}
+            allowPopups={!!agentSessionId || securityProfile === WebviewSecurityProfile.AgentBrowser}
+            reloadKey={reloadKey}
+            ariaLabel={target.label}
+            testId="webview-browser-guest"
+            className="inline-flex h-full w-full bg-white"
+            onWebviewChange={handleWebviewChange}
+            onDomReady={handleDomReady}
+            onDidStartLoading={handleDidStartLoading}
+            onDidStartNavigation={handleDidStartNavigation}
+            onDidNavigate={handleDidNavigate}
+            onPageTitleUpdated={handlePageTitleUpdated}
+            onPageFaviconUpdated={handlePageFaviconUpdated}
+            onDidFinishLoad={handleDidFinishLoad}
+            onDidFailLoad={handleDidFailLoad}
+          />
+        )}
+        {agentSessionId ? (resource?.overlays ? createPortal(overlays, resource.overlays) : null) : overlays}
       </div>
     </div>
   )
-}
-
-function getGuestAuthorizationKey(securityProfile: Props['securityProfile'], initialUrl: string): string {
-  if (securityProfile === WebviewSecurityProfile.AgentBrowser) return securityProfile
-  if (securityProfile === WebviewSecurityProfile.AgentHtmlArtifact) return `${securityProfile}:${initialUrl}`
-  if (initialUrl === 'about:blank') return `${securityProfile}:${initialUrl}`
-
-  try {
-    const url = new URL(initialUrl)
-    if (url.hostname === '0.0.0.0') url.hostname = 'localhost'
-    return `${securityProfile}:${url.origin}`
-  } catch {
-    return `${securityProfile}:${initialUrl}`
-  }
 }

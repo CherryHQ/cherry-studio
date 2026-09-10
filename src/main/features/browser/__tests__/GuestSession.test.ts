@@ -20,6 +20,66 @@ afterEach(() => {
 })
 
 describe('GuestSession command lifetime', () => {
+  it('captures an occluded webview and stops producing frames after the result', async () => {
+    const { session, mock } = setup()
+    mock.getType.mockReturnValue('webview')
+    await session.send('Runtime.enable')
+    mock.debugger.sendCommand.mockImplementation(async () => {
+      if (!mock.isCapturing()) throw new Error('No compositor frames')
+      return { data: 'image' }
+    })
+    expect(await session.send('Page.captureScreenshot')).toEqual({ data: 'image' })
+    expect(mock.isCapturing()).toBe(false)
+  })
+
+  it.each(['abort', 'deadline', 'dispose', 'failure'])('releases screenshot frame capture on %s', async (reason) => {
+    vi.useFakeTimers()
+    const { session, mock } = setup()
+    mock.getType.mockReturnValue('webview')
+    await session.send('Runtime.enable')
+    const started = new Signal<void>()
+    mock.debugger.sendCommand.mockImplementation(async () => {
+      started.resolve()
+      if (reason === 'failure') throw new Error('Capture failed')
+      return new Promise(() => undefined)
+    })
+    const abort = new AbortController()
+    const result = session.send('Page.captureScreenshot', undefined, {
+      signal: abort.signal,
+      deadline: Date.now() + 100
+    })
+    const rejected = expect(result).rejects.toThrow()
+    await started
+    if (reason === 'abort') abort.abort(new Error('Cancelled'))
+    if (reason === 'deadline') await vi.advanceTimersByTimeAsync(100)
+    if (reason === 'dispose') session.dispose()
+    await rejected
+    expect(mock.isCapturing()).toBe(false)
+  })
+
+  it('keeps frames available to another screenshot when a caller cancels', async () => {
+    const { session, mock } = setup()
+    mock.getType.mockReturnValue('webview')
+    await session.send('Runtime.enable')
+    const bothStarted = new Signal<void>()
+    const finish = new Signal<{ data: string }>()
+    let calls = 0
+    mock.debugger.sendCommand.mockImplementation(async () => {
+      if (++calls === 2) bothStarted.resolve()
+      return finish
+    })
+    const abort = new AbortController()
+    const first = expect(session.send('Page.captureScreenshot', undefined, { signal: abort.signal })).rejects.toThrow()
+    const second = session.send('Page.captureScreenshot')
+    await bothStarted
+    abort.abort()
+    await first
+    expect(mock.isCapturing()).toBe(true)
+    finish.resolve({ data: 'image' })
+    expect(await second).toEqual({ data: 'image' })
+    expect(mock.isCapturing()).toBe(false)
+  })
+
   it('rejects active and queued snapshots when their session is disposed', async () => {
     const { session, mock } = setup()
     await session.send('Runtime.enable')
