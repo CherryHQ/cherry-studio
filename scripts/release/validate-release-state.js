@@ -68,7 +68,7 @@ function validatePublishState({
     throw new Error(`Release branch still has open pull requests:\n${openReleasePullRequests}`)
   }
   if (pendingHotfixes.trim()) {
-    throw new Error(`Merged hotfix pull requests are still waiting for this release:\n${pendingHotfixes}`)
+    throw new Error(`Scheduled fixes are still waiting for this release:\n${pendingHotfixes}`)
   }
   if (
     !buildRun ||

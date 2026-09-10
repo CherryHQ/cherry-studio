@@ -66,38 +66,56 @@ jobs:
           fetch-depth: 0
           ref: main
 
+      - uses: actions/setup-node@v6
+        if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
+        with:
+          node-version-file: '.node-version'
+      - uses: pnpm/action-setup@v5
+        if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
+      - name: Install metadata dependencies
+        if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Select metadata synchronization mode
+        id: release-mode
+        if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { validateReleaseLines } = require('./scripts/release/release-lines')
+            core.setOutput('mode', validateReleaseLines(require('./.github/release-lines.json')).mode)
+
       - name: Prepare published metadata changes
         id: metadata
         if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
         shell: bash
         env:
           TAG: ${{ github.event.release.tag_name }}
+          RELEASE_MODE: ${{ steps.release-mode.outputs.mode }}
         run: |
           git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
 
           mapfile -t FILES < <(jq -r '.[]' <<< "$RELEASE_METADATA_FILES")
-          for FILE in "${FILES[@]}"; do
-            if ! git cat-file -e "$TAG:$FILE"; then
-              echo "Published tag $TAG does not contain $FILE" >&2
+          echo "main-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if [ "$RELEASE_MODE" = "minor-line" ]; then
+            ADVANCE="$(node scripts/release/sync-published-metadata.js "$TAG")"
+            if [ "$ADVANCE" = "true" ]; then
+              pnpm build:builtin-knowledge
+            fi
+            git add -- "${FILES[@]}"
+          else
+            for FILE in "${FILES[@]}"; do
+              if ! git cat-file -e "$TAG:$FILE"; then
+                echo "Published tag $TAG does not contain $FILE" >&2
+                exit 1
+              fi
+            done
+            METADATA_BASE="$(git merge-base HEAD "$TAG")"
+            PATCH_FILE="$RUNNER_TEMP/release-metadata.patch"
+            git diff --binary --full-index "$METADATA_BASE" "$TAG" -- "${FILES[@]}" > "$PATCH_FILE"
+            if [ -s "$PATCH_FILE" ] && ! git apply --3way --index "$PATCH_FILE"; then
+              echo "Published metadata conflicts with changes made on main after the release branch was created" >&2
               exit 1
             fi
-          done
-
-          echo "main-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          METADATA_BASE="$(git merge-base HEAD "$TAG")"
-          PATCH_FILE="$RUNNER_TEMP/release-metadata.patch"
-          git diff --binary --full-index "$METADATA_BASE" "$TAG" -- "${FILES[@]}" > "$PATCH_FILE"
-
-          if [ ! -s "$PATCH_FILE" ]; then
-            echo "No release metadata changes need to be synchronized"
-            echo "has-changes=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if ! git apply --3way --index "$PATCH_FILE" || [ -n "$(git diff --name-only --diff-filter=U)" ]; then
-            git reset --hard HEAD
-            echo "Published metadata conflicts with changes made on main after the release branch was created" >&2
-            exit 1
           fi
 
           if git diff --cached --quiet; then
@@ -107,7 +125,7 @@ jobs:
             echo "has-changes=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Reset metadata sync branch to prepared main
+      - name: Create metadata sync branch from prepared main
         if: steps.metadata.outputs.has-changes == 'true'
         shell: bash
         env:
@@ -115,8 +133,11 @@ jobs:
           MAIN_SHA: ${{ steps.metadata.outputs.main-sha }}
           REPO: ${{ github.repository }}
           SYNC_BRANCH: ${{ steps.release-ref.outputs.sync-branch }}
+          RELEASE_MODE: ${{ steps.release-mode.outputs.mode }}
         run: |
-          if gh api "repos/$REPO/git/ref/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
+          if [ "$RELEASE_MODE" = "minor-line" ]; then
+            gh api --method POST "repos/$REPO/git/refs" -f ref="refs/heads/$SYNC_BRANCH" -f sha="$MAIN_SHA" >/dev/null
+          elif gh api "repos/$REPO/git/ref/heads/$SYNC_BRANCH" >/dev/null 2>&1; then
             gh api --method PATCH "repos/$REPO/git/refs/heads/$SYNC_BRANCH" -f sha="$MAIN_SHA" -F force=true >/dev/null
           else
             gh api --method POST "repos/$REPO/git/refs" -f ref="refs/heads/$SYNC_BRANCH" -f sha="$MAIN_SHA" >/dev/null
@@ -222,7 +243,7 @@ jobs:
             '' \
             'After this PR:' \
             '' \
-            "Only the version, release notes, release history, and generated product manifest from $TAG are synchronized to \`main\`." \
+            "Synchronize published metadata for $TAG to \`main\`; in minor-line mode merge only this version's history, advance version/notes only forward, and regenerate the manifest from main when advancing." \
             '' \
             'Fixes # N/A' \
             '' \
@@ -253,8 +274,8 @@ jobs:
             '- [x] Code: This PR contains release metadata only' \
             '- [ ] Refactor: Not applicable' \
             '- [x] Upgrade: Impact on upgrade flows was considered' \
-            '- [x] Documentation: No user-guide update is required' \
-            '- [x] Self-review: The tag and release branch were verified to point to the same commit' \
+            '- [ ] Documentation: No user-guide update is required' \
+            '- [x] Self-review: Metadata is read from the published tag, independently of the release branch head' \
             '' \
             '### Release note' \
             '' \

@@ -6,6 +6,8 @@ sources:
   - scripts/release/backport-release-line.js
   - scripts/release/prepare-release-line.js
   - scripts/release/release-line-build.js
+  - scripts/release/publish-release-line.js
+  - scripts/release/sync-published-metadata.js
   - scripts/release/validate-prepared-release.js
   - commitlint.config.mjs
   - .github/workflows/commitlint.yml
@@ -27,7 +29,7 @@ sources:
 
 Cherry Studio's release strategy and maintainer operations live in this document. See [Branching Strategy](./branching-strategy.md) for contribution entry points.
 
-> **Rollout:** Commitlint, minor-line backports, reviewed release preparation, and exact-head builds are implemented. Routing remains in `exact-version` mode until publication and metadata synchronization are complete. Use the [active exact-version runbook](#exact-version-runbook-active) for production operations; the version-line model below describes the staged replacement.
+> **Rollout:** Commitlint, minor-line backports, reviewed preparation, exact-head builds/publication, Latest selection, and version-owned metadata synchronization are implemented. Routing remains in `exact-version` mode until storage-contract CI and activation checks are complete. Use the [active exact-version runbook](#exact-version-runbook-active) for production operations; the version-line model below describes the staged replacement.
 
 Cherry Studio is adopting a simplified [GitLab Flow](https://about.gitlab.com/topics/version-control/what-is-gitlab-flow/) for versioned desktop releases. All development converges on `main`; supported release branches receive only selected fixes from `main`. We do not use a separate `develop` branch, merge all of `main` into a release branch, or merge a release branch back into `main`.
 
@@ -152,7 +154,7 @@ The default unit of review is one source pull request backported to one release 
 
 ## Release Flow
 
-Minor-line preparation and building are implemented but remain inactive; publication and metadata synchronization still need implementation. The complete target flow for each supported line is:
+The minor-line release flow is implemented but remains inactive pending storage-contract CI and activation checks. The flow for each supported line is:
 
 1. Select the fixes for the next exact version and assign its milestone.
 2. Resolve every requested backport as accepted, deferred, rejected, or blocked.
@@ -214,9 +216,9 @@ Security support beyond the two-line window is an explicit release-team exceptio
 
 ## Implementation Status and Routing
 
-The version-line model, label-driven backports, preparation, and builds are implemented behind `.github/release-lines.json`. The checked-in mode is `exact-version`; existing release operations below remain active. **Do not enable `minor-line` until publication and metadata synchronization support it.** This configuration selects exactly one release route; it is not a fallback between two competing destinations.
+The version-line model, label-driven backports, preparation, builds, publication, and metadata synchronization are implemented behind `.github/release-lines.json`. The checked-in mode is `exact-version`; existing release operations below remain active. **Do not enable `minor-line` until storage-contract CI and activation checks are complete.** This configuration selects exactly one release route; it is not a fallback between two competing destinations.
 
-After the remaining publishing work, an example configuration would be:
+After the activation checks, an example configuration would be:
 
 ```json
 {
@@ -275,20 +277,30 @@ Review the bilingual notes and merge the preparation PR through normal review, c
 
 A later backport may rebuild the same unpublished version after CI; it does not require another preparation PR. If its user-facing notes change, update the bilingual notes, stable history, and generated manifest as needed in an ordinary reviewed metadata PR. Pre Release prepares a new higher version, not a same-version refresh. All-platform rebuilding replaces the draft artifacts and moves only the unpublished draft tag after upload; a single-platform retry still requires the unchanged tagged SHA.
 
-The generated changes section uses the latest published semantic version below the target on its own line, or the current line for the first candidate. Preparing/building different minor lines uses separate `release-state-release/<line>` concurrency groups. Exact-version operations retain their existing repository-wide lock. The current **Publish Release** workflow intentionally accepts only exact-version branches, so minor-line builds cannot yet publish automatically.
+The generated changes section uses the latest published semantic version below the target on its own line, or the current line for the first candidate. Preparation, builds, and publication share `release-state-release/<line>` within each minor line. Exact-version operations retain their existing repository-wide lock.
 
 Retries never force-reset preparation branches. If a previous attempt left a branch without a PR, inspect its signature, source, and metadata, then recover the PR manually; a conflicting or unknown branch is preserved. Activation still requires a production smoke test for permissions, branch protection, signed API commits, and CI propagation.
+
+## Minor-Line Publication and Metadata Sync (Inactive)
+
+After a successful all-platform **Release** build, **Publish Release** requires approval through the `release` Environment before acquiring the line's lock. It uses the package version at the approved build SHA, not the branch name, as the exact tag. The existing publication check binds the branch, tag, draft, and successful all-platform build to that SHA; published releases are never rebuilt or retagged.
+
+Assign the exact `v<version>` milestone to each backport PR scheduled for this release. Publication reports scheduled PRs that remain unmerged or whose merge commit is absent from the approved build. Closing a PR without merging does not silently fulfill its milestone: remove or move the milestone when deferring or rejecting it. PRs scheduled for another version or another line do not block publication. A `target/<line>` label requests a backport but does not schedule an exact version; unscheduled requests remain a maintainer triage responsibility. Status labels are not evidence that a fix is included.
+
+Minor-line publication explicitly leaves Latest unchanged. A separate short `release-latest` job then selects the highest published stable semantic version across the repository and marks it Latest using GitHub's [release API](https://docs.github.com/en/rest/releases/releases#update-a-release). Publishing an older-line patch later cannot take Latest from a newer version. Prereleases and preview releases are excluded; a candidate's first stable release becomes eligible immediately, followed by the reviewed role promotion described above. If this job fails, publication may already have succeeded: rerun only the failed job, not the build or publication. A pending Latest job may be replaced by GitHub concurrency, but its successor recomputes the same repository-wide result.
+
+**Post Release** reads the immutable published tag and opens `release-sync/v<version>` against a snapshot of main. For a stable release it merges only that version's history entry, preserving other versions and sorting by semantic version. It updates `package.json`'s version and bilingual builder notes only when the published version is higher than main's version; other dependencies and build settings stay on main. When advancing, it regenerates the product manifest from main instead of copying the release line's older feature inventory. Prereleases do not enter stable history. An older patch therefore adds history without replacing main's newer version, notes, or manifest.
+
+Metadata PR creation uses the shared `release-state` group; normal review and Git merge conflicts handle later main changes or overlapping sync PRs. No automatic refresh loop or forced reset is added for minor-line sync branches. If a failed attempt leaves a branch or a closed PR, inspect and recover that PR manually. Open or merged sync PRs are not duplicated, and normal signed/DCO commit requirements remain in effect.
 
 ## Remaining Multi-Release Work
 
 | Workflow | Required change before activation |
 | --- | --- |
-| Publish Release | Check this version's planned backports, preserve immutable published tags, and prevent older-line releases from taking Latest |
-| Post Release | Merge history by version; never overwrite main's newer version, notes, or product manifest with older-line metadata |
 | CI | Enforce the patch storage contract and migration-chain compatibility on prepared releases |
-| Release coordination | Extend line-scoped locking to publication, with short serialization for shared Latest/main updates |
+| Activation | Bootstrap protected release branches and tooling, verify credentials/CI propagation, smoke-test both lines, and switch the reviewed configuration |
 
-Publication must report pending requests against the prepared version before freezing a release. GitHub App/PAT writes or explicit workflow dispatch must propagate automation into CI; status-label writes must not recursively enqueue backports. The current engine uses the existing `TOKEN_GITHUB_WRITE` credential for signed commits and PRs.
+GitHub App/PAT writes or explicit workflow dispatch must propagate automation into CI; status-label writes must not recursively enqueue backports. The current engine uses the existing `TOKEN_GITHUB_WRITE` credential for signed commits, publication, and PRs.
 
 Finish active exact-version releases and their metadata synchronization before switching. Establish protected maintenance branches from their published version commits and backport the release tooling and CI branch filters before activation; dispatching Release from a branch uses that branch's workflow and scripts. Validate both lines, then update the reviewed configuration. Do not import newer product code from main to bootstrap an older line, and do not rename or move published tags.
 

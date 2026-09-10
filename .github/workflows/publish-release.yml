@@ -19,7 +19,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'workflow_dispatch' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      startsWith(github.event.workflow_run.head_branch, 'release/v') &&
+      startsWith(github.event.workflow_run.head_branch, 'release/') &&
       github.event.workflow_run.display_title == format(
         'Release build all {0} @ {1}',
         github.event.workflow_run.head_branch,
@@ -35,8 +35,10 @@ jobs:
     name: Publish approved release
     needs: approve
     runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.release-plan.outputs.mode }}
     concurrency:
-      group: release-state
+      group: ${{ endsWith(github.event.workflow_run.head_branch, '.x') && format('release-state-{0}', github.event.workflow_run.head_branch) || 'release-state' }}
       cancel-in-progress: false
     steps:
       - name: Check out trusted publication code without credentials
@@ -46,6 +48,25 @@ jobs:
           persist-credentials: false
           ref: ${{ github.workflow_sha }}
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+      - uses: pnpm/action-setup@v5
+      - name: Install publication dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Resolve version and scheduled backports
+        id: release-plan
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { planLinePublication } = require('./scripts/release/publish-release-line')
+            const run = context.payload.workflow_run
+            const plan = await planLinePublication({ github, repo: context.repo, branch: run.head_branch, sha: run.head_sha })
+            core.setOutput('mode', plan.mode)
+            core.setOutput('tag', plan.tag)
+            core.setOutput('pending', plan.pending.join('\n'))
+
       - name: Validate and publish current draft
         shell: bash
         env:
@@ -54,9 +75,10 @@ jobs:
           BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
           REPO: ${{ github.repository }}
+          RELEASE_MODE: ${{ steps.release-plan.outputs.mode }}
+          TAG: ${{ steps.release-plan.outputs.tag }}
+          PENDING_BACKPORTS: ${{ steps.release-plan.outputs.pending }}
         run: |
-          git fetch origin "refs/heads/main:refs/remotes/origin/main"
-
           collect_pending_hotfixes() {
             local main_sha="$1" fork_point hotfix_prs pending merge_sha pr_json
             fork_point="$(git merge-base "$BUILD_SHA" "$main_sha")"
@@ -86,8 +108,6 @@ jobs:
             printf '%s' "$pending"
           }
 
-          TAG="${BRANCH#release/}"
-          HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
           RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
           RELEASE="$(jq -c --arg tag "$TAG" '
             [.[][] | select(.tag_name == $tag)] |
@@ -96,8 +116,15 @@ jobs:
           RELEASE_ID="$(jq -r '.id // empty' <<< "$RELEASE")"
           TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-          PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
+          if [ "$RELEASE_MODE" = "minor-line" ]; then
+            OPEN_RELEASE_PRS=""
+            PENDING_HOTFIXES="$PENDING_BACKPORTS"
+          else
+            git fetch origin "refs/heads/main:refs/remotes/origin/main"
+            HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
+            OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
+            PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
+          fi
           EXPECTED_BUILD="Release build all $BRANCH @ $BUILD_SHA"
           BUILD_RUN="$(gh api "repos/$REPO/actions/runs/$BUILD_RUN_ID")"
 
@@ -119,7 +146,7 @@ jobs:
             node scripts/release/validate-release-state.js publish
 
           PRERELEASE="$(jq -r '.prerelease' <<< "$RELEASE")"
-          if [ "$PRERELEASE" = "true" ]; then
+          if [ "$PRERELEASE" = "true" ] || [ "$RELEASE_MODE" = "minor-line" ]; then
             MAKE_LATEST="false"
           else
             MAKE_LATEST="true"
@@ -132,7 +159,7 @@ jobs:
             '{tag_name: $tag, draft: false, prerelease: $prerelease, make_latest: $makeLatest}' \
             > "$RUNNER_TEMP/publish-release.json"
 
-          echo "Publishing $TAG with hotfix cutoff $HOTFIX_CUTOFF_SHA"
+          echo "Publishing $TAG from $BUILD_SHA"
           PUBLISHED="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
             --input "$RUNNER_TEMP/publish-release.json")"
           if [ "$(jq -r '.draft' <<< "$PUBLISHED")" != "false" ] || \
@@ -140,8 +167,34 @@ jobs:
             echo "Release $TAG was not published from $BUILD_SHA" >&2
             exit 1
           fi
-          if [ "$PRERELEASE" = "false" ] && \
+          if [ "$MAKE_LATEST" = "true" ] && \
              [ "$(gh api "repos/$REPO/releases/latest" --jq '.id')" != "$RELEASE_ID" ]; then
             echo "Stable release $TAG was not marked latest" >&2
             exit 1
           fi
+
+  latest:
+    name: Update Latest stable release
+    needs: publish
+    if: needs.publish.outputs.mode == 'minor-line'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-latest
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+      - uses: pnpm/action-setup@v5
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          script: |
+            const { updateLatestRelease } = require('./scripts/release/publish-release-line')
+            const tag = await updateLatestRelease({ github, repo: context.repo })
+            core.info(tag ? `Latest stable release: ${tag}` : 'No stable release to promote')

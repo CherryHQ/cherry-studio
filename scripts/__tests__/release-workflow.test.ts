@@ -793,7 +793,7 @@ describe('release publication state', () => {
       '',
       'https://example.test/hotfix',
       successfulBuild,
-      'Merged hotfix pull requests are still waiting for this release'
+      'Scheduled fixes are still waiting for this release'
     ],
     [
       'a missing build',
@@ -1068,7 +1068,12 @@ describe('release workflow gates', () => {
     expect(releaseWorkflow.jobs).not.toHaveProperty('publish-release')
     expect(workflow.jobs.approve.environment).toBe('release')
     expect(workflow.jobs.publish.needs).toBe('approve')
-    expect(workflow.jobs.publish.concurrency.group).toBe('release-state')
+    expect(workflow.jobs.publish.concurrency.group).toContain(
+      "format('release-state-{0}', github.event.workflow_run.head_branch)"
+    )
+    expect(workflow.jobs.publish.concurrency.group).toContain("|| 'release-state'")
+    expect(workflow.jobs.latest.needs).toBe('publish')
+    expect(workflow.jobs.latest.concurrency.group).toBe('release-latest')
     expect(workflow.jobs.approve).not.toHaveProperty('concurrency')
     expect(workflow.jobs.publish.steps[0].with.ref).toBe('${{ github.workflow_sha }}')
     expect(publishStep.run.match(/validate-release-state\.js publish/g)).toHaveLength(1)
@@ -1185,9 +1190,9 @@ describe('release workflow gates', () => {
 
     expect(metadataStep.run).toContain('refs/tags/$TAG:refs/tags/$TAG')
     expect(metadataStep.run).not.toContain('refs/heads/$RELEASE_BRANCH')
-    expect(metadataStep.run).not.toContain('BRANCH_SHA')
-    expect(payloadStep.run).not.toContain('Unexpected release metadata change')
-    expect(payloadStep.run).not.toContain('must not change file mode')
+    expect(metadataStep.run).toContain('node scripts/release/sync-published-metadata.js "$TAG"')
+    expect(metadataStep.run).toContain('if [ "$ADVANCE" = "true" ]; then\n    pnpm build:builtin-knowledge')
+    expect(payloadStep.run).toContain('expectedHeadOid: process.env.SYNC_HEAD')
   })
 
   it('copies only known preparation files and revalidates them before creating the release branch', () => {
