@@ -293,8 +293,48 @@ describe('TabRouter', () => {
 
     expect(createMemoryHistory).toHaveBeenCalledTimes(1)
     // External URL changes split path and query: a query-bearing href string
-    // in `to` loses the search through validateSearch round-trips
-    expect(routerMocks.navigate).toHaveBeenCalledWith({ to: '/app/chat', search: { topicId: 'current-topic' } })
+    // in `to` loses the search through validateSearch round-trips.
+    const navigateArg = routerMocks.navigate.mock.calls[0]?.[0] as {
+      to: string
+      search: (prev?: Record<string, string>) => Record<string, string>
+    }
+    expect(navigateArg.to).toBe('/app/chat')
+    expect(navigateArg.search({ topicId: 'entry-topic' })).toEqual({ topicId: 'current-topic' })
+  })
+
+  it('replaces leftover agent search so a pinned Agent click does not stay on All Agents', () => {
+    const { rerender } = render(
+      <TabRouter
+        tab={tab('agents-tab', '/app/agents?sessionId=directory-session', {
+          title: 'Work',
+          lastAccessTime: 1,
+          isDormant: false
+        })}
+        isActive
+        onUrlChange={vi.fn()}
+      />
+    )
+    routerMocks.navigate.mockClear()
+
+    rerender(
+      <TabRouter
+        tab={tab('agents-tab', '/app/agents?agentId=agent-1', {
+          title: 'Code Reviewer',
+          lastAccessTime: 1,
+          isDormant: false
+        })}
+        isActive
+        onUrlChange={vi.fn()}
+      />
+    )
+
+    const navigateArg = routerMocks.navigate.mock.calls[0]?.[0] as {
+      to: string
+      search: (prev?: Record<string, string>) => Record<string, string>
+    }
+    expect(navigateArg.to).toBe('/app/agents')
+    expect(navigateArg.search({ sessionId: 'directory-session' })).toEqual({ agentId: 'agent-1' })
+    expect(navigateArg.search({ sessionId: 'directory-session' })).not.toHaveProperty('sessionId')
   })
 
   it('quietly covers the outgoing page while an external retarget is unresolved', () => {

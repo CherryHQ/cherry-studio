@@ -1075,6 +1075,44 @@ describe('app Sidebar', () => {
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
+  it('navigates a pinned Agent sidebar click to that Agent, not the All Agents directory', () => {
+    mocks.sidebarFavorites = [appFavorite('agents')]
+    mocks.sidebarAgentFavorites = [agentFavorite('agent-1')]
+    mocks.agents = [{ id: 'agent-1', name: 'Code Reviewer' }]
+    mocks.activeTab = { id: 'agents', type: 'route', url: '/app/agents', title: 'Work' }
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-agent-agent-1'))
+
+    expect(mocks.updateTab).toHaveBeenCalledWith('agents', {
+      url: '/app/agents?agentId=agent-1',
+      title: 'Code Reviewer',
+      icon: undefined,
+      metadata: undefined
+    })
+    expect(mocks.openTab).not.toHaveBeenCalledWith('/app/agents', expect.anything())
+  })
+
+  it('retargets an All Agents conversation tab to the pinned Agent', () => {
+    mocks.sidebarFavorites = [appFavorite('agents')]
+    mocks.sidebarAgentFavorites = [agentFavorite('agent-1')]
+    mocks.agents = [{ id: 'agent-1', name: 'Code Reviewer' }]
+    mocks.activeTab = {
+      id: 'agents',
+      type: 'route',
+      url: '/app/agents?sessionId=session-directory',
+      title: 'Work'
+    }
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-agent-agent-1'))
+
+    expect(mocks.updateTab).toHaveBeenCalledWith(
+      'agents',
+      expect.objectContaining({ url: '/app/agents?agentId=agent-1', title: 'Code Reviewer' })
+    )
+  })
+
   it('opens a new tab on middle-click (auxclick with button 1) on an agent item', () => {
     mocks.sidebarFavorites = []
     mocks.sidebarAgentFavorites = [agentFavorite('agent-1')]

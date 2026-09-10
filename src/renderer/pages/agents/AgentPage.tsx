@@ -476,9 +476,11 @@ const AgentPage = () => {
 
   useEffect(() => {
     const generation = ++routeAgentActivationGenerationRef.current
-    if (!routeAgentId || routeSessionId || activeSessionId || isAgentsLoading || !routeAgentExists) return
-
+    if (!routeAgentId) return
+    // A sidebar pin must leave the All Agents directory, even when the interceptor
+    // already bound this agent's session and there is nothing left to create.
     closeSurface()
+    if (routeSessionId || activeSessionId || isAgentsLoading || !routeAgentExists) return
     const pendingRequest = routeAgentSessionRequestRef.current
     const sessionPromise =
       pendingRequest?.agentId === routeAgentId
