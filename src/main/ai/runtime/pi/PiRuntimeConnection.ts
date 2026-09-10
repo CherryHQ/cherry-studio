@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
-import type { AssistantMessage } from '@earendil-works/pi-ai'
+import type { AssistantMessage, AssistantMessageEvent } from '@earendil-works/pi-ai'
 import type {
   AgentSession,
   AgentSessionEvent,
@@ -243,7 +243,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const providerConfig = withPiInvocationCapture(
       materializedProvider.providerConfig,
       withPiRequestEnvironment(materializedProvider.streamSimple, injection.requestEnvironment),
-      (message) => this.recordProviderInvocation(message),
+      (message, metrics) => this.recordProviderInvocation(message, metrics),
       (model) => this.startProviderSpan(model)
     )
 
@@ -685,7 +685,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   /** Capture at the provider stream boundary so compaction calls and ordinary turns share one owner. */
-  private recordProviderInvocation(message: AssistantMessage): void {
+  private recordProviderInvocation(message: AssistantMessage, metrics?: PiInvocationMetrics): void {
     if (this.closed) return
     if (this._usageCapture?.owner !== 'agent-sdk') return
     if (message.stopReason === 'error' || message.stopReason === 'aborted') return
@@ -716,7 +716,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           noCacheTokens,
           cacheReadTokens,
           cacheWriteTokens
-        }
+        },
+        ...(metrics ? { metrics } : {})
       }
     })
   }
@@ -866,10 +867,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 }
 
+/** Wall-clock timing of one pi provider invocation; mirrors the usage-event metrics the host persists for TPS display. */
+interface PiInvocationMetrics {
+  timeFirstTokenMs?: number
+  timeCompletionMs?: number
+}
+
 function withPiInvocationCapture(
   config: ProviderConfig,
   streamSimple: NonNullable<ProviderConfig['streamSimple']>,
-  onComplete: (message: AssistantMessage) => void,
+  onComplete: (message: AssistantMessage, metrics?: PiInvocationMetrics) => void,
   startTrace: (model: { provider?: string; id?: string }) => PiProviderSpanObserver | undefined
 ): ProviderConfig {
   return {
@@ -883,10 +890,34 @@ function withPiInvocationCapture(
         traceObserver?.error(error)
         throw error
       }
+      // Observe producer-side events without consuming them: the agent loop iterates the same
+      // stream, so timing is captured by wrapping push() instead of reading from the iterator.
+      const streamStartedAt = Date.now()
+      let firstTokenAt: number | undefined
+      const originalPush = typeof stream.push === 'function' ? stream.push.bind(stream) : undefined
+      if (originalPush) {
+        stream.push = (event: AssistantMessageEvent) => {
+          if (
+            firstTokenAt === undefined &&
+            (event.type === 'text_start' ||
+              event.type === 'text_delta' ||
+              event.type === 'thinking_start' ||
+              event.type === 'thinking_delta')
+          ) {
+            firstTokenAt = Date.now()
+          }
+          originalPush(event)
+        }
+      }
       void stream.result().then(
         (message) => {
           traceObserver?.complete(message)
-          onComplete(message)
+          const timeCompletionMs = Math.max(0, Date.now() - streamStartedAt)
+          const timeFirstTokenMs = firstTokenAt !== undefined ? Math.max(0, firstTokenAt - streamStartedAt) : undefined
+          onComplete(message, {
+            ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
+            timeCompletionMs
+          })
         },
         (error) => traceObserver?.error(error)
       )
