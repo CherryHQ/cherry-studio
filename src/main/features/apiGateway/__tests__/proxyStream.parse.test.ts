@@ -187,6 +187,24 @@ describe('processMessage model-id parsing', () => {
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
+  it('identifies a disabled local provider and the recovery action before routing', async () => {
+    mockGetProvider.mockReturnValue({ id: 'openrouter', name: 'OpenRouter', isEnabled: false })
+
+    await expect(
+      processMessage({
+        params: { model: 'openrouter:deepseek/deepseek-v4-flash-0731', messages: [] } as any,
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic'
+      })
+    ).rejects.toMatchObject({
+      status: 400,
+      message:
+        'Model "openrouter:deepseek/deepseek-v4-flash-0731" is not available through the API gateway. Check that provider "openrouter" and model "deepseek/deepseek-v4-flash-0731" are enabled and gateway-routable.'
+    })
+    expect(mockListModels).not.toHaveBeenCalled()
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+  })
+
   it('splits on the first colon for a simple provider:model', async () => {
     mockAvailableModel('openai', 'gpt-4')
     expect(await resolveValid('openai:gpt-4')).toBe(createUniqueModelId('openai', 'gpt-4'))
