@@ -301,6 +301,7 @@ vi.mock('@data/CacheService', () => ({
       const next = typeof value === 'function' ? (value as (prev: unknown) => unknown)(prev) : value
       mocks.persistCache.set(key, next)
     }),
+    flushPersistCache: vi.fn(),
     subscribe: vi.fn(() => () => {})
   }
 }))
