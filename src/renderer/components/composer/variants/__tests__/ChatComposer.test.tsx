@@ -1439,6 +1439,39 @@ describe('ChatComposer', () => {
     expect(textPart?.text).not.toContain('Read and analyze PDFs')
   })
 
+  it('keeps the skill scope part when the installed-skills query fails', async () => {
+    mocks.availableSkills = [pdfSkill]
+    const onSend = vi.fn()
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    const inputAdapter = { insertToken: vi.fn(), focus: vi.fn() }
+    const skillItem = getChatSkillsRootItems()[0]
+    await act(async () => {
+      skillItem?.action?.({ item: skillItem, inputAdapter })
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.tokens.some((token) => token.id === 'skill:pdf')).toBe(true)
+    })
+
+    // The query refetch fails after the chip was selected: the send must not silently drop
+    // the attachment — main's read verdict decides the turn.
+    mocks.availableSkills = []
+    mocks.availableSkillsError = 'query failed'
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+    mocks.availableSkillsError = null
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'Use the pdf skill. summarize',
+        tokens: [pdfSkillDraftToken]
+      })
+    })
+
+    expect(onSend).toHaveBeenCalledTimes(1)
+    const options = onSend.mock.calls[0][1]
+    expect(options.userMessageParts).toContainEqual({ type: 'data-skill-scope', data: { skills: ['pdf'] } })
+  })
+
   it('restores cached skill chips after a topic remount', () => {
     mocks.availableSkills = [pdfSkill]
     vi.mocked(cacheService.get).mockReturnValue({
