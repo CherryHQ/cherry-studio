@@ -10,7 +10,7 @@ import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
-import type { OrderEndpoints } from './_endpointHelpers'
+import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
 import { CreateLogoSchema } from './logo'
 
 /**
@@ -55,21 +55,51 @@ export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
  *
  * Preset rows may only update `status`; custom rows can also update their
  * user-editable fields; installed (`kind='app'`) rows may only update `status`
- * and their two model slots. Reordering goes through the dedicated `/order`
- * endpoints, not this PATCH.
+ * and their two model slots. Standalone reordering uses the dedicated `/order`
+ * endpoints; `order` here is only valid with a status update.
  */
-export const UpdateMiniAppSchema = z.strictObject({
-  status: MiniAppStatusSchema.optional(),
-  name: z.string().min(1).optional(),
-  url: MiniAppUrlSchema.optional(),
-  // Logo edits (preset key / image upload / clear) go through the
-  // `mini_app.settings.set_logo` IpcApi command, not this PATCH body.
-  /** Installed apps only; `null` = follow the global default model. */
-  aiModelId: UniqueModelIdSchema.nullable().optional(),
-  /** Installed apps only; `null` = follow the global quick model. */
-  aiQuickModelId: UniqueModelIdSchema.nullable().optional()
-})
+export const UpdateMiniAppSchema = z
+  .strictObject({
+    status: MiniAppStatusSchema.optional(),
+    /** Place a row in its target status partition atomically with the status change. */
+    order: OrderRequestSchema.optional(),
+    name: z.string().min(1).optional(),
+    url: MiniAppUrlSchema.optional(),
+    // Logo edits (preset key / image upload / clear) go through the
+    // `mini_app.settings.set_logo` IpcApi command, not this PATCH body.
+    /** Installed apps only; `null` = follow the global default model. */
+    aiModelId: UniqueModelIdSchema.nullable().optional(),
+    /** Installed apps only; `null` = follow the global quick model. */
+    aiQuickModelId: UniqueModelIdSchema.nullable().optional()
+  })
+  .refine((dto) => dto.order === undefined || dto.status !== undefined, {
+    message: 'order requires status',
+    path: ['order']
+  })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
+
+export const MiniAppStatusBatchSchema = z
+  .strictObject({
+    updates: z
+      .array(
+        z.strictObject({
+          appId: z.string().min(1),
+          status: MiniAppStatusSchema,
+          order: OrderRequestSchema.optional()
+        })
+      )
+      .min(1)
+  })
+  .superRefine(({ updates }, ctx) => {
+    const seen = new Set<string>()
+    for (const [index, update] of updates.entries()) {
+      if (seen.has(update.appId)) {
+        ctx.addIssue({ code: 'custom', path: ['updates', index, 'appId'], message: 'appId must be unique' })
+      }
+      seen.add(update.appId)
+    }
+  })
+export type MiniAppStatusBatch = z.infer<typeof MiniAppStatusBatchSchema>
 
 /**
  * Query parameters for listing miniApps
@@ -127,6 +157,13 @@ type MiniAppBaseSchemas = {
     /** Delete a miniapp */
     DELETE: {
       params: { appId: string }
+      response: void
+    }
+  }
+
+  '/mini-apps/status:batch': {
+    PATCH: {
+      body: MiniAppStatusBatch
       response: void
     }
   }
