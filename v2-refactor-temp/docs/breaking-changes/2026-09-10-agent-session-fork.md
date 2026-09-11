@@ -22,6 +22,10 @@ The source can continue running. New sessions do not inherit queued messages,
 approvals, running tasks or usage charges. User directories remain shared;
 system directories copy current files, not historical versions.
 
+DSH forks keep their own tool and approval identity while the source is running.
+Reads and new-file writes in the copied workspace are not blocked by a source
+write; ordinary permissions and non-bypassable safety checks still apply.
+
 ## What the user should do
 
 No manual migration is required. Valid checkpoints fork directly without a dialog.

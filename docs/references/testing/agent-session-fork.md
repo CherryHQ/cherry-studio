@@ -164,6 +164,12 @@ Agent connection, and cancellation and native errors must propagate unchanged.
 DSH: remove or stale the projection cache before a cold fork. Confirm the
 recorded seq is used exactly, pending Inbox input is absent, goals do not activate,
 and tool cwd/session IDs point to the child after the first real resume.
+While a source SDK write is still holding its target lock, execute the child's
+native read and create-file tools in its own workspace. Both must succeed under
+the child's policy, and the source write must finish independently. Also verify
+MCP routing, interactive approvals, and source/child/grandchild forks after parent
+deletion. A host-opened fork is an execution root even with `parentSession` lineage;
+actual delegated subagents still inherit their execution root's approval ceiling.
 
 ## Automated gates
 
@@ -176,6 +182,7 @@ blocked until the exact persisted assistant receipt is verified.
 
 ```sh
 pnpm --filter @cherrystudio/dsh-bridge build
+pnpm --filter @cherrystudio/dsh-bridge test
 pnpm test:main src/main/data/services/__tests__/AgentSessionMessageService.test.ts src/main/ai/agentSession/persistence/__tests__/AgentSessionMessageBackend.test.ts
 pnpm exec vitest run --project main src/main/ai/runtime/__tests__/registerDrivers.test.ts src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts
 pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx

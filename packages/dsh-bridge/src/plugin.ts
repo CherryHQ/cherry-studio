@@ -60,6 +60,7 @@ export function apply(ctx: Context): void {
   delete process.env[BRIDGE_TOKEN_ENV]
 
   const policies = new Map<string, BridgePolicy>()
+  const openedSessionIds = new Set<string>()
   const registeredTools = new Map<string, RegisteredBridgeTool>()
   const sessionTools = new Map<string, Set<string>>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
@@ -104,6 +105,7 @@ export function apply(ctx: Context): void {
   })
   ctx.effect(
     () => () => {
+      openedSessionIds.clear()
       for (const sessionId of [...sessionTools.keys()]) disposeTools(sessionId)
     },
     'cherry-bridge.tools'
@@ -220,8 +222,10 @@ export function apply(ctx: Context): void {
           agentOptions
         })
       }
+      openedSessionIds.add(params.sessionId)
       return {}
     } catch (error) {
+      openedSessionIds.delete(params.sessionId)
       policies.delete(params.sessionId)
       disposeTools(params.sessionId)
       throw error
@@ -384,10 +388,11 @@ export function apply(ctx: Context): void {
     })
   })
 
-  /** The bridge policy key: the root ancestor's session id (host policies are per root). */
+  /** Resolve execution ownership; a host-opened fork's parentSession is history lineage only. */
   function rootSessionOf(agent: Agent): string {
     let current = agent
     while (true) {
+      if (openedSessionIds.has(current.id)) return current.id
       const parentId = current.session.header.parentSession
       if (parentId === undefined) return current.id
       const parent = ctx.agents.get(parentId)
@@ -401,8 +406,8 @@ export function apply(ctx: Context): void {
     const agent = exec.agent
     // Not an agent call: delegate to dsh's own chain (which fail-closes on ask).
     if (agent === undefined) return next()
-    const delegated = agent.session.header.parentSession !== undefined
     const rootSessionId = rootSessionOf(agent)
+    const delegated = agent.id !== rootSessionId
     if (!agent.session.header.cwd) {
       return { kind: 'deny' as const, reason: 'The tool caller has no verified workspace directory.' }
     }
