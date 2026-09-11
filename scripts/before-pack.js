@@ -140,7 +140,6 @@ async function prepareNativeModulesForElectron(
     electronVersion,
     platform,
     arch,
-    headerURL: context.packager.config.electronDownload?.mirror,
     onlyModules: ['better-sqlite3'],
     force: true,
     buildFromSource: true

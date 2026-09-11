@@ -51,7 +51,7 @@ describe('prepareNativeModulesForElectron', () => {
   it.each([
     ['mac', Arch.arm64, 'darwin', 'arm64'],
     ['windows', Arch.x64, 'win32', 'x64']
-  ])('forces better-sqlite3 for the %s target', async (platformName, arch, platform, archName) => {
+  ])('does not reuse the %s binary mirror for headers', async (platformName, arch, platform, archName) => {
     const rebuild = vi.fn(async () => {})
 
     await prepareNativeModulesForElectron(
@@ -73,7 +73,6 @@ describe('prepareNativeModulesForElectron', () => {
       electronVersion: '41.8.0',
       platform,
       arch: archName,
-      headerURL: 'https://npmmirror.com/mirrors/electron/',
       onlyModules: ['better-sqlite3'],
       force: true,
       buildFromSource: true
