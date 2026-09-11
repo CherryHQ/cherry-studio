@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
 import {
   type AgentSessionsSource,
   AgentSessionsSourceContext,
@@ -11,8 +14,6 @@ import {
 import { useTabs } from '@renderer/hooks/tab'
 import { getSidebarApp, type SidebarAppId, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
 
 const EMPTY_PIN_IDS = new Map<string, string>()
 const EMPTY_TOPICS: ReturnType<typeof useRawAssistantTopicsSource>['topics'] = []

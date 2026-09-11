@@ -1,5 +1,6 @@
-import { ipcApi } from '@renderer/ipc'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ipcApi } from '@renderer/ipc'
 
 import { createDefaultBackupFileName } from '../backupFileName'
 

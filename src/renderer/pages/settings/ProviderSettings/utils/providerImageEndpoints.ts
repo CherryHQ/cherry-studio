@@ -1,7 +1,8 @@
+import { isEmpty, trim } from 'es-toolkit/compat'
+
 import { validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
-import { isEmpty, trim } from 'es-toolkit/compat'
 
 export interface ProviderImageEndpointDraft {
   imageGenerationBaseUrl: string

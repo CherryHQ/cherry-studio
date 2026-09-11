@@ -1,12 +1,13 @@
-import { Button } from '@cherrystudio/ui'
 import type { DraggableProvided } from '@hello-pangea/dnd'
-import { cn } from '@renderer/utils/style'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Pencil, Settings2, Trash } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type React from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 
 interface ActionItemProps {
   item: SelectionActionItem
@@ -129,7 +130,7 @@ const ItemIcon = ({ className, disabled, ...props }: React.ComponentPropsWithout
 const ItemDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'ml-4 flex h-5 shrink-0 items-center gap-1 rounded-sm bg-muted/50 px-1.5 text-muted-foreground text-xs leading-none',
+      'ml-4 flex h-5 shrink-0 items-center gap-1 rounded-sm bg-muted/50 px-1.5 text-xs leading-none text-muted-foreground',
       className
     )}
     {...props}
@@ -139,7 +140,7 @@ const ItemDescription = ({ className, ...props }: React.ComponentPropsWithoutRef
 const UserActionOpSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex flex-row items-center gap-2 [&_.btn-icon-delete:hover]:text-destructive [&_.btn-icon-delete]:text-muted-foreground [&_.btn-icon-edit:hover]:text-foreground [&_.btn-icon-edit]:text-muted-foreground',
+      'flex flex-row items-center gap-2 [&_.btn-icon-delete]:text-muted-foreground [&_.btn-icon-delete:hover]:text-destructive [&_.btn-icon-edit]:text-muted-foreground [&_.btn-icon-edit:hover]:text-foreground',
       className
     )}
     {...props}
