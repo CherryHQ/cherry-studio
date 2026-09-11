@@ -7,6 +7,7 @@ import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
@@ -38,7 +39,7 @@ const shellEnvMock = vi.hoisted(() => ({
   getRawShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
 }))
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: shellEnvMock.getShellEnv,
   getRawShellEnv: shellEnvMock.getRawShellEnv
 }))

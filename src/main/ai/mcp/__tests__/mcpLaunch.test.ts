@@ -5,7 +5,9 @@ const binaryMock = vi.hoisted(() => ({
   getBinaryPath: vi.fn<(name?: string) => Promise<string>>()
 }))
 const commandMock = vi.hoisted(() => ({
-  findExecutableInEnv: vi.fn<(name: string) => Promise<string | null>>(),
+  findExecutableInEnv: vi.fn<
+    (name: string, options?: { env?: Record<string, string>; signal?: AbortSignal }) => Promise<string | null>
+  >(),
   findCommandInShellEnv: vi.fn<(name: string, env: Record<string, string>) => Promise<string | null>>()
 }))
 
@@ -54,6 +56,17 @@ describe('resolveLaunchCommand', () => {
       resolution: 'system'
     })
     expect(binaryMock.isBinaryExists).not.toHaveBeenCalled()
+  })
+
+  it('resolves package managers against the spawn env, not the cached shell env', async () => {
+    commandMock.findExecutableInEnv.mockResolvedValue('/usr/local/bin/npx')
+
+    await resolve('npx', ['-y', 'example-mcp'])
+
+    expect(commandMock.findExecutableInEnv).toHaveBeenCalledWith('npx', {
+      env: { PATH: '/usr/bin' },
+      signal: undefined
+    })
   })
 
   it('falls back to bundled bun and rewrites the args for `bun x`', async () => {

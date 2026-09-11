@@ -5,6 +5,7 @@ import { SessionSeq } from '@deepseek-ai/dsh-session'
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { AgentSessionForkError, type RuntimeForkInput } from '../../fork'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
 
@@ -160,7 +161,7 @@ vi.mock('../dshSdk', () => ({
   })
 }))
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: runtimeMocks.getShellEnv,
   getRawShellEnv: runtimeMocks.getShellEnv
 }))
