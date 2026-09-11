@@ -41,13 +41,10 @@ export const cherryInOAuthProvider = {
   providerId: SystemProviderIds.cherryin,
   clientId: CHERRYIN_CONFIG.CLIENT_ID,
   transport: {
-    type: 'loopback',
-    config: {
-      hosts: ['127.0.0.1'],
-      port: CHERRYIN_CONFIG.CALLBACK_PORT,
-      path: CHERRYIN_CONFIG.CALLBACK_PATH,
-      redirectUri: CHERRYIN_CONFIG.REDIRECT_URI
-    }
+    hosts: ['127.0.0.1'],
+    port: CHERRYIN_CONFIG.CALLBACK_PORT,
+    path: CHERRYIN_CONFIG.CALLBACK_PATH,
+    redirectUri: CHERRYIN_CONFIG.REDIRECT_URI
   },
   createClient: (context?: OAuthRuntimeProviderContext) => {
     const { oauthServer, apiHost } = resolveCherryInContext(context)

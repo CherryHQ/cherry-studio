@@ -39,17 +39,13 @@ re-read the table.
 Three pieces, all keyed by `providerId`:
 
 - **`OAuthRuntimeService`** — lifecycle service; the public surface
-  (`signIn` / `joinActiveSignIn` / `cancelSignIn` / `startDeepLinkFlow` /
+  (`signIn` / `joinActiveSignIn` / `cancelSignIn` /
   `getValidAccessToken` / `logout` / `hasToken` / `getAccount`). Entity-agnostic except for the token store, which
   it constructs internally today (`new ProviderAuthConfigOAuthTokenStore()`)
   rather than taking by injection — the `OAuthTokenStore` interface is the seam
   a future consumer would inject through (see "Extending").
-- **Transports** — how the authorization code comes back:
-  - `LoopbackCallbackTransport` — spins a localhost HTTP server (Codex, Grok, CherryIN).
-  - `DeepLinkCallbackTransport` — waits for a `cherrystudio://` deep link, then
-    pushes the result point-to-point to the initiator window via
-    `IpcApiService.send('oauth.deep_link_result', …)`. The OAuth token
-    never crosses to the renderer — only the side-effect API keys do.
+- **`LoopbackCallbackTransport`** — receives authorization codes through a
+  localhost HTTP server for Codex, Grok and CherryIN.
 - **`providers/<id>.ts`** — one file per login provider: its client/urls/scope/
   transport plus optional behavior hooks. **`providerDefinitions.ts`** is the
   registry that wires each definition onto its provider id.
@@ -65,7 +61,7 @@ Adding the **OAuth flow** is one file in `providers/<id>.ts`, registered in
 `providerDefinitions.ts`. The variation points are covered by the definition's
 fields and hooks:
 
-- declarative: `clientId`, `transport` (loopback ports / deep-link redirect),
+- declarative: `clientId`, `transport` (loopback hosts, port, path and redirect URI),
   client urls, `scope`, `clearDisablesProvider`, `extraAuthParams`.
 - `createClient(context)` — build the `PkceOAuthClient`. Async when the provider
   needs OIDC discovery first (Grok). Host-pin discovered endpoints.
@@ -117,8 +113,7 @@ worth doing until a real second consumer appears (YAGNI):
 ## CherryIN HTTP callback
 
 CherryIN uses `http://127.0.0.1:29873/oauth/callback`. Register this exact URI in
-Hydra before releasing the client, retaining `cherrystudio://oauth/callback`
-for older releases. The listener must bind before the browser opens.
+Hydra before releasing the client. The listener must bind before the browser opens.
 `oauth.sign_in` returns provisioned API keys only to the initiating window after
 token storage; access and refresh tokens remain in the main process. Other
 windows may observe completion through `oauth.sign_in.attach`, which returns only

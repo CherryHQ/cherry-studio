@@ -12,9 +12,7 @@ import { defineRoute } from '../define'
  * the runtime. Adding a provider needs no new route and no new service — only a
  * provider definition entry — so the IPC surface stays flat as the set grows.
  *
- * Two flow shapes share this surface: a loopback callback (Codex, Grok CLI, CherryIN,
- * via `sign_in`) and a deep-link callback (via `start_deep_link_flow`
- * whose outcome arrives out-of-band on the `oauth.deep_link_result` event).
+ * Codex, Grok CLI and CherryIN use an HTTP loopback callback through `sign_in`.
  *
  * `sign_in` may also return provisioned API keys; OAuth tokens stay in main.
  * `get_account` returns only the account id;
@@ -51,23 +49,5 @@ export const oauthRequestSchemas = {
   'oauth.get_account': defineRoute({ input: providerInput, output: oauthAccountSchema }),
   'oauth.logout': defineRoute({ input: providerInput, output: z.void() }),
   'oauth.tokendance.authorize_api_key': defineRoute({ input: z.void(), output: z.string().min(1) }),
-  'oauth.check_external_login': defineRoute({ input: providerInput, output: z.boolean() }),
-  // Deep-link flow start: returns the auth URL the renderer opens; the outcome
-  // arrives out-of-band on `oauth.deep_link_result`, keyed by `state`. The
-  // provider's allowed-host validation lives in its definition's `createClient`,
-  // which the runtime invokes before returning the URL.
-  'oauth.start_deep_link_flow': defineRoute({
-    input: z.object({ providerId: z.string(), oauthServer: z.string(), apiHost: z.string().optional() }),
-    output: z.object({ authUrl: z.string(), state: z.string() })
-  })
-}
-
-/**
- * Main → initiator-window push: the deep-link OAuth outcome, keyed by `state`.
- * Pushed point-to-point (`IpcApiService.send`) to the window that started the
- * flow, never broadcast — the API keys must not leak to other windows. No token
- * crosses this boundary; the success event carries only provisioned API keys.
- */
-export type OAuthEventSchemas = {
-  'oauth.deep_link_result': { state: string; apiKeys: string } | { state: string; error: string }
+  'oauth.check_external_login': defineRoute({ input: providerInput, output: z.boolean() })
 }

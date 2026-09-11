@@ -20,7 +20,7 @@ vi.mock('../providerDefinitions', async (importOriginal) => {
     ...actual,
     oauthProviderDefinitions: {
       ...actual.oauthProviderDefinitions,
-      cherryin: { ...cherryin, transport: { ...cherryin.transport, config: { ...cherryin.transport.config, port: 0 } } }
+      cherryin: { ...cherryin, transport: { ...cherryin.transport, port: 0 } }
     }
   }
 })

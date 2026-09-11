@@ -67,10 +67,6 @@ export interface LoopbackCallbackConfig {
   redirectUri: string
 }
 
-export interface DeepLinkCallbackConfig {
-  redirectUri: string
-}
-
 export interface OAuthRuntimeProviderContext {
   oauthServer?: string
   apiHost?: string
@@ -92,15 +88,13 @@ export interface OAuthRuntimeProviderDefinition {
    * manual API key (CherryIN), so logout never strips that key's enablement.
    */
   clearDisablesProvider?: boolean
-  transport:
-    | { type: 'loopback'; config: LoopbackCallbackConfig }
-    | { type: 'deep-link'; config: DeepLinkCallbackConfig }
+  transport: LoopbackCallbackConfig
   createClient(context?: OAuthRuntimeProviderContext): PkceOAuthClient | Promise<PkceOAuthClient>
   extractAccountId?(accessToken: string): string | null
   /**
    * Post-exchange side effect, run *after* the tokens are persisted so a failure
    * here never discards a valid token (CherryIN fetches the user's API keys).
-   * Its result is returned only to the initiator window, through either transport.
+   * Its result is returned only to the initiator window, after the HTTP callback.
    */
   afterPersistTokens?(
     tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
