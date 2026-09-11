@@ -30,7 +30,7 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  const { dataApiDevtoolsTesting } = await import('../utils/dataApiDevtools')
+  const { dataApiDevtoolsTesting } = await import('../services/dataApiDevtools')
   dataApiDevtoolsTesting.reset()
   vi.restoreAllMocks()
 })
@@ -38,7 +38,7 @@ afterEach(async () => {
 async function createService(options: { capturePayloads?: boolean } = {}) {
   // The control surface is exposed by the window bootstrap (prepareWindow),
   // not by the DataApiService constructor — mirror that ordering here.
-  const { DataApiDevtools } = await import('../utils/dataApiDevtools')
+  const { DataApiDevtools } = await import('../services/dataApiDevtools')
   DataApiDevtools.exposeControlSurface()
   const { DataApiService } = await import('../DataApiService')
   const service = new DataApiService()
