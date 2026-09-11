@@ -440,7 +440,7 @@ export function withSkillScopePart(parts: CherryMessagePart[], folderNames: read
     {
       type: SKILL_SCOPE_PART_TYPE,
       data: { skills: uniqueFolderNames }
-    } as CherryMessagePart
+    }
   ]
 }
 

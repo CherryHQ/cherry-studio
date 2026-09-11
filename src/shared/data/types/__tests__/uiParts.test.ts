@@ -210,7 +210,7 @@ describe('skill scope parts', () => {
     ] as CherryMessagePart[]
 
     expect(getSkillFolderNamesFromParts(parts)).toEqual(['fresh'])
-    expect(getSkillFolderNamesFromParts([{ type: 'text', text: 'hello' } as CherryMessagePart])).toBeUndefined()
+    expect(getSkillFolderNamesFromParts([{ type: 'text', text: 'hello' }])).toBeUndefined()
   })
 })
 
