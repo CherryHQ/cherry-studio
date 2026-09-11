@@ -968,8 +968,8 @@ describe('messageMenuBarActions', () => {
     })
 
     const context = createActionContext({
-      actions: { copyImage } as MessageListActions,
-      messageContainerRef: captureRef as any,
+      actions: { copyImage },
+      messageContainerRef: captureRef,
       acquireMessageCaptureLease: acquireLease,
       menuConfig: {
         ...defaultMessageMenuConfig,
@@ -1008,7 +1008,7 @@ describe('messageMenuBarActions', () => {
     })
 
     const context = createActionContext({
-      actions: { copyImage, notifyError } as MessageListActions,
+      actions: { copyImage, notifyError },
       acquireMessageCaptureLease: acquireLease,
       getRenderedMessageElement,
       menuConfig: {
@@ -1039,7 +1039,7 @@ describe('messageMenuBarActions', () => {
     captureScrollableAsDataUrlMock.mockRejectedValue(new Error('capture failed'))
 
     const context = createActionContext({
-      actions: { notifyError, saveImage: vi.fn() } as MessageListActions,
+      actions: { notifyError, saveImage: vi.fn() },
       acquireMessageCaptureLease: acquireLease,
       menuConfig: {
         ...defaultMessageMenuConfig,
