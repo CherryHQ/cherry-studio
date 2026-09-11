@@ -40,6 +40,7 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   if (row.createdAt) metadata.createdAt = row.createdAt
   if (row.updatedAt) metadata.updatedAt = row.updatedAt
   metadata.status = row.status
+  metadata.forkAvailability = row.forkAvailability
   if (row.modelId) metadata.modelId = row.modelId
   if (row.messageSnapshot) metadata.messageSnapshot = row.messageSnapshot
   if (row.stats) metadata.stats = row.stats

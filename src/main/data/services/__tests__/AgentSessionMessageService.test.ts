@@ -1,9 +1,17 @@
+import { randomUUID } from 'node:crypto'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionForkContextTable } from '@data/db/schemas/agentSessionForkContext'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
@@ -12,11 +20,20 @@ import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionForkContextService } from '@data/services/AgentSessionForkContextService'
+import { agentSessionForkService } from '@data/services/AgentSessionForkService'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
+import { forkContextHash } from '@data/services/utils/forkContext'
+import { AgentSessionForkOperations } from '@main/ai/agentSession/AgentSessionForkOperations'
+import { buildForkHistory } from '@main/ai/agentSession/forkHistory'
+import { ForkContextPreparer, prepareForkContext } from '@main/ai/agentSession/prepareForkContext'
+import { AgentSessionForkError } from '@main/ai/runtime/forkCheckpoint'
+import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import type { ForkContextCompatibility } from '@shared/ai/agentSessionForkContext'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -87,6 +104,633 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID, USER_MESSAGE_ID)).toBe(false)
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
+  describe('native fork persistence', () => {
+    const compatibility = (runtime: string): ForkContextCompatibility => ({
+      runtime,
+      schemaVersion: 1,
+      sdkVersion: 'fixture-v1',
+      systemPromptHash: forkContextHash('system'),
+      toolsetHash: forkContextHash('tools'),
+      compressorHash: forkContextHash('compressor'),
+      modelHash: forkContextHash('model')
+    })
+
+    async function contextSource() {
+      await seedAgent('context-agent', 'Context Agent')
+      await seedSession({ id: 'context-source', agentId: 'context-agent', name: 'History', orderKey: 'context-a' })
+      agentSessionMessageService.saveMessage({
+        sessionId: 'context-source',
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              { type: 'text', text: 'OLD_VERBOSE_PAST '.repeat(3000) },
+              { type: 'data-compaction-anchor', data: { status: 'done', phase: 'agent-session' } }
+            ]
+          }
+        }
+      })
+    }
+
+    async function contextChild(sourceId: string, childId: string, boundary: string) {
+      const source = agentSessionMessageService.readForkPrefixTx(dbh.db, sourceId, boundary)
+      await seedSession({ id: childId, agentId: 'context-agent', name: childId, orderKey: childId })
+      const rows = source.map((row) => ({ ...row, id: randomUUID(), runtimeResumeToken: null, runtimeForkState: null }))
+      agentSessionMessageService.insertForkMessagesTx(dbh.db, childId, rows)
+      agentSessionService.setForkSourceTx(dbh.db, childId, {
+        sessionId: sourceId,
+        messageId: boundary,
+        operationId: randomUUID(),
+        historyMessageId: rows.at(-1)!.id
+      })
+      agentSessionForkContextService.createTx(dbh.db, childId, rows, sourceId, source)
+      return rows
+    }
+
+    function compressor() {
+      const prompts: unknown[] = []
+      const model: LanguageModelV3 = {
+        specificationVersion: 'v3',
+        provider: 'fixture',
+        modelId: 'compressor',
+        supportedUrls: {},
+        async doGenerate(input) {
+          prompts.push(input.prompt)
+          return {
+            content: [{ type: 'text', text: '<summary>Past work was completed.</summary>' }],
+            finishReason: { unified: 'stop', raw: undefined },
+            warnings: [],
+            usage: {
+              inputTokens: { total: 50, noCache: 50, cacheRead: 0, cacheWrite: 0 },
+              outputTokens: { total: 10, text: 10, reasoning: 0 }
+            }
+          }
+        },
+        async doStream() {
+          throw new Error('No model stream permitted')
+        }
+      }
+      const resolveCompressor = vi.fn(async () => ({ languageModel: model, contextWindow: 8192 }))
+      return { prompts, resolveCompressor }
+    }
+
+    it.each(['pi', 'dsh'])(
+      'serves %s compacted context without a model call after source and child deletion',
+      async (runtime) => {
+        await contextSource()
+        const config = compatibility(runtime)
+        agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+          identity: 'native-compaction',
+          messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
+        })
+        const rows = await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+        const compress = compressor()
+        const input = {
+          sessionId: 'context-child',
+          compatibility: config,
+          budget: 2000,
+          resolveCompressor: compress.resolveCompressor,
+          signal: new AbortController().signal
+        }
+        const prepared = (await prepareForkContext(input))!
+        expect(buildForkHistory(prepared)).toContain('COMPACTED_PAST')
+        expect(buildForkHistory(prepared)).not.toContain('OLD_VERBOSE_PAST')
+        expect(compress.prompts).toHaveLength(0)
+        expect(compress.resolveCompressor).not.toHaveBeenCalled()
+        expect(agentSessionMessageService.getSessionMessage('context-child', rows[0].id).data.parts?.[0]).toMatchObject(
+          {
+            text: 'OLD_VERBOSE_PAST '.repeat(3000)
+          }
+        )
+        expect((await prepareForkContext(input))?.preparedContextId).toBe(prepared.preparedContextId)
+        await contextChild('context-child', 'context-grandchild', rows[0].id)
+        agentSessionService.deleteTx(dbh.db, 'context-source')
+        agentSessionService.deleteTx(dbh.db, 'context-child')
+        const grandchild = (await prepareForkContext({ ...input, sessionId: 'context-grandchild' }))!
+        expect(buildForkHistory(grandchild)).toContain('COMPACTED_PAST')
+        expect(compress.prompts).toHaveLength(0)
+        expect(
+          dbh.db
+            .select()
+            .from(agentSessionForkContextTable)
+            .where(eq(agentSessionForkContextTable.sessionId, 'context-child'))
+            .get()
+        ).toBeUndefined()
+      }
+    )
+
+    it.each(['damaged', 'missing'])('recompresses a %s summary without including future input', async (damage) => {
+      await contextSource()
+      const config = compatibility('pi')
+      agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+        identity: 'native-compaction',
+        messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
+      })
+      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+      const record = agentSessionForkContextService.get('context-child')!
+      if (damage === 'missing') record.document.summaries = []
+      else record.document.summaries[0].segments[0].text = 'CORRUPT_FUTURE_CANARY'
+      agentSessionForkContextService.save('context-child', record.revision, record.document)
+      agentSessionMessageService.saveMessage({
+        sessionId: 'context-child',
+        message: {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'FUTURE_MESSAGE_CANARY' }] }
+        }
+      })
+      const compress = compressor()
+      const prepared = (await prepareForkContext({
+        sessionId: 'context-child',
+        compatibility: config,
+        budget: 1500,
+        resolveCompressor: compress.resolveCompressor,
+        signal: new AbortController().signal
+      }))!
+      expect(compress.prompts.length).toBeGreaterThan(0)
+      expect(JSON.stringify(compress.prompts)).not.toContain('FUTURE_MESSAGE_CANARY')
+      expect(JSON.stringify(compress.prompts)).not.toContain('CORRUPT_FUTURE_CANARY')
+      expect(buildForkHistory(prepared)).not.toContain('OLD_VERBOSE_PAST')
+      expect(buildForkHistory(prepared)).not.toContain('FUTURE_MESSAGE_CANARY')
+    })
+
+    it('shares preparation across callers and reuses the durable result after host restart', async () => {
+      await contextSource()
+      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+      const compress = compressor()
+      const input = {
+        sessionId: 'context-child',
+        compatibility: compatibility('pi'),
+        budget: 1500,
+        resolveCompressor: compress.resolveCompressor,
+        signal: new AbortController().signal
+      }
+      const host = new ForkContextPreparer()
+      const first = host.prepare(input)
+      expect(host.prepare(input)).toBe(first)
+      await expect(host.prepare({ ...input, budget: 1600 })).rejects.toMatchObject({
+        detail: { code: 'configuration' }
+      })
+      const prepared = (await first)!
+      const count = compress.prompts.length
+      expect((await new ForkContextPreparer().prepare(input))?.preparedContextId).toBe(prepared.preparedContextId)
+      expect(compress.prompts).toHaveLength(count)
+    })
+
+    it('cancels before compression and retries without an injection receipt', async () => {
+      await contextSource()
+      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+      const compress = compressor()
+      const controller = new AbortController()
+      controller.abort()
+      const input = {
+        sessionId: 'context-child',
+        compatibility: compatibility('pi'),
+        budget: 1500,
+        resolveCompressor: compress.resolveCompressor,
+        signal: controller.signal
+      }
+      await expect(prepareForkContext(input)).rejects.toBeDefined()
+      expect(compress.prompts).toHaveLength(0)
+      expect(agentSessionForkContextService.get('context-child')!.document).toMatchObject({
+        state: 'cancelled',
+        audits: []
+      })
+      expect(await prepareForkContext({ ...input, signal: new AbortController().signal })).toBeDefined()
+    })
+
+    it.each([
+      [503, 'network', 'retryable'],
+      [401, 'configuration', 'not_retryable']
+    ])('preserves compressor failure classification for HTTP %s', async (statusCode, code, category) => {
+      await contextSource()
+      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+      await expect(
+        prepareForkContext({
+          sessionId: 'context-child',
+          compatibility: compatibility('pi'),
+          budget: 1500,
+          resolveCompressor: async () => {
+            throw Object.assign(new Error('fixture failure'), { statusCode })
+          },
+          signal: new AbortController().signal
+        })
+      ).rejects.toMatchObject({ detail: { code, category } })
+      expect(agentSessionForkContextService.get('context-child')!.document.error).toEqual({ code, category })
+    })
+
+    it('rebuilds malformed summary records without discarding the verified input snapshot', async () => {
+      await contextSource()
+      const config = compatibility('pi')
+      agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+        identity: 'native',
+        messages: [{ role: 'user', content: 'COMPACTED_PAST' }]
+      })
+      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+      const record = agentSessionForkContextService.get('context-child')!
+      record.document.summaries[0].segments[0].contentHash = 'malformed-hash'
+      dbh.db
+        .update(agentSessionForkContextTable)
+        .set({ document: record.document })
+        .where(eq(agentSessionForkContextTable.sessionId, 'context-child'))
+        .run()
+      const compress = compressor()
+      const prepared = await prepareForkContext({
+        sessionId: 'context-child',
+        compatibility: config,
+        budget: 1500,
+        resolveCompressor: compress.resolveCompressor,
+        signal: new AbortController().signal
+      })
+      expect(prepared).toBeDefined()
+      expect(compress.prompts.length).toBeGreaterThan(0)
+      expect(JSON.stringify(compress.prompts)).not.toContain('COMPACTED_PAST')
+      expect(agentSessionForkContextService.get('context-child')!.document.snapshot.hash).toBe(
+        record.document.snapshot.hash
+      )
+    })
+
+    it('requires the exact successful assistant receipt to reconcile a crash', async () => {
+      await contextSource()
+      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+      const compress = compressor()
+      const input = {
+        sessionId: 'context-child',
+        compatibility: compatibility('pi'),
+        budget: 1500,
+        resolveCompressor: compress.resolveCompressor,
+        signal: new AbortController().signal
+      }
+      const prepared = (await prepareForkContext(input))!
+      agentSessionForkContextService.beginSend('context-child', prepared.preparedContextId, 'new-user', USER_MESSAGE_ID)
+      agentSessionForkContextService.fail('context-child', { code: 'cancelled', category: 'cancelled' })
+      agentSessionForkContextService.fail('context-child', { code: 'network', category: 'retryable' })
+      agentSessionForkContextService.confirmSend('context-child', 'wrong-token', 'different-assistant')
+      await expect(prepareForkContext(input)).rejects.toMatchObject({ detail: { category: 'needs_reconciliation' } })
+      agentSessionMessageService.saveMessage({
+        sessionId: 'context-child',
+        runtimeResumeToken: 'confirmed-native-token',
+        message: {
+          id: USER_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] }
+        }
+      })
+      expect(await prepareForkContext(input)).toBeUndefined()
+      expect(agentSessionForkContextService.get('context-child')!.document).toMatchObject({
+        state: 'sent',
+        audits: [{ outcome: 'sent', resumeToken: 'confirmed-native-token' }]
+      })
+    })
+
+    it('rejects corrupt ancestry even when the most recent summary is valid', async () => {
+      await contextSource()
+      const config = compatibility('pi')
+      agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+        identity: 'first',
+        messages: [{ role: 'user', content: 'ANCESTOR' }]
+      })
+      agentSessionForkContextService.recordNative('context-source', ASSISTANT_MESSAGE_ID, [], config, {
+        identity: 'second',
+        messages: [{ role: 'user', content: 'LATEST_VALID_SUMMARY' }]
+      })
+      const rows = await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+      const record = agentSessionForkContextService.get('context-child')!
+      expect(record.document.summaries).toHaveLength(2)
+      record.document.summaries[0].segments[0].text = 'CORRUPT_ANCESTOR'
+      agentSessionForkContextService.save('context-child', record.revision, record.document)
+      await contextChild('context-child', 'context-grandchild', rows[0].id)
+      const compress = compressor()
+      const prepared = (await prepareForkContext({
+        sessionId: 'context-grandchild',
+        compatibility: config,
+        budget: 1500,
+        resolveCompressor: compress.resolveCompressor,
+        signal: new AbortController().signal
+      }))!
+      expect(compress.prompts.length).toBeGreaterThan(0)
+      expect(buildForkHistory(prepared)).not.toContain('LATEST_VALID_SUMMARY')
+      expect(JSON.stringify(compress.prompts)).not.toContain('CORRUPT_ANCESTOR')
+    })
+
+    it('persists a send intent and refuses ambiguous retries without reinjecting', async () => {
+      await contextSource()
+      await contextChild('context-source', 'context-child', ASSISTANT_MESSAGE_ID)
+      const compress = compressor()
+      const input = {
+        sessionId: 'context-child',
+        compatibility: compatibility('claude-code'),
+        budget: 1500,
+        resolveCompressor: compress.resolveCompressor,
+        signal: new AbortController().signal
+      }
+      const prepared = (await prepareForkContext(input))!
+      agentSessionForkContextService.beginSend('context-child', prepared.preparedContextId, 'new-user', 'new-assistant')
+      await expect(prepareForkContext(input)).rejects.toMatchObject({
+        detail: { code: 'native_uncertain', category: 'needs_reconciliation' }
+      })
+      agentSessionForkContextService.confirmSend('context-child', 'durable-native-token')
+      expect(await prepareForkContext(input)).toBeUndefined()
+      const audit = agentSessionForkContextService.get('context-child')!.document.audits[0]
+      expect(audit.historyHash).toBe(forkContextHash(buildForkHistory(prepared)))
+      expect(audit.messageId).toBe('new-user')
+      expect(audit.outcome).toBe('sent')
+    })
+
+    it.each(['pi', 'claude-code', 'dsh'] as const)(
+      'rebuilds a %s child and grandchild without parent history or execution state',
+      async (type) => {
+        const directory = await mkdtemp(path.join(tmpdir(), 'cherry-fork-history-'))
+        const originalGetPath = application.getPath.bind(application)
+        vi.spyOn(application, 'getPath').mockImplementation((key, ...args) =>
+          key === 'feature.agents.forks' ? directory : originalGetPath(key, ...args)
+        )
+        const fork = vi.fn().mockRejectedValue(new AgentSessionForkError('history_missing'))
+        runtimeDriverRegistry.register({
+          type,
+          capabilities: ['agent-session'],
+          fork,
+          connect: vi.fn(),
+          validateSession: vi.fn(),
+          listAvailableTools: vi.fn()
+        })
+        try {
+          await seedAgent('history-agent', 'History Agent')
+          dbh.db.update(agentTable).set({ type }).where(eq(agentTable.id, 'history-agent')).run()
+          const sourceId = randomUUID()
+          await seedSession({ id: sourceId, agentId: 'history-agent', name: 'Source', orderKey: 'history-order' })
+          const selected = agentSessionMessageService.saveMessage({
+            sessionId: sourceId,
+            runtimeForkState: null,
+            message: {
+              id: randomUUID(),
+              role: 'assistant',
+              status: 'success',
+              data: {
+                parts: [
+                  { type: 'text', text: 'included amber' },
+                  {
+                    type: 'tool-Bash',
+                    toolCallId: 'approval-call',
+                    state: 'approval-requested',
+                    input: { command: 'echo amber' },
+                    approval: { id: 'must-not-inherit' }
+                  }
+                ]
+              }
+            }
+          })
+          agentSessionMessageService.saveMessage({
+            sessionId: sourceId,
+            message: {
+              id: randomUUID(),
+              role: 'user',
+              status: 'success',
+              data: { parts: [{ type: 'text', text: 'excluded violet' }] }
+            }
+          })
+          // Shipped history has SQL NULL, unlike newly created messages' explicit boundary state.
+          dbh.db
+            .update(agentSessionMessageTable)
+            .set({ runtimeForkState: null })
+            .where(eq(agentSessionMessageTable.id, selected.id))
+            .run()
+          const operations = new AgentSessionForkOperations()
+          const sessionsBefore = dbh.db.select().from(agentSessionTable).all().length
+          await expect(operations.fork(sourceId, selected.id, false)).rejects.toMatchObject({
+            reason: 'legacy_history'
+          })
+          expect(dbh.db.select().from(agentSessionTable).all()).toHaveLength(sessionsBefore)
+          const first = operations.fork(sourceId, selected.id, true)
+          expect(operations.fork(sourceId, selected.id, true)).toBe(first)
+          const childId = await first
+          expect(agentSessionService.getById(childId).name).toBe('Source (1)')
+          const siblingId = await operations.fork(sourceId, selected.id, true)
+          expect(agentSessionService.getById(siblingId).name).toBe('Source (2)')
+          expect(agentSessionService.getById(sourceId).name).toBe('Source')
+          expect(fork).not.toHaveBeenCalled()
+          const history = agentSessionMessageService.getForkHistory(childId)!
+          expect(history).toHaveLength(1)
+          expect(history[0].id).not.toBe(selected.id)
+          expect(JSON.stringify(history)).toContain('included amber')
+          expect(JSON.stringify(history)).not.toContain('excluded violet')
+          expect(JSON.stringify(history)).not.toContain('must-not-inherit')
+          expect(history[0]).toMatchObject({ runtimeResumeToken: null, delivery: null, stats: null })
+          expect(history[0].data.parts?.[1]).toMatchObject({ state: 'output-error' })
+          const grandchildId = await operations.fork(childId, history[0].id, true)
+          expect(agentSessionService.getById(grandchildId).name).toBe('Source (3)')
+          agentSessionService.deleteTx(dbh.db, sourceId)
+          agentSessionService.deleteTx(dbh.db, childId)
+          expect(agentSessionMessageService.getForkHistory(grandchildId)?.[0].data.parts?.[0]).toEqual({
+            type: 'text',
+            text: 'included amber'
+          })
+
+          if (type === 'pi') {
+            const grandchildMessage = agentSessionMessageService.getForkHistory(grandchildId)![0]
+            const checkpoint = { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
+            dbh.db
+              .update(agentSessionMessageTable)
+              .set({
+                runtimeForkState: { version: 1, status: 'available', checkpoint }
+              })
+              .where(eq(agentSessionMessageTable.id, grandchildMessage.id))
+              .run()
+            await expect(operations.fork(grandchildId, grandchildMessage.id, false)).rejects.toMatchObject({
+              reason: 'history_missing'
+            })
+            const fallbackId = await operations.fork(grandchildId, grandchildMessage.id, true)
+            expect(fork).toHaveBeenCalledOnce()
+            expect(agentSessionMessageService.getForkHistory(fallbackId)?.[0].data.parts?.[0]).toEqual({
+              type: 'text',
+              text: 'included amber'
+            })
+            fork.mockResolvedValue({
+              resumeToken: 'native-child',
+              checkpoints: [{ ...checkpoint, runtimeSessionId: 'native-child' }],
+              publish: []
+            })
+            dbh.db
+              .update(agentSessionMessageTable)
+              .set({
+                runtimeForkState: { version: 1, status: 'available', checkpoint }
+              })
+              .where(eq(agentSessionMessageTable.id, grandchildMessage.id))
+              .run()
+            const nativeId = await operations.fork(grandchildId, grandchildMessage.id, false)
+            expect(agentSessionMessageService.getForkHistory(nativeId)).toBeUndefined()
+            expect(agentSessionMessageService.getLastRuntimeResumeToken(nativeId)).toBe('native-child')
+            fork.mockRejectedValue(new Error('disk full'))
+            await expect(operations.fork(grandchildId, grandchildMessage.id)).rejects.toThrow('disk full')
+          }
+        } finally {
+          runtimeDriverRegistry.clearForTest()
+          await rm(directory, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it('keeps native checkpoints private and invalidates a selected history after edits', () => {
+      const saved = agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeForkState: {
+          version: 1,
+          status: 'available',
+          checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
+        },
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'answer' }] }
+        }
+      })
+      expect(saved.forkAvailability).toEqual({ status: 'available' })
+      expect(saved).not.toHaveProperty('runtimeForkState')
+      agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, {
+        data: { parts: [{ type: 'text', text: 'edited' }] }
+      })
+      expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).forkAvailability).toEqual({
+        status: 'unavailable',
+        reason: 'history_changed'
+      })
+    })
+
+    it.each([
+      ['Source', 'Source (1)', 'Source (2)'],
+      ['test(1)', 'unrelated', 'test(2)'],
+      ['test (1)', 'test (2)', 'test (3)'],
+      ['test(1)', 'test (4)', 'test(5)'],
+      ['test(9)', 'test(2)', 'test(10)'],
+      ['test(draft)', 'unrelated', 'test(draft) (1)'],
+      ['test(1) notes', 'unrelated', 'test(1) notes (1)'],
+      ['test(9007199254740992)', 'unrelated', 'test(9007199254740993)']
+    ])('forks %s alongside %s as %s with increasing numbering', async (sourceName, existingName, expectedName) => {
+      await seedAgent('fork-agent', 'Fork Agent')
+      await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: sourceName, orderKey: 'fork-order' })
+      await seedSession({ id: 'existing-name', agentId: 'fork-agent', name: existingName, orderKey: 'existing-order' })
+      agentSessionMessageService.saveMessage({
+        sessionId: 'fork-source',
+        runtimeResumeToken: 'original-token',
+        runtimeForkState: {
+          version: 1,
+          status: 'available',
+          checkpoint: { runtime: 'pi', runtimeSessionId: 'native', leafId: 'leaf' }
+        },
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'answer' }] }
+        }
+      })
+      const source = agentSessionForkService.read('fork-source', ASSISTANT_MESSAGE_ID)
+      const journal = {
+        version: 1 as const,
+        operationId: 'test-operation',
+        sourceSessionId: 'fork-source',
+        messageId: ASSISTANT_MESSAGE_ID,
+        targetSessionId: 'fork-child',
+        createdAt: Date.now(),
+        artifactDirectory: '/test-owned-operation',
+        published: [],
+        committed: false
+      }
+      agentSessionMessageService.saveMessage({
+        sessionId: 'fork-source',
+        message: {
+          id: USER_MESSAGE_ID,
+          role: 'user',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'later' }] }
+        }
+      })
+      agentSessionForkService.commit({
+        source,
+        journal,
+        excludedIds: [],
+        messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID, runtimeResumeToken: 'child-token' }))
+      })
+      expect(agentSessionService.getById('fork-child').workspaceId).toBe(source.workspace.id)
+      expect(agentSessionService.getById('fork-child').name).toBe(expectedName)
+      expect(agentSessionService.getById('existing-name').name).toBe(existingName)
+      expect(agentSessionService.getById('fork-source').name).toBe(sourceName)
+      const child = agentSessionMessageService.getSessionMessage('fork-child', FILE_ENTRY_ID)
+      expect(child.runtimeResumeToken).toBe('child-token')
+      expect(child.stats).toBeNull()
+      expect(child.delivery).toBeNull()
+      if (sourceName === 'test(1)' && existingName === 'unrelated') {
+        const childSource = agentSessionForkService.read('fork-child', FILE_ENTRY_ID)
+        agentSessionForkService.commit({
+          source: childSource,
+          journal: {
+            ...journal,
+            operationId: 'grandchild-operation',
+            sourceSessionId: 'fork-child',
+            messageId: FILE_ENTRY_ID,
+            targetSessionId: 'fork-grandchild'
+          },
+          excludedIds: [],
+          messages: childSource.messages.map((row) => ({ ...row, id: 'grandchild-message' }))
+        })
+        expect(agentSessionService.getById('fork-grandchild').name).toBe('test(3)')
+        agentSessionForkService.commit({
+          source,
+          journal: { ...journal, operationId: 'sibling-operation', targetSessionId: 'fork-sibling' },
+          excludedIds: [],
+          messages: source.messages.map((row) => ({ ...row, id: 'sibling-message' }))
+        })
+        expect(agentSessionService.getById('fork-sibling').name).toBe('test(4)')
+        expect(agentSessionService.getById('fork-child').name).toBe('test(2)')
+      }
+      agentSessionService.deleteTx(dbh.db, 'fork-source')
+      expect(agentSessionService.getById('fork-child').id).toBe('fork-child')
+      expect(agentSessionForkService.hasCommittedChild(journal)).toBe(true)
+    })
+
+    it('publishes no child when the source prefix changed or its parent disappeared', async () => {
+      await seedAgent('fork-agent', 'Fork Agent')
+      await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
+      agentSessionMessageService.saveMessage({
+        sessionId: 'fork-source',
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'answer' }] }
+        }
+      })
+      const source = agentSessionForkService.read('fork-source', ASSISTANT_MESSAGE_ID)
+      const input = {
+        source,
+        excludedIds: [],
+        messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID })),
+        journal: {
+          version: 1 as const,
+          operationId: 'test-operation',
+          sourceSessionId: 'fork-source',
+          messageId: ASSISTANT_MESSAGE_ID,
+          targetSessionId: 'fork-child',
+          createdAt: Date.now(),
+          artifactDirectory: '/test-owned-operation',
+          published: [],
+          committed: false
+        }
+      }
+      agentSessionMessageService.updateSessionMessage('fork-source', ASSISTANT_MESSAGE_ID, { data: { parts: [] } })
+      expect(() => agentSessionForkService.commit(input)).toThrow('history_changed')
+      agentSessionService.deleteTx(dbh.db, 'fork-source')
+      expect(() => agentSessionForkService.commit(input)).toThrow('history_missing')
+      expect(
+        dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'fork-child')).get()
+      ).toBeUndefined()
+    })
   })
 
   describe('cross-session delivery', () => {

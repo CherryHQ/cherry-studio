@@ -5,6 +5,7 @@
 import * as z from 'zod'
 
 import { AgentSessionDeliverySchema } from '@shared/ai/agentSessionDelivery'
+import { AgentSessionForkAvailabilitySchema } from '@shared/ai/agentSessionFork'
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -56,6 +57,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   sessionId: z.string(),
   searchableText: z.string(),
   runtimeResumeToken: z.string().nullable(),
+  forkAvailability: AgentSessionForkAvailabilitySchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })

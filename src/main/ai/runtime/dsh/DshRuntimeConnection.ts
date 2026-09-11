@@ -41,6 +41,7 @@ import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
+import type { RuntimeForkCheckpoint } from '../forkCheckpoint'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -66,6 +67,7 @@ import {
   type DshConnectionSnapshot,
   DshInvalidConnectionSnapshotError
 } from './dshConnectionSignature'
+import { readDshForkContext } from './dshFork'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
@@ -108,7 +110,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'chunk', chunk })
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
-    onTurnEnd: (reason) => this.handleTurnEnd(reason),
+    onTurnEnd: (reason, boundary) => this.handleTurnEnd(reason, boundary),
     onCompaction: (event) => this.eventQueue.push(event),
     onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
     onAutonomousTurnState: (event) => {
@@ -133,6 +135,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private turnEpoch = 0
   private modelId = ''
   private contextWindow = 0
+  private forkSystemPrompt = ''
   private reasoningEffort: ReasoningEffortOption = 'default'
   private workspacePath = ''
   private agentDataPath = ''
@@ -316,6 +319,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const persona = [prompt.base.kind === 'custom' ? prompt.base.content : undefined, prompt.append || undefined]
       .filter(Boolean)
       .join('\n\n')
+    this.forkSystemPrompt = persona
 
     const yaml = buildDshCompositionYaml({
       providerName: injection.providerName,
@@ -391,9 +395,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
       const client = new sdk.HarnessClient({
-        command: process.execPath,
-        args: [resolveDshRuntimeBinPath(), this.compositionPath],
-        cwd: workspacePath,
+        dshBin: resolveDshRuntimeBinPath(),
+        profile: 'cherry',
+        processCwd: workspacePath,
         env: {
           ...binaryExecutionEnv,
           ...(loginShellEnv.HOME !== undefined
@@ -403,6 +407,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
               : {}),
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
+          CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
           [BRIDGE_TOKEN_ENV]: this.bridge.authenticationToken,
           DSH_HOME: dshRoot
@@ -438,6 +443,22 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await this.disposeRuntime()
       throw error
     }
+  }
+
+  async getForkContextEnvironment() {
+    const { default: manifest } = await import('../../../../../package.json')
+    return {
+      sdkVersion: manifest.dependencies['@deepseek-ai/dsh-sdk-client'],
+      systemPrompt: { persona: this.forkSystemPrompt, signature: this.connectionSignature },
+      tools: this.toolBridge?.tools ?? [],
+      contextWindow: this.contextWindow,
+      opaqueEnvelope: true
+    }
+  }
+
+  async readForkContext(checkpoint: RuntimeForkCheckpoint) {
+    if (checkpoint.runtime !== 'dsh' || checkpoint.runtimeSessionId !== this.resumeToken) return undefined
+    return readDshForkContext(await this.snapshotForFork(checkpoint.boundary), checkpoint.boundary)
   }
 
   async send(input: Parameters<AgentRuntimeConnection['send']>[0]): Promise<void> {
@@ -614,6 +635,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async snapshotForFork(boundary: number): Promise<unknown[]> {
+    if (!this.bridge || this.closed) throw new Error('DSH connection is closed')
+    const result = await this.bridge.request('session/fork-snapshot', { sessionId: this.input.sessionId, boundary })
+    return result.events
+  }
+
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
@@ -712,8 +739,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
-        // The SDK server forwards session-log envelopes verbatim; the rc.6 pin keeps this
-        // single wire-boundary cast sound. Unknown merged types fall through the adapter.
+        // The SDK server forwards session-log envelopes verbatim across this wire boundary.
+        // Unknown merged types fall through the adapter.
         const event = params.event as SessionEvent
         if (params.sessionId !== this.input.sessionId) {
           // Every other session in this process is a descendant (or one racing its
@@ -775,13 +802,27 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.eventQueue.push({ type: 'chunk', chunk: { type: 'text-end', id } })
   }
 
-  private handleTurnEnd(reason: TurnEndReason): void {
+  private handleTurnEnd(reason: TurnEndReason, boundary?: number): void {
     if (this.closed) return
     this.turnActive = false
     switch (reason.kind) {
       case 'completed':
       case 'max-tokens':
-        this.eventQueue.push({ type: 'turn-complete' })
+        this.eventQueue.push({
+          type: 'turn-complete',
+          forkState:
+            boundary !== undefined
+              ? {
+                  version: 1,
+                  status: 'available',
+                  checkpoint: {
+                    runtime: 'dsh',
+                    runtimeSessionId: this.input.sessionId,
+                    boundary
+                  }
+                }
+              : { version: 1, status: 'unavailable', reason: 'checkpoint_failed' }
+        })
         return
       case 'aborted':
       case 'interrupted':

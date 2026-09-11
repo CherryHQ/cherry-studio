@@ -11,8 +11,10 @@ import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
+import { AgentSessionForkError } from '@main/ai/runtime/forkCheckpoint'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
+import { AgentSessionForkFailureReasonSchema } from '@shared/ai/agentSessionFork'
 import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -233,6 +235,22 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.session.fork': async ({ sourceSessionId, messageId, allowHistoryRebuild }) => {
+    try {
+      return {
+        sessionId: await application
+          .get('AgentSessionRuntimeService')
+          .forkSession(sourceSessionId, messageId, allowHistoryRebuild)
+      }
+    } catch (error) {
+      logger.warn('Agent session fork failed', { sourceSessionId, messageId, error })
+      const parsed = AgentSessionForkFailureReasonSchema.safeParse(
+        error instanceof AgentSessionForkError ? error.reason : error instanceof Error ? error.message : undefined
+      )
+      const reason = parsed.success ? parsed.data : 'operation_failed'
+      throw new IpcError(aiErrorCodes.AI_AGENT_SESSION_FORK_FAILED, reason, { reason })
+    }
+  },
   'ai.agent.session.reuse_or_create': (input) =>
     application.get('AgentSessionDeliveryService').reuseOrCreateSession(input),
   'ai.agent.workspace.delete': ({ workspaceId }) =>

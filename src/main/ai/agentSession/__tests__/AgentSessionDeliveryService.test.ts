@@ -86,6 +86,8 @@ vi.mock('../../streamManager/context/AgentChatContextProvider', () => ({
 }))
 
 const runtime = {
+  cancelSessionForks: vi.fn().mockResolvedValue(undefined),
+  recoverSessionForks: vi.fn().mockResolvedValue(undefined),
   isSessionBusy: mocks.runtimeBusy,
   closeSession: mocks.closeSession,
   onTurnTerminal: (listener: (event: any) => void) => {

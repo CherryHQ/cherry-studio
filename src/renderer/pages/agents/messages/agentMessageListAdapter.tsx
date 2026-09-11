@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { dataApiService } from '@data/DataApiService'
+import { agentSessionForkReasonLabel } from '@renderer/components/chat/messages/agentSessionFork'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
 import {
@@ -30,12 +31,15 @@ import type { DiagnosticReportConfig } from '@renderer/components/ErrorDetailMod
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
+import { popup } from '@renderer/services/popup'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { canRebuildAgentSessionFork } from '@shared/ai/agentSessionFork'
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { agentSessionForkFailureReason } from '@shared/ipc/errors/ai'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
@@ -170,6 +174,41 @@ export function useAgentMessageListProviderValue({
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const resolvedAgentId = assistantId ?? topic.assistantId
+  const forkSession = useCallback(
+    async (messageId: string) => {
+      if (!sessionId) return
+      try {
+        let result: { sessionId: string }
+        try {
+          result = await ipcApi.request('ai.agent.session.fork', {
+            sourceSessionId: sessionId,
+            messageId,
+            allowHistoryRebuild: false
+          })
+        } catch (error) {
+          const reason = agentSessionForkFailureReason(error)
+          if (!reason || !canRebuildAgentSessionFork(reason)) throw error
+          const confirmed = await popup.confirm({
+            title: t('agent_session_fork.label'),
+            content: t('agent_session_fork.confirm'),
+            centered: true
+          })
+          if (!confirmed) return
+          result = await ipcApi.request('ai.agent.session.fork', {
+            sourceSessionId: sessionId,
+            messageId,
+            allowHistoryRebuild: true
+          })
+        }
+        openRoute('/app/agents', { sessionId: result.sessionId })
+      } catch (error) {
+        const reason = agentSessionForkFailureReason(error)
+        if (reason) throw new Error(agentSessionForkReasonLabel(t, reason))
+        throw error
+      }
+    },
+    [sessionId, t]
+  )
   const messageItemCacheRef = useRef(
     new WeakMap<
       CherryUIMessage,
@@ -409,6 +448,7 @@ export function useAgentMessageListProviderValue({
 
   const actions = useMemo<MessageListActions>(
     () => ({
+      forkSession: normalInteractionsEnabled ? forkSession : undefined,
       loadOlder,
       bindRuntime,
       deleteMessage,
@@ -434,6 +474,7 @@ export function useAgentMessageListProviderValue({
       updateRenderConfig
     }),
     [
+      forkSession,
       abortTool,
       bindRuntime,
       bindMessageGroupRuntime,

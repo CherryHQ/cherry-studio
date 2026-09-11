@@ -198,6 +198,7 @@ export interface RemoveMessageErrorPartInput {
 }
 
 export interface MessageListItem {
+  forkAvailability?: NonNullable<CherryUIMessage['metadata']>['forkAvailability']
   id: string
   role: CherryUIMessage['role']
   assistantId?: string
@@ -422,6 +423,7 @@ export interface MessageListActions {
   getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
+  forkSession?: (messageId: string) => void | Promise<void>
   copyBranchToNewTopic?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>

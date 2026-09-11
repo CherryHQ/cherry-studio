@@ -1,5 +1,5 @@
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { application } from '@application'
@@ -36,6 +36,7 @@ import {
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
+import { AgentSessionForkUnavailableReasonSchema, getAgentSessionForkAvailability } from '@shared/ai/agentSessionFork'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -96,6 +97,12 @@ function agentSessionMessageEntityJsonBytes(): SQL<number> {
     'messageSnapshot', json(${sessionMessagesTable.messageSnapshot}),
     'stats', json(${sessionMessagesTable.stats}),
     'runtimeResumeToken', ${sessionMessagesTable.runtimeResumeToken},
+    'forkAvailability', json(case
+      when ${sessionMessagesTable.runtimeForkState} is null then '{"status":"unavailable","reason":"legacy_history"}'
+      when json_extract(${sessionMessagesTable.runtimeForkState}, '$.version') != 1 then '{"status":"unavailable","reason":"unsupported_checkpoint"}'
+      when json_extract(${sessionMessagesTable.runtimeForkState}, '$.status') = 'available' then '{"status":"available"}'
+      else json_object('status', 'unavailable', 'reason', json_extract(${sessionMessagesTable.runtimeForkState}, '$.reason'))
+    end),
     'delivery', json(case
       when ${sessionMessagesTable.delivery} is not null and ${sessionMessagesTable.deliveryStatus} is not null
       then json_set(
@@ -145,6 +152,7 @@ type ListSessionMessagesOptions = {
 
 type SaveAgentSessionMessageParams = {
   sessionId: string
+  runtimeForkState?: unknown
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
   message: CreateAgentSessionMessageDto & {
@@ -283,6 +291,101 @@ function terminalResultData(
 }
 
 export class AgentSessionMessageService {
+  /** Read the child's own inherited prefix; no dependency on a surviving parent. */
+  getForkHistory(sessionId: string): SessionMessageRow[] | undefined {
+    const db = application.get('DbService').getDb()
+    const session = db
+      .select({ forkedFrom: sessionTable.forkedFrom })
+      .from(sessionTable)
+      .where(eq(sessionTable.id, sessionId))
+      .get()
+    const messageId = session?.forkedFrom?.historyMessageId
+    if (!messageId) return undefined
+    return this.readForkPrefixTx(db, sessionId, messageId)
+  }
+
+  markForkUnavailable(sessionId: string, messageId: string, value: string): void {
+    const reason = AgentSessionForkUnavailableReasonSchema.safeParse(value)
+    if (!reason.success) return
+    application
+      .get('DbService')
+      .getDb()
+      .update(sessionMessagesTable)
+      .set({
+        runtimeForkState: { version: 1, status: 'unavailable', reason: reason.data },
+        updatedAt: Date.now()
+      })
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
+      .run()
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'projection',
+        routeParams: { sessionId },
+        entityIds: [messageId]
+      }
+    ])
+  }
+
+  /** Main-only native fork read. API callers must never receive these raw rows. */
+  readForkPrefixTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    excludedIds: readonly string[] = []
+  ): SessionMessageRow[] {
+    const rows = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.sessionId, sessionId))
+      .orderBy(asc(sessionMessagesTable.createdAt), asc(sessionMessagesTable.id))
+      .all()
+    const end = rows.findIndex((row) => row.id === messageId)
+    if (end < 0) throw new Error('history_missing')
+    const excluded = new Set(excludedIds)
+    return rows.slice(0, end + 1).filter((row) => !excluded.has(row.id))
+  }
+
+  /** Inserts historical facts only, never delivery, billing, queue or approval ownership. */
+  insertForkMessagesTx(tx: DbOrTx, sessionId: string, rows: readonly SessionMessageRow[]): void {
+    for (const row of rows) {
+      tx.insert(sessionMessagesTable)
+        .values({
+          id: row.id,
+          sessionId,
+          role: row.role,
+          data: row.data,
+          status: row.status,
+          modelId: row.modelId,
+          messageSnapshot: row.messageSnapshot,
+          runtimeResumeToken: row.runtimeResumeToken,
+          runtimeForkState: row.runtimeForkState,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt
+        })
+        .run()
+      replaceAgentSessionMessageFileRefsTx(tx, row.id, row.data)
+    }
+  }
+
+  private invalidateForkPrefixTx(tx: DbOrTx, sessionId: string, messageId: string): void {
+    const row = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!row) return
+    tx.update(sessionMessagesTable)
+      .set({
+        runtimeForkState: { version: 1, status: 'unavailable', reason: 'history_changed' },
+        updatedAt: Date.now()
+      })
+      .where(
+        and(
+          eq(sessionMessagesTable.sessionId, sessionId),
+          sql`${sessionMessagesTable.createdAt} >= ${row.createdAt}`,
+          sql`json_extract(${sessionMessagesTable.runtimeForkState}, '$.status') = 'available'`
+        )
+      )
+      .run()
+  }
+
   search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
@@ -631,6 +734,7 @@ export class AgentSessionMessageService {
       // PATCH callers send partial data (usually just parts); shallow-merge so
       // omitted keys like main-authoritative turnOptions survive the update.
       const mergedData = { ...existing.data, ...dto.data }
+      this.invalidateForkPrefixTx(tx, sessionId, messageId)
       const [updated] = tx
         .update(sessionMessagesTable)
         .set({ data: mergedData, updatedAt })
@@ -644,6 +748,7 @@ export class AgentSessionMessageService {
   }
 
   deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
+    this.invalidateForkPrefixTx(tx, sessionId, messageId)
     const result = tx
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
@@ -745,6 +850,7 @@ export class AgentSessionMessageService {
       messageSnapshot: row.messageSnapshot,
       stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
+      forkAvailability: getAgentSessionForkAvailability(row.runtimeForkState),
       delivery:
         row.delivery && row.deliveryStatus
           ? {
@@ -803,6 +909,7 @@ export class AgentSessionMessageService {
     timestampMs = Date.now()
   ): SavedAgentSessionMessage {
     const { sessionId, runtimeResumeToken = null, runtimeStats, message } = params
+    const runtimeForkState = params.runtimeForkState
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
 
@@ -853,6 +960,7 @@ export class AgentSessionMessageService {
               messageSnapshot,
               stats,
               runtimeResumeToken: runtimeResumeTokenToPersist,
+              ...(runtimeForkState === undefined ? {} : { runtimeForkState }),
               delivery,
               deliveryStatus,
               deliveryTurnRef,
@@ -877,6 +985,7 @@ export class AgentSessionMessageService {
           messageSnapshot,
           stats,
           runtimeResumeToken: runtimeResumeTokenToPersist,
+          ...(runtimeForkState === undefined ? {} : { runtimeForkState }),
           delivery,
           deliveryStatus,
           deliveryTurnRef,
@@ -899,6 +1008,7 @@ export class AgentSessionMessageService {
       messageSnapshot: message.messageSnapshot,
       stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,
       runtimeResumeToken,
+      runtimeForkState: runtimeForkState ?? { version: 1, status: 'unavailable', reason: 'not_turn_boundary' },
       delivery: message.delivery,
       deliveryStatus: message.deliveryStatus,
       deliveryTurnRef: message.deliveryTurnRef,

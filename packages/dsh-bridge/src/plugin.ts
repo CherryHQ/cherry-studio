@@ -10,7 +10,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-commands'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-plan-mode'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-token-meter'
@@ -59,10 +60,43 @@ export function apply(ctx: Context): void {
   delete process.env[BRIDGE_TOKEN_ENV]
 
   const policies = new Map<string, BridgePolicy>()
+  const openedSessionIds = new Set<string>()
   const registeredTools = new Map<string, RegisteredBridgeTool>()
   const sessionTools = new Map<string, Set<string>>()
   /** Live command dispatches by sessionId — aborted by a `session/cancel` request. */
   const pendingCommands = new Map<string, AbortController>()
+
+  const isFullAccess = (agent: Agent) =>
+    ctx.get('sandboxPolicy')?.resolve({ session: agent.session }).mode === 'danger-full-access'
+
+  // Upstream advertises escalation targets globally; remove this projection when schemas become session-aware.
+  // Track the embedding limitation in CherryHQ/cherry-studio#19801; execution permissions remain unchanged.
+  ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
+    const assembly = await next()
+    if (!context.agent || !isFullAccess(context.agent)) return assembly
+    return {
+      ...assembly,
+      tools: assembly.tools.map((tool) => {
+        if (tool.name !== 'bash' && tool.name !== 'pwsh') return tool
+        const properties = { ...(tool.parameters.properties as Record<string, unknown>) }
+        delete properties.sandbox_permissions
+        delete properties.justification
+        return {
+          ...tool,
+          description: [
+            tool.name === 'pwsh'
+              ? 'Execute a PowerShell command and return stdout/stderr.'
+              : 'Execute a bash command and return stdout/stderr.',
+            'Each call uses a fresh shell; pass workdir explicitly. Non-zero exits are reported as [exit code: N].',
+            'Long output may be truncated; use the reported output file for the full result. Background execution is unavailable.',
+            'This session already has full access. Omit sandbox_permissions and justification; no wider mode exists.',
+            'Tool policies and safety guards still apply. A denied operation must not be worked around.'
+          ].join(' '),
+          parameters: { ...tool.parameters, properties }
+        }
+      })
+    }
+  })
 
   const link: BridgeLink = connectBridgeLink({ socketPath, onRequest: handleRequest })
   // The host destroys the socket unless this is the first request and the token matches.
@@ -71,6 +105,7 @@ export function apply(ctx: Context): void {
   })
   ctx.effect(
     () => () => {
+      openedSessionIds.clear()
       for (const sessionId of [...sessionTools.keys()]) disposeTools(sessionId)
     },
     'cherry-bridge.tools'
@@ -79,6 +114,14 @@ export function apply(ctx: Context): void {
   /** Host→plugin dispatch; a rejection becomes the JSON-RPC error response. */
   async function handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
     switch (method) {
+      case 'session/fork-snapshot': {
+        const { sessionId, boundary } = params as BridgeHostParams<'session/fork-snapshot'>
+        const session = requireAgent(sessionId).session
+        if (session.eventAt(SessionSeq(boundary))?.type !== 'turn/end') {
+          throw new Error('history_changed')
+        }
+        return { events: session.snapshotEvents(SessionLogOffset(0), SessionLogOffset(boundary + 1)) }
+      }
       case 'session/open':
         return openSession(params as BridgeHostParams<'session/open'>)
       case 'session/prompt': {
@@ -179,8 +222,10 @@ export function apply(ctx: Context): void {
           agentOptions
         })
       }
+      openedSessionIds.add(params.sessionId)
       return {}
     } catch (error) {
+      openedSessionIds.delete(params.sessionId)
       policies.delete(params.sessionId)
       disposeTools(params.sessionId)
       throw error
@@ -195,7 +240,7 @@ export function apply(ctx: Context): void {
     const controller = new AbortController()
     pendingCommands.set(params.sessionId, controller)
     try {
-      const execution = await commands.execute(agent, params.line, controller.signal)
+      const execution = await commands.execute(agent, params.line, [], controller.signal)
       if (execution === undefined) return { handled: false }
       return {
         handled: true,
@@ -293,32 +338,26 @@ export function apply(ctx: Context): void {
 
   // Relay `ctx.userQuestions` asks (plan review) to the host UI; abort is the
   // caller's teardown/dismissal and must surface as the seam's own error code.
-  ctx.effect(
-    () =>
-      ctx.userQuestions.registerProvider({
-        async ask(request) {
-          try {
-            return await link.request(
-              'question/ask',
-              {
-                sessionId: request.agent?.id ?? '',
-                ...correlatePlanReviewCall(request),
-                questions: request.questions
-              },
-              request.signal
-            )
-          } catch (error) {
-            if (request.signal?.aborted) {
-              throw new UserQuestionError('the ask was aborted before the user answered', 'ASK_ABORTED', {
-                cause: error instanceof Error ? error : undefined
-              })
-            }
-            throw error
-          }
-        }
-      }),
-    'cherry-bridge.userQuestions'
-  )
+  ctx.on('user-questions/request', async (request) => {
+    try {
+      return await link.request(
+        'question/ask',
+        {
+          sessionId: request.agent?.id ?? '',
+          ...correlatePlanReviewCall(request),
+          questions: request.questions
+        },
+        request.signal
+      )
+    } catch (error) {
+      if (request.signal?.aborted) {
+        throw new UserQuestionError('the ask was aborted before the user answered', 'ASK_ABORTED', {
+          cause: error instanceof Error ? error : undefined
+        })
+      }
+      throw error
+    }
+  })
 
   // Per-epoch residency edges (a cold resume opens a new epoch). The parent id is
   // read at start while the child agent is live and cached for the end edge.
@@ -349,10 +388,11 @@ export function apply(ctx: Context): void {
     })
   })
 
-  /** The bridge policy key: the root ancestor's session id (host policies are per root). */
+  /** Resolve execution ownership; a host-opened fork's parentSession is history lineage only. */
   function rootSessionOf(agent: Agent): string {
     let current = agent
     while (true) {
+      if (openedSessionIds.has(current.id)) return current.id
       const parentId = current.session.header.parentSession
       if (parentId === undefined) return current.id
       const parent = ctx.agents.get(parentId)
@@ -366,8 +406,11 @@ export function apply(ctx: Context): void {
     const agent = exec.agent
     // Not an agent call: delegate to dsh's own chain (which fail-closes on ask).
     if (agent === undefined) return next()
-    const delegated = agent.session.header.parentSession !== undefined
     const rootSessionId = rootSessionOf(agent)
+    const delegated = agent.id !== rootSessionId
+    if (!agent.session.header.cwd) {
+      return { kind: 'deny' as const, reason: 'The tool caller has no verified workspace directory.' }
+    }
     try {
       const guard = await link.request(
         'guard/check',
@@ -405,7 +448,15 @@ export function apply(ctx: Context): void {
   // Hard guard, active in every mode (bypass included) and immune to later listeners.
   ctx.tools.guard((exec) => {
     if (exec.name !== 'bash' && exec.name !== 'pwsh') return undefined
-    const command = (exec.arguments as { command?: unknown } | null | undefined)?.command
+    const args = exec.arguments as { command?: unknown; sandbox_permissions?: unknown; justification?: unknown } | null
+    if (
+      exec.agent &&
+      isFullAccess(exec.agent) &&
+      (args?.sandbox_permissions !== undefined || args?.justification !== undefined)
+    ) {
+      return 'This session already has Full Access. Remove sandbox_permissions and justification and retry using the current permissions. The command did not execute.'
+    }
+    const command = args?.command
     if (typeof command !== 'string' || !command.trim()) return undefined
     const reason = detectGlobalInstall(command)
     if (reason === null) return undefined
@@ -420,7 +471,7 @@ export function apply(ctx: Context): void {
         'approval/ask',
         {
           sessionId: req.agent.id,
-          sessionEventSeq: req.agent.session.events.at(-1)!.seq,
+          sessionEventSeq: req.agent.session.snapshotEvents().at(-1)!.seq,
           toolName: req.toolName,
           callId: req.callId,
           args: correlateCallArguments(req),
@@ -428,19 +479,18 @@ export function apply(ctx: Context): void {
         },
         req.signal
       )
+      if (req.signal?.aborted) return 'cancelled'
       if (outcome === 'rejected' && rejectionReason) {
-        setImmediate(() => {
-          try {
-            req.agent.followup(
-              createUserMessage({
-                content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
-                source: { kind: 'user' }
-              })
-            )
-          } catch (error) {
-            console.error('[cherry-bridge] failed to deliver tool rejection feedback:', error)
-          }
-        })
+        try {
+          req.agent.inject(
+            createUserMessage({
+              content: [{ type: 'text', text: `Tool approval feedback for "${req.toolName}":\n${rejectionReason}` }],
+              source: { kind: 'user' }
+            })
+          )
+        } catch (error) {
+          console.error('[cherry-bridge] failed to deliver tool rejection feedback:', error)
+        }
       }
       return outcome
     } catch {
@@ -459,7 +509,7 @@ function isMissingSessionError(error: unknown): boolean {
 /** Attach the asked-about call's arguments: latest `tool/call` with the request's callId. */
 function correlateCallArguments(req: ApprovalRequest): unknown {
   if (req.callId === undefined) return undefined
-  const events = req.agent.session.events
+  const events = req.agent.session.snapshotEvents()
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i]
     if (event.type !== 'tool/call' || event.data.callId !== req.callId) continue
@@ -482,7 +532,7 @@ function correlatePlanReviewCall(
     throw new UserQuestionError('only an agent plan review can cross the Cherry bridge', 'UNSUPPORTED_QUESTION')
   }
 
-  const events = request.agent.session.events
+  const events = request.agent.session.snapshotEvents()
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i]
     if (event.type !== 'tool/call' || event.data.name !== 'exit_plan_mode') continue
