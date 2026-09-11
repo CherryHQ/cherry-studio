@@ -37,6 +37,7 @@ import {
 } from './mcpClientSdk'
 import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
+import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { createTransport, isMcpOAuthEnabled } from './mcpTransport'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
@@ -1088,11 +1089,9 @@ export class McpRuntimeService extends BaseService {
               })
             }
           },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
-          // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          resetTimeoutOnProgress: server.longRunning,
-          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
+          ...resolveMcpRequestOptions(server),
+          // resetTimeoutOnProgress 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          // resetTimeoutOnProgress needs server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           signal: effectiveSignal
         })
         return result as McpCallToolResponse
