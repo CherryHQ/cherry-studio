@@ -108,6 +108,22 @@ class CherryCloudSessionRequiredError extends Error {
   }
 }
 
+class CherryCloudRefreshError extends Error {
+  constructor(readonly response: Response) {
+    super(`Cherry Cloud session refresh failed (${response.status})`)
+    this.name = 'CherryCloudRefreshError'
+  }
+}
+
+function requiresLogin(response: Response): boolean {
+  const code = response.headers.get('Cherry-Error-Code')
+  return response.status === 401 && (code === 'SESSION_EXPIRED' || code === 'REAUTH_REQUIRED')
+}
+
+function discardResponse(response: Response): void {
+  void response.body?.cancel().catch(() => undefined)
+}
+
 @Injectable('CherryCloudService')
 @ServicePhase(Phase.WhenReady)
 export class CherryCloudService extends BaseService {
@@ -731,10 +747,14 @@ export class CherryCloudService extends BaseService {
   }
 
   public async authenticatedFetch(path: string, init?: CherryCloudRequestInit): Promise<Response> {
+    init?.signal?.throwIfAborted()
+    const initialSession = this.cloudState.session
     let session: ProductSession
     try {
       session = await this.activeSession()
     } catch (error) {
+      init?.signal?.throwIfAborted()
+      if (error instanceof CherryCloudRefreshError) return error.response.clone()
       if (!(error instanceof CherryCloudSessionRequiredError)) throw error
       return new Response(
         JSON.stringify({
@@ -750,21 +770,40 @@ export class CherryCloudService extends BaseService {
       url.pathname === '/v1/messages' || url.pathname === '/v1/chat/completions'
         ? (headers.get('Idempotency-Key') ?? createIdempotencyKey())
         : undefined
+    const generation = this.sessionGeneration
     let response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
-    if (response.status !== 401 || this.cloudState.session !== session) return response
-
-    let refreshedSession: ProductSession
-    try {
-      refreshedSession = await this.activeSession(true, session)
-    } catch {
+    if (requiresLogin(response)) {
       await this.clearSession(session)
       return response
     }
-    if (this.cloudState.session !== refreshedSession) return response
+    if (generation !== this.sessionGeneration || !this.cloudState.session) return response
 
-    void response.body?.cancel?.()
-    response = await this.signedFetch(url, init, refreshedSession, { bearer: true, idempotencyKey })
-    if (response.status === 401) await this.clearSession(refreshedSession)
+    // Cloud strips upstream Cherry-* headers, so upstream 401 bodies cannot invalidate the login.
+    const code = response.headers.get('Cherry-Error-Code')
+    const refreshRequired = response.status === 401 && code === 'AUTH_REQUIRED'
+    const replayed = response.status === 409 && code === 'REQUEST_REPLAYED'
+    if (!refreshRequired && !replayed) return response
+    if (refreshRequired && session !== initialSession) return response
+    if (replayed && this.cloudState.session !== session) return response
+
+    try {
+      init?.signal?.throwIfAborted()
+      if (refreshRequired) {
+        session = await this.activeSession(this.cloudState.session === session, this.cloudState.session)
+      }
+      init?.signal?.throwIfAborted()
+    } catch (error) {
+      if (error instanceof CherryCloudSessionRequiredError) return response
+      discardResponse(response)
+      init?.signal?.throwIfAborted()
+      if (error instanceof CherryCloudRefreshError) return error.response.clone()
+      throw error
+    }
+    if (generation !== this.sessionGeneration || this.cloudState.session !== session) return response
+
+    discardResponse(response)
+    response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
+    if (requiresLogin(response)) await this.clearSession(session)
     return response
   }
 
@@ -840,11 +879,13 @@ export class CherryCloudService extends BaseService {
       }
     )
     if (!response.ok) {
-      if (response.status === 401) {
+      if (
+        requiresLogin(response) ||
+        (response.status === 401 && response.headers.get('Cherry-Error-Code') === 'AUTH_REQUIRED')
+      ) {
         await this.clearSession(session)
-        throw new CherryCloudSessionRequiredError()
       }
-      throw new Error(`Cherry Cloud session refresh failed (${response.status})`)
+      throw new CherryCloudRefreshError(response)
     }
     const refreshPayload = refreshProductSessionResponseSchema.safeParse(await response.json())
     if (!refreshPayload.success) {
@@ -920,9 +961,11 @@ export class CherryCloudService extends BaseService {
     session: ProductSession,
     options: { bearer: boolean; idempotencyKey?: string }
   ): Promise<Response> {
+    init?.signal?.throwIfAborted()
     const device = this.cloudState.device
     if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
     const machineCode = this.machineCode ?? (await getMachineCode())
+    init?.signal?.throwIfAborted()
     if (this.cloudState.device !== device) throw new Error('Cherry Cloud device credentials changed')
     this.machineCode = machineCode
     const method = (init?.method ?? 'GET').toUpperCase()
