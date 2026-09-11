@@ -36,7 +36,11 @@ import {
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { getKnowledgeBaseIdsFromParts, getSkillFolderNamesFromParts, hasClearContextPart } from '@shared/data/types/uiParts'
+import {
+  getKnowledgeBaseIdsFromParts,
+  getSkillFolderNamesFromParts,
+  hasClearContextPart
+} from '@shared/data/types/uiParts'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '../../contextBuild/resolveInputRoom'
