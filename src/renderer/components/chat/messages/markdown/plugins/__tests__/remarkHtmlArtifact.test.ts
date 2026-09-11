@@ -1,8 +1,9 @@
-import { remarkLatexMath } from '@renderer/components/markdown'
 import type { Root } from 'mdast'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { describe, expect, it } from 'vitest'
+
+import { remarkLatexMath } from '@renderer/components/markdown'
 
 import { classifyHtmlArtifactSource, remarkHtmlArtifact } from '../remarkHtmlArtifact'
 

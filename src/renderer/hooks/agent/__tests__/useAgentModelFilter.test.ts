@@ -1,9 +1,10 @@
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { useAgentModelDisabled, useAgentModelFilter } from '../useAgentModelFilter'
 
@@ -33,7 +34,7 @@ function model(capabilities: Model['capabilities'] = []): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 function cloudModel(id: string): Model {

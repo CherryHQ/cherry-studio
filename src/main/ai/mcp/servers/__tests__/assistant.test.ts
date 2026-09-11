@@ -9,10 +9,11 @@ import path from 'node:path'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 const mocks = vi.hoisted(() => ({
   agentCreate: vi.fn(),
@@ -106,6 +107,8 @@ beforeEach(() => {
   mocks.mcpList.mockReset()
   mocks.modelGetByKey.mockReset()
   mocks.providerGetById.mockReset()
+  mocks.diagnoseEndpoint.mockReset()
+  mocks.doctorRun.mockReset()
   mocks.mcpList.mockReturnValue({ items: [] })
   mocks.modelGetByKey.mockReturnValue({ id: 'anthropic::claude-sonnet' })
   mocks.agentCreate.mockReturnValue({

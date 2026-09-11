@@ -1,5 +1,6 @@
-import { application } from '@application'
 import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
+
+import { application } from '@application'
 import type { SpanEntity } from '@shared/data/types/trace'
 
 import type { ObservabilitySink } from '../sinks/ObservabilitySink'

@@ -1,6 +1,7 @@
 import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
-import { definePlugin } from '@cherrystudio/ai-core'
 import type { LanguageModelMiddleware } from 'ai'
+
+import { definePlugin } from '@cherrystudio/ai-core'
 
 import type { RequestFeature } from '../feature'
 

@@ -1,9 +1,10 @@
+import { useEffect, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useIsTextFile')
 

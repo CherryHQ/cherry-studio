@@ -1,8 +1,9 @@
-import { application } from '@application'
-import { BaseService } from '@main/core/lifecycle'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { net, session } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle'
 
 import type { NetworkEndpoint } from '../types'
 

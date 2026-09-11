@@ -14,7 +14,9 @@ const {
 
   return {
     nodeProxyConfigureMock,
-    nodeProxyControllerConstructorMock: vi.fn(() => ({ configure: nodeProxyConfigureMock })),
+    nodeProxyControllerConstructorMock: vi.fn(function NodeProxyControllerMock() {
+      return { configure: nodeProxyConfigureMock }
+    }),
     sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
     webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
     appSetProxyMock: vi.fn().mockResolvedValue(undefined),

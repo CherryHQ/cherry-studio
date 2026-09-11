@@ -3,6 +3,7 @@ import { lstat, open, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 
 import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+
 import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('AgentsMdLoader')

@@ -15,11 +15,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { loggerService } from '@logger'
 import { CHERRY_HOME } from '@main/core/paths/constants'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
-import { app } from 'electron'
 
 import { evaluateCandidateVersion } from './versionPolicy'
 

@@ -8,10 +8,11 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { ToolSet, UIMessageChunk } from 'ai'
+
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { ToolSet, UIMessageChunk } from 'ai'
 
 /**
  * Token usage carried on `message-metadata` UIMessageChunks emitted by main's

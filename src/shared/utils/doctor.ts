@@ -64,7 +64,7 @@ function projectResult(result: DoctorCheckResult, keepDeveloperText: boolean): D
   if (keepDeveloperText) return result
   const projected = { ...result, ...(result.status === 'error' ? { message: DOCTOR_REDACTED } : {}) }
   delete (projected as { devMessage?: string }).devMessage
-  return projected as DoctorCheckResult
+  return projected
 }
 
 /**

@@ -1,8 +1,9 @@
 import fs from 'node:fs/promises'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { MistralMock, deleteMock, getSignedUrlMock, ocrProcessMock, uploadMock } = vi.hoisted(() => {
   const uploadMock = vi.fn()
@@ -15,16 +16,18 @@ const { MistralMock, deleteMock, getSignedUrlMock, ocrProcessMock, uploadMock } 
     getSignedUrlMock,
     deleteMock,
     ocrProcessMock,
-    MistralMock: vi.fn(() => ({
-      files: {
-        upload: uploadMock,
-        getSignedUrl: getSignedUrlMock,
-        delete: deleteMock
-      },
-      ocr: {
-        process: ocrProcessMock
+    MistralMock: vi.fn(function MistralMock() {
+      return {
+        files: {
+          upload: uploadMock,
+          getSignedUrl: getSignedUrlMock,
+          delete: deleteMock
+        },
+        ocr: {
+          process: ocrProcessMock
+        }
       }
-    }))
+    })
   }
 })
 

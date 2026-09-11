@@ -2,14 +2,15 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { agentTable } from '@data/db/schemas/agent'
-import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+
+import { agentTable } from '@data/db/schemas/agent'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { mcpServerTable } from '@data/db/schemas/mcpServer'
 
 import { migrateAgentMcps } from '../AgentsMigrator'
 import { quoteSqlitePath } from '../mappings/AgentsDbMappings'
