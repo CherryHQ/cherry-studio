@@ -214,17 +214,15 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
 
     const res3 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
     expect(res3.hookSpecificOutput?.additionalContext).toContain(
-      'Identical call limit (user constraint): 3/5. Edit/Write or report to user to reset.'
+      'Identical call limit: 3/5. Edit/Write or report to user to reset.'
     )
 
     await firePostToolUse('Read', { file_path: 'src/app.ts' })
     const res4 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
-    expect(res4.hookSpecificOutput?.additionalContext).toContain(
-      'CRITICAL: identical call limit (user constraint) 4/5 (1 attempt left).'
-    )
+    expect(res4.hookSpecificOutput?.additionalContext).toContain('CRITICAL: identical call limit 4/5 (1 attempt left).')
   })
 
-  it('delivers ladder warnings for file reads (7, 8, 9)', async () => {
+  it('delivers ladder warnings for file reads (7, 8, 9, 10)', async () => {
     const preToolUse = () =>
       toolGuardHook(
         {
@@ -243,24 +241,22 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
 
     const res7 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
     expect(res7.hookSpecificOutput?.additionalContext).toContain(
-      "File read limit (user constraint): 7/10 on 'src/file.ts'. Tip: request larger line limits."
+      "File read limit: 7/10 on 'src/file.ts'. Tip: request larger line limits."
     )
 
     await firePostToolUse('Read', { file_path: 'src/file.ts', offset: 70 })
     const res8 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
-    expect(res8.hookSpecificOutput?.additionalContext).toContain(
-      "File read limit (user constraint): 8/10 on 'src/file.ts' (2 left)."
-    )
+    expect(res8.hookSpecificOutput?.additionalContext).toContain("File read limit: 8/10 on 'src/file.ts' (2 left).")
 
     await firePostToolUse('Read', { file_path: 'src/file.ts', offset: 80 })
     await firePostToolUse('Read', { file_path: 'src/file.ts', offset: 90 })
     const res10 = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
     expect(res10.hookSpecificOutput?.additionalContext).toContain(
-      "CRITICAL: file read limit (user constraint): 10/10 on 'src/file.ts' (last allowed read before lock)."
+      "CRITICAL: file read limit: 10/10 on 'src/file.ts' (last allowed read before lock)."
     )
   })
 
-  it('delivers ladder warnings for exploration budget and injects steer on cap', async () => {
+  it('delivers ladder warnings for exploration budget', async () => {
     const preToolUse = (file: string) =>
       toolGuardHook(
         {
@@ -279,9 +275,8 @@ describe('ClaudeCodeSessionStateService explorer outcome recording and hooks', (
 
     const res10 = (await preToolUse('file_10.ts')) as { hookSpecificOutput?: { additionalContext?: string } }
     expect(res10.hookSpecificOutput?.additionalContext).toContain(
-      'Exploration limit (user constraint): 10/30 reads used.'
+      'Exploration limit: 10/30 reads used without code edits.'
     )
-    expect(res10.hookSpecificOutput?.additionalContext).toContain('Reaching 30 will FORCIBLY ABORT the session.')
   })
 
   it('scopes subagents independently and cleans up on SubagentStop', async () => {

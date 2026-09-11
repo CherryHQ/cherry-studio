@@ -134,7 +134,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
             return {
               hookSpecificOutput: {
                 hookEventName: 'PreToolUse',
-                additionalContext: `Identical call limit (user constraint): 3/5. Edit/Write or report to user to reset.`
+                additionalContext: `Identical call limit: 3/5. Edit/Write or report to user to reset.`
               }
             }
           }
@@ -142,7 +142,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
             return {
               hookSpecificOutput: {
                 hookEventName: 'PreToolUse',
-                additionalContext: `CRITICAL: identical call limit (user constraint) 4/5 (1 attempt left). Modify code or report to user immediately.`
+                additionalContext: `CRITICAL: identical call limit 4/5 (1 attempt left). Modify code or report to user immediately.`
               }
             }
           }
@@ -155,7 +155,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
               return {
                 hookSpecificOutput: {
                   hookEventName: 'PreToolUse',
-                  additionalContext: `File read limit (user constraint): 7/10 on '${targetFile}'. Tip: request larger line limits. Edit/Write or report to user to unlock.`
+                  additionalContext: `File read limit: 7/10 on '${targetFile}'. Tip: request larger line limits. Modify that file with Edit/Write to unlock.`
                 }
               }
             }
@@ -163,7 +163,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
               return {
                 hookSpecificOutput: {
                   hookEventName: 'PreToolUse',
-                  additionalContext: `File read limit (user constraint): ${fileReadCount}/10 on '${targetFile}' (${10 - fileReadCount} left). Edit/Write or report to user to avoid lock.`
+                  additionalContext: `File read limit: ${fileReadCount}/10 on '${targetFile}' (${10 - fileReadCount} left). Modify that file with Edit/Write to avoid lock.`
                 }
               }
             }
@@ -171,7 +171,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
               return {
                 hookSpecificOutput: {
                   hookEventName: 'PreToolUse',
-                  additionalContext: `CRITICAL: file read limit (user constraint): 10/10 on '${targetFile}' (last allowed read before lock). Edit/Write or report to user now.`
+                  additionalContext: `CRITICAL: file read limit: 10/10 on '${targetFile}' (last allowed read before lock). Modify that file with Edit/Write to avoid lock.`
                 }
               }
             }
@@ -183,7 +183,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
             return {
               hookSpecificOutput: {
                 hookEventName: 'PreToolUse',
-                additionalContext: `Exploration limit (user constraint): ${consecutive}/30 reads used. Tip: request larger line limits. Reaching 30 will FORCIBLY ABORT the session. Edit/Write or report to user resets this.`
+                additionalContext: `Exploration limit: ${consecutive}/30 reads used without code edits. Tip: request larger line limits. Modifying code with Edit/Write resets this budget.`
               }
             }
           }
@@ -191,7 +191,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
             return {
               hookSpecificOutput: {
                 hookEventName: 'PreToolUse',
-                additionalContext: `DANGER: exploration limit (user constraint) ${consecutive}/30 (${30 - consecutive} left before FORCED ABORT). Use larger line limits! Call Edit/Write or report to user now!`
+                additionalContext: `Exploration limit: ${consecutive}/30 (${30 - consecutive} left before reading is paused). Use larger line limits! Call Edit/Write or report to user now.`
               }
             }
           }
@@ -201,25 +201,6 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     }
     if (decision.effect === 'deny') {
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
-      if (decision.ruleId === 'explorer-consecutive-cap') {
-        try {
-          const holder = sessionState().getSteerHolder(sessionId)
-          holder.pending.push({
-            message: {
-              data: {
-                parts: [
-                  {
-                    type: 'text',
-                    text: 'Exploration budget exhausted (user constraint). Broke read-only exploration loop; proceed with Edit/Write code modification or report conclusions to the user now.'
-                  }
-                ]
-              }
-            } as never
-          })
-        } catch {
-          // ignore
-        }
-      }
     }
     return {
       hookSpecificOutput: {

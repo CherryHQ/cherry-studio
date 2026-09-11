@@ -277,7 +277,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         )
         expect(decision?.ruleId).toBe('explorer-repeat-identical')
         expect(decision?.effect).toBe('deny')
-        expect(decision?.reason).toContain('5/5 identical calls reached')
+        expect(decision?.reason).toContain('5/5 times in a row')
       }
     )
 
@@ -294,7 +294,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         )
         expect(decision?.ruleId).toBe('explorer-consecutive-cap')
         expect(decision?.effect).toBe('deny')
-        expect(decision?.reason).toContain('Exploration limit reached: 30/30 operations')
+        expect(decision?.reason).toContain('Exploration budget reached: 30/30 operations')
       }
     )
 
@@ -347,7 +347,7 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       )
       expect(decision?.ruleId).toBe('explorer-same-file-cap')
       expect(decision?.effect).toBe('deny')
-      expect(decision?.reason).toContain("10/10 reads reached on 'src/main.ts'")
+      expect(decision?.reason).toContain("Reading 'src/main.ts' is capped after 10 slices")
     })
   })
 

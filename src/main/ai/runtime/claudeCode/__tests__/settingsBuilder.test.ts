@@ -2630,9 +2630,19 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
+    const resetSpy = vi.spyOn(sessionStateService, 'resetExplorerSessionTurn')
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    // Only the explorer turn-reset hook is wired; assistant contracts are not injected per prompt
-    expect(settings.hooks?.UserPromptSubmit?.[0]?.hooks).toHaveLength(1)
+
+    // Verify UserPromptSubmit hooks only perform turn state resets and never inject prompt contracts
+    const submitHooks = settings.hooks?.UserPromptSubmit?.flatMap((matcher) => matcher.hooks) ?? []
+    expect(submitHooks.length).toBeGreaterThan(0)
+    for (const hook of submitHooks) {
+      const out = await hook({ hook_event_name: 'UserPromptSubmit' } as never, undefined, {} as never)
+      const context = (out as { hookSpecificOutput?: { additionalContext?: string } }).hookSpecificOutput
+        ?.additionalContext
+      expect(context).toBeUndefined()
+    }
+    expect(resetSpy).toHaveBeenCalledWith('session-1')
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {

@@ -29,7 +29,12 @@ import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolReg
 import { imageExts } from '@shared/utils/file'
 
 import { BASH_NO_PROGRESS_HARD_THRESHOLD } from './bashNoProgress'
-import { EXPLORER_CAP_HARD_THRESHOLD, EXPLORER_IDENTICAL_HARD_THRESHOLD, EXPLORER_TOOLS } from './explorerLoop'
+import {
+  EXPLORER_CAP_HARD_THRESHOLD,
+  EXPLORER_IDENTICAL_HARD_THRESHOLD,
+  EXPLORER_SAME_FILE_CAP,
+  EXPLORER_TOOLS
+} from './explorerLoop'
 import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
@@ -211,8 +216,8 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     bypassBehavior: 'enforce',
     match: { when: explorerRepeatIdentical },
     effect: 'deny',
-    reason: () =>
-      `Call blocked: 5/5 identical calls reached (user constraint). Modify code with Edit/Write or report to user.`
+    reason: (hit) =>
+      `This exact call already ran ${hit.evidence}/${EXPLORER_IDENTICAL_HARD_THRESHOLD} times in a row with no intervening change — repeating it yields no new information. Modify code with Edit/Write or report what you found.`
   },
   {
     id: 'explorer-same-file-cap',
@@ -220,7 +225,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { tool: 'Read', when: explorerSameFileCap },
     effect: 'deny',
     reason: (hit) =>
-      `File locked: 10/10 reads reached on '${hit.evidence}' (user constraint). Edit/Write or report to user to unlock.`
+      `Reading '${hit.evidence}' is capped after ${EXPLORER_SAME_FILE_CAP} slices until you modify that file, or until the next user turn. Modify that file with Edit/Write or report conclusions to proceed.`
   },
   {
     id: 'explorer-consecutive-cap',
@@ -228,7 +233,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: explorerConsecutiveCap },
     effect: 'deny',
     reason: (hit) =>
-      `Exploration limit reached: ${hit.evidence}/30 operations (user constraint). All reading tools are permanently frozen. Proceed to Edit/Write or report to user.`
+      `Exploration budget reached: ${hit.evidence}/${EXPLORER_CAP_HARD_THRESHOLD} operations without code modifications. File reading is paused; modifying any file with Edit/Write resets this budget, or report conclusions to the user.`
   },
   {
     id: 'headless-config-mutation',
