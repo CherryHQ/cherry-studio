@@ -156,6 +156,16 @@ describe('systemHandlers', () => {
     expect(openExternalMock).toHaveBeenCalledWith('https://example.com')
   })
 
+  it('shell.open_website propagates an asynchronous shell.openExternal rejection', async () => {
+    const launchError = new Error('browser unavailable')
+    isSafeMock.mockReturnValue(true)
+    openExternalMock.mockRejectedValueOnce(launchError)
+
+    await expect(systemHandlers['system.shell.open_website']('https://example.com', ctx('w1'))).rejects.toBe(
+      launchError
+    )
+  })
+
   it('shell.open_website drops an unsafe URL without calling shell.openExternal', async () => {
     isSafeMock.mockReturnValue(false)
     await systemHandlers['system.shell.open_website']('javascript:alert(1)', ctx('w1'))
