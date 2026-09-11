@@ -20,6 +20,8 @@
  * `WebSearchService` honours one). Add one here only once the service does.
  */
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
@@ -44,7 +46,6 @@ import type {
 } from '@shared/data/types/knowledge'
 import { KnowledgeAddItemInputSchema } from '@shared/data/types/knowledge'
 import { PQueue } from '@shared/utils/async'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('KnowledgeLookup')
 

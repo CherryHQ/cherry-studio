@@ -1,8 +1,9 @@
 import type { LookupAddress } from 'node:dns'
 import { lookup } from 'node:dns/promises'
 
-import { raceCancellation } from '@shared/utils/async'
 import * as ipaddr from 'ipaddr.js'
+
+import { raceCancellation } from '@shared/utils/async'
 
 export type RemoteFetchAddress = {
   readonly address: string

@@ -1,12 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { createServer, type Server, type ServerResponse } from 'node:http'
 
+import { net, shell } from 'electron'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { TOKEN_DANCE_APP_URL } from '@main/ai/provider/constants'
 import { t } from '@main/i18n'
 import { createTimeout } from '@shared/utils/async'
-import { net, shell } from 'electron'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('TokenDanceOAuth')
 

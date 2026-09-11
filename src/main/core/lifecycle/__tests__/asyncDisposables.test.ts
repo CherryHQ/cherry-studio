@@ -1,5 +1,6 @@
-import { createDisposableTimeoutSignal, IdleTimeoutController } from '@shared/utils/async'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { createDisposableTimeoutSignal, IdleTimeoutController } from '@shared/utils/async'
 
 import { BaseService } from '../BaseService'
 

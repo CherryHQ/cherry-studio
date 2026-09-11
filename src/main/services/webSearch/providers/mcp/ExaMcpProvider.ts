@@ -1,9 +1,10 @@
+import { net } from 'electron'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { createDisposableTimeoutSignal } from '@shared/utils/async'
-import { net } from 'electron'
-import * as z from 'zod'
 
 import { resolveProviderApiHost } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'

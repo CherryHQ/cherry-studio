@@ -1,5 +1,6 @@
-import type { FileMetadata } from '@renderer/types/file'
 import { describe, expect, it } from 'vitest'
+
+import type { FileMetadata } from '@renderer/types/file'
 
 import {
   createComposerFileTokenSourceId,

@@ -2,12 +2,13 @@ import * as fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { createDeferred } from '@shared/utils/async'
 import AdmZip from 'adm-zip'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { createDeferred } from '@shared/utils/async'
 
 import { markdownResultStore } from '../MarkdownResultStore'
 
@@ -56,14 +57,13 @@ describe('MarkdownResultStore cancellation at the write boundary', () => {
     const extracting = createDeferred<void>()
     const releaseExtraction = createDeferred<void>()
     const entryData = StreamZip.async.prototype.entryData
-    vi.spyOn(StreamZip.async.prototype, 'entryData').mockImplementationOnce(async function (
-      this: InstanceType<typeof StreamZip.async>,
-      entry
-    ) {
-      extracting.resolve()
-      await releaseExtraction.promise
-      return entryData.call(this, entry)
-    })
+    vi.spyOn(StreamZip.async.prototype, 'entryData').mockImplementationOnce(
+      async function (this: InstanceType<typeof StreamZip.async>, entry) {
+        extracting.resolve()
+        await releaseExtraction.promise
+        return entryData.call(this, entry)
+      }
+    )
     const zip = new AdmZip()
     zip.addFile('result/output.md', Buffer.from('# replacement'))
     const rejected = expect(

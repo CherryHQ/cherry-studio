@@ -1,10 +1,11 @@
+import { net } from 'electron'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 import { isAbortError } from '@shared/utils/async'
 import { isHttpUrl } from '@shared/utils/url'
-import { net } from 'electron'
-import * as z from 'zod'
 
 import { fetchWebSearchContent } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'

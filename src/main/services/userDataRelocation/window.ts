@@ -1,5 +1,7 @@
 import { join } from 'node:path'
 
+import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/core/platform'
@@ -10,7 +12,6 @@ import {
   UserDataRelocationIpcChannels
 } from '@shared/types/userDataRelocation'
 import { createTimeout } from '@shared/utils/async'
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 
 const logger = loggerService.withContext('UserDataRelocationWindow')
 const CRITICAL_STAGES: ReadonlySet<RelocationStage> = new Set(['preparing', 'copying', 'committing'])

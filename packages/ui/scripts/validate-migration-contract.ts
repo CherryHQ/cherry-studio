@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import ts from 'typescript'
+import ts from '@typescript/typescript6'
 
 import { parseMigrationRegistry } from './migration-registry'
 import { CHERRY_PRODUCT_VARIABLE_TOKENS, RUNTIME_THEME_INPUT_TOKENS, SHADCN_VARIABLE_TOKENS } from './theme-contract'

@@ -1,7 +1,8 @@
+import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import type { Disposable } from '@shared/types/disposable'
-import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
 import { getServiceName } from './decorators'
 import { toDisposable } from './event'

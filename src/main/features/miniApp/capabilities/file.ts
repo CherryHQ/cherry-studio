@@ -9,6 +9,10 @@
  */
 import fs from 'node:fs'
 
+import { and, eq, sql } from 'drizzle-orm'
+import { BrowserWindow, dialog, webContents } from 'electron'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
@@ -17,9 +21,6 @@ import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import type { QuotaUsage, QuotaUsageWithLimits } from '@shared/types/miniAppQuota'
 import { SequencerByKey } from '@shared/utils/async'
-import { and, eq, sql } from 'drizzle-orm'
-import { BrowserWindow, dialog, webContents } from 'electron'
-import * as z from 'zod'
 
 import { InvalidArgumentError } from '../errors'
 import { PermissionDeniedError } from '../grants'

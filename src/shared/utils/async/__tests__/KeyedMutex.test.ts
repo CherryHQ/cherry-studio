@@ -1,5 +1,6 @@
-import { KeyedMutex } from '@shared/utils/async'
 import { describe, expect, it } from 'vitest'
+
+import { KeyedMutex } from '@shared/utils/async'
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 

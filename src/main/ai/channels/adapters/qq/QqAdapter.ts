@@ -1,8 +1,9 @@
+import { net } from 'electron'
+import WebSocket from 'ws'
+
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { delay as sleep } from '@shared/utils/async'
-import { net } from 'electron'
-import WebSocket from 'ws'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'

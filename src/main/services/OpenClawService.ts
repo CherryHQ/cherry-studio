@@ -8,7 +8,7 @@ import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
@@ -392,7 +392,6 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
 export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
@@ -405,7 +404,7 @@ export class OpenClawService extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
-    // IPC handlers migrated to IpcApi (openclaw.*)
+    application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
   }
 
   protected async onReady(): Promise<void> {
@@ -436,20 +435,14 @@ export class OpenClawService extends BaseService {
     await this.stopGateway()
   }
 
-  /** Single gateway-status-transition point: assign, then broadcast; same-value calls are not transitions. */
+  /** Single gateway-status-transition point for the main-owned shared snapshot. */
   private setGatewayStatus(status: GatewayStatus, options?: { force?: boolean }): void {
     if (!options?.force && this.gatewayStatus === status) return
     this.gatewayStatus = status
     this.gatewayTransitionId++
     // Becoming idle is the moment a port preference change deferred during a run takes effect.
     if (status === 'stopped' || status === 'error') this.syncGatewayPortFromPreference()
-    try {
-      application.get('IpcApiService').broadcast('openclaw.status_changed', { status: this.gatewayStatus })
-    } catch (err) {
-      // A lost broadcast is corrected by the next transition or a request-completion
-      // rebroadcast; it must never abort the transition itself.
-      logger.warn('Failed to broadcast OpenClaw gateway status change', err as Error)
-    }
+    application.get('CacheService').setShared('feature.openclaw.gateway_status', this.gatewayStatus)
   }
 
   /**
@@ -746,7 +739,7 @@ export class OpenClawService extends BaseService {
     if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
       this.throwSchemaCapabilityError('config schema did not return a top-level object')
     }
-    return schema as OpenClawConfigSchemaNode
+    return schema
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {
@@ -1129,12 +1122,10 @@ export class OpenClawService extends BaseService {
     }
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
-    const [provider, primaryModel, models, apiKeys] = await Promise.all([
-      providerService.getByProviderId(providerId),
-      modelService.getByKey(providerId, modelId),
-      modelService.list({ providerId, enabled: true }),
-      providerService.getApiKeys(providerId, { enabled: true })
-    ])
+    const provider = providerService.getByProviderId(providerId)
+    const primaryModel = modelService.getByKey(providerId, modelId)
+    const models = modelService.list({ providerId, enabled: true })
+    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {

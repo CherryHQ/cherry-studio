@@ -1,9 +1,10 @@
-import { loggerService } from '@logger'
-import { t } from '@main/i18n'
-import { createTimeout } from '@shared/utils/async'
 import type EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'
+
+import { loggerService } from '@logger'
+import { t } from '@main/i18n'
+import { createTimeout } from '@shared/utils/async'
 
 import type { OAuthCallbackServerOptions } from './types'
 

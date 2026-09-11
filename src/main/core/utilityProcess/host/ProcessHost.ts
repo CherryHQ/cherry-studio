@@ -151,13 +151,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       if (generation.phase === 'starting') await raceCancellation(generation.ready.promise, signal)
       if (generation.settled) throw generation.settleError
       if (generation.phase !== 'ready') continue
-      return this.dispatch(
-        generation,
-        method,
-        input,
-        signal,
-        onEvent as ((event: unknown) => void) | undefined
-      ) as Promise<Contract['methods'][M]['output']>
+      return this.dispatch(generation, method, input, signal, onEvent)
     }
   }
 

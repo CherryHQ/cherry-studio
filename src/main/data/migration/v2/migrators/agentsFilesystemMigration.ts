@@ -3,6 +3,8 @@ import { type BigIntStats, constants, createReadStream } from 'node:fs'
 import { copyFile, cp, link, lstat, mkdir, readdir, readlink, realpath, rename, rmdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
+import { validate as isUuid } from 'uuid'
+
 import { loggerService } from '@logger'
 import {
   agentDataDirectoryPath,
@@ -14,7 +16,6 @@ import {
 import { isMac, isWin } from '@main/core/platform'
 import { isPathInside, isSameOrInside } from '@main/utils/file'
 import { PQueue } from '@shared/utils/async'
-import { validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('AgentsFilesystemMigration')
 const IDENTITY_ENTRY_NAMES = new Set(['soul.md', 'user.md', 'memory'])

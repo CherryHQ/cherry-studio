@@ -1,7 +1,8 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
 import { onAbort as subscribeToAbort } from '@shared/utils/async'
 import { KB } from '@shared/utils/constants'
 import { redactRecord, redactUrlParams } from '@shared/utils/redaction'

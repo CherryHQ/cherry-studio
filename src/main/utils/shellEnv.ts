@@ -1,8 +1,9 @@
+import { spawn } from 'child_process'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { createTimeout } from '@shared/utils/async'
-import { spawn } from 'child_process'
 
 import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'

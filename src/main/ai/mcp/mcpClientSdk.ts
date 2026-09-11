@@ -14,6 +14,7 @@ import type {
   ResourceUpdatedNotificationSchema,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
+
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import { AsyncInitializer } from '@shared/utils/async'
 

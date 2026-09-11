@@ -1,5 +1,6 @@
-import type { EventPayload } from '@shared/ipc/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { EventPayload } from '@shared/ipc/types'
 
 import { oauthWithCherryIn } from '../oauth'
 

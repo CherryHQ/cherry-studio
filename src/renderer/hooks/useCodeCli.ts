@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type {
@@ -8,7 +10,6 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { Sequencer } from '@shared/utils/async'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 
@@ -153,14 +154,14 @@ export const useCodeCli = (initialTool: CodeCli = DEFAULT_TOOL, onToolChange?: (
 
   const setTerminal = useCallback(
     async (terminal: string) => {
-      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, terminal }))
+      await patchToolState(selectedCliTool, (prev) => ({ ...prev, terminal }))
     },
     [patchToolState, selectedCliTool]
   )
 
   const setDirectory = useCallback(
     async (directory: string) => {
-      await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, directory }))
+      await patchToolState(selectedCliTool, (prev) => ({ ...prev, directory }))
     },
     [patchToolState, selectedCliTool]
   )

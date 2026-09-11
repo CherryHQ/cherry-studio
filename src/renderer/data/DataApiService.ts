@@ -257,7 +257,7 @@ export class DataApiService implements ApiClient {
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'GET'>> {
-    return this.makeRequest<ResponseForPath<TPath, 'GET'>>('GET', path as string, {
+    return this.makeRequest<ResponseForPath<TPath, 'GET'>>('GET', path, {
       params: options?.query,
       headers: options?.headers
     })
@@ -274,7 +274,7 @@ export class DataApiService implements ApiClient {
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'POST'>> {
-    return this.makeRequest<ResponseForPath<TPath, 'POST'>>('POST', path as string, {
+    return this.makeRequest<ResponseForPath<TPath, 'POST'>>('POST', path, {
       params: options.query,
       body: options.body,
       headers: options.headers
@@ -292,7 +292,7 @@ export class DataApiService implements ApiClient {
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'PUT'>> {
-    return this.makeRequest<ResponseForPath<TPath, 'PUT'>>('PUT', path as string, {
+    return this.makeRequest<ResponseForPath<TPath, 'PUT'>>('PUT', path, {
       params: options.query,
       body: options.body,
       headers: options.headers
@@ -309,7 +309,7 @@ export class DataApiService implements ApiClient {
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'DELETE'>> {
-    return this.makeRequest<ResponseForPath<TPath, 'DELETE'>>('DELETE', path as string, {
+    return this.makeRequest<ResponseForPath<TPath, 'DELETE'>>('DELETE', path, {
       params: options?.query,
       headers: options?.headers
     })
@@ -326,7 +326,7 @@ export class DataApiService implements ApiClient {
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'PATCH'>> {
-    return this.makeRequest<ResponseForPath<TPath, 'PATCH'>>('PATCH', path as string, {
+    return this.makeRequest<ResponseForPath<TPath, 'PATCH'>>('PATCH', path, {
       params: options.query,
       body: options.body,
       headers: options.headers

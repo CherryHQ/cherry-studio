@@ -13,7 +13,7 @@ export function ActiveIndicator({ className, glow = false }: { className?: strin
         className={`pointer-events-none absolute inset-0 border border-[var(--sidebar-active-border)] ${className ?? ''}`}
       />
       {glow && (
-        <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 flex items-center">
+        <div className="pointer-events-none absolute top-1/2 right-0 flex -translate-y-1/2 items-center">
           <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-[var(--sidebar-glow-bg)] blur-[6px]" />
           <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-[var(--sidebar-glow-line)] blur-[2px]" />
         </div>
@@ -24,7 +24,7 @@ export function ActiveIndicator({ className, glow = false }: { className?: strin
 
 export function DefaultLogo({ title }: { title: string }) {
   return (
-    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 font-medium text-primary text-sm">
+    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-medium text-primary">
       {title ? title.slice(0, 1).toUpperCase() : ''}
     </div>
   )

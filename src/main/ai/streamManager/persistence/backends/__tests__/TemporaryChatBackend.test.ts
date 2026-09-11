@@ -1,5 +1,6 @@
-import type { CherryUIMessage } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 const appendAssistantMessageMock = vi.fn()
 

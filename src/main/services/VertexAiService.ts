@@ -1,5 +1,6 @@
-import { AsyncInitializer } from '@shared/utils/async'
 import type { GoogleAuth } from 'google-auth-library'
+
+import { AsyncInitializer } from '@shared/utils/async'
 
 interface ServiceAccountCredentials {
   privateKey: string

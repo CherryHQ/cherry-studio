@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { net } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { regionService } from '@main/services/RegionService'
@@ -18,7 +20,6 @@ import {
   MiniAppDistributionManifestSchema
 } from '@shared/types/miniAppManifest'
 import { IdleTimeoutController } from '@shared/utils/async'
-import { net } from 'electron'
 
 // One cleanup policy for the whole feature: best-effort, logged, never masking.
 import { bestEffortCleanup } from './cleanup'

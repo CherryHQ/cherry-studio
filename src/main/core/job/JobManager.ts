@@ -905,7 +905,7 @@ export class JobManager extends BaseService {
       })
     }
 
-    const queueName = opts.queue ?? handler.defaultQueue?.(input as never) ?? type
+    const queueName = opts.queue ?? handler.defaultQueue?.(input) ?? type
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
@@ -1032,6 +1032,7 @@ export class JobManager extends BaseService {
     // COMMIT and this microtask leaves a pending row for startup recovery.
     queueMicrotask(() => {
       try {
+        // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- deferred past COMMIT on purpose; reading the caller's tx here would defeat the re-read
         const persisted = jobService.getById(snapshot.id)
         if (!persisted) {
           this.finishedResolvers.delete(snapshot.id)
@@ -1276,6 +1277,7 @@ export class JobManager extends BaseService {
         type: input.type
       })
     }
+    // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- pure schema validation, touches no database
     if (input.name) jobScheduleService.assertValidName(input.name)
     this.assertValidTrigger(input.trigger)
     const snapshot = jobScheduleService.createTx(tx, {
@@ -1306,6 +1308,7 @@ export class JobManager extends BaseService {
    *   `JOB_SCHEDULE_TRIGGER_INVALID` before any write
    */
   updateJobScheduleTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
+    // eslint-disable-next-line tx-boundary/no-ambient-db-in-tx -- pure schema validation, touches no database
     if (patch.name) jobScheduleService.assertValidName(patch.name)
     if (patch.trigger !== undefined) this.assertValidTrigger(patch.trigger)
     return jobScheduleService.updateTx(tx, id, patch)

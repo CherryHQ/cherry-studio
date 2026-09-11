@@ -1,3 +1,7 @@
+import { trim } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
@@ -6,9 +10,6 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { debounce } from '@shared/utils/async'
 import { isVertexProvider } from '@shared/utils/provider'
-import { trim } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { PatchProvider } from './types'
 

@@ -1,5 +1,6 @@
-import type { Disposable } from '@shared/types/disposable'
 import { delay as toolkitDelay } from 'es-toolkit'
+
+import type { Disposable } from '@shared/types/disposable'
 
 import { onAbort } from './cancellation'
 

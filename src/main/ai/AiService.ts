@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto'
 
+import {
+  type EmbeddingModelUsage,
+  isToolUIPart,
+  type LanguageModelUsage,
+  type ModelMessage,
+  type UIMessageChunk
+} from 'ai'
+
 import { application } from '@application'
 import {
   type AiPlugin,
@@ -40,13 +48,6 @@ import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@sha
 import { createTimeout, onAbort as subscribeToAbort } from '@shared/utils/async'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
-import {
-  type EmbeddingModelUsage,
-  isToolUIPart,
-  type LanguageModelUsage,
-  type ModelMessage,
-  type UIMessageChunk
-} from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -374,13 +375,13 @@ export interface AiRerankResult {
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager', 'JobManager'])
 export class AiService extends BaseService {
-  // Per-request AbortControllers for the `ai.image.generate` route, paired with the
-  // `ai.image.abort` route. Key is the renderer-generated requestId. Entries are
-  // self-cleaning via `runImageRequest`'s `finally` block; abort on an unknown id is
-  // a no-op.
+  // Per-request AbortControllers for the cancellable one-shot routes (`ai.image.generate`,
+  // `ai.text.generate`), paired with their `*.abort` routes. Key is the renderer-generated
+  // requestId. Entries are self-cleaning via `runWithAbort`'s `finally` block; abort on an
+  // unknown id is a no-op.
   // TODO(abort-registry): collapse with MCP/stream/LAN registries once
   // the shared `ipcHandleWithAbort` helper lands.
-  private readonly imageRequests = new Map<string, AbortController>()
+  private readonly requests = new Map<string, AbortController>()
 
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
@@ -731,7 +732,32 @@ export class AiService extends BaseService {
     return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage, source))
   }
 
+  // ── Request-scoped cancellation ──
+
+  /** Run `operation` under a registry entry keyed by the renderer-supplied `requestId`. */
+  private async runWithAbort<T>(requestId: string, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController()
+    this.requests.set(requestId, controller)
+    try {
+      return await operation(controller.signal)
+    } finally {
+      this.requests.delete(requestId)
+    }
+  }
+
+  /** Abort the in-flight request for `requestId`; a no-op on an unknown id. */
+  abortRequest(requestId: string): void {
+    this.requests.get(requestId)?.abort()
+  }
+
   // ── Non-streaming text generation (agent.generate) ──
+
+  /** Cancellable variant of {@link generateText}, paired with the `ai.text.abort` route. */
+  async runTextRequest(requestId: string, request: AsInProcess<AiGenerateRequest>): Promise<AiGenerateResult> {
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateText({ ...request, requestOptions: { ...request.requestOptions, signal } })
+    )
+  }
 
   async generateText(
     request: AsInProcessChat<AiGenerateRequest>,
@@ -852,25 +878,13 @@ export class AiService extends BaseService {
 
   /**
    * Run an image request under an abort registry entry keyed by the renderer-supplied
-   * `requestId`, so `ai.image.abort` can cancel it. Self-cleaning via `finally`; the
-   * `ai.image.generate` handler delegates here (the registry is service state).
+   * `requestId`, so `ai.image.abort` can cancel it. The `ai.image.generate` handler
+   * delegates here (the registry is service state).
    */
   async runImageRequest(requestId: string, payload: AiImageRequest): Promise<AiImageResult> {
-    const controller = new AbortController()
-    this.imageRequests.set(requestId, controller)
-    try {
-      return await this.generateImage({
-        ...payload,
-        requestOptions: { ...payload.requestOptions, signal: controller.signal }
-      })
-    } finally {
-      this.imageRequests.delete(requestId)
-    }
-  }
-
-  /** Abort the in-flight image request for `requestId`; a no-op on an unknown id. */
-  abortImage(requestId: string): void {
-    this.imageRequests.get(requestId)?.abort()
+    return this.runWithAbort(requestId, (signal) =>
+      this.generateImage({ ...payload, requestOptions: { ...payload.requestOptions, signal } })
+    )
   }
 
   async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {

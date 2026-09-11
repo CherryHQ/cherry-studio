@@ -1,11 +1,13 @@
 import crypto from 'node:crypto'
 
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import sharp from 'sharp'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -72,9 +74,9 @@ const mcpSdkMock = vi.hoisted(() => {
   }
   const clients: Array<{
     connectCalls: Array<{ kind: string }>
-    close: ReturnType<typeof vi.fn>
-    listPrompts: ReturnType<typeof vi.fn>
-    listResources: ReturnType<typeof vi.fn>
+    close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    listPrompts: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    listResources: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }> = []
   class Client {
     setNotificationHandler = vi.fn()
@@ -170,9 +172,8 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
-const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
-  '../McpRuntimeService'
-)
+const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
+  await import('../McpRuntimeService')
 
 /** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -317,13 +318,13 @@ describe('McpRuntimeService QVeris hosted transport', () => {
       name: BuiltinMcpServerNames.qveris,
       env: { QVERIS_API_KEY: 'first-key' },
       isActive: true
-    } as McpServer)
+    })
     const second = service.getServerKey({
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
       env: { QVERIS_API_KEY: 'second-key' },
       isActive: true
-    } as McpServer)
+    })
 
     expect(first).not.toContain('first-key')
     expect(second).not.toContain('second-key')
@@ -865,6 +866,60 @@ describe('McpRuntimeService.callTool cancellation', () => {
   })
 })
 
+describe('McpRuntimeService.callTool tool-result images', () => {
+  const server = { id: 'server-1', name: 'srv', isActive: true } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    getByIdMock.mockReturnValue(server)
+  })
+
+  function serviceReturning(content: unknown[], isError?: boolean) {
+    const service = new McpRuntimeService()
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({
+      callTool: vi.fn().mockResolvedValue({ content, isError })
+    })
+    return service
+  }
+
+  it('shrinks an oversized image before any runtime sees it, preserving format and mime type', async () => {
+    // A full-page browser screenshot's shape: far taller than the per-edge limit vision providers reject.
+    const tall = await sharp({ create: { width: 100, height: 3000, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+    const service = serviceReturning([{ type: 'image', data: tall.toString('base64'), mimeType: 'image/png' }])
+
+    const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(content[0].type).toBe('image')
+    expect(content[0].mimeType).toBe('image/png')
+    const meta = await sharp(Buffer.from(content[0].data!, 'base64')).metadata()
+    expect(meta.format).toBe('png')
+    expect(Math.max(meta.width, meta.height)).toBeLessThanOrEqual(2000)
+  })
+
+  it('degrades an undecodable image to text instead of failing the tool call', async () => {
+    const service = serviceReturning([{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }])
+
+    const { content } = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(content).toEqual([{ type: 'text', text: '[image (image/png) could not be processed]' }])
+  })
+
+  it('leaves error results untouched, even when they carry image-typed content', async () => {
+    const service = serviceReturning([{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }], true)
+
+    const result = await service.callTool({ serverId: server.id, name: 'screenshot', args: {} })
+
+    expect(result).toEqual({
+      content: [{ type: 'image', data: 'bm90IGFuIGltYWdl', mimeType: 'image/png' }],
+      isError: true
+    })
+  })
+})
+
 describe('MCP IPC payload validation (mcp-services-5)', () => {
   it('rejects a malformed callTool payload (missing serverId/name)', () => {
     expect(McpCallToolPayloadSchema.safeParse({}).success).toBe(false)
@@ -976,7 +1031,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     getByIdMock.mockReset()
     mcpCatalogMock.clearSharedToolsCache.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
-    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true } as McpServer)
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
   })
 
   // listTools is cache-only, so a failed restart must clear the shared tools cache —
@@ -1019,7 +1074,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
       type,
       baseUrl: 'https://mcp.actuary.meridianbridgegroup.com/mcp',
       isActive: true
-    } as unknown as McpServer
+    }
   }
 
   type MockClient = InstanceType<typeof mcpSdkMock.Client>
@@ -1273,7 +1328,7 @@ describe('McpRuntimeService prompt/resource capability gate', () => {
   })
 
   function stdioServer(id: string): McpServer {
-    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true }
   }
 
   it('never sends prompts/list or resources/list to a server declaring neither capability', async () => {
@@ -1319,7 +1374,7 @@ describe('McpRuntimeService list pagination', () => {
   })
 
   function stdioServer(id: string): McpServer {
-    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true }
   }
 
   it('follows the resources cursor so the model sees every page, not just the first', async () => {

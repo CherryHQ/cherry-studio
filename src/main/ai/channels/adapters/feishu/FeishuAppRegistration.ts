@@ -1,3 +1,5 @@
+import { net } from 'electron'
+
 /**
  * Feishu App Registration via Device Flow.
  *
@@ -9,7 +11,6 @@
 import { loggerService } from '@logger'
 import type { FeishuDomain } from '@shared/data/types/channel'
 import { delay } from '@shared/utils/async'
-import { net } from 'electron'
 
 const logger = loggerService.withContext('FeishuAppRegistration')
 

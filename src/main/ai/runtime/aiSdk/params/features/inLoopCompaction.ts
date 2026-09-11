@@ -1,3 +1,5 @@
+import type { LanguageModelUsage, ModelMessage } from 'ai'
+
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
  * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
@@ -37,7 +39,6 @@ import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
 import { isAbortError } from '@shared/utils/async'
-import type { LanguageModelUsage, ModelMessage } from 'ai'
 
 import type { RequestFeature } from '../feature'
 

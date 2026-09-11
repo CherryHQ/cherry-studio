@@ -1,7 +1,8 @@
+import { net } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createTimeout } from '@shared/utils/async'
-import { net } from 'electron'
 
 const logger = loggerService.withContext('RegionService')
 

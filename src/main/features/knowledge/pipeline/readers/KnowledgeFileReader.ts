@@ -1,8 +1,9 @@
+import { Document, FileReader as VectorStoreFileReader } from '@vectorstores/core'
+
 import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AsyncInitializer } from '@shared/utils/async'
-import { Document, FileReader as VectorStoreFileReader } from '@vectorstores/core'
 
 import { toMaterialRelativePath } from '../../items'
 import { getKnowledgeBaseFilePath } from '../../pathStorage'

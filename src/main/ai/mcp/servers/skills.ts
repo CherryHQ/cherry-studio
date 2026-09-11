@@ -1,11 +1,12 @@
-import { loggerService } from '@logger'
-import { skillService } from '@main/ai/skills/SkillService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { net } from 'electron'
+
+import { loggerService } from '@logger'
+import { skillService } from '@main/ai/skills/SkillService'
 import { createTimeout } from '@shared/utils/async'
 import { buildGithubSkillResult, searchSkillMarketplaces } from '@shared/utils/skillMarketplace'
-import { net } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Skills')
 

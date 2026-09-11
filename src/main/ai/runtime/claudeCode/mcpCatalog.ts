@@ -4,6 +4,7 @@
  * keeps a cold or dead server from stalling session start (issue #16242).
  */
 import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'

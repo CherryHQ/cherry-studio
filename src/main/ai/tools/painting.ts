@@ -14,6 +14,9 @@
  * cancellation (aborted signal) is the exception — it rethrows, so it
  * propagates as the cancellation it is rather than a retryable error.
  */
+
+import * as z from 'zod'
+
 import { application } from '@application'
 import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
 import { modelService } from '@data/services/ModelService'
@@ -28,7 +31,6 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import { isAbortError } from '@shared/utils/async'
-import * as z from 'zod'
 
 import { type GenerateImageToolInput, limitGenerateImageInputIds } from './generateImageTool'
 

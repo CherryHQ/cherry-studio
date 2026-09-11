@@ -1,10 +1,12 @@
-import { loggerService } from '@logger'
-import { isWin } from '@main/core/platform'
-import { createTimeout, raceTimeout } from '@shared/utils/async'
 import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+
 import which from 'which'
+
+import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
+import { createTimeout, raceTimeout } from '@shared/utils/async'
 
 import { getBundledGitPath } from './bundledGit'
 import { getPathFromEnvironment, getShellEnv } from './shellEnv'

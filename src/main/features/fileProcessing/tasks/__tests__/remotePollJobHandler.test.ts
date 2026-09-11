@@ -1,6 +1,16 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext } from '@main/core/job/types'
 import { createDeferred } from '@shared/utils/async'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+/**
+ * Unit tests for remotePollJobHandler.
+ *
+ * Covers: first-launch path (startRemote → patchMetadata → pollRemote → done),
+ * cross-restart resume (metadata.remoteState present → rehydrate → skip
+ * startRemote), stage-switch persistence (patchMetadata called again with new
+ * stage), abort during sleep, and the critical A1 invariant — apiKey is never
+ * written to jobTable.metadata.
+ */
 
 import type { FileProcessingJobPayload } from '../shared'
 
@@ -281,7 +291,7 @@ describe('remotePollJobHandler.execute', () => {
     expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {})
     expect(toPersistableMock).toHaveBeenCalledWith(remoteCtx, 'provider-task-xyz')
 
-    const patchCalls = (ctx.patchMetadata as ReturnType<typeof vi.fn>).mock.calls
+    const patchCalls = (ctx.patchMetadata as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mock.calls
     expect(patchCalls).toHaveLength(1)
     const persistedPayload = patchCalls[0][0] as { remoteState: Record<string, unknown> }
     expect(persistedPayload.remoteState).toMatchObject({
@@ -374,7 +384,9 @@ describe('remotePollJobHandler.execute', () => {
     await vi.advanceTimersByTimeAsync(1_500)
     await exec
 
-    const patchPayloads = (ctx.patchMetadata as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])
+    const patchPayloads = (ctx.patchMetadata as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mock.calls.map(
+      (c) => c[0]
+    )
     expect(patchPayloads).toHaveLength(2)
     expect(patchPayloads[0]).toEqual({ remoteState: { providerTaskId: 't', stage: 'parsing', apiHost: 'https://h' } })
     expect(patchPayloads[1]).toEqual({ remoteState: { providerTaskId: 't', stage: 'exporting', apiHost: 'https://h' } })

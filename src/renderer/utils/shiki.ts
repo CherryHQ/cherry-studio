@@ -1,8 +1,9 @@
+import type { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
+import type { ThemedToken } from 'shiki/core'
+import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'
+
 import { loggerService } from '@logger'
 import { AsyncInitializer } from '@shared/utils/async'
-import type { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
-import type { SpecialLanguage, ThemedToken } from 'shiki/core'
-import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'
 
 export const DEFAULT_LANGUAGES = ['text', 'javascript', 'typescript', 'python', 'java', 'markdown', 'json']
 export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
@@ -103,7 +104,7 @@ export async function loadLanguageIfNeeded(
     const shiki = await getShiki()
     try {
       if (['text', 'ansi'].includes(language)) {
-        await highlighter.loadLanguage(language as SpecialLanguage)
+        await highlighter.loadLanguage(language)
       } else {
         const languageImportFn = shiki.bundledLanguages[language]
         const langData = await languageImportFn()

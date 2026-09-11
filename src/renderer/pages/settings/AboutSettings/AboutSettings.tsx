@@ -1,4 +1,20 @@
 import {
+  BadgeQuestionMark,
+  Briefcase,
+  Bug,
+  Building2,
+  FileArchive,
+  Github,
+  Globe,
+  Mail,
+  MessageSquareText,
+  Rss
+} from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Badge,
   Button,
   CircularProgress,
@@ -31,21 +47,6 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from '@shared/utils/async'
-import {
-  BadgeQuestionMark,
-  Briefcase,
-  Bug,
-  Building2,
-  FileArchive,
-  Github,
-  Globe,
-  Mail,
-  MessageSquareText,
-  Rss
-} from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 

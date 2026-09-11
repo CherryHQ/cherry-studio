@@ -1,3 +1,5 @@
+import { readUIMessageStream, type UIMessageChunk } from 'ai'
+
 /**
  * Shared chunk-pipe primitive. Drives a `ReadableStream<UIMessageChunk>`,
  * delivers each chunk via `onChunk`, and concurrently runs AI SDK's
@@ -17,7 +19,6 @@
  */
 import { type CherryUIMessage } from '@shared/data/types/message'
 import { onAbort as subscribeToAbort } from '@shared/utils/async'
-import { readUIMessageStream, type UIMessageChunk } from 'ai'
 
 export interface PipeStreamLoopOptions {
   onChunk: (chunk: UIMessageChunk) => void

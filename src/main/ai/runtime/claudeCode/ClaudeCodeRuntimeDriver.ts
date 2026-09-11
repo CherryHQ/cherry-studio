@@ -1181,9 +1181,7 @@ async function materializeUserContent(
   let preparedParts = routedParts
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
   if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
-    turnAttachments = collectAssistantFileAttachments([
-      { id: message.id, role: 'user', parts: firstPartyFileParts } as CherryUIMessage
-    ])
+    turnAttachments = collectAssistantFileAttachments([{ id: message.id, role: 'user', parts: firstPartyFileParts }])
   }
   if (firstPartyImageParts.length > 0) {
     const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage

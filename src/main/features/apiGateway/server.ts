@@ -1,8 +1,10 @@
+import type { Server as HttpServer } from 'http'
+
+import type { Server } from 'elysia/universal/server'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { raceTimeout } from '@shared/utils/async'
-import type { Server } from 'elysia/universal/server'
-import type { Server as HttpServer } from 'http'
 
 import { type ApiGatewayApp, buildApp } from './app'
 import { McpSessionStore } from './McpSessionStore'

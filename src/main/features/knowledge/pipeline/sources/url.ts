@@ -1,7 +1,8 @@
+import { sanitizeUrl } from 'strict-url-sanitise'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { PQueue, timeoutSignal } from '@shared/utils/async'
-import { sanitizeUrl } from 'strict-url-sanitise'
 
 const logger = loggerService.withContext('KnowledgeWebSearch')
 const DEFAULT_FETCH_TIMEOUT_MS = 30000

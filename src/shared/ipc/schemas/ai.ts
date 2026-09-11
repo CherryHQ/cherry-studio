@@ -1,3 +1,6 @@
+import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
+import * as z from 'zod'
+
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type {
   AiStreamAttachResponse,
@@ -31,8 +34,6 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
-import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
@@ -150,6 +151,9 @@ const aiImagePayloadSchema = z.strictObject({
   cleanupPolicy: CleanupPolicySchema
 })
 
+// Keep the public output named so declaration emit does not expose FileEntry's private path brand.
+const aiImageOutputSchema: z.ZodType<{ files: FileEntry[] }> = z.object({ files: z.array(FileEntrySchema) })
+
 const aiStreamRegenerateShape = {
   trigger: z.literal('regenerate-message'),
   parentAnchorId: z.string().min(1),
@@ -171,6 +175,9 @@ export const aiRequestSchemas = {
   // ── One-shot model calls, grouped by output modality (AiService) ──
   'ai.text.generate': defineRoute({
     input: z.strictObject({
+      // Optional request identity pairs this one-shot call with `ai.text.abort`.
+      // Callers that do not need cancellation keep the existing wire shape.
+      requestId: z.string().min(1).optional(),
       ...aiChatRequestShape,
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
       serviceTier: ServiceTierSelectionSchema.optional(),
@@ -180,6 +187,10 @@ export const aiRequestSchemas = {
     }),
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
   }),
+  'ai.text.abort': defineRoute({
+    input: z.strictObject({ requestId: z.string().min(1) }),
+    output: z.void()
+  }),
   'ai.embedding.embed_many': defineRoute({
     input: z.strictObject({ ...aiRequestShape, values: z.array(z.string()) }),
     output: z.object({ embeddings: z.array(z.array(z.number())), usage: z.custom<EmbeddingModelUsage>().optional() })
@@ -187,9 +198,7 @@ export const aiRequestSchemas = {
   'ai.image.generate': defineRoute({
     // requestId pairs the request with `ai.image.abort` (the abort registry lives in AiService).
     input: z.strictObject({ requestId: z.string().min(1), payload: aiImagePayloadSchema }),
-    // Pin the output to the named `FileEntry` so declaration-emit references the alias
-    // instead of trying to name FileEntry's module-private phantom path brand (TS4023).
-    output: z.object({ files: z.array(FileEntrySchema) }) as z.ZodType<{ files: FileEntry[] }>
+    output: aiImageOutputSchema
   }),
   'ai.image.abort': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.

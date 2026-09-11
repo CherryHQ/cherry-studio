@@ -1,3 +1,6 @@
+import { net } from 'electron'
+import WebSocket from 'ws'
+
 import {
   downloadFileAsBase64,
   downloadImageAsBase64,
@@ -7,8 +10,6 @@ import {
 } from '@main/utils/downloadAsBase64'
 import { delay as sleep } from '@shared/utils/async'
 import { clampSurrogateBoundary } from '@shared/utils/text'
-import { net } from 'electron'
-import WebSocket from 'ws'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'

@@ -64,10 +64,10 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
     // The cast is p-queue's `T | void`: it resolves to void only when an AbortSignal is
     // passed to `add`, which this never does. Treating undefined as a failure would reject
     // every method whose output is void, `load` included.
-    return (await this.queue.add(async () => {
+    return await this.queue.add(async () => {
       await this.restartIfRuntimeChanged()
       return this.request(method, input, options)
-    })) as Contract['methods'][M]['output']
+    })
   }
 
   private async request<M extends keyof Contract['methods'] & string>(

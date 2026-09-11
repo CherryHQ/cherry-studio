@@ -1,7 +1,8 @@
-import { isAbortError } from '@shared/utils/async'
 import axios from 'axios'
 import * as htmlparser2 from 'htmlparser2'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { isAbortError } from '@shared/utils/async'
 
 export function useMetaDataParser<T extends string>(
   link: string,
