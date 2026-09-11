@@ -1,7 +1,12 @@
+import { arrayMove } from '@dnd-kit/sortable'
+import { Plus } from 'lucide-react'
+import type { Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
-import { arrayMove } from '@dnd-kit/sortable'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useTabs } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -18,14 +23,9 @@ import {
   getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
-  isMessageOnlyConversationUrl,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import { Plus } from 'lucide-react'
-import type { Ref } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
@@ -42,7 +42,13 @@ import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVarian
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const {
@@ -206,13 +212,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!options?.inNewTab) {
         // Conversation apps: any owned tab is already "there" — its URL carries its own
         // conversation, and re-entering through the route interceptor would just rebind
-        // it. Message-only viewers are not an app entry, so they navigate like any
-        // foreign tab. Apps without sub-instances keep exact-URL matching.
+        // it. Apps without sub-instances keep exact-URL matching.
         const isActiveTarget =
-          !!activeTab &&
-          (app.conversationRoute
-            ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-            : activeTab.url === path)
+          !!activeTab && (app.conversationRoute ? tabBelongsToApp(app, activeTab.url) : activeTab.url === path)
         if (isActiveTarget) return
       }
 
@@ -432,6 +434,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
+    isFullscreen,
     entries,
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,

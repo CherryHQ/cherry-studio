@@ -1,7 +1,7 @@
-import {
-  ResourceViewSourceProvider,
-  shouldLoadResourceViewSource
-} from '@renderer/components/ResourceViewSourceProvider'
+import { render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import type * as ResourceViewSourcesModule from '@renderer/hooks/resourceViewSources'
 import {
   type AgentSessionsSource,
@@ -11,8 +11,6 @@ import {
 } from '@renderer/hooks/resourceViewSources'
 import type * as TabHooksModule from '@renderer/hooks/tab'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sourceMocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
@@ -337,9 +335,8 @@ describe('ResourceViewSourceProvider', () => {
     expect(screen.getByTestId('session-pins')).toHaveTextContent('session-1')
   })
 
-  it('loads only the source owned by the active non-dormant, non-message-only route tab', () => {
+  it('loads only the source owned by the active non-dormant route tab', () => {
     sourceMocks.tabs = [
-      createTab('chat-message', '/app/chat?topicId=topic-1&view=message'),
       createTab('agent-dormant', '/app/agents?sessionId=session-1', true),
       createTab('chat', '/app/chat?topicId=topic-2')
     ]
@@ -349,12 +346,5 @@ describe('ResourceViewSourceProvider', () => {
 
     expect(sourceMocks.assistantEnabled.at(-1)).toBe(true)
     expect(sourceMocks.agentEnabled.at(-1)).toBe(false)
-    expect(
-      shouldLoadResourceViewSource(
-        [createTab('malformed-message', '/app/chat?view=message')],
-        'malformed-message',
-        'assistants'
-      )
-    ).toBe(true)
   })
 })

@@ -1,6 +1,7 @@
+import { createContext, use } from 'react'
+
 import type { Tab, TabType } from '@shared/data/cache/cacheValueTypes'
 import type { NavigationLayout } from '@shared/data/preference/preferenceTypes'
-import { createContext, use } from 'react'
 
 /**
  * Options for opening a tab

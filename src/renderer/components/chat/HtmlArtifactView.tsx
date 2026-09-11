@@ -1,6 +1,21 @@
+import { Icon } from '@iconify/react'
+import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
+import {
+  lazy,
+  memo,
+  type RefObject,
+  Suspense,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import {
   HtmlArtifactPopupHost,
@@ -27,20 +42,6 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { stripMetaRefresh } from '@renderer/utils/htmlArtifact'
-import { Code2, Compass, DownloadIcon, Eye, Maximize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
-import {
-  lazy,
-  memo,
-  type RefObject,
-  Suspense,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 const HtmlArtifactsPopup = lazy(() => import('@renderer/components/CodeBlockView/HtmlArtifactsPopup'))
 
@@ -98,6 +99,18 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
     const frameWindow = iframe.contentWindow
     if (!frameDocument || !body || !documentElement || !frameWindow) return null
 
+    const documentScrollHeight = Math.max(
+      body.scrollHeight,
+      documentElement.scrollHeight,
+      frameDocument.scrollingElement?.scrollHeight ?? 0
+    )
+
+    // Scrollable: scrollHeight is authoritative (scrollbar-bounded); the sweep
+    // exists only for collapsed bottom margins in non-scrolling documents.
+    if (documentScrollHeight > iframe.clientHeight + 1) {
+      return documentScrollHeight
+    }
+
     const bodyStyle = frameWindow.getComputedStyle(body)
     const bodyEndSpacing =
       (Number.parseFloat(bodyStyle.paddingBottom) || 0) + (Number.parseFloat(bodyStyle.borderBottomWidth) || 0)
@@ -105,9 +118,6 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
     const scrollTop = frameWindow.scrollY || documentElement.scrollTop || body.scrollTop
     let renderedContentBottom = 0
 
-    // A last descendant's margin can collapse through otherwise margin-less wrappers. Measuring
-    // only body.children then underestimates the natural document height and can make this preview
-    // alternate forever between that smaller value and documentScrollHeight.
     for (const element of body.querySelectorAll('*')) {
       const bounds = element.getBoundingClientRect()
       if (bounds.width === 0 && bounds.height === 0) continue
@@ -133,17 +143,7 @@ function getIframeContentHeight(iframe: HTMLIFrameElement): number | null {
       }
     }
 
-    const documentScrollHeight = Math.max(
-      body.scrollHeight,
-      documentElement.scrollHeight,
-      frameDocument.scrollingElement?.scrollHeight ?? 0
-    )
     const renderedContentHeight = Math.ceil(renderedContentBottom)
-
-    if (documentScrollHeight > iframe.clientHeight + 1) {
-      return Math.max(documentScrollHeight, renderedContentHeight)
-    }
-
     return renderedContentHeight > 0 ? renderedContentHeight : documentScrollHeight || null
   } catch {
     return null
@@ -297,13 +297,16 @@ const AdaptiveHtmlPreview = memo(function AdaptiveHtmlPreview({
 
       if (typeof ResizeObserver !== 'undefined') {
         documentResizeObserver = new ResizeObserver(syncHeight)
+        // In-flow child changes propagate to body size (per-child observe is
+        // quadratic); out-of-flow self-resizes trade on other triggers.
         documentResizeObserver.observe(body)
         documentResizeObserver.observe(frameDocument.documentElement)
-        for (const child of body.children) documentResizeObserver.observe(child)
       }
 
       if (typeof MutationObserver !== 'undefined') {
-        documentMutationObserver = new MutationObserver(observeDocument)
+        // Re-measure only; observers stay attached because body itself is what
+        // they watch, and document replacement is covered by the load listener.
+        documentMutationObserver = new MutationObserver(() => syncHeight())
         documentMutationObserver.observe(body, { childList: true, subtree: true, characterData: true })
       }
 

@@ -24,11 +24,11 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className = '', size = 26, fontS
 
   return (
     <div
-      className={`flex items-center justify-center flex-shrink-0 relative overflow-hidden rounded-full ${fluid ? 'h-full w-full' : 'mr-1'} ${className}`}
+      className={`relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full ${fluid ? 'h-full w-full' : 'mr-1'} ${className}`}
       style={wrapperStyle}>
       <div
         aria-hidden="true"
-        className="absolute inset-0 flex items-center justify-center blur-sm opacity-40"
+        className="absolute inset-0 flex items-center justify-center opacity-40 blur-sm"
         style={{
           fontSize: '200%',
           transform: 'scale(1.5)'

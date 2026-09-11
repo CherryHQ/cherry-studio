@@ -2,12 +2,13 @@ import { createHash } from 'node:crypto'
 import { openAsBlob } from 'node:fs'
 import path from 'node:path'
 
+import { net } from 'electron'
+
 import { generateDiagnosticUploadHeaders } from '@main/ai/provider/cherryai'
 import { openReadableFileSnapshot, type ReadableFileSnapshot } from '@main/utils/file'
 import type { DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
-import { net } from 'electron'
 
 const DIAGNOSTIC_UPLOAD_URL = 'https://api.cherry-ai.com/diagnostics'
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024

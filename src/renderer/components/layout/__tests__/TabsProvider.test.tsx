@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { TAB_LIMITS } from '@renderer/services/TabLruManager'
-import type * as RouteTitle from '@renderer/utils/routeTitle'
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TAB_LIMITS } from '@renderer/services/TabLruManager'
+import type * as RouteTitle from '@renderer/utils/routeTitle'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 
 let currentLanguage = 'en'
 let navigationLayout: 'sidebar' | 'tabs' | 'both' = 'tabs'

@@ -46,10 +46,11 @@ import path from 'node:path'
 import { addAbortSignal, Readable, Writable } from 'node:stream'
 import { finished, pipeline } from 'node:stream/promises'
 
+import mime from 'mime'
+
 import { loggerService } from '@logger'
 import type { ContentHash } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import mime from 'mime'
 
 import { createContentHasher } from './contentHash'
 
@@ -161,7 +162,9 @@ export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadabi
  */
 export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Promise<boolean> {
   try {
-    const [sa, sb] = await Promise.all([fsStat(a), fsStat(b)])
+    // bigint: Windows NTFS file reference numbers exceed 2^53, so as doubles
+    // two adjacent files can round to the same ino.
+    const [sa, sb] = await Promise.all([fsStat(a, { bigint: true }), fsStat(b, { bigint: true })])
     return sa.dev === sb.dev && sa.ino === sb.ino
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code

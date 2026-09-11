@@ -28,6 +28,7 @@ export const REFERENCE_DOMAINS: readonly string[] = [
   'provider-model',
   'security',
   'testing',
+  'utility-process',
   'window-manager'
 ]
 

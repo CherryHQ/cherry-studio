@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { SegmentedControl } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import {
@@ -10,8 +13,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { NavigationLayout } from '@shared/data/preference/preferenceTypes'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const LabSettings: FC = () => {
   const { t } = useTranslation()

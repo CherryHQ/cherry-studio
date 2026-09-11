@@ -1,3 +1,10 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
@@ -5,12 +12,6 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const agentPageMocks = vi.hoisted(() => ({
   workspace: {
@@ -247,10 +248,6 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 
 vi.mock('@renderer/hooks/agent/useSession', () => {
   return {
-    useSession: () => ({
-      session: undefined,
-      isLoading: false
-    }),
     useUpdateSession: () => ({
       updateSession: agentPageMocks.updateSession,
       setSessionWorkspace: agentPageMocks.setSessionWorkspace
@@ -302,7 +299,7 @@ vi.mock('@renderer/data/hooks/useDataApi', async () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => agentPageMocks.navigate,
-  useSearch: () => agentPageMocks.routeSearch
+  getRouteApi: () => ({ useSearch: () => agentPageMocks.routeSearch })
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({

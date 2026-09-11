@@ -1,5 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { handleGrepTool } from '../tools/grep'
@@ -40,6 +41,28 @@ describe('grep MCP ripgrep integration', () => {
     expect(patternIndex).toBe(dashDashIndex + 1)
     // The flag-like pattern is a positional after `--`, not an option ripgrep would parse.
     expect(rgArgs[patternIndex - 1]).toBe('--')
+  })
+
+  it('accepts ripgrep regex syntax that JavaScript does not support', async () => {
+    const workspaceRoot = await createTempDir('grep-ripgrep-regex-root-')
+    const pattern = '(?P<word>foo)'
+    const runRipgrepSpy = vi.spyOn(types, 'runRipgrep').mockResolvedValue({ ok: true, stdout: '', exitCode: 1 })
+
+    const result = await handleGrepTool({ pattern, path: workspaceRoot }, workspaceRoot)
+
+    expect(runRipgrepSpy).toHaveBeenCalledOnce()
+    expect(runRipgrepSpy.mock.calls[0][0]).toContain(pattern)
+    expect(result.content[0].text).toBe('No matches found')
+  })
+
+  it('rejects unsupported regex syntax when manual search is required', async () => {
+    const workspaceRoot = await createTempDir('grep-fallback-regex-root-')
+    const pattern = '(?P<word>foo)'
+    vi.spyOn(types, 'runRipgrep').mockResolvedValue({ ok: false, stdout: '', exitCode: null })
+
+    await expect(handleGrepTool({ pattern, path: workspaceRoot }, workspaceRoot)).rejects.toThrow(
+      `Invalid regex pattern: ${pattern}`
+    )
   })
 
   it('parses structured match output for a single-file search', async () => {

@@ -2,6 +2,8 @@
 // `lastCompletedAt`); the "last completion this window has acknowledged"
 // marker is a separate cross-window shared cache key.
 
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
@@ -11,7 +13,6 @@ import {
   TOPIC_COMPLETION_SEEN_CACHE_KEY,
   type TopicStreamStatus
 } from '@shared/ai/transport'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useTopicStreamStatus')
 

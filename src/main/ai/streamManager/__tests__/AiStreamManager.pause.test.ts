@@ -16,10 +16,11 @@
  * closed.
  */
 
-import { application } from '@application'
-import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { BaseService } from '@main/core/lifecycle/BaseService'
 
 import type { ActiveStream, AiStreamManagerConfig, StreamListener } from '../types'
 
@@ -188,7 +189,7 @@ describe('AiStreamManager pause / drainInFlight (write quiesce)', () => {
     MockMainCacheServiceUtils.resetMocks()
     mgr = createManager()
     // `startAgentSessionRun` resolves the manager via the container.
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       if (name === 'AiStreamManager') return mgr
       if (name === 'CacheService') return MockMainCacheServiceExport.cacheService
       throw new Error(`AiStreamManager.pause.test: unexpected application.get('${name}')`)

@@ -1,6 +1,10 @@
+import type { FC, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
-  EditableNumber,
   Flex,
+  InputNumber,
   Select,
   SelectContent,
   SelectItem,
@@ -26,9 +30,6 @@ import {
 import { isMac } from '@renderer/utils/platform'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   SettingDivider,
@@ -308,7 +309,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
-                <EditableNumber
+                <InputNumber
                   size="small"
                   className="w-20 text-sm"
                   aria-label={t('settings.messages.input.paste_long_text_threshold')}
@@ -316,7 +317,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                   max={10000}
                   step={100}
                   value={pasteLongTextThreshold}
-                  onChange={(value) => setPasteLongTextThreshold(value ?? 500)}
+                  onBlur={(value) => setPasteLongTextThreshold(value ?? 500)}
                 />
               </SettingRow>
             </>

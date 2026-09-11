@@ -1,8 +1,9 @@
+import { useEffect, useMemo } from 'react'
+
 import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { classifyTurn } from '@shared/ai/transport'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { useEffect, useMemo } from 'react'
 
 const INACTIVE_TOPIC_ID = '__inactive_workspace__'
 

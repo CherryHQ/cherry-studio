@@ -1,6 +1,10 @@
+import { ToolCase, Wrench } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
-  EditableNumber,
   FormControl,
   FormField,
   FormItem,
@@ -9,6 +13,7 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
+  InputNumber,
   Switch,
   TabsContent,
   Textarea
@@ -47,10 +52,6 @@ import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { ToolCase, Wrench } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
-import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import { EmojiAvatarPicker } from '../components/DialogFormFields'
@@ -832,16 +833,17 @@ function HeartbeatSettingsField({
                 {t('library.config.agent.field.heartbeat_interval.label')}
               </FormLabel>
               <FormControl>
-                <EditableNumber
+                <InputNumber
                   min={1}
                   max={1440}
                   step={1}
-                  precision={0}
-                  align="start"
-                  changeOnBlur
                   className="h-9 w-full"
                   value={field.value || null}
-                  onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)}
+                  // Emptying the field is how you retype the interval, not how you
+                  // turn the heartbeat off — the switch above does that.
+                  onBlur={(v) => {
+                    if (v !== null) field.onChange(v)
+                  }}
                 />
               </FormControl>
               <FormMessage className="col-start-2" />

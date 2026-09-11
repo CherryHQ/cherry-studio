@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import {
@@ -6,7 +8,6 @@ import {
   type TopicCompletionSeenEvent,
   type TopicStatusSnapshotEntry
 } from '@shared/ai/transport'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamManagerConfig, StreamListener } from '../types'
 

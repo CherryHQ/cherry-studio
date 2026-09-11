@@ -1,3 +1,9 @@
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   EmptyState,
@@ -17,15 +23,11 @@ import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { toast } from '@renderer/services/toast'
+import type { AppRouter } from '@renderer/types/router'
 import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import AddMcpServerModal from './AddMcpServerModal'
 import McpProtocolInstallDialog from './McpProtocolInstallDialog'
@@ -33,6 +35,7 @@ import McpServerCard from './McpServerCard'
 import QuickCreateMcpServerDialog from './QuickCreateMcpServerDialog'
 
 const logger = loggerService.withContext('McpServersList')
+const mcpServersRouteApi = getRouteApi('/settings/mcp/servers')
 
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
 type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'streamableHttp' | 'builtin'
@@ -50,9 +53,7 @@ const McpServersList: FC = () => {
   const { mcpServers, addMcpServer, reorderMcpServers, refetch } = useMcpServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const search = useSearch({ strict: false }) as {
-    protocolInstallRequestId?: string
-  }
+  const search = mcpServersRouteApi.useSearch<AppRouter>()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)

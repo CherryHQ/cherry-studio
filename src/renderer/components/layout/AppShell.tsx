@@ -1,3 +1,5 @@
+import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { useCache } from '@data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
@@ -11,7 +13,6 @@ import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTi
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
@@ -276,7 +277,7 @@ export const AppShell = () => {
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {showsSidebar && <Sidebar />}
+        {showsSidebar && <Sidebar isFullscreen={isFullscreen} />}
         {contentColumn}
       </div>
     )
@@ -304,7 +305,7 @@ export const AppShell = () => {
               className="h-11 shrink-0 [-webkit-app-region:drag]"
             />
           )}
-          <Sidebar />
+          <Sidebar isFullscreen={isFullscreen} />
         </div>
       )}
       {contentColumn}

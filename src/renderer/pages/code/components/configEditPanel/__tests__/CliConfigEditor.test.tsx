@@ -1,7 +1,8 @@
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 
 import { CliConfigEditor } from '../CliConfigEditor'
 
@@ -38,7 +39,8 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 const files: CliConfigFileDraft[] = [

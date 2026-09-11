@@ -1,7 +1,8 @@
-import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { act, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 
 import { ConversationNotificationRuntime } from '../ConversationNotificationRuntime'
 

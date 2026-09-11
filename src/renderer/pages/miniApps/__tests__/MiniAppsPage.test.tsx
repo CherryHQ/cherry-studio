@@ -1,10 +1,12 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type React from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUI from '@cherrystudio/ui'
 import type * as UseCacheModule from '@data/hooks/useCache'
 import type * as MiniAppPresets from '@shared/data/presets/miniApps'
 import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MiniAppsPage from '../MiniAppsPage'
 
@@ -20,7 +22,8 @@ const stubApp = (overrides: Partial<SiteMiniApp> & Pick<SiteMiniApp, 'appId' | '
   logo: overrides.logo ?? `${overrides.appId}-logo`,
   bordered: overrides.bordered,
   background: overrides.background,
-  supportedRegions: overrides.supportedRegions
+  supportedRegions: overrides.supportedRegions,
+  configuration: overrides.configuration
 })
 
 const mocks = vi.hoisted(() => ({
@@ -29,7 +32,12 @@ const mocks = vi.hoisted(() => ({
   pinned: [] as MiniApp[],
   openedKeepAliveMiniApps: [] as MiniApp[],
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
+  hideMiniApp: vi.fn().mockResolvedValue(undefined),
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
+  closeWorkspace: vi.fn(),
+  navigationLayout: 'sidebar' as 'sidebar' | 'tabs' | 'both',
+  miniAppFavoriteIds: [] as string[],
+  toggleMiniApp: vi.fn(),
   openTab: vi.fn(),
   request: vi.fn().mockResolvedValue(null),
   toastError: vi.fn(),
@@ -55,15 +63,26 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     miniAppShow: false,
     setOpenedKeepAliveMiniApps: vi.fn(),
     updateAppStatus: mocks.updateAppStatus,
+    hideMiniApp: mocks.hideMiniApp,
     removeCustomMiniApp: mocks.removeCustomMiniApp,
     isLoading: false,
     error: null
   })
 }))
 
+vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
+  useSidebarFavorites: () => ({
+    miniAppFavoriteIds: mocks.miniAppFavoriteIds,
+    toggleMiniApp: mocks.toggleMiniApp
+  })
+}))
+
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
-    openTab: mocks.openTab
+    closeWorkspace: mocks.closeWorkspace,
+    navigationLayout: mocks.navigationLayout,
+    // TabsProvider recreates openTab when its tab list changes.
+    openTab: (url: string, options: unknown) => mocks.openTab(url, options)
   })
 }))
 
@@ -195,7 +214,13 @@ vi.mock('../MiniAppSettings/MiniAppDisplaySettings', () => ({
 
 vi.mock('../NewMiniAppPanel', () => ({
   default: ({ open, app }: { open: boolean; app?: MiniApp | null }) =>
-    open ? <div data-testid="new-mini-app-panel" data-app-id={app?.appId ?? ''} /> : null
+    open ? (
+      <div
+        data-testid="new-mini-app-panel"
+        data-app-id={app?.appId ?? ''}
+        data-configuration={app?.kind === 'site' ? JSON.stringify(app.configuration) : undefined}
+      />
+    ) : null
 }))
 
 vi.mock('../InstallMiniAppPanel', () => ({
@@ -210,7 +235,10 @@ vi.mock('../InstallMiniAppPanel', () => ({
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', resolvedLanguage: 'en' } })
+  useTranslation: () => ({
+    t: (key: string) => (key === 'mini_apps.yuanbao' ? '腾讯元宝' : key),
+    i18n: { language: 'zh-CN', resolvedLanguage: 'zh-CN' }
+  })
 }))
 
 describe('MiniAppsPage', () => {
@@ -222,8 +250,13 @@ describe('MiniAppsPage', () => {
     mocks.allApps = []
     mocks.pinned = []
     mocks.openedKeepAliveMiniApps = []
+    mocks.miniAppFavoriteIds = []
+    mocks.navigationLayout = 'sidebar'
     mocks.updateAppStatus.mockClear()
+    mocks.hideMiniApp.mockReset().mockImplementation((appId: string) => mocks.updateAppStatus(appId, 'disabled'))
     mocks.removeCustomMiniApp.mockClear()
+    mocks.closeWorkspace.mockClear()
+    mocks.toggleMiniApp.mockClear()
     mocks.openTab.mockClear()
     mocks.request.mockReset().mockResolvedValue(null)
     mocks.toastError.mockClear()
@@ -245,6 +278,51 @@ describe('MiniAppsPage', () => {
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+  })
+
+  it('finds a translated tile by its displayed name, original name, and URL', async () => {
+    const user = userEvent.setup()
+    mocks.apps.push(
+      stubApp({ appId: 'yuanbao', name: 'Yuanbao', nameKey: 'mini_apps.yuanbao', url: 'https://yuanbao.tencent.com' })
+    )
+    render(<MiniAppsPage />)
+
+    const search = screen.getByPlaceholderText('common.search')
+    expect(screen.getByRole('button', { name: '腾讯元宝' })).toBeInTheDocument()
+    for (const query of ['腾讯元宝', '元宝', 'YUANBAO', 'tencent.com']) {
+      await user.clear(search)
+      await user.type(search, query)
+      expect(screen.getByRole('button', { name: '腾讯元宝' })).toBeInTheDocument()
+      expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+    }
+  })
+
+  it('edits the latest app data after a non-visual configuration update', async () => {
+    const user = userEvent.setup()
+    mocks.apps = [
+      stubApp({
+        appId: 'custom',
+        name: 'Custom App',
+        url: 'https://custom.example.com',
+        presetMiniAppId: null,
+        configuration: { theme: 'light' }
+      })
+    ]
+    const view = render(<MiniAppsPage />)
+
+    mocks.apps = [
+      stubApp({
+        appId: 'custom',
+        name: 'Custom App',
+        url: 'https://custom.example.com',
+        presetMiniAppId: null,
+        configuration: { theme: 'dark' }
+      })
+    ]
+    view.rerender(<MiniAppsPage />)
+
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+    expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-configuration', '{"theme":"dark"}')
   })
 
   it('opens the selected mini app without changing the tab contract', () => {
@@ -290,6 +368,31 @@ describe('MiniAppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'common.delete' }))
     await waitFor(() => expect(mocks.removeCustomMiniApp).toHaveBeenCalledWith('custom'))
+  })
+
+  it('closes a removed mini app workspace in the sidebar layout', () => {
+    mocks.apps = [stubApp({ appId: 'calculator', name: 'Calculator', url: 'https://calculator.example.com' })]
+    mocks.miniAppFavoriteIds = ['calculator']
+
+    render(<MiniAppsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.remove_from_sidebar' }))
+
+    expect(mocks.toggleMiniApp).toHaveBeenCalledWith('calculator')
+    expect(mocks.closeWorkspace).toHaveBeenCalledWith('mini-app:calculator')
+  })
+
+  it('keeps the tab open when a mini app favorite is removed in the combined layout', () => {
+    mocks.apps = [stubApp({ appId: 'calculator', name: 'Calculator', url: 'https://calculator.example.com' })]
+    mocks.miniAppFavoriteIds = ['calculator']
+    mocks.navigationLayout = 'both'
+
+    render(<MiniAppsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.remove_from_sidebar' }))
+
+    expect(mocks.toggleMiniApp).toHaveBeenCalledWith('calculator')
+    expect(mocks.closeWorkspace).not.toHaveBeenCalled()
   })
 
   it('adds a launchpad entry that opens the add dialog in create mode', () => {

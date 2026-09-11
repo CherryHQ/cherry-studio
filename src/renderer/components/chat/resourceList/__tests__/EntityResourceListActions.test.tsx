@@ -1,13 +1,14 @@
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
-import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { popup } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
+import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 
 import { AgentResourceList } from '../AgentResourceList'
 import { AssistantResourceList } from '../AssistantResourceList'
@@ -138,22 +139,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: () => null
 }))
 
-vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
-  useResourceEntityRail: ({
-    activeEntityId,
-    entities
-  }: {
-    activeEntityId?: string | null
-    entities: ResourceEntityRailItem[]
-  }) => ({
-    handleReorder: vi.fn(),
-    handleSelect: vi.fn(),
-    items: entities,
-    listStatus: 'idle',
-    selectedId: activeEntityId ?? null
-  })
-}))
-
 vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
     collapsedState,
@@ -165,6 +150,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     onContextMenuAction,
     onGroupReorder,
     onReorder,
+    onSelect,
     reorderEnabled = true,
     selectedId,
     selectionSuppressed
@@ -178,6 +164,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
     onGroupReorder?: (groupId: string, anchor: { before: string }) => void | Promise<void>
     onReorder?: unknown
+    onSelect: (item: ResourceEntityRailItem) => void | Promise<void>
     reorderEnabled?: boolean
     selectedId?: string | null
     selectionSuppressed?: boolean
@@ -209,6 +196,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
           return (
             <section key={item.id} aria-label={item.name} title={item.tooltip}>
               {item.icon}
+              <button type="button" aria-label={`Select ${item.name}`} onClick={() => void onSelect(item)} />
               <div data-testid={`${item.id}-context-menu`}>
                 {renderedActions.map((action) => (
                   <button
@@ -501,6 +489,30 @@ describe('classic layout entity resource list actions', () => {
     expect(onCreateTopic).toHaveBeenCalledWith('assistant-1')
   })
 
+  it('shows and activates an agent without sessions', async () => {
+    const createdSession = { id: 'session-created', agentId: 'agent-1', name: 'Created Session' }
+    const onCreateSession = vi.fn().mockResolvedValue(createdSession)
+    const onSelectSession = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({ sessions: [] })}
+        onSelectSession={onSelectSession}
+        onCreateSession={onCreateSession}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('region', { name: 'Agent 1' })).toBeInTheDocument()
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', 'agent-1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select Agent 1' }))
+
+    await waitFor(() => expect(onCreateSession).toHaveBeenCalledExactlyOnceWith('agent-1'))
+    expect(onSelectSession).toHaveBeenCalledExactlyOnceWith('session-created', createdSession)
+  })
+
   it('clears assistant topics from the classic layout assistant context menu', async () => {
     const onSelectTopic = vi.fn()
     const nextTopic = { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
@@ -592,6 +604,7 @@ describe('classic layout entity resource list actions', () => {
     expect(unlinkedAssistantRegion).toBeInTheDocument()
     expect(unlinkedAssistantRegion).toHaveAttribute('title', 'chat.topics.group.unknown_assistant_tip')
     expect(assistantRegion).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Assistant 2' })).not.toBeInTheDocument()
     expect(
       assistantRegion.compareDocumentPosition(unlinkedAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()

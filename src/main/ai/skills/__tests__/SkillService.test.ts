@@ -4,21 +4,24 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import AdmZip from 'adm-zip'
+import { eq } from 'drizzle-orm'
+import { net } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
+import { skillHandlers as dataSkillHandlers } from '@data/api/handlers/skills'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { skillHandlers } from '@main/ipc/handlers/skill'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
-import { setupTestDatabase } from '@test-helpers/db'
-import AdmZip from 'adm-zip'
-import { eq } from 'drizzle-orm'
-import { net } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
@@ -67,6 +70,15 @@ const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
 const SKILL_ID_2 = '22222222-2222-4222-8222-222222222222'
 const SKILL_ID_BUILTIN = '33333333-3333-4333-8333-333333333333'
+
+type SkillServicePrivate = {
+  installSkillDir: (
+    skillDir: string,
+    source: string,
+    sourceUrl: string | null,
+    provenance?: { namespace?: string | null }
+  ) => Promise<unknown>
+}
 
 describe('SkillService', () => {
   const dbh = setupTestDatabase()
@@ -138,6 +150,50 @@ describe('SkillService', () => {
       }
     ])
   }
+
+  describe('catalog scopes', () => {
+    it('uses physical directories for registered skills with no source URL and excludes junction targets outside system roots', async () => {
+      await seedSkills()
+      await dbh.db
+        .update(agentGlobalSkillTable)
+        .set({ source: 'local', sourceUrl: null })
+        .where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
+      const root = await createTempDir('skill-scopes-')
+      const globalRoot = path.join(root, 'global')
+      const project = path.join(root, 'project')
+      const projectSkill = path.join(project, '.agents', 'skills', 'skill-two')
+      await fs.promises.mkdir(path.join(globalRoot, 'skill-one'), { recursive: true })
+      await fs.promises.mkdir(path.join(globalRoot, 'unregistered'), { recursive: true })
+      await fs.promises.mkdir(projectSkill, { recursive: true })
+      await fs.promises.symlink(projectSkill, path.join(globalRoot, 'skill-two'), 'junction')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? globalRoot : root
+        return filename ? path.join(base, filename) : base
+      })
+      try {
+        const service = new SkillService()
+        expect(await service.listCatalog()).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: SKILL_ID_1, scope: 'system' }),
+            expect.objectContaining({ id: SKILL_ID_2, scope: 'local' }),
+            expect.objectContaining({ id: SKILL_ID_BUILTIN, scope: 'builtin' })
+          ])
+        )
+        expect(await service.listCatalog()).toHaveLength(3)
+        const filtered = await skillHandlers['skill.list_catalog']({ search: 'skill-two' }, {} as never)
+        expect(filtered).toHaveLength(1)
+        expect(filtered[0]).toMatchObject({ id: SKILL_ID_2, scope: 'local' })
+        const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockRejectedValue(new Error('unavailable filesystem'))
+        try {
+          expect(await dataSkillHandlers['/skills'].GET({ query: {} } as never)).toHaveLength(3)
+        } finally {
+          realpathSpy.mockRestore()
+        }
+      } finally {
+        getPathSpy.mockRestore()
+      }
+    })
+  })
 
   describe('list', () => {
     it('returns empty array when no skills installed', async () => {
@@ -737,8 +793,8 @@ describe('SkillService', () => {
     }) {
       const skillService = new SkillService()
       const workDir = await createTempDir('github-install-')
-      vi.mocked(skillPaths.createTempDir).mockResolvedValue(workDir as never)
-      vi.mocked(skillPaths.safeRemoveDirectory).mockResolvedValue(undefined as never)
+      vi.mocked(skillPaths.createTempDir).mockResolvedValue(workDir)
+      vi.mocked(skillPaths.safeRemoveDirectory).mockResolvedValue(undefined)
       const tree = (options.tree ?? ['skills/demo/SKILL.md']).map((entry) =>
         typeof entry === 'string' ? { path: entry, size: 8 } : entry
       )
@@ -776,11 +832,11 @@ describe('SkillService', () => {
       })
 
       const installSkillDir = skillService['installSkillDir'].bind(skillService)
-      const installSpy = vi.spyOn(skillService as never, 'installSkillDir')
+      const installSpy = vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
       if (options.realInstall) {
-        installSpy.mockImplementation(installSkillDir as never)
+        installSpy.mockImplementation(installSkillDir)
       } else {
-        installSpy.mockResolvedValue({} as never)
+        installSpy.mockResolvedValue({})
       }
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       return { skillService, installSpy, gitCalls, workDir }
@@ -879,7 +935,7 @@ describe('SkillService', () => {
         installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
       })
 
-      const installedDirectory = installSpy.mock.calls[0][0] as string
+      const installedDirectory = installSpy.mock.calls[0][0]
       await expect(fs.promises.access(path.join(installedDirectory, 'SKILL.md'))).resolves.toBeUndefined()
       await expect(fs.promises.access(path.join(installedDirectory, '.git'))).rejects.toMatchObject({ code: 'ENOENT' })
     })
@@ -943,7 +999,7 @@ describe('SkillService', () => {
         installSource: 'github:https://raw.githubusercontent.com/owner/repo/main/skills/demo/skill.md'
       })
 
-      const installedDirectory = installSpy.mock.calls[0][0] as string
+      const installedDirectory = installSpy.mock.calls[0][0]
       await expect(fs.promises.access(path.join(installedDirectory, 'skill.md'))).resolves.toBeUndefined()
     })
 
@@ -1110,7 +1166,7 @@ describe('SkillService', () => {
         return ''
       })
 
-      vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      vi.spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir').mockResolvedValue({})
       vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       return { skillService, gitCalls }
     }
@@ -1224,7 +1280,7 @@ describe('SkillService', () => {
           )
         )
         .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
-      const createTempDirSpy = vi.mocked(skillPaths.createTempDir).mockResolvedValue(tempDir as never)
+      const createTempDirSpy = vi.mocked(skillPaths.createTempDir).mockResolvedValue(tempDir)
       const extractZipSpy = vi.mocked(skillArchive.extractZip).mockImplementation(async () => {
         await fs.promises.writeFile(path.join(extractDir, 'SKILL.md'), '---\nname: code\n---\n')
         await fs.promises.mkdir(path.join(extractDir, 'nested'), { recursive: true })
@@ -1233,8 +1289,8 @@ describe('SkillService', () => {
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       vi.mocked(parseSkillMetadata).mockResolvedValueOnce({ name: 'Code', slug: 'code' } as never)
       const installSkillDirSpy = vi
-        .spyOn(skillService as never, 'installSkillDir')
-        .mockResolvedValue(installedSkill as never)
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue(installedSkill)
 
       try {
         const result = await skillService.install({ installSource: 'clawhub:ivangdavila/code' })
@@ -1280,10 +1336,12 @@ describe('SkillService', () => {
       await fs.promises.mkdir(extractDir, { recursive: true })
       const canonicalZipPath = await fs.promises.realpath(realZipPath)
 
-      vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir as never)
-      const extractZipSpy = vi.mocked(skillArchive.extractZip).mockResolvedValue(undefined as never)
-      vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(locatedSkillDir as never)
-      const installSkillDirSpy = vi.spyOn(skillService as never, 'installSkillDir').mockResolvedValue({} as never)
+      vi.mocked(skillPaths.createTempDir).mockResolvedValue(extractDir)
+      const extractZipSpy = vi.mocked(skillArchive.extractZip).mockResolvedValue(undefined)
+      vi.mocked(skillArchive.resolveSkillDirectory).mockResolvedValue(locatedSkillDir)
+      const installSkillDirSpy = vi
+        .spyOn(skillService as unknown as SkillServicePrivate, 'installSkillDir')
+        .mockResolvedValue({})
 
       await skillService.installFromZip({ zipFilePath: linkedZipPath })
 

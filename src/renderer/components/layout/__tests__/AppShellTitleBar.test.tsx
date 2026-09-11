@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { Tab } from '@renderer/hooks/tab'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { Tab } from '@renderer/hooks/tab'
 
 vi.mock('@renderer/i18n/resolver', () => ({
   default: {

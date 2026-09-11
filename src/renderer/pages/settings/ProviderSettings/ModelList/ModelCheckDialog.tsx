@@ -1,3 +1,8 @@
+import { sortBy } from 'es-toolkit/compat'
+import { AlertTriangle, ChevronRight } from 'lucide-react'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Alert,
   Avatar,
@@ -10,7 +15,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
+  InputNumber,
   Label,
   SegmentedControl,
   Switch
@@ -26,10 +31,6 @@ import { maskApiKey } from '@renderer/utils/api'
 import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { sortBy } from 'es-toolkit/compat'
-import { AlertTriangle, ChevronRight } from 'lucide-react'
-import { useEffect, useId, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'
@@ -452,15 +453,14 @@ export default function ModelCheckDialog() {
               <div className="flex items-center justify-between gap-4">
                 <Label htmlFor="model-check-timeout">{t('settings.models.check.timeout')}</Label>
                 <div className="flex items-center gap-2">
-                  <Input
+                  <InputNumber
                     id="model-check-timeout"
-                    type="number"
                     min={5}
                     max={60}
+                    step={1}
                     value={timeoutSeconds}
                     className="w-24"
-                    onChange={(event) => setTimeoutSeconds(Number(event.target.value))}
-                    onBlur={() => setTimeoutSeconds(clampTimeout(timeoutSeconds))}
+                    onBlur={(value) => setTimeoutSeconds(value ?? 5)}
                   />
                   <span className="text-muted-foreground text-sm">{t('settings.models.check.timeout_unit')}</span>
                 </div>

@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
@@ -7,7 +9,6 @@ import {
   type TopicStatusSnapshotEntry,
   type TopicStatusSnapshotIndex
 } from '@shared/ai/transport'
-import { useMemo } from 'react'
 
 export type WorkspaceTaskStatus = 'action-required' | 'completed' | 'error' | 'idle' | 'running'
 

@@ -1,11 +1,12 @@
+import { ArrowLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import type { Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { ArrowLeft } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'

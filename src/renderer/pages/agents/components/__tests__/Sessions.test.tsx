@@ -1,14 +1,15 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { Activity, type ComponentProps, type ReactNode } from 'react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { Activity, type ComponentProps, type ReactNode } from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
@@ -259,7 +260,7 @@ const preferenceMocks = vi.hoisted(() => ({
 }))
 
 const cacheMocks = vi.hoisted(() => ({
-  state: { activeSessionId: 'session-a' as string | null },
+  state: { activeSessionId: 'session-a' },
   values: new Map<string, unknown>(),
   setActiveSessionId: vi.fn(),
   setCache: vi.fn()
@@ -2246,6 +2247,36 @@ describe('Sessions', () => {
 
     expect(menuContent).not.toHaveTextContent('Open in new tab')
     expect(menuContent).toHaveTextContent('Open in New Window')
+  })
+
+  it('keeps a pinned session aligned with its agent icon', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }]
+    setupSessions({
+      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+
+    const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
+    // The leading slot is the horizontal alignment contract shared with the agent header icon.
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
+  })
+
+  it('keeps the leading slot when agent icons are hidden', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.icon_type', 'none')
+    dataApiMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }]
+    setupSessions({
+      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', agentId: 'agent-a', orderKey: 'a' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+
+    const pinnedRow = screen.getByText('Pinned session').closest('[role="option"]')
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
   })
 
   it('hides the inline delete action for pinned sessions', () => {

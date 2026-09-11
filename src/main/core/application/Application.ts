@@ -1,6 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { app, dialog } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 import { loggerService } from '@logger'
 import {
   type Disposable,
@@ -16,8 +19,6 @@ import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, dialog } from 'electron'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { ServiceRegistry } from './serviceRegistry'
 

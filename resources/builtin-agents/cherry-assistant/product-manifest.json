@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.11",
+    "version": "2.0.14",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -230,6 +230,19 @@
       }
     },
     {
+      "id": "chat.input.focus",
+      "titleKey": "settings.shortcuts.focus_input",
+      "categoryKey": "settings.shortcuts.chat",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "I"
+        ],
+        "when": "!webview.focused"
+      }
+    },
+    {
       "id": "chat.context.toggle_new",
       "titleKey": "settings.shortcuts.toggle_new_context",
       "categoryKey": "settings.shortcuts.chat",
@@ -450,16 +463,12 @@
     }
   ],
   "providers": {
-    "version": "edaf6c7d22e41cb9",
-    "count": 61,
+    "version": "e47c80cffa19d83b",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
         "name": "CherryIN"
-      },
-      {
-        "id": "radeon-cloud",
-        "name": "AMD GPU Cloud"
       },
       {
         "id": "silicon",
@@ -532,6 +541,14 @@
       {
         "id": "ollama",
         "name": "Ollama"
+      },
+      {
+        "id": "radeon-cloud",
+        "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "tokendance",
+        "name": "TokenDance"
       },
       {
         "id": "new-api",

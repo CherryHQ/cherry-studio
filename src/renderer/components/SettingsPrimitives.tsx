@@ -1,7 +1,8 @@
+import React from 'react'
+
 import { Divider as SettingDivider } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import React from 'react'
 
 export { SettingDivider }
 
@@ -51,7 +52,7 @@ export const SettingsContentBody = ({
 
 export const SettingTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex select-none items-center justify-between font-semibold text-[15px]', className)}
+    className={cn('flex items-center justify-between text-[15px] font-semibold select-none', className)}
     {...props}
   />
 )
@@ -61,11 +62,11 @@ export const SettingSubtitle = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <div ref={ref} className={cn('select-none font-semibold text-foreground text-sm', className)} {...props} />
+  <div ref={ref} className={cn('text-sm font-semibold text-foreground select-none', className)} {...props} />
 )
 
 export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2.5 text-muted-foreground text-xs', className)} {...props} />
+  <div className={cn('mt-2.5 text-xs text-muted-foreground', className)} {...props} />
 )
 
 export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -74,7 +75,7 @@ export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutR
 
 export const SettingRowTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('flex min-w-0 flex-wrap items-center text-foreground text-sm leading-4.5', className)}
+    className={cn('flex min-w-0 flex-wrap items-center text-sm leading-4.5 text-foreground', className)}
     {...props}
   />
 )
@@ -121,7 +122,7 @@ export const SettingGroup = ({
     className={cn(
       variant === 'card'
         ? 'mt-4 rounded-xl border border-border bg-card p-4 first:mt-0'
-        : 'mt-2 border-border-subtle border-t pt-3 first:mt-0 first:border-t-0 first:pt-0',
+        : 'mt-2 border-t border-border-subtle pt-3 first:mt-0 first:border-t-0 first:pt-0',
       className
     )}
     {...props}

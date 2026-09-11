@@ -77,7 +77,7 @@ describe('topicHandlers', () => {
       await expect(
         topicHandlers['/topics'].DELETE({
           query: { ids: 'topic-a,topic-b' }
-        } as never)
+        })
       ).resolves.toEqual(result)
 
       expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
@@ -92,7 +92,7 @@ describe('topicHandlers', () => {
       await expect(
         topicHandlers['/topics'].DELETE({
           query: { ids: ' topic-a, , topic-b ' }
-        } as never)
+        })
       ).resolves.toEqual(result)
 
       expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
@@ -102,7 +102,7 @@ describe('topicHandlers', () => {
       await expect(
         topicHandlers['/topics'].DELETE({
           query: { ids: ' , , ' }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(deleteByIdsMock).not.toHaveBeenCalled()
@@ -114,13 +114,13 @@ describe('topicHandlers', () => {
       const topic = { id: 'topic-latest' }
       getLatestActiveMock.mockReturnValueOnce(topic)
 
-      await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
+      await expect(topicHandlers['/topics/latest'].GET({})).resolves.toEqual({ topic })
     })
 
     it('returns { topic: null } when the library is empty', async () => {
       getLatestActiveMock.mockReturnValueOnce(null)
 
-      await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
+      await expect(topicHandlers['/topics/latest'].GET({})).resolves.toEqual({ topic: null })
     })
 
     it('narrows the latest lookup to one assistant when assistantId is given', async () => {
@@ -143,7 +143,7 @@ describe('topicHandlers', () => {
 
   describe('/topics/:id', () => {
     it('clears task status after deleting a topic', async () => {
-      await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' } } as never)
+      await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' } })
 
       expect(deleteMock).toHaveBeenCalledWith('topic-a')
       expect(clearConversationTaskStatusesMock).toHaveBeenCalledWith(['topic-a'])
@@ -158,7 +158,7 @@ describe('topicHandlers', () => {
       await expect(
         topicHandlers['/topics/reusable-placeholder'].POST({
           body: { assistantId: null, excludeTopicId: 'topic-deleted' }
-        } as never)
+        })
       ).resolves.toBe(response)
 
       expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
@@ -174,7 +174,7 @@ describe('topicHandlers', () => {
         topicHandlers['/topics/:id/move'].POST({
           params: { id: 'topic-a' },
           body: { assistantId: 'assistant-b', order: { after: 'topic-b' } }
-        } as never)
+        })
       ).rejects.toThrow()
 
       expect(moveMock).not.toHaveBeenCalled()
@@ -189,7 +189,7 @@ describe('topicHandlers', () => {
       await expect(
         topicHandlers['/assistants/:assistantId/topics'].DELETE({
           params: { assistantId: 'assistant-1' }
-        } as never)
+        })
       ).resolves.toEqual(result)
 
       expect(deleteByAssistantIdMock).toHaveBeenCalledWith('assistant-1')
@@ -216,7 +216,7 @@ describe('topicHandlers', () => {
         topicHandlers['/topics/:id/duplicate'].POST({
           params: { id: 'source-topic' },
           body: { nodeId: 'source-node', name: '  Source (Copy)  ' }
-        } as never)
+        })
       ).resolves.toBe(topic)
 
       expect(duplicateMock).toHaveBeenCalledWith('source-topic', {

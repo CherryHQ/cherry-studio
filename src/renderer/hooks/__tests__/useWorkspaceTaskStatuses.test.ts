@@ -1,6 +1,7 @@
-import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { TopicStatusSnapshotEntry, TopicStreamStatus } from '@shared/ai/transport'
 
 const cacheValues = vi.hoisted(() => new Map<string, unknown>())
 const selectorKeys = vi.hoisted(() => [] as string[][])

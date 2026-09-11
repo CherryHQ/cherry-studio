@@ -1,11 +1,3 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
-import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
-import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
-import { isMac } from '@renderer/utils/platform'
-import { cn } from '@renderer/utils/style'
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import {
   cloneElement,
@@ -18,6 +10,15 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
+import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 
 import { WindowControls } from '../WindowControls'
 import { ShellTabBarActions } from './ShellTabBarActions'
@@ -148,7 +149,8 @@ const PinnedTabButton = ({
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+const MACOS_TRAFFIC_LIGHT_RESERVE = 'calc(env(titlebar-area-x, 0px) + 2px)'
+const MACOS_COMBINED_TAB_STRIP_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px) + 2px))'
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -258,7 +260,7 @@ const NormalTabButton = ({
       onClose()
       return
     }
-    const tabButton = (e.currentTarget as HTMLElement).closest('[data-tab-id]') as HTMLElement | null
+    const tabButton = e.currentTarget.closest('[data-tab-id]') as HTMLElement | null
     // Fractional width: freezing to a rounded offsetWidth would shift every tab
     // boundary at the freeze snap (flexbox resolves fractional widths).
     onClose(tabButton?.getBoundingClientRect().width || undefined)
@@ -929,11 +931,10 @@ export const AppShellTabBar = ({
           style={
             isMac && !isFullscreen
               ? {
-                  paddingLeft: isFocusedTab
-                    ? 'env(titlebar-area-x)'
-                    : legacyCombinedLayout
-                      ? MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
-                      : 'env(titlebar-area-x, 0px)'
+                  paddingLeft:
+                    !isFocusedTab && legacyCombinedLayout
+                      ? MACOS_COMBINED_TAB_STRIP_RESERVE
+                      : MACOS_TRAFFIC_LIGHT_RESERVE
                 }
               : undefined
           }
