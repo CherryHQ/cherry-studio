@@ -1,3 +1,9 @@
+import { act, render, renderHook, waitFor } from '@testing-library/react'
+import type { WebviewTag } from 'electron'
+import type { RefObject } from 'react'
+import { Activity, startTransition, Suspense, useLayoutEffect, useState } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
@@ -5,11 +11,6 @@ import {
   type WebviewAnnotationLocale,
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
-import { act, render, renderHook, waitFor } from '@testing-library/react'
-import type { WebviewTag } from 'electron'
-import type { RefObject } from 'react'
-import { Activity, startTransition, Suspense, useLayoutEffect, useState } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { request, randomUUID } = vi.hoisted(() => ({
   request: vi.fn(),

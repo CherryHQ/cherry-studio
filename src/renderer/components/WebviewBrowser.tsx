@@ -1,10 +1,11 @@
-import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type { DidFailLoadEvent, WebviewTag } from 'electron'
 import { LoaderCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import type { WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 import { WebviewHost } from './WebviewHost'

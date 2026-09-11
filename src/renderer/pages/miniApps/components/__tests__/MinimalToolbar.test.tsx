@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
-import { type WebviewAnnotationTarget, WebviewAnnotationTargetSchema } from '@shared/types/webviewAnnotation'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
+import { type WebviewAnnotationTarget, WebviewAnnotationTargetSchema } from '@shared/types/webviewAnnotation'
 
 const mocks = vi.hoisted(() => ({
   annotationTarget: undefined as WebviewAnnotationTarget | undefined,

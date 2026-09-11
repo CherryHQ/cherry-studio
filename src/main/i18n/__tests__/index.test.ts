@@ -1,8 +1,9 @@
-import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
-import { defaultLanguage } from '@shared/utils/languages'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
+import { defaultLanguage } from '@shared/utils/languages'
 
 describe('main i18n', () => {
   beforeEach(() => {

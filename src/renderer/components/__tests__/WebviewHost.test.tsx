@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { render, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'

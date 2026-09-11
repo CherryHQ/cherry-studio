@@ -1,5 +1,3 @@
-import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
-import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
   Activity,
   Bell,
@@ -25,6 +23,9 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createElement } from 'react'
+
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 
 export interface SettingsMenuEntry {
   /** Settings section route; also the aggregation key for `.search.ts` leaves */

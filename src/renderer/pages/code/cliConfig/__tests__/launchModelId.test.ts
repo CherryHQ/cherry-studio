@@ -1,5 +1,6 @@
-import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Provider } from '@shared/data/types/provider'
 
 const mocks = vi.hoisted(() => ({ toastError: vi.fn() }))
 

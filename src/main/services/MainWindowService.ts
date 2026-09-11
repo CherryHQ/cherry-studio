@@ -1,5 +1,10 @@
-import { application } from '@application'
+import path from 'path'
+
 import { optimizer } from '@electron-toolkit/utils'
+import type { BrowserWindow } from 'electron'
+import { app, nativeImage, nativeTheme, session, shell } from 'electron'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -21,9 +26,6 @@ import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import type { BrowserWindow } from 'electron'
-import { app, nativeImage, nativeTheme, session, shell } from 'electron'
-import path from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
