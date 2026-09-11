@@ -8,9 +8,10 @@
  * very short delays.
  */
 
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 let scheduler: SchedulerService
 

@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
 type TestModel = {
   id: `${string}::${string}`

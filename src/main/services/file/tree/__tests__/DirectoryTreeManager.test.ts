@@ -14,6 +14,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import type { WebContents } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 // `DirectoryTreeManager` extends `BaseService`, which forbids more than one
 // instance per constructor. Tests new it up per `beforeEach` — reset the
 // guard between tests so each one starts clean. (Real production code
@@ -22,8 +25,6 @@ import path from 'node:path'
 import type * as lifecycleModule from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { TreeMutationPushPayload } from '@shared/utils/file'
-import type { WebContents } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
 

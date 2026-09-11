@@ -12,6 +12,8 @@
  */
 import { pathToFileURL } from 'node:url'
 
+import { stringify } from 'yaml'
+
 import {
   type BridgePermissionMode,
   type DshRuntimeEntrySpecifier,
@@ -20,7 +22,6 @@ import {
 import { isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import type { DshApi } from '@shared/ai/dshModelCompatibility'
-import { stringify } from 'yaml'
 
 import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
 

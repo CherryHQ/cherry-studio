@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { getPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import { buildAgentRightPaneStatus, buildAgentToolFlowProjection } from '../agentRightPaneProjection'
 

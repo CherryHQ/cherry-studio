@@ -1,3 +1,5 @@
+import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
+
 import {
   getTaskActiveText,
   getTaskId,
@@ -20,7 +22,6 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
 
 export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
 
@@ -206,7 +207,7 @@ function createFlowTextMessage(
       createdAt,
       status: role === 'assistant' ? 'success' : undefined
     }
-  } as CherryUIMessage
+  }
 }
 
 function getMessageCreatedAt(message: CherryUIMessage | undefined): string {
@@ -235,7 +236,7 @@ function getOrderedMessageParts(
           status: 'pending',
           createdAt: new Date(0).toISOString()
         }
-      } as CherryUIMessage,
+      },
       parts
     })
   }
@@ -313,7 +314,7 @@ export function buildAgentToolFlowProjection(
     )
     if (promptMessage) {
       flowMessages.push(promptMessage)
-      flowPartsByMessageId[promptMessage.id] = promptMessage.parts as CherryMessagePart[]
+      flowPartsByMessageId[promptMessage.id] = promptMessage.parts
     }
 
     const assistantParts: CherryMessagePart[] = []
@@ -344,7 +345,7 @@ export function buildAgentToolFlowProjection(
     const outputText = isBackgroundAgentLaunchReceipt(selectedOutput, selectedOutputText)
       ? undefined
       : selectedOutputText
-    if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
+    if (outputText) assistantParts.push({ type: 'text', text: outputText })
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)
     )
@@ -550,7 +551,7 @@ export function buildAgentRightPaneStatus(
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
         applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)

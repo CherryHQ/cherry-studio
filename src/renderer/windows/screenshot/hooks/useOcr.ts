@@ -7,10 +7,11 @@
  * worker, so this hook only ever holds coordinates and text.
  */
 
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { OcrWord } from '@shared/ipc/schemas/screenshot'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { SelectionRect } from '../types'
 

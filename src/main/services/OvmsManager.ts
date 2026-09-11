@@ -1,5 +1,8 @@
 import { exec, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import * as path from 'path'
+
+import * as fs from 'fs-extra'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -13,8 +16,6 @@ import {
   ServicePhase
 } from '@main/core/lifecycle'
 import { sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
-import * as fs from 'fs-extra'
-import * as path from 'path'
 
 const logger = loggerService.withContext('OvmsManager')
 

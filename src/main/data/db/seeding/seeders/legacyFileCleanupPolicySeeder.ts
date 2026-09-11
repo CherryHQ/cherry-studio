@@ -1,3 +1,5 @@
+import { sql } from 'drizzle-orm'
+
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
@@ -8,7 +10,6 @@ import {
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
 import { readMigrationV2CompletedAt } from '@data/migration/v2'
-import { sql } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 
