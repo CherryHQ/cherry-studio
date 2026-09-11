@@ -28,7 +28,12 @@ vi.mock('@application', () => ({
 
 vi.mock('path')
 
-import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv, mergePathSuffixes } from '../binaryEnv'
+import {
+  getBinaryIsolatedHomeEnv,
+  mergeBinaryExecutionEnv,
+  mergePathSuffixes,
+  pickSystemEnvironment
+} from '../binaryEnv'
 
 describe('mergeBinaryExecutionEnv (Windows)', () => {
   beforeEach(async () => {
@@ -102,5 +107,48 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     const env = getBinaryIsolatedHomeEnv()
     expect(env['LOCALAPPDATA']).toBe('C:\\data\\binary-manager\\localappdata')
     expect(env['APPDATA']).toBe('C:\\data\\binary-manager\\appdata')
+  })
+})
+
+describe('pickSystemEnvironment (Windows)', () => {
+  const hostEnv = {
+    SystemRoot: 'C:\\Windows',
+    SystemDrive: 'C:',
+    windir: 'C:\\Windows',
+    ComSpec: 'C:\\Windows\\system32\\cmd.exe',
+    PATHEXT: '.COM;.EXE;.BAT',
+    TEMP: 'C:\\Users\\tester\\AppData\\Local\\Temp',
+    TMP: 'C:\\Users\\tester\\AppData\\Local\\Temp',
+    USERPROFILE: 'C:\\Users\\tester'
+  }
+
+  it('carries the whole baseline a replacement child env cannot start without', () => {
+    // A child spawned without SystemRoot cannot resolve the system DLLs and dies
+    // with a Windows exception exit code before running any of its own code.
+    expect(pickSystemEnvironment(hostEnv)).toEqual(hostEnv)
+  })
+
+  it('reads the baseline whatever case the host spells it in', () => {
+    // Windows env keys are case-insensitive, so a captured host env can carry any
+    // spelling; the child must receive the canonical one either way.
+    expect(pickSystemEnvironment({ SYSTEMROOT: 'C:\\Windows', Pathext: '.EXE' })).toEqual({
+      SystemRoot: 'C:\\Windows',
+      PATHEXT: '.EXE'
+    })
+  })
+
+  it('forwards nothing else from the host environment', () => {
+    // The point of a replacement env is that unrelated host variables stay out of
+    // the child. Widening the baseline must not become a way back in.
+    const picked = pickSystemEnvironment({ ...hostEnv, DEEPSEEK_API_KEY: 'secret', Path: 'C:\\bin' })
+
+    expect(picked).not.toHaveProperty('DEEPSEEK_API_KEY')
+    expect(picked).not.toHaveProperty('Path')
+  })
+
+  it('skips variables the host does not define', () => {
+    expect(pickSystemEnvironment({ SystemRoot: 'C:\\Windows', TEMP: undefined })).toEqual({
+      SystemRoot: 'C:\\Windows'
+    })
   })
 })

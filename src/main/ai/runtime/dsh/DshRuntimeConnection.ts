@@ -25,7 +25,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { mergeBinaryExecutionEnv, pickSystemEnvironment } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -396,6 +396,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         cwd: workspacePath,
         env: {
           ...binaryExecutionEnv,
+          // ...plus the platform's own baseline, which the scoping above must not
+          // withhold: on Windows the runtime process cannot start without it and
+          // exits with a Windows exception code seconds after spawn (#19753).
+          ...pickSystemEnvironment(loginShellEnv),
           ...(loginShellEnv.HOME !== undefined
             ? { HOME: loginShellEnv.HOME }
             : process.env.HOME !== undefined
