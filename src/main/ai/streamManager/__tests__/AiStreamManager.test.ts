@@ -24,7 +24,7 @@ import type {
 
 class FakeListener implements StreamListener {
   readonly id: string
-  readonly terminalPhase?: 'persistence'
+  readonly terminalPhase?: 'persistence' | 'cleanup'
   chunks: UIMessageChunk[] = []
   /** Second argument of each onChunk call, indexed by chunk position. */
   chunkSources: Array<string | undefined> = []
@@ -36,7 +36,7 @@ class FakeListener implements StreamListener {
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
   onErrorImpl?: (result: StreamErrorResult) => void | Promise<void>
 
-  constructor(id: string, terminalPhase?: 'persistence') {
+  constructor(id: string, terminalPhase?: 'persistence' | 'cleanup') {
     this.id = id
     this.terminalPhase = terminalPhase
   }
@@ -1424,6 +1424,87 @@ describe('AiStreamManager', () => {
       await terminal
       expect(renderer.doneResults).toHaveLength(1)
       expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(false)
+    })
+
+    it('keeps the terminal dispatch in flight until every cleanup listener settles', async () => {
+      let releaseB!: () => void
+      const a = new FakeListener('cleanup-a:a', 'cleanup')
+      const aDone = new Promise<void>((resolve) => {
+        a.onDoneImpl = () => resolve()
+      })
+      const b = new FakeListener('cleanup-b:a', 'cleanup')
+      b.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseB = resolve
+        })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [a, b],
+        isPersistentConversation: true
+      })
+
+      const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
+      await aDone
+
+      let settled = false
+      const settledPromise = mgr.whenTerminalDispatchSettled('a').then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(b.doneResults).toHaveLength(1)
+      expect(settled).toBe(false)
+      expect(conversationCompletedEvents).toEqual([])
+
+      releaseB()
+      await settledPromise
+      await terminal
+      expect(conversationCompletedEvents).toEqual([
+        { topicId: 'a', turnId: expect.stringMatching(/^\d+:\d+$/), completedAt: expect.any(Number) }
+      ])
+    })
+
+    it('keeps the previous turn terminal lifecycle when a follow-up is admitted after the dispatch settles', async () => {
+      let releaseB!: () => void
+      const a = new FakeListener('cleanup-a:a', 'cleanup')
+      const aDone = new Promise<void>((resolve) => {
+        a.onDoneImpl = () => resolve()
+      })
+      const b = new FakeListener('cleanup-b:a', 'cleanup')
+      b.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseB = resolve
+        })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [a, b],
+        isPersistentConversation: true
+      })
+      const previousTurnId = (sharedCacheStore.get('topic.stream.statuses.a') as { turnId: string }).turnId
+
+      const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
+      await aDone
+
+      const next = new FakeListener('wc:next:a')
+      const followUp = mgr
+        .whenTerminalDispatchSettled('a')
+        .then(() =>
+          startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [next] })
+        )
+      releaseB()
+      await followUp
+      await terminal
+
+      expect(conversationCompletedEvents).toEqual([
+        { topicId: 'a', turnId: previousTurnId, completedAt: expect.any(Number) }
+      ])
+      expect(fakeCacheService.setShared.mock.calls.map(([, value]) => value)).toContainEqual(
+        expect.objectContaining({ status: 'done', turnId: previousTurnId })
+      )
+      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: [next.id] })
     })
 
     it('suppresses the original terminal notification after persistence surfaced an error', async () => {
