@@ -1,0 +1,85 @@
+---
+title: Agent browser control and browser data settings
+category: changed
+severity: notice
+introduced_in_pr: "#20166"
+date: 2026-09-07
+---
+
+## What changed
+
+Browser settings can enable Agent tools for the same page shown in the Agent right pane.
+Ordinary pages support HTTP(S), including local networks, and share a dedicated persistent login
+profile. Settings provides compact entries for import, searchable history and clearing, each in its own dialog.
+
+## Why this matters to the user
+
+Agent actions are visible in the existing browser pane. Imported login data is shared across ordinary
+Agent pages; local previews and HTML artifacts retain their separate profiles. Turning Agent control
+off leaves manual browsing and saved login data available.
+
+History entries open directly in new browser tabs, without an Agent conversation. These tabs share
+website data with ordinary Agent browser panes. Their address bars search browsing history by title
+or URL, with mouse and keyboard selection. Website addresses show the domain and page title until focused;
+clicking reveals and selects the full URL. Blur or Escape restores the compact address.
+Website links that request a new window now navigate within the Agent browser pane, or open a new
+built-in browser tab when browsing outside an Agent. Manual clicks keep working with Agent control off.
+Browser tabs follow the current page title and favicon after navigation; missing or failed icons show a globe.
+
+Browser control now appears under the Agent’s built-in tools. Browser settings owns tool permissions
+(ask, allow or block); the legacy browser entry no longer appears in MCP settings or Agent MCP selection.
+An optional setting opens website links in the built-in browser: ordinary clicks in Agent messages
+expand the current session's browser pane; links elsewhere open shared browser tabs. Explicit
+external-browser actions and authentication flows keep their existing destinations.
+
+## What the user should do
+
+Enable Agent control in Settings → Browser when needed. Import starts with a detected browser;
+choose a profile only if several exist. Dia (macOS) and Comet (macOS/Windows) appear as separate
+import sources from Google Chrome. Vivaldi, Opera and Chromium standard profiles are supported on
+macOS, Windows and Linux; Opera supports both root-level and named profile layouts. Profile choices display their names and available accounts,
+falling back to directory names when metadata is unavailable. Website data combines cookies and supported local storage,
+with file import available as a secondary path. Chromium cookies can use macOS Keychain, Windows
+current-user DPAPI, and Linux Secret Service/KWallet. Allow system key access when prompted.
+Linux needs secret-tool (libsecret-tools), or kwallet-query and dbus-send. Windows app-bound encryption,
+partitioned cookies and Firefox container cookies remain unsupported; sign in again in the pane when
+needed. Results explain unavailable keys, denied access, unsupported formats, expired and failed
+items separately. Reload open pages after website data was imported. History import remains available
+independently. Password stores, extensions and bookmarks are not imported.
+
+## Notes for release manager
+
+Electron remains at 41.8.0. This is stacked on the browser inspection work. Clearing history does not sign users out; clearing site data applies to all ordinary
+Agent pages. History is preserved unless its checkbox is also selected. Only cache is preselected. Source browser databases are never modified.
+
+Ordinary browser pages show a dismissible prompt to import browsing history and website data.
+The button opens the same import dialog as Browser settings. A renderer persist-cache flag hides
+the prompt across tabs, windows and restarts after dismissal or an import with at least one imported
+item. Empty, failed and cancelled imports with no imported items keep the prompt available.
+Earlier imports have no persisted completion marker and may receive the prompt once after upgrading.
+
+Page annotation controls are available only in the Agent browser pane, where saved annotations
+are added to the conversation draft. Standalone Browser tabs and MiniApps no longer show these controls.
+
+Standalone Browser tabs restore their last committed URL after hibernation. Explicit external
+MiniApp links keep opening in the system browser even when automatic links use the built-in browser.
+New and imported history entries remove sensitive parameters from URL fragments, including hash-route
+queries, while preserving ordinary anchors and routes. Existing history entries are unchanged.
+
+Browsing history groups visits by date and shows each title, domain and time on one row.
+Hover a title to see the full URL. Select a title or use its row menu to reopen it in a new tab;
+the menu also provides copying and deletion.
+
+Browsing history now loads older visits while scrolling, retaining date groups across batches
+instead of replacing pages. Each row has one hover surface. Website favicons are cached locally
+from browsing and supported browser imports, with a globe fallback when unavailable. Previously
+imported visits can acquire a site icon when that site is revisited or its history is reimported.
+
+History now drops fragment parameters regardless of key names to avoid storing custom-named
+credentials. Ordinary anchors and hash-route paths remain; reopening a visit does not restore
+fragment-based search/filter parameters. This applies to new visits and imports; existing rows
+are not rewritten.
+
+History also excludes fragments that expose parameter delimiters after percent-decoding,
+including nested encodings. These encoded fragments are discarded entirely; normal encoded
+anchors and paths keep their original spelling.

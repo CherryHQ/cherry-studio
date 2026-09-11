@@ -60,8 +60,24 @@ The MCP adapter and input tools live in `mcp/` and `actions/`. The factory calls
 `BrowserSessionService.createMcpServer()`; it has no direct feature import.
 See [Browser MCP server](./mcp/README.md) for tools, outputs and ownership limits.
 
-Real agent-turn identity, uploads, retained-tab freezing, WebMCP and browser-data
-import remain follow-ups.
+`AgentBrowserRegistry` binds verified renderer guests to their actual Agent Sessions. Pane MCP
+controllers borrow those guests and share actions with the standalone controller. Browser settings
+controls Agent access; bindings and manual browsing survive control-off. The Agent built-in tool catalog
+exposes a browser group opt-out. Old browser MCP bindings are excluded from the Agent server set;
+Browser settings owns per-tool ask/allow/deny permissions. Runtime approval gates enforce these
+permissions, and dispatch rechecks denial before executing queued actions. Ordinary pages use
+`persist:agent-browser` and permit public/LAN/loopback HTTP(S); preview/artifact profiles stay separate.
+The session service owns ordinary guests' popup handlers across all host windows. HTTP(S) popup
+links navigate an Agent-bound guest in place or open a standalone browser tab. Agent attachment and
+control revocation do not replace this handler; shutdown removes the routing along with history tracking.
+History is SQLite-backed through `BrowserHistoryService`. The session service tracks ordinary webview
+lifetimes independently of Agent bindings; history entries reopen in browser tabs sharing the same partition. Import readers live in `import/` and
+run as tracked, cancellable operations of this lifecycle service. Cookie decryption uses per-import
+keys from macOS Keychain, Windows current-user DPAPI or Linux Secret Service/KWallet. Helpers are
+bounded, cancelled and awaited; keys are not persisted. Windows app-bound cookies and partitioned
+cookies remain unsupported, with per-reason counts. See the
+[import support matrix](../../../../v2-refactor-temp/docs/ai/browser-use-implementation.md#127-delivered-import-support-and-validation).
+Uploads, retained-tab freezing and WebMCP remain follow-ups.
 
 Debugger initialization is shared by its waiting callers. When the last caller aborts or
 times out, initialization stops and detaches; cancellation by one caller leaves other
@@ -69,3 +85,31 @@ callers running. Annotation captures reuse their document's isolated context and
 it on navigation, context destruction or detach. Snapshot link destinations use the
 same credential/data-URL sanitization as page URLs. Same-document navigation preserves
 the document identity and refs.
+
+New and imported history URLs retain ordinary anchors and hash-route paths, but discard
+fragment parameters regardless of their names. Fragments whose percent-decoded form contains
+parameter delimiters are discarded, with at most eight decoding passes. Safe encoded anchors
+and paths retain their original encoding. Reopening history does not restore filters or
+search state encoded in those parameters. Query-string redaction remains key-based.
+
+History browsing uses a descending `(visitedAt, id)` cursor and a grouped virtual list, so
+loading older visits preserves date groups and bounds rendered rows. Offset queries remain
+available for address-bar suggestions. Actual page favicons are captured into the main persist
+cache (256 origins; PNG up to 32 px or a bounded ICO), separately from the history database.
+Navigation/disposal aborts captures;
+`BrowserSessionService` also cancels and awaits them on shutdown. Chromium `Favicons` and
+Firefox `favicons.sqlite` imports populate the same cache for up to 256 recent history origins.
+History rendering reads local data URLs, never a third-party favicon service. Clearing history
+also clears these cached images; uncached or failed images fall back to the globe icon.
+
+Explicit `file://` HTML entries, including address-bar and Agent opens, use the isolated
+`agent-html-artifact` profile. They can execute page scripts and load relative resources
+within the opened file's directory. Opening a different file establishes a fresh guest
+and directory authorization. Ordinary HTTP(S) guests cannot navigate into local files;
+the artifact policy also rejects directory escapes and symlink escapes.
+
+Agent guests are owned by a stable renderer runtime outside page Activity boundaries. Pane visibility
+only supplies an anchor; it does not attach or detach control. Guest creation and pane presentation
+use separate IPC events. Per-tool execution leases temporarily disable background throttling and
+restore its previous value after the last execution. Webview screenshots retain a native frame
+subscription for the bounded CDP command, releasing it on completion, cancellation or timeout.

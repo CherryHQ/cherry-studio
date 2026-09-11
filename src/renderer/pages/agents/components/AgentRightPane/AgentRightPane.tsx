@@ -84,10 +84,12 @@ import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSe
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
+import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { useToolResult } from '@renderer/hooks/useToolResult'
-import { ipcApi } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
@@ -212,6 +214,11 @@ interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   browserUrl: string | null
+  browserProfile:
+    | typeof WebviewSecurityProfile.AgentBrowser
+    | typeof WebviewSecurityProfile.AgentDevPreview
+    | typeof WebviewSecurityProfile.AgentHtmlArtifact
+  openBrowserUrl: (url: string) => void
   acceptDetectedBrowserUrl: (url: string | null, source: AgentPreviewUrlCandidate | null) => void
 }
 
@@ -243,6 +250,7 @@ interface AgentRightPaneActions {
   canOpenArtifactFile: boolean
   openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
   openArtifactFile: (path: string) => void
+  openExternalUrl: (url: string) => void
   closeFilePreview: () => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
   setSelectedFile: (file: string | null) => void
@@ -349,7 +357,25 @@ function AgentRightPaneActionsProvider({
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
   const { t } = useTranslation()
+  const [openLinksInBrowser] = usePreference('app.browser.open_links_in_browser')
   const panelActions = useRightPanelActions()
+  const openExternalUrl = useCallback(
+    (url: string) => {
+      if (openLinksInBrowser && /^https?:\/\//i.test(url) && panelActions.canOpen(BROWSER_PANE_ID)) {
+        openBrowserUrl(url)
+        panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: true })
+        return
+      }
+      window.open(url, '_blank', 'noopener,noreferrer')
+    },
+    [openBrowserUrl, openLinksInBrowser, panelActions]
+  )
+  useIpcOn('browser.pane.open_requested', (request) => {
+    if (request.sessionId !== sessionId) return
+    if (request.url) openBrowserUrl(request.url)
+    panelActions.tryOpen(BROWSER_PANE_ID, { userInitiated: false })
+  })
+
   // Invalidate in-flight artifact-open requests when the session or workspace
   // changes (and on unmount), so a late getMetadata resolution cannot restore a
   // preview that the switch just cleared.
@@ -422,6 +448,7 @@ function AgentRightPaneActionsProvider({
       canOpenArtifactFile,
       openAgentToolFlow,
       openArtifactFile,
+      openExternalUrl,
       closeFilePreview,
       setFileEditMode,
       setSelectedFile: selectFile,
@@ -434,6 +461,7 @@ function AgentRightPaneActionsProvider({
       closeFilePreview,
       openAgentToolFlow,
       openArtifactFile,
+      openExternalUrl,
       selectFile,
       setFileEditMode,
       setFileTreeExpandedIds,
@@ -475,7 +503,11 @@ function AgentRightPaneStateProvider({
     sessionId,
     tab: null
   }))
-  const [browserUrlState, setBrowserUrlState] = useState<{ sessionId?: string; url: string | null }>(() => ({
+  const [browserUrlState, setBrowserUrlState] = useState<{
+    sessionId?: string
+    url: string | null
+    profile?: AgentRightPaneRuntime['browserProfile']
+  }>(() => ({
     sessionId,
     url: null
   }))
@@ -483,6 +515,10 @@ function AgentRightPaneStateProvider({
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [editMode, setEditMode] = useState<AgentFileEditorMode>('preview')
+  const browserOwnerTabId = useCurrentTabId()
+  useLayoutEffect(() => {
+    if (sessionId && browserOwnerTabId) agentBrowserRuntimeService.declare(sessionId, browserOwnerTabId)
+  }, [browserOwnerTabId, sessionId])
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
@@ -559,13 +595,9 @@ function AgentRightPaneStateProvider({
         return
       }
       explicitBrowserBaselineRef.current = null
-      if (browserUrl !== url) setBrowserUrlState({ sessionId, url })
+      if (browserUrl !== url) setBrowserUrlState({ sessionId, url, profile: WebviewSecurityProfile.AgentDevPreview })
     },
     [browserUrl, messages, partsByMessageId, sessionId]
-  )
-  const runtime = useMemo<AgentRightPaneRuntime>(
-    () => ({ messages, partsByMessageId, browserUrl, acceptDetectedBrowserUrl }),
-    [acceptDetectedBrowserUrl, browserUrl, messages, partsByMessageId]
   )
   const openBrowserUrl = useCallback(
     (url: string) => {
@@ -584,9 +616,23 @@ function AgentRightPaneStateProvider({
         waitingForHistory: isMessageHistoryLoading && !frontier,
         url
       }
-      setBrowserUrlState({ sessionId, url })
+      setBrowserUrlState({
+        sessionId,
+        url,
+        profile: url.startsWith('file:')
+          ? WebviewSecurityProfile.AgentHtmlArtifact
+          : WebviewSecurityProfile.AgentBrowser
+      })
     },
     [isMessageHistoryLoading, sessionId]
+  )
+  const browserProfile =
+    browserUrlState.sessionId === sessionId
+      ? (browserUrlState.profile ?? WebviewSecurityProfile.AgentBrowser)
+      : WebviewSecurityProfile.AgentBrowser
+  const runtime = useMemo<AgentRightPaneRuntime>(
+    () => ({ messages, partsByMessageId, browserUrl, browserProfile, openBrowserUrl, acceptDetectedBrowserUrl }),
+    [acceptDetectedBrowserUrl, browserUrl, browserProfile, openBrowserUrl, messages, partsByMessageId]
   )
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
@@ -935,11 +981,9 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
   return (
     <WebviewBrowser
       initialUrl={runtime.browserUrl ?? BLANK_BROWSER_URL}
-      securityProfile={
-        runtime.browserUrl?.startsWith('file:')
-          ? WebviewSecurityProfile.AgentHtmlArtifact
-          : WebviewSecurityProfile.AgentDevPreview
-      }
+      securityProfile={runtime.browserProfile}
+      agentSessionId={sessionId}
+      onNavigate={runtime.openBrowserUrl}
       target={target}
       isHostActive={active}
       onAnnotationSaved={handleAnnotationSaved}
@@ -986,6 +1030,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
     openArtifactFile: actions.canOpenArtifactFile ? actions.openArtifactFile : undefined,
+    openExternalUrl: actions.openExternalUrl,
     messageNavigation,
     // Tool output is commonly workspace-relative (`dist/report.md`). Without the
     // root, open/reveal cannot resolve it and the directory probe fails closed.

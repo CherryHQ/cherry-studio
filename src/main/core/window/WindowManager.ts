@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { app, BrowserWindow, screen, shell } from 'electron'
+import { app, BrowserWindow, screen } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 import { application } from '@application'
@@ -1364,7 +1364,10 @@ export class WindowManager extends BaseService {
     // Intercept external links: open in system browser
     window.webContents.setWindowOpenHandler(({ url }) => {
       if (url.startsWith('http:') || url.startsWith('https:')) {
-        void shell.openExternal(url)
+        void application
+          .get('MainWindowService')
+          .openWebsite(url)
+          .catch((error) => logger.warn('Failed to open website', { error }))
       }
       return { action: 'deny' }
     })
@@ -1374,7 +1377,10 @@ export class WindowManager extends BaseService {
         const currentURL = window.webContents.getURL()
         if (currentURL && new URL(url).origin !== new URL(currentURL).origin) {
           event.preventDefault()
-          void shell.openExternal(url)
+          void application
+            .get('MainWindowService')
+            .openWebsite(url)
+            .catch((error) => logger.warn('Failed to open website', { error }))
         }
       } else {
         // Non-web schemes (file:, custom protocols) have no legitimate in-window

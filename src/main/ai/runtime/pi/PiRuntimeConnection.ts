@@ -348,7 +348,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
       // Pi custom tools consume the complete runtime-neutral MCP set. Knowledge, memory, skills,
       // assistant tools, and user-configured servers all cross the same protocol adapter.
-      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannel !== null })
+      const mountedServers = resolveMountedMcpServers(agent, {
+        browserEnabled: application.get('PreferenceService').get('app.browser.agent_control.enabled'),
+        channelLinked: linkedChannel !== null
+      })
       this.mcpBridge = await buildMcpToolDefinitions(
         buildAgentMcpServers(
           session,

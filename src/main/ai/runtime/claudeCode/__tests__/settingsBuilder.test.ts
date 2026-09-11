@@ -3,6 +3,7 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -11,6 +12,7 @@ import {
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import { BrowserSessionService } from '@main/features/browser'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
@@ -770,6 +772,42 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(mocks.createMcpBridgeServer).toHaveBeenCalledWith('mcp-1', materializedServer)
+  })
+
+  it('mounts the pane browser while excluding only a duplicate built-in bridge from the captured snapshot', async () => {
+    const service = new BrowserSessionService()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.browser.agent_control.enabled', true)
+    const priorGet = mocks.applicationGet.getMockImplementation()!
+    mocks.applicationGet.mockImplementation((name: string) =>
+      name === 'BrowserSessionService'
+        ? service
+        : name === 'PreferenceService'
+          ? MockMainPreferenceServiceExport.preferenceService
+          : priorGet(name)
+    )
+    const agent = { ...mocks.getAgent(), mcps: ['legacy-browser', 'remote-browser'] }
+    const snapshot = new Map([
+      ['legacy-browser', { id: 'legacy-browser', name: '@cherry/browser', type: 'inMemory' }],
+      [
+        'remote-browser',
+        { id: 'remote-browser', name: '@cherry/browser', type: 'streamableHttp', baseUrl: 'https://example.com/mcp' }
+      ]
+    ])
+    mocks.findByIdOrName.mockReturnValue({ id: 'legacy-browser', name: 'edited', type: 'stdio' })
+    try {
+      const settings = await buildClaudeCodeSessionSettings(
+        { id: 'session-1', agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } } as never,
+        {} as never,
+        { mcpServerSnapshots: snapshot as never },
+        agent
+      )
+      expect(settings.mcpServers?.browser).toBeDefined()
+      expect(settings.mcpServers?.['legacy-browser']).toBeUndefined()
+      expect(settings.mcpServers?.['remote-browser']).toBeDefined()
+      expect(settings.allowedTools).not.toContain('mcp__browser__*')
+    } finally {
+      await service._doStop()
+    }
   })
 
   it('loads the user setting source so managed skills under CLAUDE_CONFIG_DIR can be discovered', async () => {

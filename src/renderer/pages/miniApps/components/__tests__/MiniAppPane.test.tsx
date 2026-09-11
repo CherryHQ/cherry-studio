@@ -129,7 +129,7 @@ afterEach(() => {
 
 describe('MiniAppPane loading logo', () => {
   it('names the standalone loading logo with the mini-app identity', () => {
-    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
+    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
 
     expect(screen.getByRole('img', { name: 'ChatGPT' })).toHaveAttribute('src', 'file:///files/chatgpt.webp')
   })
@@ -147,14 +147,12 @@ describe('MiniAppPane concrete webview ownership', () => {
           app={{ ...customApp, appId: 'primary' }}
           splitMode="close"
           onSplit={vi.fn()}
-          isHostActive
           onActivate={activatePrimary}
         />
         <MiniAppPane
           app={{ ...customApp, appId: 'split' }}
           splitMode="close"
           onSplit={vi.fn()}
-          isHostActive={false}
           onActivate={activateSplit}
         />
       </>
@@ -173,7 +171,7 @@ describe('MiniAppPane concrete webview ownership', () => {
     const webview = createWebview()
     mocks.element = webview
 
-    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
+    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
 
     expect(mocks.toolbarRenders[0]).toMatchObject({
       webviewRef: expect.objectContaining({ current: webview }),
@@ -188,7 +186,7 @@ describe('MiniAppPane concrete webview ownership', () => {
   })
 
   it('attaches a present webview without changing the ref identity', async () => {
-    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
+    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
     const initialRef = mocks.searchWebviewRef
     const webview = createWebview()
     mocks.element = webview
@@ -208,7 +206,7 @@ describe('MiniAppPane concrete webview ownership', () => {
     const removeEventListener = vi.spyOn(firstWebview, 'removeEventListener')
     mocks.element = firstWebview
 
-    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
+    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
     const stableRef = mocks.searchWebviewRef
     await waitFor(() => expect(stableRef?.current).toBe(firstWebview))
 
@@ -238,7 +236,7 @@ describe('MiniAppPane concrete webview ownership', () => {
 
   it('ignores unowned DOM WebViews until the pool publishes their identity', async () => {
     mocks.loaded = true
-    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
+    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
     const stableRef = mocks.searchWebviewRef
     const unownedWebview = createWebview()
 

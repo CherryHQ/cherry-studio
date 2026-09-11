@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { createMockApplication } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state lets individual tests mutate platform flags / preferences without
@@ -18,6 +19,7 @@ const {
   loggerMock,
   previewSessionMock,
   agentDevSessionMock,
+  agentBrowserSessionMock,
   agentArtifactSessionMock,
   sessionFromPartitionMock,
   defaultSessionMock
@@ -44,6 +46,7 @@ const {
     'app.use_system_title_bar': false
   }
   const windowManagerMock = {
+    getWindowsByType: vi.fn<() => unknown[]>(() => []),
     getWindow: vi.fn(),
     getWindowId: vi.fn(),
     getWindowIdByWebContents: vi.fn(),
@@ -68,8 +71,10 @@ const {
   }
   const previewSessionMock = createSessionMock()
   const agentDevSessionMock = createSessionMock()
+  const agentBrowserSessionMock = createSessionMock()
   const agentArtifactSessionMock = createSessionMock()
   const sessionFromPartitionMock = vi.fn((partition: string) => {
+    if (partition === 'persist:agent-browser') return agentBrowserSessionMock
     if (partition === 'agent-dev-preview') return agentDevSessionMock
     if (partition === 'agent-html-artifact') return agentArtifactSessionMock
     return previewSessionMock
@@ -96,7 +101,7 @@ const {
       if (name === 'WindowManager') {
         return windowManagerMock
       }
-      throw new Error(`unexpected service: ${name}`)
+      return createMockApplication().get(name)
     }),
     getPath: vi.fn((key: string, filename?: string) => (filename ? `/mock/${key}/${filename}` : `/mock/${key}`))
   }
@@ -109,6 +114,7 @@ const {
     loggerMock,
     previewSessionMock,
     agentDevSessionMock,
+    agentBrowserSessionMock,
     agentArtifactSessionMock,
     sessionFromPartitionMock,
     defaultSessionMock
@@ -173,15 +179,18 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
-import { app } from 'electron'
-import { session } from 'electron'
+import { app, session } from 'electron'
+import { shell } from 'electron'
 
 import { WindowType } from '@main/core/window/types'
+import type * as ExternalUrlSafety from '@main/utils/externalUrlSafety'
+import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { contextMenu } from '../ContextMenu'
+import { markMainRendererReadyForTabAttach, resetMainRendererTabAttachDelivery } from '../mainWindowNavigation'
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
@@ -309,6 +318,127 @@ describe('MainWindowService', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.clearAllMocks()
+  })
+
+  it('keeps tab delivery ready during child loading and in-page navigation, but queues during a main-document reload', async () => {
+    await (svc as any).onInit()
+    const created = (
+      windowManagerMock.onWindowCreatedByType.mock.calls as unknown as [
+        string,
+        (event: { window: MockBrowserWindow }) => void
+      ][]
+    )[0][1]
+    created({ window: win })
+    Object.assign(win.webContents, { isLoadingMainFrame: () => false, isCrashed: () => false })
+    windowManagerMock.getWindowsByType.mockReturnValue([win])
+    windowManagerMock.getWindowId.mockReturnValue('main-ready-test')
+    windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+    windowManagerMock.getWindow.mockReturnValue(win)
+    const ipc = createMockApplication().get('IpcApiService') as { send: ReturnType<typeof vi.fn> }
+    const emit = (event: string, ...args: unknown[]) => {
+      for (const [name, listener] of win.webContents.on.mock.calls) if (name === event) listener(...args)
+    }
+    try {
+      markMainRendererReadyForTabAttach('main-ready-test')
+      ipc.send.mockClear()
+      emit('did-start-loading')
+      emit('did-start-navigation', {}, 'https://child.test/', false, false)
+      svc.openBrowserTab('https://first.test/')
+      expect(ipc.send).toHaveBeenCalledWith(
+        'main-ready-test',
+        'tab.attached',
+        expect.objectContaining({
+          url: '/app/browser?url=https%3A%2F%2Ffirst.test%2F'
+        })
+      )
+      ipc.send.mockClear()
+      emit('did-start-navigation', {}, 'http://localhost:5173/#route', true, true)
+      svc.openBrowserTab('https://second.test/')
+      expect(ipc.send).toHaveBeenCalledOnce()
+      ipc.send.mockClear()
+      emit('did-start-navigation', {}, 'http://localhost:5173/', false, true)
+      svc.openBrowserTab('https://queued.test/')
+      expect(ipc.send).not.toHaveBeenCalled()
+      markMainRendererReadyForTabAttach('main-ready-test')
+      expect(ipc.send).toHaveBeenCalledWith(
+        'main-ready-test',
+        'tab.attached',
+        expect.objectContaining({
+          url: '/app/browser?url=https%3A%2F%2Fqueued.test%2F'
+        })
+      )
+    } finally {
+      resetMainRendererTabAttachDelivery()
+      windowManagerMock.getWindowsByType.mockReturnValue([])
+    }
+  })
+
+  describe('website links', () => {
+    beforeEach(async () => {
+      const actual = await vi.importActual<typeof ExternalUrlSafety>('@main/utils/externalUrlSafety')
+      vi.mocked(isSafeExternalUrl).mockImplementation(actual.isSafeExternalUrl)
+    })
+    afterEach(() => vi.mocked(isSafeExternalUrl).mockReturnValue(false))
+    afterEach(() => {
+      delete prefValues['app.browser.open_links_in_browser']
+    })
+    it('opens an encoded shared-browser route when enabled, even with Agent control off', async () => {
+      prefValues['app.browser.open_links_in_browser'] = true
+      const url = 'http://192.168.1.2:8080/page?q=a&lang=zh#part'
+      await svc.openWebsite(url)
+      const navigation = createMockApplication().get('MainWindowService') as MainWindowService
+      expect(navigation.showMainWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'tab-attach',
+          tab: expect.objectContaining({
+            type: 'route',
+            title: '192.168.1.2',
+            url: `/app/browser?${new URLSearchParams({ url })}`
+          })
+        })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+    it('preserves explicit external opening and non-website schemes', async () => {
+      prefValues['app.browser.open_links_in_browser'] = true
+      await svc.openWebsite('https://example.com', true)
+      await svc.openWebsite('mailto:test@example.com')
+      await svc.openWebsite('javascript:alert(1)')
+      expect(vi.mocked(shell.openExternal).mock.calls).toEqual([['https://example.com'], ['mailto:test@example.com']])
+    })
+    it('keeps explicit browser-tab navigation internal regardless of the global website preference', () => {
+      prefValues['app.browser.open_links_in_browser'] = false
+      const url = 'https://www.bilibili.com/video/BV1Satr6zETw/?p=2#part'
+      svc.openBrowserTab(url)
+      const navigation = createMockApplication().get('MainWindowService') as MainWindowService
+      expect(navigation.showMainWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'tab-attach',
+          tab: expect.objectContaining({ url: `/app/browser?${new URLSearchParams({ url })}` })
+        })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+      vi.mocked(navigation.showMainWindow).mockClear()
+      for (const invalid of ['javascript:alert(1)', 'https://user:pass@example.com'])
+        expect(() => svc.openBrowserTab(invalid)).toThrow('Unsupported browser URL')
+      expect(navigation.showMainWindow).not.toHaveBeenCalled()
+    })
+    it('opens an explicit local HTML URL in a browser tab', () => {
+      const url = 'file:///tmp/local%20page.html'
+      svc.openBrowserTab(url)
+      const navigation = createMockApplication().get('MainWindowService') as MainWindowService
+      expect(navigation.showMainWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: 'tab-attach',
+          tab: expect.objectContaining({ url: `/app/browser?${new URLSearchParams({ url })}` })
+        })
+      )
+      expect(shell.openExternal).not.toHaveBeenCalled()
+    })
+    it('uses the system browser by default', async () => {
+      await svc.openWebsite('https://example.com')
+      expect(shell.openExternal).toHaveBeenCalledWith('https://example.com')
+    })
   })
 
   describe('spell check', () => {
@@ -518,23 +648,6 @@ describe('MainWindowService', () => {
       expect(generatedDocumentNavigation.preventDefault).not.toHaveBeenCalled()
     })
 
-    it.each([agentDevSessionMock, agentArtifactSessionMock])('denies popups for Agent guests', (restrictedSession) => {
-      ;(svc as any).setupWebviewSecurityProfiles(win)
-      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'did-attach-webview')?.[1]
-      if (!listener) throw new Error('did-attach-webview listener was not registered')
-      const guestWebContents = {
-        id: 42,
-        on: vi.fn(),
-        session: restrictedSession,
-        setWindowOpenHandler: vi.fn()
-      }
-
-      listener({}, guestWebContents)
-
-      const windowOpenHandler = guestWebContents.setWindowOpenHandler.mock.calls[0]?.[0]
-      expect(windowOpenHandler?.()).toEqual({ action: 'deny' })
-    })
-
     it('denies permissions, downloads, local targets, and identifying user-agent tokens', () => {
       ;(svc as any).setupHtmlArtifactPreviewSession()
 
@@ -575,6 +688,25 @@ describe('MainWindowService', () => {
         restrictedSession.on.mock.calls.find(([event]) => event === 'will-download')?.[1](downloadEvent)
         expect(downloadEvent.preventDefault).toHaveBeenCalledOnce()
       }
+    })
+
+    it('allows ordinary HTTP(S) including LAN while denying privileged schemes and URL credentials', async () => {
+      await (svc as any).onInit()
+      const handler = agentBrowserSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]
+      const dispatch = (url: string, resourceType = 'mainFrame') =>
+        new Promise((resolve) => handler({ url, resourceType, webContentsId: 42 }, resolve))
+      for (const url of ['https://example.com/', 'http://localhost:9520/', 'http://192.168.1.2/', 'http://[::1]:9520/'])
+        await expect(dispatch(url)).resolves.toEqual({ cancel: false })
+      for (const url of [
+        'file:///etc/passwd',
+        'javascript:alert(1)',
+        'data:text/html,secret',
+        'https://user:pass@example.com/'
+      ])
+        await expect(dispatch(url)).resolves.toEqual({ cancel: true })
+      await expect(dispatch('blob:https://example.com/fixture', 'image')).resolves.toEqual({ cancel: false })
+      expect(agentBrowserSessionMock.setPermissionCheckHandler.mock.calls[0][0]()).toBe(false)
+      expect(agentBrowserSessionMock.on.mock.calls.some(([event]) => event === 'will-download')).toBe(false)
     })
 
     it('enforces the bound dev origin for programmatic main-frame loads', async () => {

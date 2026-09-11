@@ -28,6 +28,7 @@ export function createGuest(id = 1) {
     session: new EventEmitter(),
     debugger: debuggerSession,
     isDestroyed: vi.fn(() => destroyed),
+    setWindowOpenHandler: vi.fn(),
     getType: vi.fn(() => 'window'),
     getBackgroundThrottling: vi.fn(() => backgroundThrottling),
     setBackgroundThrottling: vi.fn((allowed: boolean) => {

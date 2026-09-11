@@ -49,6 +49,7 @@ export class GuestSession implements Disposable {
   private readonly refs = new Map<BrowserRef, number>()
   private readonly nodeRefs = new Map<number, BrowserRef>()
   private readonly refTargets = new Map<BrowserRef, { role: string; name: string }>()
+  private observers = 0
   private readonly inspection = new BrowserInspection()
   private readonly pending = new Set<(error: Error) => void>()
   private dialogTimer?: ReturnType<typeof setTimeout>
@@ -72,6 +73,39 @@ export class GuestSession implements Disposable {
     guest.debugger.on('detach', this.onDetach)
     guest.once('destroyed', this.onDestroyed)
     if (ownership === 'managed') guest.session.on('will-download', this.onDownload)
+  }
+
+  private get observing(): boolean {
+    return this.ownership === 'managed' || this.observers > 0
+  }
+
+  async observe(options: CommandOptions = {}): Promise<Disposable> {
+    if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    if (!this.observing) {
+      this.clearBrowserRefs()
+      this.guest.session.on('will-download', this.onDownload)
+    }
+    this.observers++
+    let released = false
+    const dispose = () => {
+      if (released) return
+      released = true
+      this.observers--
+      if (!this.observing) {
+        this.guest.session.removeListener('will-download', this.onDownload)
+        for (const cleanup of this.downloadItems.values()) cleanup()
+        this.downloadItems.clear()
+        this.downloadUpdates.clear()
+        this.inspection.clear()
+      }
+    }
+    try {
+      await this.send('Network.enable', undefined, options)
+      return { dispose }
+    } catch (error) {
+      dispose()
+      throw error
+    }
   }
 
   get documentId() {
@@ -99,6 +133,10 @@ export class GuestSession implements Disposable {
   private invalidateDocument() {
     this.epoch++
     this.invalidateAnnotationContext()
+    this.clearBrowserRefs()
+  }
+
+  private clearBrowserRefs() {
     this.refs.clear()
     this.nodeRefs.clear()
     this.refTargets.clear()
@@ -153,7 +191,7 @@ export class GuestSession implements Disposable {
         this.dialogTimer.unref()
       }
     } else if (method === 'Page.javascriptDialogClosed') this.clearDialog()
-    if (this.ownership === 'managed') this.inspection.record(event)
+    if (this.observing) this.inspection.record(event)
     this.events.fire(event)
   }
 
@@ -225,7 +263,7 @@ export class GuestSession implements Disposable {
         'Runtime.enable',
         'DOM.enable',
         'Accessibility.enable',
-        ...(this.ownership === 'managed' ? (['Network.enable'] as const) : [])
+        ...(this.observing ? (['Network.enable'] as const) : [])
       ] as const) {
         options.signal.throwIfAborted()
         if (!this.isAvailable()) throw new BrowserSessionError('debugger_unavailable')
@@ -294,15 +332,29 @@ export class GuestSession implements Disposable {
     }
   }
 
-  async run<T>(operation: () => Promise<T>): Promise<T> {
+  async run<T>(operation: () => Promise<T>, options: CommandOptions = {}): Promise<T> {
     if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+    options.signal?.throwIfAborted()
     this.operations++
+    const acquisition = this.actionMutex.acquire()
+    let release: (() => void) | undefined
     try {
-      return await this.actionMutex.runExclusive(() => {
-        if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
-        return operation()
-      })
+      try {
+        release =
+          options.signal || options.deadline !== undefined ? await this.wait(acquisition, options) : await acquisition
+      } catch (error) {
+        void acquisition.then(
+          (unlock) => unlock(),
+          () => undefined
+        )
+        throw error
+      }
+      if (this.disposed) throw new BrowserSessionError('debugger_unavailable')
+      options.signal?.throwIfAborted()
+      if (options.deadline !== undefined && options.deadline <= Date.now()) throw new BrowserSessionError('timeout')
+      return await operation()
     } finally {
+      release?.()
       this.operations--
       this.lastActive = Date.now()
     }
@@ -558,7 +610,7 @@ export class GuestSession implements Disposable {
     this.actionMutex.cancel()
     this.snapshotMutex.cancel()
     this.clearDialog()
-    if (this.ownership === 'managed') this.guest.session.removeListener('will-download', this.onDownload)
+    this.guest.session.removeListener('will-download', this.onDownload)
     for (const cleanup of this.downloadItems.values()) cleanup()
     this.downloadItems.clear()
     this.downloadUpdates.clear()

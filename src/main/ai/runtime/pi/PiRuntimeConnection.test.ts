@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
@@ -46,7 +47,6 @@ const mocks = vi.hoisted(() => ({
   usesPiGateway: vi.fn(),
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
-  preferenceGet: vi.fn(),
   loadPiSdk: vi.fn(),
   loadPiAiCompat: vi.fn(),
   unregisterApiProviders: vi.fn(),
@@ -110,17 +110,20 @@ vi.mock('@main/ai/toolApproval/userDataSqliteGuard', async (importOriginal) => (
   ...(await importOriginal<typeof UserDataSqliteGuard>()),
   evaluateUserDataSqliteGuard: vi.fn(async () => undefined)
 }))
-vi.mock('@application', () => ({
-  application: {
-    getPath: mocks.getPath,
-    get: (name: string) => {
-      if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
-      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
-      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
-      return {}
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  const application = createMockApplication({ IpcApiService: { broadcast: mocks.broadcast } })
+  return {
+    application: {
+      ...application,
+      getPath: mocks.getPath,
+      get: (name: string) => {
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
+        return application.get(name)
+      }
     }
   }
-}))
+})
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -319,7 +322,7 @@ beforeEach(() => {
   mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
-  mocks.preferenceGet.mockReturnValue(null)
+  MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   mocks.provisionBuiltinAgent.mockResolvedValue(undefined)
   mocks.replacePromptVariables.mockImplementation(async (prompt: string) => prompt)
@@ -552,7 +555,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('injects global agent language when agent.language is set', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
 
     await new PiRuntimeConnection(input).start()
 
@@ -560,7 +563,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('per-agent language overrides the global default', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',
@@ -575,7 +578,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('per-agent language set to null suppresses the global language', async () => {
-    mocks.preferenceGet.mockReturnValue('English')
+    MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'p::m',

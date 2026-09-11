@@ -1,3 +1,4 @@
+import { createMockApplication } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -55,6 +56,7 @@ vi.mock('@main/utils/screenCapturePermission', () => ({
 
 import { systemHandlers } from '../system'
 
+const navigation = createMockApplication().get('MainWindowService') as { openWebsite: (url: string) => Promise<void> }
 const toggleDevTools = vi.fn()
 const windowManager = { getWindow: vi.fn(() => ({ webContents: { toggleDevTools } })) }
 
@@ -66,6 +68,7 @@ beforeEach(() => {
   nativeThemeMock.shouldUseDarkColors = false
   appGetMock.mockImplementation((name: string) => {
     if (name === 'WindowManager') return windowManager
+    if (name === 'MainWindowService') return navigation
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -153,7 +156,7 @@ describe('systemHandlers', () => {
   it('shell.open_website opens a URL that passes the scheme guard', async () => {
     isSafeMock.mockReturnValue(true)
     await systemHandlers['system.shell.open_website']('https://example.com', ctx('w1'))
-    expect(openExternalMock).toHaveBeenCalledWith('https://example.com')
+    expect(navigation.openWebsite).toHaveBeenCalledWith('https://example.com')
   })
 
   it('shell.open_website drops an unsafe URL without calling shell.openExternal', async () => {

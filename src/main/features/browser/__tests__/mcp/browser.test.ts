@@ -20,6 +20,7 @@ vi.mock('electron', async () => {
   const { EventEmitter } = await import('node:events')
   const { createGuest } = await import('../guestFixture')
   const { default: snapshotFixture } = await import('../fixtures/form.json')
+  const sessions = new Map<string, InstanceType<typeof EventEmitter>>()
   let sequence = 100
   const contents = () => {
     const { mock } = createGuest(sequence++)
@@ -126,9 +127,17 @@ vi.mock('electron', async () => {
     setAutoResize = vi.fn()
   }
   return {
+    session: {
+      fromPartition: (partition: string) => {
+        if (!sessions.has(partition))
+          sessions.set(partition, Object.assign(new EventEmitter(), { getPartition: () => partition }))
+        return sessions.get(partition)
+      }
+    },
     BrowserWindow: Window,
     BrowserView: View,
-    app: { isReady: vi.fn(() => true), whenReady: vi.fn(async () => undefined) },
+    app: Object.assign(new EventEmitter(), { isReady: vi.fn(() => true), whenReady: vi.fn(async () => undefined) }),
+    webContents: { getAllWebContents: vi.fn(() => []) },
     nativeTheme: Object.assign(new EventEmitter(), { shouldUseDarkColors: false })
   }
 })
@@ -159,7 +168,7 @@ beforeEach(async () => {
           windows.delete(id)
         }
       } as never
-    throw new Error(`Unexpected service ${name}`)
+    return application.getContainer().get(name)
   })
 })
 afterEach(async () => {

@@ -100,6 +100,7 @@ interface AgentMessageListParams {
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
+  openExternalUrl?: MessageListActions['openExternalUrl']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
   deleteMessage?: MessageListActions['deleteMessage']
@@ -157,6 +158,7 @@ export function useAgentMessageListProviderValue({
   openCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
+  openExternalUrl,
   openDiagnosticReport,
   diagnosticReport,
   deleteMessage,
@@ -415,6 +417,7 @@ export function useAgentMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      openExternalUrl: openExternalUrl ?? leafCapabilities.openExternalUrl,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
@@ -452,6 +455,7 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openArtifactFile,
       openDiagnosticReport,
+      openExternalUrl,
       openAgentToolFlow,
       openPath,
       respondToolApproval,

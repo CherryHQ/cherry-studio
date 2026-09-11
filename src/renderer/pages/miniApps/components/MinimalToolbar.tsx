@@ -1,16 +1,14 @@
 import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { v5 as uuidv5 } from 'uuid'
 
 import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
-import { WebviewAnnotationControls } from '@renderer/components/WebviewAnnotationControls'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -18,7 +16,6 @@ import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 
 const logger = loggerService.withContext('MinimalToolbar')
 
@@ -27,14 +24,6 @@ const NAVIGATION_COMPLETE_DELAY_MS = 100
 const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
 const HOST_PORT_PATTERN = /^(?:\[[^\]]+\]|[^:/?#\s]+):\d+(?:[/?#]|$)/
 const LOCAL_ADDRESS_PATTERN = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)(?::\d+)?(?:[/?#]|$)/i
-const MINI_APP_ANNOTATION_TARGET_PREFIX = 'mini-app:'
-
-function getAnnotationTargetId(appId: string): string {
-  const targetId = `${MINI_APP_ANNOTATION_TARGET_PREFIX}${appId}`
-  if (targetId.length <= WEBVIEW_ANNOTATION_LIMITS.targetId) return targetId
-
-  return `${MINI_APP_ANNOTATION_TARGET_PREFIX}hashed:${uuidv5(appId, uuidv5.URL)}`
-}
 
 function normalizeAddress(value: string): string | null {
   const trimmedValue = value.trim()
@@ -66,7 +55,6 @@ interface Props {
   webviewRevision: number
   currentUrl: string | null
   isWebviewReady: boolean
-  isHostActive: boolean
   onReload: () => void
   onOpenDevTools: () => void
   splitMode: SplitMode
@@ -81,7 +69,6 @@ const MinimalToolbar: FC<Props> = ({
   webviewRevision,
   currentUrl,
   isWebviewReady,
-  isHostActive,
   onReload,
   onOpenDevTools,
   splitMode,
@@ -103,16 +90,6 @@ const MinimalToolbar: FC<Props> = ({
   const canPinned = allApps.some((item) => item.appId === app.appId)
   const isPinned = pinned.some((item) => item.appId === app.appId)
   const canOpenExternalLink = isExternalUrl(currentPageUrl)
-  const annotationTarget = useMemo(
-    () => ({
-      id: getAnnotationTargetId(app.appId),
-      label: ((app.nameKey ? t(app.nameKey) : app.name).trim() || t('common.unnamed')).slice(
-        0,
-        WEBVIEW_ANNOTATION_LIMITS.targetLabel
-      )
-    }),
-    [app.appId, app.name, app.nameKey, t]
-  )
 
   // Ref to track navigation update timeout
   const navigationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -281,7 +258,7 @@ const MinimalToolbar: FC<Props> = ({
   }, [setOpenLinkExternal, openLinkExternal])
 
   const handleOpenLink = useCallback(() => {
-    void ipcApi.request('system.shell.open_website', currentPageUrl)
+    void ipcApi.request('system.shell.open_external_website', currentPageUrl)
   }, [currentPageUrl])
 
   const handleAddressSubmit = useCallback(
@@ -436,16 +413,6 @@ const MinimalToolbar: FC<Props> = ({
               {splitMode === 'open' ? <Columns2 size={14} /> : <X size={14} />}
             </Button>
           </Tooltip>
-
-          {app.kind === 'site' && (
-            <WebviewAnnotationControls
-              webviewRef={webviewRef}
-              webviewRevision={webviewRevision}
-              isWebviewReady={isWebviewReady}
-              isHostActive={isHostActive}
-              target={annotationTarget}
-            />
-          )}
 
           {canOpenExternalLink && (
             <Tooltip content={t('miniApp.popup.openExternal')} placement="bottom">

@@ -125,6 +125,34 @@ describe('GuestSession command lifetime', () => {
     expect(session.busy).toBe(false)
   })
 
+  it('cancels a queued caller without interrupting the current lease or dispatching its operation later', async () => {
+    const { session } = setup()
+    const started = new Signal<void>()
+    const resume = new Signal<void>()
+    const active = session.run(async () => {
+      started.resolve()
+      await resume
+      return 'retained'
+    })
+    await started
+    const abort = new AbortController()
+    let dispatched = false
+    const queued = session.run(
+      async () => {
+        dispatched = true
+      },
+      { signal: abort.signal }
+    )
+    const rejected = expect(queued).rejects.toThrow('cancelled queued call')
+    abort.abort(new Error('cancelled queued call'))
+    await rejected
+    expect(dispatched).toBe(false)
+    resume.resolve()
+    expect(await active).toBe('retained')
+    expect(await session.run(async () => 'next')).toBe('next')
+    expect(dispatched).toBe(false)
+  })
+
   it('interrupts delays on disposal and rejects delays started afterward', async () => {
     const { session } = setup()
     const paused = expect(session.pause(60_000)).rejects.toMatchObject({ code: 'debugger_unavailable' })

@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import type { CdpBrowserController } from '../controller'
+import type { BrowserController } from '../browserController'
 import { logger } from '../types'
 import { errorResponse, successResponse } from './utils'
 
@@ -41,7 +41,7 @@ export const openToolDefinition = {
   inputSchema: OpenSchema
 }
 
-export async function handleOpen(controller: CdpBrowserController, args: unknown) {
+export async function handleOpen(controller: BrowserController, args: unknown, signal?: AbortSignal) {
   try {
     const { url, format, selector, maxChars, timeout, privateMode, newTab, showWindow } = OpenSchema.parse(args)
 
@@ -53,7 +53,8 @@ export async function handleOpen(controller: CdpBrowserController, args: unknown
         privateMode ?? false,
         newTab ?? false,
         showWindow,
-        selector
+        selector,
+        signal
       )
 
       let finalContent = content
@@ -63,7 +64,14 @@ export async function handleOpen(controller: CdpBrowserController, args: unknown
 
       return successResponse(JSON.stringify({ tabId, content: finalContent }))
     } else {
-      const res = await controller.open(url, timeout ?? 10000, privateMode ?? false, newTab ?? false, showWindow)
+      const res = await controller.open(
+        url,
+        timeout ?? 10000,
+        privateMode ?? false,
+        newTab ?? false,
+        showWindow,
+        signal
+      )
       return successResponse(JSON.stringify(res))
     }
   } catch (error) {

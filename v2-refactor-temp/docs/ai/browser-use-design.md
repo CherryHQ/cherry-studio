@@ -7,7 +7,7 @@ Research date 2026-09-08; source clones under `/tmp/bu-research/` (browser-use,
 playwright monorepo, chrome-devtools-mcp, stagehand, nanobrowser, UI-TARS-desktop,
 midscene, agent-browser, mcp-chrome, Chromium `chrome/browser/actor`, ChatGPT.app bundle).
 
-Implementation detail (files, APIs, commit split, test plan) for P0/P1 is in
+Implementation detail (files, APIs, commit split, test plan) for P0/P1 and the existing Agent browser integration is in
 [`browser-use-implementation.md`](./browser-use-implementation.md).
 
 ## Delivery status
@@ -27,6 +27,49 @@ plan for the remaining PR C/D boundaries.
 PR3 (C1–C2), [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139), is open on
 `browser-use-inspection`, based on PR2: same-document
 ref recovery, `find`, `console_messages` and `network_requests`. WebMCP remains a separate follow-up.
+
+### Next delivery — connect the existing Agent browser
+
+The Agent right pane already has `AgentBrowserRightPanel` → `WebviewBrowser` → `WebviewHost`,
+with navigation, search and annotations. The `agent-browser-integration` stack layer extends this surface; it does not
+create another browser UI. It builds on PR3 and combines visible-page control, ordinary website
+browsing, persistent browser data, history/import settings and a bundled `cherry-browser` skill.
+Implementation is on `agent-browser-integration`, based on PR3. Its GitHub PR number is pending publication.
+Ordinary HTTP(S) browsing explicitly permits LAN and loopback access; Electron remains at 41.8.0.
+
+The current gaps are concrete:
+
+- MCP actions target the controller's separate `BrowserView` guests, not the right-pane guest.
+- The right pane's `AgentDevPreview` policy permits an authorized loopback origin; HTML artifacts
+  have a separate file policy. Ordinary website browsing needs its own security profile.
+- The pane uses an in-memory partition, while standalone MCP normal tabs use `persist:default`.
+  Importing into the latter alone would not sign the user into the visible page.
+- Back/forward navigation exists; persistent searchable visit history and external-data import do not.
+- A bundled skill can teach the workflow, but cannot grant browser access or mount tools by itself.
+
+The integration will bind the existing guest to its trusted Agent Session in main, so user actions,
+annotations and model actions address the same document. Page ownership stays with the UI; MCP
+disconnect or idle eviction must not close it. Ordinary browsing gets a dedicated persistent profile
+shared across ordinary Agent browser pages, while page control remains session-scoped. Local previews
+and HTML artifacts keep their isolation. Existing standalone MCP storage is not silently copied.
+
+History includes visits made by either the user or Agent and supports search, reopen, delete and clear.
+Imports include history and login data (cookies; localStorage from storage-state files), selected by
+the user in Browser settings. Profile readers report support per data category; file import remains
+available when login-data decryption is unsupported. Password stores, extensions and browser settings
+are excluded; bookmark import needs a bookmark consumer and remains a follow-up.
+
+Cookie decryption is scoped to each user-started import: macOS Keychain, Windows current-user DPAPI
+and Linux Secret Service/KWallet. Windows app-bound (`v20`) cookies remain unsupported and require
+login in the pane. Report expired, partitioned, unsupported, inaccessible-key and decryption-failure
+counts separately. System helpers and key buffers end with the tracked import operation; discovery
+never reads keys. See [delivered support](./browser-use-implementation.md#127-delivered-import-support-and-validation)
+for supported formats, Linux prerequisites and OS validation limits.
+
+Keep Electron at 41.8.0 because an upgrade needs a separate operating-system compatibility decision.
+WebMCP is deferred. Multiple visible tabs, retained-tab freezing, a full handoff protocol and
+`WebContentsView` migration are not prerequisites for this PR. The file-level plan, tool compatibility
+boundary and acceptance cases are in [implementation §12](./browser-use-implementation.md#12-existing-agent-browser-integration).
 
 ## Current state — `src/main/features/browser/mcp/`
 
@@ -221,8 +264,8 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
   stale-ref errors with AX re-query by role+name+nth.
 - `find`, `console_messages`, `network_requests`; `BrowserView` → `WebContentsView`.
 - CDP allow-list + per-origin policy (Codex model).
-- Import login state (cookies, site storage) from the user's installed browser or a storage-state /
-  `cookies.txt` file into `persist:default`; user action only, never a tool (implementation doc §10).
+- Import login state and history into the ordinary Agent browser profile; user action only, never
+  a model tool (implementation doc §10 / §12). The visible pane is the consumer of imported data.
 - Session registry: turn-scoped tab retention (`temporary` / `deliverable` / `handoff`), global guest
   budget with LRU eviction on a real timer, freeze + debugger detach for idle retained tabs (see
   "Browser session management").
@@ -234,9 +277,11 @@ pre-warmed pools (unlike mini apps, agent tabs should be released when done).
 - `extract(query, schema)`; optional code-mode JS API on top of the MCP tools.
 
 **P3 — product**
-- Drive the visible agent `WebviewBrowser` pane with the same engine; human handoff protocol
-  (show → pause → user acts → resume without losing the page, cf. UI-TARS `call_user` and Chromium
-  `handoff_button`); three-tier confirmation policy; URL allow/deny lists.
+- Bring visible `WebviewBrowser` control, browser settings, history/import and the built-in skill
+  forward into the next integrated PR (§12); retain the existing browser UI and annotation flow.
+- Later: full human handoff protocol (show → pause → user acts → resume without losing the page,
+  cf. UI-TARS `call_user` and Chromium `handoff_button`), three-tier confirmation policy and
+  configurable URL allow/deny lists.
 
 ## WebMCP integration boundary
 
@@ -270,6 +315,12 @@ for capability selection, result handling and acceptance gates.
 
 ## Follow-ups / open questions
 
+- MiniApp and Browser currently share search, annotations and the annotation CDP engine, but use
+  separate renderer hosts and navigation toolbars. A separate consolidation PR should share common
+  host behavior while preserving MiniApp lifetime/runtime policies. Sharing website MiniApp login
+  data requires its own product decision; infrastructure reuse must not merge partitions. See
+  [implementation §14](./browser-use-implementation.md#14-miniapp-and-browser-infrastructure-boundary)
+  for the current ownership/storage matrix and proposed acceptance criteria.
 - PR1 completed shared session ownership and annotation capture. P3 still needs a concrete
   annotation-target handoff contract before adding document/node identifiers to saved locators.
 - Upload authorization and per-turn retention require trusted context from the MCP runtime first;
@@ -279,3 +330,17 @@ for capability selection, result handling and acceptance gates.
   Do not treat a dependency type update or a future Electron major version as the compatibility gate.
 - Full working notes (project-by-project source refs) live in
   `.context/research/browser-use-gap-analysis.md` on the `webview-agent-pane-browser` workspace.
+
+## Runtime ownership and presentation
+
+Agent browser resources belong to their session and declared app-tab owners. The window composition
+provides a stable renderer host outside page Activities; it does not keep chat pages active. A pane
+supplies the display rectangle and view-only controls. Hiding it preserves the same native guest,
+binding, document and viewport. Closing its owners or deleting the session releases the resource.
+
+Creation is requested at the stable host, independently of revealing the pane. Tool execution holds
+a temporary background-throttling lease; screenshots hold a bounded native frame subscription.
+These mechanisms keep hidden guests usable without an idle render loop. The generic surface goes
+below the browser engine, while session policy stays in Agent integration. File trees reuse their
+own directory mirror/watcher infrastructure in a separate change; no universal resource manager is
+needed. See implementation §12.1 for the component, IPC and release boundaries.

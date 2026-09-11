@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import path from 'path'
 
 import { optimizer } from '@electron-toolkit/utils'
@@ -12,7 +13,7 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
-import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
   AgentHtmlArtifactRequestPolicy,
@@ -23,6 +24,7 @@ import { isAllowedHtmlArtifactRequest } from '@main/utils/htmlArtifactRequest'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { normalizeBrowserEntryUrl, normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -90,7 +92,9 @@ export class MainWindowService extends BaseService {
         // Tab attach delivery is only valid while the renderer's listener is
         // mounted; a reload or crash tears it down. Mirrors ProtocolService's
         // readiness reset wiring.
-        window.webContents.on('did-start-loading', resetMainRendererTabAttachDelivery)
+        window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+          if (isMainFrame && !isInPlace) resetMainRendererTabAttachDelivery()
+        })
         window.webContents.on('render-process-gone', resetMainRendererTabAttachDelivery)
       })
     )
@@ -327,6 +331,18 @@ export class MainWindowService extends BaseService {
 
   private setupAgentWebviewSessions() {
     this.setupRestrictedWebviewSession(
+      getWebviewPartition(WebviewSecurityProfile.AgentBrowser),
+      ({ url, resourceType }) => {
+        if (url === 'about:blank') return true
+        const protocol = new URL(url).protocol
+        if (resourceType !== 'mainFrame' && ['data:', 'blob:', 'ws:', 'wss:'].includes(protocol)) return true
+        normalizeBrowserUrl(url)
+        return true
+      },
+      undefined,
+      true
+    )
+    this.setupRestrictedWebviewSession(
       getWebviewPartition(WebviewSecurityProfile.AgentDevPreview),
       (details) => this.agentDevPreviewRequestPolicy.isAllowed(details),
       () => this.agentDevPreviewRequestPolicy.clear()
@@ -341,7 +357,8 @@ export class MainWindowService extends BaseService {
   private setupRestrictedWebviewSession(
     partition: string,
     isAllowed: (details: Electron.OnBeforeRequestListenerDetails) => boolean | Promise<boolean>,
-    clearPolicy?: () => void
+    clearPolicy?: () => void,
+    allowDownloads = false
   ) {
     const restrictedSession = session.fromPartition(partition)
     const handleWillDownload = (event: Electron.Event) => event.preventDefault()
@@ -353,7 +370,7 @@ export class MainWindowService extends BaseService {
     restrictedSession.setUserAgent(userAgent)
     restrictedSession.setPermissionCheckHandler(() => false)
     restrictedSession.setPermissionRequestHandler((_, __, callback) => callback(false))
-    restrictedSession.on('will-download', handleWillDownload)
+    if (!allowDownloads) restrictedSession.on('will-download', handleWillDownload)
     restrictedSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       try {
         const result = isAllowed(details)
@@ -379,8 +396,18 @@ export class MainWindowService extends BaseService {
     })
   }
 
+  private isBrowserEntryUrl(url: string): boolean {
+    try {
+      normalizeBrowserUrl(url)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   private setupWebviewSecurityProfiles(mainWindow: BrowserWindow) {
     const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    const agentBrowserSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
     const agentDevSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview))
     const agentArtifactSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
 
@@ -395,6 +422,9 @@ export class MainWindowService extends BaseService {
       if (securityProfile === WebviewSecurityProfile.MiniApp) return
 
       if (
+        (securityProfile === WebviewSecurityProfile.AgentBrowser &&
+          params.src !== 'about:blank' &&
+          !this.isBrowserEntryUrl(params.src)) ||
         (securityProfile === WebviewSecurityProfile.HtmlArtifactPreview &&
           !params.src.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) ||
         (securityProfile === WebviewSecurityProfile.AgentDevPreview && !isAllowedAgentDevPreviewEntryUrl(params.src)) ||
@@ -420,8 +450,11 @@ export class MainWindowService extends BaseService {
     })
 
     mainWindow.webContents.on('did-attach-webview', (_, webContents) => {
-      if (webContents.session === agentDevSession || webContents.session === agentArtifactSession) {
-        webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      if (
+        webContents.session === agentBrowserSession ||
+        webContents.session === agentDevSession ||
+        webContents.session === agentArtifactSession
+      ) {
         webContents.on('destroyed', () => {
           this.agentDevPreviewRequestPolicy.forget(webContents.id)
           this.agentHtmlArtifactRequestPolicy.forget(webContents.id)
@@ -477,6 +510,33 @@ export class MainWindowService extends BaseService {
     }
   }
 
+  async openWebsite(url: string, external = false): Promise<void> {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn('Blocked website URL with an unsupported scheme')
+      return
+    }
+    const parsed = new URL(url)
+    if (
+      !external &&
+      ['http:', 'https:'].includes(parsed.protocol) &&
+      application.get('PreferenceService').get('app.browser.open_links_in_browser')
+    ) {
+      this.openBrowserTab(url)
+      return
+    }
+    await shell.openExternal(url)
+  }
+
+  openBrowserTab(url: string): void {
+    const normalized = normalizeBrowserEntryUrl(url)
+    openTabInMainWindow({
+      id: randomUUID(),
+      type: 'route',
+      url: `/app/browser?${new URLSearchParams({ url: normalized })}`,
+      title: new URL(normalized).hostname
+    })
+  }
+
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
     // Fix for Electron bug where zoom resets during in-page navigation (route changes)
     // This complements the resize-based workaround by catching navigation events
@@ -492,7 +552,7 @@ export class MainWindowService extends BaseService {
 
       event.preventDefault()
       if (isSafeExternalUrl(url)) {
-        void shell.openExternal(url)
+        void this.openWebsite(url).catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked navigation to untrusted URL scheme: ${url}`)
       }
@@ -539,7 +599,7 @@ export class MainWindowService extends BaseService {
           shell.openPath(filePath).catch((err) => logger.error('Failed to open file:', err))
         }
       } else if (isSafeExternalUrl(details.url)) {
-        void shell.openExternal(details.url)
+        void this.openWebsite(details.url).catch((error) => logger.warn('Failed to open website', { error }))
       } else {
         logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${details.url}`)
       }

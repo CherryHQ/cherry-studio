@@ -1,10 +1,23 @@
+import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
+
+import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase } from '@main/core/lifecycle'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
+import { type AgentBrowserContext, AgentBrowserRegistry } from './AgentBrowserRegistry'
+import { captureBrowserFavicon } from './browserFavicons'
 import type { SessionOwnership } from './browserUse'
-import type { BrowserServer } from './mcp/server'
+import { listBrowserProfiles } from './import/browserProfiles'
+import { emptyImportResult, importBrowserData } from './import/importBrowserData'
+import { AgentBrowserController } from './mcp/AgentBrowserController'
+import { BrowserServer } from './mcp/server'
 import { BrowserSessionError } from './session/BrowserSessionError'
 import { GuestSession } from './session/GuestSession'
+import { trackBrowserHistory } from './trackBrowserHistory'
 
 const logger = loggerService.withContext('BrowserSessionService')
 const MAX_GUESTS_PER_OWNER = 4
@@ -21,22 +34,168 @@ interface SessionEntry {
 
 @Injectable('BrowserSessionService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
+@DependsOn(['WindowManager', 'ConversationNavigationService'])
 export class BrowserSessionService extends BaseService {
+  private readonly shutdown = new AbortController()
+  private dataOperation?: Promise<unknown>
+  private readonly faviconTasks = new Set<Promise<void>>()
+  private faviconCapture = new AbortController()
+  readonly agentBrowser = new AgentBrowserRegistry()
+  private readonly agentServers = new Set<BrowserServer>()
   private readonly servers = new Set<BrowserServer>()
   private readonly sessions = new Map<number, SessionEntry>()
 
   protected onInit(): void {
+    const guests = new Map<Electron.WebContents, () => void>()
+    const ordinary = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+    const profiles = [
+      ordinary,
+      session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview)),
+      session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
+    ]
+    const track = (_event: Electron.Event | undefined, guest: Electron.WebContents) => {
+      if (
+        guest.isDestroyed() ||
+        guest.getType() !== 'webview' ||
+        !profiles.includes(guest.session) ||
+        guests.has(guest)
+      )
+        return
+      guest.setWindowOpenHandler((details) => {
+        if (!this.agentBrowser.handlePopup(guest, details) && guest.session === ordinary && !details.postBody) {
+          try {
+            application.get('MainWindowService').openBrowserTab(sanitizeRemoteUrl(details.url, undefined, true))
+          } catch (error) {
+            logger.warn('Blocked unsupported browser popup', { error })
+          }
+        }
+        return { action: 'deny' }
+      })
+      const release =
+        guest.session === ordinary
+          ? trackBrowserHistory(guest, true, (url, candidates, signal) => {
+              if (this.faviconCapture.signal.aborted) return
+              const task = captureBrowserFavicon(
+                guest,
+                url,
+                candidates,
+                AbortSignal.any([signal, this.shutdown.signal, this.faviconCapture.signal])
+              )
+              this.faviconTasks.add(task)
+              void task.finally(() => this.faviconTasks.delete(task))
+            })
+          : () => {}
+      const dispose = () => {
+        if (!guest.isDestroyed()) guest.setWindowOpenHandler(() => ({ action: 'deny' }))
+        release()
+        guest.removeListener('destroyed', dispose)
+        guests.delete(guest)
+      }
+      guests.set(guest, dispose)
+      guest.once('destroyed', dispose)
+    }
+    for (const guest of webContents.getAllWebContents()) track(undefined, guest)
+    app.on('web-contents-created', track)
+    this.registerDisposable(() => {
+      app.removeListener('web-contents-created', track)
+      for (const dispose of guests.values()) dispose()
+    })
     this.registerInterval(() => this.sweep(), 60_000)
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('app.browser.agent_control.enabled', (enabled) => {
+        if (!enabled)
+          for (const server of this.agentServers)
+            void server.close().catch((error) => logger.warn('Failed to release browser control', { error }))
+      })
+    )
   }
 
   async createMcpServer() {
-    const { BrowserServer } = await import('./mcp/server')
     if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
       throw new BrowserSessionError('debugger_unavailable')
     const server = new BrowserServer(this, () => this.servers.delete(server))
     this.servers.add(server)
     return server.server
+  }
+
+  createAgentMcpServer(context: AgentBrowserContext) {
+    if (this.state === LifecycleState.Stopping || this.isStopped || this.isDestroyed)
+      throw new BrowserSessionError('debugger_unavailable')
+    const server = new BrowserServer(
+      this,
+      () => {
+        this.servers.delete(server)
+        this.agentServers.delete(server)
+      },
+      new AgentBrowserController(this, this.agentBrowser, context)
+    )
+    this.servers.add(server)
+    this.agentServers.add(server)
+    return server.server
+  }
+
+  async listImportSources() {
+    return (await listBrowserProfiles()).map(({ id, browser, profile, displayName, account, history, cookies }) => ({
+      id,
+      browser,
+      profile,
+      displayName,
+      account,
+      history,
+      cookies
+    }))
+  }
+
+  async pickAndImport(options: BrowserImportOptions, window: BrowserWindow) {
+    let file: string | undefined
+    if (!options.sourceId) {
+      const picked = await dialog.showOpenDialog(window, {
+        properties: ['openFile'],
+        filters: [{ name: 'JSON / Netscape cookies', extensions: ['json', 'txt'] }]
+      })
+      if (picked.canceled || !picked.filePaths[0]) return { ...emptyImportResult(), cancelled: true }
+      file = picked.filePaths[0]
+    }
+    return this.runImport(options, file)
+  }
+
+  runImport(options: BrowserImportOptions, file?: string): Promise<BrowserImportResult> {
+    return this.runDataOperation(() =>
+      importBrowserData(options, file, AbortSignal.any([this.shutdown.signal, AbortSignal.timeout(120_000)]))
+    )
+  }
+
+  clearData(kind: 'site_data' | 'cache'): Promise<void> {
+    return this.runDataOperation(async () => {
+      const profile = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentBrowser))
+      if (kind === 'cache') {
+        this.faviconCapture.abort()
+        try {
+          await Promise.allSettled(this.faviconTasks)
+          await profile.clearCache()
+          application.get('CacheService').deletePersist('browser.favicons')
+          notifyDataApiDataChange([{ endpoint: '/browser-visits', kind: 'membership' }])
+        } finally {
+          this.faviconCapture = new AbortController()
+        }
+      } else {
+        await profile.clearStorageData()
+        await profile.cookies.flushStore()
+        profile.flushStorageData()
+      }
+    })
+  }
+
+  private async runDataOperation<T>(run: () => Promise<T>): Promise<T> {
+    this.shutdown.signal.throwIfAborted()
+    if (this.dataOperation) throw new BrowserSessionError('not_allowed')
+    const operation = run()
+    this.dataOperation = operation
+    try {
+      return await operation
+    } finally {
+      this.dataOperation = undefined
+    }
   }
 
   closeGuest(guest: Electron.WebContents): void {
@@ -133,8 +292,12 @@ export class BrowserSessionService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
+    this.shutdown.abort()
+    await Promise.allSettled([...this.faviconTasks, ...(this.dataOperation ? [this.dataOperation] : [])])
     const results = await Promise.allSettled([...this.servers].map((server) => server.close()))
     this.servers.clear()
+    this.agentServers.clear()
+    this.agentBrowser.dispose()
     for (const id of this.sessions.keys()) this.remove(id, true)
     const errors = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
     if (errors.length) {
