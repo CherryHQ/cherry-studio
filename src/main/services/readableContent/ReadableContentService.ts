@@ -1,7 +1,8 @@
 import type { Worker } from 'node:worker_threads'
 
-import { loggerService } from '@logger'
 import PQueue from 'p-queue'
+
+import { loggerService } from '@logger'
 
 import type { ReadableContentWorkerInput, ReadableContentWorkerMessage } from './readableContentWorker'
 // oxlint-disable-next-line import/default -- Electron Vite exposes ?nodeWorker imports as default worker factories.

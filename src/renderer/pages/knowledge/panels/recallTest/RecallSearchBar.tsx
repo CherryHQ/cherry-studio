@@ -1,7 +1,8 @@
-import { Button, Input } from '@cherrystudio/ui'
 import { History, Search, Zap } from 'lucide-react'
 import type { FocusEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Input } from '@cherrystudio/ui'
 
 import RecallHistoryList from './RecallHistoryList'
 import { useRecallQuery, useRecallResult } from './RecallTestProvider'
@@ -52,7 +53,7 @@ const RecallSearchBar = () => {
             }
           }}
           placeholder={t('knowledge.recall.placeholder')}
-          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-foreground text-sm leading-5 shadow-none placeholder:text-muted-foreground placeholder:text-sm focus-visible:border-0 focus-visible:ring-0"
+          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-sm leading-5 text-foreground shadow-none placeholder:text-sm placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0"
         />
         {hasHistory ? (
           <Button
@@ -73,7 +74,7 @@ const RecallSearchBar = () => {
         {hasHistory && isHistoryOpen ? (
           <div
             data-recall-history
-            className="absolute top-full right-0 left-0 z-300 mt-1 max-h-45 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-0.75"
+            className="absolute top-full right-0 left-0 z-300 mt-1 max-h-45 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg [&::-webkit-scrollbar]:w-0.75 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]"
             onMouseDown={keepInputFocus}>
             <RecallHistoryList />
           </div>

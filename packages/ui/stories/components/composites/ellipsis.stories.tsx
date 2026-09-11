@@ -42,7 +42,7 @@ export const Default: Story = {
     maxLine: 1
   },
   render: (args) => (
-    <div className="w-60 p-4 border border-gray-200 dark:border-gray-700 rounded">
+    <div className="w-60 rounded border border-gray-200 p-4 dark:border-gray-700">
       <Ellipsis {...args} />
     </div>
   )
@@ -56,7 +56,7 @@ export const MultiLine: Story = {
       '这是一段很长的文本内容，用于演示多行省略功能的效果。当文本内容超过指定的最大行数时，会在最后一行的末尾显示省略号。这个功能特别适用于显示文章摘要、商品描述等需要限制显示行数的场景。'
   },
   render: (args) => (
-    <div className="w-80 p-4 border border-gray-200 dark:border-gray-700 rounded">
+    <div className="w-80 rounded border border-gray-200 p-4 dark:border-gray-700">
       <Ellipsis {...args} />
     </div>
   )
@@ -65,17 +65,17 @@ export const MultiLine: Story = {
 // 不同的最大行数
 export const DifferentMaxLines: Story = {
   render: () => (
-    <div className="space-y-4 max-w-lg">
+    <div className="max-w-lg space-y-4">
       <div>
-        <h3 className="text-sm font-medium mb-2">单行省略 (maxLine = 1)</h3>
-        <div className="p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <h3 className="mb-2 text-sm font-medium">单行省略 (maxLine = 1)</h3>
+        <div className="rounded border border-gray-200 p-3 dark:border-gray-700">
           <Ellipsis maxLine={1}>这是一段很长的文本内容，用于演示单行省略功能的效果。</Ellipsis>
         </div>
       </div>
 
       <div>
-        <h3 className="text-sm font-medium mb-2">两行省略 (maxLine = 2)</h3>
-        <div className="p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <h3 className="mb-2 text-sm font-medium">两行省略 (maxLine = 2)</h3>
+        <div className="rounded border border-gray-200 p-3 dark:border-gray-700">
           <Ellipsis maxLine={2}>
             这是一段很长的文本内容，用于演示两行省略功能的效果。当文本内容超过两行时，会在第二行的末尾显示省略号。
           </Ellipsis>
@@ -83,8 +83,8 @@ export const DifferentMaxLines: Story = {
       </div>
 
       <div>
-        <h3 className="text-sm font-medium mb-2">三行省略 (maxLine = 3)</h3>
-        <div className="p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <h3 className="mb-2 text-sm font-medium">三行省略 (maxLine = 3)</h3>
+        <div className="rounded border border-gray-200 p-3 dark:border-gray-700">
           <Ellipsis maxLine={3}>
             这是一段很长的文本内容，用于演示三行省略功能的效果。当文本内容超过三行时，会在第三行的末尾显示省略号。这个功能特别适用于显示文章摘要、商品描述等需要限制显示行数的场景。
           </Ellipsis>
@@ -101,7 +101,7 @@ export const ShortText: Story = {
     children: '这是一段短文本。'
   },
   render: (args) => (
-    <div className="w-80 p-4 border border-gray-200 dark:border-gray-700 rounded">
+    <div className="w-80 rounded border border-gray-200 p-4 dark:border-gray-700">
       <Ellipsis {...args} />
     </div>
   )
@@ -115,7 +115,7 @@ export const CustomStyle: Story = {
     children: '这是一段带有自定义样式的长文本内容，用于演示如何自定义省略文本的样式。'
   },
   render: (args) => (
-    <div className="w-80 p-4 border border-gray-200 dark:border-gray-700 rounded">
+    <div className="w-80 rounded border border-gray-200 p-4 dark:border-gray-700">
       <Ellipsis {...args} />
     </div>
   )
@@ -126,22 +126,22 @@ export const ResponsiveWidth: Story = {
   render: () => (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-medium mb-2">窄容器 (200px)</h3>
-        <div className="w-50 p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <h3 className="mb-2 text-sm font-medium">窄容器 (200px)</h3>
+        <div className="w-50 rounded border border-gray-200 p-3 dark:border-gray-700">
           <Ellipsis maxLine={2}>这是一段在窄容器中显示的文本内容，用于演示在不同宽度下的省略效果。</Ellipsis>
         </div>
       </div>
 
       <div>
-        <h3 className="text-sm font-medium mb-2">中等容器 (300px)</h3>
-        <div className="w-75 p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <h3 className="mb-2 text-sm font-medium">中等容器 (300px)</h3>
+        <div className="w-75 rounded border border-gray-200 p-3 dark:border-gray-700">
           <Ellipsis maxLine={2}>这是一段在中等宽度容器中显示的文本内容，用于演示在不同宽度下的省略效果。</Ellipsis>
         </div>
       </div>
 
       <div>
-        <h3 className="text-sm font-medium mb-2">宽容器 (400px)</h3>
-        <div className="w-100 p-3 border border-gray-200 dark:border-gray-700 rounded">
+        <h3 className="mb-2 text-sm font-medium">宽容器 (400px)</h3>
+        <div className="w-100 rounded border border-gray-200 p-3 dark:border-gray-700">
           <Ellipsis maxLine={2}>这是一段在宽容器中显示的文本内容，用于演示在不同宽度下的省略效果。</Ellipsis>
         </div>
       </div>
@@ -155,7 +155,7 @@ export const WithHTMLContent: Story = {
     maxLine: 2
   },
   render: (args) => (
-    <div className="w-80 p-4 border border-gray-200 dark:border-gray-700 rounded">
+    <div className="w-80 rounded border border-gray-200 p-4 dark:border-gray-700">
       <Ellipsis {...args}>
         <span className="text-red-500">这是红色文本</span>和<strong className="font-bold">加粗文本</strong>
         以及

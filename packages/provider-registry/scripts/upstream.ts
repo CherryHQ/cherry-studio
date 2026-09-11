@@ -211,7 +211,7 @@ export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null 
     })
   }
 
-  return dropUndef({ controls, ...deriveLegacyReasoningFields(controls) }) as ReasoningSupport
+  return dropUndef({ controls, ...deriveLegacyReasoningFields(controls) })
 }
 
 /** Merge generated OpenRouter support with a hand-written exact override. Hand-written fields win. */

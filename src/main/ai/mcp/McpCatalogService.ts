@@ -1,20 +1,21 @@
+import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
-import * as z from 'zod'
 
 import { redactCacheKey } from './mcpRedact'
 import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
-const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
+const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}`
 const emptyToolsRetryCacheKey = (serverId: string) => `mcp:tools-empty-retry:${serverId}`
 const PREWARM_CONCURRENCY = 3
 const EMPTY_TOOLS_RETRY_MS = 5 * 60 * 1000

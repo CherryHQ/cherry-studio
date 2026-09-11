@@ -7,11 +7,12 @@
  * which backend is wired in.
  */
 
+import type { UIMessage } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessage } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const appendAssistantMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
@@ -482,7 +483,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
 
     const listener = new PersistenceListener({
       topicId: 'topic-1',
-      modelId: 'openrouter::x' as UniqueModelId,
+      modelId: 'openrouter::x',
       backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
       onPersistFailed: vi.fn()
     })
@@ -491,7 +492,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     await listener.onDone({
       finalMessage,
       status: 'success',
-      modelId: 'openrouter::x' as UniqueModelId,
+      modelId: 'openrouter::x',
       timings: { startedAt: 100, completedAt: 260 },
       runtimeTiming
     })
