@@ -1,7 +1,8 @@
+import type { UpdateInfo } from 'builder-util-runtime'
+
 import type { DoctorState } from '@shared/types/doctor'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
-import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'

@@ -38,7 +38,7 @@ function measureIndent(source: string, lineStart: number, end: number) {
  * three columns of indentation — four (or one tab) makes it an indented code block instead.
  */
 function findBlockStart(source: string, end: number): number | undefined {
-  for (let lineStart = 0; lineStart < end; ) {
+  for (let lineStart = 0; lineStart < end;) {
     const { cursor, column } = measureIndent(source, lineStart, end)
     if (cursor < end && source[cursor] !== '\n' && source[cursor] !== '\r') {
       return column > 3 ? undefined : cursor
@@ -61,7 +61,7 @@ function classifyHtml(html: string): HtmlArtifactKind {
 
 /** Finds the CommonMark closing fence line, returning where the fenced content and the line end. */
 function findClosingFence(source: string, from: number, end: number, marker: string, minCount: number) {
-  for (let lineStart = from; lineStart < end; ) {
+  for (let lineStart = from; lineStart < end;) {
     const newline = source.indexOf('\n', lineStart)
     const lineEnd = newline === -1 || newline > end ? end : newline
     const { cursor: markerStart, column } = measureIndent(source, lineStart, lineEnd)

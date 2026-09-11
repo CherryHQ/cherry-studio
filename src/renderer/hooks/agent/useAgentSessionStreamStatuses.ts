@@ -1,7 +1,8 @@
+import { useCallback, useMemo } from 'react'
+
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
-import { useCallback, useMemo } from 'react'
 
 export type AgentSessionStreamState = {
   isPending: boolean
@@ -59,7 +60,7 @@ export function useAgentSessionStreamStatuses(
       })
 
       if (entries.length === 0) return EMPTY_AGENT_SESSION_STREAM_STATUSES
-      return new Map(entries) as ReadonlyMap<string, AgentSessionStreamState>
+      return new Map(entries)
     },
     [uniqueSessionIds]
   )

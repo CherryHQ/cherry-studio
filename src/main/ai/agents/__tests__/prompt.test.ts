@@ -17,8 +17,9 @@ vi.mock('node:fs/promises', () => ({
 
 import { lstat, open, readdir, realpath } from 'node:fs/promises'
 
-import type { AgentConfiguration } from '@shared/data/types/agent'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+
+import type { AgentConfiguration } from '@shared/data/types/agent'
 
 import { PromptBuilder } from '../prompt'
 

@@ -1,5 +1,6 @@
-import type { Topic } from '@renderer/types/topic'
 import { describe, expect, it } from 'vitest'
+
+import type { Topic } from '@renderer/types/topic'
 
 import {
   applyOptimisticTopicDisplayMove,

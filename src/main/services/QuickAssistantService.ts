@@ -1,3 +1,5 @@
+import { app, BrowserWindow, screen, shell } from 'electron'
+
 /**
  * QuickAssistantService — business orchestration for the quick assistant window.
  *
@@ -29,7 +31,6 @@ import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePha
 import { isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
-import { app, BrowserWindow, screen, shell } from 'electron'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 

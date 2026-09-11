@@ -1,9 +1,14 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import type {
   MessageListActions,
   MessageListItem,
-  MessageListSelectionState
+  MessageListSelectAllPagination,
+  MessageListSelectionState,
+  SelectAllState
 } from '@renderer/components/chat/messages/types'
 import {
   createSelectedMessageExportViews,
@@ -14,8 +19,6 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useMessageSelectionController')
 
@@ -26,6 +29,11 @@ interface UseMessageSelectionControllerParams {
   deleteMessage?: MessageListActions['deleteMessage']
   saveTextFile?: MessageListActions['saveTextFile']
   copyRichContent?: MessageListActions['copyRichContent']
+  /**
+   * Load-all pagination handle; absent = fully loaded (single page), so
+   * select-all applies directly without paging.
+   */
+  selectAllPagination?: MessageListSelectAllPagination
 }
 
 interface MessageSelectionController {
@@ -33,6 +41,7 @@ interface MessageSelectionController {
   actions: Pick<
     MessageListActions,
     | 'selectMessage'
+    | 'toggleSelectAllMessages'
     | 'toggleMultiSelectMode'
     | 'copySelectedMessages'
     | 'saveSelectedMessages'
@@ -46,9 +55,14 @@ export function useMessageSelectionController({
   partsByMessageId,
   deleteMessage,
   saveTextFile,
-  copyRichContent
+  copyRichContent,
+  selectAllPagination
 }: UseMessageSelectionControllerParams): MessageSelectionController {
   const { t } = useTranslation()
+  const hasOlder = selectAllPagination?.hasOlder ?? false
+  const isLoadingAll = selectAllPagination?.isLoading ?? false
+  const startLoadAll = selectAllPagination?.start
+  const stopLoadAll = selectAllPagination?.stop
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
   const latestExportDataRef = useRef({ messages, partsByMessageId, copyRichContent })
@@ -56,18 +70,30 @@ export function useMessageSelectionController({
 
   const selectedIds = useMemo(() => selectedMessageIds ?? [], [selectedMessageIds])
 
+  // Set while a select-all is waiting for load-all pagination to finish.
+  const selectAllPendingRef = useRef(false)
+  // Messages the user unticked while a select-all was deferred — excluded when
+  // it finally lands, so a late load completion cannot revert their edits.
+  const manualDeselectedRef = useRef<Set<string>>(new Set())
+
   const toggleMultiSelectMode = useCallback(
     (enabled: boolean) => {
       setIsMultiSelectMode(enabled)
       if (!enabled) {
         setSelectedMessageIds([])
+        // Abandon any select-all still waiting for pagination and stop the
+        // in-progress paging — exiting multi-select must not let the deferred
+        // selection apply later nor keep fetching pages nobody selected.
+        selectAllPendingRef.current = false
+        stopLoadAll?.()
       }
     },
-    [setIsMultiSelectMode, setSelectedMessageIds]
+    [setIsMultiSelectMode, setSelectedMessageIds, stopLoadAll]
   )
 
   useEffect(() => {
     toggleMultiSelectMode(false)
+    selectAllPendingRef.current = false
     return () => {
       toggleMultiSelectMode(false)
     }
@@ -78,9 +104,95 @@ export function useMessageSelectionController({
       setSelectedMessageIds((prev) =>
         selected ? (prev.includes(messageId) ? [...prev] : [...prev, messageId]) : prev.filter((id) => id !== messageId)
       )
+      if (selectAllPendingRef.current) {
+        // Last action per message wins: untick excludes it from the deferred
+        // select-all; re-ticking puts it back.
+        if (selected) manualDeselectedRef.current.delete(messageId)
+        else manualDeselectedRef.current.add(messageId)
+      }
     },
     [setSelectedMessageIds]
   )
+
+  const selectableIds = useMemo(
+    () =>
+      messages
+        .filter(
+          (message) =>
+            // Mirrors MessageFrame's isContextBoundary early return — no checkbox is rendered there.
+            !message.isContextBoundary &&
+            // Hidden fold-layout siblings of multi-model groups; remove if multi-select ever unhides them (PRD D6).
+            !(message.role === 'assistant' && message.siblingsGroupId != null && message.isActiveBranch === false)
+        )
+        .map((message) => message.id),
+    [messages]
+  )
+  // Keep the toggle action identity stable while streaming rewrites the messages array.
+  const latestSelectableIdsRef = useRef(selectableIds)
+  latestSelectableIdsRef.current = selectableIds
+
+  const performSelectAll = useCallback(() => {
+    const deselected = manualDeselectedRef.current
+    setSelectedMessageIds(latestSelectableIdsRef.current.filter((id) => !deselected.has(id)))
+  }, [setSelectedMessageIds])
+
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const selectedSelectableCount = useMemo(
+    () => selectableIds.filter((id) => selectedIdSet.has(id)).length,
+    [selectableIds, selectedIdSet]
+  )
+  // While older pages remain unloaded, "fully selected" only covers the loaded
+  // pages — show indeterminate so the checkbox never overstates the selection.
+  const selectAllState: SelectAllState =
+    selectableIds.length > 0 && selectedSelectableCount === selectableIds.length && !hasOlder
+      ? true
+      : selectedSelectableCount > 0
+        ? 'indeterminate'
+        : false
+  const selectAllDisabled = selectableIds.length === 0
+  const isSelectAllLoading = isLoadingAll && selectAllPendingRef.current
+
+  const toggleSelectAllMessages = useCallback(
+    (checked: boolean) => {
+      if (!checked) {
+        selectAllPendingRef.current = false
+        setSelectedMessageIds([])
+        return
+      }
+      // A fresh select-all means "everything" — exclusions only live within
+      // one deferred cycle (recorded after this point, consumed at landing).
+      manualDeselectedRef.current.clear()
+      if (hasOlder && startLoadAll) {
+        // Unloaded messages have no resident parts — selecting them now would
+        // export empty content. Paginate to the end first; the completion
+        // effect below applies the selection once every page is resident.
+        selectAllPendingRef.current = true
+        startLoadAll()
+        return
+      }
+      performSelectAll()
+    },
+    [hasOlder, performSelectAll, setSelectedMessageIds, startLoadAll]
+  )
+
+  // Load-all finished (no pages left) — apply the deferred select-all.
+  useEffect(() => {
+    if (!selectAllPendingRef.current || isLoadingAll || hasOlder) return
+    selectAllPendingRef.current = false
+    performSelectAll()
+  }, [hasOlder, isLoadingAll, performSelectAll])
+
+  // Load-all abandoned mid-flight (a failed page fetch or an explicit stop):
+  // isLoadingAll falls back to false while pages remain. Drop the pending
+  // intent so a later manual page-through can't silently trigger the stale
+  // select-all.
+  const wasLoadingAllRef = useRef(false)
+  useEffect(() => {
+    if (wasLoadingAllRef.current && !isLoadingAll && hasOlder) {
+      selectAllPendingRef.current = false
+    }
+    wasLoadingAllRef.current = isLoadingAll
+  }, [hasOlder, isLoadingAll])
 
   const resolveMessageIds = useCallback(
     (messageIds?: readonly string[]) => {
@@ -202,14 +314,18 @@ export function useMessageSelectionController({
     () => ({
       enabled: true,
       isMultiSelectMode: isMultiSelectMode ?? false,
-      selectedMessageIds: selectedIds
+      selectedMessageIds: selectedIds,
+      selectAllState,
+      selectAllDisabled,
+      isSelectAllLoading
     }),
-    [isMultiSelectMode, selectedIds]
+    [isMultiSelectMode, isSelectAllLoading, selectAllDisabled, selectAllState, selectedIds]
   )
 
   const actions = useMemo<MessageSelectionController['actions']>(
     () => ({
       selectMessage,
+      toggleSelectAllMessages,
       toggleMultiSelectMode,
       copySelectedMessages,
       saveSelectedMessages: saveTextFile ? saveSelectedMessages : undefined,
@@ -222,7 +338,8 @@ export function useMessageSelectionController({
       saveSelectedMessages,
       saveTextFile,
       selectMessage,
-      toggleMultiSelectMode
+      toggleMultiSelectMode,
+      toggleSelectAllMessages
     ]
   )
 

@@ -1,3 +1,7 @@
+import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   DropdownMenu,
@@ -34,9 +38,6 @@ import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
-import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   areGlobalSearchRecentEntriesEqual,

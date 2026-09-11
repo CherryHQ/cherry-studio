@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as DbServiceModule from '@data/db/DbService'
 import { checkpointTruncateAssert } from '@data/db/restore/checkpoint'
 import { snapshotTo } from '@data/db/restore/snapshot'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Guard + delegation contract of the two restore-facing DbService methods.

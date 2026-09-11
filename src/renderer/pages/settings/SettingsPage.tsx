@@ -1,3 +1,9 @@
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { Search } from 'lucide-react'
+import type { CSSProperties, FC } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
@@ -14,11 +20,6 @@ import {
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
 import { cn } from '@renderer/utils/style'
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { Search } from 'lucide-react'
-import type { CSSProperties, FC } from 'react'
-import { Fragment, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SettingsPage: FC = () => {
   const location = useLocation()

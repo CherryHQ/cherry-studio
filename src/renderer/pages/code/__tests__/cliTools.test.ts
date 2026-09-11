@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, GATEWAY_CAPABLE_CLI_TOOLS, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
-import { describe, expect, it } from 'vitest'
 
 import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 

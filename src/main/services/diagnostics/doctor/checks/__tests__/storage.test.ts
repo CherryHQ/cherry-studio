@@ -1,6 +1,7 @@
-import { application } from '@application'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 const preboot = vi.hoisted(() => ({
   isUsableDataDir: vi.fn(),

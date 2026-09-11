@@ -1,8 +1,9 @@
-import { ScreenCaptureError } from '@main/services/screenshot'
-import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ScreenCaptureError } from '@main/services/screenshot'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 
 const services = vi.hoisted(() => ({
   queryUpdateAvailability: vi.fn(),
@@ -19,9 +20,8 @@ vi.mock('@main/services/screenshot/nativeCaptureBackend', () => ({
   loadNativeCaptureBackend: services.loadNativeCaptureBackend
 }))
 
-const { installArchitectureMatch, installNativeModules, installUpdateAvailable, installVersionChannel } = await import(
-  '../install'
-)
+const { installArchitectureMatch, installNativeModules, installUpdateAvailable, installVersionChannel } =
+  await import('../install')
 
 const setTranslated = (value: boolean | undefined) => {
   ;(app as { runningUnderARM64Translation?: boolean }).runningUnderARM64Translation = value

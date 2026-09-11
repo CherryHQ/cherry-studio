@@ -1,10 +1,11 @@
+import { motion } from 'motion/react'
+import type { ReactNode, Ref, RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+
 import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import { cn } from '@renderer/utils/style'
-import { motion } from 'motion/react'
-import type { ReactNode, Ref, RefObject } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { useOptionalRightPanelState, useRightPanelComposerElevated } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
@@ -103,10 +104,10 @@ function useResourceListAutoCollapse({
   // lands (the list must not open/close along with full-width phases).
   const frozen = Boolean(
     rightPanelState?.fullWidthActive ||
-      rightPanelState?.presentationMaximized ||
-      rightPanelState?.layoutAnimationPending ||
-      rightPanelState?.paneResizing ||
-      listResizing
+    rightPanelState?.presentationMaximized ||
+    rightPanelState?.layoutAnimationPending ||
+    rightPanelState?.paneResizing ||
+    listResizing
   )
   const userOpenSeq = rightPanelState?.userOpenSeq ?? 0
 

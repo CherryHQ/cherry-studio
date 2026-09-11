@@ -1,9 +1,10 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import { getNormalizedExecutablePath, isUsableDataDir } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import { inspectDiagnosticData } from '@main/services/cacheCleanup'
 import { GB } from '@shared/utils/constants'
-import { app } from 'electron'
 
 import { defineDoctorCheck } from '../types'
 

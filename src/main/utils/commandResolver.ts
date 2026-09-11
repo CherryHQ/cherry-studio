@@ -1,11 +1,12 @@
+import { execFile, spawn } from 'child_process'
+import fs from 'fs'
 import { promisify } from 'node:util'
+import path from 'path'
+
+import which from 'which'
 
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { execFile, spawn } from 'child_process'
-import fs from 'fs'
-import path from 'path'
-import which from 'which'
 
 import { getBundledGitPath } from './bundledGit'
 import { getPathFromEnvironment, getShellEnv } from './shellEnv'

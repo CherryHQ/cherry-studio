@@ -6,6 +6,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { Mutex } from 'async-mutex'
+import { valid as semverValid } from 'semver'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -41,8 +44,6 @@ import type {
   BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
-import { Mutex } from 'async-mutex'
-import { valid as semverValid } from 'semver'
 
 import { sanitizedCommandError } from './commandError'
 import { provideManagedPython } from './pythonRuntime'
