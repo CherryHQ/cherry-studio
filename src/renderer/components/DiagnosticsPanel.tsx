@@ -35,7 +35,7 @@ export function DiagnosticsPanel({
       {...props}>
       <div
         className={cn(
-          'flex flex-wrap items-start justify-between gap-3 px-4 py-3',
+          'flex flex-wrap items-center justify-between gap-3 px-4 py-2',
           variant === 'sectioned' && 'border-border border-b bg-background-subtle'
         )}>
         <div className="min-w-0">
