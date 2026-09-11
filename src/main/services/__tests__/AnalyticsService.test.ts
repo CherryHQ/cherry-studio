@@ -9,39 +9,31 @@ import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
  * still be honoured.
  */
 
-const {
-  mockTrackAppLaunch,
-  mockTrackTokenUsage,
-  mockTrackAppUpdate,
-  mockDestroy,
-  mockSetSentryReportingEnabled,
-  MockAnalyticsClient,
-  captured
-} = vi.hoisted(() => {
-  const trackAppLaunch = vi.fn()
-  const trackTokenUsage = vi.fn()
-  const trackAppUpdate = vi.fn()
-  const destroy = vi.fn()
-  return {
-    mockTrackAppLaunch: trackAppLaunch,
-    mockTrackTokenUsage: trackTokenUsage,
-    mockTrackAppUpdate: trackAppUpdate,
-    mockDestroy: destroy,
-    mockSetSentryReportingEnabled: vi.fn(),
-    MockAnalyticsClient: vi.fn(function AnalyticsClientMock() {
-      return {
-        trackAppLaunch,
-        trackTokenUsage,
-        trackAppUpdate,
-        destroy
+const { mockTrackAppLaunch, mockTrackTokenUsage, mockTrackAppUpdate, mockDestroy, MockAnalyticsClient, captured } =
+  vi.hoisted(() => {
+    const trackAppLaunch = vi.fn()
+    const trackTokenUsage = vi.fn()
+    const trackAppUpdate = vi.fn()
+    const destroy = vi.fn()
+    return {
+      mockTrackAppLaunch: trackAppLaunch,
+      mockTrackTokenUsage: trackTokenUsage,
+      mockTrackAppUpdate: trackAppUpdate,
+      mockDestroy: destroy,
+      MockAnalyticsClient: vi.fn(function AnalyticsClientMock() {
+        return {
+          trackAppLaunch,
+          trackTokenUsage,
+          trackAppUpdate,
+          destroy
+        }
+      }),
+      captured: {
+        prefHandlers: {},
+        preferenceValues: {}
       }
-    }),
-    captured: {
-      prefHandlers: {},
-      preferenceValues: {}
     }
-  }
-})
+  })
 
 vi.mock('@cherrystudio/analytics-client', () => ({
   AnalyticsClient: MockAnalyticsClient
@@ -53,8 +45,7 @@ vi.mock('@main/utils/systemInfo', () => ({
 }))
 
 vi.mock('../sentry', () => ({
-  attachSentryLogTransport: () => () => {},
-  setSentryReportingEnabled: mockSetSentryReportingEnabled
+  attachSentryLogTransport: () => () => {}
 }))
 
 vi.mock('@application', async () => {
@@ -91,7 +82,6 @@ beforeEach(() => {
   mockTrackTokenUsage.mockReset()
   mockTrackAppUpdate.mockReset()
   mockDestroy.mockReset()
-  mockSetSentryReportingEnabled.mockReset()
   MockAnalyticsClient.mockClear()
   mockDestroy.mockImplementation(() => new Promise<void>((resolve) => destroyResolvers.push(resolve)))
 })
@@ -105,7 +95,6 @@ describe('AnalyticsService data collection preference', () => {
 
     expect(service.isActivated).toBe(false)
     expect(MockAnalyticsClient).not.toHaveBeenCalled()
-    expect(mockSetSentryReportingEnabled).toHaveBeenLastCalledWith(false)
     expect(captured.prefHandlers['app.privacy.policy_version']).toBeDefined()
 
     await service.trackAppUpdate()
@@ -122,7 +111,6 @@ describe('AnalyticsService data collection preference', () => {
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
     expect(mockTrackAppLaunch).toHaveBeenCalledTimes(1)
-    expect(mockSetSentryReportingEnabled).toHaveBeenLastCalledWith(true)
   })
 
   it('deactivates when data collection is disabled', async () => {
@@ -132,7 +120,6 @@ describe('AnalyticsService data collection preference', () => {
 
     changePreference('app.privacy.data_collection.enabled', false)
     await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
-    expect(mockSetSentryReportingEnabled).toHaveBeenLastCalledWith(false)
 
     service.trackTokenUsage({
       provider: 'test-provider',

@@ -5,6 +5,11 @@ import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from 
 import { name, version } from '../../../package.json'
 import { loggerService, resolveWindowSourceFromMeta } from './LoggerService'
 
+/**
+ * Renderer capture has no DSN: events travel over IPC and are gated by the main
+ * process consent check. Only default-session windows carry the bridge preload —
+ * a window opened with its own `partition` would silently report nothing.
+ */
 export function initSentry(): void {
   if (import.meta.env.DEV) return
   const buildContext = getSentryBuildContext(name, version, __APP_EDITION__)

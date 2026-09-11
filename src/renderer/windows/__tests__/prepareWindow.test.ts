@@ -41,10 +41,13 @@ describe('prepareWindow', () => {
     return pending
   })
 
-  it('initializes renderer error capture before any awaited warm-up', () => {
+  it('arms renderer error capture before anything that can throw runs', () => {
     const pending = prepareWindow({ preference: 'all' })
 
     expect(initSentryMock).toHaveBeenCalledTimes(1)
+    expect(initSentryMock.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(preferenceService.preloadAll).mock.invocationCallOrder[0]
+    )
     return pending
   })
 

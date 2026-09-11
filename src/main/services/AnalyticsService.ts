@@ -5,10 +5,11 @@ import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-cl
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDataCollectionConsented } from '@main/utils/privacyConsent'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
+import { APP_NAME } from '@shared/utils/constants'
 
-import { attachSentryLogTransport, setSentryReportingEnabled } from './sentry'
+import { attachSentryLogTransport } from './sentry'
 
 const logger = loggerService.withContext('AnalyticsService')
 
@@ -41,10 +42,10 @@ export class AnalyticsService extends BaseService implements Activatable {
 
   private refreshDesiredEnabled(): void {
     const preferenceService = application.get('PreferenceService')
-    this.desiredEnabled =
-      preferenceService.get('app.privacy.data_collection.enabled') &&
-      preferenceService.get('app.privacy.policy_version') === LATEST_PRIVACY_POLICY_VERSION
-    setSentryReportingEnabled(this.desiredEnabled)
+    this.desiredEnabled = isDataCollectionConsented(
+      preferenceService.get('app.privacy.data_collection.enabled'),
+      preferenceService.get('app.privacy.policy_version')
+    )
     this.reconciler.request()
   }
 

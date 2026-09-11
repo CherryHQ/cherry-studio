@@ -2,13 +2,16 @@ import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcChannel } from '@shared/IpcChannel'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
-const { captureExceptionMock, tmpLogsDir } = vi.hoisted(() => {
+const { captureExceptionMock, preferences, tmpLogsDir } = vi.hoisted(() => {
   const { mkdtempSync } = require('node:fs')
   const { tmpdir } = require('node:os')
   const { join } = require('node:path')
+  const preferences: Record<string, unknown> = {}
   return {
     captureExceptionMock: vi.fn(),
+    preferences,
     tmpLogsDir: mkdtempSync(join(tmpdir(), 'sentry-log-test-')) as string
   }
 })
@@ -18,18 +21,29 @@ vi.unmock('winston')
 vi.unmock('winston-daily-rotate-file')
 vi.mock('@main/core/paths/constants', () => ({ LOGS_DIR: tmpLogsDir }))
 vi.mock('@sentry/electron/main', () => ({ captureException: captureExceptionMock }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    PreferenceService: { get: (key: string) => preferences[key] }
+  })
+})
 
 import { loggerService } from '@logger'
 
-import { attachSentryLogTransport, setSentryReportingEnabled } from '../sentry'
+import { attachSentryLogTransport } from '../sentry'
 
 let detach: () => void
 const drainLogs = () => new Promise((resolve) => setImmediate(resolve))
 
+function setConsent(granted: boolean) {
+  preferences['app.privacy.data_collection.enabled'] = granted
+  preferences['app.privacy.policy_version'] = granted ? LATEST_PRIVACY_POLICY_VERSION : ''
+}
+
 beforeEach(() => {
   captureExceptionMock.mockReset()
   vi.stubEnv('DEV', false)
-  setSentryReportingEnabled(false)
+  setConsent(false)
   loggerService.getBaseLogger().clear()
   detach = attachSentryLogTransport()
 })
@@ -48,7 +62,7 @@ describe('Sentry log reporting', () => {
     await drainLogs()
     expect(captureExceptionMock).not.toHaveBeenCalled()
 
-    setSentryReportingEnabled(true)
+    setConsent(true)
     logger.error('Failed to enqueue schedule', error, { scheduleId: 'private-id' })
     await drainLogs()
     expect(captureExceptionMock.mock.calls).toHaveLength(1)
@@ -59,14 +73,14 @@ describe('Sentry log reporting', () => {
       extra: undefined
     })
 
-    setSentryReportingEnabled(false)
+    setConsent(false)
     logger.error('Failed to enqueue schedule', error)
     await drainLogs()
     expect(captureExceptionMock.mock.calls).toHaveLength(1)
   })
 
   it('does not recapture renderer logs that are reported through the renderer SDK', async () => {
-    setSentryReportingEnabled(true)
+    setConsent(true)
     const handler = vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === IpcChannel.App_LogToMain)![1]
     const error = new TypeError('Render failed')
     const componentStack = '\n    at MessageList (app:///messages.js:20:3)'
@@ -86,7 +100,7 @@ describe('Sentry log reporting', () => {
   })
 
   it('ignores ordinary logs, cancellation, and telemetry diagnostic errors', async () => {
-    setSentryReportingEnabled(true)
+    setConsent(true)
     const logger = loggerService.withContext('Translation')
     logger.info('Started', new Error('not a failure'))
     logger.warn('Retrying', new Error('temporary failure'))
@@ -101,7 +115,7 @@ describe('Sentry log reporting', () => {
 
   it('does not capture development errors even with consent enabled', async () => {
     vi.stubEnv('DEV', true)
-    setSentryReportingEnabled(true)
+    setConsent(true)
     loggerService.withContext('Translation').error('Failed', new Error('development error'))
     await drainLogs()
     expect(captureExceptionMock).not.toHaveBeenCalled()
@@ -113,7 +127,7 @@ describe('Sentry log reporting', () => {
     detach()
     expect(base.transports).toHaveLength(0)
     detach = attachSentryLogTransport()
-    setSentryReportingEnabled(true)
+    setConsent(true)
     loggerService.withContext('Translation').error('Failed', new Error('disk full'))
     await drainLogs()
     expect(base.transports).toHaveLength(1)
@@ -121,7 +135,7 @@ describe('Sentry log reporting', () => {
   })
 
   it('keeps logging usable if the SDK throws during capture', async () => {
-    setSentryReportingEnabled(true)
+    setConsent(true)
     captureExceptionMock.mockImplementationOnce(() => {
       throw new Error('SDK unavailable')
     })

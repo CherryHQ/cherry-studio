@@ -31,11 +31,9 @@ describe('renderer Sentry initialization', () => {
     initSentry()
 
     const options = initMock.mock.calls[0][0]
-    expect(options).toMatchObject({
-      maxBreadcrumbs: 0,
-      sendClientReports: false,
-      sendDefaultPii: false
-    })
+    // No DSN here on purpose: events ride IPC to the main process, where the
+    // consent gate lives. A DSN would let the renderer report around it.
+    expect(options.dsn).toBeUndefined()
 
     const event = options.beforeSend({
       extra: { apiKey: 'real-api-key' }
