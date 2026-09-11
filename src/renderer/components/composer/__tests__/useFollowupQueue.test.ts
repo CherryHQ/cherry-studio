@@ -230,6 +230,32 @@ describe('useFollowupQueue', () => {
     expect(result.current.items.map((i) => i.draft.text)).toEqual([])
   })
 
+  it('drops a persisted failure marker for an item that is no longer queued', async () => {
+    const onDrain = vi.fn().mockResolvedValue(true)
+    // A skip whose follow-up drain settled before the failure reset committed (or a torn
+    // cross-window write) can persist a failure for an absent item; the restored queue
+    // must not stay blocked with no banner to resolve it.
+    MockCacheUtils.setInitialState({
+      persist: [[QUEUE_KEY, { s1: { items: [item('h2', 'second')], paused: true, failedItemId: 'h1' } }]]
+    })
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    expect(result.current.failedItemId).toBeNull()
+
+    act(() => {
+      result.current.setPaused(false)
+    })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(onDrain).toHaveBeenCalledWith(payload('second'))
+  })
+
   it('clear (abort) drops every pending message and the failure state', async () => {
     const onDrain = vi.fn().mockResolvedValue(false)
     seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
