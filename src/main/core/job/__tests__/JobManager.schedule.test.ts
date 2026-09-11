@@ -11,6 +11,11 @@
  * lifecycle CRUD.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -21,10 +26,6 @@ import type { Disposable } from '@main/core/lifecycle/event'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Locally augment JobRegistry so test payloads type-check. The dummy entry is
 // removed from the JS surface after compile and never enters production code.
@@ -81,7 +82,7 @@ describe('JobManager schedule control APIs', () => {
 
     const dbSvc = MockMainDbServiceExport.dbService
     const cacheSvc = MockMainCacheServiceExport.cacheService
-    ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+    ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
       switch (name) {
         case 'DbService':
           return dbSvc
@@ -175,7 +176,7 @@ describe('JobManager schedule control APIs', () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -204,7 +205,7 @@ describe('JobManager schedule control APIs', () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -216,7 +217,7 @@ describe('JobManager schedule control APIs', () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -235,7 +236,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'nightly',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -247,7 +248,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'morning',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -259,7 +260,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'evening',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -337,7 +338,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'to-delete',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -349,7 +350,7 @@ describe('JobManager schedule control APIs', () => {
       jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -361,14 +362,14 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'a',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         name: 'b',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
 
@@ -396,7 +397,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-a',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
@@ -407,6 +408,7 @@ describe('JobManager schedule control APIs', () => {
       expect(armSpy).toHaveBeenCalledTimes(1)
       expect(updated?.nextRun).not.toBeNull()
       expect(Date.parse(updated?.nextRun ?? '')).toBeLessThanOrEqual(Date.now() + 30_000)
+      armSpy.mockRestore()
     })
 
     it('(b) trigger + enabled false: disposes and does not re-arm', async () => {
@@ -414,7 +416,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-b',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
@@ -424,6 +426,7 @@ describe('JobManager schedule control APIs', () => {
       expect(updated?.enabled).toBe(false)
       expect(armSpy).not.toHaveBeenCalled()
       expect(getScheduleDisposables().has(snap.id)).toBe(false)
+      armSpy.mockRestore()
     })
 
     it('(c) enabled-only false→true: re-arms', async () => {
@@ -431,7 +434,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-c',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       // Disable first; this disposes the in-process entry but keeps the row.
@@ -443,6 +446,7 @@ describe('JobManager schedule control APIs', () => {
 
       expect(updated?.enabled).toBe(true)
       expect(armSpy).toHaveBeenCalledTimes(1)
+      armSpy.mockRestore()
     })
 
     it('(d) enabled-only true→false: disposes', async () => {
@@ -450,7 +454,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-d',
         trigger: baseTrigger,
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(getScheduleDisposables().has(snap.id)).toBe(true)
@@ -481,6 +485,7 @@ describe('JobManager schedule control APIs', () => {
 
       expect(await jobManager.triggerJobScheduleNowById(snap.id)).toBe(true)
       expect(jobService.list({ scheduleId: snap.id })).toEqual([expect.objectContaining({ input: latestTemplate })])
+      armSpy.mockRestore()
     })
 
     it('keeps an interval timer armed while its next automatic fire reads the latest template', async () => {
@@ -512,7 +517,7 @@ describe('JobManager schedule control APIs', () => {
         type: DUMMY_TYPE,
         name: 'case-f',
         trigger: { kind: 'once', at: Date.now() + 600_000 },
-        jobInputTemplate: {} as Record<string, unknown>,
+        jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(getScheduleDisposables().has(snap.id)).toBe(true)
@@ -538,6 +543,7 @@ describe('JobManager schedule control APIs', () => {
 
       expect(result).toBeNull()
       expect(armSpy).not.toHaveBeenCalled()
+      armSpy.mockRestore()
     })
   })
 

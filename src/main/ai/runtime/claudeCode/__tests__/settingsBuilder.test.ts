@@ -3,6 +3,8 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -10,7 +12,6 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
 const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
@@ -34,8 +35,12 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getBuiltinAgentPluginDirectory: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
-  createAssistantServer: vi.fn(() => ({ mcpServer: {} })),
-  createAssistantFileToolsServer: vi.fn(() => ({ mcpServer: {} })),
+  createAssistantServer: vi.fn(function () {
+    return { mcpServer: {} }
+  }),
+  createAssistantFileToolsServer: vi.fn(function () {
+    return { mcpServer: {} }
+  }),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
@@ -144,10 +149,12 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({
-    buildPromptParts: mocks.buildPrompt,
-    buildMemoriesSection: vi.fn(async () => undefined)
-  }))
+  PromptBuilder: vi.fn(function () {
+    return {
+      buildPromptParts: mocks.buildPrompt,
+      buildMemoriesSection: vi.fn(async () => undefined)
+    }
+  })
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
@@ -2807,7 +2814,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     it('reuses one snapshot per session so a warm-hit refresh is seen by the prewarm-baked hook (Bug A)', async () => {
       // Each create returns a fresh stateful snapshot; `update()` simulates the connect-time policy
       // disabling Bash. With the fix, both builds share one snapshot and the prewarm hook sees it.
-      const created: Array<{ update: ReturnType<typeof vi.fn> }> = []
+      const created: Array<{ update: ReturnType<typeof vi.fn<(...args: any[]) => any>> }> = []
       mocks.createToolPolicySnapshot.mockImplementation(async () => {
         const disabled = new Set<string>()
         const snap = {

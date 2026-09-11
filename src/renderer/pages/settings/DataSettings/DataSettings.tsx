@@ -1,3 +1,9 @@
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { type FC, lazy, Suspense } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
@@ -13,11 +19,6 @@ import {
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
 import type { AppRouter } from '@renderer/types/router'
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { type FC, lazy, Suspense } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import BasicDataSettings from './BasicDataSettings'
 import { DATA_PANEL_KEYS, type DataPanelKey, DEFAULT_DATA_PANEL } from './dataPanels'

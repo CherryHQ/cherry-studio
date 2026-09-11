@@ -1,11 +1,10 @@
 /// <reference lib="webworker" />
 
-interface WorkerResponse {
-  type: 'initialized' | 'init-error' | 'system-error'
-  id?: string
-  output?: PyodideOutput
-  error?: string
-}
+type WorkerResponse =
+  | { type: 'initialized' }
+  | { type: 'init-error'; error: string }
+  | { type: 'system-error'; id: string; error: string }
+  | { id: string; output: PyodideOutput }
 
 // 定义输出结构类型
 interface PyodideOutput {
@@ -101,7 +100,7 @@ const pyodidePromise = (async () => {
     self.postMessage({
       type: 'init-error',
       error: errorMessage
-    } as WorkerResponse)
+    } satisfies WorkerResponse)
 
     throw error
   }
@@ -132,14 +131,14 @@ function processResult(result: any): any {
 // 通知主线程已加载
 pyodidePromise
   .then(() => {
-    self.postMessage({ type: 'initialized' } as WorkerResponse)
+    self.postMessage({ type: 'initialized' } satisfies WorkerResponse)
   })
   .catch((error: unknown) => {
     const errorMessage = error instanceof Error ? error.message : String(error)
     self.postMessage({
       type: 'init-error',
       error: errorMessage
-    } as WorkerResponse)
+    } satisfies WorkerResponse)
   })
 
 // 处理消息
@@ -220,9 +219,9 @@ self.onmessage = async (event) => {
       type: 'system-error',
       id,
       error: errorMessage
-    } as WorkerResponse)
+    } satisfies WorkerResponse)
   } finally {
     globals?.destroy()
-    self.postMessage({ id, output } as WorkerResponse)
+    self.postMessage({ id, output } satisfies WorkerResponse)
   }
 }

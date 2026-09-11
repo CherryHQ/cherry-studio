@@ -1,5 +1,6 @@
-import type { CodeCli } from '@shared/types/codeCli'
 import type { FC } from 'react'
+
+import type { CodeCli } from '@shared/types/codeCli'
 
 import { CodeCliPageView } from './components/CodeCliPageView'
 import { useCodeCliPageViewProps } from './hooks/useCodeCliPageViewProps'

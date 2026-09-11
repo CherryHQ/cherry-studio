@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode } from 'react'
 
 interface FilePreviewToolbarButtonProps {
   children: ReactNode
