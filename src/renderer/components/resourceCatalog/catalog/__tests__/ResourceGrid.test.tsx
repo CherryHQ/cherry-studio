@@ -12,7 +12,13 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock, updateSkillMirrorEnabledMock } = vi.hoisted(() => ({
+const {
+  deleteGroupMock,
+  updateGroupMock,
+  updateAssistantMock,
+  updateSkillGlobalEnabledMock,
+  updateSkillMirrorEnabledMock
+} = vi.hoisted(() => ({
   deleteGroupMock: vi.fn(),
   updateGroupMock: vi.fn(),
   updateAssistantMock: vi.fn(),
