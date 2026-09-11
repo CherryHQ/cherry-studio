@@ -1,6 +1,7 @@
-import { loggerService } from '@logger'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+
+import { loggerService } from '@logger'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'

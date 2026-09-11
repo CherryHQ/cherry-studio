@@ -1,5 +1,6 @@
-import { loggerService } from '@logger'
 import type { BrowserView, BrowserWindow } from 'electron'
+
+import { loggerService } from '@logger'
 
 export const logger = loggerService.withContext('McpBrowserCDP')
 export const userAgent =

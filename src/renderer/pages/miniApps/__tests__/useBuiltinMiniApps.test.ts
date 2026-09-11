@@ -1,6 +1,7 @@
-import type * as MiniAppPresets from '@shared/data/presets/miniApps'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as MiniAppPresets from '@shared/data/presets/miniApps'
 
 import { useBuiltinMiniApps } from '../useBuiltinMiniApps'
 

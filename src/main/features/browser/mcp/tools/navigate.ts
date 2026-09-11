@@ -1,5 +1,6 @@
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import * as z from 'zod'
+
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 
 import { settleAction } from '../../actions/settle'
 import { browserRefSchema } from '../../browserUse'

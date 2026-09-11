@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { providerService } from '@main/data/services/ProviderService'
 import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getProviderById, getProviderForCapability, getResolvedConfig, getRuntimeConfig } from '../config'
 

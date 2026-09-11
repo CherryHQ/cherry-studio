@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import { BrowserSessionService } from '@main/features/browser'
 import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getBrowserService } = vi.hoisted(() => ({ getBrowserService: vi.fn() }))
 vi.mock('@application', async () => {

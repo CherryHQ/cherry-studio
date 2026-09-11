@@ -1,3 +1,7 @@
+import { XIcon } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { parse, stringify } from 'yaml'
+
 import {
   Alert,
   Button,
@@ -33,8 +37,6 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import { XIcon } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('ObsidianExportDialog')
 
@@ -49,6 +51,29 @@ const ObsidianProcessingMethod = {
   PREPEND: '2',
   NEW_OR_OVERWRITE: '3'
 } as const
+
+// Separator from Obsidian Web Clipper's `multitext` parsing (obsidianmd/obsidian-clipper, src/utils/shared.ts, MIT).
+const multitextSeparator = /,(?![^[]*\]\])/
+
+const parseTags = (input: string): string[] => {
+  const value = input.trim()
+  const bare = value.replace(/^\[|\]$/g, '')
+  let items: string[]
+  if (value.startsWith('[') && value.endsWith(']')) {
+    try {
+      const parsed: unknown = parse(value)
+      items =
+        Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+          ? parsed
+          : bare.split(multitextSeparator)
+    } catch {
+      items = bare.split(multitextSeparator)
+    }
+  } else {
+    items = bare.split(multitextSeparator)
+  }
+  return items.map((item) => item.trim().replace(/^#/, '')).filter((item) => item !== '')
+}
 
 interface PopupContainerProps {
   title: string
@@ -280,7 +305,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       if (state.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
         content = `\n---\n${markdown}`
       } else {
-        content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
+        const frontMatter = stringify(
+          { title: state.title, created: state.createdAt, source: state.source, tags: parseTags(state.tags) },
+          { lineWidth: 0 }
+        )
+        content = `---\n${frontMatter}---\n${markdown}`
       }
       if (content === '') {
         toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))

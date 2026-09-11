@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+import { describe, expect, it } from 'vitest'
+
 import enUS from '@renderer/i18n/locales/en-us.json'
 import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import { describe, expect, it } from 'vitest'
 
 import { settingsMenu } from '../../settingsMenu'
 import { settingsSearchSections } from '../aggregate'

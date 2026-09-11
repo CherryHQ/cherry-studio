@@ -1,3 +1,8 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
@@ -10,10 +15,6 @@ import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { MiniAppManifest } from '@shared/types/miniAppManifest'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 /** Every row the service maps today is a site row; narrow so site-only fields can be asserted. */
 function expectSite(app: MiniApp): SiteMiniApp {
@@ -631,9 +632,7 @@ describe('MiniAppService', () => {
       // There is no installation row to hold it; an UPDATE there matches nothing and
       // "succeeds", so the guard has to come from the kind, not from the write.
       miniAppService.create({ appId: 'site-x', name: 'Site X', url: 'https://x.example' })
-      expect(() => miniAppService.update('site-x', { aiModelId: 'openai::gpt-4o-mini' as UniqueModelId })).toThrow(
-        /installed/i
-      )
+      expect(() => miniAppService.update('site-x', { aiModelId: 'openai::gpt-4o-mini' })).toThrow(/installed/i)
     })
 
     it('refuses to swap an installed app icon through the generic path', () => {

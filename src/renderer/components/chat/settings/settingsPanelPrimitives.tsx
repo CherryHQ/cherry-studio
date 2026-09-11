@@ -1,8 +1,9 @@
+import { Info } from 'lucide-react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+
 import { Divider as SettingDivider, Switch, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { SettingRow as BaseSettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
-import { Info } from 'lucide-react'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 export const SettingRowTitleSmall = ({
   className,
@@ -10,7 +11,7 @@ export const SettingRowTitleSmall = ({
   hint,
   ...rest
 }: ComponentPropsWithoutRef<typeof SettingRowTitle> & { hint?: string }) => (
-  <SettingRowTitle className={cn('min-w-0 gap-1.5 text-foreground text-sm leading-4.5', className)} {...rest}>
+  <SettingRowTitle className={cn('min-w-0 gap-1.5 text-sm leading-4.5 text-foreground', className)} {...rest}>
     <span className="min-w-0 truncate">{children}</span>
     {hint && (
       <Tooltip content={hint} placement="top" className="w-fit max-w-sm px-2.5 py-1.5 text-xs leading-relaxed">

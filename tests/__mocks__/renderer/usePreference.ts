@@ -1,5 +1,6 @@
-import type { PreferenceKeyType, PreferenceUpdateOptions } from '@shared/data/preference/preferenceTypes'
 import { vi } from 'vitest'
+
+import type { PreferenceKeyType, PreferenceUpdateOptions } from '@shared/data/preference/preferenceTypes'
 
 import { mockPreferenceDefaults } from './PreferenceService'
 

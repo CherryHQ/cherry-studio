@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentPropsWithoutRef } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 /**
  * Inner padded container for the chat list. Used by `MessageVirtualList`
@@ -8,7 +9,7 @@ import type { ComponentPropsWithoutRef } from 'react'
  * handles its own scroll-to-bottom semantics.
  */
 export const ScrollContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex flex-col px-2.5 pt-2.5 in-[.multi-select-mode]:pb-15 pb-5', className)} {...props} />
+  <div className={cn('flex flex-col px-2.5 pt-2.5 pb-5 in-[.multi-select-mode]:pb-15', className)} {...props} />
 )
 
 interface ContainerProps {

@@ -1,14 +1,15 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { Activity, type ComponentProps, type ReactNode } from 'react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { Activity, type ComponentProps, type ReactNode } from 'react'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const React = await import('react')
@@ -259,7 +260,7 @@ const preferenceMocks = vi.hoisted(() => ({
 }))
 
 const cacheMocks = vi.hoisted(() => ({
-  state: { activeSessionId: 'session-a' as string | null },
+  state: { activeSessionId: 'session-a' },
   values: new Map<string, unknown>(),
   setActiveSessionId: vi.fn(),
   setCache: vi.fn()
