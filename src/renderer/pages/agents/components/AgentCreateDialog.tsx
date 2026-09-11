@@ -1,3 +1,5 @@
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import {
   ResourceCreateWizard,
@@ -5,7 +7,6 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/create'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
 import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
-import { useCallback } from 'react'
 
 const logger = loggerService.withContext('AgentCreateDialog')
 

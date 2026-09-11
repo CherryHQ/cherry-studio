@@ -1,11 +1,12 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it } from 'vitest'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelSessionTable } from '@data/db/schemas/agentChannel'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
 
 const TELEGRAM_CONFIG = { bot_token: 'test-token-123', allowed_chat_ids: [] }
 const DISCORD_CONFIG = { bot_token: 'test-token-123', allowed_channel_ids: [] }

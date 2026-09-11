@@ -1,12 +1,12 @@
 import { bearer } from '@elysia/bearer'
+import { Elysia } from 'elysia'
+
 import {
   ANTIGRAVITY_MODEL_PATH_SEPARATOR,
   isReservedGeminiGatewayModelId,
   stripGeminiGatewayModelSuffix
 } from '@shared/utils/apiGateway'
-import { Elysia } from 'elysia'
 
-import type { InputParamsMap } from '../adapters'
 import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
@@ -99,7 +99,7 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
 
       if (method === 'countTokens') {
         return {
-          totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], model, request.signal)
+          totalTokens: await estimateGeminiRequestTokens(body, model, request.signal)
         }
       }
       if (!GENERATE_METHODS.has(method)) {

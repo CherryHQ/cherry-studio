@@ -1,10 +1,10 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 import '@renderer/assets/styles/vendor/katex.css'
-
-import { StaticMarkdown } from '@renderer/components/markdown'
 import type { FC } from 'react'
 import React, { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { StaticMarkdown } from '@renderer/components/markdown'
 
 interface MarkdownEditorProps {
   value: string

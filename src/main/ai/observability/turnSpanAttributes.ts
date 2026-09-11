@@ -1,8 +1,9 @@
-import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
+import type { UIMessage } from 'ai'
+
+import { loggerService } from '@logger'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { KB } from '@shared/utils/constants'
-import type { UIMessage } from 'ai'
 
 import type { CherryUIMessage } from '../streamManager'
 

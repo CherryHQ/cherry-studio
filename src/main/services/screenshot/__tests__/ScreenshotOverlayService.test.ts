@@ -1,10 +1,11 @@
 import { EventEmitter } from 'node:events'
 import type * as NodeFs from 'node:fs'
 
-import { WindowType } from '@main/core/window/types'
-import type { DetectedWindow } from '@shared/types/screenshot'
 import type { Display } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowType } from '@main/core/window/types'
+import type { DetectedWindow } from '@shared/types/screenshot'
 
 import type { CaptureResult, RawWindowInfo } from '../types'
 

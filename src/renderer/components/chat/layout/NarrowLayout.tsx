@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type { FC, HTMLAttributes, ReactNode } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 interface Props extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode

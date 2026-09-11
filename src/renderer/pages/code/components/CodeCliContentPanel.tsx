@@ -1,12 +1,13 @@
+import { ExternalLink } from 'lucide-react'
+import { type FC, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button, SearchInput } from '@cherrystudio/ui'
 import { BinaryInstallErrorDialog } from '@renderer/components/BinaryInstallErrorDialog'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { ExternalLink } from 'lucide-react'
-import { type FC, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { ConfigList } from './ConfigList'

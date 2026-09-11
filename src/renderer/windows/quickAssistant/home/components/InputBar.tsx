@@ -1,8 +1,9 @@
+import React, { useRef } from 'react'
+
 import { Input } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Model } from '@shared/data/types/model'
-import React, { useRef } from 'react'
 
 interface InputBarProps {
   text: string

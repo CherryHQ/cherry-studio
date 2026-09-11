@@ -1,7 +1,8 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const addItems = vi.fn()
 const deleteConcepts = vi.fn()
@@ -56,7 +57,7 @@ function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}
         knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
         abortSignal: new AbortController().signal
       }
-    } as ToolExecutionOptions
+    }
   )
 }
 

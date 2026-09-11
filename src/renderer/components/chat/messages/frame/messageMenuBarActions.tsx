@@ -1,3 +1,22 @@
+import dayjs from 'dayjs'
+import type { TFunction } from 'i18next'
+import {
+  AtSign,
+  Check,
+  CirclePause,
+  CopyPlus,
+  FilePenLine,
+  Languages,
+  ListChecks,
+  Menu,
+  NotebookPen,
+  Save,
+  Split,
+  ThumbsUp,
+  Upload
+} from 'lucide-react'
+import type { ReactNode, RefObject } from 'react'
+
 import { loggerService } from '@logger'
 import {
   DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
@@ -17,24 +36,6 @@ import { createComposerRichClipboardContentFromParts } from '@renderer/utils/mes
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import dayjs from 'dayjs'
-import type { TFunction } from 'i18next'
-import {
-  AtSign,
-  Check,
-  CirclePause,
-  CopyPlus,
-  FilePenLine,
-  Languages,
-  ListChecks,
-  Menu,
-  NotebookPen,
-  Save,
-  Split,
-  ThumbsUp,
-  Upload
-} from 'lucide-react'
-import type { ReactNode, RefObject } from 'react'
 
 import { createActionRegistry } from '../../actions/actionRegistry'
 import type { ActionAvailabilityInput, ActionDescriptor, ResolvedAction } from '../../actions/actionTypes'

@@ -6,15 +6,16 @@
  * anything the guest sends about its own identity is discarded.
  */
 
+import { eq } from 'drizzle-orm'
+import { app } from 'electron'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import type { BridgeResult, CherryPublicError } from '@shared/ipc/schemas/miniAppBridge'
 import { declaredGrantKeys, MiniAppManifestSchema, type MiniAppMethod } from '@shared/types/miniAppManifest'
-import { eq } from 'drizzle-orm'
-import { app } from 'electron'
-import * as z from 'zod'
 
 import { miniAppActivityLog } from '../activityLog'
 import { aiCapability } from '../capabilities/ai'
@@ -70,7 +71,7 @@ type Handler = (
  * places to add a method and one place to forget.
  */
 const ROUTES: Record<MiniAppMethod, Handler> = {
-  'app.getInfo': ((appId) => ({
+  'app.getInfo': (appId) => ({
     appId,
     /** The mini app's own version, from its installation record. */
     version: installedVersionOf(appId),
@@ -79,15 +80,15 @@ const ROUTES: Record<MiniAppMethod, Handler> = {
     // `getAppLanguage()`, never the raw preference: it stays null until the user picks
     // one. No `theme` — `matchMedia` gives the guest the value AND the changes (§6.4).
     locale: getAppLanguage()
-  })) as Handler,
+  }),
 
   // Gated `none` on purpose: it reports the CALLER'S OWN grant state, so there is nothing
   // to protect — gating it would only leave an app blind to what it may call.
-  'app.getPermissions': ((appId) => {
+  'app.getPermissions': (appId) => {
     const manifest = MiniAppManifestSchema.parse(installationOf(appId).manifestJson)
     const granted = new Set(listGrants(appId))
     return Object.fromEntries(declaredGrantKeys(manifest).map((k) => [k, granted.has(k)]))
-  }) as Handler,
+  },
 
   'ai.chat': (appId, params, emit, senderId, _requestId, callId) =>
     aiCapability.chat(appId, params, emit, senderId, callId),
