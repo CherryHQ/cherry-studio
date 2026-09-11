@@ -9,7 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { DeepSeekHarnessAgentPreset } from '@shared/types/codeCli'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { Document, isMap, isSeq, parseDocument, type YAMLError } from 'yaml'
+import { Document, isAlias, isMap, isScalar, isSeq, parseDocument, visit, type YAMLError } from 'yaml'
 
 export type DeepSeekHarnessMode = 'direct' | 'gateway'
 export type DeepSeekHarnessProtocol = 'anthropic-messages' | 'openai-responses' | 'openai-completions'
@@ -241,6 +241,143 @@ function projectReasoningEfforts(model: Model): false | Record<string, string | 
   return undefined
 }
 
+function yamlStringKey(key: unknown): string | undefined {
+  const value = isScalar(key) ? key.value : key
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function prependComments(target: { commentBefore?: string | null }, comments: Array<string | null | undefined>): void {
+  const combined = [...comments, target.commentBefore].filter((comment): comment is string => Boolean(comment))
+  if (combined.length > 0) target.commentBefore = combined.join('\n')
+}
+
+/**
+ * DSH has always consumed provider models as a sequence, but pre-release
+ * integrations could leave a map keyed by model id in the shared settings
+ * file. One invalid sibling route makes DSH reject the entire llm-pi-ai
+ * section, including Cherry's managed route. Convert only maps whose meaning
+ * can be preserved exactly; fail loudly instead of deleting or guessing at
+ * ambiguous user-owned data.
+ */
+function migrateLegacyProviderModels(document: Document): void {
+  const providers = document.getIn(['llm-pi-ai', 'providers'], true)
+  if (!isMap(providers)) return
+
+  const providerModelAliases = new Set<unknown>()
+  const providerModelValueAliases = new Set<unknown>()
+  for (const providerPair of providers.items) {
+    if (!isMap(providerPair.value)) continue
+    const models = providerPair.value.get('models', true)
+    if (isAlias(models)) providerModelAliases.add(models)
+    if (isMap(models)) {
+      for (const modelPair of models.items) {
+        if (isAlias(modelPair.value)) providerModelValueAliases.add(modelPair.value)
+      }
+    }
+  }
+
+  for (const providerPair of providers.items) {
+    if (!isMap(providerPair.value)) continue
+    const models = providerPair.value.get('models', true)
+    const route = yamlStringKey(providerPair.key)
+    const routeLabel = route ?? '<invalid route>'
+    if (models == null || isSeq(models)) continue
+    if (isAlias(models)) {
+      const resolvedModels = models.resolve(document)
+      if (isSeq(resolvedModels)) continue
+      if (isMap(resolvedModels)) {
+        throw new Error(
+          `DeepSeek Harness route ${routeLabel} models aliases a legacy map that cannot be safely migrated in place`
+        )
+      }
+    }
+    if (!isMap(models)) {
+      throw new Error(`DeepSeek Harness route ${routeLabel} has a non-list models field`)
+    }
+    if (!route) {
+      throw new Error('DeepSeek Harness provider route with legacy models must have a non-empty string key')
+    }
+    if (models.anchor) {
+      let hasExternalAlias = false
+      visit(document, {
+        Alias(_key, alias) {
+          if (alias.source === models.anchor && !providerModelAliases.has(alias)) hasExternalAlias = true
+        }
+      })
+      if (hasExternalAlias) {
+        throw new Error(
+          `DeepSeek Harness route ${route} legacy models anchor ${models.anchor} is referenced outside provider models`
+        )
+      }
+    }
+
+    const migratedModels = document.createNode<unknown[]>([])
+    if (!isSeq(migratedModels)) throw new Error('Failed to create DeepSeek Harness models list')
+    migratedModels.commentBefore = models.commentBefore
+    migratedModels.comment = models.comment
+    migratedModels.spaceBefore = models.spaceBefore
+    migratedModels.anchor = models.anchor
+
+    for (const modelPair of models.items) {
+      const modelId = yamlStringKey(modelPair.key)
+      if (!modelId) {
+        throw new Error(`DeepSeek Harness route ${route} has a legacy model with an invalid id key`)
+      }
+      const sourceModel = modelPair.value
+      let resolvedModel = sourceModel
+      if (isAlias(sourceModel)) {
+        resolvedModel = sourceModel.resolve(document)
+        if (!isMap(resolvedModel)) {
+          throw new Error(`DeepSeek Harness route ${route} legacy model ${modelId} must be a mapping`)
+        }
+      }
+      if (!isMap(resolvedModel)) {
+        throw new Error(`DeepSeek Harness route ${route} legacy model ${modelId} must be a mapping`)
+      }
+      if (resolvedModel.anchor) {
+        let hasExternalAlias = false
+        visit(document, {
+          Alias(_key, alias) {
+            if (alias.source === resolvedModel.anchor && !providerModelValueAliases.has(alias)) hasExternalAlias = true
+          }
+        })
+        if (hasExternalAlias) {
+          throw new Error(
+            `DeepSeek Harness route ${route} legacy model ${modelId} anchor ${resolvedModel.anchor} is referenced outside provider models`
+          )
+        }
+      }
+      // Always edit a detached YAML node. Individual legacy models may be anchored and referenced
+      // elsewhere in the document; mutating the provider-owned node in place would silently add the
+      // synthesized id to those external aliases. YAMLMap.clone preserves comments, tags, and scalar
+      // styles that a toJS()/createNode() round trip would discard.
+      const model = resolvedModel.clone(document.schema)
+      if (!isMap(model)) throw new Error('Failed to clone DeepSeek Harness legacy model mapping')
+      model.anchor = undefined
+
+      const declaredIdNode = model.get('id', true)
+      const resolvedIdNode = isAlias(declaredIdNode) ? declaredIdNode.resolve(document) : declaredIdNode
+      const declaredId = isScalar(resolvedIdNode) ? resolvedIdNode.value : resolvedIdNode
+      if (declaredIdNode == null) {
+        model.set('id', modelId)
+      } else if (declaredId !== modelId) {
+        const declaredIdLabel = typeof declaredId === 'string' ? JSON.stringify(declaredId) : `<${typeof declaredId}>`
+        throw new Error(
+          `DeepSeek Harness route ${route} legacy model ${modelId} declares conflicting id ${declaredIdLabel}`
+        )
+      }
+
+      if (isScalar(modelPair.key)) {
+        const aliasComments = isAlias(sourceModel) ? [sourceModel.commentBefore, sourceModel.comment] : []
+        prependComments(model, [modelPair.key.commentBefore, modelPair.key.comment, ...aliasComments])
+      }
+      migratedModels.add(model)
+    }
+
+    providerPair.value.set('models', migratedModels)
+  }
+}
+
 function updateManagedModel(document: Document, projection: DeepSeekHarnessProjection): void {
   const modelsPath = ['llm-pi-ai', 'providers', projection.route, 'models']
   if (!document.hasIn(modelsPath)) document.setIn(modelsPath, document.createNode([]))
@@ -275,6 +412,8 @@ function renderSettings(snapshot: FileSnapshot, projection: DeepSeekHarnessProje
       throw new Error(`DeepSeek Harness route ${projection.route} is not owned by CodeMate`)
     }
   }
+
+  migrateLegacyProviderModels(document)
 
   document.setIn([...routePath, 'apiKeyEnv'], projection.credentialRef)
   document.setIn([...routePath, 'displayName'], projection.displayName)
