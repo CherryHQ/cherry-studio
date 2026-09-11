@@ -1,3 +1,7 @@
+import { Plus } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePersistCache } from '@data/hooks/useCache'
 import { useReorder } from '@data/hooks/useReorder'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
@@ -6,15 +10,12 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
   isProviderPresetInstanceSource,
-  isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { canManageProvider } from '@shared/utils/provider'
-import { Plus } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useOvmsSupport } from '../hooks/useOvmsSupport'
 import type { ProviderFilterMode } from './providerFilterMode'
@@ -148,6 +149,7 @@ export default function ProviderList({
   }, [allModels, searchText])
 
   const filteredProviders = useMemo(() => {
+    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     return providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
         return false
@@ -161,7 +163,6 @@ export default function ProviderList({
       if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
-      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
   }, [filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])

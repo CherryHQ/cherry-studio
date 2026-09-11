@@ -109,10 +109,7 @@ export class PersistenceListener implements StreamListener {
     const finalMessageForPersistence = finalMessage
       ? {
           ...finalMessage,
-          parts: finalizeInterruptedParts(
-            dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])),
-            status
-          )
+          parts: finalizeInterruptedParts(dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts)), status)
         }
       : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
@@ -188,5 +185,5 @@ function mergeErrorIntoMessage(base: CherryUIMessage | undefined, error: Seriali
     role: 'assistant',
     parts: [...baseParts, errorPart],
     ...(base?.metadata ? { metadata: base.metadata } : {})
-  } as CherryUIMessage
+  }
 }

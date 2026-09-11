@@ -1,3 +1,7 @@
+import { isToolUIPart } from 'ai'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
@@ -47,7 +51,7 @@ import {
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   type CherryMessagePart,
@@ -55,9 +59,6 @@ import {
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { isToolUIPart } from 'ai'
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
-import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
@@ -639,28 +640,39 @@ export class AgentSessionMessageService {
       return { deletedIds, inboundResults, outboundFailed }
     })
 
-    if (result.deletedIds.length > 0) {
-      notifyDataApiDataChange([
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: 'membership',
-          routeParams: { sessionId },
-          entityIds: result.deletedIds
-        },
-        {
-          endpoint: '/search/contents',
-          entityIds: result.deletedIds
-        }
-      ])
-    }
-    this.publishDeliveryChanges(result.inboundResults)
-    this.publishDeliveryMutation(
-      result.outboundFailed.map((message) => ({
-        sessionId: message.sessionId,
-        messageId: message.id,
-        kind: 'projection' as const
+    const dataChangeEffects: DataApiDataChangeEffect[] = [
+      ...(result.deletedIds.length > 0
+        ? [
+            {
+              endpoint: '/agent-sessions/:sessionId/messages' as const,
+              kind: 'membership' as const,
+              routeParams: { sessionId },
+              entityIds: result.deletedIds
+            },
+            {
+              endpoint: '/search/contents' as const,
+              entityIds: result.deletedIds
+            }
+          ]
+        : []),
+      ...agentSessionReadModelEffects(
+        result.inboundResults.map((message) => message.sessionId),
+        'projection'
+      ),
+      ...result.inboundResults.map((message) => ({
+        endpoint: '/agent-sessions/:sessionId/messages' as const,
+        kind: 'membership' as const,
+        routeParams: { sessionId: message.sessionId },
+        entityIds: [message.id]
+      })),
+      ...result.outboundFailed.map((message) => ({
+        endpoint: '/agent-sessions/:sessionId/messages' as const,
+        kind: 'projection' as const,
+        routeParams: { sessionId: message.sessionId },
+        entityIds: [message.id]
       }))
-    )
+    ]
+    if (dataChangeEffects.length > 0) notifyDataApiDataChange(dataChangeEffects)
 
     return { deletedIds: result.deletedIds }
   }

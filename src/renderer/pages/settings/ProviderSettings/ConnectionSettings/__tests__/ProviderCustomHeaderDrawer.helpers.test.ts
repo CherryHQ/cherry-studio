@@ -78,7 +78,7 @@ describe('resolveEndpointTypes', () => {
           [PRIMARY]: {},
           'openai-image-generation': { baseUrl: 'https://images.example.com' },
           'openai-image-edit': { baseUrl: 'https://edits.example.com' }
-        } as any
+        }
       },
       PRIMARY
     )

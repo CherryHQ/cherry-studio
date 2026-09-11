@@ -1,3 +1,20 @@
+import { debounce } from 'es-toolkit/compat'
+import {
+  BadgeQuestionMark,
+  Briefcase,
+  Bug,
+  Building2,
+  FileArchive,
+  Github,
+  Globe,
+  Mail,
+  MessageSquareText,
+  Rss
+} from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -30,22 +47,6 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { debounce } from 'es-toolkit/compat'
-import {
-  BadgeQuestionMark,
-  Briefcase,
-  Bug,
-  Building2,
-  FileArchive,
-  Github,
-  Globe,
-  Mail,
-  MessageSquareText,
-  Rss
-} from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 
@@ -274,7 +275,7 @@ const AboutSettings: FC = () => {
         {!isPortable && (
           <>
             <Divider className="my-3" />
-            <SettingRow className="gap-3">
+            <SettingRow id="setting-about-auto-check-update" className="scroll-mt-6 gap-3">
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
@@ -375,6 +376,7 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
+          id="setting-about-diagnostics"
           icon={<FileArchive className="size-4.5" />}
           title={t('settings.about.diagnostics.entry.title')}
           actionLabel={t('settings.about.diagnostics.entry.button')}
@@ -382,6 +384,7 @@ const AboutSettings: FC = () => {
         />
         <Divider className="my-3" />
         <AboutActionRow
+          id="setting-about-debug-tools"
           icon={<Bug className="size-4.5" />}
           title={t('settings.about.debug.title')}
           actionLabel={t('settings.about.debug.open')}
@@ -401,16 +404,18 @@ const AboutSettings: FC = () => {
 function AboutActionRow({
   actionLabel,
   icon,
+  id,
   onAction,
   title
 }: {
   actionLabel: string
   icon: ReactNode
+  id?: string
   onAction: () => void | Promise<void>
   title: string
 }) {
   return (
-    <SettingRow className="gap-3">
+    <SettingRow id={id} className={id ? 'scroll-mt-6 gap-3' : 'gap-3'}>
       <SettingRowTitle className="gap-2.5">
         {icon}
         {title}

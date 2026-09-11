@@ -6,6 +6,8 @@
  * - Listing with optional filters
  */
 
+import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -24,7 +26,6 @@ import type {
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
 import { groupService } from './GroupService'
 import { modelService } from './ModelService'
@@ -128,8 +129,8 @@ export class AssistantDataService {
     if (dtoModelId !== undefined) {
       if (dtoModelId && !modelService.existsByIdTx(tx, dtoModelId)) {
         throw DataApiErrorFactory.validation(
-          { modelId: [`Model '${dtoModelId}' is not registered in user_model`] },
-          `Assistant modelId '${dtoModelId}' is not registered — add the model first or pass null`
+          { modelId: [`Model '${dtoModelId}' is unavailable in this edition or not registered in user_model`] },
+          `Assistant modelId '${dtoModelId}' is unavailable in this edition or not registered — add the model first or pass null`
         )
       }
       return dtoModelId
@@ -328,7 +329,11 @@ export class AssistantDataService {
       .limit(limit)
       .offset(offset)
       .all()
-    const [{ count }] = this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause).all()
+    const [{ count }] = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(assistantTable)
+      .where(whereClause)
+      .all()
 
     const assistantIds = rows.map((row) => row.assistant.id)
     const relations = this.getRelationIdsByAssistantIds(assistantIds)
@@ -522,8 +527,8 @@ export class AssistantDataService {
       // the existing modelId untouched (undefined/empty).
       if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
         throw DataApiErrorFactory.validation(
-          { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
-          `Assistant modelId '${dto.modelId}' is not registered — add the model first or pass null`
+          { modelId: [`Model '${dto.modelId}' is unavailable in this edition or not registered in user_model`] },
+          `Assistant modelId '${dto.modelId}' is unavailable in this edition or not registered — add the model first or pass null`
         )
       }
       if (dto.groupId !== undefined) {

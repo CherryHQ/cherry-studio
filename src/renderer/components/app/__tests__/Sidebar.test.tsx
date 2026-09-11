@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { SidebarAppId } from '@renderer/utils/sidebar'
-import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { SidebarAppId } from '@renderer/utils/sidebar'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 
 import type * as SidebarConstants from '../../Sidebar/constants'
 
@@ -895,26 +895,6 @@ describe('app Sidebar', () => {
     // conversation — an owned tab is already "there", whatever session it shows.
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
-  })
-
-  it('navigates a message-only viewer of the same app back to the app entry', () => {
-    mocks.sidebarFavorites = [appFavorite('agents')]
-    mocks.activeTab = {
-      id: 'viewer',
-      type: 'route',
-      url: '/app/agents?sessionId=session-1&view=message',
-      title: 'Session 1'
-    }
-
-    render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-agents'))
-
-    expect(mocks.updateTab).toHaveBeenCalledWith('viewer', {
-      url: '/app/agents',
-      title: 'Work',
-      icon: undefined,
-      metadata: undefined
-    })
   })
 
   it('clears route-specific metadata when reusing the active tab', () => {

@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import * as React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   EntitySearchResponse,
@@ -7,11 +12,6 @@ import type {
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import * as React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT } from '../globalSearchGroups'
 
@@ -31,6 +31,10 @@ const mocks = vi.hoisted(() => ({
   useQuery: vi.fn(),
   queryResult: undefined as EntitySearchResponse | undefined,
   messageQueryResult: undefined as { items: TopicMessageContentSearchItem[]; nextCursor?: string } | undefined,
+  messageQueryResultsByCursor: new Map<
+    string | undefined,
+    { items: TopicMessageContentSearchItem[]; nextCursor?: string }
+  >(),
   sessionMessageQueryResult: undefined as { items: SessionMessageContentSearchItem[]; nextCursor?: string } | undefined,
   keepStaleContentSearchData: false,
   recentItems: [] as GlobalSearchRecentEntry[],
@@ -46,6 +50,7 @@ const mocks = vi.hoisted(() => ({
     ],
     'feature.paintings.default_provider': 'zhipu'
   } as Record<string, unknown>,
+  casualCache: new Map<string, unknown>(),
   persistCacheValues: {
     'ui.chat.last_used_topic_id': undefined,
     'ui.agent.last_used_session_id': undefined
@@ -377,7 +382,11 @@ vi.mock('@renderer/utils/routeTitle', () => ({
 }))
 
 vi.mock('@data/CacheService', () => ({
-  cacheService: { set: mocks.cacheSet }
+  cacheService: {
+    set: mocks.cacheSet,
+    hasCasual: (key: string) => mocks.casualCache.has(key),
+    setCasual: (key: string, value: unknown) => mocks.casualCache.set(key, value)
+  }
 }))
 
 vi.mock('@data/DataApiService', () => {
@@ -406,8 +415,13 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
+  useTopicById: () => ({}),
   mapApiTopicToRendererTopic: (topic: unknown) => topic
 }))
+
+vi.mock('@renderer/hooks/useAssistant', () => ({ useAssistantApiById: () => ({}) }))
+vi.mock('@renderer/hooks/agent/useSession', () => ({ useSession: () => ({}) }))
+vi.mock('@renderer/hooks/agent/useAgent', () => ({ useAgent: () => ({}) }))
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
@@ -552,7 +566,7 @@ vi.mock('react-i18next', () => ({
 
 import { toast } from '@renderer/services/toast'
 
-import { GlobalSearchPanel, testOnlyClearRefreshHistory } from '../GlobalSearchPanel'
+import { GlobalSearchPanel } from '../GlobalSearchPanel'
 import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
 
 afterEach(() => {
@@ -563,7 +577,7 @@ afterEach(() => {
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
-    testOnlyClearRefreshHistory()
+    mocks.casualCache.clear()
     // Conversation tabs open on the conversation's own URL (`/app/chat?topicId=…`), so match the
     // route prefix rather than the bare path.
     mocks.openTab.mockImplementation((route: string) => {
@@ -584,6 +598,7 @@ describe('GlobalSearchPanel', () => {
     mocks.tabs = []
     mocks.queryResult = undefined
     mocks.messageQueryResult = undefined
+    mocks.messageQueryResultsByCursor.clear()
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
@@ -610,7 +625,11 @@ describe('GlobalSearchPanel', () => {
       (
         path: string,
         options?: {
-          query?: { q?: string; sources?: string[] }
+          query?: {
+            q?: string
+            sources?: string[]
+            cursors?: Partial<Record<'topic-message' | 'session-message', string>>
+          }
           swrOptions?: { keepPreviousData?: boolean }
         }
       ) => {
@@ -625,17 +644,20 @@ describe('GlobalSearchPanel', () => {
 
         if (path === '/search/contents') {
           const sources = options?.query?.sources ?? ['topic-message', 'session-message']
+          const topicMessageQueryResult =
+            mocks.messageQueryResultsByCursor.get(options?.query?.cursors?.['topic-message']) ??
+            mocks.messageQueryResult
           const effectiveSources =
             mocks.keepStaleContentSearchData && options?.swrOptions?.keepPreviousData !== false
               ? ['topic-message', 'session-message']
               : sources
           const groups = [
-            ...(effectiveSources.includes('topic-message') && mocks.messageQueryResult
+            ...(effectiveSources.includes('topic-message') && topicMessageQueryResult
               ? [
                   {
                     sourceType: 'topic-message' as const,
-                    items: mocks.messageQueryResult.items,
-                    nextCursor: mocks.messageQueryResult.nextCursor
+                    items: topicMessageQueryResult.items,
+                    nextCursor: topicMessageQueryResult.nextCursor
                   }
                 ]
               : []),
@@ -1003,7 +1025,7 @@ describe('GlobalSearchPanel', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
-    } as never)
+    })
     mocks.queryResult = {
       query: 'topic',
       groups: [
@@ -1042,7 +1064,7 @@ describe('GlobalSearchPanel', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
-    } as never)
+    })
     mocks.queryResult = {
       query: 'topic',
       groups: [
@@ -1526,6 +1548,59 @@ describe('GlobalSearchPanel', () => {
       expect(screen.queryByRole('option', { name: /needle session reply/ })).not.toBeInTheDocument()
       expect(mocks.refetchContentSearch).toHaveBeenCalledOnce()
     })
+  })
+
+  it('restarts message pagination after another window deletes a result from the first page', async () => {
+    const user = userEvent.setup()
+    const createMessage = (
+      messageId: string,
+      snippet: string,
+      createdAt: string,
+      role: TopicMessageContentSearchItem['role'] = 'assistant'
+    ): TopicMessageContentSearchItem => ({
+      messageId,
+      topicId: 'topic-1',
+      topicName: 'Topic A',
+      topicCreatedAt: '2026-01-01T00:00:00.000Z',
+      topicUpdatedAt: '2026-01-01T00:00:00.000Z',
+      role,
+      snippet,
+      createdAt
+    })
+    mocks.messageQueryResultsByCursor.set(undefined, {
+      items: [createMessage('message-page-1-deleted', 'needle deleted first page', '2026-01-01T00:00:04.000Z', 'user')],
+      nextCursor: 'cursor-1'
+    })
+    mocks.messageQueryResultsByCursor.set('cursor-1', {
+      items: [createMessage('message-page-2-stale', 'needle stale second page', '2026-01-01T00:00:02.000Z')]
+    })
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    await user.type(
+      screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
+      'needle'
+    )
+    await user.click(screen.getByRole('radio', { name: 'Messages' }))
+    await user.click(screen.getByRole('button', { name: 'Message source: Conversation messages' }))
+    expect(await screen.findByRole('option', { name: /needle deleted first page/ })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('option', { name: 'Show 50 more' }))
+    expect(await screen.findByRole('option', { name: /needle stale second page/ })).toBeInTheDocument()
+
+    mocks.messageQueryResultsByCursor.set(undefined, {
+      items: [createMessage('message-page-1-replacement', 'needle replacement first page', '2026-01-01T00:00:01.000Z')]
+    })
+    mocks.useQuery.mockClear()
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/search/contents', entityIds: ['message-page-1-deleted'] }])
+    })
+
+    expect(await screen.findByRole('option', { name: /needle replacement first page/ })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle deleted first page/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle stale second page/ })).not.toBeInTheDocument()
+
+    const latestContentSearchCall = mocks.useQuery.mock.calls.findLast(([path]) => path === '/search/contents')
+    expect(latestContentSearchCall?.[1]?.query).not.toHaveProperty('cursors')
   })
 
   it('clears the active message source filter when clicking it again', async () => {
@@ -2214,7 +2289,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh name from server' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh name from server' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2268,7 +2343,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Already fresh' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Already fresh' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2298,7 +2373,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh session name from server' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh session name from server' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2490,7 +2565,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'First Refresh' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'First Refresh' })
 
     const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
     await waitFor(() => {
@@ -2516,7 +2591,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValue({ name: 'Refreshed Title' } as never)
+    mocks.dataApiGet.mockResolvedValue({ name: 'Refreshed Title' })
 
     const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
     await waitFor(() => {

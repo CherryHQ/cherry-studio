@@ -8,11 +8,16 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
 import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
-import type { UserQuestionProvider } from '@deepseek-ai/dsh-user-questions'
+import type { AskUserQuestionAnswer, AskUserQuestionRequest } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { apply } from '../src/plugin'
 import { BRIDGE_SOCKET_ENV, BRIDGE_TOKEN_ENV } from '../src/protocol'
+
+type PreExecuteHandler = (
+  exec: { agent?: Agent; name: string; arguments: unknown; signal?: AbortSignal },
+  next: () => unknown
+) => Promise<unknown>
 
 const originalSocket = process.env[BRIDGE_SOCKET_ENV]
 const originalToken = process.env[BRIDGE_TOKEN_ENV]
@@ -98,6 +103,110 @@ const openParams = {
 }
 
 describe('cherry bridge plugin', () => {
+  it('checks root and delegated native tool calls with Main before local permission policy', async () => {
+    const host = await startHost((method) =>
+      method === 'guard/check' ? { kind: 'deny', ruleId: 'user-data-sqlite-write', reason: 'protected SQLite' } : {}
+    )
+    const rootAgent = { id: 'session-1', session: { header: { cwd: '/root-workspace' } } } as Agent
+    const childAgent = {
+      id: 'child-1',
+      session: { header: { cwd: '/child-workspace', parentSession: 'session-1' } }
+    } as Agent
+    let preExecute: PreExecuteHandler | undefined
+    const on = vi.fn((event: string, handler: unknown) => {
+      if (event === 'tools/pre-execute') preExecute = handler as PreExecuteHandler
+      return () => undefined
+    })
+    const get = vi.fn((id: string) => (id === 'session-1' ? rootAgent : undefined))
+    const ctx = makeContext({ agents: { resume: vi.fn(), create: vi.fn(), get }, on })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!preExecute) throw new Error('tools/pre-execute handler was not registered')
+
+    const next = vi.fn()
+    for (const agent of [rootAgent, childAgent]) {
+      await expect(
+        preExecute({ agent, name: 'write', arguments: { file_path: '/user-data/app.sqlite' } }, next)
+      ).resolves.toEqual({
+        kind: 'deny',
+        ruleId: 'user-data-sqlite-write',
+        reason: 'protected SQLite'
+      })
+    }
+    expect(next).not.toHaveBeenCalled()
+    expect(host.requests.filter((request) => request.method === 'guard/check')).toEqual([
+      {
+        method: 'guard/check',
+        params: {
+          sessionId: 'session-1',
+          toolName: 'write',
+          args: { file_path: '/user-data/app.sqlite' },
+          cwd: '/root-workspace'
+        }
+      },
+      {
+        method: 'guard/check',
+        params: {
+          sessionId: 'session-1',
+          toolName: 'write',
+          args: { file_path: '/user-data/app.sqlite' },
+          cwd: '/child-workspace'
+        }
+      }
+    ])
+  })
+
+  it('fails closed when Main cannot complete guard/check', async () => {
+    const host = await startHost((method) => {
+      if (method === 'guard/check') throw new Error('guard unavailable')
+      return {}
+    })
+    const agent = { id: 'session-1', session: { header: { cwd: '/workspace' } } } as Agent
+    let preExecute: PreExecuteHandler | undefined
+    const on = vi.fn((event: string, handler: unknown) => {
+      if (event === 'tools/pre-execute') preExecute = handler as PreExecuteHandler
+      return () => undefined
+    })
+    const ctx = makeContext({ on })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!preExecute) throw new Error('tools/pre-execute handler was not registered')
+
+    await expect(preExecute({ agent, name: 'bash', arguments: { command: 'echo ok' } }, vi.fn())).resolves.toEqual({
+      kind: 'deny',
+      reason: 'The Cherry Studio safety guard could not verify this tool call.'
+    })
+  })
+
+  it.each([undefined, ''])('denies native tools when the session cwd is %s', async (cwd) => {
+    const host = await startHost()
+    const agent = { id: 'session-1', session: { header: { cwd } } } as Agent
+    let preExecute: PreExecuteHandler | undefined
+    const ctx = makeContext({
+      on: (event: string, handler: unknown) => {
+        if (event === 'tools/pre-execute') preExecute = handler as PreExecuteHandler
+        return () => undefined
+      }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!preExecute) throw new Error('tools/pre-execute handler was not registered')
+
+    await expect(
+      preExecute({ agent, name: 'bash', arguments: { command: 'echo ok' } }, async () => {
+        throw new Error('An unscoped native tool must never execute')
+      })
+    ).resolves.toEqual({ kind: 'deny', reason: 'The tool caller has no verified workspace directory.' })
+  })
+
   it('rejects a resumed session whose persisted cwd differs from the requested workspace', async () => {
     const host = await startHost()
     const dispose = vi.fn().mockResolvedValue(undefined)
@@ -158,41 +267,37 @@ describe('cherry bridge plugin', () => {
     const agent = {
       id: 'session-1',
       session: {
-        events: [
+        snapshotEvents: () => [
           {
             type: 'tool/call',
+            seq: 7,
             data: { callId: 'exit-plan-call-1', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
           },
           {
             type: 'tool/call',
+            seq: 9,
             data: { callId: 'exit-plan-call-2', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
           }
         ]
       }
     } as unknown as Agent
-    let provider: UserQuestionProvider | undefined
-    const registerProvider = vi.fn((candidate: UserQuestionProvider) => {
-      provider = candidate
-      return () => undefined
-    })
-    const effect = vi.fn((factory: () => unknown) => {
-      const disposer = factory()
-      if (typeof disposer === 'function') cleanup.push(disposer as () => void)
+    let ask: ((request: AskUserQuestionRequest) => Promise<AskUserQuestionAnswer>) | undefined
+    const on = vi.fn((event: string, handler: unknown) => {
+      if (event === 'user-questions/request') ask = handler as typeof ask
       return () => undefined
     })
     const ctx = makeContext({
       agents: { resume: vi.fn(), create: vi.fn(), get: vi.fn(() => agent) },
-      userQuestions: { registerProvider },
-      effect
+      on
     })
     process.env[BRIDGE_SOCKET_ENV] = host.socketPath
     process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
 
     apply(ctx)
     await expect.poll(() => host.requests[0]?.method).toBe('ready')
-    if (!provider) throw new Error('user-questions provider was not registered')
+    if (!ask) throw new Error('user-questions listener was not registered')
 
-    const answer = provider.ask({
+    const answer = ask({
       agent,
       questions: [
         {
@@ -207,17 +312,17 @@ describe('cherry bridge plugin', () => {
     await expect
       .poll(() => host.requests.find((request) => request.method === 'question/ask'))
       .toMatchObject({
-        params: { sessionId: 'session-1', callId: 'exit-plan-call-2' }
+        params: { sessionId: 'session-1', callId: 'exit-plan-call-2', sessionEventSeq: 9 }
       })
     await expect(answer).resolves.toEqual({})
   })
 
-  it('delivers rejected approval feedback to the same agent after settling the outcome', async () => {
-    const host = await startHost((method) =>
-      method === 'approval/ask' ? { outcome: 'rejected', rejectionReason: 'use a copy instead' } : {}
-    )
-    const followup = vi.fn()
-    const agent = { id: 'session-1', followup, session: { events: [] } } as unknown as Agent
+  it('correlates approval requests with the durable session event', async () => {
+    const host = await startHost((method) => (method === 'approval/ask' ? { outcome: 'rejected' } : {}))
+    const agent = {
+      id: 'session-1',
+      session: { snapshotEvents: () => [{ type: 'approval/asked', seq: 12, data: { id: 'ask-1', toolName: 'bash' } }] }
+    } as unknown as Agent
     let approvalHandler: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
     const on = vi.fn((event: string, handler: unknown) => {
       if (event === 'approval/request') {
@@ -241,20 +346,10 @@ describe('cherry bridge plugin', () => {
         reason: 'needs approval'
       } as ApprovalRequest)
     ).resolves.toBe('rejected')
-    expect(followup).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(followup).toHaveBeenCalledOnce())
-    expect(followup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: 'user',
-        source: { kind: 'user' },
-        content: [
-          {
-            type: 'text',
-            text: 'Tool approval feedback for "bash":\nuse a copy instead'
-          }
-        ]
-      })
-    )
+    expect(host.requests.find((request) => request.method === 'approval/ask')?.params).toMatchObject({
+      sessionId: 'session-1',
+      sessionEventSeq: 12
+    })
   })
 
   it('rejects an unknown method instead of answering it', async () => {

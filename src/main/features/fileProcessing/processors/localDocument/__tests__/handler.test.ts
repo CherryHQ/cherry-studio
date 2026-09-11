@@ -1,10 +1,11 @@
 import type * as FsPromises from 'node:fs/promises'
 import path from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as MainFileUtils from '@main/utils/file'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   tempRoot,
@@ -47,6 +48,7 @@ vi.mock('@application', async () => {
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
     if (name === 'OcrInferenceService') return { recognize: recognizeMock }
+    if (name === 'LocalModelService') return { isCapabilityReady: isLocalModelReadyMock }
     return originalGet(name)
   })
   const originalGetPath = result.application.getPath.getMockImplementation()!
@@ -55,10 +57,6 @@ vi.mock('@application', async () => {
   )
   return result
 })
-
-vi.mock('@main/ai/localModel', () => ({
-  localModelService: { isReady: isLocalModelReadyMock }
-}))
 
 vi.mock('@firecrawl/anydoc', () => ({
   toMarkdownBytes: toMarkdownBytesMock,

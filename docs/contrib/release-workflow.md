@@ -10,6 +10,7 @@ sources:
   - .github/workflows/publish-release.yml
   - .github/workflows/ci.yml
   - .agents/skills/prepare-release/SKILL.md
+  - electron-builder.cn.config.cjs
 ---
 
 # Release Workflow Operations
@@ -42,7 +43,7 @@ Use **Preview Release** when a maintainer needs installable packages from an unr
 4. Select `all`, `windows`, `mac`, or `linux`, then run the workflow.
 5. Open the resulting draft under **Releases** and download its installers.
 
-Every selected platform builds the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. After every selected platform succeeds, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads the installers there.
+Every selected platform builds both the global and China editions from the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. After both editions succeed on every selected platform, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads all installers there.
 
 Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. The build job therefore requires approval through the `release` Environment before any source-branch code runs. Preview tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
 
@@ -126,7 +127,7 @@ Before building, the workflow verifies that:
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
 
-Each selected runner first stages only its own platform artifacts. After every selected build succeeds, one final job downloads that complete staged set, fails on any artifact read or upload error, updates the draft by release ID, and only then creates or moves `v<version>` to the exact validated branch commit. A single-platform retry first downloads the existing draft assets, overlays the selected platform's replacements, uploads the complete set, and never moves the tag. Tag movement is allowed only while the release is still a draft.
+Each selected platform builds both the existing global edition and the China edition from the same commit. Their release asset names, package IDs, and update channels identify the edition, while their installed product name, executable, shortcut, protocol, and `userData` location stay the same. Both Windows installers also retain the existing global NSIS GUID, so installing either edition replaces the same installation instead of creating a second app. Each runner validates and stages only its own edition and platform artifacts. After every selected build succeeds, one final job downloads that complete staged set, fails on any artifact read or upload error, updates the draft by release ID, and only then creates or moves `v<version>` to the exact validated branch commit. A single-platform retry rebuilds both editions for that platform, downloads the existing draft assets, overlays the replacements, uploads the complete set, and never moves the tag. Tag movement is allowed only while the release is still a draft.
 
 After the tag is exact, the workflow builds the GitHub Release body from the bilingual `electron-builder.yml` notes, a separator, and GitHub's generated `What's Changed` and contributor list. Stable release history remains generated during **Pre Release** in `resources/cherry-studio/release-history.json`; it is not maintained separately during publication.
 
@@ -134,7 +135,7 @@ Before publishing, inspect the draft release and confirm:
 
 - The tag and release branch point to the same commit.
 - All expected platform jobs succeeded.
-- Installers, archives, update manifests, blockmaps, and release notes are present.
+- Global and China edition installers, archives, update manifests, blockmaps, and release notes are present.
 - The version and release notes match the intended release.
 
 Keep the release as a draft while testing or while hotfixes are still expected.
@@ -254,7 +255,7 @@ If the metadata files already match `main`, **Post Release** exits without openi
 
 ## Invariants
 
-- Build internal feature previews only with **Preview Release** from a same-repository branch; source builds are credentialless and unsigned, and preview draft releases never become formal release state.
+- Build internal feature previews only with **Preview Release** from a same-repository branch; source code runs only after protected `release` Environment approval, and preview draft releases never become formal release state.
 - Build from `release/v<version>` and publish only the exact approved release-branch SHA, never `main`.
 - Merge every hotfix into `main` before backporting it to the release branch.
 - Merge hotfixes into the release branch through a backport pull request, never through an automatic direct commit.

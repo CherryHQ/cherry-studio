@@ -1,3 +1,8 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryUI from '@cherrystudio/ui'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import type { Citation } from '@renderer/types/message'
@@ -5,10 +10,6 @@ import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type * as CitationUtils from '@renderer/utils/citation'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MainTextBlock from '../MainTextBlock'
 
@@ -294,6 +295,7 @@ describe('MainTextBlock', () => {
     mentions?: Model[]
     composer?: ComposerMessageSnapshot
     readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+    hiddenComposerTokens?: ReadonlySet<ComposerMessageSnapshot['tokens'][number]>
   }) => {
     return render(
       <MainTextBlock
@@ -307,6 +309,7 @@ describe('MainTextBlock', () => {
         mentions={props.mentions}
         composer={props.composer}
         readOnlyFilePreviews={props.readOnlyFilePreviews}
+        hiddenComposerTokens={props.hiddenComposerTokens}
       />
     )
   }
@@ -721,6 +724,34 @@ Hidden answer
       const token = textElement.querySelector('[data-composer-token-kind="file"]')
       expect(token).toBeInTheDocument()
       expect(token?.querySelector('[data-file-token-icon="code"]')).toBeInTheDocument()
+    })
+
+    it.each([false, true])('should consume hidden token prompt text in markdown mode %s', (renderAsMarkdown) => {
+      mockRenderConfig.renderInputMessageAsMarkdown = renderAsMarkdown
+      const composer: ComposerMessageSnapshot = {
+        version: 1,
+        tokens: [
+          {
+            id: 'file:image-1',
+            kind: 'file',
+            label: 'photo.png',
+            index: 0,
+            textOffset: 5,
+            promptText: 'internal image context'
+          }
+        ]
+      }
+
+      renderMainTextBlock({
+        content: 'Open internal image context now',
+        role: 'user',
+        composer,
+        hiddenComposerTokens: new Set([composer.tokens[0]])
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="file"]')).not.toBeInTheDocument()
+      expect(document.body).toHaveTextContent('Open now')
+      expect(document.body).not.toHaveTextContent('internal image context')
     })
 
     it('should render composer tokens while preserving markdown for user text segments', () => {

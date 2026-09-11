@@ -1,9 +1,10 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { ChevronsDownUp, ChevronsUpDown, FileText, Filter, Search, X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
@@ -55,7 +56,9 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
     <>
       <div className={modelListClasses.headerInlineRow}>
         <div className={modelListClasses.sectionTitleLine}>
-          <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
+          <h2 id="setting-provider-model-list" className={modelListClasses.sectionTitle}>
+            {t('settings.models.list_title')}
+          </h2>
           {docsLink ? (
             <div className={modelListClasses.titleHelpRow}>
               <Tooltip content={t('settings.models.docs')}>

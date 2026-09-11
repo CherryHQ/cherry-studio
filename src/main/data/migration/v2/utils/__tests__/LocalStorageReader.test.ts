@@ -1,5 +1,6 @@
-import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
 import { describe, expect, it } from 'vitest'
+
+import type { LocalStorageRecord } from '@shared/data/migration/v2/types'
 
 import { LocalStorageReader } from '../LocalStorageReader'
 

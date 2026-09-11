@@ -1,9 +1,10 @@
-import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
-import type { Group } from '@shared/data/types/group'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as ReactModule from 'react'
 import type { ComponentProps, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import type { Group } from '@shared/data/types/group'
 
 import { BaseNavigator as BaseNavigatorComponent } from '../navigator'
 

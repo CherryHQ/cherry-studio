@@ -458,6 +458,8 @@ class AiStreamManager {
     prompt?: string
     messages?: CherryUIMessage[]
     listener: StreamListener | StreamListener[]
+    reasoningEffort?: ReasoningEffortOption
+    callOverrides?: CallOverrides                          // the only sampling channel here
   }): SendResult
 
   // ── Subscription management ───────────────────────────────────────

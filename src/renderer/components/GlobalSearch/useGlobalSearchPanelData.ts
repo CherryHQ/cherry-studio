@@ -1,10 +1,11 @@
+import dayjs from 'dayjs'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import type { GroupedVirtualListGroup } from '@renderer/components/VirtualList'
 import type { ContentSearchGroup, ContentSearchSourceType } from '@shared/data/api/schemas/search'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
-import dayjs from 'dayjs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import {
   buildGlobalMessageSearchGroups,
@@ -224,6 +225,11 @@ export function useGlobalSearchPanelData({
       ? contentSearchState
       : createContentSearchState(contentSearchStateKey)
   const requestedContentSearchCursors = activeContentSearchState.requestedCursors
+  const isContentSearchPageRequested = Object.keys(requestedContentSearchCursors).length > 0
+  const isContentSearchPageRequestedRef = useRef(isContentSearchPageRequested)
+  useLayoutEffect(() => {
+    isContentSearchPageRequestedRef.current = isContentSearchPageRequested
+  }, [isContentSearchPageRequested])
   const requestedContentSearchSources = useMemo(() => {
     const cursorSources = contentSearchSources.filter((source) => requestedContentSearchCursors[source])
     return cursorSources.length > 0 ? cursorSources : contentSearchSources
@@ -269,13 +275,16 @@ export function useGlobalSearchPanelData({
 
   const handleContentSearchDataChange = useCallback(
     (effects: DataApiDataChangeEffect[]) => {
+      const shouldRestartPagination = isContentSearchPageRequestedRef.current
       const changedMessageIds = new Set(effects.flatMap((effect) => effect.entityIds ?? []))
       setContentSearchState((state) => {
-        if (effects.some((effect) => !effect.entityIds)) return createContentSearchState(state.baseKey)
+        if (shouldRestartPagination || effects.some((effect) => !effect.entityIds)) {
+          return createContentSearchState(state.baseKey)
+        }
         const items = state.items.filter((item) => !changedMessageIds.has(item.messageId))
         return items.length === state.items.length ? state : { ...state, items }
       })
-      void refetchContentSearch()
+      if (!shouldRestartPagination) void refetchContentSearch()
     },
     [refetchContentSearch]
   )

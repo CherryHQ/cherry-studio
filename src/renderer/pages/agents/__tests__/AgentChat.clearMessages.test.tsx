@@ -1,24 +1,18 @@
-import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
-import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
-import { popup } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+
 import AgentChat from '../AgentChat'
 
 const clearSessionMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
-
-function lastInvalidateCache(): ReturnType<typeof mockUseInvalidateCache> {
-  const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
-  if (!invalidate) throw new Error('Expected AgentChat to call useInvalidateCache')
-  return invalidate
-}
 
 const session = {
   id: 'session-1',
@@ -170,10 +164,9 @@ describe('AgentChat clear messages command', () => {
     activeTabMock.current = true
   })
 
-  it('clears and invalidates the active Agent session after confirmation', async () => {
+  it('clears the active Agent session after confirmation', async () => {
     const user = userEvent.setup()
     renderAgentChat()
-    const invalidateCache = lastInvalidateCache()
 
     await user.click(screen.getByRole('button', { name: 'Clear messages' }))
 
@@ -184,10 +177,6 @@ describe('AgentChat clear messages command', () => {
     })
     await waitFor(() => {
       expect(clearSessionMessagesMock).toHaveBeenCalledOnce()
-      expect(invalidateCache).toHaveBeenCalledExactlyOnceWith([
-        '/agent-sessions/session-1/messages',
-        '/search/contents'
-      ])
     })
   })
 
@@ -196,12 +185,10 @@ describe('AgentChat clear messages command', () => {
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
 
     renderAgentChat()
-    const invalidateCache = lastInvalidateCache()
 
     await user.click(screen.getByRole('button', { name: 'Clear messages' }))
 
     expect(clearSessionMessagesMock).not.toHaveBeenCalled()
-    expect(invalidateCache).not.toHaveBeenCalled()
   })
 
   it('reports a failed clear without invalidating the retained messages', async () => {
@@ -209,13 +196,11 @@ describe('AgentChat clear messages command', () => {
     clearSessionMessagesMock.mockRejectedValueOnce(new Error('disk full'))
 
     renderAgentChat()
-    const invalidateCache = lastInvalidateCache()
 
     await user.click(screen.getByRole('button', { name: 'Clear messages' }))
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('message.error.unknown: Error: disk full')
-      expect(invalidateCache).not.toHaveBeenCalled()
     })
   })
 

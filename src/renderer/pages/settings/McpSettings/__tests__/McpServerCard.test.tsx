@@ -1,9 +1,10 @@
-import { popup } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
-import type { McpServer } from '@shared/data/types/mcpServer'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import McpServerCard from '../McpServerCard'
 

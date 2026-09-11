@@ -1,3 +1,11 @@
+import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
+import type { Editor } from '@tiptap/react'
+import { EditorContent, type NodeViewProps } from '@tiptap/react'
+import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
@@ -25,16 +33,10 @@ import {
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
-import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
-import type { EditorView } from '@tiptap/pm/view'
-import type { Editor } from '@tiptap/react'
-import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
-import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { ComposerFocusShortcut } from './ComposerFocusShortcut'
 import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
@@ -44,7 +46,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
@@ -163,6 +165,8 @@ export interface ComposerSurfaceProps {
   editable?: boolean
   fontSize: number
   narrowMode: boolean
+  /** Opts this composer into the China-edition AI-generated content disclaimer. */
+  showAiDisclaimer?: boolean
   /** Extra padding on both sides matching the message column's anchor-rail gutter,
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
@@ -336,9 +340,9 @@ function shouldDelegateLongTextPasteToFileHandler(
 ) {
   return Boolean(
     pasteLongTextAsFile &&
-      text &&
-      text.length > pasteLongTextThreshold &&
-      supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
+    text &&
+    text.length > pasteLongTextThreshold &&
+    supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
   )
 }
 
@@ -536,7 +540,8 @@ export default function ComposerSurfaceRuntime({
   sendAccessory,
   deferQuickPanel = false,
   initialTextSelection,
-  deferredIntent
+  deferredIntent,
+  showAiDisclaimer = false
 }: ComposerSurfaceProps) {
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
@@ -2293,17 +2298,22 @@ export default function ComposerSurfaceRuntime({
           ref={frameRef}
           data-ui="part:composer-input"
           data-composer-editor-frame=""
-          className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
+          className={cn(
+            'group/composer-editor relative flex min-w-0 flex-1 overflow-hidden transition-[height] ease-out',
+            editingState && 'mt-2'
+          )}
           onTransitionEnd={handleTransitionEnd}
           style={isCompact ? compactFrameStyle : frameStyle}>
           <EditorContent
             editor={editor}
+            className="min-w-0 flex-1"
             style={isCompact ? compactEditorContentStyle : editorContentStyle}
             onFocus={() => {
               onFocus?.()
               pasteHandling.setLastFocusedComponent('inputbar')
             }}
           />
+          <ComposerFocusShortcut focus={focusEditor} editable={editable} />
         </div>
         {isCompact ? (
           <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
@@ -2356,6 +2366,7 @@ export default function ComposerSurfaceRuntime({
           : {})
       }}>
       <div className="w-full">
+        <ComposerToolFooterActionsSync />
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
           onDragEnter={handleDragEnter}
@@ -2374,6 +2385,11 @@ export default function ComposerSurfaceRuntime({
               {inputbarStack}
             </>
           )}
+          {showAiDisclaimer ? (
+            <div className="-mt-3 pt-1.5 pb-2.5 text-center text-[11px] text-muted-foreground">
+              {t('chat.input.ai_disclaimer')}
+            </div>
+          ) : null}
         </div>
       </div>
     </NarrowLayout>

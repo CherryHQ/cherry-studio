@@ -3,6 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'groq',
   name: 'Groq',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {

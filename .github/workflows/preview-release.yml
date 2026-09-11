@@ -62,13 +62,14 @@ jobs:
           echo "Resolved $BRANCH to $SOURCE_SHA"
 
   build:
-    name: Build preview (${{ matrix.os }})
+    name: Build preview ${{ matrix.edition }} (${{ matrix.os }})
     needs: resolve
     runs-on: ${{ matrix.os }}
     environment: release
     strategy:
       fail-fast: false
       matrix:
+        edition: [global, cn]
         os: ${{ fromJSON(
           inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           inputs.platform == 'linux' && '["ubuntu-latest"]' ||
@@ -125,15 +126,16 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm build:linux
+          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
         env:
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
 
       - name: Build Mac
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          pnpm build:mac
+          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
         env:
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -143,6 +145,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
           MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
@@ -150,15 +153,19 @@ jobs:
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
-        run: pnpm build:win
+        run: pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
+
+      - name: Validate edition preview artifacts
+        run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
 
       - name: Upload preview artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-${{ matrix.os }}
+          name: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.exe
             dist/*.zip

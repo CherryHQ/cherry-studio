@@ -12,7 +12,6 @@
 // BootConfig must load before any other import (configures userData path)
 
 import '@main/data/bootConfig'
-
 import { application } from '@application'
 import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
@@ -26,6 +25,7 @@ import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/prot
 import { runDataReset } from '@main/services/dataReset'
 import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
+import { getApplicationId } from '@main/utils/appEdition'
 
 // should be the first to resolveUserDataLocation()
 resolveUserDataLocation()
@@ -39,8 +39,9 @@ protocol.registerSchemesAsPrivileged([CHERRY_MEDIA_SCHEME_DECLARATION, MINI_APP_
 application.initPathRegistry()
 
 import { electronApp } from '@electron-toolkit/utils'
-import { loggerService } from '@logger'
 import { app, protocol } from 'electron'
+
+import { loggerService } from '@logger'
 
 import { registerIpc } from './ipc'
 import { versionService } from './services/VersionService'
@@ -70,7 +71,7 @@ const startApp = async () => {
   // app's notifications, taskbar icon grouping, and Jump Lists (no-op on macOS/Linux).
   // Must run before any window is created or notification fires, hence after the
   // migration gate returns and before lifecycle bootstrap.
-  electronApp.setAppUserModelId('com.kangfenmao.CherryStudio')
+  electronApp.setAppUserModelId(getApplicationId())
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)

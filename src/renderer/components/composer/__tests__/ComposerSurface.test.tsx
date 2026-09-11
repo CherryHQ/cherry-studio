@@ -1,3 +1,9 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
+import { useState } from 'react'
+import { flushSync } from 'react-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import {
@@ -6,11 +12,6 @@ import {
   readComposerClipboardFragment,
   writeComposerRichClipboardContent
 } from '@renderer/utils/message/composerClipboard'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
-import { useState } from 'react'
-import { flushSync } from 'react-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ComposerContextProvider } from '../ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
@@ -66,7 +67,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelUpdateList: vi.fn(),
   pinnedLauncherIds: [] as string[],
   selection: { from: 1 } as any,
-  translate: (key: string) => key,
+  translate: (key: string) => (key === 'chat.input.ai_disclaimer' ? '内容由 AI 生成，仅供参考' : key),
   transaction: undefined as any
 }))
 
@@ -91,6 +92,7 @@ function getMockEditorScrollHeight(node: HTMLElement) {
 }
 
 vi.mock('@cherrystudio/ui', () => ({
+  Kbd: ({ children, ...props }: HTMLAttributes<HTMLElement>) => <kbd {...props}>{children}</kbd>,
   Button: ({
     children,
     size,
@@ -289,6 +291,7 @@ vi.mock('@tiptap/react', () => ({
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
+  ComposerToolFooterActionsSync: () => null,
   ComposerToolMenu: () => <button type="button">add tool</button>,
   useComposerPinnedTools: () => mocks.pinnedLauncherIds
 }))
@@ -589,6 +592,16 @@ describe('ComposerSurface', () => {
 
     expect(document.getElementById('inputbar')).toHaveClass('bg-card', 'shadow-sm')
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
+  })
+
+  it('renders the AI-generated content disclaimer when the composer enables it', () => {
+    const view = render(<ComposerSurface {...baseProps} />)
+
+    expect(screen.queryByText('内容由 AI 生成，仅供参考')).not.toBeInTheDocument()
+
+    view.rerender(<ComposerSurface {...baseProps} showAiDisclaimer />)
+
+    expect(screen.getByText('内容由 AI 生成，仅供参考')).toBeInTheDocument()
   })
 
   it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
@@ -1858,14 +1871,6 @@ describe('ComposerSurface', () => {
         quickPanelEnabled
         getToolLaunchers={getToolLaunchers}
         rootPanelLeadingItems={[{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]}
-        rootPanelAdditionalItems={[
-          {
-            id: 'composer:customize-toolbar',
-            label: 'Customize toolbar',
-            icon: 'settings',
-            fixedToBottom: true
-          }
-        ]}
         renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
           <>
             <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
@@ -1887,8 +1892,7 @@ describe('ComposerSurface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
-      'attachment',
-      'composer:customize-toolbar'
+      'attachment'
     ])
 
     mocks.quickPanelOpen.mockClear()
@@ -1899,8 +1903,6 @@ describe('ComposerSurface', () => {
         list: [expect.objectContaining({ id: 'thinking-low' })],
         // Opening a launcher directly is an explicit request, so its parentPanel is the
         // undeduped root (includes pinned launchers), not the browsable "+" panel's list.
-        // The fixedToBottom customize-toolbar footer is also dropped here since this is a
-        // category view (seeded with the "Thinking" search text).
         parentPanel: expect.objectContaining({
           list: [
             expect.objectContaining({ id: 'new-topic' }),
@@ -1919,8 +1921,7 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
       'new-topic',
       'thinking',
-      'attachment',
-      'composer:customize-toolbar'
+      'attachment'
     ])
   })
 

@@ -2,12 +2,13 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
-import { readFileInputSchema } from '@shared/ai/builtinTools'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { LanguageModelMiddleware } from 'ai'
 import { generateText, tool, wrapLanguageModel } from 'ai'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
+
+import { readFileInputSchema } from '@shared/ai/builtinTools'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
 import { toolSchemaCompatibilityFeature } from '../toolSchemaCompatibility'
 

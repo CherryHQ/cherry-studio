@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -13,9 +17,6 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -420,6 +421,63 @@ describe('AgentSessionMessageService', () => {
         ).toHaveLength(1)
       }
     )
+
+    it('publishes one complete data-change notification when clear updates related deliveries', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedAgent('agent-c', 'Agent C')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      await seedSession({ id: 'receiver', agentId: 'agent-c', name: 'Receiver', orderKey: 'b2' })
+      const inboundRequest = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        replyPolicy: 'completion'
+      })
+      const outboundRequest = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-b',
+        senderSessionId: 'target',
+        receiverSessionId: 'receiver',
+        content: 'Do more work',
+        replyPolicy: 'completion'
+      })
+      notifyDataApiDataChangeMock.mockClear()
+
+      const clearResult = agentSessionMessageService.clearSessionMessages('target')
+
+      const inboundResult = agentSessionMessageService.listSessionDeliveries({
+        sessionId: 'sender',
+        requestId: inboundRequest.id
+      })[0]
+      if (!inboundResult) throw new Error('Expected clear to create the sender failure result')
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: 'target' },
+          entityIds: clearResult.deletedIds
+        },
+        { endpoint: '/search/contents', entityIds: clearResult.deletedIds },
+        { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions/:sessionId', entityIds: ['sender'] },
+        { endpoint: '/agent-sessions/latest' },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          routeParams: { sessionId: 'sender' },
+          entityIds: [inboundResult.id]
+        },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId: 'receiver' },
+          entityIds: [outboundRequest.id]
+        }
+      ])
+    })
 
     it.each(['accepted', 'delivering'] as const)(
       'does not resurrect a %s completion result in a cleared sender session',

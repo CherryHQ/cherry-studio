@@ -1,9 +1,10 @@
+import { type Dispatch, type SetStateAction, useCallback, useState, useSyncExternalStore } from 'react'
+
 import {
   getCachedMessageUiState,
   subscribeCachedMessageUiState,
   updateCachedMessageUiState
 } from '@renderer/services/messageUiStateCache'
-import { type Dispatch, type SetStateAction, useCallback, useState, useSyncExternalStore } from 'react'
 
 import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 

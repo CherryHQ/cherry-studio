@@ -150,7 +150,7 @@ Release notes are for **end users**, not developers. Exclude anything users don'
 
 1. **`package.json`**: Update the `"version"` field to the new version.
 2. **`electron-builder.yml`**: Replace the content under `releaseInfo.releaseNotes: |` with the generated notes. Preserve the 4-space YAML indentation for the block scalar content.
-3. **`resources/cherry-studio/release-history.json`**: For a stable `x.y.z` release, add the version and its exact generated bilingual notes at the start of the array. Replace an existing entry for the same version instead of creating a duplicate. Leave this file unchanged for prereleases.
+3. **`resources/cherry-studio/release-history.json`**: Never edit by hand; the notes must match `electron-builder.yml` byte for byte. Run `node scripts/release/sync-release-history.js --target-version {version}`, which prepends (or replaces) the entry for a stable release and leaves the file untouched for a prerelease. In GitHub Actions, the workflow runs this itself after the Claude step.
 4. **Validate source metadata**: For an interactive local run, run `node scripts/release/validate-prepared-release.js --target-version {version}` before generating the product manifest, and stop if it rejects the changed paths, version ordering, bilingual sections, or stable history. In GitHub Actions, leave validation to the workflow step that runs after Claude.
 5. **Built-in knowledge**: For an interactive local run, run `pnpm build:builtin-knowledge` after validation. This refreshes `resources/builtin-agents/cherry-assistant/product-manifest.json` with the new package version. Never edit the generated manifest by hand. In GitHub Actions, do not run the generator: the workflow runs the same validator first, then runs the trusted generator itself.
 
@@ -191,7 +191,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
    git log -1 --format=%B | grep -q '^Signed-off-by: '
    git push -u origin release/v{version}
    ```
-2. In GitHub Actions, stop after updating `package.json` and `electron-builder.yml`, plus `resources/cherry-studio/release-history.json` only for a stable release. Temporary helper files and local Git operations are allowed; the workflow extracts those three file changes, restores the frozen source SHA, and discards everything else before validation. It then generates the product manifest, creates the branch, and uses GitHub's API to create and verify the signed, DCO-compliant commit. Never push from the Claude step.
+2. In GitHub Actions, stop after updating `package.json` and `electron-builder.yml`. Temporary helper files and local Git operations are allowed; the workflow extracts those two file changes, restores the frozen source SHA, and discards everything else. It then derives the release history, validates, generates the product manifest, creates the branch, and uses GitHub's API to create and verify the signed, DCO-compliant commit. Never push from the Claude step.
 3. Report the release branch and next steps. Do not create a PR yet: the release must be built and published from this branch first.
 
 ## CI Trigger Chain

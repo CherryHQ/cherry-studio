@@ -1,16 +1,18 @@
+import type { FC } from 'react'
+import { memo, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
 import { classNames } from '@renderer/utils/style'
-import type { FC } from 'react'
-import { memo, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useMessageParts } from '../blocks/MessagePartsContext'
 import {
   useMessageListActions,
   useMessageListSelection,
   useMessageListUi,
+  useMessagePriorCitationParts,
   useMessageRenderConfig
 } from '../MessageListProvider'
 import { defaultMessageMenuConfig, type MessageListItem } from '../types'
@@ -67,7 +69,11 @@ const MessageMenuBar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const messageParts = useMessageParts(message.id)
-  const messageForExport = useMemo(() => createMessageExportView(message, messageParts), [message, messageParts])
+  const priorCitationParts = useMessagePriorCitationParts(message.id)
+  const messageForExport = useMemo(
+    () => createMessageExportView(message, messageParts, priorCitationParts),
+    [message, messageParts, priorCitationParts]
+  )
 
   const mainTextContent = useMemo(() => getComposerTextFromParts(messageParts), [messageParts])
 

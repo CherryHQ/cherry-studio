@@ -1,3 +1,8 @@
+import { useNavigate } from '@tanstack/react-router'
+import type { FC } from 'react'
+import { useId } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ModelSettingsNavigation } from '@renderer/components/ModelSettingsNavigation'
 import {
   SettingDescription,
@@ -7,10 +12,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import type { Model } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
-import type { FC } from 'react'
-import { useId } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface ModelNavigationRowProps {
   description: string
