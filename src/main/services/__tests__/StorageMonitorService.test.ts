@@ -1,5 +1,6 @@
-import type * as LifecycleModule from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as LifecycleModule from '@main/core/lifecycle'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -29,7 +30,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
     protected readonly _intervals: Array<{
       callback: () => void | Promise<void>
       intervalMs: number
-      disposable: { dispose: ReturnType<typeof vi.fn> }
+      disposable: { dispose: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
     }> = []
     protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
     ipcHandle = vi.fn()
@@ -67,7 +68,7 @@ type ServiceInternals = {
   _intervals: Array<{
     callback: () => Promise<void>
     intervalMs: number
-    disposable: { dispose: ReturnType<typeof vi.fn> }
+    disposable: { dispose: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
   }>
   health: { level: string; freeBytes: number; totalBytes: number; checkedAt: number }
 }

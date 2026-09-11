@@ -1,8 +1,9 @@
-import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageSelectionController } from '../useMessageSelectionController'
 
@@ -159,6 +160,10 @@ describe('useMessageSelectionController', () => {
       messages: ReturnType<typeof message>[]
       partsByMessageId: Record<string, CherryMessagePart[]>
     }
+    const initialProps: HookProps = {
+      messages: [message('a')],
+      partsByMessageId: { a: [{ type: 'text', text: 'old' }] as CherryMessagePart[] }
+    }
     const { result, rerender } = renderHook(
       ({ messages, partsByMessageId }: HookProps) =>
         useMessageSelectionController({
@@ -166,12 +171,7 @@ describe('useMessageSelectionController', () => {
           messages,
           partsByMessageId
         }),
-      {
-        initialProps: {
-          messages: [message('a')],
-          partsByMessageId: { a: [{ type: 'text', text: 'old' }] as CherryMessagePart[] }
-        } as HookProps
-      }
+      { initialProps }
     )
     const initialActions = result.current.actions
 

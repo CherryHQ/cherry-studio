@@ -1,3 +1,7 @@
+import { CheckCircle, Copy, FileUp, Loader2, Stethoscope } from 'lucide-react'
+import React, { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -34,9 +38,6 @@ import {
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { CheckCircle, Copy, FileUp, Loader2, Stethoscope } from 'lucide-react'
-import React, { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import Scrollbar from '../Scrollbar'
 import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'

@@ -1,9 +1,10 @@
+import React from 'react'
+
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { getFirstCharacter } from '@renderer/utils/naming'
 import { generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
-import React from 'react'
 
 interface ProviderAvatarPrimitiveProps {
   providerId: string

@@ -1,5 +1,6 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { makeProvider } from '../../__tests__/fixtures'
 import { getBaseUrl, getExtraHeaders } from '../provider'

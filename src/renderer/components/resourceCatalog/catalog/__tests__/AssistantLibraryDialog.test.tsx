@@ -1,9 +1,10 @@
-import type * as AssistantCatalogPresetsModule from '@renderer/hooks/useAssistantCatalogPresets'
-import { toast } from '@renderer/services/toast'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { type ComponentProps, type ReactNode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as AssistantCatalogPresetsModule from '@renderer/hooks/useAssistantCatalogPresets'
+import { toast } from '@renderer/services/toast'
 
 import { AssistantLibraryDialog } from '../AssistantLibraryDialog'
 

@@ -1,3 +1,6 @@
+import { sql } from 'drizzle-orm'
+import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+
 /**
  * User Model table schema
  *
@@ -19,8 +22,6 @@ import type {
   ReasoningConfig,
   RuntimeModelPricing
 } from '@shared/data/types/model'
-import { sql } from 'drizzle-orm'
-import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
 import { userProviderTable } from './userProvider'

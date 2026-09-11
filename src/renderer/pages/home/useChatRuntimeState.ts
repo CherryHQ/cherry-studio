@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 // eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
@@ -35,7 +37,6 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'

@@ -1,5 +1,6 @@
-import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
 import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
 import { createPpioTransport, PpioApiError, PpioTaskFailedError } from '../ppio/ppioTransport'

@@ -1,6 +1,7 @@
-import { loggerService } from '@logger'
 import type { WebContents } from 'electron'
 import { BrowserWindow, screen } from 'electron'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('Utils:cdpScreenshot')
 

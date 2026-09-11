@@ -1,7 +1,8 @@
+import { useCallback, useEffect } from 'react'
+
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
 import { LOCAL_MODEL_STATUS_CACHE_KEY, type LocalModelBundleId } from '@shared/data/presets/localModel'
-import { useCallback, useEffect } from 'react'
 
 export function useLocalModel(id: LocalModelBundleId) {
   const snapshots = useSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY)

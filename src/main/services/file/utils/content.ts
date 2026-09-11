@@ -1,3 +1,5 @@
+import mime from 'mime'
+
 import {
   atomicWriteIfUnchanged,
   hashContent,
@@ -7,7 +9,6 @@ import {
 } from '@main/utils/file'
 import type { ContentHash } from '@shared/data/types/file'
 import type { AbsoluteFilePath, FileVersion, ReadResult } from '@shared/types/file'
-import mime from 'mime'
 
 export type TextReadOptions = { encoding?: 'text'; detectEncoding?: boolean }
 export type Base64ReadOptions = { encoding: 'base64' }
@@ -66,7 +67,7 @@ export async function readByPath(
 
     if (isSameVersion(before, after) && (readByteLength === undefined || after.size === readByteLength)) {
       if (encoding === 'binary' && (options as BinaryReadOptions).withContentHash) {
-        return { content, mime: contentMime, version: after, contentHash: hashContent(content as Uint8Array) }
+        return { content, mime: contentMime, version: after, contentHash: hashContent(content) }
       }
       return { content, mime: contentMime, version: after }
     }

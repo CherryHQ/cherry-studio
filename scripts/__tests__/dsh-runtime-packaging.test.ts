@@ -1,13 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
+import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
+
 import {
   DSH_RUNTIME_ENTRY_NAMES,
   type DshRuntimeEntrySpecifier,
   resolveBundledDshRuntimeEntry
 } from '@cherrystudio/dsh-bridge'
-import { describe, expect, it } from 'vitest'
-import { parse } from 'yaml'
 
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 

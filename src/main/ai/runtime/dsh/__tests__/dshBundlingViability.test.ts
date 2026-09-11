@@ -1,7 +1,8 @@
 import { pathToFileURL } from 'node:url'
 
-import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { describe, expect, it } from 'vitest'
+
+import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 
 import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
 

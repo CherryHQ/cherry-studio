@@ -115,14 +115,16 @@ vi.mock('../compositionBuilder', () => ({
   resolveDshRuntimeBinPath: vi.fn(() => '/dsh/bin')
 }))
 vi.mock('../DshBridgeServer', () => ({
-  DshBridgeServer: vi.fn(() => ({
-    socketPath: '/tmp/dsh.sock',
-    authenticationToken: 'bridge-token',
-    listen: vi.fn().mockResolvedValue(undefined),
-    whenReady: vi.fn().mockResolvedValue(undefined),
-    request: runtimeMocks.bridgeRequest,
-    close: vi.fn().mockResolvedValue(undefined)
-  }))
+  DshBridgeServer: vi.fn(function DshBridgeServerMock() {
+    return {
+      socketPath: '/tmp/dsh.sock',
+      authenticationToken: 'bridge-token',
+      listen: vi.fn().mockResolvedValue(undefined),
+      whenReady: vi.fn().mockResolvedValue(undefined),
+      request: runtimeMocks.bridgeRequest,
+      close: vi.fn().mockResolvedValue(undefined)
+    }
+  })
 }))
 vi.mock('../DshCherryToolBridge', () => ({
   buildDshCherryToolBridge: vi.fn().mockResolvedValue({
@@ -138,7 +140,7 @@ vi.mock('../DshCherryToolBridge', () => ({
 }))
 vi.mock('../dshSdk', () => ({
   loadDshSdk: vi.fn().mockResolvedValue({
-    HarnessClient: vi.fn((options: Record<string, unknown>) => {
+    HarnessClient: vi.fn(function HarnessClientMock(options: Record<string, unknown>) {
       runtimeMocks.harnessOptions = options
       return {
         start: vi.fn(),
