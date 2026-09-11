@@ -43,6 +43,13 @@ DSH seed ownership excludes inherited Inbox items from own events; the durable
 end-seed record establishes that boundary. The fork also calls public Inbox.clear.
 No automatic-goal or subagent execution services are constructed during creation.
 
+Claude's SDK may emit `result` before its transcript is written. Checkpoint capture
+retries missing files or an unflushed target entry at 50 ms intervals, up to 40
+retries, and stops when the connection is cancelled. It records the byte prefix
+ending at the exact main-thread assistant UUID, excluding later appended entries.
+Malformed committed history fails immediately; capture failures log a reason
+without transcript content and never turn a successful answer into an error.
+
 Claude refuses publication if required references or opaque compaction metadata
 cannot survive SDK processing. In particular, SDK versions that leave preserved
 segment UUIDs dangling or move required replacements outside inherited prefixes
@@ -150,6 +157,9 @@ or rewind it. Include old-format logs.
 Claude: use repeated message text, compaction before/after the selected turn,
 preserved segments, replacements and a non-default configuration directory.
 Verify the destination project namespace matches the target workspace.
+Exercise forks through the registered lazy driver, not only a directly constructed
+Claude driver: an available checkpoint must reach the SDK without opening an
+Agent connection, and cancellation and native errors must propagate unchanged.
 
 DSH: remove or stale the projection cache before a cold fork. Confirm the
 recorded seq is used exactly, pending Inbox input is absent, goals do not activate,
@@ -167,6 +177,7 @@ blocked until the exact persisted assistant receipt is verified.
 ```sh
 pnpm --filter @cherrystudio/dsh-bridge build
 pnpm test:main src/main/data/services/__tests__/AgentSessionMessageService.test.ts src/main/ai/agentSession/persistence/__tests__/AgentSessionMessageBackend.test.ts
+pnpm exec vitest run --project main src/main/ai/runtime/__tests__/registerDrivers.test.ts src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts
 pnpm test:renderer src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx
 pnpm lint
 pnpm db:migrations:check

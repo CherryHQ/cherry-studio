@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 import type { SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
+import { loggerService } from '@logger'
 
 import { readForkPrefix, readNativeForkHistory } from '../../agentSession/forkFiles'
 import {
@@ -13,6 +15,8 @@ import {
   type RuntimeForkState
 } from '../forkCheckpoint'
 import { runForkWorker } from '../runForkWorker'
+
+const logger = loggerService.withContext('ClaudeFork')
 
 async function findSession(configDir: string, sessionId: string): Promise<string> {
   if (!/^[a-f0-9-]{36}$/i.test(sessionId)) throw new AgentSessionForkError('history_corrupt')
@@ -32,33 +36,62 @@ export async function captureClaudeForkCheckpoint(
   runtimeSessionId: string,
   messageUuid: string | undefined,
   configDir: string,
-  sourceCwd: string
+  sourceCwd: string,
+  signal?: AbortSignal
 ): Promise<RuntimeForkState> {
   try {
-    if (!messageUuid) return FORK_CHECKPOINT_FAILED
-    const bytes = await readForkPrefix(await findSession(configDir, runtimeSessionId))
-    const entries = bytes
-      .toString('utf8')
-      .trimEnd()
-      .split('\n')
-      .map((line) => JSON.parse(line) as SessionStoreEntry)
-    if (!entries.some((entry) => entry.uuid === messageUuid && entry.type === 'assistant' && !entry.isSidechain)) {
-      return FORK_CHECKPOINT_FAILED
-    }
-    return {
-      version: 1,
-      status: 'available',
-      checkpoint: {
-        runtime: 'claude-code',
-        runtimeSessionId,
-        messageUuid,
-        configDir,
-        sourceCwd,
-        prefixBytes: bytes.length,
-        prefixHash: createHash('sha256').update(bytes).digest('hex')
+    if (!messageUuid) throw new AgentSessionForkError('assistant_uuid_missing')
+    // The SDK can emit result before its transcript writer has flushed the assistant entry.
+    for (let attempt = 0; attempt <= 40; attempt++) {
+      if (attempt > 0) await delay(50, undefined, { signal })
+      signal?.throwIfAborted()
+      let bytes: Buffer
+      try {
+        bytes = await readForkPrefix(await findSession(configDir, runtimeSessionId))
+      } catch (error) {
+        if (
+          (error as NodeJS.ErrnoException)?.code === 'ENOENT' ||
+          (error instanceof AgentSessionForkError && error.reason === 'history_missing')
+        )
+          continue
+        throw error
+      }
+      let start = 0
+      for (let end = bytes.indexOf(10); end >= 0; end = bytes.indexOf(10, start)) {
+        const entry = JSON.parse(bytes.toString('utf8', start, end)) as SessionStoreEntry
+        start = end + 1
+        if (entry.uuid !== messageUuid || entry.type !== 'assistant' || entry.isSidechain) continue
+        // Waiting for persistence must not include messages appended after the selected assistant.
+        const prefix = bytes.subarray(0, start)
+        return {
+          version: 1,
+          status: 'available',
+          checkpoint: {
+            runtime: 'claude-code',
+            runtimeSessionId,
+            messageUuid,
+            configDir,
+            sourceCwd,
+            prefixBytes: prefix.length,
+            prefixHash: createHash('sha256').update(prefix).digest('hex')
+          }
+        }
       }
     }
-  } catch {
+    throw new AgentSessionForkError('transcript_flush_timeout')
+  } catch (error) {
+    logger.warn('Claude fork checkpoint capture failed', {
+      runtimeSessionId,
+      messageUuid,
+      reason:
+        error instanceof AgentSessionForkError
+          ? error.reason
+          : error instanceof SyntaxError
+            ? 'history_corrupt'
+            : signal?.aborted
+              ? 'cancelled'
+              : ((error as NodeJS.ErrnoException)?.code ?? 'unknown')
+    })
     // Failure to capture native history must not turn a successful answer into an error.
     return FORK_CHECKPOINT_FAILED
   }

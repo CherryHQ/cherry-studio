@@ -773,7 +773,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             this.spawnOptions?.env?.CLAUDE_CONFIG_DIR ??
               process.env.CLAUDE_CONFIG_DIR ??
               path.join(homedir(), '.claude'),
-            this.spawnOptions?.cwd ?? ''
+            this.spawnOptions?.cwd ?? '',
+            this.abortController.signal
           )
           this.lastMainAssistantUuid = undefined
           this.eventQueue.push({ type: 'turn-complete', forkState })

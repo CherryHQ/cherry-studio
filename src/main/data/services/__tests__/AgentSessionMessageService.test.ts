@@ -523,7 +523,7 @@ describe('AgentSessionMessageService', () => {
           expect(history[0]).toMatchObject({ runtimeResumeToken: null, delivery: null, stats: null })
           expect(history[0].data.parts?.[1]).toMatchObject({ state: 'output-error' })
           const grandchildId = await operations.fork(childId, history[0].id, true)
-          expect(agentSessionService.getById(grandchildId).name).toBe('Source (1) (1)')
+          expect(agentSessionService.getById(grandchildId).name).toBe('Source (3)')
           agentSessionService.deleteTx(dbh.db, sourceId)
           agentSessionService.deleteTx(dbh.db, childId)
           expect(agentSessionMessageService.getForkHistory(grandchildId)?.[0].data.parts?.[0]).toEqual({
@@ -601,10 +601,19 @@ describe('AgentSessionMessageService', () => {
       })
     })
 
-    it('commits independently of later appends and keeps descendants after the parent is deleted', async () => {
+    it.each([
+      ['Source', 'Source (1)', 'Source (2)'],
+      ['test(1)', 'unrelated', 'test(2)'],
+      ['test (1)', 'test (2)', 'test (3)'],
+      ['test(1)', 'test (4)', 'test(5)'],
+      ['test(9)', 'test(2)', 'test(10)'],
+      ['test(draft)', 'unrelated', 'test(draft) (1)'],
+      ['test(1) notes', 'unrelated', 'test(1) notes (1)'],
+      ['test(9007199254740992)', 'unrelated', 'test(9007199254740993)']
+    ])('forks %s alongside %s as %s with increasing numbering', async (sourceName, existingName, expectedName) => {
       await seedAgent('fork-agent', 'Fork Agent')
-      await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: 'Source', orderKey: 'fork-order' })
-      await seedSession({ id: 'existing-name', agentId: 'fork-agent', name: 'Source (1)', orderKey: 'existing-order' })
+      await seedSession({ id: 'fork-source', agentId: 'fork-agent', name: sourceName, orderKey: 'fork-order' })
+      await seedSession({ id: 'existing-name', agentId: 'fork-agent', name: existingName, orderKey: 'existing-order' })
       agentSessionMessageService.saveMessage({
         sessionId: 'fork-source',
         runtimeResumeToken: 'original-token',
@@ -648,12 +657,37 @@ describe('AgentSessionMessageService', () => {
         messages: source.messages.map((row) => ({ ...row, id: FILE_ENTRY_ID, runtimeResumeToken: 'child-token' }))
       })
       expect(agentSessionService.getById('fork-child').workspaceId).toBe(source.workspace.id)
-      expect(agentSessionService.getById('fork-child').name).toBe('Source (2)')
-      expect(agentSessionService.getById('existing-name').name).toBe('Source (1)')
+      expect(agentSessionService.getById('fork-child').name).toBe(expectedName)
+      expect(agentSessionService.getById('existing-name').name).toBe(existingName)
+      expect(agentSessionService.getById('fork-source').name).toBe(sourceName)
       const child = agentSessionMessageService.getSessionMessage('fork-child', FILE_ENTRY_ID)
       expect(child.runtimeResumeToken).toBe('child-token')
       expect(child.stats).toBeNull()
       expect(child.delivery).toBeNull()
+      if (sourceName === 'test(1)' && existingName === 'unrelated') {
+        const childSource = agentSessionForkService.read('fork-child', FILE_ENTRY_ID)
+        agentSessionForkService.commit({
+          source: childSource,
+          journal: {
+            ...journal,
+            operationId: 'grandchild-operation',
+            sourceSessionId: 'fork-child',
+            messageId: FILE_ENTRY_ID,
+            targetSessionId: 'fork-grandchild'
+          },
+          excludedIds: [],
+          messages: childSource.messages.map((row) => ({ ...row, id: 'grandchild-message' }))
+        })
+        expect(agentSessionService.getById('fork-grandchild').name).toBe('test(3)')
+        agentSessionForkService.commit({
+          source,
+          journal: { ...journal, operationId: 'sibling-operation', targetSessionId: 'fork-sibling' },
+          excludedIds: [],
+          messages: source.messages.map((row) => ({ ...row, id: 'sibling-message' }))
+        })
+        expect(agentSessionService.getById('fork-sibling').name).toBe('test(4)')
+        expect(agentSessionService.getById('fork-child').name).toBe('test(2)')
+      }
       agentSessionService.deleteTx(dbh.db, 'fork-source')
       expect(agentSessionService.getById('fork-child').id).toBe('fork-child')
       expect(agentSessionForkService.hasCommittedChild(journal)).toBe(true)

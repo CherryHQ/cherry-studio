@@ -13,7 +13,8 @@ a completed turn, preferring a supported native checkpoint. Ordinary topic branc
 are unchanged.
 
 Forked names receive an available numeric suffix, for example `Session (1)` and
-`Session (2)`. Forking a child appends another suffix to its name.
+`Session (2)`. Forking a child increments the existing trailing number instead of
+appending another suffix, continuing after the highest matching number for the Agent.
 
 ## Why this matters to the user
 

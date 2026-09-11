@@ -113,14 +113,24 @@ export class AgentSessionForkService {
           .all()
           .map((row) => row.name)
       )
-      let number = 1
-      while (names.has(`${current.session.name} (${number})`)) number++
+      const suffixPattern = /^(.*?)(\s*)\((\d+)\)$/s
+      const suffix = current.session.name.match(suffixPattern)
+      const baseName = suffix ? suffix[1] : current.session.name
+      const separator = suffix ? suffix[2] : ' '
+      let number = 1n
+      for (const name of names) {
+        const existing = name.match(suffixPattern)
+        if (existing?.[1] === baseName) {
+          const next = BigInt(existing[3]) + 1n
+          if (next > number) number = next
+        }
+      }
       agentSessionService.createTx(
         tx,
         journal.targetSessionId,
         {
           agentId: source.agent.id,
-          name: `${current.session.name} (${number})`,
+          name: `${baseName}${separator}(${number})`,
           description: source.session.description,
           workspace:
             source.workspace.type === 'system' ? { type: 'system' } : { type: 'user', workspaceId: source.workspace.id }

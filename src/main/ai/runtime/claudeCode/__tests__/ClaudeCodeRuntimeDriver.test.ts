@@ -1,12 +1,101 @@
+import { createHash } from 'node:crypto'
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { captureClaudeForkCheckpoint } from '../claudeFork'
 import type * as SettingsBuilderModule from '../settingsBuilder'
 import type * as StreamAdapterModule from '../streamAdapter'
+
+describe('Claude fork checkpoint persistence', () => {
+  const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+  const messageUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+  let directory: string
+  let file: string
+  const entry = JSON.stringify({
+    type: 'assistant',
+    uuid: messageUuid,
+    isSidechain: false,
+    message: { content: '检查点' }
+  })
+  beforeEach(async () => {
+    directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-checkpoint-test-'))
+    file = path.join(directory, 'projects', 'project', sessionId + '.jsonl')
+  })
+  afterEach(async () => {
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it.each(['\n', '\r\n'])('waits for the exact assistant entry and excludes later history (%j)', async (newline) => {
+    await mkdir(path.dirname(file), { recursive: true })
+    const prefix = JSON.stringify({ type: 'system', compactMetadata: { trigger: 'auto' } }) + newline
+    await writeFile(file, prefix + entry.slice(0, 15))
+    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)
+    await delay(100)
+    await appendFile(
+      file,
+      entry.slice(15) + newline + JSON.stringify({ type: 'user', uuid: 'future-message' }) + newline
+    )
+    const state = await pending
+    expect(state).toMatchObject({ status: 'available', checkpoint: { messageUuid, runtimeSessionId: sessionId } })
+    if (state.status !== 'available' || state.checkpoint.runtime !== 'claude-code')
+      throw new Error('missing checkpoint')
+    expect(state.checkpoint.prefixBytes).toBe(Buffer.byteLength(prefix + entry + newline))
+    expect(state.checkpoint.prefixHash).toBe(
+      createHash('sha256')
+        .update(prefix + entry + newline)
+        .digest('hex')
+    )
+  })
+
+  it('waits for the SDK to create the project directory and transcript', async () => {
+    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)
+    await delay(100)
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, entry + '\n')
+    await expect(pending).resolves.toMatchObject({ status: 'available', checkpoint: { messageUuid } })
+  })
+
+  it('does not replace a missing target UUID with the latest assistant', async () => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, entry + '\n')
+    await expect(captureClaudeForkCheckpoint(sessionId, 'missing-uuid', directory, directory)).resolves.toMatchObject({
+      status: 'unavailable',
+      reason: 'checkpoint_failed'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude fork checkpoint capture failed',
+      expect.objectContaining({ reason: 'transcript_flush_timeout' })
+    )
+  })
+
+  it('stops waiting when the connection is cancelled', async () => {
+    const controller = new AbortController()
+    const pending = captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory, controller.signal)
+    controller.abort()
+    await expect(pending).resolves.toMatchObject({ status: 'unavailable', reason: 'checkpoint_failed' })
+  })
+
+  it('rejects malformed committed history without losing the successful answer', async () => {
+    await mkdir(path.dirname(file), { recursive: true })
+    await writeFile(file, 'invalid-json\n' + entry + '\n')
+    await expect(captureClaudeForkCheckpoint(sessionId, messageUuid, directory, directory)).resolves.toMatchObject({
+      status: 'unavailable',
+      reason: 'checkpoint_failed'
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude fork checkpoint capture failed',
+      expect.objectContaining({ reason: 'history_corrupt' })
+    )
+  })
+})
 
 const externalFileUrl = (name: string) => `file:///${process.platform === 'win32' ? 'C:/' : ''}tmp/${name}`
 
@@ -1541,6 +1630,61 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(secondBoundary).toBeDefined()
     expect(secondBoundary).not.toBe(boundary)
     void connection.close()
+  })
+
+  it('emits a checkpoint after the main assistant transcript is flushed in the configured directory', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'cherry-claude-driver-checkpoint-'))
+    const sessionId = '374c8467-e787-4c67-b890-a3d91b50dba6'
+    const messageUuid = '9ad4b714-fe5d-4664-9f76-2b0cd13f4c03'
+    const queryQueue = createAsyncQueue<any>()
+    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
+    const request = await mocks.buildRequest()
+    mocks.buildRequest.mockResolvedValue({
+      ...request,
+      options: { ...request.options, cwd: directory, env: { CLAUDE_CONFIG_DIR: directory } }
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    try {
+      await connection.send({ message: userMessage() })
+      queryQueue.push({
+        type: 'assistant',
+        uuid: messageUuid,
+        parent_tool_use_id: null,
+        message: { id: 'main-response', content: [{ type: 'text', text: 'answer' }] }
+      })
+      queryQueue.push({
+        type: 'assistant',
+        uuid: 'sidechain-uuid',
+        parent_tool_use_id: 'subagent',
+        message: { id: 'subagent-response', content: [{ type: 'text', text: 'subagent' }] }
+      })
+      queryQueue.push({ type: 'result', subtype: 'success', session_id: sessionId })
+      const completion = (async () => {
+        for await (const event of connection.events) if (event.type === 'turn-complete') return event
+        throw new Error('missing turn completion')
+      })()
+      await delay(100)
+      const project = path.join(directory, 'projects', 'project')
+      await mkdir(project, { recursive: true })
+      await writeFile(
+        path.join(project, sessionId + '.jsonl'),
+        JSON.stringify({ type: 'assistant', uuid: messageUuid }) + '\n'
+      )
+      await expect(completion).resolves.toMatchObject({
+        type: 'turn-complete',
+        forkState: {
+          status: 'available',
+          checkpoint: { runtimeSessionId: sessionId, messageUuid, configDir: directory }
+        }
+      })
+    } finally {
+      await connection.close()
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('emits resume token, chunks, and turn-complete events', async () => {
