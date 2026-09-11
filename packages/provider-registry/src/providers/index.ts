@@ -55,7 +55,7 @@ import p_stepfun from './stepfun'
 import p_together from './together'
 import p_tokendance from './tokendance'
 import p_tokenhub from './tokenhub'
-import p_tokensmarket from './tokensmarket'
+import p_tokenmarket from './tokenmarket'
 import type { Provider } from './types'
 import p_vertexai from './vertexai'
 import p_voyageai from './voyageai'
@@ -86,7 +86,7 @@ export const PROVIDERS: Provider[] = [
   p_ollama,
   p_radeon_cloud,
   p_tokendance,
-  p_tokensmarket,
+  p_tokenmarket,
   p_new_api,
   p_lmstudio,
   p_anthropic,

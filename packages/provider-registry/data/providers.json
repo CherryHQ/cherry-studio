@@ -786,7 +786,7 @@
           }
         }
       },
-      "id": "tokensmarket",
+      "id": "tokenmarket",
       "metadata": {
         "website": {
           "apiKey": "https://www.tokensmarket.ai/console",

@@ -276,7 +276,7 @@ describe('provider reasoning contracts', () => {
   })
 
   it('encodes Token Market thinking through enable_thinking', () => {
-    const wire = provider('tokensmarket').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+    const wire = provider('tokenmarket').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
     expect(wire?.off?.operations).toEqual([{ target: 'enable_thinking', value: { source: 'literal', value: false } }])
     expect(wire?.auto?.operations).toEqual([{ target: 'enable_thinking', value: { source: 'literal', value: true } }])
     expect(wire?.effort).toBeUndefined()

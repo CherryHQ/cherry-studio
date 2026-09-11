@@ -7,7 +7,7 @@ import { modeWire } from './wires'
 const thinkingWire: ReasoningWireProfile = modeWire('enable_thinking', { off: false, auto: true })
 
 export default openaiCompatible({
-  id: 'tokensmarket',
+  id: 'tokenmarket',
   name: 'Token Market',
   availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.tokensmarket.ai/v1',
