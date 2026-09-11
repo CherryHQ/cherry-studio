@@ -39,6 +39,8 @@ vi.mock('@data/services/ProviderService', () => ({
 
 import { prepareAntigravityLaunch } from '../antigravity'
 
+const SECRET_ENV_NAMES = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
+
 describe('prepareAntigravityLaunch', () => {
   beforeEach(async () => {
     mocks.root = await mkdtemp(path.join(tmpdir(), 'cherry-antigravity-test-'))
@@ -52,7 +54,7 @@ describe('prepareAntigravityLaunch', () => {
     await rm(mocks.root, { recursive: true, force: true })
   })
 
-  it('resolves a direct Gemini provider and preserves isolated settings with mode 0600', async () => {
+  it('resolves a direct Gemini provider without materializing credentials before terminal setup', async () => {
     const settingsDir = path.join(mocks.root, 'antigravity-cli')
     const settingsPath = path.join(settingsDir, 'settings.json')
     await mkdir(settingsDir, { recursive: true })
@@ -74,15 +76,20 @@ describe('prepareAntigravityLaunch', () => {
     })
 
     expect(result).toEqual({
-      env: {
-        GEMINI_API_KEY: 'direct-secret',
-        GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
+      secretEnv: {
+        values: {
+          GEMINI_API_KEY: 'direct-secret',
+          GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
+        },
+        clearNames: SECRET_ENV_NAMES
       },
       geminiDir: mocks.root,
       model: 'gemini-2.5-pro'
     })
     expect(JSON.parse(await readFile(settingsPath, 'utf8'))).toEqual({ theme: 'system', modelProvider: 'gemini' })
-    if (process.platform !== 'win32') expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') {
+      expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
+    }
   })
 
   it('reads gateway credentials in main and uses an Antigravity custom model URL without the Gemini sentinel', async () => {
@@ -97,7 +104,7 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
-    expect(result.env).toEqual({
+    expect(result.secretEnv.values).toEqual({
       GEMINI_API_KEY: 'gateway-secret',
       GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:24444'
     })

@@ -8,12 +8,15 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { ANTIGRAVITY_MODEL_PATH_SEPARATOR, formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
+import type { SecretEnvSpec } from './SecretEnvHandoff'
 import { isShellSafeModelId } from './shellQuote'
+
+const ANTIGRAVITY_SECRET_ENV_NAMES = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
 
 type NormalRunInput = Extract<CodeCliRunInput, { mode: 'normal' }>
 
 interface AntigravityLaunchConfig {
-  env: Record<string, string>
+  secretEnv: SecretEnvSpec
   geminiDir: string
   model: string
 }
@@ -79,11 +82,11 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
   if (!isShellSafeModelId(model)) throw new Error(`Unsupported model id for antigravity-cli: ${model}`)
 
   return {
-    env: {
-      GEMINI_API_KEY: apiKey,
-      ...(baseUrl ? { GOOGLE_GEMINI_BASE_URL: baseUrl } : {})
-    },
     geminiDir: await ensureGeminiModeSettings(),
+    secretEnv: {
+      values: { GEMINI_API_KEY: apiKey, ...(baseUrl ? { GOOGLE_GEMINI_BASE_URL: baseUrl } : {}) },
+      clearNames: ANTIGRAVITY_SECRET_ENV_NAMES
+    },
     model
   }
 }

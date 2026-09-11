@@ -97,7 +97,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'WSL (Ubuntu/Debian)',
     command: (_: string, fullCommand: string) => ({
       command: 'wsl',
-      args: ['bash', '-c', `cmd.exe /c '${fullCommand}' ; read -p 'Press Enter to exit'`]
+      args: ['bash', '-c', `cmd.exe /c ${posixQuote(fullCommand)} ; read -p 'Press Enter to exit'`]
     })
   },
   {
@@ -211,15 +211,8 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Tabby',
     bundleId: 'org.tabby',
     command: (_directory: string, fullCommand: string) => ({
-      command: 'sh',
-      args: [
-        '-c',
-        `if pgrep -x "Tabby" > /dev/null; then
-          open -na Tabby --args open && sleep 0.3
-        else
-          open -na Tabby --args open && sleep 2
-        fi && osascript -e 'tell application "Tabby" to activate' -e 'set the clipboard to "${escapeForAppleScript(fullCommand)}"' -e 'tell application "System Events" to tell process "Tabby" to keystroke "v" using {command down}' -e 'tell application "System Events" to key code 36'`
-      ]
+      command: 'open',
+      args: ['-na', 'Tabby', '--args', 'run', 'sh', '-c', fullCommand]
     })
   }
 ]
