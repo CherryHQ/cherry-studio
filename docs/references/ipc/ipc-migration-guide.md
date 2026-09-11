@@ -105,7 +105,11 @@ useIpcOn('oauth.deep_link_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showErro
 
 ## Escape Hatch — When a Channel May Stay Out
 
-**Default: every R→M channel goes through IpcApi.** The escape hatch is a rare, last-resort exception — today exactly **one** channel in the whole codebase clears the bar (`Tab_MoveWindow`). It is not a "high-frequency optimization" to reach for; it is opting out of the typed, gated, audited surface, and must be earned.
+**Default: every R→M channel goes through IpcApi.** The escape hatch is a rare, last-resort exception. The current codebase has one high-frequency channel (`Tab_MoveWindow`) and one narrowly-scoped native file capability (the MCP package upload pair) that clear the bar. It is not a "high-frequency optimization" to reach for; it is opting out of the typed, gated, audited surface, and must be earned and documented here.
+
+### Native file-capability exception
+
+`Mcp_UploadDxt` and `Mcp_UploadMcpb` remain dedicated guarded channels because the isolated preload derives the native path from the actual user-selected `File`. Sending that path through the generic IpcApi route would let any caller that can invoke the generic facade substitute an arbitrary filesystem path; sending package bytes would also cross the structured-clone boundary. The preload therefore sends only the derived path over these two channels, `handleGuarded` applies the same renderer source-trust gate, and `McpPackageService` revalidates the absolute path, extension, regular-file metadata, and 50 MiB limit before staging. These are per-action channels, but they are a security/provenance exception rather than a general legacy-IPC pattern.
 
 Two-step test — direction, then frequency:
 
@@ -123,7 +127,7 @@ Does this R→M channel go through IpcApi?
 
 **Two hard conditions for a carve-out** (or it is a hole, not an exception):
 
-- **Still gated** — register with native `ipcMain.on` + `registerDisposable` + an explicit `validateSender` call (mirroring the explicit gates in DataApi's `IpcAdapter` and the Preference/Cache handlers). Do **not** use the `this.ipcOn` sugar (slated for removal, see above).
+- **Still gated** — register with native `ipcMain.on` (or `ipcMain.handle` when the preload uses `invoke`) + `registerDisposable` + an explicit `validateSender`/`assertTrustedSender` call (mirroring the explicit gates in DataApi's `IpcAdapter` and the Preference/Cache handlers). Do **not** use the `this.ipcOn`/`this.ipcHandle` sugar (slated for removal, see above).
 - **Still documented** — list it in [Not In Scope](#not-in-scope-for-ipcapi) below. A documented carve-out (like `Cache_Sync`) keeps the one-list exposure audit honest; an undocumented omission breaks it.
 
 **Scope discipline** — an exception is per channel, not per feature:
@@ -131,6 +135,7 @@ Does this R→M channel go through IpcApi?
 | Channel | Disposition |
 |---|---|
 | `Tab_MoveWindow` | **Out** — escape hatch (gated + documented) |
+| `Mcp_UploadDxt` / `Mcp_UploadMcpb` | **Out** — native file-capability exception (isolated-preload path derivation + `handleGuarded` + service validation) |
 | `Python_ExecutionResponse` | Separate — renderer-as-server reverse RPC (request-id correlated, carries error); IpcApi's main-as-server `request` model doesn't fit, handle on its own |
 | `Cache_Sync` | Stays in the Cache subsystem |
 

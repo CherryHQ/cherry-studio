@@ -1,3 +1,6 @@
+/** Maximum DXT/MCPB package size accepted before renderer-to-main IPC transfer. */
+export const MAX_MCP_PACKAGE_BYTES = 50 * 1024 * 1024
+
 export type McpProgressEvent = {
   callId: string
   progress: number // 0-1 range

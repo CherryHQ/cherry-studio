@@ -4011,6 +4011,8 @@
   "settings.mcp.addServer.importFrom.nameExists": "Serverul există deja: {{name}}",
   "settings.mcp.addServer.importFrom.noDxtFile": "Te rugăm să selectezi un fișier DXT",
   "settings.mcp.addServer.importFrom.noMcpbFile": "Selectează un fișier MCPB",
+  "settings.mcp.addServer.importFrom.packageEmpty": "Pachetul MCP selectat este gol",
+  "settings.mcp.addServer.importFrom.packageTooLarge": "Pachetul MCP selectat depășește limita de dimensiune de 50 MiB",
   "settings.mcp.addServer.importFrom.placeholder": "Lipește configurația JSON a serverului MCP",
   "settings.mcp.addServer.importFrom.selectDxtFile": "Selectează fișierul DXT",
   "settings.mcp.addServer.importFrom.selectMcpbFile": "Selectează fișierul MCPB",

@@ -4011,6 +4011,8 @@
   "settings.mcp.addServer.importFrom.nameExists": "Sunucu zaten mevcut: {{name}}",
   "settings.mcp.addServer.importFrom.noDxtFile": "Lütfen bir DXT dosyası seçin",
   "settings.mcp.addServer.importFrom.noMcpbFile": "Lütfen bir MCPB dosyası seçin",
+  "settings.mcp.addServer.importFrom.packageEmpty": "Seçilen MCP paketi boş",
+  "settings.mcp.addServer.importFrom.packageTooLarge": "Seçilen MCP paketi 50 MiB boyut sınırını aşıyor",
   "settings.mcp.addServer.importFrom.placeholder": "MCP sunucusu JSON yapılandırmasını yapıştırın",
   "settings.mcp.addServer.importFrom.selectDxtFile": "DXT Dosyası Seç",
   "settings.mcp.addServer.importFrom.selectMcpbFile": "MCPB Dosyası Seç",

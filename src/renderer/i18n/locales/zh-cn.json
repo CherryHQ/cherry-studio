@@ -4011,6 +4011,8 @@
   "settings.mcp.addServer.importFrom.nameExists": "服务器已存在：{{name}}",
   "settings.mcp.addServer.importFrom.noDxtFile": "请选择一个 DXT 文件",
   "settings.mcp.addServer.importFrom.noMcpbFile": "请选择一个 MCPB 文件",
+  "settings.mcp.addServer.importFrom.packageEmpty": "所选 MCP 包为空",
+  "settings.mcp.addServer.importFrom.packageTooLarge": "所选 MCP 包超过 50 MiB 大小限制",
   "settings.mcp.addServer.importFrom.placeholder": "粘贴 MCP 服务器 JSON 配置",
   "settings.mcp.addServer.importFrom.selectDxtFile": "选择 DXT 文件",
   "settings.mcp.addServer.importFrom.selectMcpbFile": "选择 MCPB 文件",
