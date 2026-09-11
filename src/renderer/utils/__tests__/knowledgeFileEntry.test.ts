@@ -1,7 +1,12 @@
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import { FILE_TYPE } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '../knowledgeFileEntry'
+import {
+  MissingKnowledgeFileError,
+  resolveKnowledgeFileData,
+  resolveKnowledgeFileMetadataEntryData
+} from '../knowledgeFileEntry'
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 
@@ -74,11 +79,18 @@ describe('knowledgeFileEntry', () => {
     mocks.request.mockResolvedValue(null)
 
     await expect(resolveKnowledgeFileData('E:\\Documents\\moved.docx', 'source.docx')).rejects.toThrow(
-      'Failed to read a local file for "source.docx"'
+      MissingKnowledgeFileError
     )
     expect(mocks.request).toHaveBeenCalledWith('file.get_metadata', {
       kind: 'path',
       path: 'E:\\Documents\\moved.docx'
     })
+  })
+
+  it('propagates IPC probe failures instead of treating them as a missing file', async () => {
+    const probeError = new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result')
+    mocks.request.mockRejectedValue(probeError)
+
+    await expect(resolveKnowledgeFileData('/tmp/report.pdf')).rejects.toBe(probeError)
   })
 })
