@@ -851,6 +851,8 @@
     "knowledge": {
       "supportedFileExtensions": [
         ".txt",
+        ".py",
+        ".m",
         ".markdown",
         ".md",
         ".mdx",
