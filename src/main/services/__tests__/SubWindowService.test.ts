@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state mirrors the pattern in MainWindowService.test.ts: platform flags are
@@ -95,25 +96,26 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
+import { BrowserWindow, ipcMain } from 'electron'
+
 // Import after mocks
 import { WindowType } from '@main/core/window/types'
-import { BrowserWindow, ipcMain } from 'electron'
 
 import { SubWindowService } from '../SubWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
-  isDestroyed: ReturnType<typeof vi.fn>
-  isVisible: ReturnType<typeof vi.fn>
-  show: ReturnType<typeof vi.fn>
-  setContentBounds: ReturnType<typeof vi.fn>
-  setPosition: ReturnType<typeof vi.fn>
-  setOpacity: ReturnType<typeof vi.fn>
-  getOpacity: ReturnType<typeof vi.fn>
-  getBounds: ReturnType<typeof vi.fn>
-  getContentBounds: ReturnType<typeof vi.fn>
-  setAlwaysOnTop: ReturnType<typeof vi.fn>
+  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isVisible: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  show: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setPosition: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setOpacity: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getOpacity: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setAlwaysOnTop: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
-    isLoadingMainFrame: ReturnType<typeof vi.fn>
+    isLoadingMainFrame: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }
 
@@ -370,7 +372,7 @@ describe('SubWindowService', () => {
     it('delegates delivery to openTabInMainWindow and closes the caller sub-window', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
 
-      svc.attachTab(tab, 'sub1' as never)
+      svc.attachTab(tab, 'sub1')
 
       expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
       expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
@@ -379,7 +381,7 @@ describe('SubWindowService', () => {
     it('does not close the caller when it is not a SubWindow (never closes the main window)', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
 
-      svc.attachTab(tab, 'main1' as never)
+      svc.attachTab(tab, 'main1')
 
       expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
       expect(windowManagerMock.close).not.toHaveBeenCalled()
@@ -390,14 +392,14 @@ describe('SubWindowService', () => {
     it('pins a SubWindow caller and returns true', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
 
-      expect(svc.setAlwaysOnTop('sub1' as never, true)).toBe(true)
+      expect(svc.setAlwaysOnTop('sub1', true)).toBe(true)
       expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub1', true)
     })
 
     it('rejects (false) a non-SubWindow caller without touching setAlwaysOnTop', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
 
-      expect(svc.setAlwaysOnTop('main1' as never, true)).toBe(false)
+      expect(svc.setAlwaysOnTop('main1', true)).toBe(false)
       expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
     })
 

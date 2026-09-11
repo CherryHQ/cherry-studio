@@ -1,6 +1,7 @@
-import type { Tab } from '@renderer/hooks/tab'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+
+import type { Tab } from '@renderer/hooks/tab'
 
 import { TabIcon } from '../TabIcon'
 

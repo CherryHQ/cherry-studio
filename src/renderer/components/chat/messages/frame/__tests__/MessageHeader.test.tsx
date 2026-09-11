@@ -74,8 +74,11 @@ vi.mock('../../MessageListProvider', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: { agent?: string; session?: string }) =>
-      key === 'agent.session_delivery.from' ? `From ${values?.agent} / ${values?.session}` : key
+    t: (key: string, values?: { agent?: string; session?: string; round?: number }) => {
+      if (key === 'agent.session_delivery.from') return `From ${values?.agent} / ${values?.session}`
+      if (key === 'agent.session_turn_origin.goal_round') return `Goal round ${values?.round}`
+      return key
+    }
   })
 }))
 
@@ -117,6 +120,20 @@ describe('MessageHeader', () => {
     const { container } = render(<MessageHeader message={createMessage()} />)
 
     expect(container.querySelector('.message-body-column')).toBeNull()
+  })
+
+  it('explains a runtime-started assistant turn with its origin', () => {
+    // A goal round has no user message above it; the badge is the transcript's only explanation.
+    const { getByText } = render(
+      <MessageHeader message={createMessage('assistant', { turnOrigin: { kind: 'goal-round', round: 2 } })} />
+    )
+    expect(getByText('Goal round 2')).toBeTruthy()
+  })
+
+  it('renders no origin badge for a prompted assistant turn', () => {
+    const { queryByText } = render(<MessageHeader message={createMessage('assistant')} />)
+    expect(queryByText(/Goal round/)).toBeNull()
+    expect(queryByText('agent.session_turn_origin.background_work')).toBeNull()
   })
 
   it('shows the snapshot assistant name without repeating the model beside it', () => {

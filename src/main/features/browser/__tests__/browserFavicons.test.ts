@@ -1,7 +1,8 @@
-import { application } from '@application'
-import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { browserHistoryService } from '@data/services/BrowserHistoryService'
 
 import { cacheBrowserFavicons, captureBrowserFavicon } from '../browserFavicons'
 import { trackBrowserHistory } from '../trackBrowserHistory'

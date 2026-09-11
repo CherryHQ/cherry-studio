@@ -1,8 +1,9 @@
-import i18n from '@renderer/i18n/resolver'
-import { toast } from '@renderer/services/toast'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 
 import InstallMiniAppPanel, { InstallMiniAppPicker } from '../InstallMiniAppPanel'
 

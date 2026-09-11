@@ -3,6 +3,7 @@ import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/
 import type { Model } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 
+import type { ConversationRef } from '../types'
 import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
 import { resolveContextSettings } from './resolveContextSettings'
 
@@ -32,6 +33,7 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
  */
 export async function resolveRequestContextSettings(
   model: Model,
+  conversation: ConversationRef,
   assistantOverride?: ContextSettingsOverride | null
 ): Promise<{ contextSettings: EffectiveContextSettings; compressionModel: CompressionModelDescriptor | null }> {
   const contextSettings = resolveContextSettings({
@@ -52,7 +54,7 @@ export async function resolveRequestContextSettings(
     // Left as-is it reached `resolveCompressionModel('')`, which returns null,
     // and compression silently switched off instead of using the current model.
     const compressId = contextSettings.compress.modelId?.trim() || model.id
-    compressionModel = await resolveCompressionModel(compressId)
+    compressionModel = await resolveCompressionModel(compressId, conversation)
   }
 
   return { contextSettings, compressionModel }

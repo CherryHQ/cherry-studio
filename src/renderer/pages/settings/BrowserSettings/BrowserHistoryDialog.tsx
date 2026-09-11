@@ -1,3 +1,7 @@
+import { Copy, Globe, LoaderCircle, MoreHorizontal, Search, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
+import { type UIEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Avatar,
   AvatarFallback,
@@ -21,9 +25,6 @@ import { GroupedVirtualList } from '@renderer/components/VirtualList'
 import { useTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
-import { Copy, Globe, LoaderCircle, MoreHorizontal, Search, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
-import { type UIEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export function BrowserHistoryDialog({ onOpenPage }: { onOpenPage: () => void }) {
   const { t, i18n } = useTranslation()

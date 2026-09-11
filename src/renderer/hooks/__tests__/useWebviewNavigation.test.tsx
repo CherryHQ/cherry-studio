@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, renderHook } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import { afterEach, describe, expect, it, vi } from 'vitest'

@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto'
 import { open } from 'node:fs/promises'
 import { setImmediate } from 'node:timers/promises'
 
+import { session, WebContentsView } from 'electron'
+
 import { browserHistoryService, type BrowserVisitInput } from '@data/services/BrowserHistoryService'
 import type { BrowserImportOptions, BrowserImportReason, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { session, WebContentsView } from 'electron'
 
 import { GuestSession } from '../session/GuestSession'
 import { importBrowserFavicons } from './browserFavicons'

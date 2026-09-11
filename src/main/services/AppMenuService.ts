@@ -1,3 +1,6 @@
+import type { BrowserWindow } from 'electron'
+import { app, Menu } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -15,8 +18,6 @@ import {
   resolveCommandKeybinding,
   resolveMenu
 } from '@shared/utils/command'
-import type { BrowserWindow } from 'electron'
-import { app, Menu } from 'electron'
 
 const logger = loggerService.withContext('AppMenuService')
 

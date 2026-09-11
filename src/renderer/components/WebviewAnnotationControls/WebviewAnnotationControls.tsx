@@ -1,3 +1,10 @@
+import { EditorContent } from '@tiptap/react'
+import type { WebviewTag } from 'electron'
+import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
+import type { RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Badge, Button, ConfirmDialog, Popover, PopoverAnchor, PopoverContent, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -12,12 +19,6 @@ import {
   type WebviewAnnotationLocale,
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
-import { EditorContent } from '@tiptap/react'
-import type { WebviewTag } from 'electron'
-import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import type { RefObject } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useWebviewAnnotationSession, type WebviewAnnotationSavedPayload } from './useWebviewAnnotationSession'
 

@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto'
 
+import { Mutex } from 'async-mutex'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import type { Disposable } from '@main/core/lifecycle'
 import { BROWSER_TOOL_GROUP } from '@shared/ai/browserTools'
 import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
-import { Mutex } from 'async-mutex'
 
 import { settleAction } from '../actions/settle'
 import type { AgentBrowserContext, AgentBrowserRegistry, AgentBrowserTarget } from '../AgentBrowserRegistry'

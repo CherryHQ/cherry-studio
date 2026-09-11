@@ -1,8 +1,9 @@
-import { Button, Dialog, DialogTrigger, Tooltip } from '@cherrystudio/ui'
-import { usePersistCache } from '@data/hooks/useCache'
 import { X } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Dialog, DialogTrigger, Tooltip } from '@cherrystudio/ui'
+import { usePersistCache } from '@data/hooks/useCache'
 
 const BrowserImportDialog = lazy(() =>
   import('./BrowserImportDialog').then((module) => ({ default: module.BrowserImportDialog }))

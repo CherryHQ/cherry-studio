@@ -3,10 +3,10 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import type { SerializedError } from '@renderer/types/error'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { isMcpErrorMessage, isProxyErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { DiagnosisResult } from '@shared/data/types/uiParts'
+import { isMcpErrorMessage, isProxyErrorMessage, isQuotaErrorMessage } from '@shared/utils/errorCategory'
 
 const logger = loggerService.withContext('errorDiagnosis')
 

@@ -1,8 +1,9 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -85,6 +86,7 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
+  MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
   mocks.usesDshGateway.mockReturnValue(false)
   mocks.gatewayFingerprint = 'gateway-1'
@@ -117,7 +119,17 @@ describe('captureDshConnectionSnapshot', () => {
       () => mocks.listLocalSkillPaths.mockResolvedValueOnce(['/workspace/.agents/skills/review']),
       () => mocks.findMcp.mockReturnValueOnce({ id: 'mcp-1', name: 'server', updatedAt: 2 }),
       () => mocks.listTools.mockReturnValueOnce([{ name: 'changed' }]),
-      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id })
+      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id }),
+      // Rebuild fact: a language change must invalidate the warm connection so the new
+      // language instruction is baked into the next system prompt.
+      () =>
+        mocks.getAgent.mockReturnValueOnce({
+          ...agent,
+          configuration: { ...agent.configuration, language: 'Thai' }
+        }),
+      // Rebuild fact via the global preference alone: the Agent is unchanged, only
+      // `agent.language` moves — this input is not hashed through agent.configuration.
+      () => MockMainPreferenceServiceUtils.setPreferenceValue('agent.language', 'English')
     ]
 
     for (const mutate of mutations) {

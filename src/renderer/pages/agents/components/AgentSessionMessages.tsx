@@ -1,3 +1,6 @@
+import { memo, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -7,12 +10,10 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
-import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
+import { type Topic, TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { memo, useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../messages/agentMessageListAdapter'
 import AgentSessionBackgroundTasks from '../messages/AgentSessionBackgroundTasks'
@@ -84,7 +85,7 @@ const AgentSessionMessages = ({
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index]
       if (message?.role !== 'assistant') continue
-      const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+      const parts = partsByMessageId[message.id] ?? message.parts ?? []
       if (parts.length > 0) return message.id
     }
     return undefined
@@ -103,7 +104,7 @@ const AgentSessionMessages = ({
   const derivedTopic = useMemo<Topic>(
     () => ({
       id: sessionTopicId,
-      type: TopicType.Session as TopicTypeEnum,
+      type: TopicType.Session,
       assistantId: sessionAssistantId,
       name: sessionName,
       lastActivityAt: sessionLastActivityAt,

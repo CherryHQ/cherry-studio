@@ -1,5 +1,6 @@
-import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
 import { useCallback } from 'react'
+
+import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
 
 /** Persists provider enable changes and moves newly enabled providers to the top. */
 export function useProviderEnable(providerId: string) {

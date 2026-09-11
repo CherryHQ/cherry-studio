@@ -1,10 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import en from '@renderer/i18n/locales/en-us.json'
-import { ipcApi } from '@renderer/ipc'
-import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
-import type { BrowserImportReason, BrowserImportResult, BrowserImportSource } from '@shared/ipc/schemas/browserImport'
 import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -12,6 +7,11 @@ import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import en from '@renderer/i18n/locales/en-us.json'
+import { ipcApi } from '@renderer/ipc'
+import type { BrowserVisit } from '@shared/data/api/schemas/browserVisits'
+import type { BrowserImportReason, BrowserImportResult, BrowserImportSource } from '@shared/ipc/schemas/browserImport'
 
 import { BrowserSettings } from '../BrowserSettings'
 

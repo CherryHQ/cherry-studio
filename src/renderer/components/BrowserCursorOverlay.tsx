@@ -1,9 +1,10 @@
+import type { WebviewTag } from 'electron'
+import { useEffect, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import cursorImage from '@renderer/assets/images/browser-cursor.png?inline'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { BrowserCursorArrival, BrowserCursorState } from '@shared/types/browserCursor'
-import type { WebviewTag } from 'electron'
-import { useEffect, useRef } from 'react'
 
 import { BrowserCursorAnimation } from './BrowserCursorAnimation'
 

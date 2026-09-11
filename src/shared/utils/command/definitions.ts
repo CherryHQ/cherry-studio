@@ -106,6 +106,16 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'chat.input.focus',
+    titleKey: 'settings.shortcuts.focus_input',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'I'],
+      when: '!webview.focused'
+    }
+  }),
+  defineCommand({
     id: 'chat.context.toggle_new',
     titleKey: 'settings.shortcuts.toggle_new_context',
     categoryKey: 'settings.shortcuts.chat',
@@ -261,7 +271,7 @@ export const COMMAND_DEFINITIONS = [
 export type CommandId = (typeof COMMAND_DEFINITIONS)[number]['id']
 
 export const commandShortcutPreferenceKey = (command: CommandId): CommandShortcutPreferenceKey<CommandId> =>
-  `shortcut.${command}` as CommandShortcutPreferenceKey<CommandId>
+  `shortcut.${command}`
 
 export const KEYBINDING_RULES = COMMAND_DEFINITIONS.flatMap((definition) =>
   definition.keybinding

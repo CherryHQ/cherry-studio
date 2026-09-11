@@ -10,7 +10,7 @@ function makeEntry(overrides: Partial<ToolEntry> & Pick<ToolEntry, 'name'>): Too
     namespace: 'mcp:s1',
     description: `${overrides.name} description`,
     defer: 'auto',
-    tool: { description: 'inner', inputSchema: jsonSchema({ type: 'object' }) } as unknown as Tool,
+    tool: { description: 'inner', inputSchema: jsonSchema({ type: 'object' }) },
     ...overrides
   }
 }
@@ -30,7 +30,7 @@ async function callExecute(tool: Tool, args: { query?: string; namespace?: strin
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
-  } as Parameters<NonNullable<Tool['execute']>>[1])
+  })
 }
 
 describe('tool_search meta-tool', () => {

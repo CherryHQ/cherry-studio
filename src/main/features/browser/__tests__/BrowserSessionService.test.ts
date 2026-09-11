@@ -1,11 +1,12 @@
 import { EventEmitter } from 'node:events'
 
-import { application } from '@application'
-import { browserHistoryService } from '@data/services/BrowserHistoryService'
-import { BaseService } from '@main/core/lifecycle'
 import { setupTestDatabase } from '@test-helpers/db'
 import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { browserHistoryService } from '@data/services/BrowserHistoryService'
+import { BaseService } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../BrowserSessionService'
 import { createGuest } from './guestFixture'

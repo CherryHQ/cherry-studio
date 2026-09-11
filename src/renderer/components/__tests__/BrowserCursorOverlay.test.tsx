@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { BrowserCursorState } from '@shared/types/browserCursor'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import type { BrowserCursorState } from '@shared/types/browserCursor'
 
 import { BrowserCursorOverlay } from '../BrowserCursorOverlay'
 

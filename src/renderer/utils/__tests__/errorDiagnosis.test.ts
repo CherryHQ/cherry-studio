@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { SerializedError } from '@renderer/types/error'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: vi.fn()

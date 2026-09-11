@@ -1,5 +1,6 @@
-import { WebviewAnnotationSchema } from '@shared/types/webviewAnnotation'
 import { describe, expect, it } from 'vitest'
+
+import { WebviewAnnotationSchema } from '@shared/types/webviewAnnotation'
 
 import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '../annotationMarkdown'
 import type { AnnotationDocument, ResolvedAnnotationDocument } from '../annotationTypes'

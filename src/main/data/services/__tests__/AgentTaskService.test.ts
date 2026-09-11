@@ -4,8 +4,9 @@
  * covered by its integration suite.
  */
 
-import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
@@ -87,12 +88,12 @@ function makeJobSnapshot(overrides: Partial<JobSnapshot> = {}): JobSnapshot {
     attempt: 0,
     maxAttempts: 1,
     input: {},
-    output: { sessionId: 'sess-1', result: 'ok' },
+    output: { result: 'ok' },
     error: null,
     parentId: null,
     cancelRequested: false,
     cancelRequestedAt: null,
-    metadata: {},
+    metadata: { sessionId: 'sess-1' },
     timeoutMs: null,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:05.000Z',
@@ -337,6 +338,48 @@ describe('AgentTaskService (read side)', () => {
       expect(result.logs[0]).not.toHaveProperty('taskId')
       expect(result.logs[0]).not.toHaveProperty('runAt')
       expect(result.logs[0]).toHaveProperty('startedAt')
+    })
+
+    it('preserves pre-metadata session links while preferring the current metadata link', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({ id: 'old', metadata: {}, output: { result: 'ok', sessionId: 'old-session' } }),
+        makeJobSnapshot({
+          id: 'rebound',
+          metadata: { sessionId: 'replacement-session' },
+          output: { result: 'ok', sessionId: 'old-session' }
+        })
+      ])
+
+      expect(agentTaskService.getTaskLogs(TASK_ID).logs).toEqual([
+        expect.objectContaining({ id: 'old', sessionId: 'old-session', result: 'ok' }),
+        expect.objectContaining({ id: 'rebound', sessionId: 'replacement-session', result: 'ok' })
+      ])
+    })
+
+    it('links a failed run to its session from metadata when no output was persisted', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({
+          id: 'j1',
+          status: 'failed',
+          output: null,
+          error: { code: 'X', message: 'boom', retryable: false },
+          metadata: { sessionId: 'sess-meta' }
+        })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([expect.objectContaining({ id: 'j1', status: 'failed', sessionId: 'sess-meta' })])
+    })
+
+    it('links a run that never reached the session step to no session', () => {
+      vi.mocked(jobService.list).mockReturnValueOnce([
+        makeJobSnapshot({ id: 'j1', status: 'cancelled', output: null, metadata: {} })
+      ])
+
+      const result = agentTaskService.getTaskLogs(TASK_ID)
+
+      expect(result.logs).toEqual([expect.objectContaining({ id: 'j1', status: 'cancelled', sessionId: null })])
     })
 
     it('returns a null duration while a run is still in flight', () => {

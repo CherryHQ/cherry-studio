@@ -1,5 +1,6 @@
-import type { BrowserCursorState } from '@shared/types/browserCursor'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { BrowserCursorState } from '@shared/types/browserCursor'
 
 import { BrowserCursor } from '../BrowserCursor'
 import { BrowserSessionError } from '../session/BrowserSessionError'

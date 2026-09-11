@@ -1,14 +1,7 @@
 import '@testing-library/jest-dom/vitest'
-
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import {
-  CHERRY_CLOUD_PROVIDER_ID,
-  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-  CHERRYAI_PROVIDER_ID
-} from '@shared/data/presets/cherryai'
-import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import {
   mockUseMultiplePreferences,
   mockUsePreference,
@@ -17,6 +10,13 @@ import {
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
 const responsiveStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/responsive.css'), 'utf8')
 
@@ -649,10 +649,31 @@ describe('OnboardingPage', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
   })
 
-  it('uses cancellable Cherry Cloud login instead of CherryIN in the CN edition', async () => {
+  it('uses CherryIN in the CN edition when Cherry Account onboarding is disabled', async () => {
     const user = userEvent.setup()
     cloudMocks.appEdition = 'cn'
     render(<OnboardingPage />)
+
+    await user.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
+
+    await waitFor(() => expect(oauthWithCherryInMock).toHaveBeenCalledTimes(1))
+    expect(cloudMocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps CherryIN in the global edition when Cherry Account onboarding is enabled', async () => {
+    const user = userEvent.setup()
+    render(<OnboardingPage enableCherryAccountLogin />)
+
+    await user.click(screen.getByRole('button', { name: 'onboarding.welcome.login_cherryin' }))
+
+    await waitFor(() => expect(oauthWithCherryInMock).toHaveBeenCalledTimes(1))
+    expect(cloudMocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('uses cancellable Cherry Cloud login instead of CherryIN in the CN edition', async () => {
+    const user = userEvent.setup()
+    cloudMocks.appEdition = 'cn'
+    render(<OnboardingPage enableCherryAccountLogin />)
 
     expect(screen.queryByRole('button', { name: 'onboarding.welcome.login_cherryin' })).not.toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' }))
@@ -693,7 +714,7 @@ describe('OnboardingPage', () => {
       }
       throw new Error(`Unexpected path: ${path}`)
     })
-    render(<OnboardingPage />)
+    render(<OnboardingPage enableCherryAccountLogin />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
     act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
@@ -716,7 +737,7 @@ describe('OnboardingPage', () => {
   it('opens provider setup after the warning even when an ordinary chat model is available', async () => {
     const user = userEvent.setup()
     cloudMocks.appEdition = 'cn'
-    render(<OnboardingPage />)
+    render(<OnboardingPage enableCherryAccountLogin />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
     act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
@@ -923,8 +944,8 @@ describe('OnboardingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
 
-    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('provider-settings')).toBeInTheDocument()
+    expect(await screen.findByTestId('provider-settings')).toBeInTheDocument()
+    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
     expect(screen.queryByTestId('model-settings')).not.toBeInTheDocument()
     expect(toastErrorMock).toHaveBeenCalledWith('onboarding.provider_setup.missing_model')
     expect(toastSuccessMock).not.toHaveBeenCalled()

@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import path from 'path'
+
+import { optimizer } from '@electron-toolkit/utils'
+import type { BrowserWindow } from 'electron'
+import { app, nativeImage, nativeTheme, session, shell } from 'electron'
 
 import { application } from '@application'
-import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -9,8 +13,7 @@ import { isLinux, isMac, isWin } from '@main/core/platform'
 import { isAppRendererUrl } from '@main/core/security/validateSender'
 import { WindowType } from '@main/core/window/types'
 import { isMiniAppPartition } from '@main/features/miniApp/runtime/partition'
-import { openTabInMainWindow } from '@main/services/mainWindowNavigation'
-import { resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
+import { openTabInMainWindow, resetMainRendererTabAttachDelivery } from '@main/services/mainWindowNavigation'
 import {
   AgentDevPreviewRequestPolicy,
   AgentHtmlArtifactRequestPolicy,
@@ -25,9 +28,6 @@ import { normalizeBrowserEntryUrl, normalizeBrowserUrl } from '@shared/utils/bro
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { getWebviewPartition, getWebviewSecurityProfile, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import type { BrowserWindow } from 'electron'
-import { app, nativeImage, nativeTheme, session, shell } from 'electron'
-import path from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'

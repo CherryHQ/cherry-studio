@@ -1,5 +1,6 @@
-import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type { WebviewTag } from 'electron'
+
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 export interface AgentBrowserResource {
   sessionId: string

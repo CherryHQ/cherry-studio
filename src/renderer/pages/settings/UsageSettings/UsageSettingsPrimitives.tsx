@@ -1,3 +1,6 @@
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import { useMemo } from 'react'
+
 import { Avatar, AvatarFallback, Skeleton } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -6,8 +9,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { AiUsageRecordSourceType } from '@shared/data/types/aiUsageRecord'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
-import { useMemo } from 'react'
 
 import { displayModelId } from './usageAnalytics'
 

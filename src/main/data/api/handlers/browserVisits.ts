@@ -1,7 +1,8 @@
+import * as z from 'zod'
+
 import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { type BrowserVisitSchemas, ListBrowserVisitsQuerySchema } from '@shared/data/api/schemas/browserVisits'
 import type { HandlersFor } from '@shared/data/api/types'
-import * as z from 'zod'
 
 export const browserVisitHandlers: HandlersFor<BrowserVisitSchemas> = {
   '/browser-visits': {
