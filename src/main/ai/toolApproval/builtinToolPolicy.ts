@@ -12,6 +12,7 @@
  */
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
+import { RUNTIME_INFO_TOOL_NAME } from '@main/ai/mcp/servers/runtimeInfoTool'
 import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
 import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import {
@@ -83,6 +84,7 @@ const BUILTIN_TOOL_POLICIES = {
   cherryKnowledgeList: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_LIST_TOOL_NAME, 'auto'),
   cherryKnowledgeManage: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, KB_MANAGE_TOOL_NAME, 'required'),
   cherryReportArtifacts: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, REPORT_ARTIFACTS_TOOL_NAME, 'auto'),
+  cherryRuntimeInfo: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, RUNTIME_INFO_TOOL_NAME, 'auto'),
   cherryCron: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CRON_TOOL_NAME, 'auto'),
   cherryNotify: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, NOTIFY_TOOL_NAME, 'auto'),
   cherryConfig: tool(CHERRY_MCP_SERVER.CHERRY_TOOLS, CONFIG_TOOL_NAME, 'auto'),
