@@ -2,14 +2,15 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-import { inspectOrphanBaseArtifacts } from '@main/features/knowledge/base/orphanBaseArtifacts'
-import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
+import { inspectOrphanBaseArtifacts } from '@main/features/knowledge/base/orphanBaseArtifacts'
+import { cacheCleanupService } from '@main/services/cacheCleanup'
 
 const bootConfigGet = vi.hoisted(() => vi.fn())
 const hasPendingRestoreMock = vi.hoisted(() => vi.fn(() => false))

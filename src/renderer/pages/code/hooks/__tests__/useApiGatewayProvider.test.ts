@@ -1,6 +1,7 @@
-import { preferenceService } from '@data/PreferenceService'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { preferenceService } from '@data/PreferenceService'
 
 import { useApiGatewayProvider } from '../useApiGatewayProvider'
 

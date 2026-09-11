@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next'
+
 import { Switch } from '@cherrystudio/ui'
 import { DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR, type KnowledgeChunkStrategy } from '@shared/data/types/knowledge'
-import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagChunkValidationErrorCode } from '../../utils/validate'
 import { RagFieldRow, RagHintText, RagInlineField } from './panelPrimitives'

@@ -2,12 +2,13 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { fileEntryTable } from '@data/db/schemas/file'
-import type { FileEntryId } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -153,7 +154,7 @@ describe('internal/content/read', () => {
   })
 
   it('throws when entry id does not exist', async () => {
-    await expect(read(deps, '019606a0-0000-7000-8000-9999cccccccc' as FileEntryId)).rejects.toThrow(/not found/i)
+    await expect(read(deps, '019606a0-0000-7000-8000-9999cccccccc')).rejects.toThrow(/not found/i)
   })
 
   it('updates DanglingCache to "missing" on ENOENT for external entry', async () => {

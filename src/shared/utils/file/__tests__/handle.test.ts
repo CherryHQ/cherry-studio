@@ -1,5 +1,6 @@
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
+
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from '../handle'
 

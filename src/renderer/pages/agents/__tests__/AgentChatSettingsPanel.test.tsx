@@ -1,9 +1,10 @@
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 
 import AgentChat from '../AgentChat'
 
@@ -532,7 +533,7 @@ describe('AgentChat settings panel', () => {
   })
 
   it('hides the empty-session greeting once the session has messages', () => {
-    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' } as any] }
+    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' }] }
 
     renderAgentChat()
 

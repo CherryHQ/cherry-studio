@@ -1,8 +1,9 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
+import type { LanguageModelMiddleware } from 'ai'
+
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isDeepSeekModel } from '@shared/utils/model'
-import type { LanguageModelMiddleware } from 'ai'
 
 import type { RequestFeature } from '../feature'
 

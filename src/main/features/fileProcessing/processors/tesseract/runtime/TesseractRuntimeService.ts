@@ -1,14 +1,15 @@
 import fs from 'node:fs'
 
+import PQueue from 'p-queue'
+import type { LanguageCode } from 'tesseract.js'
+import type Tesseract from 'tesseract.js'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { loadOcrImage } from '@main/features/fileProcessing/utils/ocr'
 import { regionService } from '@main/services/RegionService'
 import { MB } from '@shared/utils/constants'
-import PQueue from 'p-queue'
-import type { LanguageCode } from 'tesseract.js'
-import type Tesseract from 'tesseract.js'
 
 import type { ImageToTextHandlerOutput } from '../../types'
 import type { PreparedTesseractContext } from '../types'

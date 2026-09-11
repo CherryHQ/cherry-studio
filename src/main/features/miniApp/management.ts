@@ -1,5 +1,7 @@
 import fs from 'node:fs'
 
+import { eq } from 'drizzle-orm'
+
 import { application } from '@application'
 import { miniAppInstallationTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
@@ -12,7 +14,6 @@ import {
   MiniAppManifestSchema,
   resolveLocalizedText
 } from '@shared/types/miniAppManifest'
-import { eq } from 'drizzle-orm'
 
 import { miniAppActivityLog } from './activityLog'
 import { fileCapability } from './capabilities/file'
