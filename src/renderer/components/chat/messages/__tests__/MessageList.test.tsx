@@ -399,6 +399,15 @@ const deferred = <T,>() => {
   return { promise, resolve, reject }
 }
 
+// jsdom's Blob has no text().
+const readBlobText = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(blob)
+  })
+
 describe('MessageList', () => {
   beforeEach(() => {
     scrollToBottom.mockClear()
@@ -992,8 +1001,6 @@ describe('MessageList', () => {
     messageVirtualListMocks.renderItemLimit = 1
     const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const copyImage = vi.fn().mockResolvedValue(undefined)
-    const imageBlob = new Blob(['topic'], { type: 'image/png' })
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ blob: async () => imageBlob } as Response)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
       bindRuntime: (nextRuntime) => {
@@ -1034,9 +1041,9 @@ describe('MessageList', () => {
     await act(async () => {
       await copyPromise
     })
-    expect(fetchSpy).toHaveBeenCalledWith('data:image/png;base64,dG9waWM=')
-    fetchSpy.mockRestore()
-    expect(copyImage).toHaveBeenCalledWith(imageBlob)
+    const copiedBlob = copyImage.mock.calls[0]?.[0] as Blob
+    expect(copiedBlob.type).toBe('image/png')
+    expect(await readBlobText(copiedBlob)).toBe('topic')
   })
 
   it('exports a pending topic image after the loading list scroll container is ready', async () => {

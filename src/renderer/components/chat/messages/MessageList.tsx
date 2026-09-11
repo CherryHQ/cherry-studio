@@ -8,6 +8,7 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { dataUrlToBlob } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -525,7 +526,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
       if (action === 'copy') {
         const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
-        const blob = imageData ? await fetch(imageData).then((response) => response.blob()) : null
+        const blob = imageData ? dataUrlToBlob(imageData) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
         }
