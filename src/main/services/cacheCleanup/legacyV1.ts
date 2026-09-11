@@ -3,6 +3,8 @@ import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import Database from 'better-sqlite3'
+
 import { application } from '@application'
 import { bootConfigService } from '@data/bootConfig'
 import { loggerService } from '@logger'
@@ -10,7 +12,6 @@ import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation
 import { atomicWriteFile } from '@main/utils/file'
 import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import Database from 'better-sqlite3'
 
 import {
   type CacheCleanupIssue,

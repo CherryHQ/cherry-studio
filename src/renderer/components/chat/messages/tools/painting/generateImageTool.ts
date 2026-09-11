@@ -1,8 +1,9 @@
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { getToolName, isToolUIPart } from 'ai'
+
 import { GENERATE_IMAGE_TOOL_NAME, generateImageOutputSchema } from '@shared/ai/builtinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { getToolName, isToolUIPart } from 'ai'
 
 import { buildToolResponseFromPart } from '../toolResponse'
 

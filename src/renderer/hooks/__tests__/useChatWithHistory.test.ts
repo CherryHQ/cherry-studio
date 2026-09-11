@@ -1,7 +1,8 @@
-import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { useChatWithHistory } from '../useChatWithHistory'
 

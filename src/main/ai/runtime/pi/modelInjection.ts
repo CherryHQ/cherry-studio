@@ -10,11 +10,12 @@
  * `AuthStorage.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
  */
 
+import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+
 import { application } from '@application'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
@@ -33,7 +34,8 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
-import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
+import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
@@ -324,7 +326,15 @@ export async function resolvePiProviderInjectionForSession(
   enabledApiKeys?: readonly ApiKeyEntry[]
 ): Promise<PiProviderInjection> {
   if (!usesPiGateway(provider)) {
-    return resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
+    const injection = resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
+    const headers = injection.providerConfig.headers
+    if (
+      matchesPreset(provider, SystemProviderIds.opencode) &&
+      !Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
+    ) {
+      injection.providerConfig.headers = { ...headers, ...toPiHeaders({ 'x-opencode-session': sessionId }) }
+    }
+    return injection
   }
 
   const gateway = await resolveApiGatewayRuntime(sessionId)

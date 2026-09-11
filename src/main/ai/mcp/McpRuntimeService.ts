@@ -1,5 +1,16 @@
+import { EventEmitter } from 'events'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
+
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp'
+import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
+import type { GetPromptResult, Progress, ServerCapabilities } from '@modelcontextprotocol/sdk/types.js'
+import { app } from 'electron'
+import { nanoid } from 'nanoid'
+import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -7,11 +18,6 @@ import { loggerService } from '@logger'
 import { TraceMethod, withSpanFunc } from '@main/ai/observability'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import type { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp'
-import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js'
-import type { GetPromptResult, Progress, ServerCapabilities } from '@modelcontextprotocol/sdk/types.js'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
@@ -20,11 +26,6 @@ import type { McpServerLogEntry } from '@shared/types/mcp'
 import type { McpPrompt, McpResource } from '@shared/types/mcp'
 import { redactDeep, redactServerKey } from '@shared/utils/redaction'
 import { safeSerialize } from '@shared/utils/serialize'
-import { app } from 'electron'
-import { EventEmitter } from 'events'
-import { nanoid } from 'nanoid'
-import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
 import { isMcpCancellation } from './mcpAbort'
 import {
@@ -36,6 +37,7 @@ import {
 } from './mcpClientSdk'
 import type { McpPackageService } from './McpPackageService'
 import { redactCacheKey } from './mcpRedact'
+import { resolveMcpRequestOptions } from './mcpRequestOptions'
 import { createTransport, isMcpOAuthEnabled } from './mcpTransport'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
@@ -104,7 +106,7 @@ export const McpGetResourcePayloadSchema = z.object({
 export const McpStringArgSchema = NonEmptyStringSchema
 
 const logger = loggerService.withContext('McpRuntimeService')
-const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}` as SharedCacheKey
+const mcpStatusCacheKey = (serverId: string): SharedCacheKey => `mcp.status.${serverId}`
 
 export interface McpToolListChangedEvent {
   serverId: string
@@ -804,7 +806,11 @@ export class McpRuntimeService extends BaseService {
     // promise lets a successful connect land in `this.clients` (so the loop below
     // closes it); a failed connect just settles and is dropped.
     const pendingKeys = Array.from(this.pendingClients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
-    await Promise.all(pendingKeys.map((key) => this.pendingClients.get(key)?.catch(() => undefined)))
+    const pendingConnections = pendingKeys.flatMap((key) => {
+      const pendingConnection = this.pendingClients.get(key)
+      return pendingConnection ? [pendingConnection.catch(() => undefined)] : []
+    })
+    await Promise.all(pendingConnections)
 
     const serverKeys = Array.from(this.clients.keys()).filter((key) => this.isServerKeyForId(key, serverId))
     await Promise.all(serverKeys.map((key) => this.closeClient(key)))
@@ -907,7 +913,7 @@ export class McpRuntimeService extends BaseService {
       } catch (error) {
         // Ignore ENOENT - file may not exist if server never used OAuth
         if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error as Error)
+          getServerLogger(server).error(`Failed to cleanup OAuth token file`, error)
         }
       }
     }
@@ -1083,11 +1089,9 @@ export class McpRuntimeService extends BaseService {
               })
             }
           },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
-          // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
-          resetTimeoutOnProgress: server.longRunning,
-          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
+          ...resolveMcpRequestOptions(server),
+          // resetTimeoutOnProgress 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          // resetTimeoutOnProgress needs server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           signal: effectiveSignal
         })
         return result as McpCallToolResponse

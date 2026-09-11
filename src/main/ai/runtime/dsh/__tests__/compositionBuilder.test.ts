@@ -3,13 +3,14 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { parse } from 'yaml'
+
 import type { DshRuntimeEntrySpecifier } from '@cherrystudio/dsh-bridge'
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { parse } from 'yaml'
 
 vi.mock('@data/services/ProviderService', () => ({ providerService: {} }))
 vi.mock('@data/services/ModelService', () => ({ modelService: {} }))

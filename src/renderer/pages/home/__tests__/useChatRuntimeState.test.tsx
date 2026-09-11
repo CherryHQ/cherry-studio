@@ -1,10 +1,11 @@
+import { act, render } from '@testing-library/react'
+import { Activity, useMemo } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ExecutionFinishEvent } from '@renderer/hooks/useExecutionOverlay'
 import type { Topic } from '@renderer/types/topic'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { act, render } from '@testing-library/react'
-import { Activity, useMemo } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   turnControllerConfig: null as any,

@@ -1,3 +1,7 @@
+import { t } from 'i18next'
+import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -27,9 +31,6 @@ import { ipcApi } from '@renderer/ipc'
 import { findNode } from '@renderer/services/NotesTreeService'
 import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
-import { t } from 'i18next'
-import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
 import type { MenuItem as NotesMenuItem } from './MenuConfig'
 import { menuItems } from './MenuConfig'
@@ -223,7 +224,7 @@ const HeaderNavbar = ({
     if (item.children) {
       return (
         <div key={item.key} className="space-y-1">
-          <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-muted-foreground text-xs">
+          <div className="flex items-center gap-2.5 px-2.5 py-1 text-xs font-medium text-muted-foreground">
             {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>
           </div>
@@ -235,7 +236,7 @@ const HeaderNavbar = ({
     const isActive = item.isActive?.(settings)
     const suffix =
       item.printAction && printCommand.shortcutLabel ? (
-        <span className="text-muted-foreground text-xs">{printCommand.shortcutLabel}</span>
+        <span className="text-xs text-muted-foreground">{printCommand.shortcutLabel}</span>
       ) : isActive ? (
         <Check size={14} />
       ) : undefined
@@ -332,20 +333,20 @@ const HeaderNavbar = ({
                   <Fragment key={item.key}>
                     <BreadcrumbItem className={cn('min-w-0 shrink', isLastItem && 'min-w-0 flex-1')}>
                       {isCurrentNote ? (
-                        <div className="flex w-full min-w-0 max-w-none flex-1 items-center">
+                        <div className="flex w-full max-w-none min-w-0 flex-1 items-center">
                           <Input
                             ref={titleInputRef}
                             value={titleValue}
                             onChange={handleTitleChange}
                             onBlur={handleTitleBlur}
                             onKeyDown={handleTitleKeyDown}
-                            className="h-auto min-w-0 flex-1 border-0! bg-transparent! p-0 font-[inherit] text-inherit leading-[inherit] shadow-none outline-none focus-visible:border-transparent! focus-visible:ring-0! dark:bg-transparent!"
+                            className="h-auto min-w-0 flex-1 border-0! bg-transparent! p-0 font-[inherit] leading-[inherit] text-inherit shadow-none outline-none focus-visible:border-transparent! focus-visible:ring-0! dark:bg-transparent!"
                           />
                         </div>
                       ) : (
                         <span
                           className={cn(
-                            'inline-block min-w-0 max-w-37.5 shrink overflow-hidden text-ellipsis whitespace-nowrap',
+                            'inline-block max-w-37.5 min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap',
                             item.isFolder && !isLastItem && 'cursor-pointer text-link hover:underline'
                           )}
                           onClick={() => handleBreadcrumbClick(item)}>

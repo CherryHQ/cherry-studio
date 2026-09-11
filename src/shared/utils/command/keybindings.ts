@@ -77,9 +77,6 @@ const isScopeSupported = (rule: RegisteredKeybindingRule, scope?: CommandScope):
   return rule.scope === scope || rule.scope === 'both'
 }
 
-const scopesOverlap = (left: CommandScope, right: CommandScope): boolean =>
-  left === right || left === 'both' || right === 'both'
-
 const platformsOverlap = (
   left?: readonly SupportedPlatform[],
   right?: readonly SupportedPlatform[],
@@ -320,9 +317,8 @@ export const findKeybindingConflicts = ({
     if (rule.command === command) {
       continue
     }
-    if (!scopesOverlap(commandRule.scope, rule.scope)) {
-      continue
-    }
+    // Scope never separates bindings: main-scope shortcuts consume the keys before the renderer
+    // sees them (window-local `before-input-event` or OS-level `globalShortcut`), shadowing renderer commands.
     if (!platformsOverlap(commandRule.supportedPlatforms, rule.supportedPlatforms, platform)) {
       continue
     }

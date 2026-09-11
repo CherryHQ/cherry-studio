@@ -1,6 +1,7 @@
-import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
 
 import { useMigrationActions, useMigrationProgress } from '../useMigrationProgress'
 

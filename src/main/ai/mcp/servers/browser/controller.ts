@@ -1,10 +1,12 @@
+import { randomUUID } from 'crypto'
+
+import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
+import type TurndownService from 'turndown'
+
 import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { randomUUID } from 'crypto'
-import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
-import type TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
 import { TAB_BAR_HTML } from './tabbarHtml'

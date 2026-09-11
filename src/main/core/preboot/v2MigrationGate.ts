@@ -11,6 +11,8 @@
 
 import { promises as fs } from 'node:fs'
 
+import { app, dialog } from 'electron'
+
 import { application } from '@application'
 import {
   evaluateCandidateVersion,
@@ -28,7 +30,6 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { app, dialog } from 'electron'
 
 const logger = loggerService.withContext('V2MigrationGate')
 

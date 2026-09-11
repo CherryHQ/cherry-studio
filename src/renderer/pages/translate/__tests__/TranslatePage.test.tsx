@@ -1,14 +1,15 @@
-import type * as TranslateHooks from '@renderer/hooks/translate'
-import { toast } from '@renderer/services/toast'
-import type * as TranslateUtils from '@renderer/utils/translate'
-import type { BinaryToolSnapshot } from '@shared/types/binary'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as TranslateHooks from '@renderer/hooks/translate'
+import { toast } from '@renderer/services/toast'
+import type * as TranslateUtils from '@renderer/utils/translate'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TranslationFiles } from '../translationFiles'
 
