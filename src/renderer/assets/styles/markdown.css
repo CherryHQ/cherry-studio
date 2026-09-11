@@ -5,6 +5,9 @@
   color: var(--markdown-foreground, var(--foreground));
   line-height: 1.65;
   user-select: text;
+  /* Nested scrollers inherit the Scrollbar composite's idle `transparent` scrollbar-color,
+     which hides their scrollbars; `auto` breaks the inheritance (same as #19807). */
+  scrollbar-color: auto;
   overflow-wrap: anywhere;
   word-break: normal;
 }

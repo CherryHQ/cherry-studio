@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { type ComponentProps, type ReactNode, useId } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export interface DiagnosticsPanelProps extends Omit<ComponentProps<'section'>, 'title'> {
   readonly title: ReactNode

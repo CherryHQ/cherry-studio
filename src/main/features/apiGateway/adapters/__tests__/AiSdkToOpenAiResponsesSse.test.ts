@@ -1,6 +1,7 @@
-import type OpenAI from '@cherrystudio/openai'
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import type OpenAI from '@cherrystudio/openai'
 
 import { OpenAiResponsesSseFormatter } from '../formatters/OpenAiResponsesSseFormatter'
 import { AiSdkToOpenAiResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
@@ -297,7 +298,7 @@ describe('AiSdkToOpenAiResponsesSse', () => {
         delta: 'x',
         logprobs: [],
         sequence_number: 0
-      } as ResponseStreamEvent)
+      })
       expect(frame).toContain('event: response.output_text.delta')
       expect(frame).toContain('data: ')
       expect(frame.endsWith('\n\n')).toBe(true)

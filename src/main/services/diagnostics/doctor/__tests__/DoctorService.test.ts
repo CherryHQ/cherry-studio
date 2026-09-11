@@ -1,8 +1,9 @@
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import type { DoctorState } from '@shared/types/doctor'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DoctorContext } from '../types'
 

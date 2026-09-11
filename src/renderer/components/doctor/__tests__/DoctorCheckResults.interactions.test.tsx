@@ -1,12 +1,12 @@
 import '@testing-library/jest-dom/vitest'
-
-import { Accordion, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
-import type { DoctorController } from '@renderer/hooks/doctor'
-import type { DoctorInteraction } from '@renderer/hooks/doctor/doctorSessionReducer'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+
+import { Accordion, Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
+import type { DoctorController } from '@renderer/hooks/doctor'
+import type { DoctorInteraction } from '@renderer/hooks/doctor/doctorSessionReducer'
 
 vi.unmock('@cherrystudio/ui')
 

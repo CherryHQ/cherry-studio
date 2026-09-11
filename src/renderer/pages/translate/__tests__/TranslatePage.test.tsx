@@ -1,14 +1,15 @@
-import type * as TranslateHooks from '@renderer/hooks/translate'
-import { toast } from '@renderer/services/toast'
-import type * as TranslateUtils from '@renderer/utils/translate'
-import type { BinaryToolSnapshot } from '@shared/types/binary'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as TranslateHooks from '@renderer/hooks/translate'
+import { toast } from '@renderer/services/toast'
+import type * as TranslateUtils from '@renderer/utils/translate'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TranslationFiles } from '../translationFiles'
 
@@ -114,12 +115,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({
-    shikiMarkdownIt: vi.fn().mockResolvedValue('')
-  })
-}))
-
 vi.mock('@renderer/hooks/translate', async (importOriginal) => ({
   ...(await importOriginal<typeof TranslateHooks>()),
   detectLanguageOrUnknown: async (
@@ -181,18 +176,14 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTemporaryValue', () => ({
-  useTemporaryValue: () => [false, vi.fn()]
-}))
-
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
 }))
 
 vi.mock('@renderer/hooks/useSmoothStream', () => ({
-  useSmoothStream: ({ onUpdate }: { onUpdate: (text: string) => void }) => ({
-    reset: (text = '') => onUpdate(text),
-    update: (text: string) => onUpdate(text)
+  useSmoothStream: (options: { onUpdate: (text: string) => void }) => ({
+    reset: (text = '') => options.onUpdate(text),
+    update: (text: string) => options.onUpdate(text)
   })
 }))
 
@@ -324,6 +315,8 @@ vi.mock('../components/TranslateInputPane', () => ({
     onSelectFile,
     onDrop,
     onCancelOcr,
+    copied,
+    onCopy,
     disabled,
     ocrProcessing
   }: {
@@ -334,6 +327,8 @@ vi.mock('../components/TranslateInputPane', () => ({
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
     onCancelOcr: () => void
+    copied: boolean
+    onCopy: () => void
     disabled?: boolean
     ocrProcessing?: boolean
   }) => {
@@ -349,6 +344,8 @@ vi.mock('../components/TranslateInputPane', () => ({
           onPaste={onPaste}
         />
         <button type="button" aria-label="translate.files.upload" onClick={onSelectFile} />
+        <button type="button" aria-label="input.copy" onClick={onCopy} />
+        <span data-testid="translate-input-copied">{String(copied)}</span>
         {ocrProcessing && (
           <div data-testid="translate-input-ocr-processing">
             ocr.processing
@@ -385,15 +382,21 @@ vi.mock('../components/TranslateOutputPane', () => ({
   default: ({
     translating,
     translatedContent,
+    copied,
+    onCopy,
     onExportToNotes
   }: {
     translating: boolean
     translatedContent: string
+    copied: boolean
+    onCopy: () => void
     onExportToNotes?: () => void | Promise<void>
   }) => (
     <div data-testid="translate-output-pane">
       {translating && <span>translate.processing</span>}
       <span data-testid="translate-output-content">{translatedContent}</span>
+      <button type="button" aria-label="output.copy" onClick={onCopy} />
+      <span data-testid="translate-output-copied">{String(copied)}</span>
       <button type="button" aria-label="notes.save" onClick={() => void onExportToNotes?.()} />
     </div>
   )
@@ -1659,6 +1662,18 @@ describe('TranslatePage', () => {
     })
 
     expect(clipboardWriteTextMock).toHaveBeenCalledWith('translated text')
+  })
+
+  it('shows the copied feedback on the input pane rather than the output pane', async () => {
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'input.copy' }))
+
+    await waitFor(() => expect(screen.getByTestId('translate-input-copied')).toHaveTextContent('true'))
+    expect(clipboardWriteTextMock).toHaveBeenCalledWith('hello')
+    expect(screen.getByTestId('translate-output-copied')).toHaveTextContent('false')
   })
 
   it('keeps the current target language when reusing history with a null target language', async () => {

@@ -24,6 +24,7 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
@@ -46,6 +47,7 @@ import { DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LanTransferService } from '@main/services/lanTransfer'
+import { LogRetentionService } from '@main/services/LogRetentionService'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { MediaProtocolService } from '@main/services/mediaProtocol'
@@ -96,6 +98,7 @@ import { WebviewService } from '@main/services/WebviewService'
 export const services = {
   MainNetworkDevtoolsService,
   WindowManager,
+  UtilityProcessManager,
   DbService,
   CacheService,
   DataApiService,
@@ -132,6 +135,7 @@ export const services = {
   NetworkService,
   StorageMonitorService,
   DoctorService,
+  LogRetentionService,
   PythonService,
   TrayService,
   WebSearchService,

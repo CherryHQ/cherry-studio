@@ -1,5 +1,6 @@
-import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
+
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 import { defineRoute } from '../define'
 import { operationResultSchema } from './common'
@@ -34,10 +35,4 @@ export const openclawRequestSchemas = {
     input: z.object({ uniqueModelId: UniqueModelIdSchema, port: z.number().optional() }),
     output: operationResultSchema
   })
-}
-
-// ── Event schemas ──
-export type OpenClawEventSchemas = {
-  /** Fired on every gateway-status transition (incl. probe-detected external gateways). */
-  'openclaw.status_changed': { status: z.infer<typeof openclawStatusSchema> }
 }

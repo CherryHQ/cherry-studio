@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { SerializedError } from '@renderer/types/error'
 import { diagnosticDescriptionByteLength } from '@shared/utils/diagnostics'
-import { describe, expect, it } from 'vitest'
 
 import {
   buildDiagnosticReportDescription,

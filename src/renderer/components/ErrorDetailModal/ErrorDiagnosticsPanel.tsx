@@ -1,8 +1,9 @@
+import { useTranslation } from 'react-i18next'
+
 import { Accordion } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import { DoctorCheckAccordionItems } from '@renderer/components/doctor'
 import type { DoctorController } from '@renderer/hooks/doctor'
-import { useTranslation } from 'react-i18next'
 
 interface ErrorDiagnosticsPanelProps {
   readonly controller: DoctorController

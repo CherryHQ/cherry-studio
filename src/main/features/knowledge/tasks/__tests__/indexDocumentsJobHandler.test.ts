@@ -1,7 +1,8 @@
-import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
-import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
+
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 import { hashEmbeddingText } from '../../pipeline/vectorstore/indexStore/hashing'
 import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../../pipeline/vectorstore/indexStore/model'

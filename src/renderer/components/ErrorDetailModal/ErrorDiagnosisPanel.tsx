@@ -1,3 +1,8 @@
+import { TriangleAlert } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
+import { BeatLoader } from 'react-spinners'
+
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
@@ -6,10 +11,6 @@ import type { DoctorController } from '@renderer/hooks/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { doctorCheckTitleKey } from '@shared/utils/doctor'
-import { TriangleAlert } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
-import { BeatLoader } from 'react-spinners'
 
 const logger = loggerService.withContext('ErrorDiagnosisPanel')
 

@@ -1,7 +1,8 @@
-import { Alert, Button } from '@cherrystudio/ui'
-import type { DoctorController } from '@renderer/hooks/doctor'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Alert, Button } from '@cherrystudio/ui'
+import type { DoctorController } from '@renderer/hooks/doctor'
 
 type DoctorCheckNoticesController = Pick<DoctorController, 'isInteracting' | 'run'> & {
   readonly session: Pick<DoctorController['session'], 'relaunchRequired'>

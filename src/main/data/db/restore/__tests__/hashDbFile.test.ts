@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { hashDbFile } from '@data/db/restore/hashDbFile'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import { hashDbFile } from '@data/db/restore/hashDbFile'
 
 describe('hashDbFile', () => {
   let tempDir: string

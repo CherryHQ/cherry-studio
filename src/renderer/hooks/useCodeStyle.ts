@@ -1,6 +1,7 @@
+import { createContext, use, useEffect } from 'react'
+
 import type { CodeMirrorTheme } from '@cherrystudio/ui'
 import type { HighlightChunkResult, ShikiPreProperties } from '@renderer/services/ShikiStreamService'
-import { createContext, use } from 'react'
 
 interface CodeStyleContextType {
   highlightCodeChunk: (trunk: string, language: string, callerId: string) => Promise<HighlightChunkResult>
@@ -12,6 +13,7 @@ interface CodeStyleContextType {
   activeShikiTheme: string
   isShikiThemeDark: boolean
   activeCmTheme: CodeMirrorTheme
+  requestCmTheme: () => void
 }
 
 interface CodeStyleThemeCatalogContextType {
@@ -36,4 +38,17 @@ export const useCodeStyleThemeCatalog = () => {
     throw new Error('useCodeStyleThemeCatalog must be used within a CodeStyleProvider')
   }
   return context
+}
+
+/**
+ * Reads the active CodeMirror theme for an editor boundary being rendered (`active`).
+ * Demanding the theme is what triggers catalog resolution, so windows without editors
+ * never load it; the base light/dark string is returned until resolution lands.
+ */
+export const useCmTheme = (active = true): CodeMirrorTheme => {
+  const { activeCmTheme, requestCmTheme } = useCodeStyle()
+  useEffect(() => {
+    if (active) requestCmTheme()
+  }, [active, requestCmTheme])
+  return activeCmTheme
 }

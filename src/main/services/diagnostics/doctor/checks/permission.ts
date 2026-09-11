@@ -1,3 +1,5 @@
+import { systemPreferences } from 'electron'
+
 import { application } from '@application'
 import { isMac } from '@main/core/platform'
 import {
@@ -5,7 +7,6 @@ import {
   openScreenCaptureSettings,
   requestScreenCapturePermission
 } from '@main/utils/screenCapturePermission'
-import { systemPreferences } from 'electron'
 
 import { defineDoctorCheck } from '../types'
 

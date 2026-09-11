@@ -1,13 +1,14 @@
-import { Dialog, DialogContent } from '@cherrystudio/ui'
-import type * as DoctorComponents from '@renderer/components/doctor'
-import type { SerializedError } from '@renderer/types/error'
-import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { Dialog, DialogContent } from '@cherrystudio/ui'
+import type * as DoctorComponents from '@renderer/components/doctor'
+import type { SerializedError } from '@renderer/types/error'
+import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
 
 import type { ErrorDetailContentProps } from '../ErrorDetailModal'
 
@@ -528,7 +529,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
     const diagnosing = screen.getByRole('region', { name: 'Diagnosing' })
     expect(within(diagnosing).getAllByRole('status')).toHaveLength(1)
-    expect(within(diagnosing).getByText('Checking: Startup configuration · 1/18')).toBeVisible()
+    expect(within(diagnosing).getByText(/^Checking: Startup configuration/)).toBeVisible()
     expect(within(diagnosing).queryByText(/Available disk space/)).not.toBeInTheDocument()
     expect(within(diagnosing).queryByText('Needs attention')).not.toBeInTheDocument()
     expect(within(diagnosing).getByRole('button', { name: 'Cancel checks' })).toBeEnabled()

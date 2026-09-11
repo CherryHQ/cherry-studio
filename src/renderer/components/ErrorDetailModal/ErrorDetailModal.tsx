@@ -1,3 +1,7 @@
+import { ArrowLeft, Copy, FileUp } from 'lucide-react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -37,9 +41,6 @@ import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/err
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorNavigateTarget } from '@shared/types/doctor'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { ArrowLeft, Copy, FileUp } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import Scrollbar from '../Scrollbar'
 import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from './diagnosticReportDescription'
