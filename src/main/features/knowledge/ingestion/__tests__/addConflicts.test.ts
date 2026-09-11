@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import type { KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { describe, expect, it } from 'vitest'
 
 import { resolveKnowledgeAddConflicts } from '../addConflicts'
 

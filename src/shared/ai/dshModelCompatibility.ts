@@ -20,7 +20,7 @@ import { isGatewayRoutableModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 /**
- * Transport families Cherry can inject into `dsh-llm-pi-ai` (0.1.0-rc.7).
+ * Transport families Cherry can inject into `dsh-llm-pi-ai`.
  * OpenAI and Anthropic use hand-declared protocol routes; Google Generate
  * Content reuses pi-ai's built-in `google` catalog provider. Azure and signed
  * Bedrock/Vertex routes cannot be expressed by this composition contract.

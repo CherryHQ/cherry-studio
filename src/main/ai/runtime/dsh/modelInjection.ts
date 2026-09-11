@@ -76,7 +76,7 @@ function resolveDshAutoReasoningEffort(model: Model): Exclude<DshReasoningEffort
   return isDshAdjustableReasoningEffort(defaultEffort) ? defaultEffort : 'high'
 }
 
-/** Project Cherry's reasoning selection onto the levels supported by dsh rc.6. */
+/** Project Cherry's reasoning selection onto the levels supported by dsh. */
 export function resolveDshReasoningEffort(
   model: Model,
   selection: ReasoningEffortOption = 'default'
@@ -201,7 +201,7 @@ export function buildDshProviderInjection(
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {
-    // rc.6 reaches Google Generate Content only through pi-ai's built-in catalog route.
+    // This composition reaches Google Generate Content through pi-ai's built-in catalog route.
     providerName: api === 'google-generative-ai' ? 'google' : provider.id,
     api,
     baseUrl,

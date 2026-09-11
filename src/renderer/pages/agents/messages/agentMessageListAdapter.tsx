@@ -1,3 +1,6 @@
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { isHiddenPart } from '@renderer/components/chat/messages/blocks/messagePartLayouts'
 import { useMessageListAdapterCapabilities } from '@renderer/components/chat/messages/hooks/useMessageListAdapterCapabilities'
@@ -15,6 +18,7 @@ import {
   type MessageListMeta,
   type MessageListProviderValue,
   type MessageListRuntime,
+  type MessageListSelectAllPagination,
   type MessageListState,
   type MessageRuntime,
   type MessageStreamingLayers
@@ -35,8 +39,6 @@ import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import AgentSessionApiRetryStatus from './AgentSessionApiRetryStatus'
 import {
@@ -57,7 +59,7 @@ function withTerminalErrorFallback(
   for (const message of messages) {
     if (message.role !== 'assistant') continue
     const status = message.metadata?.status
-    const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+    const parts = partsByMessageId[message.id] ?? message.parts ?? []
     const hasVisiblePart = parts.some((part) => !isHiddenPart(part))
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error')) ||
@@ -96,6 +98,7 @@ interface AgentMessageListParams {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  selectAllPagination?: MessageListSelectAllPagination
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   openAgentToolFlow?: MessageListActions['openAgentToolFlow']
   openArtifactFile?: MessageListActions['openArtifactFile']
@@ -153,6 +156,7 @@ export function useAgentMessageListProviderValue({
   isLoading,
   hasOlder = false,
   loadOlder,
+  selectAllPagination,
   openCitationsPanel,
   openAgentToolFlow,
   openArtifactFile,
@@ -198,7 +202,7 @@ export function useAgentMessageListProviderValue({
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
-        const parts = displayPartsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
+        const parts = displayPartsByMessageId[message.id] ?? message.parts ?? []
         if (parts.length === 0) return true
         return parts.some((part) => !hasPartParentToolCallId(part))
       }),
@@ -261,7 +265,8 @@ export function useAgentMessageListProviderValue({
     streamingLayers: displayStreamingLayers,
     deleteMessage,
     diagnosticReport,
-    persistDiagnosis
+    persistDiagnosis,
+    selectAllPagination
   })
 
   const openPath = useCallback(

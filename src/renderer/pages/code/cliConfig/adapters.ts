@@ -1,10 +1,11 @@
+import { stringify as stringifyToml } from 'smol-toml'
+import { type Document, isMap, isScalar } from 'yaml'
+
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
-import { stringify as stringifyToml } from 'smol-toml'
-import { type Document, isMap, isScalar } from 'yaml'
 
 import {
   buildClaudeConfig,

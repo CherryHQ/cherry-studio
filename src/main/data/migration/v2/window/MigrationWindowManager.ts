@@ -2,11 +2,13 @@
  * Migration window manager for creating and managing the migration window
  */
 
+import { join } from 'path'
+
+import { app, BrowserWindow, dialog } from 'electron'
+
 import { loggerService } from '@logger'
 import { isDev, isMac } from '@main/core/platform'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
-import { app, BrowserWindow, dialog } from 'electron'
-import { join } from 'path'
 
 const logger = loggerService.withContext('MigrationWindowManager')
 

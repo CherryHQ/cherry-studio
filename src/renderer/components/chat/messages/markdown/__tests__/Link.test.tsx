@@ -1,9 +1,10 @@
-import type { Citation } from '@renderer/types/message'
 import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Element } from 'hast'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Citation } from '@renderer/types/message'
 
 import Link from '../Link'
 

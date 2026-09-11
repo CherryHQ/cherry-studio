@@ -1,5 +1,6 @@
-import { BaseService } from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 const flush = vi.fn(async () => {})
 const forget = vi.fn(async () => {})

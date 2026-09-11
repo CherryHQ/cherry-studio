@@ -8,6 +8,9 @@
  * - Cascade delete and reparenting
  */
 
+import { isToolUIPart } from 'ai'
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -45,8 +48,6 @@ import {
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
-import { isToolUIPart } from 'ai'
-import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -135,7 +136,7 @@ function rowToMessage(row: MessageRow): Message {
   const parseJson = <T>(value: T | string | null | undefined): T | null => {
     if (value == null) return null
     if (typeof value === 'string') return JSON.parse(value)
-    return value as T
+    return value
   }
 
   return {
@@ -147,7 +148,7 @@ function rowToMessage(row: MessageRow): Message {
     searchableText: row.searchableText,
     status: row.status as Message['status'],
     siblingsGroupId: row.siblingsGroupId,
-    modelId: (row.modelId ?? null) as UniqueModelId | null,
+    modelId: row.modelId ?? null,
     messageSnapshot: parseJson(row.messageSnapshot),
     stats: parseJson(row.stats),
     compactionSummary: row.compactionSummary ?? null,

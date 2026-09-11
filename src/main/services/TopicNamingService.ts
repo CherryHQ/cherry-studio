@@ -80,7 +80,7 @@ type StructuredMessage = {
 function getParts(
   data: MessageData | undefined
 ): Array<{ type?: string; text?: string; filename?: string; name?: string }> {
-  return (data?.parts ?? []) as Array<{ type?: string; text?: string; filename?: string; name?: string }>
+  return data?.parts ?? []
 }
 
 function getMainTextContentFromMessage(message: Message): string {
