@@ -1,6 +1,6 @@
+import { EventEmitter } from 'events'
 import { pathToFileURL } from 'node:url'
 
-import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state lets individual tests mutate platform flags / preferences without
@@ -156,10 +156,11 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
+import { app } from 'electron'
+
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import { app } from 'electron'
 
 import { contextMenu } from '../ContextMenu'
 import { MainWindowService } from '../MainWindowService'
@@ -224,7 +225,6 @@ function attachCloseListener(svc: MainWindowService, win: MockBrowserWindow) {
 }
 
 function attachCrashMonitor(svc: MainWindowService, win: MockBrowserWindow) {
-
   ;(svc as any).setupMainWindowMonitor(win)
 }
 

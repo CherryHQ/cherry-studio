@@ -1,11 +1,12 @@
+import { Check, ChevronDown } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { Check, ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
 
 type Props = {
   value: TranslateLangCode

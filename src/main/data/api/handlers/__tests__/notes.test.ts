@@ -26,17 +26,14 @@ describe('noteHandlers', () => {
   it('should delegate GET to noteService.listByRoot with parsed query', async () => {
     listByRootMock.mockResolvedValueOnce([{ path: '/notes/a.md', isStarred: true }])
 
-    const result = await noteHandlers['/notes'].GET({ query: { rootPath: '/notes' } } as never)
+    const result = await noteHandlers['/notes'].GET({ query: { rootPath: '/notes' } })
 
     expect(listByRootMock).toHaveBeenCalledWith('/notes')
     expect(result).toEqual([{ path: '/notes/a.md', isStarred: true }])
   })
 
   it('should reject blank GET rootPath before calling the service', async () => {
-    await expect(noteHandlers['/notes'].GET({ query: { rootPath: '   ' } } as never)).rejects.toHaveProperty(
-      'name',
-      'ZodError'
-    )
+    await expect(noteHandlers['/notes'].GET({ query: { rootPath: '   ' } })).rejects.toHaveProperty('name', 'ZodError')
     expect(listByRootMock).not.toHaveBeenCalled()
   })
 
@@ -46,7 +43,7 @@ describe('noteHandlers', () => {
     await expect(
       noteHandlers['/notes'].PATCH({
         body: { rootPath: '/notes', path: '/notes/a.md', isStarred: true }
-      } as never)
+      })
     ).resolves.toEqual({ path: '/notes/a.md', isStarred: true })
 
     expect(upsertMock).toHaveBeenCalledWith({ rootPath: '/notes', path: '/notes/a.md', isStarred: true })
@@ -56,7 +53,7 @@ describe('noteHandlers', () => {
     await expect(
       noteHandlers['/notes'].PATCH({
         body: { rootPath: '/notes', path: '/notes/a.md' }
-      } as never)
+      })
     ).rejects.toHaveProperty('name', 'ZodError')
     expect(upsertMock).not.toHaveBeenCalled()
   })
@@ -67,7 +64,7 @@ describe('noteHandlers', () => {
     await expect(
       noteHandlers['/notes'].DELETE({
         query: { rootPath: '/notes', path: '/notes/folder' }
-      } as never)
+      })
     ).resolves.toBeUndefined()
 
     expect(deleteByPathMock).toHaveBeenCalledWith({ rootPath: '/notes', path: '/notes/folder' })
@@ -79,7 +76,7 @@ describe('noteHandlers', () => {
     await expect(
       noteHandlers['/notes/path'].PATCH({
         body: { rootPath: '/notes', fromPath: '/notes/a.md', toPath: '/notes/b.md', recursive: false }
-      } as never)
+      })
     ).resolves.toEqual({ updated: 1 })
 
     expect(rewritePathMock).toHaveBeenCalledWith({

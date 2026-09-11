@@ -29,8 +29,9 @@ vi.mock('electron', () => ({
   Menu: menuMock
 }))
 
-import type { NativePopupMenuModel } from '@shared/types/command'
 import type { IpcMainInvokeEvent } from 'electron'
+
+import type { NativePopupMenuModel } from '@shared/types/command'
 
 import { type ExecuteCommand, showNativePopupMenu } from '../nativePopupMenu'
 
@@ -54,7 +55,10 @@ const latestTemplate = () => {
 }
 
 describe('showNativePopupMenu', () => {
-  let sender: { send: ReturnType<typeof vi.fn>; isDestroyed: ReturnType<typeof vi.fn> }
+  let sender: {
+    send: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  }
   let event: IpcMainInvokeEvent
 
   beforeEach(() => {

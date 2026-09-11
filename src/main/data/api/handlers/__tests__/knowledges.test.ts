@@ -75,7 +75,7 @@ describe('knowledgeHandlers', () => {
           cursor: 'cursor-2',
           limit: 10
         } as never
-      } as never)
+      })
 
       expect(listKnowledgeBasesCursorMock).toHaveBeenCalledWith({
         cursor: 'cursor-2',
@@ -110,7 +110,7 @@ describe('knowledgeHandlers', () => {
           query: {
             limit: KNOWLEDGE_BASES_MAX_LIMIT + 1
           } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(listKnowledgeBasesCursorMock).not.toHaveBeenCalled()
@@ -147,7 +147,7 @@ describe('knowledgeHandlers', () => {
           body: {
             dimensions: 3072
           }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
@@ -160,7 +160,7 @@ describe('knowledgeHandlers', () => {
           body: {
             name: '   '
           }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
@@ -173,7 +173,7 @@ describe('knowledgeHandlers', () => {
           body: {
             embeddingModelId: '  new-model  '
           }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
@@ -203,7 +203,7 @@ describe('knowledgeHandlers', () => {
           body: {
             embeddingModelId: null
           }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
@@ -295,7 +295,7 @@ describe('knowledgeHandlers', () => {
           type: 'directory',
           groupId: ITEM_ID
         } as never
-      } as never)
+      })
 
       expect(listKnowledgeItemsMock).toHaveBeenCalledWith('kb-1', {
         cursor: '1700000000000:item-9',
@@ -332,7 +332,7 @@ describe('knowledgeHandlers', () => {
           query: {
             limit: 0
           } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(listKnowledgeItemsMock).not.toHaveBeenCalled()
@@ -345,7 +345,7 @@ describe('knowledgeHandlers', () => {
           query: {
             limit: KNOWLEDGE_ITEMS_MAX_LIMIT + 1
           } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(listKnowledgeItemsMock).not.toHaveBeenCalled()
@@ -358,7 +358,7 @@ describe('knowledgeHandlers', () => {
           query: {
             type: 'memory'
           } as never
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(listKnowledgeItemsMock).not.toHaveBeenCalled()

@@ -1,6 +1,7 @@
+import type { UIMessageChunk } from 'ai'
+
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
-import type { UIMessageChunk } from 'ai'
 
 import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
 

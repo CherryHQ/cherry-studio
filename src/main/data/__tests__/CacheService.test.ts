@@ -1,5 +1,8 @@
 import { pathToFileURL } from 'node:url'
 
+import type { IpcMainEvent } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Tests for CacheService subscription APIs and value-equality semantics.
  *
@@ -12,8 +15,6 @@ import { pathToFileURL } from 'node:url'
  *  - Lifecycle cleanup on onStop
  */
 import { IpcChannel } from '@shared/IpcChannel'
-import type { IpcMainEvent } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from main.setup.ts — we want the REAL CacheService
 vi.unmock('@main/data/CacheService')

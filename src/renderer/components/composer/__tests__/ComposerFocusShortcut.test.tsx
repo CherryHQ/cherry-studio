@@ -1,9 +1,10 @@
-import { CommandContextKeyProvider } from '@renderer/components/command/CommandContextKeyProvider'
-import { CommandProvider } from '@renderer/components/command/CommandProvider'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { CommandContextKeyProvider } from '@renderer/components/command/CommandContextKeyProvider'
+import { CommandProvider } from '@renderer/components/command/CommandProvider'
 
 import { ComposerFocusShortcut } from '../ComposerFocusShortcut'
 

@@ -67,10 +67,10 @@ Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` �
 
 - `pnpm lint` — oxlint + eslint fix + typecheck + i18n check + format (writes files)
 - `pnpm test` — run all Vitest tests
-- `pnpm format` — Biome format + lint (write mode)
+- `pnpm format` — Oxfmt format (write mode)
 - `pnpm docs:check` — the docs gate (`check-links` + structure closed-set + frontmatter/`sources` existence + generated-index freshness); the only thing `build:check` adds over `lint` + `test`. Run it for docs/markdown edits instead of the full gate. Docs under `docs/references/**` and `docs/contrib/**` carry `description`/`sources` frontmatter; `docs/README.md` is generated — edit frontmatter and run `pnpm docs:index`, never the index by hand.
 - `pnpm build:check` — `lint` + `docs:check` + full `test`, i.e. the whole gate in one command. Worth it for broad or risky changes; for anything narrower run the piece that matters. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
-- `pnpm test:lint` — the CI-equivalent lint gate: it denies oxlint warnings that `pnpm lint` / `pnpm build:check` silently tolerate; run it when CI must pass.
+- `pnpm test:lint` — the CI-equivalent Oxlint gate: error-severity diagnostics block CI while advisory warnings remain non-blocking.
 
 ### Testing
 
@@ -218,11 +218,11 @@ The v2 refactor has landed. v1 data reaches v2 only through the migrators in `sr
 
 ### Data Classification Toolchain
 
-`v2-refactor-temp/tools/data-classify/` is the code generation pipeline for the v2 data layer; `classification.json` is the single source of truth (see its README). Four files are **auto-generated — NEVER edit them by hand**: `src/shared/data/preference/preferenceSchemas.ts`, `src/shared/data/bootConfig/bootConfigSchemas.ts`, and `PreferencesMappings.ts` + `BootConfigMappings.ts` in `src/main/data/migration/v2/migrators/mappings/`. To change them, edit `classification.json` or `target-key-definitions.json` (both in `data/`), then run `cd v2-refactor-temp/tools/data-classify && npm run generate`.
+`scripts/data-classify/` is the code generation pipeline for the v2 data layer; `classification.json` is the single source of truth (see its README). Four files are **auto-generated — NEVER edit them by hand**: `src/shared/data/preference/preferenceSchemas.ts`, `src/shared/data/bootConfig/bootConfigSchemas.ts`, and `PreferencesMappings.ts` + `BootConfigMappings.ts` in `src/main/data/migration/v2/migrators/mappings/`. To change them, edit `classification.json` or `target-key-definitions.json` (both in `data/`), then run `cd scripts/data-classify && npm run generate`.
 
 ### Breaking Changes Log
 
-When a v2 change is user-perceivable and affects how users use the app, add an entry under `v2-refactor-temp/docs/breaking-changes/`. See [v2-refactor-temp/docs/breaking-changes/README.md](v2-refactor-temp/docs/breaking-changes/README.md) for conventions.
+When a v2 change is user-perceivable and affects how users use the app, add an entry under `docs/changelog/`. See [docs/changelog/README.md](docs/changelog/README.md) for conventions.
 
 ## Local Instructions
 

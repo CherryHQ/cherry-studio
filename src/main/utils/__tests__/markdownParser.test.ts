@@ -1,6 +1,6 @@
+import * as fs from 'fs'
 import { resolve as resolvePath } from 'node:path'
 
-import * as fs from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { parsePluginMetadata, parseSkillMetadata } from '../markdownParser'

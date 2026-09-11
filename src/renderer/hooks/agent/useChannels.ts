@@ -1,3 +1,6 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
@@ -8,8 +11,6 @@ import type {
   CreateAgentChannelDto,
   UpdateAgentChannelDto
 } from '@shared/data/api/schemas/agentChannels'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useChannels')
 
@@ -43,7 +44,7 @@ export const useChannels = (type?: AgentChannelType) => {
   const updateChannel = useCallback(
     async (id: string, updates: UpdateAgentChannelDto) => {
       try {
-        return await updateTrigger({ params: { channelId: id }, body: updates as never })
+        return await updateTrigger({ params: { channelId: id }, body: updates })
       } catch (err) {
         logger.error('Failed to update channel', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.updateError')))

@@ -1,5 +1,8 @@
 import { pathToFileURL } from 'node:url'
 
+import { ipcMain } from 'electron'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * IpcAdapter source-trust gate tests.
  *
@@ -10,8 +13,6 @@ import { pathToFileURL } from 'node:url'
  * wiring: rejection short-circuits, trusted requests pass through.
  */
 import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiServer } from '../../ApiServer'
 import { IpcAdapter } from '../IpcAdapter'
@@ -48,7 +49,7 @@ const untrustedEvents = {
 } as Record<string, any>
 
 describe('IpcAdapter', () => {
-  let handleRequest: ReturnType<typeof vi.fn>
+  let handleRequest: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   let requestHandler: IpcHandler
 
   beforeEach(() => {

@@ -1,3 +1,5 @@
+import React, { useCallback, useMemo, useRef, useState } from 'react'
+
 import {
   ContextMenu,
   ContextMenuCheckboxItem,
@@ -41,7 +43,6 @@ import type {
   SupportedPlatform
 } from '@shared/types/command'
 import { type CommandId, findKeybindingRule, resolveMenuPresentationMode } from '@shared/utils/command'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
 
@@ -782,7 +783,7 @@ export function CommandPopupMenu({
       const model: NativePopupMenuModel<CommandId> = { location, items: nativeItems }
       onOpenChange?.(true)
       try {
-        const result = await window.api.command.showNativePopupMenu(model as never, anchor)
+        const result = await window.api.command.showNativePopupMenu(model, anchor)
         if (result?.type === 'command') {
           runtime.execute(result.command)
         } else if (result?.type === 'custom') {

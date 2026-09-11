@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next'
+
 import { Input, Label } from '@cherrystudio/ui'
 import RichEditor from '@renderer/components/RichEditor/RichEditor'
-import { useTranslation } from 'react-i18next'
 
 import type { NoteDraft } from '../types'
 

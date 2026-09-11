@@ -1,11 +1,12 @@
 import fs from 'node:fs'
 import { resolve as resolvePath } from 'node:path'
 
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 // Type-only import used to give vi.importActual a generic argument that
 // satisfies @typescript-eslint/consistent-type-imports (which forbids
 // inline `import()` type annotations).
 import type * as PathRegistryModule from '@main/core/paths/pathRegistry'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')
@@ -228,7 +229,7 @@ describe('Application.getPath', () => {
   })
 
   // Note: compile-time PathKey enforcement is verified via `pnpm typecheck`
-  // (which runs tsgo). vitest's compile path uses esbuild and does not
+  // (which runs tsc). vitest's compile path uses esbuild and does not
   // enforce type-only directives like @ts-expect-error reliably, so we do
   // not assert them here.
 })
