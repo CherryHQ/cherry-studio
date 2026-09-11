@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
@@ -6,6 +8,7 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -25,14 +28,23 @@ import type {
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { FileUrlString } from '@shared/types/file'
-import type { ReactNode } from 'react'
 
 export type { MessageUiState } from '@renderer/types/message'
+
+export type SelectAllState = boolean | 'indeterminate'
+
+// Lives in `@renderer/types/message` so data hooks can import it without
+// reaching into the component layer; re-exported for component consumers.
+export type { MessageListSelectAllPagination } from '@renderer/types/message'
 
 export interface MessageListSelectionState {
   enabled: boolean
   isMultiSelectMode: boolean
   selectedMessageIds?: readonly string[]
+  selectAllState?: SelectAllState
+  selectAllDisabled?: boolean
+  /** True while select-all is waiting for older message pages to finish loading. */
+  isSelectAllLoading?: boolean
 }
 
 export interface MessageListRuntime {
@@ -60,11 +72,13 @@ export interface MessageActivityState {
   isProcessing: boolean
   isStreamTarget: boolean
   isApprovalAnchor: boolean
+  isActiveTurnProcessing: boolean
+  isStreamLive: boolean
 }
 
 export interface MessageActivityStore {
   getSnapshot: (message: MessageListItem) => MessageActivityState
-  subscribe: (messageId: string, listener: () => void) => () => void
+  subscribe: (message: MessageListItem, listener: () => void) => () => void
 }
 
 export interface MessageFileView {
@@ -211,6 +225,7 @@ export interface MessageListItem {
   isActiveBranch?: boolean
   stats?: MessageStats
   delivery?: AgentSessionDelivery
+  turnOrigin?: AutonomousTurnOrigin
   mentions?: Array<{
     id: string
     name: string
@@ -401,6 +416,7 @@ export interface MessageListActions {
   removeMessageTranslation?: (messageId: string) => void | Promise<void>
   renderRegenerateModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
   selectMessage?: (messageId: string, selected: boolean) => void
+  toggleSelectAllMessages?: (checked: boolean) => void
   toggleMultiSelectMode?: (enabled: boolean) => void
   copySelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>
   saveSelectedMessages?: (messageIds?: readonly string[]) => void | Promise<void>

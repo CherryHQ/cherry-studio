@@ -22,12 +22,12 @@ import { UserDataRelocationIpcChannels } from '@shared/types/userDataRelocation'
 import { openUserDataRelocationWindow } from '../window'
 
 interface MockWindow extends EventEmitter {
-  webContents: EventEmitter & { send: ReturnType<typeof vi.fn> }
-  isDestroyed: ReturnType<typeof vi.fn>
-  loadFile: ReturnType<typeof vi.fn>
-  loadURL: ReturnType<typeof vi.fn>
-  show: ReturnType<typeof vi.fn>
-  close: ReturnType<typeof vi.fn>
+  webContents: EventEmitter & { send: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
+  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  loadFile: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  loadURL: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  show: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 let window: MockWindow
@@ -62,7 +62,9 @@ beforeEach(() => {
   )
   ipcRemoveHandlerMock.mockImplementation((channel: string) => handlers.delete(channel))
   window = makeWindow()
-  browserWindowMock.mockReturnValue(window)
+  browserWindowMock.mockImplementation(function BrowserWindowMock() {
+    return window
+  })
 })
 
 describe('userDataRelocation window', () => {

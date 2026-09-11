@@ -1,3 +1,6 @@
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -11,8 +14,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
 import { toast } from '@renderer/services/toast'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { PrivacyPolicyDialog } from './PrivacyPolicyDialog'
 

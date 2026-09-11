@@ -96,9 +96,10 @@ describe('promptHandlers', () => {
 
   describe('/prompts/:id', () => {
     it('should reject GET with a non-UUID id', async () => {
-      await expect(
-        promptHandlers['/prompts/:id'].GET({ params: { id: 'not-a-uuid' } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(promptHandlers['/prompts/:id'].GET({ params: { id: 'not-a-uuid' } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
       expect(getByIdMock).not.toHaveBeenCalled()
     })
 
@@ -107,7 +108,7 @@ describe('promptHandlers', () => {
         promptHandlers['/prompts/:id'].PATCH({
           params: { id: PROMPT_ID },
           body: {}
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(updateMock).not.toHaveBeenCalled()
     })
@@ -117,7 +118,7 @@ describe('promptHandlers', () => {
         promptHandlers['/prompts/:id'].PATCH({
           params: { id: PROMPT_ID },
           body: { title: '' }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
       await expect(
         promptHandlers['/prompts/:id'].PATCH({
@@ -141,7 +142,7 @@ describe('promptHandlers', () => {
         promptHandlers['/prompts/:id/order'].PATCH({
           params: { id: PROMPT_ID },
           body: { before: OTHER_PROMPT_ID, after: OTHER_PROMPT_ID }
-        } as never)
+        })
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(reorderMock).not.toHaveBeenCalled()
     })
@@ -159,9 +160,10 @@ describe('promptHandlers', () => {
 
   describe('/prompts/order:batch', () => {
     it('should reject an empty moves array before calling the service', async () => {
-      await expect(
-        promptHandlers['/prompts/order:batch'].PATCH({ body: { moves: [] } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
+      await expect(promptHandlers['/prompts/order:batch'].PATCH({ body: { moves: [] } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
       expect(reorderBatchMock).not.toHaveBeenCalled()
     })
   })
