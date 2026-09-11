@@ -1,3 +1,4 @@
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
@@ -104,6 +105,26 @@ describe('resolveGeminiBaseUrl', () => {
 })
 
 describe('resolveHermesProviderInfo', () => {
+  it('uses a gateway model id to select Responses when endpoint metadata is absent', () => {
+    const gateway = provider({
+      id: 'aihubmix',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://aihubmix.example/v1' },
+        'openai-responses': { baseUrl: 'https://aihubmix.example/v1' }
+      }
+    })
+    const model = { id: 'gpt-4o', apiModelId: 'gpt-4o' } as unknown as Model
+
+    expect(resolveOpenCodeNpmInfo(gateway, undefined, model)).toEqual({
+      npm: '@ai-sdk/openai',
+      providerType: 'openai',
+      endpointType: 'openai-responses'
+    })
+    expect(resolveHermesProviderInfo(gateway, undefined, model).endpointType).toBe('openai-responses')
+    expect(resolvePiProviderInfo(gateway, undefined, model).endpointType).toBe('openai-responses')
+  })
+
   // anthropic-messages is configured AND first in HERMES_ENDPOINTS, so a catalog-order
   // fallback would pick it; the model supports only openai-responses (a later catalog
   // entry), so selecting it proves model preference beats catalog order rather than

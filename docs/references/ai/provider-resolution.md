@@ -50,8 +50,12 @@ and never inspect provider or model ids themselves.
 For a normal chat request, endpoint priority is an explicit caller preference,
 then a provider default that the selected model supports, then the model's first
 declared endpoint, a registered gateway route, and finally the provider default.
-This makes changing the provider-level default effective without mutating every
-model row while still preventing unsupported endpoint selections.
+When an OpenAI Responses endpoint is selected without its own URL, the resolver
+may reuse the provider's configured Chat Completions host; it never falls back to
+an unrelated Anthropic host. Gateway routes are selected by model id when a model
+row has no endpoint metadata. This makes changing the provider-level default
+effective without mutating every model row while still preventing unsupported
+endpoint selections.
 
 ```ts
 // Full resolver — 6 lines

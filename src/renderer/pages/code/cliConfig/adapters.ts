@@ -437,7 +437,7 @@ const openCodeAdapter: CliConfigAdapter = {
   sanitize: sanitizeOpenCodeConfigBlob,
   async buildDraft(args, context) {
     const { provider, apiKey, model, modelLabel, modelRecord, configBlob } = context
-    const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
+    const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes, modelRecord ?? undefined)
     // formatApiHost appends /v1 even for anthropic-messages — unlike Claude Code's
     // bare ANTHROPIC_BASE_URL (the Claude binary adds /v1/messages itself), the
     // @ai-sdk/anthropic package OpenCode loads expects the /v1 in baseURL and only
@@ -471,7 +471,11 @@ const openCodeAdapter: CliConfigAdapter = {
     ]
   },
   assertCredentials(context) {
-    const npmInfo = resolveOpenCodeNpmInfo(context.provider, context.modelRecord?.endpointTypes)
+    const npmInfo = resolveOpenCodeNpmInfo(
+      context.provider,
+      context.modelRecord?.endpointTypes,
+      context.modelRecord ?? undefined
+    )
     const baseUrl = formatApiHost(resolveEndpointBaseUrl(context.provider, npmInfo.endpointType) ?? '')
     if (!context.apiKey || !baseUrl) throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
   },
@@ -850,7 +854,7 @@ const hermesAdapter: CliConfigAdapter = {
   sanitize: () => ({}),
   async buildDraft(args, context) {
     const { apiKey, model, modelRecord, provider } = context
-    const providerInfo = resolveHermesProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerInfo = resolveHermesProviderInfo(provider, modelRecord?.endpointTypes, modelRecord ?? undefined)
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const document = readAndParseDraftFile('hermes-config', parseYamlDocumentOrThrow, args.files, read)
     const envText = readDraftFileText('hermes-env', args.files, read)
@@ -869,7 +873,11 @@ const hermesAdapter: CliConfigAdapter = {
     ]
   },
   assertCredentials(context) {
-    const { baseUrl } = resolveHermesProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    const { baseUrl } = resolveHermesProviderInfo(
+      context.provider,
+      context.modelRecord?.endpointTypes,
+      context.modelRecord ?? undefined
+    )
     if (!context.apiKey || !baseUrl) throw new Error('Hermes config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection) {
@@ -942,7 +950,7 @@ const piAdapter: CliConfigAdapter = {
   sanitize: () => ({}),
   async buildDraft(args, context) {
     const { provider, apiKey, model, modelLabel, modelRecord } = context
-    const providerInfo = resolvePiProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerInfo = resolvePiProviderInfo(provider, modelRecord?.endpointTypes, modelRecord ?? undefined)
     const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const models = readAndParseDraftFile('pi-models', parseJsonOrThrow, args.files, read)
@@ -974,7 +982,11 @@ const piAdapter: CliConfigAdapter = {
     ]
   },
   assertCredentials(context) {
-    const { baseUrl } = resolvePiProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    const { baseUrl } = resolvePiProviderInfo(
+      context.provider,
+      context.modelRecord?.endpointTypes,
+      context.modelRecord ?? undefined
+    )
     if (!context.apiKey || !baseUrl) throw new Error('Pi config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files) {

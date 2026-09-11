@@ -376,6 +376,23 @@ describe('resolveEffectiveEndpoint', () => {
     })
   })
 
+  it('uses the shared Chat host for an inferred Responses endpoint', () => {
+    const provider = makeProvider({
+      id: 'relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://relay.example/anthropic' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/v1' }
+      }
+    })
+    const model = { id: 'responses-model', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] } as never
+
+    expect(resolveEffectiveEndpoint(provider, model)).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      baseUrl: 'https://relay.example/v1'
+    })
+  })
+
   it('does not apply the chat default to a non-chat operation model', () => {
     const provider = makeProvider({
       id: 'new-api',

@@ -6,7 +6,7 @@
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { resolveCanonicalEndpoint } from '@shared/utils/endpoint'
+import { resolveCanonicalEndpoint, resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { getRawModelId, isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
@@ -66,13 +66,21 @@ export function resolveEffectiveEndpoint(
   )
   const normalizedModel = { ...model, capabilities: model.capabilities ?? [] }
   const allowsHostFallback = !isEmbeddingModel(normalizedModel) && !isRerankModel(normalizedModel)
+  const baseUrl =
+    endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES
+      ? (resolveEndpointBaseUrl(provider, endpointType) ?? '')
+      : endpointType
+        ? getBaseUrl(provider, endpointType)
+        : allowsHostFallback
+          ? getBaseUrl(provider)
+          : ''
   return {
     endpointType,
     // A dedicated builder can still need the provider host when no wire endpoint is
     // selected (for example MiniMax/Doubao image models and NewAPI's host fallback).
     // `getBaseUrl` safely falls back through configured hosts without turning that
     // host into a chat endpoint, preserving the non-chat routing guard above.
-    baseUrl: endpointType || allowsHostFallback ? getBaseUrl(provider, endpointType) : '',
+    baseUrl,
     providerOptionsKey: gatewayProviderOptionsKey
   }
 }
