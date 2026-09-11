@@ -1,7 +1,8 @@
-import type { Tab } from '@renderer/hooks/tab'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Tab } from '@renderer/hooks/tab'
 
 import { SubWindowControls } from '../SubWindowControls'
 

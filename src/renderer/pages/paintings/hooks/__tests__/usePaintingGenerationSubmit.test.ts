@@ -1,6 +1,7 @@
-import type { FileEntry } from '@shared/data/types/file'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { FileEntry } from '@shared/data/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
@@ -122,7 +123,7 @@ describe('usePaintingGenerationSubmit', () => {
     // action-scoped flag rather than being folded into it.
     const materialize = vi.fn().mockResolvedValue({ entries: [], complete: true })
 
-    const { result } = renderSubmit(makePainting({ generationStatus: 'running' } as Partial<PaintingData>))
+    const { result } = renderSubmit(makePainting({ generationStatus: 'running' }))
     await act(async () => {
       await result.current.submit(materialize)
     })

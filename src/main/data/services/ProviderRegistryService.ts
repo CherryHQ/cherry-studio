@@ -13,6 +13,8 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
+import { isEqual } from 'es-toolkit/compat'
+
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -63,7 +65,6 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
-import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
@@ -888,11 +889,7 @@ class ProviderRegistryService {
 
     for (const field of new Set(fields)) {
       if (field === 'endpointConfigs') {
-        result.endpointConfigs = presetProvider
-          ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
-              Record<EndpointType, EndpointConfig>
-            > | null)
-          : null
+        result.endpointConfigs = presetProvider ? buildPersistedEndpointConfigs(presetProvider.endpointConfigs) : null
       } else if (field === 'models') {
         result.models = presetProvider ? this.listProviderPresetModels(providerId, presetProvider) : []
       }

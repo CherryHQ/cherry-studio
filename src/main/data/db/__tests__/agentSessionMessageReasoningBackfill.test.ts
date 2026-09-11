@@ -1,13 +1,14 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { agentSessionTable } from '@data/db/schemas/agentSession'
-import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { setupTestDatabase } from '@test-helpers/db'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import type Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
+
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 
 /**
  * Regression guard for the search-reasoning-leak privacy fix.

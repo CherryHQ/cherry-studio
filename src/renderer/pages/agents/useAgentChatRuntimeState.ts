@@ -1,3 +1,6 @@
+import { isToolUIPart } from 'ai'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -6,7 +9,11 @@ import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type {
+  MessageListSelectAllPagination,
+  MessageStreamingLayers,
+  MessageToolApprovalInput
+} from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
@@ -24,8 +31,6 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -60,7 +65,7 @@ function isAskUserQuestionApprovalResponse(input: MessageToolApprovalInput): inp
   return (
     input.approved === true &&
     !!input.updatedInput &&
-    isAskUserQuestionToolName(getToolNameFromPart(input.match.part as AskUserQuestionApprovalPart)) &&
+    isAskUserQuestionToolName(getToolNameFromPart(input.match.part)) &&
     !!parseAskUserQuestionToolInput(input.updatedInput)?.answers
   )
 }
@@ -107,6 +112,7 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  selectAllPagination?: MessageListSelectAllPagination
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
@@ -134,6 +140,7 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
+    selectAllPagination,
     refresh,
     seedReservedMessages,
     deleteMessage: deleteSessionMessage
@@ -304,6 +311,7 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
+    selectAllPagination,
     isPending,
     stop,
     sendMessage,

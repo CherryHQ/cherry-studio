@@ -1,3 +1,6 @@
+import { Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
@@ -12,8 +15,6 @@ import { isSupportedToolUse } from '@renderer/utils/assistant'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DEFAULT_MCP_MODE } from '@shared/data/types/assistant'
 import type { McpResource } from '@shared/types/mcp'
-import { Loader2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { mcpResourceToComposerToken } from '../../variants/shared/composerTokens'
 

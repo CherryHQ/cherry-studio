@@ -1,9 +1,10 @@
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useAgentWorkspaceWarning')
 

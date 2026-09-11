@@ -1,3 +1,18 @@
+import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
+import {
+  type ComponentType,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type MouseEventHandler,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { NormalTooltip, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { cacheService } from '@data/CacheService'
@@ -17,20 +32,6 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, FileText, Folder, Link2, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
-import {
-  type ComponentType,
-  type FocusEvent as ReactFocusEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-  type MouseEventHandler,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
 import { parseComposerLink } from '../linkToken'

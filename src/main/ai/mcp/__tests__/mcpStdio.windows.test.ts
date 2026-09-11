@@ -1,17 +1,18 @@
-import type { LoggerService } from '@logger'
-import type { McpClientSdk, McpTransport } from '@main/ai/mcp/mcpClientSdk'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import type { McpServerLogEntry } from '@shared/types/mcp'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { LoggerService } from '@logger'
+import type { McpClientSdk, McpTransport } from '@main/ai/mcp/mcpClientSdk'
+import type { McpServerLogEntry } from '@shared/types/mcp'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({} as Record<string, unknown>)
+  return mockApplicationFactory({})
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
@@ -84,7 +85,7 @@ describe.skipIf(process.platform !== 'win32')('Windows MCP stdio absolute comman
         type: 'stdio',
         command: configureCommand(commandPath),
         isActive: true
-      } as McpServer,
+      },
       args: [],
       authProvider,
       logger,
@@ -109,7 +110,7 @@ describe.skipIf(process.platform !== 'win32')('Windows MCP stdio absolute comman
         type: 'stdio',
         command: missingCommand,
         isActive: true
-      } as McpServer,
+      },
       args: [],
       authProvider,
       logger,
