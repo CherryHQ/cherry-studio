@@ -1,14 +1,3 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { usePreference } from '@data/hooks/usePreference'
-import { loggerService } from '@logger'
-import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
-import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
-import { isDev } from '@renderer/utils/platform'
-import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
-import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
 import {
   ArrowLeft,
@@ -26,6 +15,18 @@ import {
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
+import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { isDev } from '@renderer/utils/platform'
+import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 const logger = loggerService.withContext('MinimalToolbar')
 

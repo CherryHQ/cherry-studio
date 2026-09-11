@@ -1,3 +1,6 @@
+import { ChevronDown, CircleSlash, Settings2 } from 'lucide-react'
+import { useState } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { FileProcessorIcon } from '@renderer/components/icons/FileProcessorIcon'
@@ -6,8 +9,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '@renderer/components/SelectorShell'
 import { useListboxKeyboardNavigation } from '@renderer/hooks/useListboxKeyboardNavigation'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
-import { ChevronDown, CircleSlash, Settings2 } from 'lucide-react'
-import { useState } from 'react'
 
 export type FileProcessorSelectorOption = KnowledgeSelectOption & {
   disabled: boolean

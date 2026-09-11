@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => (

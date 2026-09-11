@@ -1,3 +1,13 @@
+import * as crypto from 'crypto'
+import * as fs from 'fs'
+import { writeFileSync } from 'fs'
+import { readFile } from 'fs/promises'
+import * as path from 'path'
+
+import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
+import { dialog, net, shell } from 'electron'
+import { v4 as uuidv4 } from 'uuid'
+
 /**
  * @deprecated LEGACY v1 CODE — being migrated to `FileManager`
  * (`src/main/services/file/FileManager.ts`). This file will be DELETED once
@@ -31,14 +41,6 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
-import * as crypto from 'crypto'
-import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
-import { dialog, net, shell } from 'electron'
-import * as fs from 'fs'
-import { writeFileSync } from 'fs'
-import { readFile } from 'fs/promises'
-import * as path from 'path'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('FileStorage')
 

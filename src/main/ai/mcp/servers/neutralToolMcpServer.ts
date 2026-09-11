@@ -1,9 +1,10 @@
-import type { LoggerService } from '@logger'
-import type { NeutralTool } from '@main/ai/agents/tools/types'
-import { ToolError } from '@main/ai/agents/tools/types'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+
+import type { LoggerService } from '@logger'
+import type { NeutralTool } from '@main/ai/agents/tools/types'
+import { ToolError } from '@main/ai/agents/tools/types'
 
 /**
  * Format a thrown error into the exact text the legacy MCP servers produced.

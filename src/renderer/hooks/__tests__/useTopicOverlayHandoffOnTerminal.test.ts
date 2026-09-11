@@ -1,6 +1,7 @@
-import type { TopicStreamStatus } from '@shared/ai/transport'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { TopicStreamStatus } from '@shared/ai/transport'
 
 const mockEntry = vi.fn<() => { status: TopicStreamStatus | undefined } | undefined>()
 

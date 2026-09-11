@@ -1,3 +1,9 @@
+import type { WebviewTag } from 'electron'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
+
 import { cn } from '@cherrystudio/ui/lib/utils'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import {
@@ -7,11 +13,6 @@ import {
   setWebviewLoaded
 } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import type { WebviewTag } from 'electron'
-import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import BeatLoader from 'react-spinners/BeatLoader'
 
 import MinimalToolbar, { type SplitMode } from './MinimalToolbar'
 import WebviewSearch from './WebviewSearch'

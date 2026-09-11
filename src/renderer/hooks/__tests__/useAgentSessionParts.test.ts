@@ -1,8 +1,9 @@
-import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 const dataApiMocks = vi.hoisted(() => ({
   useDataChange: vi.fn(),
@@ -182,21 +183,20 @@ describe('useAgentSessionParts', () => {
   })
 
   it('does not let a stale session refresh replace the current session projection cache', async () => {
-    const rowFor = (sessionId: string, text: string): AgentSessionMessageEntity =>
-      ({
-        id: `message-${sessionId}`,
-        sessionId,
-        role: 'assistant',
-        data: { parts: [{ type: 'text', text }] },
-        searchableText: text,
-        status: 'success',
-        modelId: null,
-        messageSnapshot: null,
-        stats: null,
-        runtimeResumeToken: null,
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:01.000Z'
-      }) as AgentSessionMessageEntity
+    const rowFor = (sessionId: string, text: string): AgentSessionMessageEntity => ({
+      id: `message-${sessionId}`,
+      sessionId,
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text }] },
+      searchableText: text,
+      status: 'success',
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      runtimeResumeToken: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z'
+    })
     const sessionOneRow = rowFor('session-1', 'one')
     const sessionTwoRow = rowFor('session-2', 'two')
     let resolveSessionOneRefresh!: (pages: Array<{ items: AgentSessionMessageEntity[] }>) => void
@@ -289,22 +289,48 @@ describe('useAgentSessionParts', () => {
     ])
   })
 
+  it('labels a runtime-started message from the live turn-origin cache', () => {
+    // The persisted row carries nothing that explains the turn; the badge reads the session cache.
+    const row = {
+      id: 'message-1',
+      sessionId: 'session-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'Round work' }] },
+      searchableText: '',
+      status: 'success',
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      runtimeResumeToken: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    } as AgentSessionMessageEntity
+    mockAgentSessionPartsDataApi([{ items: [row] }])
+    MockUseCacheUtils.setSharedCacheValue('agent.session.turn_origin.session-1.message-1', {
+      kind: 'goal-round',
+      round: 2
+    })
+
+    const { result } = renderHook(() => useAgentSessionParts('session-1'))
+
+    expect(result.current.messages[0].metadata?.turnOrigin).toEqual({ kind: 'goal-round', round: 2 })
+  })
+
   it('reprojects only the message whose live flow parts changed', () => {
-    const rowFor = (id: string): AgentSessionMessageEntity =>
-      ({
-        id,
-        sessionId: 'session-1',
-        role: 'assistant',
-        data: { parts: [{ type: 'text', text: `Persisted ${id}` }] },
-        searchableText: '',
-        status: 'success',
-        modelId: null,
-        messageSnapshot: null,
-        stats: null,
-        runtimeResumeToken: null,
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z'
-      }) as AgentSessionMessageEntity
+    const rowFor = (id: string): AgentSessionMessageEntity => ({
+      id,
+      sessionId: 'session-1',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: `Persisted ${id}` }] },
+      searchableText: '',
+      status: 'success',
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      runtimeResumeToken: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
     const firstRow = rowFor('message-1')
     const secondRow = rowFor('message-2')
     mockAgentSessionPartsDataApi([{ items: [firstRow, secondRow] }])

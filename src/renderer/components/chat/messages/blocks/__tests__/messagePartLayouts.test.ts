@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import {
   findOpenTextTailIndex,
@@ -487,7 +488,7 @@ describe('projectCompletedMessageParts', () => {
       ]
     ]
   ])('keeps pure %s messages entirely in history', (_label, parts) => {
-    const layout = projectCompletedMessageParts(entries(parts as Record<string, unknown>[]))
+    const layout = projectCompletedMessageParts(entries(parts))
 
     expect(indexes(layout.historyEntries)).toEqual([0, 1])
     expect(layout.resultEntries).toEqual([])
