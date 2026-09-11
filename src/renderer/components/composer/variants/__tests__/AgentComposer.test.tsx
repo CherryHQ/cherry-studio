@@ -85,6 +85,7 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
+  isActiveTab: true,
   topicFulfilled: false,
   markTopicSeen: vi.fn(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
@@ -552,6 +553,10 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/tab', () => ({
+  useIsActiveTab: () => mocks.isActiveTab
+}))
+
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />,
   ModelAvatar: ({ size }: { size?: number }) => <span data-testid="model-avatar" data-size={size} />
@@ -905,6 +910,7 @@ describe('AgentComposer', () => {
     mocks.getDraft.mockReset()
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
+    mocks.isActiveTab = true
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
@@ -1373,6 +1379,38 @@ describe('AgentComposer', () => {
       { showSuccessToast: false }
     )
     expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
+  })
+
+  it('cycles the active agent reasoning effort through the command', () => {
+    mocks.agentConfiguration = { reasoning_effort: 'default' }
+    mocks.modelResult = {
+      ...model,
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['high', 'low'] }],
+        selectableEfforts: ['high', 'low']
+      }
+    }
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.shortcutOptions.get('chat.reasoning.cycle')).toEqual({ enabled: true })
+    act(() => mocks.shortcutHandlers.get('chat.reasoning.cycle')?.())
+
+    expect(mocks.updateAgent).toHaveBeenCalledWith(
+      {
+        id: 'agent-1',
+        configuration: { reasoning_effort: 'low' }
+      },
+      { showSuccessToast: false }
+    )
   })
 
   it('persists and snapshots the selected Agent service tier', async () => {

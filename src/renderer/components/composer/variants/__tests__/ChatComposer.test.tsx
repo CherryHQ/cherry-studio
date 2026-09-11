@@ -39,6 +39,7 @@ const mocks = vi.hoisted(() => ({
   reconcileTokens: vi.fn(),
   commandHandlers: new Map<string, () => void>(),
   commandOptions: new Map<string, { enabled?: boolean }>(),
+  isActiveTab: true,
   eventListeners: new Map<string, (payload: unknown) => void>(),
   eventEmit: vi.fn(),
   eventOn: vi.fn(),
@@ -551,7 +552,7 @@ vi.mock('@renderer/hooks/command', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
-  useIsActiveTab: () => true
+  useIsActiveTab: () => mocks.isActiveTab
 }))
 
 vi.mock('@renderer/hooks/useTopic', () => ({
@@ -740,6 +741,7 @@ describe('ChatComposer', () => {
     })
     mocks.commandHandlers.clear()
     mocks.commandOptions.clear()
+    mocks.isActiveTab = true
     mocks.eventListeners.clear()
     mocks.eventEmit.mockReset()
     mocks.eventOn.mockReset()
@@ -946,6 +948,64 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
 
     await act(async () => finishPatch?.())
+  })
+
+  it('cycles the active chat reasoning effort through the command', () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['high' as const, 'low' as const] }],
+        selectableEfforts: ['high' as const, 'low' as const]
+      }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.commandOptions.get('chat.reasoning.cycle')).toEqual({ enabled: true })
+    act(() => mocks.commandHandlers.get('chat.reasoning.cycle')?.())
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'low' })
+  })
+
+  it('skips the unsupported minimal effort when GPT-5 web search is enabled', () => {
+    mocks.model = {
+      ...model,
+      id: 'openai::gpt-5',
+      providerId: 'openai',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['minimal' as const, 'low' as const, 'high' as const] }],
+        selectableEfforts: ['minimal' as const, 'low' as const, 'high' as const]
+      }
+    }
+    mocks.assistant = {
+      ...mocks.assistant,
+      modelId: mocks.model.id,
+      settings: { ...mocks.assistant.settings, enableWebSearch: true }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.commandHandlers.get('chat.reasoning.cycle')?.())
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'low' })
+  })
+
+  it('does not enable the reasoning command for an inactive chat tab', () => {
+    mocks.isActiveTab = false
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.commandOptions.get('chat.reasoning.cycle')).toEqual({ enabled: false })
   })
 
   it('persists and snapshots a newly selected service tier before its Assistant PATCH finishes', async () => {
