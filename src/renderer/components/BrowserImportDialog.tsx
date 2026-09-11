@@ -1,3 +1,7 @@
+import { Check, ChevronRight, FileUp, LoaderCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Checkbox,
@@ -17,9 +21,6 @@ import {
 import { cacheService } from '@data/CacheService'
 import { ipcApi } from '@renderer/ipc'
 import type { BrowserImportReason, BrowserImportResult, BrowserImportSource } from '@shared/ipc/schemas/browserImport'
-import { Check, ChevronRight, FileUp, LoaderCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const browserNameKeys = {
   chrome: 'settings.browser.names.chrome',

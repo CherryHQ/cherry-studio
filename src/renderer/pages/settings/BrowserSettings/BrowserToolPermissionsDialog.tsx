@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   DialogContent,
   DialogDescription,
@@ -11,8 +14,6 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { BROWSER_TOOLS } from '@shared/ai/browserTools'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export function BrowserToolPermissionsDialog() {
   const { t } = useTranslation()

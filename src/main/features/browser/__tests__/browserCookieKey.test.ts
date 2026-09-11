@@ -3,8 +3,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import * as os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 import { readBrowserCookiePassword, readWindowsCookieKey, unprotectWindowsData } from '../import/browserCookieKey'
 

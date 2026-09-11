@@ -50,6 +50,10 @@ export default openaiCompatible({
       reasoningContracts: {
         'openai-chat-completions': { wire: effortWire }
       }
+    })),
+    ...['kimi-k2.7-code', 'kimi-k2.7-code-highspeed'].map((modelId) => ({
+      modelId,
+      parameterSupport: fixedSamplingParameterSupport
     }))
   ]
 })

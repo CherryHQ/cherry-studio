@@ -1,6 +1,7 @@
-import { loggerService } from '@logger'
 import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('useWebviewNavigation')
 

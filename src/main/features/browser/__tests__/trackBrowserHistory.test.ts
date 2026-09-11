@@ -1,11 +1,12 @@
 import { EventEmitter } from 'node:events'
 
-import { browserHistoryService } from '@data/services/BrowserHistoryService'
-import { BaseService } from '@main/core/lifecycle'
-import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { setupTestDatabase } from '@test-helpers/db'
 import { app, session, webContents } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
+
+import { browserHistoryService } from '@data/services/BrowserHistoryService'
+import { BaseService } from '@main/core/lifecycle'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import { BrowserSessionService } from '../BrowserSessionService'
 import { trackBrowserHistory } from '../trackBrowserHistory'

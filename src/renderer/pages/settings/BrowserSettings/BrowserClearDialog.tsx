@@ -1,3 +1,7 @@
+import { LoaderCircle } from 'lucide-react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Checkbox,
@@ -11,9 +15,6 @@ import {
 } from '@cherrystudio/ui'
 import { useMutation } from '@data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
-import { LoaderCircle } from 'lucide-react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const categories = [
   { kind: 'history', label: 'settings.browser.history', help: 'settings.browser.clearHistoryHelp' },

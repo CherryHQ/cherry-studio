@@ -2,9 +2,10 @@ import { access, readdir, readFile } from 'node:fs/promises'
 import { platform } from 'node:os'
 import path from 'node:path'
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { type BrowserImportSource, BrowserImportSourceSchema } from '@shared/ipc/schemas/browserImport'
-import * as z from 'zod'
 
 export interface BrowserProfile extends BrowserImportSource {
   directory: string

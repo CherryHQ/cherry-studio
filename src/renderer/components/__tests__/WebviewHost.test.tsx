@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, render, waitFor } from '@testing-library/react'

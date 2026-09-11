@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 
 import { BrowserPage } from '../BrowserPage'
 

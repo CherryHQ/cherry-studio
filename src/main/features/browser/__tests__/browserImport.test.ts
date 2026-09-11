@@ -3,13 +3,14 @@ import { tmpdir } from 'node:os'
 import * as os from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import { browserHistoryService } from '@data/services/BrowserHistoryService'
-import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { browserHistoryService } from '@data/services/BrowserHistoryService'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import * as keyStore from '../import/browserCookieKey'
 import { listBrowserProfiles } from '../import/browserProfiles'

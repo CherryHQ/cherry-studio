@@ -1,3 +1,5 @@
+import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { loggerService } from '@logger'
@@ -5,7 +7,6 @@ import { BaseService, DependsOn, Injectable, LifecycleState, Phase, ServicePhase
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { BrowserImportOptions, BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { app, type BrowserWindow, dialog, session, webContents } from 'electron'
 
 import { type AgentBrowserContext, AgentBrowserRegistry } from './AgentBrowserRegistry'
 import { captureBrowserFavicon } from './browserFavicons'

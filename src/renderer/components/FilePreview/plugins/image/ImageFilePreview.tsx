@@ -1,10 +1,11 @@
-import { EmptyState, ImagePreviewViewport, useImagePreviewTransform } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { toFileUrl } from '@shared/utils/file'
 import ImageOff from 'lucide-react/dist/esm/icons/image-off'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState, ImagePreviewViewport, useImagePreviewTransform } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { toFileUrl } from '@shared/utils/file'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
@@ -54,7 +55,7 @@ export default function ImageFilePreview({ filePath, fileName, refreshKey }: Fil
           {status === 'loading' && (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 text-muted-foreground text-sm">
+              className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>

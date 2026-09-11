@@ -1,7 +1,3 @@
-import { agentBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
-import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
-import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type {
   DidFailLoadEvent,
   DidNavigateEvent,
@@ -16,6 +12,11 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+
+import { agentBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
+import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
+import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import type { WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 import { WebviewHost } from './WebviewHost'

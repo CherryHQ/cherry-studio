@@ -1,12 +1,15 @@
+import type { DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
+import type { DidNavigateEvent } from 'electron'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { type ComponentProps } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { WebviewHost } from '@renderer/components/WebviewHost'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { MiniAppKind } from '@shared/data/types/miniApp'
-import type { DidNavigateEvent, DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
-import { type ComponentProps, memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewContainer')
 

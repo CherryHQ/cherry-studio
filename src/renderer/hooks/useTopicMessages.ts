@@ -13,6 +13,9 @@
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
@@ -23,8 +26,6 @@ import type {
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
@@ -114,7 +115,7 @@ function projectBranchMessages(items: BranchMessage[]): BranchProjection {
     const message = pickDisplayMember(bucket, item.message.id)
     displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
     if (bucket.length < 2) continue
-    bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    bucket.sort(compareMessageOrder)
     for (const member of bucket) siblingsMap[member.id] = bucket
   }
   return { displayMessages, siblingsMap }

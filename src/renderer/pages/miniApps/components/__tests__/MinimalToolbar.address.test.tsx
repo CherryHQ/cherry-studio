@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MinimalToolbar from '../MinimalToolbar'
 
@@ -63,7 +63,7 @@ const app: MiniApp = {
 
 function createWebview(initialUrl = app.url) {
   let currentUrl = initialUrl
-  const webview = document.createElement('webview') as unknown as WebviewTag
+  const webview = document.createElement('webview')
   Object.assign(webview, {
     canGoBack: vi.fn(() => false),
     canGoForward: vi.fn(() => false),

@@ -1,12 +1,14 @@
+import { isEmpty } from 'es-toolkit/compat'
+import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
+import type { ClipboardEvent, DragEvent, FC } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-// Direct `Selector/model` path: the `Selector` barrel re-exports `ModelSelector`
-// via a nested `export *`, which tsgo fails to resolve on main's program (it
-// resolves fine on feat's full program and via this path). Revert to the barrel
-// once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
@@ -49,11 +51,6 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
-import { isEmpty } from 'es-toolkit/compat'
-import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
-import type { ClipboardEvent, DragEvent, FC } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import TranslateHistoryList from './components/TranslateHistory'
 import TranslateInputPane from './components/TranslateInputPane'
@@ -242,7 +239,8 @@ const TranslatePage: FC = () => {
     loggerContext: 'TranslatePage',
     onResponse: smoothUpdate
   })
-  const [copied, setCopied] = useTemporaryValue(false, 2000)
+  const [inputCopied, setInputCopied] = useTemporaryValue(false, 2000)
+  const [outputCopied, setOutputCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
@@ -330,32 +328,26 @@ const TranslatePage: FC = () => {
     [setTranslateInput, setTranslateOutput]
   )
 
-  const copy = useCallback(
-    async (value: string) => {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-    },
-    [setCopied]
-  )
-
   const onCopyInput = useCallback(async () => {
     if (!translateInput) return
     try {
-      await copy(translateInput)
+      await navigator.clipboard.writeText(translateInput)
+      setInputCopied(true)
     } catch (error) {
       logger.error('Failed to copy source text:', error as Error)
       toast.error(t('common.copy_failed'))
     }
-  }, [copy, t, translateInput])
+  }, [setInputCopied, t, translateInput])
 
   const onCopyOutput = useCallback(async () => {
     try {
-      await copy(translateOutput)
+      await navigator.clipboard.writeText(translateOutput)
+      setOutputCopied(true)
     } catch (error) {
       logger.error('Failed to copy text to clipboard:', error as Error)
       toast.error(t('common.copy_failed'))
     }
-  }, [copy, t, translateOutput])
+  }, [setOutputCopied, t, translateOutput])
 
   const onExportOutputToNotes = useCallback(() => {
     const translationResult = translateOutput.trim()
@@ -388,7 +380,8 @@ const TranslatePage: FC = () => {
           'auto-copy',
           async () => {
             try {
-              await copy(translated)
+              await navigator.clipboard.writeText(translated)
+              setOutputCopied(true)
             } catch (error) {
               logger.error('Failed to auto copy translated text', error as Error)
               toast.error(t('translate.error.auto_copy_failed'))
@@ -405,7 +398,7 @@ const TranslatePage: FC = () => {
         targetLanguage: actualTargetLanguage
       })
     },
-    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
+    [addHistory, autoCopy, isTranslating, runTranslate, setOutputCopied, setTimeoutTimer, smoothReset, t]
   )
 
   // Off the translation critical path: a failed detection or patch just leaves
@@ -1062,7 +1055,7 @@ const TranslatePage: FC = () => {
                           translatedContent={translateOutput}
                           enableMarkdown={enableMarkdown}
                           translating={isTranslating || isDetecting || isPdfTextExtracting}
-                          copied={copied}
+                          copied={outputCopied}
                           onCopy={onCopyOutput}
                           onExportToNotes={onExportOutputToNotes}
                           onScroll={outputScrollHandler}
@@ -1095,6 +1088,7 @@ const TranslatePage: FC = () => {
                 onPaste={onPaste}
                 onDrop={onDrop}
                 onSelectFile={handleSelectFile}
+                copied={inputCopied}
                 onCopy={onCopyInput}
                 onCancelOcr={clearOcrJob}
                 disabled={isTranslating || isDetecting || isProcessing || isOcrRunning}
@@ -1108,7 +1102,7 @@ const TranslatePage: FC = () => {
                 translatedContent={translateOutput}
                 enableMarkdown={enableMarkdown}
                 translating={isTranslating || isDetecting}
-                copied={copied}
+                copied={outputCopied}
                 onCopy={onCopyOutput}
                 onExportToNotes={onExportOutputToNotes}
                 onScroll={outputScrollHandler}

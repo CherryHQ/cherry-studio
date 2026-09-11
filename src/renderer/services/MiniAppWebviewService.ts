@@ -1,5 +1,6 @@
-import { loggerService } from '@logger'
 import type { WebviewTag } from 'electron'
+
+import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('MiniAppWebviewService')
 

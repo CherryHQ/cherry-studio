@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { app, session, webContents } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -7,10 +12,6 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { BaseService, Signal } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { app, session, webContents } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BrowserSessionService } from '../BrowserSessionService'
 import { AgentBrowserController } from '../mcp/AgentBrowserController'

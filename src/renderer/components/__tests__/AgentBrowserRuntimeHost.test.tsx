@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { agentBrowserRuntimeService as runtime } from '@renderer/services/AgentBrowserRuntimeService'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { Activity, useLayoutEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { agentBrowserRuntimeService as runtime } from '@renderer/services/AgentBrowserRuntimeService'
 
 import { AgentBrowserRuntimeHost } from '../AgentBrowserRuntimeHost'
 

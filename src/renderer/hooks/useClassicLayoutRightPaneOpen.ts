@@ -1,5 +1,6 @@
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCallback } from 'react'
+
+import { usePersistCache } from '@renderer/data/hooks/useCache'
 
 const RIGHT_PANE_OPEN_OVERRIDE_CACHE_KEY = {
   chat: 'ui.chat.right_pane_open_override',

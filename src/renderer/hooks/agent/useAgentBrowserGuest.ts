@@ -1,7 +1,8 @@
-import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
 import type { WebviewTag } from 'electron'
 import { useEffect, useRef } from 'react'
+
+import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 
 const logger = loggerService.withContext('useAgentBrowserGuest')
 

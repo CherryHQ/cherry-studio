@@ -1,7 +1,8 @@
+import { useEffect } from 'react'
+
 import type { ConversationAppId } from '@renderer/types/conversation'
 import { emojiTabIcon } from '@renderer/utils/tabIcons'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { useEffect } from 'react'
 
 import { useCurrentTabId } from './useCurrentTab'
 import { useOptionalTabsContext } from './useTabsContext'

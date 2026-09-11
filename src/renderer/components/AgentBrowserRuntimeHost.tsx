@@ -1,3 +1,6 @@
+import type { WebviewTag } from 'electron'
+import { memo, useCallback, useEffect, useSyncExternalStore } from 'react'
+
 import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useDataChange } from '@renderer/data/hooks/useDataChange'
@@ -8,8 +11,6 @@ import { agentBrowserRuntimeService as runtime } from '@renderer/services/AgentB
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { getWebviewPartition } from '@shared/utils/webviewSecurity'
-import type { WebviewTag } from 'electron'
-import { memo, useCallback, useEffect, useSyncExternalStore } from 'react'
 
 import { WebviewHost } from './WebviewHost'
 import { WebviewSurface } from './WebviewSurface'

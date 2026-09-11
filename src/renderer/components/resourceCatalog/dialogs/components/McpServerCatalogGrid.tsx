@@ -1,3 +1,8 @@
+import type { TFunction } from 'i18next'
+import { Settings } from 'lucide-react'
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
@@ -5,10 +10,6 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { isBrowserMcpServer } from '@shared/utils/mcp'
-import type { TFunction } from 'i18next'
-import { Settings } from 'lucide-react'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from './CatalogPicker'
 
@@ -93,7 +94,7 @@ export function McpServerCatalogGrid({
     <div>
       {title ? (
         <div className="flex items-center gap-1.5">
-          <div className="font-medium text-[13px] text-foreground leading-none">{title}</div>
+          <div className="text-[13px] leading-none font-medium text-foreground">{title}</div>
           <Tooltip content={settingsLabel} portalContainer={portalContainer ?? undefined}>
             <Button
               type="button"

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { session, type WebContents, webContents } from 'electron'
+
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
@@ -7,7 +9,6 @@ import { type Disposable, Emitter } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
 import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { session, type WebContents, webContents } from 'electron'
 
 import { BrowserSessionError } from './session/BrowserSessionError'
 
