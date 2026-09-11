@@ -42,6 +42,20 @@ const traceContext = {
   rootSpanId: '1'.repeat(16)
 }
 
+async function createActivatedService(): Promise<InstanceType<typeof ClaudeCodeTraceBridgeService>> {
+  const service = new ClaudeCodeTraceBridgeService()
+  await service._doInit()
+  await service._doActivate()
+  return service
+}
+
+async function prepareEnv(
+  service: InstanceType<typeof ClaudeCodeTraceBridgeService>,
+  context = traceContext
+): Promise<Record<string, string> | undefined> {
+  return (await service.prepareTrace(context))?.env
+}
+
 describe('ClaudeCodeTraceBridgeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -50,21 +64,25 @@ describe('ClaudeCodeTraceBridgeService', () => {
     vi.clearAllMocks()
   })
 
-  it('activates without binding a collector port', async () => {
+  it('waits for the tracing coordinator and activates without binding a collector port', async () => {
     const service = new ClaudeCodeTraceBridgeService()
 
     await service._doInit()
+
+    expect(service.isTraceModeEnabled()).toBe(false)
+    await service._doActivate()
 
     expect(service.isTraceModeEnabled()).toBe(true)
     expect((service as any).server).toBeUndefined()
   })
 
   it('lazily starts the collector and returns Claude Code telemetry env', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
 
-    const env = await service.prepareTrace(traceContext)
+    const prepared = await service.prepareTrace(traceContext)
+    const env = prepared?.env
 
+    expect(prepared?.generation).toBe(1)
     expect(env).toMatchObject({
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
@@ -89,9 +107,8 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('ingests trace and log payloads through the local OTLP endpoints', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
-    const env = await service.prepareTrace(traceContext)
+    const service = await createActivatedService()
+    const env = await prepareEnv(service)
 
     await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
       method: 'POST',
@@ -156,9 +173,8 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('uses the admitted turn after a primed connection refreshes its trace context', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
-    const env = await service.prepareTrace({ ...traceContext, turnId: '' })
+    const service = await createActivatedService()
+    const env = await prepareEnv(service, { ...traceContext, turnId: '' })
 
     service.refreshTraceContext(traceContext)
     await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
@@ -196,9 +212,8 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('requires JSON content type for OTLP endpoints', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
-    const env = await service.prepareTrace(traceContext)
+    const service = await createActivatedService()
+    const env = await prepareEnv(service)
 
     const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
       method: 'POST',
@@ -213,9 +228,8 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('matches OTLP endpoint pathname and accepts gzip JSON payloads', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
-    const env = await service.prepareTrace(traceContext)
+    const service = await createActivatedService()
+    const env = await prepareEnv(service)
 
     const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces?ignored=1`, {
       method: 'POST',
@@ -253,9 +267,8 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('rejects a gzip payload that decompresses beyond the size cap (gzip bomb)', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
-    const env = await service.prepareTrace(traceContext)
+    const service = await createActivatedService()
+    const env = await prepareEnv(service)
 
     // ~11 MiB of repeating bytes gzips to a few KB (well under the 10 MiB input cap), but
     // decompresses past the 10 MiB output cap — must be rejected without inflating it fully.
@@ -281,8 +294,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('skips trace preparation when traceparent ids are invalid', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
 
     await expect(
       service.prepareTrace({
@@ -301,5 +313,34 @@ describe('ClaudeCodeTraceBridgeService', () => {
 
     await expect(service.prepareTrace(traceContext)).resolves.toBeUndefined()
     expect((service as any).server).toBeUndefined()
+  })
+
+  it('changes generation after tracing is disabled and re-enabled', async () => {
+    const service = await createActivatedService()
+    const first = await service.prepareTrace(traceContext)
+
+    await service._doDeactivate()
+    await service._doActivate()
+    const second = await service.prepareTrace({ ...traceContext, turnId: 'turn-2' })
+
+    expect(first?.generation).toBe(1)
+    expect(second?.generation).toBe(2)
+    expect(second?.env.BETA_TRACING_ENDPOINT).not.toBe(first?.env.BETA_TRACING_ENDPOINT)
+    await service._doStop()
+  })
+
+  it('closes admission synchronously and drains an in-flight lazy start during deactivation', async () => {
+    const service = await createActivatedService()
+
+    const preparing = service.prepareTrace(traceContext)
+    const stopping = service._doStop()
+
+    expect(service.isTraceModeEnabled()).toBe(false)
+    await expect(service.prepareTrace({ ...traceContext, turnId: 'turn-after-stop' })).resolves.toBeUndefined()
+    await expect(preparing).resolves.toBeUndefined()
+    await stopping
+    expect((service as any).server).toBeUndefined()
+    expect((service as any).endpoint).toBeUndefined()
+    expect((service as any).startPromise).toBeUndefined()
   })
 })

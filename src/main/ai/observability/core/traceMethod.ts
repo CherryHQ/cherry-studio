@@ -22,11 +22,14 @@ export function TraceMethod(traced: SpanDecoratorOptions) {
     }
 
     const originalMethod = descriptor.value
-    const traceName = traced.traceName || defaultConfig.defaultTracerName || 'default'
-    const tracer = trace.getTracer(traceName)
 
     descriptor.value = function (...args: any[]) {
       const name = traced.spanName || propertyKey
+      // `trace.disable()` replaces OTel's proxy provider. A tracer captured when the decorator was
+      // evaluated keeps delegating to the old, shutdown provider after runtime reactivation, so
+      // resolve it per invocation from the currently registered provider.
+      const traceName = traced.traceName || defaultConfig.defaultTracerName || 'default'
+      const tracer = trace.getTracer(traceName)
       return tracer.startActiveSpan(name, async (span) => {
         try {
           span.setAttribute('inputs', convertToString(args))

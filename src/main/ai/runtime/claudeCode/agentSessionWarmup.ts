@@ -42,7 +42,7 @@ import {
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders, getProviderAppHeaders } from '../../utils/provider'
 import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
-import type { AgentSessionUsageCapture } from '../types'
+import type { AgentRuntimeTraceContext, AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -127,6 +127,8 @@ interface ConnectionMaterializationFacts {
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
+  /** Exact trace-runtime lifecycle that materialized this subprocess request. */
+  developerTracingGeneration: number | null
   effectiveLanguage?: string | null
 }
 
@@ -393,6 +395,11 @@ async function deriveConnectionConfigFromSnapshot(
     // full input-token cost until the new prefix is cached.
     language:
       materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
+    // Claude Code receives telemetry variables only when the subprocess is spawned. Prefer the
+    // exact materialized result; pure reconciles use the bridge's synchronous admission snapshot.
+    developerTracingGeneration: materialized
+      ? materialized.developerTracingGeneration
+      : application.get('ClaudeCodeTraceBridgeService').getTraceGeneration(),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
@@ -471,7 +478,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** Trace context frozen for the child process being materialized. */
+  trace?: AgentRuntimeTraceContext
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -544,6 +553,10 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     route,
     fastModeTransport
   )
+  // Prepare tracing before freezing the connection baseline so the signature describes the exact
+  // environment handed to the child, even when developer mode toggles during async materialization.
+  const preparedTrace = trace ? await application.get('ClaudeCodeTraceBridgeService').prepareTrace(trace) : undefined
+  const traceEnv = preparedTrace?.env
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
   // already persisted and the connect-time fingerprint matches later pure reconciles.
@@ -561,6 +574,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       notificationContext,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
+      developerTracingGeneration: preparedTrace?.generation ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       }),
@@ -577,6 +591,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   if (options.includePartialMessages === undefined) {
     options.includePartialMessages = true
   }
+  if (traceEnv) {
+    options.env = { ...options.env, ...traceEnv }
+  }
 
   return {
     connectionConfig,
@@ -584,6 +601,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
     notificationContext,
+    traceGeneration: preparedTrace?.generation,
     credentialsFingerprint: route.credentialsFingerprint,
     knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
     settings,
@@ -948,14 +966,18 @@ function mergeRuntimeSettings(
 }
 
 export async function buildClaudeCodeWarmQueryRequestForAgentSession(
-  sessionId: string
+  sessionId: string,
+  trace?: AgentRuntimeTraceContext
 ): Promise<WarmQueryRequest | undefined> {
-  const request = await buildClaudeCodeQueryRequestForAgentSession(sessionId)
+  const request = trace
+    ? await buildClaudeCodeQueryRequestForAgentSession(sessionId, undefined, undefined, 'default', false, [], trace)
+    : await buildClaudeCodeQueryRequestForAgentSession(sessionId)
   if (!request) return undefined
   return {
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
+    traceGeneration: request.traceGeneration,
     connectionRebuildSignature: request.connectionConfig.rebuildSignature,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,

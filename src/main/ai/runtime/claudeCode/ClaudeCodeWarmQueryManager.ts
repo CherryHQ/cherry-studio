@@ -9,7 +9,7 @@ import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentNotificationContext } from '../agentMcpServers'
-import type { AgentSessionUsageCapture } from '../types'
+import type { AgentRuntimeTraceContext, AgentSessionUsageCapture } from '../types'
 import {
   createClaudeCodeProcessDiagnostics,
   createSpawnClaudeCodeProcess,
@@ -33,6 +33,8 @@ export interface WarmQueryRequest {
   key: string
   options: Options
   initializeTimeoutMs?: number
+  /** Trace collector generation admitted when this warm process is materialized. */
+  traceGeneration?: number
   /** Spawn-frozen connection identity used to reject stale warm processes. */
   connectionRebuildSignature?: string
   /**
@@ -60,6 +62,27 @@ export interface ConsumedWarmQuery {
   warmQuery: WarmQuery
   usageCapture?: AgentSessionUsageCapture
   processDiagnostics: ClaudeCodeProcessDiagnostics
+}
+
+/**
+ * Guard the SDK's actual child-process boundary with the trace collector generation that
+ * materialized the request. Trace environment variables are spawn-frozen, so a request prepared
+ * before a developer-mode toggle must never create a child after that toggle has advanced the
+ * collector generation.
+ */
+export function createTraceGuardedSpawnProcess(
+  traceGeneration?: number,
+  spawnProcess: typeof spawnClaudeCodeProcess = spawnClaudeCodeProcess
+): typeof spawnClaudeCodeProcess {
+  if (traceGeneration === undefined) return spawnProcess
+
+  return (options) => {
+    const currentGeneration = application.get('ClaudeCodeTraceBridgeService').getTraceGeneration()
+    if (currentGeneration !== traceGeneration) {
+      throw new Error('Claude Code trace generation is no longer admitted')
+    }
+    return spawnProcess(options)
+  }
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -173,11 +196,34 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   async prewarmAgentSession(sessionId: string): Promise<void> {
     try {
       const { buildClaudeCodeWarmQueryRequestForAgentSession } = await import('./agentSessionWarmup')
-      const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
+      const trace = this.getAgentSessionTraceContext(sessionId)
+      const warmRequest = trace
+        ? await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId, trace)
+        : await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
-      await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
+      // The real builder materializes trace env before calculating the connection signature. Keep
+      // the legacy fallback for mocked/older builders, but never re-open the trace window after a
+      // request already carries its generation — doing so would change options without changing
+      // the signature and make every traced warm process look stale at consume time.
+      const request =
+        warmRequest.traceGeneration === undefined ? await this.withTraceEnv(sessionId, warmRequest) : warmRequest
+      await this.prewarm(request)
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
+    }
+  }
+
+  private getAgentSessionTraceContext(sessionId: string): AgentRuntimeTraceContext | undefined {
+    const traceBridge = application.get('ClaudeCodeTraceBridgeService')
+    if (!traceBridge.isTraceModeEnabled()) return undefined
+
+    const traceId = agentSessionService.ensureTraceId(sessionId)
+    return {
+      topicId: buildAgentSessionTopicId(sessionId),
+      traceId,
+      rootSpanId: deriveRootSpanId(traceId),
+      sessionId,
+      turnId: ''
     }
   }
 
@@ -195,16 +241,20 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (!traceBridge.isTraceModeEnabled()) return request
 
     const traceId = agentSessionService.ensureTraceId(sessionId)
-    const traceEnv = await traceBridge.prepareTrace({
+    const preparedTrace = await traceBridge.prepareTrace({
       topicId: buildAgentSessionTopicId(sessionId),
       traceId,
       rootSpanId: deriveRootSpanId(traceId),
       sessionId,
       turnId: ''
     })
-    if (!traceEnv) return request
+    if (!preparedTrace) return request
 
-    return { ...request, options: { ...request.options, env: { ...request.options.env, ...traceEnv } } }
+    return {
+      ...request,
+      traceGeneration: preparedTrace.generation,
+      options: { ...request.options, env: { ...request.options.env, ...preparedTrace.env } }
+    }
   }
 
   closeAgentSessionWarm(sessionId: string): void {
@@ -217,7 +267,10 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
     // single await sits before any `entries` access, so the body below still runs without gaps.
     const { startup } = await import('@anthropic-ai/claude-agent-sdk')
-    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
+    const warmOptions = {
+      ...stripWarmQueryOptions(request.options),
+      spawnClaudeCodeProcess: createTraceGuardedSpawnProcess(request.traceGeneration)
+    }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
@@ -238,7 +291,13 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
     const processDiagnostics = createClaudeCodeProcessDiagnostics()
     const promise = startup({
-      options: { ...warmOptions, spawnClaudeCodeProcess: createSpawnClaudeCodeProcess(processDiagnostics) },
+      options: {
+        ...warmOptions,
+        spawnClaudeCodeProcess: createTraceGuardedSpawnProcess(
+          request.traceGeneration,
+          createSpawnClaudeCodeProcess(processDiagnostics)
+        )
+      },
       initializeTimeoutMs: request.initializeTimeoutMs
     }).catch((error) => {
       if (this.entries.get(request.key)?.promise === promise) {
@@ -273,8 +332,25 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       return undefined
     }
 
+    if (request.traceGeneration !== undefined) {
+      const currentGeneration = application.get('ClaudeCodeTraceBridgeService').getTraceGeneration()
+      if (currentGeneration !== request.traceGeneration) {
+        void this.closeEntry(entry)
+        return undefined
+      }
+    }
+
     const warmQuery = await entry.promise
     if (!warmQuery) return undefined
+    if (request.traceGeneration !== undefined) {
+      const currentGeneration = application.get('ClaudeCodeTraceBridgeService').getTraceGeneration()
+      if (currentGeneration !== request.traceGeneration) {
+        void Promise.resolve(warmQuery[Symbol.asyncDispose]()).catch((error) => {
+          logger.debug('Ignoring stale warm query close after trace toggle', { error })
+        })
+        return undefined
+      }
+    }
     return { warmQuery, usageCapture: entry.usageCapture, processDiagnostics: entry.processDiagnostics }
   }
 

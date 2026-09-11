@@ -30,7 +30,10 @@ const mocks = vi.hoisted(() => ({
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
-  getTurnTrustedNotifyChannels: vi.fn()
+  getTurnTrustedNotifyChannels: vi.fn(),
+  isTraceModeEnabled: vi.fn(),
+  getTraceGeneration: vi.fn(),
+  prepareTrace: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -91,6 +94,13 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+      }
+      if (name === 'ClaudeCodeTraceBridgeService') {
+        return {
+          isTraceModeEnabled: mocks.isTraceModeEnabled,
+          getTraceGeneration: mocks.getTraceGeneration,
+          prepareTrace: mocks.prepareTrace
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -187,6 +197,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.getTraceGeneration.mockReturnValue(null)
+    mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
@@ -240,6 +253,71 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('freezes the connection baseline from the trace env actually materialized for the child', async () => {
+    const trace = {
+      topicId: 'agent-session:session-1',
+      traceId: '0'.repeat(32),
+      rootSpanId: '1'.repeat(16),
+      sessionId: 'session-1',
+      turnId: 'turn-1'
+    }
+    mocks.prepareTrace.mockResolvedValue({
+      generation: 1,
+      env: { TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` }
+    })
+
+    const traced = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      trace
+    )
+    mocks.prepareTrace.mockResolvedValue(undefined)
+    const untraced = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      trace
+    )
+
+    expect(traced?.options.env).toMatchObject({ TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` })
+    expect(traced?.connectionConfig.rebuildFactFingerprints.developerTracingGeneration).not.toBe(
+      untraced?.connectionConfig.rebuildFactFingerprints.developerTracingGeneration
+    )
+  })
+
+  it('does not promote a rejected trace materialization to the active generation', async () => {
+    mocks.getTraceGeneration.mockReturnValue(7)
+    mocks.prepareTrace.mockResolvedValue(undefined)
+    const trace = {
+      topicId: 'agent-session:session-1',
+      traceId: '0'.repeat(32),
+      rootSpanId: '1'.repeat(16),
+      sessionId: 'session-1',
+      turnId: 'turn-rejected'
+    }
+
+    const rejected = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      trace
+    )
+    const untraced = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(rejected?.traceGeneration).toBeUndefined()
+    expect(rejected?.connectionConfig.rebuildSignature).toBe(untraced?.connectionConfig.rebuildSignature)
   })
 
   it('passes the connection rebuild signature into the warm query request', async () => {
@@ -466,6 +544,27 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(warmRequest?.notificationContext).toEqual(notificationContext)
+  })
+
+  it('includes the materialized trace generation in the prewarm connection signature', async () => {
+    const trace = {
+      topicId: 'agent-session:session-1',
+      traceId: '0'.repeat(32),
+      rootSpanId: '1'.repeat(16),
+      sessionId: 'session-1',
+      turnId: ''
+    }
+    mocks.prepareTrace.mockResolvedValue({
+      generation: 1,
+      env: { TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` }
+    })
+
+    const traced = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1', trace)
+    mocks.prepareTrace.mockResolvedValue(undefined)
+    const untraced = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(traced?.traceGeneration).toBe(1)
+    expect(traced?.connectionRebuildSignature).not.toBe(untraced?.connectionRebuildSignature)
   })
 
   it('captures provider and model facts from the route materialized before a connect-time edit', async () => {
@@ -1281,6 +1380,9 @@ describe('deriveConnectionConfig', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.getTraceGeneration.mockReturnValue(null)
+    mocks.prepareTrace.mockResolvedValue(undefined)
   })
 
   async function deriveSignature() {
@@ -1359,6 +1461,35 @@ describe('deriveConnectionConfig', () => {
 
     expect(second.rebuildSignature).toBe(first.rebuildSignature)
     expect(second.rebuildFactFingerprints).toEqual(first.rebuildFactFingerprints)
+  })
+
+  it('rebuilds a persisted Claude Code connection when developer tracing changes', async () => {
+    mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.getTraceGeneration.mockReturnValue(null)
+    const disabled = await deriveSignature()
+
+    mocks.isTraceModeEnabled.mockReturnValue(true)
+    mocks.getTraceGeneration.mockReturnValue(1)
+    const enabled = await deriveSignature()
+
+    expect(enabled.rebuildSignature).not.toBe(disabled.rebuildSignature)
+    expect(enabled.rebuildFactFingerprints.developerTracingGeneration).not.toBe(
+      disabled.rebuildFactFingerprints.developerTracingGeneration
+    )
+  })
+
+  it('rebuilds when tracing is re-enabled with a new collector generation', async () => {
+    mocks.isTraceModeEnabled.mockReturnValue(true)
+    mocks.getTraceGeneration.mockReturnValue(1)
+    const firstEnabled = await deriveSignature()
+
+    mocks.getTraceGeneration.mockReturnValue(2)
+    const reenabled = await deriveSignature()
+
+    expect(reenabled.rebuildSignature).not.toBe(firstEnabled.rebuildSignature)
+    expect(reenabled.rebuildFactFingerprints.developerTracingGeneration).not.toBe(
+      firstEnabled.rebuildFactFingerprints.developerTracingGeneration
+    )
   })
 
   it('does not rebuild when only the usage pricing capture time changes', async () => {
