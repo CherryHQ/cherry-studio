@@ -237,12 +237,13 @@ vi.mock('electron-store', () => {
 // tests assume this deterministic value when building expected paths.
 vi.mock('node:os', async () => {
   const actual = await vi.importActual<typeof import('node:os')>('node:os')
+  const { resolve } = await vi.importActual<typeof import('node:path')>('node:path')
   return {
     ...actual,
-    homedir: vi.fn(() => '/mock/home'),
+    homedir: vi.fn(() => resolve('/mock/home')),
     default: {
       ...actual,
-      homedir: () => '/mock/home'
+      homedir: () => resolve('/mock/home')
     }
   }
 })

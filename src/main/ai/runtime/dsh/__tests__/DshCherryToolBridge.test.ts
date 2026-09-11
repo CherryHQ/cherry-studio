@@ -196,7 +196,7 @@ describe('DshCherryToolBridge', () => {
       width: 1,
       height: 1
     })
-    expect((await stat(imagePath)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect((await stat(imagePath)).mode & 0o777).toBe(0o600)
     await bridge.close()
   })
 

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { pathToFileURL } from 'node:url'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -913,7 +914,7 @@ describe('MainWindowService', () => {
       vi.stubEnv('ELECTRON_RENDERER_URL', undefined)
 
       expect(
-        navigateTo(`file://${APP_ROOT}/out/renderer/windows/main/index.html`).preventDefault
+        navigateTo(pathToFileURL(`${APP_ROOT}/out/renderer/windows/main/index.html`).href).preventDefault
       ).not.toHaveBeenCalled()
     })
 

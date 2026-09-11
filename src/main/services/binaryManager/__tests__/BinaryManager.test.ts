@@ -1,4 +1,5 @@
 import type * as NodeModule from 'node:module'
+import type * as NodePath from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -4050,4 +4051,10 @@ describe('BinaryManager', () => {
       }
     })
   })
+})
+
+// These fixtures model a POSIX tool installation independently of the host OS.
+vi.mock('path', async () => {
+  const actual = await vi.importActual<typeof NodePath>('node:path')
+  return { ...actual.posix, default: actual.posix }
 })

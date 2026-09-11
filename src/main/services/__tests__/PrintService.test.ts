@@ -1,3 +1,5 @@
+import { pathToFileURL } from 'node:url'
+
 import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -77,7 +79,7 @@ describe('PrintService', () => {
       sourcePath: '/Users/me/Notes/safe.md'
     })
 
-    expect(html).toContain('<base href="file:///Users/me/Notes/" />')
+    expect(html).toContain(`<base href="${pathToFileURL('/Users/me/Notes/').href}" />`)
     expect(html).toContain('&lt;Unsafe&gt;')
     expect(html).toContain('<h1>Safe</h1>')
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')

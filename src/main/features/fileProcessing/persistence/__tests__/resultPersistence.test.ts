@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import { resolve as resolvePath } from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,7 +54,7 @@ describe('fileProcessing result persistence utils', () => {
       }
     })
 
-    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).resolves.toEqual(
+    await expect(readMarkdownFromZipFile(resolvePath('/tmp/download/result.zip'))).resolves.toEqual(
       new Uint8Array(Buffer.from('# output'))
     )
 
@@ -66,7 +67,7 @@ describe('fileProcessing result persistence utils', () => {
 
   it.each([
     ['relative parent escape', '../escape.md'],
-    ['POSIX absolute path', '/tmp/output.md'],
+    ['POSIX absolute path', resolvePath('/tmp/output.md')],
     ['Windows drive-letter path', 'C:\\temp\\output.md'],
     ['backslash separator', 'bundle\\output.md']
   ])('rejects zip entries that escape the archive root via %s', async (_name, entryName) => {
@@ -77,7 +78,9 @@ describe('fileProcessing result persistence utils', () => {
       }
     })
 
-    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).rejects.toThrow('Unsafe zip entry path')
+    await expect(readMarkdownFromZipFile(resolvePath('/tmp/download/result.zip'))).rejects.toThrow(
+      'Unsafe zip entry path'
+    )
     expect(entryDataMock).not.toHaveBeenCalled()
     expect(closeMock).toHaveBeenCalled()
   })
@@ -94,7 +97,7 @@ describe('fileProcessing result persistence utils', () => {
       }
     })
 
-    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).resolves.toEqual(
+    await expect(readMarkdownFromZipFile(resolvePath('/tmp/download/result.zip'))).resolves.toEqual(
       new Uint8Array(Buffer.from('# output'))
     )
     expect(entryDataMock).toHaveBeenCalledWith({
@@ -112,7 +115,7 @@ describe('fileProcessing result persistence utils', () => {
       }
     })
 
-    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).rejects.toThrow(
+    await expect(readMarkdownFromZipFile(resolvePath('/tmp/download/result.zip'))).rejects.toThrow(
       'Result zip does not contain a markdown file'
     )
     expect(entryDataMock).not.toHaveBeenCalled()
@@ -121,7 +124,9 @@ describe('fileProcessing result persistence utils', () => {
 
   it('downloads a response zip to temp storage and reads its markdown entry', async () => {
     const mkdirSpy = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    const mkdtempSpy = vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/file-processing-result-abc')
+    const mkdtempSpy = vi
+      .spyOn(fs, 'mkdtemp')
+      .mockResolvedValue(resolvePath('/tmp/file-processing/file-processing-result-abc'))
     const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
     entriesMock.mockResolvedValueOnce({
       'output.md': {
@@ -134,15 +139,17 @@ describe('fileProcessing result persistence utils', () => {
     await expect(
       readMarkdownFromResponseZip({
         response,
-        tempDir: '/tmp/file-processing'
+        tempDir: resolvePath('/tmp/file-processing')
       })
     ).resolves.toEqual(new Uint8Array(Buffer.from('# output')))
 
-    expect(mkdirSpy).toHaveBeenCalledWith('/tmp/file-processing', { recursive: true })
-    expect(mkdtempSpy).toHaveBeenCalledWith('/tmp/file-processing/file-processing-result-')
-    expect(createWriteStreamMock).toHaveBeenCalledWith('/tmp/file-processing/file-processing-result-abc/result.zip')
+    expect(mkdirSpy).toHaveBeenCalledWith(resolvePath('/tmp/file-processing'), { recursive: true })
+    expect(mkdtempSpy).toHaveBeenCalledWith(resolvePath('/tmp/file-processing/file-processing-result-'))
+    expect(createWriteStreamMock).toHaveBeenCalledWith(
+      resolvePath('/tmp/file-processing/file-processing-result-abc/result.zip')
+    )
     expect(pipelineMock).toHaveBeenCalled()
-    expect(rmSpy).toHaveBeenCalledWith('/tmp/file-processing/file-processing-result-abc', {
+    expect(rmSpy).toHaveBeenCalledWith(resolvePath('/tmp/file-processing/file-processing-result-abc'), {
       recursive: true,
       force: true
     })
@@ -150,14 +157,14 @@ describe('fileProcessing result persistence utils', () => {
 
   it('rejects response zips without a body', async () => {
     vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/file-processing-result-abc')
+    vi.spyOn(fs, 'mkdtemp').mockResolvedValue(resolvePath('/tmp/file-processing/file-processing-result-abc'))
     vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
     const response = new Response(null)
 
     await expect(
       readMarkdownFromResponseZip({
         response,
-        tempDir: '/tmp/file-processing'
+        tempDir: resolvePath('/tmp/file-processing')
       })
     ).rejects.toThrow('Result download response body is empty')
 

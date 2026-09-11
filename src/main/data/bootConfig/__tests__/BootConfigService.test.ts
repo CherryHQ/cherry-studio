@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +13,7 @@ vi.mock('node:fs', async () => {
 const mockFs = vi.mocked(fs)
 const mockRenameSync = mockFs.renameSync
 
-const CONFIG_PATH = '/mock/home/.cherrystudio/boot-config.json'
+const CONFIG_PATH = resolvePath('/mock/home/.cherrystudio/boot-config.json')
 const TEMP_PATH = `${CONFIG_PATH}.tmp`
 
 async function createService() {
@@ -431,7 +432,7 @@ describe('BootConfigService', () => {
     })
 
     it('rejects a user_data_path record with non-string values', async () => {
-      const stored = { 'app.user_data_path': { '/Applications/App': 123 } }
+      const stored = { 'app.user_data_path': { [resolvePath('/Applications/App')]: 123 } }
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
 
@@ -453,7 +454,9 @@ describe('BootConfigService', () => {
     })
 
     it('rejects a relocation with an unknown status', async () => {
-      const stored = { 'temp.user_data_relocation': { status: 'running', from: '/a', to: '/b' } }
+      const stored = {
+        'temp.user_data_relocation': { status: 'running', from: resolvePath('/a'), to: resolvePath('/b') }
+      }
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
 
@@ -467,8 +470,8 @@ describe('BootConfigService', () => {
       const relocation = {
         status: 'pending',
         taskId: '11111111-1111-4111-8111-111111111111',
-        from: '/a',
-        to: '/b',
+        from: resolvePath('/a'),
+        to: resolvePath('/b'),
         copy: true
       }
       const stored = { 'temp.user_data_relocation': relocation }
@@ -521,8 +524,8 @@ describe('BootConfigService', () => {
       const relocation = {
         status: 'pending' as const,
         taskId: '11111111-1111-4111-8111-111111111111',
-        from: '/a',
-        to: '/b',
+        from: resolvePath('/a'),
+        to: resolvePath('/b'),
         copy: true
       }
       service.set('temp.user_data_relocation', relocation)
@@ -659,7 +662,7 @@ describe('BootConfigService', () => {
     it('persists valid keys, drops invalid ones, and clears the load error', async () => {
       const stored = {
         'app.disable_hardware_acceleration': 'yes',
-        'app.user_data_path': { '/exe': '/data' }
+        'app.user_data_path': { [resolvePath('/exe')]: resolvePath('/data') }
       }
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))
@@ -670,7 +673,7 @@ describe('BootConfigService', () => {
       service.repair()
 
       const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string)
-      expect(written).toEqual({ 'app.user_data_path': { '/exe': '/data' } })
+      expect(written).toEqual({ 'app.user_data_path': { [resolvePath('/exe')]: resolvePath('/data') } })
       expect(service.hasLoadError()).toBe(false)
     })
 
@@ -690,7 +693,7 @@ describe('BootConfigService', () => {
     it('throws on write failure, retaining the load error for a later retry', async () => {
       const stored = {
         'app.disable_hardware_acceleration': 'yes',
-        'app.user_data_path': { '/exe': '/data' }
+        'app.user_data_path': { [resolvePath('/exe')]: resolvePath('/data') }
       }
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(JSON.stringify(stored))

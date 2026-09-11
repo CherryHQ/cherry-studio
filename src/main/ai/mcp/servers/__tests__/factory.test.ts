@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -27,7 +29,7 @@ describe('getBuiltinRegistryEnv', () => {
     }
 
     expect(getBuiltinRegistryEnv(server({ ...autoInstall, registryUrl: 'https://npm.example' }))).toEqual({
-      MCP_REGISTRY_PATH: '/mock/feature.mcp.registry_file'
+      MCP_REGISTRY_PATH: path.resolve('/mock/feature.mcp.registry_file')
     })
     expect(getBuiltinRegistryEnv(server(autoInstall))).toEqual({})
   })

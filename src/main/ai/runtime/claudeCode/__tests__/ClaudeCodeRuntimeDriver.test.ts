@@ -1,3 +1,6 @@
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -769,8 +772,18 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
-            { type: 'file', url: 'file:///tmp/spec.pdf', mediaType: 'application/pdf', filename: 'spec.pdf' }
+            {
+              type: 'file',
+              url: pathToFileURL(resolve('/tmp/pixel.png')).href,
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            },
+            {
+              type: 'file',
+              url: pathToFileURL(resolve('/tmp/spec.pdf')).href,
+              mediaType: 'application/pdf',
+              filename: 'spec.pdf'
+            }
           ]
         }
       }
@@ -784,7 +797,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /tmp/spec.pdf'
+              text: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": ${resolve('/tmp/spec.pdf')}`
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -873,7 +886,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'text', text: 'describe this' },
             {
               type: 'file',
-              url: 'file:///tmp/pixel.png',
+              url: pathToFileURL(resolve('/tmp/pixel.png')).href,
               mediaType: 'image/png',
               filename: 'pixel.png',
               providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
@@ -1200,7 +1213,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'text', text: 'summarize this' },
             {
               type: 'file',
-              url: 'file:///tmp/spec.pdf',
+              url: pathToFileURL(resolve('/tmp/spec.pdf')).href,
               mediaType: 'application/pdf',
               filename: 'spec.pdf',
               providerMetadata: { cherry: { fileEntryId: 'entry-secret' } }
@@ -1320,7 +1333,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'text', text: 'describe this' },
             {
               type: 'file',
-              url: 'file:///tmp/pixel.png',
+              url: pathToFileURL(resolve('/tmp/pixel.png')).href,
               mediaType: 'image/png',
               filename: 'pixel.png',
               providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
@@ -1368,7 +1381,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'describe this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+            {
+              type: 'file',
+              url: pathToFileURL(resolve('/tmp/pixel.png')).href,
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
           ]
         }
       }
@@ -1378,8 +1396,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content:
-            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /tmp/pixel.png'
+          content: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": ${resolve('/tmp/pixel.png')}`
         }
       },
       done: false
@@ -1412,7 +1429,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
       message: {
         ...userMessage(),
         data: {
-          parts: [{ type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }]
+          parts: [
+            {
+              type: 'file',
+              url: pathToFileURL(resolve('/tmp/pixel.png')).href,
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
+          ]
         }
       }
     })
@@ -1455,7 +1479,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
       message: {
         ...userMessage(),
         data: {
-          parts: [{ type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }]
+          parts: [
+            {
+              type: 'file',
+              url: pathToFileURL(resolve('/tmp/pixel.png')).href,
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
+          ]
         }
       }
     })
@@ -3537,7 +3568,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
         data: {
           parts: [
             { type: 'text', text: 'look at this' },
-            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+            {
+              type: 'file',
+              url: pathToFileURL(resolve('/tmp/pixel.png')).href,
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
           ]
         }
       },

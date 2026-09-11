@@ -1,3 +1,5 @@
+import { resolve as resolvePath } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as FsUtils from '@main/utils/file'
@@ -65,7 +67,7 @@ describe('knowledge reader metadata', () => {
       groupId: null,
       type: 'file',
       data: {
-        source: '/tmp/original.txt',
+        source: resolvePath('/tmp/original.txt'),
         relativePath: 'original.txt' as PosixRelativeFilePath
       },
       status: 'processing',
@@ -74,9 +76,9 @@ describe('knowledge reader metadata', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     })
 
-    expect(loadDataMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/kb-1/raw/original.txt')
+    expect(loadDataMock).toHaveBeenCalledWith(resolvePath('/mock/feature.knowledgebase.data/kb-1/raw/original.txt'))
     expect(documents[0]?.metadata).toEqual({
-      source: '/tmp/original.txt'
+      source: resolvePath('/tmp/original.txt')
     })
   })
 
@@ -104,7 +106,7 @@ describe('knowledge reader metadata', () => {
       'URL'
     )
 
-    expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/kb-1/raw/example.md')
+    expect(readFileMock).toHaveBeenCalledWith(resolvePath('/mock/feature.knowledgebase.data/kb-1/raw/example.md'))
     expect(documents).toHaveLength(1)
     expect(documents[0]?.text).toBe('# Page\n\nbody [kept](https://example.com/link)\n')
     expect(documents[0]?.metadata).toEqual({
@@ -153,7 +155,7 @@ describe('knowledge reader metadata', () => {
       'note'
     )
 
-    expect(readFileMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/kb-1/raw/My note.md')
+    expect(readFileMock).toHaveBeenCalledWith(resolvePath('/mock/feature.knowledgebase.data/kb-1/raw/My note.md'))
     expect(documents).toHaveLength(1)
     expect(documents[0]?.text).toBe('# Note title\n\nbody')
     expect(documents[0]?.metadata).toEqual({

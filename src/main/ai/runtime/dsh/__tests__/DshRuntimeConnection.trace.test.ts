@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -188,7 +190,7 @@ beforeEach(() => {
   runtimeMocks.snapshot = baseSnapshot()
   runtimeMocks.harnessOptions = undefined
   runtimeMocks.getShellEnv.mockReset().mockResolvedValue({
-    PATH: '/opt/homebrew/bin:/usr/bin',
+    PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
     HOME: '/Users/tester',
     SECRET: 'do-not-forward'
   })
@@ -226,14 +228,18 @@ describe('DshRuntimeConnection tracing', () => {
     const connection = await new DshRuntimeConnection(connectInput).start()
     const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
 
-    expect(env.PATH?.split(':')).toEqual(['/mock/feature.binary.data/shims', '/opt/homebrew/bin', '/usr/bin'])
+    expect(env.PATH?.split(path.delimiter)).toEqual([
+      path.resolve('/mock/feature.binary.data/shims'),
+      '/opt/homebrew/bin',
+      '/usr/bin'
+    ])
     expect(env).toMatchObject({
       HOME: '/Users/tester',
-      MISE_DATA_DIR: '/mock/feature.binary.data',
-      MISE_CONFIG_DIR: '/mock/feature.binary.data/config',
-      MISE_CACHE_DIR: '/mock/feature.binary.data/cache',
-      MISE_STATE_DIR: '/mock/feature.binary.data/state',
-      MISE_SHIMS_DIR: '/mock/feature.binary.data/shims'
+      MISE_DATA_DIR: path.resolve('/mock/feature.binary.data'),
+      MISE_CONFIG_DIR: path.resolve('/mock/feature.binary.data/config'),
+      MISE_CACHE_DIR: path.resolve('/mock/feature.binary.data/cache'),
+      MISE_STATE_DIR: path.resolve('/mock/feature.binary.data/state'),
+      MISE_SHIMS_DIR: path.resolve('/mock/feature.binary.data/shims')
     })
     expect(env).not.toHaveProperty('CHERRY_TEST_SECRET')
     expect(env).not.toHaveProperty('SECRET')
