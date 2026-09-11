@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { act, type ReactNode } from 'react'
@@ -11,13 +10,18 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 
 import ChatContent from '../ChatContent'
 
+interface IpcMock {
+  request: (route: string, input: unknown) => unknown
+  on: (event: string, callback: (payload: unknown) => void) => () => void
+}
+
 // The send path calls ipcApi.request('ai.stream.open', …); route it to the per-test
 // `streamOpen` spy (a describe-level var asserted directly). `ipcMock.request` is
 // re-pointed in beforeEach (hoisted so the vi.mock factory can capture it).
-const { ipcMock } = vi.hoisted(() => ({
+const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
   ipcMock: {
-    request: (() => Promise.resolve(undefined)) as (route: string, input: unknown) => unknown,
-    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+    request: () => Promise.resolve(undefined),
+    on: () => () => {}
   }
 }))
 vi.mock('@renderer/ipc', () => ({
@@ -121,7 +125,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
         type="button"
         data-use-mentioned-model-selector={String(Boolean(useMentionedModelSelector))}
         disabled={sendDisabled}
-        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
+        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' }] })}>
         send
       </button>
     )
@@ -181,7 +185,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
           disabled={sendDisabled}
           onClick={() =>
             onSend('hello', {
-              userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart],
+              userMessageParts: [{ type: 'text', text: 'hello' }],
               chatTarget
             })
           }>
@@ -256,7 +260,7 @@ function createUiMessage(id: string, role: CherryUIMessage['role']): CherryUIMes
     role,
     parts: role === 'assistant' ? [{ type: 'text', text: `reply-${id}` }] : [{ type: 'text', text: `prompt-${id}` }],
     metadata: { createdAt: '2026-01-01T00:00:00.000Z' }
-  } as CherryUIMessage
+  }
 }
 
 describe('ChatContent', () => {
@@ -539,7 +543,7 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} />)
 
     await act(async () => {
-      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' }] })
       await Promise.resolve()
     })
 
@@ -806,7 +810,7 @@ describe('ChatContent', () => {
 
     await act(async () => {
       await capturedOnSend?.('live prompt', {
-        userMessageParts: [{ type: 'text', text: 'live prompt' } as CherryMessagePart]
+        userMessageParts: [{ type: 'text', text: 'live prompt' }]
       })
     })
 
@@ -1073,7 +1077,7 @@ describe('ChatContent', () => {
           role: 'assistant',
           parts: [{ type: 'text', text: 'final answer' }] as CherryMessagePart[],
           metadata: { parentId: 'forked-user', status: 'success' }
-        } as CherryUIMessage,
+        },
         isAbort: false,
         isError: false
       })
@@ -1467,7 +1471,7 @@ describe('ChatContent', () => {
 
     await act(async () => {
       await capturedOnSend?.('multi prompt', {
-        userMessageParts: [{ type: 'text', text: 'multi prompt' } as CherryMessagePart]
+        userMessageParts: [{ type: 'text', text: 'multi prompt' }]
       })
     })
 

@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { MockUseCache } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -161,6 +160,10 @@ describe('useMessageSelectionController', () => {
       messages: ReturnType<typeof message>[]
       partsByMessageId: Record<string, CherryMessagePart[]>
     }
+    const initialProps: HookProps = {
+      messages: [message('a')],
+      partsByMessageId: { a: [{ type: 'text', text: 'old' }] as CherryMessagePart[] }
+    }
     const { result, rerender } = renderHook(
       ({ messages, partsByMessageId }: HookProps) =>
         useMessageSelectionController({
@@ -168,12 +171,7 @@ describe('useMessageSelectionController', () => {
           messages,
           partsByMessageId
         }),
-      {
-        initialProps: {
-          messages: [message('a')],
-          partsByMessageId: { a: [{ type: 'text', text: 'old' }] as CherryMessagePart[] }
-        } as HookProps
-      }
+      { initialProps }
     )
     const initialActions = result.current.actions
 

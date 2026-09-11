@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { Tab } from '@renderer/hooks/tab'
@@ -31,6 +30,22 @@ interface DragState {
   tabId: string
   mode: DragMode
   insertIndex: number
+}
+
+interface DragRuntimeState {
+  pointerId: number
+  startX: number
+  startY: number
+  currentX: number
+  tabType: 'pinned' | 'normal'
+  detachedCreated: boolean
+  tabClosed: boolean
+  originalRects: Map<string, HorizontalRect>
+  boundaryRect: DOMRectReadOnly | null
+  leftInsetWidth: number
+  rightInsetWidth: number
+  grabOffsetX: number
+  grabOffsetY: number
 }
 
 interface UseTabDragOptions {
@@ -72,16 +87,16 @@ export function useTabDrag({
   const [settling, setSettling] = useState(false)
 
   // High-frequency data (does not trigger re-render)
-  const dragRef = useRef({
+  const dragRef = useRef<DragRuntimeState>({
     pointerId: 0,
     startX: 0,
     startY: 0,
     currentX: 0,
-    tabType: 'normal' as 'pinned' | 'normal',
+    tabType: 'normal',
     detachedCreated: false,
     tabClosed: false,
     originalRects: new Map<string, HorizontalRect>(),
-    boundaryRect: null as DOMRectReadOnly | null,
+    boundaryRect: null,
     leftInsetWidth: 0,
     rightInsetWidth: 0,
     grabOffsetX: 0,

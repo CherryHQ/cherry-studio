@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -93,8 +92,9 @@ vi.mock('@renderer/components/VirtualList', () => {
         ref={(node) => {
           // The real virtual list exposes an imperative scrollToIndex; stub it so keyboard
           // navigation (which scrolls the active item into view) works under this mock.
-          const listNode = node as (HTMLDivElement & { scrollToIndex?: (index: number) => void }) | null
-          if (listNode && typeof listNode.scrollToIndex !== 'function') listNode.scrollToIndex = () => {}
+          if (node && typeof Reflect.get(node, 'scrollToIndex') !== 'function') {
+            Reflect.set(node, 'scrollToIndex', () => {})
+          }
           if (typeof ref === 'function') ref(node)
           else if (ref) (ref as { current: HTMLDivElement | null }).current = node
           if (typeof scrollElementRef === 'function') scrollElementRef(node)

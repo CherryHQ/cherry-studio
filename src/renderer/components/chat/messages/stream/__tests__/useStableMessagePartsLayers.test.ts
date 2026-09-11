@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -10,7 +9,7 @@ function makeMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
   return { id, role: 'assistant', parts } as unknown as CherryUIMessage
 }
 
-const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as CherryMessagePart
+const textPart = (text: string): CherryMessagePart => ({ type: 'text', text })
 
 describe('useStablePartsByMessageId', () => {
   it('preserves container ref when nothing changes across renders', () => {
@@ -97,10 +96,11 @@ describe('useStablePartsByMessageId', () => {
     const partsBase = [textPart('base')]
     const overlayParts = [textPart('overlay')]
     const messages = [makeMessage('m1', partsBase)]
+    const initialOverlay: Record<string, CherryMessagePart[]> = { m1: overlayParts }
 
     const { result, rerender } = renderHook(
       ({ ov }: { ov: Record<string, CherryMessagePart[]> }) => useStablePartsByMessageId(messages, ov),
-      { initialProps: { ov: { m1: overlayParts } as Record<string, CherryMessagePart[]> } }
+      { initialProps: { ov: initialOverlay } }
     )
 
     expect(result.current['m1']).toBe(overlayParts)
@@ -122,13 +122,15 @@ describe('useStablePartsByMessageId', () => {
     const liveParts = [textPart('live')]
     const retainedLiveParts = [textPart('retained-live')]
     const messages = [makeMessage('m1', historyParts)]
+    const initialOverlay: Record<string, CherryMessagePart[]> = {
+      'live-m2': liveParts,
+      'live-m3': retainedLiveParts
+    }
 
     const { result, rerender } = renderHook(
       ({ ov }: { ov: Record<string, CherryMessagePart[]> }) => useStableMessagePartsLayers(messages, ov),
       {
-        initialProps: {
-          ov: { 'live-m2': liveParts, 'live-m3': retainedLiveParts } as Record<string, CherryMessagePart[]>
-        }
+        initialProps: { ov: initialOverlay }
       }
     )
 

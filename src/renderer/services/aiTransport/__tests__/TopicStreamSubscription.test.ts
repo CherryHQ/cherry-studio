@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,12 +7,17 @@ import type { SerializedError } from '@shared/types/error'
 
 import { TopicStreamSubscription } from '../TopicStreamSubscription'
 
+interface IpcMock {
+  request: (route: string, input: unknown) => unknown
+  on: (event: string, callback: (payload: unknown) => void) => () => void
+}
+
 // Production calls ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*'). `ipcMock` is
 // re-pointed at a fresh createMockAiApi()'s dispatchers in beforeEach.
-const { ipcMock } = vi.hoisted(() => ({
+const { ipcMock } = vi.hoisted((): { ipcMock: IpcMock } => ({
   ipcMock: {
-    request: (() => undefined) as (route: string, input: unknown) => unknown,
-    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+    request: () => undefined,
+    on: () => () => {}
   }
 }))
 vi.mock('@renderer/ipc', () => ({
@@ -146,7 +150,7 @@ function createMockAiApi() {
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 0))
-const textChunk = (delta: string): UIMessageChunk => ({ type: 'text-delta', id: 't', delta }) as UIMessageChunk
+const textChunk = (delta: string): UIMessageChunk => ({ type: 'text-delta', id: 't', delta })
 
 async function readAll(stream: ReadableStream<UIMessageChunk>): Promise<UIMessageChunk[]> {
   const reader = stream.getReader()
