@@ -1,5 +1,6 @@
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import * as z from 'zod'
+
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 
 import { defineRoute } from '../define'
 

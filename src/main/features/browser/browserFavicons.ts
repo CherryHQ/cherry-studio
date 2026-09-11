@@ -1,8 +1,9 @@
+import type { WebContents } from 'electron'
+import { fileTypeFromBuffer } from 'file-type'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { loggerService } from '@logger'
-import type { WebContents } from 'electron'
-import { fileTypeFromBuffer } from 'file-type'
 
 const logger = loggerService.withContext('BrowserFavicons')
 const MAX_ICON_BYTES = 256 * 1024

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
-
 import { createRequire } from 'node:module'
+
 import { beforeAll, beforeEach, expect, vi } from 'vitest'
 
 import { MockCherrystudioUI } from './__mocks__/renderer/CherrystudioUI'

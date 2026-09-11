@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { cacheService } from '@data/CacheService'
-import en from '@renderer/i18n/locales/en-us.json'
-import { ipcApi } from '@renderer/ipc'
-import { BrowserSettings } from '@renderer/pages/settings/BrowserSettings'
-import type { BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
+import en from '@renderer/i18n/locales/en-us.json'
+import { ipcApi } from '@renderer/ipc'
+import { BrowserSettings } from '@renderer/pages/settings/BrowserSettings'
+import type { BrowserImportResult } from '@shared/ipc/schemas/browserImport'
 
 import { WebviewImportBanner } from '../WebviewImportBanner'
 

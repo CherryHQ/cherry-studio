@@ -1,3 +1,17 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type {
+  ButtonHTMLAttributes,
+  ComponentProps,
+  CSSProperties,
+  PropsWithChildren,
+  ReactElement,
+  ReactNode
+} from 'react'
+import { cloneElement, isValidElement, useEffect, useSyncExternalStore } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   HoverCard as RealHoverCard,
   HoverCardContent as RealHoverCardContent,
@@ -13,19 +27,6 @@ import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgrou
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type {
-  ButtonHTMLAttributes,
-  ComponentProps,
-  CSSProperties,
-  PropsWithChildren,
-  ReactElement,
-  ReactNode
-} from 'react'
-import { cloneElement, isValidElement, useEffect, useSyncExternalStore } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
@@ -422,6 +423,7 @@ vi.mock('@renderer/hooks/command', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useCurrentTabId: () => null,
   useIsActiveTab: () => true
 }))
 

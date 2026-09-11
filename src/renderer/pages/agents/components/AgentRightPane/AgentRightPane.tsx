@@ -1,4 +1,37 @@
 import {
+  Activity,
+  ArrowLeft,
+  Bot,
+  CheckCircle,
+  Circle,
+  CircleStop,
+  FileText,
+  FolderOpen,
+  GitBranch,
+  Loader2,
+  Package,
+  Terminal,
+  Waypoints,
+  Workflow
+} from 'lucide-react'
+import { Globe2 } from 'lucide-react'
+import type { ReactNode } from 'react'
+import {
+  createContext,
+  lazy,
+  memo,
+  Suspense,
+  use,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Button,
   CircularProgress,
   ConfirmDialog,
@@ -59,7 +92,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { agentBrowserRuntimeService } from '@renderer/services/AgentBrowserRuntimeService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
-import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
+import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
@@ -75,38 +108,6 @@ import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
 import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotations'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import {
-  Activity,
-  ArrowLeft,
-  Bot,
-  CheckCircle,
-  Circle,
-  CircleStop,
-  FileText,
-  FolderOpen,
-  GitBranch,
-  Globe2,
-  Loader2,
-  Package,
-  Terminal,
-  Waypoints,
-  Workflow
-} from 'lucide-react'
-import type { ReactNode } from 'react'
-import {
-  createContext,
-  lazy,
-  memo,
-  Suspense,
-  use,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
@@ -1004,7 +1005,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
   const topic = useMemo<Topic>(
     () => ({
       id: meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : 'agent-session:tool-flow',
-      type: TopicType.Session as TopicTypeEnum,
+      type: TopicType.Session,
       assistantId: meta.agentId,
       name: meta.sessionName ?? meta.sessionId ?? 'agent-tool-flow',
       lastActivityAt: FALLBACK_TIMESTAMP,

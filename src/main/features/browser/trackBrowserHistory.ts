@@ -1,6 +1,7 @@
+import type { WebContents } from 'electron'
+
 import { browserHistoryService } from '@data/services/BrowserHistoryService'
 import { loggerService } from '@logger'
-import type { WebContents } from 'electron'
 
 const logger = loggerService.withContext('BrowserHistory')
 

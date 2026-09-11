@@ -13,6 +13,9 @@
  * once Phase 2 finishes.
  */
 
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import {
@@ -37,8 +40,6 @@ import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
 
@@ -190,7 +191,7 @@ function isRenderableTopicMessage(message: SharedMessage): boolean {
  */
 export async function getTopicMessages(
   id: string,
-  options: { maxMessages?: number; nodeId?: string; includeSiblings?: boolean } = {}
+  options: { maxMessages?: number } = {}
 ): Promise<MessageExportView[]> {
   try {
     const pages: MessageExportView[][] = []
@@ -200,12 +201,7 @@ export async function getTopicMessages(
 
     do {
       const response = (await dataApiService.get(`/topics/${id}/messages`, {
-        query: {
-          limit: MESSAGES_PAGE_SIZE,
-          nodeId: options.nodeId,
-          includeSiblings: options.includeSiblings ?? true,
-          cursor
-        }
+        query: { limit: MESSAGES_PAGE_SIZE, includeSiblings: true, cursor }
       })) as BranchMessagesResponse
 
       // Topic-level fields are stable across pages; first response wins.

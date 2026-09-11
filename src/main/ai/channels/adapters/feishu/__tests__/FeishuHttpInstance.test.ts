@@ -77,7 +77,7 @@ describe('createFeishuHttpInstance', () => {
       headers: new Headers(),
       body: null,
       text: async () => JSON.stringify({ msg: 'invalid file' })
-    } as unknown as Response)
+    })
 
     const http = createFeishuHttpInstance()
 

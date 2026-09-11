@@ -1,5 +1,6 @@
-import { fromSerialized, rootFromSerialized, TreeDir, TreeDirRoot, TreeFile, TreeNode } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
+
+import { fromSerialized, rootFromSerialized, TreeDir, TreeDirRoot, TreeFile, TreeNode } from '@shared/utils/file'
 
 describe('TreeFile', () => {
   it('exposes path / basename / dirname derived from the absolute path', () => {

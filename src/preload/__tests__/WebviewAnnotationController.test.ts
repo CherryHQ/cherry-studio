@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   WEBVIEW_ANNOTATION_LIMITS,
   type WebviewAnnotationGuestEvent,
   WebviewAnnotationGuestEventSchema
 } from '@shared/types/webviewAnnotation'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   buildWebviewElementSelector,
@@ -98,7 +99,7 @@ const mockRect = (element: Element, left: number, top: number, width: number, he
     x: left,
     y: top,
     toJSON: () => ({})
-  } as DOMRect)
+  })
 }
 
 const installFrameDriver = () => {
@@ -580,20 +581,17 @@ describe('WebviewAnnotationController interactions', () => {
     button.id = 'moving-editor-target'
     document.body.appendChild(button)
     let left = 40
-    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          left,
-          top: 90,
-          right: left + 120,
-          bottom: 130,
-          width: 120,
-          height: 40,
-          x: left,
-          y: 90,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
+    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(() => ({
+      left,
+      top: 90,
+      right: left + 120,
+      bottom: 130,
+      width: 120,
+      height: 40,
+      x: left,
+      y: 90,
+      toJSON: () => ({})
+    }))
     const internals = privateController(controller)
 
     internals.openEditor({ mode: 'create-element', element: button })
@@ -795,7 +793,7 @@ describe('WebviewAnnotationController interactions', () => {
       x: 25,
       y: 35,
       toJSON: () => ({})
-    } as DOMRect)
+    })
     internals.updatePositions()
     expect(shield?.style.left).toBe('25px')
     expect(shield?.style.top).toBe('35px')
@@ -881,20 +879,17 @@ describe('WebviewAnnotationController interactions', () => {
     const emptyShadowRoot = emptyHost.attachShadow({ mode: 'open' })
     document.body.append(host, emptyHost)
     let left = 10
-    vi.spyOn(iframe, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          left,
-          top: 20,
-          right: left + 200,
-          bottom: 140,
-          width: 200,
-          height: 120,
-          x: left,
-          y: 20,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
+    vi.spyOn(iframe, 'getBoundingClientRect').mockImplementation(() => ({
+      left,
+      top: 20,
+      right: left + 200,
+      bottom: 140,
+      width: 200,
+      height: 120,
+      x: left,
+      y: 20,
+      toJSON: () => ({})
+    }))
     const documentQueries = vi.spyOn(document, 'querySelectorAll')
     const internals = privateController(controller)
     await vi.waitFor(() => expect(internals.updateFrame).toBeNull())
@@ -1137,20 +1132,17 @@ describe('WebviewAnnotationController interactions', () => {
     button.appendChild(text)
     document.body.appendChild(button)
     let left = 10
-    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          left,
-          top: 20,
-          right: left + 100,
-          bottom: 60,
-          width: 100,
-          height: 40,
-          x: left,
-          y: 20,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
+    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(() => ({
+      left,
+      top: 20,
+      right: left + 100,
+      bottom: 60,
+      width: 100,
+      height: 40,
+      x: left,
+      y: 20,
+      toJSON: () => ({})
+    }))
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: button })
     saveEditor(controller, emissions, 'Follow this label')
@@ -1177,20 +1169,17 @@ describe('WebviewAnnotationController interactions', () => {
     outerRoot.appendChild(innerHost)
     document.body.appendChild(outerHost)
     let left = 10
-    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          left,
-          top: 20,
-          right: left + 100,
-          bottom: 60,
-          width: 100,
-          height: 40,
-          x: left,
-          y: 20,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
+    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(() => ({
+      left,
+      top: 20,
+      right: left + 100,
+      bottom: 60,
+      width: 100,
+      height: 40,
+      x: left,
+      y: 20,
+      toJSON: () => ({})
+    }))
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: button })
     saveEditor(controller, emissions, 'Follow composed reflow')
@@ -1215,34 +1204,28 @@ describe('WebviewAnnotationController interactions', () => {
     document.body.append(ancestor, iframe)
     let left = 10
     let iframeLeft = 30
-    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          left,
-          top: 20,
-          right: left + 100,
-          bottom: 60,
-          width: 100,
-          height: 40,
-          x: left,
-          y: 20,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
-    vi.spyOn(iframe, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          left: iframeLeft,
-          top: 40,
-          right: iframeLeft + 200,
-          bottom: 160,
-          width: 200,
-          height: 120,
-          x: iframeLeft,
-          y: 40,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
+    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(() => ({
+      left,
+      top: 20,
+      right: left + 100,
+      bottom: 60,
+      width: 100,
+      height: 40,
+      x: left,
+      y: 20,
+      toJSON: () => ({})
+    }))
+    vi.spyOn(iframe, 'getBoundingClientRect').mockImplementation(() => ({
+      left: iframeLeft,
+      top: 40,
+      right: iframeLeft + 200,
+      bottom: 160,
+      width: 200,
+      height: 120,
+      x: iframeLeft,
+      y: 40,
+      toJSON: () => ({})
+    }))
     let playState: AnimationPlayState = 'finished'
     let animationPending = false
     Object.defineProperty(ancestor, 'getAnimations', {
@@ -1302,20 +1285,17 @@ describe('WebviewAnnotationController interactions', () => {
     const target = document.createElement('div')
     document.body.appendChild(target)
     let left = 10
-    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          left,
-          top: 20,
-          right: left + 100,
-          bottom: 60,
-          width: 100,
-          height: 40,
-          x: left,
-          y: 20,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => ({
+      left,
+      top: 20,
+      right: left + 100,
+      bottom: 60,
+      width: 100,
+      height: 40,
+      x: left,
+      y: 20,
+      toJSON: () => ({})
+    }))
     const internals = privateController(controller)
     internals.highlightElement = target
     internals.updatePositions()

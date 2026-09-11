@@ -1,3 +1,9 @@
+import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
+import { ArrowLeft, ArrowRight, ExternalLink, History, RotateCw } from 'lucide-react'
+import type { ReactNode, RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, Popover, PopoverAnchor, PopoverContent, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
@@ -5,11 +11,6 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, ExternalLink, History, RotateCw } from 'lucide-react'
-import type { ReactNode, RefObject } from 'react'
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { WebviewAnnotationControls, type WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 

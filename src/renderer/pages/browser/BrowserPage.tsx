@@ -1,9 +1,10 @@
-import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
-import { useCurrentTab, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
-import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
+import { useCurrentTab, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 export function BrowserPage({ initialUrl }: { initialUrl: string }) {
   const { t } = useTranslation()

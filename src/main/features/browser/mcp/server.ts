@@ -1,9 +1,10 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { BROWSER_TOOL_NAMES } from '@shared/ai/browserTools'
 import { Mutex } from 'async-mutex'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { BROWSER_TOOL_NAMES } from '@shared/ai/browserTools'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'

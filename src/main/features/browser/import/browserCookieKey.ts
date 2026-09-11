@@ -2,9 +2,10 @@ import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { platform } from 'node:os'
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import type { BrowserImportSource } from '@shared/ipc/schemas/browserImport'
-import * as z from 'zod'
 
 import { CookieImportError } from './CookieImportError'
 

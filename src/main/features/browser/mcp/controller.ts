@@ -1,11 +1,12 @@
+import { randomUUID } from 'crypto'
 import { once } from 'node:events'
+
+import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
 
 import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { randomUUID } from 'crypto'
-import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
 
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
@@ -113,6 +114,17 @@ export class CdpBrowserController extends BrowserPageController {
     }
   }
 
+  private syncAudioState(windowInfo: WindowInfo) {
+    const windowCanPlayAudio =
+      !windowInfo.window.isDestroyed() && windowInfo.window.isVisible() && !windowInfo.window.isMinimized()
+
+    for (const tab of windowInfo.tabs.values()) {
+      if (!tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.setAudioMuted(!windowCanPlayAudio || tab.id !== windowInfo.activeTabId)
+      }
+    }
+  }
+
   private closeTabInternal(windowInfo: WindowInfo, tabId: string) {
     const tab = windowInfo.tabs.get(tabId)
     if (tab) this.service.closeGuest(tab.view.webContents)
@@ -132,6 +144,7 @@ export class CdpBrowserController extends BrowserPageController {
         this.updateViewBounds(windowInfo)
       }
     }
+    this.syncAudioState(windowInfo)
     this.sendTabBarUpdate(windowInfo)
     if (!windowInfo.tabs.size && !this.creatingTabs) this.closeWindow(windowInfo)
   }
@@ -139,6 +152,7 @@ export class CdpBrowserController extends BrowserPageController {
   private closeContents(guest: Electron.WebContents) {
     if (guest.isDestroyed() || this.closingContents.has(guest)) return
     this.closingContents.add(guest)
+    guest.setAudioMuted(true)
     guest.once('destroyed', () => this.closingContents.delete(guest))
     guest.close({ waitForBeforeUnload: false })
   }
@@ -400,6 +414,11 @@ export class CdpBrowserController extends BrowserPageController {
       windowInfo.tabBarView = tabBarView
 
       window.on('resize', () => this.updateViewBounds(info))
+      const syncAudioState = () => this.syncAudioState(info)
+      window.on('show', syncAudioState)
+      window.on('hide', syncAudioState)
+      window.on('minimize', syncAudioState)
+      window.on('restore', syncAudioState)
 
       logger.info('Created new window', { windowKey, privateMode })
     } else if (showWindow && !windowInfo.window.isDestroyed()) {
@@ -460,6 +479,7 @@ export class CdpBrowserController extends BrowserPageController {
     })
 
     const [width, height] = windowInfo.window.getContentSize()
+    view.webContents.setAudioMuted(true)
     view.webContents.setUserAgent(userAgent)
 
     const windowKey = windowInfo.windowKey
@@ -547,6 +567,7 @@ export class CdpBrowserController extends BrowserPageController {
       this.updateViewBounds(windowInfo)
     }
 
+    this.syncAudioState(windowInfo)
     this.sendTabBarUpdate(windowInfo)
     logger.info('Created new tab', { windowKey, tabId, privateMode })
     try {
@@ -778,6 +799,7 @@ export class CdpBrowserController extends BrowserPageController {
       this.updateViewBounds(windowInfo)
     }
 
+    this.syncAudioState(windowInfo)
     this.touchTab(windowKey, tabId)
     this.sendTabBarUpdate(windowInfo)
     logger.info('Switched active tab', { windowKey, tabId, privateMode })

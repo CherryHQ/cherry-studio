@@ -1,3 +1,6 @@
+import { APICallError } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DEFAULT_DOCUMENT_COUNT } from '@main/utils/knowledge'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -5,8 +8,6 @@ import {
   type KnowledgeBase,
   type KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
-import { APICallError } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   aiRerankMock: vi.fn(),

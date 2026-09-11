@@ -1,6 +1,7 @@
-import { FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+
+import { FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 
 import { FileProcessorIcon } from '../FileProcessorIcon'
 

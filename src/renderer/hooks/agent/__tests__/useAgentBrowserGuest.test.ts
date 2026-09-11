@@ -1,8 +1,9 @@
-// @vitest-environment jsdom
-import { ipcApi } from '@renderer/ipc'
 import { act, renderHook } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import { expect, it, vi } from 'vitest'
+
+// @vitest-environment jsdom
+import { ipcApi } from '@renderer/ipc'
 
 import { useAgentBrowserGuest } from '../useAgentBrowserGuest'
 

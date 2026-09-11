@@ -1,8 +1,10 @@
+import * as z from 'zod'
+
 import type { BrowserToolName } from '@shared/ai/browserTools'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { AgentLanguage } from '@shared/data/types/agentLanguage'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
-import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
 
@@ -38,6 +40,12 @@ export type BrowserToolPermissions = Partial<Record<BrowserToolName, 'ask' | 'al
 export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
 
 export type RetryFallbackModelId = UniqueModelId
+
+/**
+ * Global default Agent reply language (`agent.language`). Human-readable label
+ * ("English", "ไทย"), not an app locale code; null = no constraint injected.
+ */
+export type AgentLanguagePreference = AgentLanguage
 
 export enum SelectionTriggerMode {
   Selected = 'selected',

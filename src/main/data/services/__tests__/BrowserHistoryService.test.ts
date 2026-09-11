@@ -1,8 +1,9 @@
-import { application } from '@application'
-import { browserVisitTable } from '@data/db/schemas/browserVisit'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
+
+import { application } from '@application'
+import { browserVisitTable } from '@data/db/schemas/browserVisit'
 
 import { browserHistoryService } from '../BrowserHistoryService'
 

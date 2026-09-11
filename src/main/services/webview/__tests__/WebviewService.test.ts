@@ -1,10 +1,11 @@
+import type * as FsModule from 'fs'
 import { EventEmitter } from 'node:events'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { application } from '@application'
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
-import type * as FsModule from 'fs'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   getBrowserService,

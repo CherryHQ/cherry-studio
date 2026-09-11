@@ -19,9 +19,10 @@
  * @see https://platform.openai.com/docs/api-reference/responses-streaming
  */
 
+import type { FinishReason, UIMessageChunk } from 'ai'
+
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
-import type { FinishReason, UIMessageChunk } from 'ai'
 
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
@@ -35,7 +36,6 @@ type Response = OpenAI.Responses.Response
 type ResponseStreamEvent = OpenAI.Responses.ResponseStreamEvent
 type ResponseUsage = OpenAI.Responses.ResponseUsage
 type ResponseOutputMessage = OpenAI.Responses.ResponseOutputMessage
-type ResponseOutputText = OpenAI.Responses.ResponseOutputText
 type ResponseFunctionToolCall = OpenAI.Responses.ResponseFunctionToolCall
 type ResponseOutputItem = OpenAI.Responses.ResponseOutputItem
 type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem
@@ -543,7 +543,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
           type: 'output_text',
           text: this.textContent,
           annotations: []
-        } as ResponseOutputText
+        }
       ]
     }
     this.outputItems.set(outputIndex, completedMessage)

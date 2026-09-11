@@ -1,8 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { dataApiService } from '@data/DataApiService'
-import en from '@renderer/i18n/locales/en-us.json'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
@@ -10,6 +7,9 @@ import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
+import en from '@renderer/i18n/locales/en-us.json'
 
 import { WebviewNavigation } from '../WebviewNavigation'
 

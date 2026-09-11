@@ -55,7 +55,7 @@ async function fireEvent(
 ): Promise<HookJSONOutput> {
   const outputs: HookJSONOutput[] = []
   for (const hook of hooksFor(event)) {
-    const out = await hook({ hook_event_name: event, ...payload } as never, undefined, {
+    const out = await hook({ hook_event_name: event, tool_calls: [], ...payload } as never, undefined, {
       signal: new AbortController().signal
     })
     if (Object.keys(out).length > 0) outputs.push(out)

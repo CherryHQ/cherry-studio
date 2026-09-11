@@ -1,6 +1,7 @@
+import { createFileRoute } from '@tanstack/react-router'
+
 import { BrowserPage } from '@renderer/pages/browser/BrowserPage'
 import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
-import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/app/browser')({
   validateSearch: (search): { url: string } => ({

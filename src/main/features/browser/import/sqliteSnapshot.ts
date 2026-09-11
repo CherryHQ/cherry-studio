@@ -1,8 +1,9 @@
 import { chmod, mkdtemp, rm } from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
 import Database from 'better-sqlite3'
+
+import { application } from '@application'
 
 export async function withBrowserSnapshot<T>(
   file: string,
