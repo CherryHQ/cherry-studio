@@ -679,7 +679,9 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 }
 
 function assertSupportedKnowledgeFilePath(filePath: string): void {
-  if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(getFileExt(filePath).toLowerCase())) {
+  const fileName = filePath.split(/[\\/]/).pop() ?? ''
+  const extension = getFileExt(filePath).toLowerCase() || (fileName.startsWith('.') ? fileName.toLowerCase() : '')
+  if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(extension)) {
     throw new Error(`Unsupported knowledge file type: ${filePath}`)
   }
 }

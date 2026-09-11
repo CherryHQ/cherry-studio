@@ -5,10 +5,8 @@ export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
 export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.odt', '.odp', '.ods']
 export const archiveExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz'] as const
-export const knowledgeSupportedFileExts = [
+const knowledgeDocumentFileExts = [
   '.txt',
-  '.py',
-  '.m',
   '.markdown',
   '.md',
   '.mdx',
@@ -193,3 +191,12 @@ export const customTextExts = new Map([
  * The Set ensures there are no duplicates.
  */
 export const textExts = [...new Set([...Array.from(customTextExts.values()).flat(), ...codeLangExts])]
+
+/**
+ * Knowledge bases accept the existing structured document formats plus every
+ * extension the app already classifies as text. Text files use the local
+ * fallback reader and never enter document-to-Markdown processing.
+ */
+export const knowledgeSupportedFileExts = [
+  ...new Set([...knowledgeDocumentFileExts, ...textExts].map((ext) => ext.toLowerCase()))
+]

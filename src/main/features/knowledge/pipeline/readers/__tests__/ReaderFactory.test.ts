@@ -221,7 +221,7 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it.each(['.log', '.py', '.m'])('falls back to TextFileReader for unmatched %s files', async (ext) => {
+  it.each(['.log', '.py', '.m', '.ts', '.yaml'])('falls back to TextFileReader for unmatched %s files', async (ext) => {
     const item = createFileItem(ext)
     const docs = await loadKnowledgeItemDocuments(item)
 
