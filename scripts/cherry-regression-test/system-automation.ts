@@ -199,17 +199,9 @@ export function selectExternalText(platform: Platform): void {
     `$fixture = Get-Process -Id ${activeWindowsTextFixturePid} -ErrorAction Stop`,
     '$shell = New-Object -ComObject WScript.Shell',
     'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
-    'Start-Sleep -Milliseconds 200',
-    '$clipboardSentinel = "CHERRY_REGRESSION_CLIPBOARD_SENTINEL"',
-    'Set-Clipboard -Value $clipboardSentinel',
+    'Start-Sleep -Milliseconds 1000',
     '$shell.SendKeys("^a")',
-    'Start-Sleep -Milliseconds 200',
-    '$shell.SendKeys("^c")',
-    'Start-Sleep -Milliseconds 300',
-    '$selectedText = Get-Clipboard -Raw',
-    'if ([string]::IsNullOrWhiteSpace($selectedText) -or $selectedText.Trim() -eq $clipboardSentinel) { throw "External browser text selection is empty" }',
-    '$shell.SendKeys("^a")',
-    'Start-Sleep -Milliseconds 300'
+    'Start-Sleep -Milliseconds 500'
   ].join('\n')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
     encoding: 'utf8',

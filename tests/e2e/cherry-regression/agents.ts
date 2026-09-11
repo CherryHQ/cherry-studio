@@ -29,9 +29,8 @@ export async function startNewAgentTask(page: Page, name: string): Promise<void>
 }
 
 export async function createAgent(
-  app: RegressionApp,
   page: Page,
-  options: { name: string; runtime: string; permission?: string }
+  options: { name: string; runtime: string; model: string; permission?: string }
 ): Promise<void> {
   await selectSidebarApp(page, 'Work')
   const agentView = page.locator('[data-ui="agent.view"]:visible').first()
@@ -56,7 +55,7 @@ export async function createAgent(
     await dialog.getByText(options.permission, { exact: true }).last().click()
   }
   await dialog.getByRole('button', { name: 'Model', exact: true }).click()
-  await selectVisibleModel(page, app.config.cherryIn.chatModel)
+  await selectVisibleModel(page, options.model)
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()
   await dialog.getByRole('button', { name: 'Next', exact: true }).click()

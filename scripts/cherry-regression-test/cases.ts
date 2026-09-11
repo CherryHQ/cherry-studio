@@ -98,8 +98,8 @@ export const REGRESSION_CASES: RegressionCase[] = [
   },
   {
     id: 'A-01',
-    title: '默认 Agent 完成 PPT 任务',
-    task: 'agent-ppt',
+    title: '默认 Agent 完成基础文件任务',
+    task: 'agent-basic-task',
     profile: 'authenticated',
     modes: [...modes]
   }

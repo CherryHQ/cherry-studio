@@ -37,7 +37,7 @@ on:
           - claude-agent-runtime
           - pi-runtime
           - deepseek-harness-runtime
-          - agent-ppt
+          - agent-basic-task
 
 permissions:
   contents: read
@@ -397,10 +397,10 @@ jobs:
           [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
           pnpm test:e2e:regression "${args[@]}"
 
-      - name: Phase 10 - Agent Runtimes and PPT
+      - name: Phase 10 - Agent Runtimes
         if: >-
           !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime' || needs.resolve.outputs.task == 'pi-runtime' || needs.resolve.outputs.task == 'deepseek-harness-runtime' || needs.resolve.outputs.task == 'agent-ppt')
+          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime' || needs.resolve.outputs.task == 'pi-runtime' || needs.resolve.outputs.task == 'deepseek-harness-runtime' || needs.resolve.outputs.task == 'agent-basic-task')
         continue-on-error: true
         timeout-minutes: 55
         shell: bash

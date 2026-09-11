@@ -26,7 +26,6 @@ test('[M-02] 配置自定义聊天服务商并完成聊天 @custom-provider-chat
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await page.getByRole('button', { name: 'Model Provider', exact: true }).click()
   await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
 })
 

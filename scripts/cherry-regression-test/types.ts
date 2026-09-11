@@ -21,7 +21,7 @@ export const TASK_IDS = [
   'claude-agent-runtime',
   'pi-runtime',
   'deepseek-harness-runtime',
-  'agent-ppt'
+  'agent-basic-task'
 ] as const
 export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
 
