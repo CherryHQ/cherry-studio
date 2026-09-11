@@ -365,9 +365,11 @@ describe('searchSkills', () => {
 
     await vi.advanceTimersByTimeAsync(1)
     await rejected
-    expect(
-      signals.every((signal) => signal.reason instanceof DOMException && signal.reason.name === 'AbortError')
-    ).toBe(true)
+    // Node's AbortController and jsdom's DOMException can belong to different realms.
+    for (const signal of signals) {
+      expect(signal.aborted).toBe(true)
+      expect(signal.reason).toMatchObject({ name: 'AbortError', code: DOMException.ABORT_ERR })
+    }
     expect(vi.getTimerCount()).toBe(0)
   })
 
