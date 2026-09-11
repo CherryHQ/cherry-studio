@@ -70,10 +70,18 @@ function loadState(scopeKey: string): FollowupQueueState {
           return true
         })
       : []
+    // Drop a failure marker for an item that is no longer queued (e.g. a skip whose
+    // follow-up drain settled before the failure reset committed); otherwise the
+    // restored queue would stay paused with no visible banner to resolve it.
+    const failedItemId =
+      typeof raw.failedItemId === 'string' &&
+      (items as Array<{ id?: unknown }>).some((entry) => entry.id === raw.failedItemId)
+        ? (raw.failedItemId as string)
+        : undefined
     return {
       items: items as unknown as FollowupQueueItem[],
       paused: raw.paused === true,
-      failedItemId: typeof raw.failedItemId === 'string' && raw.failedItemId.length > 0 ? raw.failedItemId : undefined
+      failedItemId
     }
   } catch {
     return { items: [], paused: false }
@@ -608,6 +616,7 @@ export function useFollowupQueue({
     if (!failed || drainingIdRef.current !== null) return
     const remaining = stateRef.current.items.filter((item) => item.id !== failed)
     setFailedItemId(null)
+    failedItemIdRef.current = null
     const next = { items: remaining, paused: false }
     persist(next, null)
     setState(next)

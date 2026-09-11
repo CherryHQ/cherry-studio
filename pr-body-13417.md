@@ -13,7 +13,7 @@ Closes out the remaining gaps of #13417 (Message Queue for Agent & Chat). The co
 - **Skip/Retry/Abort as an in-dock banner** instead of a modal prompt: the queue dock already owns the failed head's context (preview + actions), so a compact banner keeps the interaction local, and the queue stays fully visible while the user decides. The three actions map 1:1 to the spec's Skip / Retry / Abort.
 - **Persist tier over casual cache**: `usePersistCache`-backed keys are the repo's established restart-persistent tier (same as `ui.composer.input_history`); the queue's serialized payloads (`ComposerQueuedMessagePayload`, loosely typed in shared) are already JSON-safe.
 - **`ReorderableList.visibleItems` for collapse**: the UI package already supports rendering a subset while mapping drag positions back into the full list (`reorderVisibleSubset`), so collapsed dragging cannot lose items.
-- The drain effect reads paused/failure state through refs to avoid effect re-runs and stale-state races; `removeId` resolves a failed head atomically inside one state updater.
+- The drain effect reads paused/failure state through refs to avoid effect re-runs and stale-state races; mutations sync `stateRef`/`failedItemIdRef` synchronously alongside `setState`, and a drain-epoch token invalidates late-settling drains after clear/remove/scope-switch.
 
 Tradeoffs: `failedItemId` is persisted alongside the queue (survives restart), so a failure banner reappears after reload; if the failed item is removed externally the queue auto-unpauses and resumes. The expand state is view-local (resets when the queue empties).
 
