@@ -6,7 +6,6 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import type { WindowId } from '@shared/ipc/types'
 
 import { describeOAuthError, OAuthServiceError, OAuthSignInCancelledError, OAuthTransientError } from '../errors'
-import { DeepLinkCallbackTransport } from './DeepLinkCallbackTransport'
 import { LoopbackCallbackTransport } from './LoopbackCallbackTransport'
 import { ProviderAuthConfigOAuthTokenStore } from './OAuthTokenStore'
 import { OAuthHttpError } from './PkceOAuthClient'
@@ -61,7 +60,6 @@ export class OAuthRuntimeService extends BaseService {
   private readonly tokenStore: OAuthTokenStore = new ProviderAuthConfigOAuthTokenStore()
   private readonly definitions = oauthProviderDefinitions
   private readonly transports = new Map<string, LoopbackCallbackTransport>()
-  private readonly deepLinkTransports = new Map<string, DeepLinkCallbackTransport>()
   private readonly refreshPromises = new Map<string, Promise<RefreshResult>>()
   private readonly activeSignIns = new Map<string, ActiveSignIn>()
   private stopping = false
@@ -93,10 +91,6 @@ export class OAuthRuntimeService extends BaseService {
       transport.close()
     }
     this.transports.clear()
-    for (const transport of this.deepLinkTransports.values()) {
-      transport.close()
-    }
-    this.deepLinkTransports.clear()
 
     this.teardownPromise = Promise.allSettled(activePromises).then(() => {
       this.refreshPromises.clear()
@@ -117,27 +111,10 @@ export class OAuthRuntimeService extends BaseService {
   }
 
   private getLoopbackTransport(definition: OAuthRuntimeProviderDefinition): LoopbackCallbackTransport {
-    if (definition.transport.type !== 'loopback') {
-      throw new OAuthServiceError(`OAuth provider does not support loopback sign-in: ${definition.providerId}`)
-    }
-
     let transport = this.transports.get(definition.providerId)
     if (!transport) {
-      transport = new LoopbackCallbackTransport(definition.transport.config)
+      transport = new LoopbackCallbackTransport(definition.transport)
       this.transports.set(definition.providerId, transport)
-    }
-    return transport
-  }
-
-  private getDeepLinkTransport(definition: OAuthRuntimeProviderDefinition): DeepLinkCallbackTransport {
-    if (definition.transport.type !== 'deep-link') {
-      throw new OAuthServiceError(`OAuth provider does not support deep-link sign-in: ${definition.providerId}`)
-    }
-
-    let transport = this.deepLinkTransports.get(definition.providerId)
-    if (!transport) {
-      transport = new DeepLinkCallbackTransport(definition.transport.config)
-      this.deepLinkTransports.set(definition.providerId, transport)
     }
     return transport
   }
@@ -310,58 +287,6 @@ export class OAuthRuntimeService extends BaseService {
       await activeSignIn.promise
     } catch (error) {
       if (!(error instanceof OAuthSignInCancelledError)) throw error
-    }
-  }
-
-  public startDeepLinkFlow = async (
-    initiatorWindowId: WindowId | null,
-    providerId: string,
-    context: OAuthRuntimeProviderContext = {}
-  ): Promise<{ authUrl: string; state: string }> => {
-    if (!initiatorWindowId) {
-      throw new OAuthServiceError('OAuth flow initiator is not a managed window')
-    }
-    const definition = this.getDefinition(providerId)
-    const transport = this.getDeepLinkTransport(definition)
-    const client = await definition.createClient(context)
-    const { authUrl, state, codeVerifier } = client.createAuthorizationRequest()
-    return transport.registerAuthorizationRequest(authUrl, state, codeVerifier, initiatorWindowId, context)
-  }
-
-  public handleDeepLinkCallback = async (url: URL): Promise<void> => {
-    for (const [providerId, transport] of this.deepLinkTransports.entries()) {
-      const definition = this.getDefinition(providerId)
-      if (definition.transport.type !== 'deep-link') continue
-
-      const state = url.searchParams.get('state')
-      const initiatorWindowId = state ? transport.getInitiatorWindowId(state) : null
-
-      try {
-        const callback = transport.consumeCallback(url)
-        if (!callback) continue
-
-        const client = await definition.createClient(callback.context)
-        const tokenData = await client.exchangeCode(callback.code, callback.codeVerifier)
-        // Persist before the side-effect fetch (CherryIN's API-key pull): the
-        // auth code is spent, so a transient key-fetch failure must not throw
-        // away a valid token and force the user through the whole flow again.
-        await this.persistTokens(definition, tokenData)
-        const sideEffectResult = await definition.afterPersistTokens?.(tokenData, callback.context)
-        providerService.update(providerId, { isEnabled: true })
-        transport.sendConsumedResult(callback.state, callback.initiatorWindowId, {
-          apiKeys: sideEffectResult?.apiKeys ?? ''
-        })
-        this.logger.info(`${providerId} deep-link sign-in succeeded`)
-        return
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        this.logger.error(`${providerId} deep-link callback failed`, describeOAuthError(error))
-        if (state && initiatorWindowId) {
-          transport.sendConsumedResult(state, initiatorWindowId, { error: message })
-          return
-        }
-        throw error instanceof OAuthServiceError ? error : new OAuthServiceError(message, error)
-      }
     }
   }
 

@@ -10,7 +10,6 @@ const {
   mainWindowServiceMock,
   mcpServerServiceMock,
   openSettingsInMainWindowMock,
-  oauthRuntimeServiceMock,
   platformMock,
   windowManagerMock
 } = vi.hoisted(() => {
@@ -39,9 +38,6 @@ const {
     createMany: vi.fn()
   }
   const openSettingsInMainWindowMock = vi.fn()
-  const oauthRuntimeServiceMock = {
-    handleDeepLinkCallback: vi.fn()
-  }
   const platformMock = {
     isLinux: false,
     isPortable: false,
@@ -60,7 +56,6 @@ const {
     mainWindowServiceMock,
     mcpServerServiceMock,
     openSettingsInMainWindowMock,
-    oauthRuntimeServiceMock,
     platformMock,
     windowManagerMock
   }
@@ -83,7 +78,6 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'IpcApiService') return ipcApiServiceMock
       if (name === 'MainWindowService') return mainWindowServiceMock
-      if (name === 'OAuthRuntimeService') return oauthRuntimeServiceMock
       if (name === 'WindowManager') return windowManagerMock
       throw new Error(`unexpected service: ${name}`)
     },
@@ -150,7 +144,6 @@ describe('ProtocolService', () => {
     platformMock.isLinux = false
     platformMock.isPortable = false
     platformMock.isWin = false
-    oauthRuntimeServiceMock.handleDeepLinkCallback.mockResolvedValue(undefined)
     service = new ProtocolService()
   })
 
@@ -413,13 +406,22 @@ describe('ProtocolService', () => {
       await markProtocolHandlingReady()
       const handler = getSecondInstanceHandler()
 
-      handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=abc'])
+      handler({}, ['/path/to/electron', '.', 'cherrystudio://navigate/agents'])
 
       expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
-      expect(oauthRuntimeServiceMock.handleDeepLinkCallback).toHaveBeenCalledTimes(1)
-      const url = oauthRuntimeServiceMock.handleDeepLinkCallback.mock.calls[0][0] as URL
-      expect(url.href).toBe('cherrystudio://oauth/callback?code=abc')
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledWith(new URL('cherrystudio://navigate/agents'))
       expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+    })
+
+    it('discards retired OAuth callbacks without broadcasting their authorization codes', async () => {
+      await (service as any).onInit()
+      await markProtocolHandlingReady()
+      const handler = getSecondInstanceHandler()
+
+      handler({}, ['/path/to/electron', '.', 'cherrystudio://oauth/callback?code=private-code&state=old-state'])
+
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+      expect(mainWindowServiceMock.showMainWindow).not.toHaveBeenCalled()
     })
 
     it('surfaces the main window when argv has no protocol URL', async () => {

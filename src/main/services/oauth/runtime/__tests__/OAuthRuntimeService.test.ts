@@ -28,13 +28,6 @@ const h = vi.hoisted(() => {
         .mockResolvedValue('auth-code'),
       close: vi.fn()
     },
-    deepLinkTransportMock: {
-      registerAuthorizationRequest: vi.fn(() => ({ authUrl: 'https://auth/x', state: 'st' })),
-      consumeCallback: vi.fn(),
-      getInitiatorWindowId: vi.fn(() => 'win-1'),
-      sendConsumedResult: vi.fn(),
-      close: vi.fn()
-    },
     providerServiceMock: {
       getAuthConfig: vi.fn((id: string) => providerStore.get(id)?.authConfig ?? null),
       update: vi.fn((id: string, patch: Record<string, unknown>) => {
@@ -57,30 +50,18 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { WhenReady: 'whenReady' }
 }))
 vi.mock('electron', () => ({ shell: { openExternal: vi.fn() }, net: { fetch: vi.fn() } }))
-vi.mock('@application', () => ({ application: { get: vi.fn() } }))
 vi.mock('../LoopbackCallbackTransport', () => ({
   LoopbackCallbackTransport: vi.fn(function LoopbackCallbackTransportMock() {
     return h.transportMock
   })
 }))
-vi.mock('../DeepLinkCallbackTransport', () => ({
-  DeepLinkCallbackTransport: vi.fn(function DeepLinkCallbackTransportMock() {
-    return h.deepLinkTransportMock
-  })
-}))
-
-// codex = OAuth-only loopback (clear disables); cherryin = deep-link with a
-// manual API-key fallback (clear must NOT disable). Both share the fake client.
 vi.mock('../providerDefinitions', () => ({
   oauthProviderDefinitions: {
     codex: {
       providerId: 'codex',
       clientId: 'codex-client',
       clearDisablesProvider: true,
-      transport: {
-        type: 'loopback',
-        config: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' }
-      },
+      transport: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' },
       createClient: (context?: { signal?: AbortSignal }) => h.createClientMock(context),
       extractAccountId: () => null,
       afterPersistTokens: (tokenData: unknown, context: unknown) => h.afterPersistMock(tokenData, context)
@@ -88,7 +69,7 @@ vi.mock('../providerDefinitions', () => ({
     cherryin: {
       providerId: 'cherryin',
       clientId: 'cherryin-client',
-      transport: { type: 'deep-link', config: { redirectUri: 'app://cb' } },
+      transport: { hosts: ['127.0.0.1'], port: 0, path: '/cb', redirectUri: 'http://127.0.0.1/cb' },
       createClient: () => h.clientMock,
       afterPersistTokens: (tokenData: unknown, context: unknown) => h.afterPersistMock(tokenData, context)
     }
@@ -563,77 +544,5 @@ describe('OAuthRuntimeService', () => {
     service.initializeForTest()
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' })
     await expect(service.signIn('win-1', 'codex', 'restart-request')).resolves.toEqual({ accountId: null })
-  })
-
-  it('handleDeepLinkCallback exchanges, persists, and notifies the initiator', async () => {
-    await service.startDeepLinkFlow('win-1', 'cherryin', {})
-    h.deepLinkTransportMock.consumeCallback.mockReturnValue({
-      code: 'c',
-      codeVerifier: 'v',
-      state: 'st',
-      initiatorWindowId: 'win-1',
-      context: {}
-    })
-    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
-
-    await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
-
-    expect(h.providerStore.get('cherryin')?.authConfig).toMatchObject({ accessToken: 'at' })
-    expect(h.providerServiceMock.update).toHaveBeenCalledWith('cherryin', { isEnabled: true })
-    expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { apiKeys: '' })
-  })
-
-  it('handleDeepLinkCallback reports an exchange failure to the initiator', async () => {
-    await service.startDeepLinkFlow('win-1', 'cherryin', {})
-    h.deepLinkTransportMock.consumeCallback.mockReturnValue({
-      code: 'c',
-      codeVerifier: 'v',
-      state: 'st',
-      initiatorWindowId: 'win-1',
-      context: {}
-    })
-    h.clientMock.exchangeCode.mockRejectedValue(new Error('boom'))
-
-    await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
-
-    expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { error: 'boom' })
-  })
-
-  // User-denies path: the transport throws while consuming (error param in the
-  // callback), which also deletes the pending flow. The initiator window id is
-  // read BEFORE consume, so the initiator is still notified of the failure.
-  it('notifies the initiator when the callback is a denied/error redirect', async () => {
-    await service.startDeepLinkFlow('win-1', 'cherryin', {})
-    h.deepLinkTransportMock.consumeCallback.mockImplementation(() => {
-      throw new Error('User denied access')
-    })
-
-    await service.handleDeepLinkCallback(new URL('app://cb?state=st&error=access_denied'))
-
-    expect(h.deepLinkTransportMock.getInitiatorWindowId).toHaveBeenCalledWith('st')
-    expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', {
-      error: 'User denied access'
-    })
-  })
-
-  // M1: the post-persist side effect (CherryIN's API-key fetch) runs AFTER the
-  // token is stored, so a transient failure there keeps the minted token rather
-  // than discarding it and forcing the user through the whole flow again.
-  it('keeps the persisted token when the post-persist side effect fails', async () => {
-    await service.startDeepLinkFlow('win-1', 'cherryin', {})
-    h.deepLinkTransportMock.consumeCallback.mockReturnValue({
-      code: 'c',
-      codeVerifier: 'v',
-      state: 'st',
-      initiatorWindowId: 'win-1',
-      context: {}
-    })
-    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
-    h.afterPersistMock.mockRejectedValue(new Error('key fetch 503'))
-
-    await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
-
-    expect(h.providerStore.get('cherryin')?.authConfig).toMatchObject({ accessToken: 'at' })
-    expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { error: 'key fetch 503' })
   })
 })

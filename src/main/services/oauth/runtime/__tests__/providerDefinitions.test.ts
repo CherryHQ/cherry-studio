@@ -121,7 +121,7 @@ describe('CherryIN HTTP callback contract', () => {
     expect(url.searchParams.get('redirect_uri')).toBe('http://127.0.0.1:29873/oauth/callback')
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     expect(request.state).not.toBe('')
-    expect(cherryInOAuthProvider.transport.config).toMatchObject({
+    expect(cherryInOAuthProvider.transport).toMatchObject({
       hosts: ['127.0.0.1'],
       port: 29873,
       path: '/oauth/callback'

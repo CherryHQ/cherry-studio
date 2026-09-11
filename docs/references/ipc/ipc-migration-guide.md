@@ -76,7 +76,6 @@ Classify each push call site by destination before moving it:
 | **A** typed event | IpcApi `broadcast`/`broadcastToType`/`send` + `useIpcOn` | window lifecycle/state, theme, selection, adapter notifications, update progress |
 | **B** topic stream | service-held listener + directed `send` | AI streams and `file.tree.mutation`; preserve batching and per-topic attachment |
 | **C** infrastructure | **not collected** | `Preference_Changed`, `Cache_Sync`, and `DataApi_DataChanged` stay in their subsystems |
-| **D** special addressing | remember `ctx.senderId`, then use directed `send` | OAuth or another async flow that must reply to its initiating window |
 
 ### Class examples (before → after)
 
@@ -96,12 +95,11 @@ useIpcOn('ai.stream.chunk', ({ topicId, chunk }) => { if (topicId === current) a
 const [theme] = usePreference('app.theme')
 const [pos] = useSharedCache('scroll.position.x')
 
-// D — special addressing (deep-link OAuth result): reply only to the initiator window
-export type OAuthEventSchemas = { 'oauth.deep_link_result': { ok: boolean; apiKeys?: ApiKey[]; error?: string } }
-'oauth.start_deep_link_flow': (req, { senderId }) => oauth.begin(req, senderId) // remember initiator WindowId
-application.get('IpcApiService').send(savedSenderId, 'oauth.deep_link_result', { ok: true, apiKeys }) // no-op if the window is gone
-useIpcOn('oauth.deep_link_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showError(r.error)))
 ```
+
+For an asynchronous event addressed to its initiating window, capture `ctx.senderId`
+in the owning service and use directed `IpcApiService.send`. This is a class-A
+typed event; the service owns its recipient selection.
 
 ## Escape Hatch — When a Channel May Stay Out
 
