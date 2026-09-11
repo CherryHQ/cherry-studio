@@ -1,7 +1,8 @@
-import type { DanglingState, FileEntryOrigin } from '@shared/data/types/file'
-import type { FileType } from '@shared/types/file'
 import { File, FileCode, FileText, Image as ImageIcon, Music, Video } from 'lucide-react'
 import type { FC } from 'react'
+
+import type { DanglingState, FileEntryOrigin } from '@shared/data/types/file'
+import type { FileType } from '@shared/types/file'
 
 type FileItemCore = {
   id: string

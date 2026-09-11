@@ -1,11 +1,12 @@
 import crypto from 'node:crypto'
 
-import { BaseService } from '@main/core/lifecycle'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 const mcpCatalogMock = vi.hoisted(() => ({
   clearSharedToolsCache: vi.fn(),
@@ -72,9 +73,9 @@ const mcpSdkMock = vi.hoisted(() => {
   }
   const clients: Array<{
     connectCalls: Array<{ kind: string }>
-    close: ReturnType<typeof vi.fn>
-    listPrompts: ReturnType<typeof vi.fn>
-    listResources: ReturnType<typeof vi.fn>
+    close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    listPrompts: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    listResources: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }> = []
   class Client {
     setNotificationHandler = vi.fn()
@@ -170,9 +171,8 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
   StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
-const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
-  '../McpRuntimeService'
-)
+const { McpRuntimeService, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } =
+  await import('../McpRuntimeService')
 
 /** Build the JSON server key shape the service uses internally (only `id` is read by close logic). */
 function serverKeyFor(id: string): string {
@@ -317,13 +317,13 @@ describe('McpRuntimeService QVeris hosted transport', () => {
       name: BuiltinMcpServerNames.qveris,
       env: { QVERIS_API_KEY: 'first-key' },
       isActive: true
-    } as McpServer)
+    })
     const second = service.getServerKey({
       id: 'qveris-server',
       name: BuiltinMcpServerNames.qveris,
       env: { QVERIS_API_KEY: 'second-key' },
       isActive: true
-    } as McpServer)
+    })
 
     expect(first).not.toContain('first-key')
     expect(second).not.toContain('second-key')
@@ -976,7 +976,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     getByIdMock.mockReset()
     mcpCatalogMock.clearSharedToolsCache.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
-    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true } as McpServer)
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true })
   })
 
   // listTools is cache-only, so a failed restart must clear the shared tools cache —
@@ -1019,7 +1019,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
       type,
       baseUrl: 'https://mcp.actuary.meridianbridgegroup.com/mcp',
       isActive: true
-    } as unknown as McpServer
+    }
   }
 
   type MockClient = InstanceType<typeof mcpSdkMock.Client>
@@ -1273,7 +1273,7 @@ describe('McpRuntimeService prompt/resource capability gate', () => {
   })
 
   function stdioServer(id: string): McpServer {
-    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true }
   }
 
   it('never sends prompts/list or resources/list to a server declaring neither capability', async () => {
@@ -1319,7 +1319,7 @@ describe('McpRuntimeService list pagination', () => {
   })
 
   function stdioServer(id: string): McpServer {
-    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true }
   }
 
   it('follows the resources cursor so the model sees every page, not just the first', async () => {

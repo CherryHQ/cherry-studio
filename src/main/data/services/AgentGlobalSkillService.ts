@@ -1,3 +1,5 @@
+import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
@@ -20,7 +22,6 @@ import {
   type ListSkillsQuery,
   SKILL_LIST_MEMBERSHIP_DIMENSIONS
 } from '@shared/data/api/schemas/skills'
-import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
 
 /**
  * DataApi service for the `agent_global_skill` and `agent_skill` join tables.

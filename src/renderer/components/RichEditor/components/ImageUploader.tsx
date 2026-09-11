@@ -1,3 +1,7 @@
+import { ImageUp, Link, LoaderCircle, UploadCloud } from 'lucide-react'
+import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -13,9 +17,6 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
-import { ImageUp, Link, LoaderCircle, UploadCloud } from 'lucide-react'
-import React, { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('RichEditorImageUploader')
 
@@ -154,10 +155,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                 <div className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
                   {loading ? <LoaderCircle className="size-5 animate-spin" /> : <ImageUp className="size-5" />}
                 </div>
-                <div className="font-medium text-sm">
+                <div className="text-sm font-medium">
                   {loading ? t('richEditor.imageUploader.uploading') : t('richEditor.imageUploader.uploadText')}
                 </div>
-                <div className="text-muted-foreground text-xs">
+                <div className="text-xs text-muted-foreground">
                   {loading ? t('richEditor.imageUploader.processing') : t('richEditor.imageUploader.uploadHint')}
                 </div>
               </div>
@@ -167,7 +168,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
           <TabsContent value="url" className="pt-2">
             <div className="flex items-center justify-center gap-3">
               <div className="relative flex-1">
-                <Link className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                <Link className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder={t('richEditor.imageUploader.urlPlaceholder')}
                   value={urlInput}

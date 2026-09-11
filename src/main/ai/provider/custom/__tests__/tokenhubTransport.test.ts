@@ -1,5 +1,6 @@
-import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
+
+import { PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
 import { createTokenhubTransport, TokenhubApiError, TokenhubTaskFailedError } from '../tokenhub/tokenhubTransport'
@@ -146,10 +147,7 @@ describe('TokenhubTransport', () => {
     await transport.submit({ ...baseInput, modelId: 'hy-image-v3', modelDescriptor: HUNYUAN, prompt: 'x' })
 
     expect(globalFetch).not.toHaveBeenCalled()
-    const headers = lastRequest(providerFetch as unknown as MockInstance<typeof fetch>).init.headers as Record<
-      string,
-      string
-    >
+    const headers = lastRequest(providerFetch).init.headers as Record<string, string>
     expect(headers['X-App']).toBe('cherry')
     expect(headers.Authorization).toBe('Bearer token')
   })
