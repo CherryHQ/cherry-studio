@@ -1656,7 +1656,38 @@ export default function ComposerSurfaceRuntime({
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = (view.dom as TiptapEditorHTMLElement).editor
+      const selection = editor?.state.selection
+      const replacementSelection =
+        selection && !selection.empty ? { from: selection.from, to: selection.to } : undefined
+      const filePasteLifecycle = {
+        beforeAddFiles: () => {
+          if (!editor || editor.isDestroyed || !editor.isEditable || !replacementSelection) return
+          const currentSelection = editor.state.selection
+          if (
+            currentSelection.empty ||
+            currentSelection.from !== replacementSelection.from ||
+            currentSelection.to !== replacementSelection.to
+          ) {
+            return
+          }
+          // Wait until at least one file is accepted. Eager deletion would lose the selected draft
+          // when the clipboard file is unsupported or its import fails.
+          editor.commands.deleteSelection()
+        }
+      }
+      const shouldPreferClipboardImage = hasSupportedClipboardImage(
+        Array.from(event.clipboardData?.files ?? []),
+        supportedExts
+      )
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
+      // A clipboard screenshot is a file payload even when the browser also exposes a text
+      // flavor. Route it through the file lifecycle before prompt-variable editing so the image
+      // cannot be consumed as plain text by a selected token.
+      if (shouldPreferClipboardImage) {
+        event.preventDefault()
+        void handlePaste(event, filePasteLifecycle)
+        return true
+      }
       if (editor && selectedPromptVariable && pastedText) {
         event.preventDefault()
         const limitedPastedText = getComposerInputTextWithinLimit(
@@ -1678,14 +1709,10 @@ export default function ComposerSurfaceRuntime({
       )
       if (shouldDelegateLongTextPaste) {
         event.preventDefault()
-        void handlePaste(event)
+        void handlePaste(event, filePasteLifecycle)
         return true
       }
 
-      const shouldPreferClipboardImage = hasSupportedClipboardImage(
-        Array.from(event.clipboardData?.files ?? []),
-        supportedExts
-      )
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
@@ -1719,12 +1746,6 @@ export default function ComposerSurfaceRuntime({
         }
       }
 
-      if (shouldPreferClipboardImage) {
-        event.preventDefault()
-        void handlePaste(event)
-        return true
-      }
-
       const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
         inlineLongText: !shouldDelegateLongTextPaste,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
@@ -1745,11 +1766,11 @@ export default function ComposerSurfaceRuntime({
 
       if (!pastedText && hasClipboardFiles(event.clipboardData)) {
         event.preventDefault()
-        void handlePaste(event)
+        void handlePaste(event, filePasteLifecycle)
         return true
       }
 
-      void handlePaste(event)
+      void handlePaste(event, filePasteLifecycle)
       return false
     },
     [

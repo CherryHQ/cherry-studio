@@ -32,6 +32,19 @@ let lastFocusedComponent: ComponentType = 'inputbar' // Default to inputbar
 // 处理函数类型
 type PasteHandler = (event: ClipboardEvent) => Promise<boolean>
 
+export interface PasteHandlerLifecycle {
+  beforeAddFiles?: () => void
+}
+
+export interface PasteHandlingOptions extends PasteHandlerLifecycle {
+  setText?: (text: string) => void
+  pasteLongTextAsFile?: boolean
+  pasteLongTextThreshold?: number
+  text?: string
+  resizeTextArea?: () => void
+  t?: (key: string) => string
+}
+
 // 处理函数存储
 const handlers: {
   inputbar?: PasteHandler
@@ -49,13 +62,16 @@ export const handlePaste = async (
   event: ClipboardEvent,
   supportExts: string[],
   setFiles: (updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => void,
-  setText?: (text: string) => void,
-  pasteLongTextAsFile?: boolean,
-  pasteLongTextThreshold?: number,
-  text?: string,
-  resizeTextArea?: () => void,
-  t?: (key: string) => string
+  options: PasteHandlingOptions = {}
 ): Promise<boolean> => {
+  const { beforeAddFiles, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, setText, t, text } = options
+  let preparedFileInsertion = false
+  const prepareFileInsertion = () => {
+    if (preparedFileInsertion) return
+    preparedFileInsertion = true
+    beforeAddFiles?.()
+  }
+
   try {
     const clipboardFiles = Array.from(event.clipboardData?.files ?? [])
     // Windows screenshot clipboards can expose both a text flavor and image bytes. Prefer the
@@ -82,8 +98,12 @@ export const handlePaste = async (
             origin_name: t?.('chat.input.pasted_text_file_name') ?? selectedFile.origin_name,
             composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
           }
+          prepareFileInsertion()
           setFiles((prevFiles) => [...prevFiles, toComposerAttachment(pastedTextFile)])
-          if (setText && text) setText(text) // 保持输入框内容不变
+          // A lifecycle callback may have replaced the selected draft before the attachment is
+          // appended. Replaying the text captured before that async work would restore the deleted
+          // selection (and flatten managed tokens back into plain prompt text).
+          if (!beforeAddFiles && setText && text) setText(text) // 保持全局粘贴的输入框内容不变
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         }
         return true
@@ -125,6 +145,7 @@ export const handlePaste = async (
           }
 
           if (attachments.length > 0) {
+            prepareFileInsertion()
             setFiles((prevFiles) => [...prevFiles, ...attachments])
           }
           if (hasFileError && t) {
@@ -144,6 +165,7 @@ export const handlePaste = async (
               await window.api.file.write(tempFilePath, uint8Array)
               const selectedFile = await window.api.file.get(tempFilePath)
               if (selectedFile) {
+                prepareFileInsertion()
                 setFiles((prevFiles) => [
                   ...prevFiles,
                   toComposerAttachment({
@@ -163,6 +185,7 @@ export const handlePaste = async (
 
           const result = await readPathBackedClipboardEntry(filePath, extensionSet)
           if (result.kind === 'attachment') {
+            prepareFileInsertion()
             setFiles((prevFiles) => [...prevFiles, result.attachment])
           } else if (result.kind === 'unsupported' && t) {
             toast.info(t('chat.input.file_not_supported'))
