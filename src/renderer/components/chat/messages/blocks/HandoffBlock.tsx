@@ -1,8 +1,9 @@
+import { ArrowRight, ExternalLink } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button } from '@cherrystudio/ui'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import type { HandoffPartData } from '@shared/data/types/uiParts'
-import { ArrowRight, ExternalLink } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 export default function HandoffBlock({
   data,

@@ -1,3 +1,5 @@
+import { type FileUIPart, isToolUIPart } from 'ai'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
@@ -8,7 +10,6 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { HandoffDraftOpen, HandoffDraftOpenResponse } from '@shared/ipc/schemas/ai'
 import { isNonChatModel } from '@shared/utils/model'
 import { isExternalCliProvider } from '@shared/utils/provider'
-import { type FileUIPart, isToolUIPart } from 'ai'
 
 import { resolveOutputReservation } from '../contextBuild/resolveOutputReservation'
 import { conversationPartEvidence } from '../messages/conversationEvidence'

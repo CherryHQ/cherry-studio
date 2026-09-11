@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -6,9 +10,6 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { messageService } from '@data/services/MessageService'
 import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { topicService } from '@data/services/TopicService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainFileManagerExport } from '@test-mocks/main/FileManager'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { findPersistedToolOutput } from '../persistedToolOutput'
 import { readAllConversationMessages, readConversation } from '../readConversation'

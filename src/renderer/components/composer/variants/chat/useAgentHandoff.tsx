@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Checkbox,
@@ -22,8 +25,6 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { HandoffDraftOpenResponse, HandoffStart, HandoffStartResponse } from '@shared/ipc/schemas/ai'
 import { isNonChatModel } from '@shared/utils/model'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { findAgentHandoffToken, getAgentHandoffTokenPayload } from './agentHandoffToken'
 

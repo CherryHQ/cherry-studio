@@ -1,11 +1,12 @@
-import { serializeComposerDocument } from '@renderer/components/composer/composerDraft'
-import type { ComposerSuggestionSource } from '@renderer/components/composer/quickPanel'
-import { useAgents } from '@renderer/hooks/agent/useAgent'
-import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import type { Editor } from '@tiptap/core'
 import { Bot } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { serializeComposerDocument } from '@renderer/components/composer/composerDraft'
+import type { ComposerSuggestionSource } from '@renderer/components/composer/quickPanel'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 
 import { createAgentHandoffToken, isAgentHandoffToken } from './agentHandoffToken'
 

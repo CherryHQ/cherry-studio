@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { messageService } from '@data/services/MessageService'
@@ -8,7 +10,6 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import { AgentSessionMessagesListQuerySchema } from '@shared/data/api/schemas/agentSessionMessages'
 import { BranchMessagesQuerySchema } from '@shared/data/api/schemas/messages'
 import type { Message } from '@shared/data/types/message'
-import * as z from 'zod'
 
 export type ConversationSource = 'topic' | 'agent' | 'temporary'
 

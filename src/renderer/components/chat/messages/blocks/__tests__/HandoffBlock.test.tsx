@@ -1,7 +1,8 @@
-import type { HandoffPartData } from '@shared/data/types/uiParts'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
+
+import type { HandoffPartData } from '@shared/data/types/uiParts'
 
 vi.unmock('@cherrystudio/ui')
 vi.mock('@renderer/hooks/useConversationNavigation', () => ({

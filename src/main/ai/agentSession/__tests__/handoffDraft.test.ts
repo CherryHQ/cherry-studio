@@ -1,3 +1,6 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 import { agentTable } from '@data/db/schemas/agent'
@@ -7,8 +10,6 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { openHandoffDraft } from '../handoffDraft'
 
