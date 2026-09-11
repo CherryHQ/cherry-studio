@@ -1,10 +1,11 @@
+import { Trans, useTranslation } from 'react-i18next'
+import { BeatLoader } from 'react-spinners'
+
 import { Button } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import { DoctorCheckNotices } from '@renderer/components/doctor'
 import type { DoctorController } from '@renderer/hooks/doctor'
 import { doctorCheckTitleKey } from '@shared/utils/doctor'
-import { Trans, useTranslation } from 'react-i18next'
-import { BeatLoader } from 'react-spinners'
 
 interface ErrorDiagnosisPanelProps {
   readonly doctorController: DoctorController
