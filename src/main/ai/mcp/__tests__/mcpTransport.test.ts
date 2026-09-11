@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValue(undefined) }))
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
@@ -15,7 +16,7 @@ vi.mock('@main/ai/mcp/servers/factory', () => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({} as Record<string, unknown>)
+  return mockApplicationFactory({})
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
@@ -54,7 +55,7 @@ const authProvider = { config: {} } as any
 const create = (config: Partial<McpServer>, extra: Partial<Parameters<typeof createTransport>[0]> = {}) =>
   createTransport({
     sdk,
-    server: { id: 'id', name: 'srv', isActive: true, ...config } as McpServer,
+    server: { id: 'id', name: 'srv', isActive: true, ...config },
     args: [],
     authProvider,
     logger,

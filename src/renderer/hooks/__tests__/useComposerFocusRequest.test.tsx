@@ -1,8 +1,9 @@
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useEffect, useRef, useState } from 'react'
 import { describe, expect, it } from 'vitest'
+
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import { useComposerFocusRequest } from '../useComposerFocusRequest'
 

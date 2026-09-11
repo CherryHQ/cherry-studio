@@ -12,6 +12,8 @@
  */
 
 import { type ToolResultOutput } from '@ai-sdk/provider-utils'
+import { tool } from 'ai'
+
 import { application } from '@application'
 import { isPathInside, openReadableFileSnapshot, realpath } from '@main/utils/file'
 import {
@@ -23,7 +25,6 @@ import {
   type McpResourceSavedBlob
 } from '@shared/ai/builtinTools'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { tool } from 'ai'
 
 import { getToolCallContext } from '../context'
 import { isMcpResourceReadForcePrompt, resolveMcpResourceServers } from '../mcp/resolveAssistantMcpTools'

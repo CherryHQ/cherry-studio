@@ -1,5 +1,6 @@
-import type { DetectedWindow, ScreenshotResultData } from '@shared/types/screenshot'
 import * as z from 'zod'
+
+import type { DetectedWindow, ScreenshotResultData } from '@shared/types/screenshot'
 
 import { defineRoute } from '../define'
 import { uint8ArraySchema } from './common'

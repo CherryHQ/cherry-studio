@@ -1,6 +1,7 @@
-import { cn } from '@renderer/utils/style'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { cn } from '@renderer/utils/style'
 
 interface TopicMessageFlowLegendProps {
   className?: string
@@ -20,7 +21,7 @@ const TopicMessageFlowLegend = ({ className }: TopicMessageFlowLegendProps) => {
   return (
     <div
       className={cn(
-        'pointer-events-none absolute top-4 right-5 z-10 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-foreground-tertiary text-sm',
+        'pointer-events-none absolute top-4 right-5 z-10 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-foreground-tertiary',
         className
       )}
       data-testid="topic-message-flow-legend">

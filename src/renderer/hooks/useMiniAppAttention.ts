@@ -1,6 +1,7 @@
+import { isEqual } from 'es-toolkit/compat'
+
 import { useSharedCacheSelector, useSharedCacheValue } from '@data/hooks/useCache'
 import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
-import { isEqual } from 'es-toolkit/compat'
 
 /** Module-level, per the `useSharedCacheValue` contract: an inline `[]` is a new identity each render. */
 const NO_ATTENTION: CacheMiniAppAttention[] = []

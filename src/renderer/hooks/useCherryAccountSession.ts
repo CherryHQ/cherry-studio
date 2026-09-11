@@ -1,10 +1,11 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type CherryCloudStatusLoadState = 'error' | 'loading' | 'ready'
 
