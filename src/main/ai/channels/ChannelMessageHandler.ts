@@ -21,6 +21,9 @@ import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { toFileUrl } from '@shared/utils/file'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
@@ -449,14 +452,13 @@ export class ChannelMessageHandler {
         }
       }
 
-      // Build text with attachment file paths appended so the agent knows where they are saved
-      let textWithAttachments = message.text
-      if (imagePaths.length > 0) {
-        textWithAttachments += `\n\n[Attached images saved to workspace]\n${imagePaths.map((p) => `- ${p}`).join('\n')}`
-      }
-      if (filePaths.length > 0) {
-        textWithAttachments += `\n\n[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}`
-      }
+      // Attachments travel as `file` parts (the shape the in-app composer emits): the UI renders
+      // them, image-capable runtimes see the pixels, and every runtime appends on-disk paths itself.
+      const images = message.images ?? []
+      const files = message.files ?? []
+      const userParts: CherryMessagePart[] = message.text ? [{ type: 'text', text: message.text }] : []
+      imagePaths.forEach((filePath, i) => userParts.push(toFilePart(filePath, images[i].media_type)))
+      filePaths.forEach((filePath, i) => userParts.push(toFilePart(filePath, files[i].media_type, files[i].filename)))
 
       const abortController = new AbortController()
       this.activeAbortControllers.set(session.id, abortController)
@@ -476,7 +478,7 @@ export class ChannelMessageHandler {
         // read never accumulated — and reviving it would double-send.)
         await this.collectStreamResponse(
           session,
-          textWithAttachments,
+          userParts,
           abortController,
           adapter,
           message.chatId,
@@ -604,7 +606,7 @@ export class ChannelMessageHandler {
           try {
             const response = await this.collectStreamResponse(
               session,
-              '/compact',
+              [{ type: 'text', text: '/compact' }],
               abortController,
               adapter,
               command.chatId,
@@ -898,7 +900,7 @@ export class ChannelMessageHandler {
 
   private async collectStreamResponse(
     session: AgentSessionEntity,
-    content: string,
+    userParts: CherryMessagePart[],
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string,
@@ -937,7 +939,7 @@ export class ChannelMessageHandler {
     try {
       const started = await startAgentSessionRun({
         sessionId: session.id,
-        userParts: [{ type: 'text', text: content }],
+        userParts,
         listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
@@ -995,6 +997,10 @@ export class ChannelMessageHandler {
 
     return paths
   }
+}
+
+function toFilePart(filePath: string, mediaType: string, filename = path.basename(filePath)): CherryMessagePart {
+  return { type: 'file', url: toFileUrl(AbsoluteFilePathSchema.parse(filePath)), mediaType, filename }
 }
 
 export const channelMessageHandler = new ChannelMessageHandler()
