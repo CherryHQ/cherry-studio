@@ -1,9 +1,10 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
+
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { parse } from 'yaml'
 
 const mocks = vi.hoisted(() => ({
   resolveApiKey: vi.fn(),
@@ -154,7 +155,7 @@ describe('buildDshGatewayInjection', () => {
     })
 
     expect(yaml).not.toContain(GATEWAY_KEY)
-    const route = (parse(yaml) as Array<{ id: string; config?: any }>).find((entry) => entry.id === 'llm')?.config
+    const route = (parse(yaml) as Array<{ id: string; config?: any }>).find((entry) => entry.id === 'llm-pi-ai')?.config
       ?.providers?.[injection.providerName]
     expect(route).toMatchObject({
       apiKeyEnv: 'CHERRY_DSH_API_KEY',

@@ -1,8 +1,9 @@
-import { dataApiService } from '@data/DataApiService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
 
 vi.unmock('@data/hooks/useDataApi')
 vi.mock('@xyflow/react', () => ({ Handle: () => null, Position: { Bottom: 'bottom', Top: 'top' } }))

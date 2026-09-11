@@ -1,5 +1,8 @@
+import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
+import * as z from 'zod'
+
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
-import { GeneratedImageValidationSchema } from '@shared/ai/paintingGenerateError'
+import { type GeneratedImageValidation, GeneratedImageValidationSchema } from '@shared/ai/paintingGenerateError'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -23,7 +26,7 @@ import {
 } from '@shared/data/api/schemas/agentSessions'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-import { CleanupPolicySchema, FileEntrySchema } from '@shared/data/types/file'
+import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   ImageGenerationModeSchema,
@@ -32,8 +35,6 @@ import {
   UniqueModelIdSchema
 } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
-import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
@@ -151,6 +152,12 @@ const aiImagePayloadSchema = z.strictObject({
   cleanupPolicy: CleanupPolicySchema
 })
 
+// Keep the public output named so declaration emit does not expose FileEntry's private path brand.
+const aiImageOutputSchema: z.ZodType<{ files: FileEntry[]; validation?: GeneratedImageValidation }> = z.object({
+  files: z.array(FileEntrySchema),
+  validation: GeneratedImageValidationSchema.optional()
+})
+
 const aiStreamRegenerateShape = {
   trigger: z.literal('regenerate-message'),
   parentAnchorId: z.string().min(1),
@@ -195,10 +202,7 @@ export const aiRequestSchemas = {
   'ai.image.generate': defineRoute({
     // requestId pairs the request with `ai.image.abort` (the abort registry lives in AiService).
     input: z.strictObject({ requestId: z.string().min(1), payload: aiImagePayloadSchema }),
-    output: z.object({
-      files: z.array(FileEntrySchema),
-      validation: GeneratedImageValidationSchema.optional()
-    })
+    output: aiImageOutputSchema
   }),
   'ai.image.abort': defineRoute({
     // Was a one-way `ipcOn`; per the migration guide a one-off becomes a `void` request.

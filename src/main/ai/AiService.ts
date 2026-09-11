@@ -1,5 +1,14 @@
 import { randomUUID } from 'node:crypto'
 
+import {
+  type EmbeddingModelUsage,
+  isToolUIPart,
+  type LanguageModelUsage,
+  type ModelMessage,
+  NoImageGeneratedError,
+  type UIMessageChunk
+} from 'ai'
+
 import { application } from '@application'
 import {
   type AiPlugin,
@@ -40,14 +49,6 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
-import {
-  type EmbeddingModelUsage,
-  isToolUIPart,
-  type LanguageModelUsage,
-  type ModelMessage,
-  NoImageGeneratedError,
-  type UIMessageChunk
-} from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
@@ -1071,7 +1072,16 @@ export class AiService extends BaseService {
         fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
       )
     )
-    signal?.throwIfAborted()
+    if (signal?.aborted) {
+      await Promise.all(
+        files.map((file) =>
+          fileManager.permanentDelete(file.id).catch((cleanupError) => {
+            logger.error(`Failed to delete generated image ${file.id} after cancellation`, cleanupError as Error)
+          })
+        )
+      )
+      throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
+    }
 
     return { files, ...(validation && { validation }) }
   }

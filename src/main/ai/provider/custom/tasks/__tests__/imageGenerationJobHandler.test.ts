@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Unit tests for imageGenerationJobHandler.
  *
@@ -12,7 +14,6 @@
  * rather than exercised.
  */
 import type { JobContext } from '@main/core/job/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ImageGenerationJobPayload } from '../jobTypes'
 

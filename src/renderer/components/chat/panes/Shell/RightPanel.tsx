@@ -1,3 +1,8 @@
+import { Maximize2, Minimize2 } from 'lucide-react'
+import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
+import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { RightSidebarCollapseIcon } from '@renderer/components/icons/SidebarToggleIcons'
@@ -5,10 +10,6 @@ import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { cn } from '@renderer/utils/style'
-import { Maximize2, Minimize2 } from 'lucide-react'
-import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
-import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getRightPaneWidthPolicy, type RightPaneWidthPolicy, type RightPaneWidthPreset } from '../../shell/paneLayout'
 import { PersistentRightPaneHost, type RightPaneLayoutMode } from '../../shell/RightPaneHost'
@@ -450,7 +451,7 @@ export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?
       <Tooltip content={maximizeLabel} delay={800}>
         <NavbarIcon
           tone="conversation"
-          className="[&_svg]:!size-3.5 shrink-0"
+          className="shrink-0 [&_svg]:!size-3.5"
           aria-label={maximizeLabel}
           aria-pressed={state.presentationMaximized}
           onClick={actions.toggleMaximized}>
@@ -478,12 +479,12 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
     <div
       data-testid="shell-tab-list"
       className={cn(
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]',
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-2 [-webkit-app-region:no-drag]',
         state.presentationMaximized && 'bg-card'
       )}>
       <div
         data-testid="shell-tab-title"
-        className="min-w-0 flex-1 select-none truncate px-1 font-medium text-foreground text-sm">
+        className="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground select-none">
         {title}
       </div>
       <RightPanelHeaderControls canMaximize={canMaximize} />
@@ -632,7 +633,7 @@ export function RightPanelShortcut({
     <NavbarIcon
       {...buttonProps}
       tone="conversation"
-      className={cn('[&_svg]:!size-3.5 shrink-0', className)}
+      className={cn('shrink-0 [&_svg]:!size-3.5', className)}
       active={active}
       disabled={disabled}
       aria-label={label}

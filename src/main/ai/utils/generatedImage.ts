@@ -1,8 +1,9 @@
-import type { GeneratedImageRejectionReason } from '@shared/ai/paintingGenerateError'
-import type { Base64String } from '@shared/types/file'
 import { XMLParser, XMLValidator } from 'fast-xml-parser'
 import { fileTypeFromBuffer } from 'file-type'
 import * as z from 'zod'
+
+import type { GeneratedImageRejectionReason } from '@shared/ai/paintingGenerateError'
+import type { Base64String } from '@shared/types/file'
 
 const GENERATED_IMAGE_BASE64_SCHEMA = z.base64()
 const SVG_MEDIA_TYPE = 'image/svg+xml'

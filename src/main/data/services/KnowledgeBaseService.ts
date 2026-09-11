@@ -4,6 +4,10 @@
  * Handles CRUD operations for knowledge bases stored in SQLite.
  */
 
+import { and, asc, count as sqlCount, desc, eq, gte, inArray, ne, type SQL, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/sqlite-core'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import type { DbType } from '@data/db/types'
@@ -29,9 +33,6 @@ import {
   KnowledgeBaseSchema,
   KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
-import { and, asc, count as sqlCount, desc, eq, gte, inArray, ne, type SQL, sql } from 'drizzle-orm'
-import { alias } from 'drizzle-orm/sqlite-core'
-import * as z from 'zod'
 
 import { groupService } from './GroupService'
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'

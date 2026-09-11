@@ -1,5 +1,6 @@
-import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import type { ComponentType } from 'react'
+
+import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 
 export type FilePreviewFileMetadata = Pick<Extract<PhysicalFileMetadata, { kind: 'file' }>, 'size'>
 export type FilePreviewType = 'artifact' | 'file'

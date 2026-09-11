@@ -1,10 +1,11 @@
-import { toast } from '@renderer/services/toast'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
-import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { act, renderHook } from '@testing-library/react'
 import type { TFunction } from 'i18next'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 
 import { getSingleDroppedPathFromText, useFileDragDrop } from '../useFileDragDrop'
 

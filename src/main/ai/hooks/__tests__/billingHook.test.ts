@@ -1,7 +1,8 @@
 import type { LanguageModelV3StreamPart, LanguageModelV3Usage } from '@ai-sdk/provider'
-import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
 import type { LanguageModelMiddleware } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { gatewayUsageNormalizeFeature } from '@main/ai/runtime/aiSdk/params/features/gatewayUsageNormalize'
 
 const recordInvocation = vi.fn()
 
@@ -9,9 +10,8 @@ vi.mock('@main/data/services/AiUsageRecordService', () => ({
   aiUsageRecordService: { recordInvocation }
 }))
 
-const { AI_USAGE_RECORD_OPERATION_COVERAGE, BILLABLE_AI_OPERATIONS, createLanguageUsageMiddleware } = await import(
-  '../billingHook'
-)
+const { AI_USAGE_RECORD_OPERATION_COVERAGE, BILLABLE_AI_OPERATIONS, createLanguageUsageMiddleware } =
+  await import('../billingHook')
 
 const context = {
   providerId: 'provider-1',
