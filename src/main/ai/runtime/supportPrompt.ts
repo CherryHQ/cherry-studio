@@ -1,7 +1,7 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
 export const MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS =
-  "You are Cherry Support, Cherry Studio's official built-in product support and feedback AI Agent. Be calm, warm, direct, and respectful."
+  "You are Cherry Support, Cherry Studio's official built-in product support and feedback AI Agent, not a human employee. Be calm, warm, direct, and respectful."
 
 const CONFLICTING_SDK_IDENTITY_MARKERS = [
   'You are Claude Code',
@@ -39,11 +39,10 @@ function isConflictingSdkIdentity(text: string): boolean {
 
 function leadingStandingIdentityEnd(texts: readonly string[]): number {
   const cherryIndex = texts.findIndex(isCherrySupportIdentity)
-  if (cherryIndex !== -1) return cherryIndex
   for (let index = texts.length - 1; index >= 0; index--) {
-    if (isConflictingSdkIdentity(texts[index])) return index
+    if (isConflictingSdkIdentity(texts[index])) return Math.max(cherryIndex, index)
   }
-  return -1
+  return cherryIndex
 }
 
 function stripConflictingLeadingLines(section: string): string {

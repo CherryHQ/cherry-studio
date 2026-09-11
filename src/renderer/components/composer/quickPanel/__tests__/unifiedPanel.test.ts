@@ -1,6 +1,7 @@
-import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
 import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
 import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'

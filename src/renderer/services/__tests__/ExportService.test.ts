@@ -1,3 +1,6 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
@@ -6,8 +9,6 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type * as MessageFind from '@renderer/utils/message/find'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 
@@ -64,6 +65,12 @@ vi.mock('@renderer/i18n/resolver', () => ({
 // Mock getProviderLabelKey
 vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: vi.fn((providerId: string) => providerId || 'Unknown Provider')
+}))
+
+vi.mock('i18next', () => ({
+  default: {
+    t: vi.fn((key: string) => key)
+  }
 }))
 
 // Mock the find utility functions - crucial for the test
@@ -289,13 +296,6 @@ beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
 
-  // Mock i18next translation function
-  vi.mock('i18next', () => ({
-    default: {
-      t: vi.fn((key) => key)
-    }
-  }))
-
   mockedMessages = [] // Clear messages for the next describe block
 })
 
@@ -317,13 +317,99 @@ describe('ExportService', () => {
     await preferenceService.set('data.integration.notion.database_id', 'database-id')
     await preferenceService.set('data.integration.notion.page_name_key', 'Name')
     notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
-    notionMocks.appendBlocks.mockResolvedValue(undefined)
+    notionMocks.appendBlocks.mockResolvedValue({ apiResponses: [{ results: [{ id: 'block-id' }] }], apiCallCount: 1 })
 
     await expect(exportMessageToNotion('First', 'First export')).resolves.toBe(true)
     expect(notionMocks.moduleLoads).toEqual(loaded)
 
     await expect(exportMessageToNotion('Second', 'Second export')).resolves.toBe(true)
     expect(notionMocks.moduleLoads).toEqual(loaded)
+  })
+
+  describe.each([
+    ['single message', () => exportMessageToNotion('Message', 'Body')],
+    ['multiple messages', () => exportMessagesToNotion('Topic', [createExportView([{ type: 'text', text: 'Body' }])])]
+  ])('Notion write completion (%s)', (_name, exportToNotion) => {
+    const success = { apiResponses: [{ results: [{ id: 'block-id' }] }], apiCallCount: 1 }
+
+    beforeEach(async () => {
+      await preferenceService.set('data.integration.notion.api_key', 'notion-key')
+      await preferenceService.set('data.integration.notion.database_id', 'database-id')
+      notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
+      notionMocks.appendBlocks.mockResolvedValue(success)
+    })
+
+    afterEach(async () => {
+      await preferenceService.set('data.integration.notion.api_key', '')
+      await preferenceService.set('data.integration.notion.database_id', '')
+    })
+
+    it('keeps the export pending and blocks another export until the body is written', async () => {
+      let finishWrite!: (result: object) => void
+      notionMocks.appendBlocks.mockReturnValueOnce(new Promise<object>((resolve) => (finishWrite = resolve)))
+      let settled = false
+      const exportPromise = exportToNotion().then((result) => {
+        settled = true
+        return result
+      })
+
+      try {
+        await vi.waitFor(() =>
+          expect(toast.loading).toHaveBeenCalledWith(
+            expect.objectContaining({ title: 'message.loading.notion.exporting_progress' })
+          )
+        )
+        expect(settled).toBe(false)
+        expect(toast.success).not.toHaveBeenCalled()
+        await expect(exportToNotion()).resolves.toBe(false)
+        expect(toast.warning).toHaveBeenCalledWith('message.warn.export.exporting')
+        expect(notionMocks.createPage).toHaveBeenCalledTimes(1)
+        expect(toast.closeToast).toHaveBeenCalledWith('notion-export:preparing')
+        expect(toast.closeToast).not.toHaveBeenCalledWith('notion-export:exporting')
+      } finally {
+        finishWrite(success)
+        await exportPromise
+      }
+
+      await expect(exportPromise).resolves.toBe(true)
+      expect(toast.success).toHaveBeenCalledExactlyOnceWith('message.success.notion.export')
+      expect(toast.closeToast).toHaveBeenCalledWith('notion-export:exporting')
+      await expect(exportToNotion()).resolves.toBe(true)
+    })
+
+    it.each([
+      ['first request failure', { apiResponses: null, apiCallCount: 1, error: 'Permission denied' }],
+      ['later chunk failure', { apiResponses: null, apiCallCount: 2, error: 'Rate limited' }],
+      ['empty error message', { apiResponses: null, apiCallCount: 1, error: '' }],
+      ['missing error message', { apiResponses: null, apiCallCount: 1 }],
+      ['error field alone', { error: 'Write failed' }]
+    ])('reports %s as failure and allows a subsequent export', async (_case, result) => {
+      notionMocks.appendBlocks.mockResolvedValueOnce(result)
+
+      await expect(exportToNotion()).resolves.toBe(false)
+      expect(toast.success).not.toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalledExactlyOnceWith('message.error.notion.export')
+      expect(toast.closeToast).toHaveBeenCalledWith('notion-export:exporting')
+      await expect(exportToNotion()).resolves.toBe(true)
+    })
+
+    it.each(['createPage', 'appendBlocks'] as const)(
+      'reports a rejected %s and releases the export lock',
+      async (step) => {
+        notionMocks[step].mockRejectedValueOnce(new Error('Network failure'))
+
+        await expect(exportToNotion()).resolves.toBe(false)
+        expect(toast.success).not.toHaveBeenCalled()
+        expect(toast.error).toHaveBeenCalledExactlyOnceWith('message.error.notion.export')
+        if (step === 'createPage') {
+          expect(notionMocks.appendBlocks).not.toHaveBeenCalled()
+          expect(toast.closeToast).toHaveBeenCalledWith('notion-export:preparing')
+        } else {
+          expect(toast.closeToast).toHaveBeenCalledWith('notion-export:exporting')
+        }
+        await expect(exportToNotion()).resolves.toBe(true)
+      }
+    )
   })
 
   describe('exportMessagesToNotion', () => {
@@ -333,7 +419,7 @@ describe('ExportService', () => {
       await preferenceService.set('data.integration.notion.page_name_key', 'Name')
       await preferenceService.set('data.integration.notion.export_reasoning', true)
       notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
-      notionMocks.appendBlocks.mockResolvedValue(undefined)
+      notionMocks.appendBlocks.mockResolvedValue({ apiResponses: [{ results: [{ id: 'block-id' }] }], apiCallCount: 1 })
     })
 
     afterEach(async () => {
@@ -804,7 +890,7 @@ describe('ExportService', () => {
         id: 'topic1_plain',
         name: '# Topic One',
         assistantId: 'asst_test',
-        messages: [msg1, msg2] as any
+        messages: [msg1, msg2]
       })
       // Mock getTopicMessages to return the expected messages
       ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
@@ -1204,7 +1290,7 @@ describe('Notion export alert callout wiring', () => {
     await preferenceService.set('data.integration.notion.database_id', 'database-id')
     await preferenceService.set('data.integration.notion.page_name_key', 'Name')
     notionMocks.createPage.mockResolvedValue({ id: 'page-id' })
-    notionMocks.appendBlocks.mockResolvedValue(undefined)
+    notionMocks.appendBlocks.mockResolvedValue({ apiResponses: [{ results: [{ id: 'block-id' }] }], apiCallCount: 1 })
     notionMocks.markdownToBlocks.mockImplementation((markdown: string): any[] =>
       typeof markdown === 'string' && markdown.includes('[!WARNING]')
         ? [alertQuoteBlock('[!WARNING]', 'Do not commit secrets')]

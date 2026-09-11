@@ -1,16 +1,18 @@
+import os from 'os'
+import path from 'path'
+import { isMainThread } from 'worker_threads'
+
+import { app, ipcMain } from 'electron'
+import winston from 'winston'
+import DailyRotateFile from 'winston-daily-rotate-file'
+
 /* eslint-disable no-restricted-syntax */
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
-import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
-import { app, ipcMain } from 'electron'
-import os from 'os'
-import path from 'path'
-import winston from 'winston'
-import DailyRotateFile from 'winston-daily-rotate-file'
-import { isMainThread } from 'worker_threads'
+import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',
@@ -115,7 +117,7 @@ export class LoggerService {
         filename: path.join(this.logsDir, 'app.%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: '10m',
-        maxFiles: '30d'
+        maxFiles: `${MAX_LOG_RETENTION_DAYS}d`
       })
     )
 
@@ -126,7 +128,7 @@ export class LoggerService {
         filename: path.join(this.logsDir, 'app-error.%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: '10m',
-        maxFiles: '60d'
+        maxFiles: `${MAX_LOG_RETENTION_DAYS}d`
       })
     )
 

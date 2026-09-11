@@ -1,5 +1,6 @@
-import { loggerService } from '@logger'
 import { Mistral } from '@mistralai/mistralai'
+
+import { loggerService } from '@logger'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import type { FileInfo } from '@shared/types/file'
 
@@ -44,7 +45,7 @@ export const mistralDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'
           executionContext.reportProgress(45)
 
           const response = await executeExtraction(executionContextWithSignal, document, {
-            tableFormat: 'html'
+            tableFormat: 'markdown'
           })
           executionContext.reportProgress(85)
 

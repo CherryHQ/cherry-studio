@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Exercises `ApiGatewayService`'s reconcile-after-settle convergence: a toggle that
@@ -35,7 +36,9 @@ const {
 }))
 
 vi.mock('../server', () => ({
-  ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
+  ApiGateway: vi.fn(function ApiGatewayMock() {
+    return { start: mockStart, stop: mockStop, isRunning: () => true }
+  })
 }))
 
 vi.mock('@data/services/AgentService', () => ({

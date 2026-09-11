@@ -1,5 +1,6 @@
-import type * as LifecycleModule from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as LifecycleModule from '@main/core/lifecycle'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -7,9 +8,9 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { statfsMock, broadcastToTypeMock, getPathMock, appGetMock } = vi.hoisted(() => ({
+const { statfsMock, cacheSetSharedMock, getPathMock, appGetMock } = vi.hoisted(() => ({
   statfsMock: vi.fn(),
-  broadcastToTypeMock: vi.fn(),
+  cacheSetSharedMock: vi.fn(),
   getPathMock: vi.fn(() => '/mock/userdata'),
   appGetMock: vi.fn()
 }))
@@ -29,7 +30,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
     protected readonly _intervals: Array<{
       callback: () => void | Promise<void>
       intervalMs: number
-      disposable: { dispose: ReturnType<typeof vi.fn> }
+      disposable: { dispose: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
     }> = []
     protected readonly _disposables: Array<{ dispose: () => void } | (() => void)> = []
     ipcHandle = vi.fn()
@@ -48,10 +49,8 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
   return { ...actual, BaseService: MockBaseService }
 })
 
-import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
+import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { WindowType } from '@main/core/window/types'
-import { IpcChannel } from '@shared/IpcChannel'
 
 const { StorageMonitorService, intervalForFree } = await import('../StorageMonitorService')
 
@@ -69,7 +68,7 @@ type ServiceInternals = {
   _intervals: Array<{
     callback: () => Promise<void>
     intervalMs: number
-    disposable: { dispose: ReturnType<typeof vi.fn> }
+    disposable: { dispose: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
   }>
   health: { level: string; freeBytes: number; totalBytes: number; checkedAt: number }
 }
@@ -96,7 +95,7 @@ async function tick(svc: ServiceInternals) {
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
-    if (name === 'WindowManager') return { broadcastToType: broadcastToTypeMock }
+    if (name === 'CacheService') return { setShared: cacheSetSharedMock }
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -124,12 +123,11 @@ describe('intervalForFree', () => {
 })
 
 describe('StorageMonitorService', () => {
-  it('runs in the WhenReady phase and depends on WindowManager', () => {
+  it('runs in the WhenReady phase', () => {
     expect(getPhase(StorageMonitorService)).toBe(Phase.WhenReady)
-    expect(getDependencies(StorageMonitorService)).toContain('WindowManager')
   })
 
-  it('does not push when the level stays ok across checks', async () => {
+  it('publishes fresh measurements when the level stays ok', async () => {
     const svc = createService()
     queueDisk(20 * GB)
     await start(svc)
@@ -137,28 +135,28 @@ describe('StorageMonitorService', () => {
     await tick(svc)
 
     expect(svc.health.level).toBe('ok')
-    expect(broadcastToTypeMock).not.toHaveBeenCalled()
+    expect(cacheSetSharedMock).toHaveBeenLastCalledWith(
+      'storage.health',
+      expect.objectContaining({ level: 'ok', freeBytes: 15 * GB })
+    )
   })
 
-  it('pushes to the main window when crossing ok -> low', async () => {
+  it('publishes the shared snapshot when crossing ok -> low', async () => {
     const svc = createService()
     queueDisk(20 * GB)
     await start(svc)
-    expect(broadcastToTypeMock).not.toHaveBeenCalled()
 
     queueDisk(0.5 * GB)
     await tick(svc)
 
     expect(svc.health.level).toBe('low')
-    expect(broadcastToTypeMock).toHaveBeenCalledTimes(1)
-    expect(broadcastToTypeMock).toHaveBeenCalledWith(
-      WindowType.Main,
-      IpcChannel.StorageMonitor_HealthChanged,
+    expect(cacheSetSharedMock).toHaveBeenLastCalledWith(
+      'storage.health',
       expect.objectContaining({ level: 'low', freeBytes: 0.5 * GB })
     )
   })
 
-  it('pushes again on recovery low -> ok and lets the renderer auto-dismiss', async () => {
+  it('publishes recovery low -> ok so the renderer can dismiss', async () => {
     const svc = createService()
     queueDisk(0.5 * GB)
     await start(svc) // starts low -> push
@@ -166,12 +164,7 @@ describe('StorageMonitorService', () => {
     await tick(svc) // recovers -> push
 
     expect(svc.health.level).toBe('ok')
-    expect(broadcastToTypeMock).toHaveBeenCalledTimes(2)
-    expect(broadcastToTypeMock).toHaveBeenLastCalledWith(
-      WindowType.Main,
-      IpcChannel.StorageMonitor_HealthChanged,
-      expect.objectContaining({ level: 'ok' })
-    )
+    expect(cacheSetSharedMock).toHaveBeenLastCalledWith('storage.health', expect.objectContaining({ level: 'ok' }))
   })
 
   it('re-registers the timer with a new interval only when the band changes', async () => {
@@ -206,14 +199,14 @@ describe('StorageMonitorService', () => {
     expect(svc._intervals.length).toBeGreaterThanOrEqual(1) // timer still alive
   })
 
-  it('exposes current health via the GetHealth IPC handler', async () => {
+  it('publishes current health through CacheService', async () => {
     const svc = createService()
     queueDisk(0.5 * GB)
     await start(svc)
 
-    const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
-    const handler = ipcHandle.mock.calls.find((c) => c[0] === IpcChannel.StorageMonitor_GetHealth)?.[1]
-    expect(handler).toBeDefined()
-    expect(handler()).toEqual(expect.objectContaining({ level: 'low', freeBytes: 0.5 * GB }))
+    expect(cacheSetSharedMock).toHaveBeenLastCalledWith(
+      'storage.health',
+      expect.objectContaining({ level: 'low', freeBytes: 0.5 * GB })
+    )
   })
 })

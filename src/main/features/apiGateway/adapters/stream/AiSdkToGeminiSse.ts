@@ -11,8 +11,9 @@
  * @see https://ai.google.dev/api/generate-content#method:-models.streamgeneratecontent
  */
 
-import { loggerService } from '@logger'
 import type { FinishReason, UIMessageChunk } from 'ai'
+
+import { loggerService } from '@logger'
 
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'

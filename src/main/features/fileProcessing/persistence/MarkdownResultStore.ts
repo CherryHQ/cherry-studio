@@ -1,10 +1,11 @@
+import { net } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile } from '@main/utils/file'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { redactUrlToOrigin } from '@shared/utils/redaction'
-import { net } from 'electron'
 
 import { readMarkdownFromResponseZip } from './resultPersistence'
 

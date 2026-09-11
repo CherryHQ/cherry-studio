@@ -15,6 +15,8 @@
  * propagates as the cancellation it is rather than a retryable error.
  */
 
+import * as z from 'zod'
+
 import { application } from '@application'
 import { buildParamsSchema, type ParamValues } from '@cherrystudio/provider-registry'
 import { modelService } from '@data/services/ModelService'
@@ -29,7 +31,6 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
-import * as z from 'zod'
 
 import { type GenerateImageToolInput, limitGenerateImageInputIds } from './generateImageTool'
 

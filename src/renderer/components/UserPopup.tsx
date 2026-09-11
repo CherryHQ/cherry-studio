@@ -1,3 +1,6 @@
+import React, { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Avatar,
   AvatarImage,
@@ -24,8 +27,6 @@ import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
-import React, { useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { EmojiPicker } from './EmojiPicker'
 

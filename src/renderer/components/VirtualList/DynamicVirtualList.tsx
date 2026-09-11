@@ -1,4 +1,3 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type { Range, ScrollToOptions, VirtualItem, VirtualizerOptions } from '@tanstack/react-virtual'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import React, {
@@ -11,6 +10,8 @@ import React, {
   useRef,
   useState
 } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 2000
 const STICKY_ITEM_Z_INDEX = 1
@@ -314,7 +315,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       {...scrollerProps}
       ref={setScrollerRef}
       className={cn(
-        'dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background]',
+        'dynamic-virtual-list [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
         isSticky && 'isolate',
         autoHideScrollbar && !showScrollbar
           ? '[&::-webkit-scrollbar-thumb]:bg-transparent'
