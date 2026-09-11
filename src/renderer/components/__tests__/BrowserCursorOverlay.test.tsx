@@ -40,7 +40,7 @@ describe('Agent cursor presentation', () => {
         disconnect() {}
       }
     )
-    guest = document.createElement('webview') as unknown as WebviewTag
+    guest = document.createElement('webview')
     vi.spyOn(guest, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600 } as DOMRect)
   })
   afterEach(() => vi.unstubAllGlobals())

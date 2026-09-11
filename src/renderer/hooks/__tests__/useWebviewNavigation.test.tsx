@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useWebviewNavigation } from '../useWebviewNavigation'
 
 function createGuest(url: string) {
-  const guest = document.createElement('webview') as unknown as WebviewTag
+  const guest = document.createElement('webview')
   Object.assign(guest, {
     getURL: () => url,
     canGoBack: () => true,

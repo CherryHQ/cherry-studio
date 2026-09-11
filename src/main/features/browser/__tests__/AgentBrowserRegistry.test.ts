@@ -98,7 +98,7 @@ describe('Agent browser authority and control lifetime', () => {
 
   it('rejects cursor acknowledgements from a different owner window', () => {
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
-    expect(() => service.agentBrowser.getCursor(sessionId, tabId, 'other' as WindowId)).toThrow(
+    expect(() => service.agentBrowser.getCursor(sessionId, tabId, 'other')).toThrow(
       expect.objectContaining({ code: 'not_allowed' })
     )
     expect(service.agentBrowser.getCursor(sessionId, 'old-tab', windowId)).toBeUndefined()
@@ -116,7 +116,7 @@ describe('Agent browser authority and control lifetime', () => {
     const container = application.getContainer()
     const get = container.get.bind(container)
     vi.spyOn(container, 'get').mockImplementation((name) => {
-      if (name === 'AgentSessionRuntimeService') return runtime as never
+      if (name === 'AgentSessionRuntimeService') return runtime
       return get(name)
     })
     const { tabId } = service.agentBrowser.attach(sessionId, 1, windowId)
