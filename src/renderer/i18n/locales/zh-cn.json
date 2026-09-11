@@ -1262,7 +1262,7 @@
   "error.diagnostics.diagnosing": "诊断中",
   "error.diagnostics.preparing_result": "正在整理结果…",
   "error.diagnostics.result": "诊断结果",
-  "error.diagnostics.result_summary": "<fixed>已修复：{{fixed}}</fixed>；<attention>需要注意：{{attention}}</attention>；AI 摘要：{{summary}}。",
+  "error.diagnostics.result_summary": "<fixed>已修复：{{fixed}}</fixed>；<attention>需要注意：{{attention}}</attention>。",
   "error.errors": "错误",
   "error.finishReason": "结束原因",
   "error.functionality": "功能",

@@ -1262,7 +1262,7 @@
   "error.diagnostics.diagnosing": "診断中",
   "error.diagnostics.preparing_result": "結果をまとめています…",
   "error.diagnostics.result": "診断結果",
-  "error.diagnostics.result_summary": "<fixed>修正済み：{{fixed}}</fixed>、<attention>要確認：{{attention}}</attention>、AI 要約：{{summary}}。",
+  "error.diagnostics.result_summary": "<fixed>修正済み：{{fixed}}</fixed>、<attention>要確認：{{attention}}</attention>。",
   "error.errors": "エラー",
   "error.finishReason": "終了理由",
   "error.functionality": "機能",

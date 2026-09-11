@@ -1262,7 +1262,7 @@
   "error.diagnostics.diagnosing": "Выполняется диагностика",
   "error.diagnostics.preparing_result": "Подготовка результатов…",
   "error.diagnostics.result": "Результат диагностики",
-  "error.diagnostics.result_summary": "<fixed>Исправлено: {{fixed}}</fixed>; <attention>требует внимания: {{attention}}</attention>; сводка ИИ: {{summary}}.",
+  "error.diagnostics.result_summary": "<fixed>Исправлено: {{fixed}}</fixed>; <attention>требует внимания: {{attention}}</attention>.",
   "error.errors": "ошибка",
   "error.finishReason": "Причина завершения",
   "error.functionality": "функция",

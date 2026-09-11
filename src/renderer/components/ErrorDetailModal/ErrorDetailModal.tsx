@@ -514,10 +514,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   error,
   diagnosisContext,
   diagnosticReport,
-  blockId,
-  onDiagnosisComplete,
   onOpenDiagnosticReport,
-  cachedDiagnosis,
   onDoctorNavigate,
   doctorCloseBlocked = false,
   onDoctorCloseBlockedChange
@@ -525,11 +522,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
   const { t } = useTranslation()
   const [detailsOpen, setDetailsOpen] = useState(false)
   const viewDetailsButtonRef = useRef<HTMLButtonElement>(null)
-  const diagnosisIdentity = blockId ?? error?.message ?? 'error-diagnosis'
-  const [aiDiagnosisProgress, setAiDiagnosisProgress] = useState({
-    identity: diagnosisIdentity,
-    pending: Boolean(error && !cachedDiagnosis)
-  })
   const doctorController = useDoctorController({
     initialPanel: 'checks',
     onNavigate: onDoctorNavigate ?? ignoreDoctorNavigation,
@@ -540,19 +532,10 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
     onDoctorCloseBlockedChange?.(doctorController.isCloseBlocked)
   }, [doctorController.isCloseBlocked, onDoctorCloseBlockedChange])
 
-  const isAiDiagnosisPending =
-    aiDiagnosisProgress.identity === diagnosisIdentity
-      ? aiDiagnosisProgress.pending
-      : Boolean(error && !cachedDiagnosis)
   const isDoctorPending =
     doctorController.isAutoRunPending ||
     doctorController.viewModel.status === 'running' ||
     doctorController.session.interaction.kind === 'run'
-  const isDiagnosisPending = isAiDiagnosisPending || isDoctorPending
-  const handleAiDiagnosisPendingChange = useCallback(
-    (pending: boolean) => setAiDiagnosisProgress({ identity: diagnosisIdentity, pending }),
-    [diagnosisIdentity]
-  )
 
   const copyErrorDetails = useCallback(() => {
     if (!error) {
@@ -618,6 +601,8 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
       </DialogHeader>
       <ErrorDetailContainer>
         <div className="space-y-4">
+          <ErrorDiagnosisPanel doctorController={doctorController} />
+          <ErrorDiagnosticsPanel controller={doctorController} isPending={isDoctorPending} />
           <ErrorBasicInformation
             viewDetailsButtonRef={viewDetailsButtonRef}
             error={error}
@@ -626,19 +611,6 @@ const ErrorDetailContent: React.FC<ErrorDetailContentInternalProps> = ({
             onCopy={copyErrorDetails}
             onViewDetails={showDetails}
           />
-          {error || cachedDiagnosis ? (
-            <ErrorDiagnosisPanel
-              key={diagnosisIdentity}
-              blockId={blockId}
-              cachedDiagnosis={cachedDiagnosis}
-              diagnosisContext={diagnosisContext}
-              doctorController={doctorController}
-              error={error}
-              onDiagnosisComplete={onDiagnosisComplete}
-              onPendingChange={handleAiDiagnosisPendingChange}
-            />
-          ) : null}
-          <ErrorDiagnosticsPanel controller={doctorController} isPending={isDiagnosisPending} />
         </div>
       </ErrorDetailContainer>
 

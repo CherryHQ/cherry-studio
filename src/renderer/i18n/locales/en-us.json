@@ -1262,7 +1262,7 @@
   "error.diagnostics.diagnosing": "Diagnosing",
   "error.diagnostics.preparing_result": "Preparing results…",
   "error.diagnostics.result": "Diagnostic result",
-  "error.diagnostics.result_summary": "<fixed>Fixed: {{fixed}}</fixed>; <attention>needs attention: {{attention}}</attention>; AI summary: {{summary}}.",
+  "error.diagnostics.result_summary": "<fixed>Fixed: {{fixed}}</fixed>; <attention>needs attention: {{attention}}</attention>.",
   "error.errors": "Errors",
   "error.finishReason": "Finish Reason",
   "error.functionality": "Functionality",
