@@ -100,7 +100,7 @@ export interface OAuthRuntimeProviderDefinition {
   /**
    * Post-exchange side effect, run *after* the tokens are persisted so a failure
    * here never discards a valid token (CherryIN fetches the user's API keys).
-   * Its result is forwarded to the deep-link initiator window.
+   * Its result is returned only to the initiator window, through either transport.
    */
   afterPersistTokens?(
     tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
