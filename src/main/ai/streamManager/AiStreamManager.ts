@@ -167,6 +167,7 @@ export interface ExecutionSnapshot {
   readonly abortSignal: AbortSignal
   readonly bufferedChunkCount: number
   readonly droppedChunks: number
+  readonly openToolInputCount: number
   readonly siblingsGroupId?: number
   readonly finalMessage?: CherryUIMessage
   readonly timings: TransportTimings
@@ -1280,11 +1281,12 @@ export class AiStreamManager extends BaseService {
       exec.runtimeTiming.finishApproval({ toolCallId: chunk.toolCallId })
     }
     // Open tool inputs pin their `tool-input-start` against ring eviction;
-    // available/output proves the input finished and releases the pin.
+    // available/error/output proves the input finished and releases the pin.
     if (chunk.type === 'tool-input-start') {
       ;(exec.openToolInputIds ??= new Set()).add(chunk.toolCallId)
     } else if (
       chunk.type === 'tool-input-available' ||
+      chunk.type === 'tool-input-error' ||
       chunk.type === 'tool-output-available' ||
       chunk.type === 'tool-output-error' ||
       chunk.type === 'tool-output-denied'
@@ -1332,7 +1334,14 @@ export class AiStreamManager extends BaseService {
           exec.droppedChunks += 1
           // Every entry is a still-open tool opener: evicting one would orphan
           // later live deltas, so drop the incoming segment and keep the ring bounded.
-          if (!evicted) continue
+          if (!evicted) {
+            // A dropped opener must not stay pinned, or a later live delta
+            // reaches a reconnecting renderer without its `tool-input-start`.
+            if (segment.chunk.type === 'tool-input-start') {
+              exec.openToolInputIds?.delete(segment.chunk.toolCallId)
+            }
+            continue
+          }
         }
         exec.buffer.push(segment)
       }
@@ -1737,6 +1746,7 @@ export class AiStreamManager extends BaseService {
         abortSignal: exec.abortController.signal,
         bufferedChunkCount: exec.buffer.length,
         droppedChunks: exec.droppedChunks,
+        openToolInputCount: exec.openToolInputIds?.size ?? 0,
         siblingsGroupId: exec.siblingsGroupId,
         finalMessage: exec.finalMessage,
         timings: { ...exec.timings }
