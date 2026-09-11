@@ -152,6 +152,8 @@ export const InstalledSkillSchema = z.object({
   contentHash: z.string(),
   isGlobalEnabled: z.boolean(),
   isEnabled: z.boolean(),
+  /** Whether the skill is projected into ~/.agents/skills for external agents. */
+  mirrorEnabled: z.boolean(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })

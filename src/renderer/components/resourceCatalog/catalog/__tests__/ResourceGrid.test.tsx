@@ -433,7 +433,7 @@ function createSkillResource(version: string | null = null, isGlobalEnabled = tr
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: { version, isGlobalEnabled } as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version, isGlobalEnabled, mirrorEnabled: true } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
