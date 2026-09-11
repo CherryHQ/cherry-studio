@@ -53,6 +53,7 @@ vi.mock('../XlsxGrid', async () => {
   const MockXlsxGrid = (props: {
     sheet: { name: string; cells: Record<string, unknown> }
     zoom: number
+    pickerActive?: boolean
     onSelectCell?: (info: unknown) => void
     renderChart?: (chart: unknown, container: HTMLElement) => () => void
   }) => {
@@ -75,6 +76,7 @@ vi.mock('../XlsxGrid', async () => {
         data-testid="xlsx-grid"
         data-sheet-name={props.sheet.name}
         data-zoom={props.zoom}
+        data-picker-active={String(Boolean(props.pickerActive))}
         data-has-render-chart={String(Boolean(props.renderChart))}>
         <button type="button" data-testid="grid-select-b6" onClick={() => selectCell('B6')}>
           select B6
@@ -493,6 +495,30 @@ describe('SpreadsheetFilePreview', () => {
     rerender(panel())
     rerender(panel(onSelectionReference))
     expect(onSelectionReference).toHaveBeenCalledTimes(callsWhileCapturing)
+  })
+
+  it('puts the grid in picker mode exactly while capture is on', () => {
+    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
+    // The callback's presence is the capture switch, and the grid needs it as a mode flag: picking clears the
+    // selection the user was browsing with and highlights the cell under the pointer.
+    const panel = (capture?: (reference: SelectionReference | null) => void) => (
+      <SpreadsheetFilePreview
+        filePath={'/tmp/workspace/book.xlsx' as AbsoluteFilePath}
+        fileName="book.xlsx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+        onSelectionReference={capture}
+      />
+    )
+
+    const { rerender } = render(panel())
+    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-picker-active', 'false')
+
+    rerender(panel(vi.fn()))
+    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-picker-active', 'true')
+
+    rerender(panel())
+    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-picker-active', 'false')
   })
 
   it('reports null when the selection is cleared and when the sheet changes', () => {
