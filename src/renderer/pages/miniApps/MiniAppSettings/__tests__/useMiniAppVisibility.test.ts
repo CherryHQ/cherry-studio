@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { resetToastMocks } from '@test-mocks/renderer/toast'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 import { useMiniAppVisibility } from '../useMiniAppVisibility'
 
@@ -11,7 +12,7 @@ const stubApp = (id: string): MiniApp => ({
   appId: id,
   name: id,
   url: `https://${id}.example.com`,
-  presetMiniAppId: id as MiniApp['presetMiniAppId'],
+  presetMiniAppId: id,
   status: 'enabled',
   orderKey: 'a0'
 })

@@ -8,8 +8,9 @@ import type {
   ToolResultMessage
 } from '@deepseek-ai/dsh-llm'
 import { type SessionEvent, type SessionEventMap, type SessionEventType, SessionSeq } from '@deepseek-ai/dsh-session'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { DSH_TRANSPORT, DshStreamAdapter } from '../dshStreamAdapter'
 
@@ -104,7 +105,7 @@ describe('DshStreamAdapter', () => {
     const [start, delta] = chunks
     expect(start).toMatchObject({ id: expect.stringMatching(/^dsh-\d+-0$/) })
     expect(delta).toMatchObject({ id: (start as { id: string }).id, delta: 'Hello' })
-    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' }, events.at(-1)!.seq)
     // A host-prompted turn never reports autonomous lifecycle.
     expect(onAutonomousTurnState).not.toHaveBeenCalled()
   })
@@ -115,12 +116,13 @@ describe('DshStreamAdapter', () => {
     adapter.handleEvent(envelope('turn/start', { turn: 2 }))
     adapter.handleEvent(chunkEnvelope(2, 1, { type: 'block-start', index: 0, blockType: 'text' }))
     adapter.handleEvent(chunkEnvelope(2, 1, { type: 'text-delta', index: 0, text: 'round work' }))
-    adapter.handleEvent(envelope('turn/end', { turn: 2, reason: { kind: 'completed' } }))
+    const turnEnd = envelope('turn/end', { turn: 2, reason: { kind: 'completed' } })
+    adapter.handleEvent(turnEnd)
 
     // `started` precedes the first chunk; `finished` precedes the terminal onTurnEnd.
     expect(order).toEqual(['autonomous:started', 'text-start', 'text-delta', 'autonomous:finished', 'turn-end'])
     expect(onAutonomousTurnState.mock.calls.map((call) => call[0].state)).toEqual(['started', 'finished'])
-    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+    expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' }, turnEnd.seq)
   })
 
   it('swallows a content-less turn instead of fabricating an empty one', () => {
@@ -246,12 +248,13 @@ describe('DshStreamAdapter', () => {
       for (const event of [...entering(1, 1, ...sources), ...text(1, 1, 'answer')]) {
         adapter.handleEvent(event)
       }
-      adapter.handleEvent(envelope('turn/end', { turn: 1, reason: { kind: 'completed' } }))
+      const turnEnd = envelope('turn/end', { turn: 1, reason: { kind: 'completed' } })
+      adapter.handleEvent(turnEnd)
 
       expect(onAutonomousTurnState).not.toHaveBeenCalled()
       expect(order).toEqual(['text-start', 'text-delta', 'turn-end'])
       expect(deltas(chunks)).toEqual(['answer'])
-      expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' })
+      expect(onTurnEnd).toHaveBeenCalledWith({ kind: 'completed' }, turnEnd.seq)
     })
 
     it('does not let mid-turn input reclassify an open goal round as the host turn', () => {

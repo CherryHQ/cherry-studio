@@ -1,5 +1,6 @@
-import { application } from '@application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -42,12 +43,13 @@ const mockBot = {
 }
 
 vi.mock('../wechat/WeChatProtocol', () => ({
-  WeixinBot: vi.fn().mockImplementation(() => mockBot)
+  WeixinBot: vi.fn().mockImplementation(function WeixinBotMock() {
+    return mockBot
+  })
 }))
 
 // Import the module to trigger self-registration side effect
 import '../wechat/WeChatAdapter'
-
 import { registerAdapterFactory } from '../../ChannelManager'
 
 function getFactory() {

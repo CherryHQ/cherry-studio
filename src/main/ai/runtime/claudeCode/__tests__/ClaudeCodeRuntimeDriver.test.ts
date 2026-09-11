@@ -5,10 +5,11 @@ import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 
-import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { captureClaudeForkCheckpoint } from '../claudeFork'
 import type * as SettingsBuilderModule from '../settingsBuilder'
@@ -527,7 +528,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     expect(connection.usageCapture).toMatchObject({
@@ -559,7 +560,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -622,7 +623,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'stale-token'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -685,7 +686,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     expect(mocks.consumeWarmQuery).toHaveBeenCalledWith(expect.objectContaining({ notificationContext }))
@@ -700,7 +701,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'resume-1'
     })
 
@@ -752,7 +753,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toEqual(expect.any(Function))
@@ -773,7 +774,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     const closing = Promise.resolve(connection.close())
@@ -800,7 +801,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const blockedMessage = userMessage()
     blockedMessage.data.parts[0].text = '  /fast'
@@ -831,7 +832,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     expect(mocks.registerMcpSessionCatalogSync).toHaveBeenCalledWith('session-1', 'agent-1', ['srv-a'], metadata)
@@ -850,7 +851,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -895,7 +896,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -952,7 +953,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -999,7 +1000,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1059,7 +1060,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1131,7 +1132,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1186,7 +1187,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1225,7 +1226,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1279,7 +1280,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1342,7 +1343,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1399,7 +1400,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1449,7 +1450,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1494,7 +1495,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1536,7 +1537,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
@@ -1574,7 +1575,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const sdkIterator = sdkInput[Symbol.asyncIterator]()
@@ -1646,7 +1647,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     try {
       await connection.send({ message: userMessage() })
@@ -1713,7 +1714,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -1806,7 +1807,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -1975,7 +1976,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2049,7 +2050,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2132,7 +2133,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'longcat::LongCat-2.0' as any
+      modelId: 'longcat::LongCat-2.0'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2225,7 +2226,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2294,7 +2295,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'deepseek::deepseek-chat' as any
+      modelId: 'deepseek::deepseek-chat'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2360,7 +2361,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2472,7 +2473,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'anthropic::sonnet' as any
+      modelId: 'anthropic::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2532,7 +2533,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2578,7 +2579,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2622,7 +2623,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2669,7 +2670,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2699,7 +2700,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2723,7 +2724,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2771,7 +2772,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2818,7 +2819,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2864,7 +2865,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2887,7 +2888,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2914,7 +2915,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -2963,7 +2964,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const connection = await new ClaudeCodeRuntimeDriver().connect({
         sessionId: 'session-1',
         agentId: 'agent-1',
-        modelId: 'claude-code::sonnet' as any
+        modelId: 'claude-code::sonnet'
       })
       return { connection, queryQueue }
     }
@@ -3109,7 +3110,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3154,7 +3155,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'stale-token'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3221,7 +3222,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'corrupt-token'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3272,7 +3273,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'corrupt-token'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3305,7 +3306,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3336,7 +3337,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'stale-token'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3379,7 +3380,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       resumeToken: 'stale-token'
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3415,7 +3416,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3460,7 +3461,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3502,7 +3503,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3538,7 +3539,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3559,7 +3560,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3591,7 +3592,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       trace: {
         topicId: 'agent-session:session-1',
         traceId: '0'.repeat(32),
@@ -3659,7 +3660,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
 
     // No active turn (no adapter yet) → redirect declines so the host queues instead of steering.
@@ -3714,7 +3715,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
     const steer = {
@@ -3767,7 +3768,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
+      modelId: 'claude-code::sonnet',
       onSteerInjected
     })
     const events = connection.events[Symbol.asyncIterator]()
@@ -3816,7 +3817,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3855,7 +3856,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3916,7 +3917,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -3963,7 +3964,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
+      modelId: 'claude-code::sonnet'
     })
     const events = connection.events[Symbol.asyncIterator]()
 
@@ -4027,7 +4028,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const connection = await new ClaudeCodeRuntimeDriver().connect({
         sessionId: 'session-1',
         agentId: 'agent-1',
-        modelId: 'claude-code::sonnet' as any
+        modelId: 'claude-code::sonnet'
       })
       return { connection, query, toolPolicySnapshot }
     }
@@ -4045,7 +4046,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const { connection } = await connectWithSnapshot()
       mocks.deriveConfig.mockClear()
 
-      await connection.reconcile({ modelId: 'claude-code::sonnet' as any, knowledgeBaseIds: ['kb-1'] })
+      await connection.reconcile({ modelId: 'claude-code::sonnet', knowledgeBaseIds: ['kb-1'] })
 
       expect(mocks.deriveConfig).toHaveBeenCalledWith('session-1', 'claude-code::sonnet', 'default', false, ['kb-1'])
     })
@@ -4122,7 +4123,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       const connection = await new ClaudeCodeRuntimeDriver().connect({
         sessionId: 'session-1',
         agentId: 'agent-1',
-        modelId: 'claude-code::sonnet' as any
+        modelId: 'claude-code::sonnet'
       })
 
       expect(mocks.deriveConfig).not.toHaveBeenCalled()
@@ -4158,8 +4159,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
           return makeConfig({})
         })
 
-      const first = connection.reconcile({ modelId: 'claude-code::sonnet' as any })
-      const second = connection.reconcile({ modelId: 'claude-code::sonnet' as any })
+      const first = connection.reconcile({ modelId: 'claude-code::sonnet' })
+      const second = connection.reconcile({ modelId: 'claude-code::sonnet' })
       await vi.waitFor(() => expect(firstStarted).toBe(true))
 
       // Push and pull overlapping on the same connection must queue — an interleaved

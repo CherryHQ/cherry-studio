@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { estimateTokenCount } from 'tokenx'
+
 import { resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { agentSessionForkContextService, ForkContextFailure } from '@data/services/AgentSessionForkContextService'
 import {
@@ -16,7 +18,6 @@ import type {
   ForkContextSummary,
   PreparedForkContext
 } from '@shared/ai/agentSessionForkContext'
-import { estimateTokenCount } from 'tokenx'
 
 import type { CompressionModelDescriptor } from '../contextBuild/resolveCompressionModel'
 import { serializeForkContext } from './forkHistory'
@@ -135,8 +136,8 @@ export async function prepareForkContext(input: PrepareForkContextInput): Promis
         .map((entry) => forkContextSegment(snapshot, entry.ordinal, entry.ordinal + 1, entry.text, 'history'))
     let segments: ForkContextSegment[] = summary
       ? [
-          ...summary.layout.map(
-            (id) => [...summary.segments, ...summary.retainedSegments].find((part) => part.segmentId === id)!
+          ...summary.layout.map((id) =>
+            [...summary.segments, ...summary.retainedSegments].find((part) => part.segmentId === id)!
           ),
           ...history(summary.coveredEnd)
         ]

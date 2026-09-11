@@ -4,6 +4,7 @@ import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
 import type { SessionStoreEntry } from '@anthropic-ai/claude-agent-sdk'
+
 import { loggerService } from '@logger'
 
 import { readForkPrefix, readNativeForkHistory } from '../../agentSession/forkFiles'

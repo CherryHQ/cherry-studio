@@ -1,5 +1,6 @@
-import type { AgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 import type { TFunction } from 'i18next'
+
+import type { AgentSessionForkFailureReason } from '@shared/ai/agentSessionFork'
 
 /** Static keys keep all unavailable states visible to the translation tooling. */
 export function agentSessionForkReasonLabel(t: TFunction, reason: AgentSessionForkFailureReason): string {

@@ -1,5 +1,6 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const { assertSafePathForDefaultOpenMock, internalOpenMock, internalShowInFolderMock } = vi.hoisted(() => ({
   assertSafePathForDefaultOpenMock: vi.fn(),

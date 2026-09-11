@@ -1,5 +1,6 @@
-import { AgentSessionForkUnavailableReasonSchema } from '@shared/ai/agentSessionFork'
 import * as z from 'zod'
+
+import { AgentSessionForkUnavailableReasonSchema } from '@shared/ai/agentSessionFork'
 
 const identity = { runtimeSessionId: z.string().min(1) }
 export const RuntimeForkCheckpointSchema = z.discriminatedUnion('runtime', [

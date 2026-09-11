@@ -1,7 +1,8 @@
-import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -32,41 +33,39 @@ const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video:
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
 
 function userMessage(parts: CherryMessagePart[]): CherryUIMessage {
-  return { id: 'm1', role: 'user', parts } as CherryUIMessage
+  return { id: 'm1', role: 'user', parts }
 }
 const fileWithEntry = (
   id: string,
   filename: string,
   mediaType: string,
   fileTokenSourceId?: string
-): CherryMessagePart =>
-  ({
-    type: 'file',
-    url: `file:///x/${filename}`,
-    mediaType,
-    filename,
-    providerMetadata: { cherry: { fileEntryId: id, ...(fileTokenSourceId ? { fileTokenSourceId } : {}) } }
-  }) as CherryMessagePart
+): CherryMessagePart => ({
+  type: 'file',
+  url: `file:///x/${filename}`,
+  mediaType,
+  filename,
+  providerMetadata: { cherry: { fileEntryId: id, ...(fileTokenSourceId ? { fileTokenSourceId } : {}) } }
+})
 
-const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMessagePart =>
-  ({
-    type: 'text',
-    text,
-    providerMetadata: {
-      cherry: {
-        composer: {
-          version: 1,
-          tokens: fileTokenSourceIds.map((sourceId, index) => ({
-            id: `file:${sourceId}`,
-            kind: 'file',
-            label: `${sourceId}.png`,
-            index,
-            textOffset: 0
-          }))
-        }
+const composerText = (text: string, ...fileTokenSourceIds: string[]): CherryMessagePart => ({
+  type: 'text',
+  text,
+  providerMetadata: {
+    cherry: {
+      composer: {
+        version: 1,
+        tokens: fileTokenSourceIds.map((sourceId, index) => ({
+          id: `file:${sourceId}`,
+          kind: 'file',
+          label: `${sourceId}.png`,
+          index,
+          textOffset: 0
+        }))
       }
     }
-  }) as CherryMessagePart
+  }
+})
 
 /** One token per character, so a test's `cap` reads directly as a character cap. */
 const charTokenizer = { id: 'chars', count: (text: string) => text.length }
@@ -148,7 +147,7 @@ describe('prepareChatMessages — routing', () => {
   })
 
   it('does not OCR a stale retained attachment when the effective messages are text-only', async () => {
-    const message = userMessage([{ type: 'text', text: 'text only' } as CherryMessagePart])
+    const message = userMessage([{ type: 'text', text: 'text only' }])
 
     const out = await prepareChatMessages([message] as UIMessage[], {
       attachments: [{ fileEntryId: 'stale-entry', handle: 'stale.png', displayName: 'stale.png' }],

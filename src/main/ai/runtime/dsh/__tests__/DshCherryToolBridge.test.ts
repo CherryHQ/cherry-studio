@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -14,6 +13,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { resolveDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 
 const mocks = vi.hoisted(() => ({
   findByIdOrName: vi.fn(),

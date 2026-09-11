@@ -2,9 +2,10 @@
  * Agent session domain API Schema definitions.
  */
 
+import * as z from 'zod'
+
 import type { ForkContextView } from '@shared/ai/agentSessionForkContext'
 import { TraceIdSchema } from '@shared/data/types/trace'
-import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'

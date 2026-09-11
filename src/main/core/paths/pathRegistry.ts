@@ -12,9 +12,10 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { app } from 'electron'
+
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
-import { app } from 'electron'
 
 import { CHERRY_HOME, LOGS_DIR } from './constants'
 
