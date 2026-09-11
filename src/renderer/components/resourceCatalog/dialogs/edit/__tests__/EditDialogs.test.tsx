@@ -1,13 +1,14 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
+import type { Assistant } from '@shared/data/types/assistant'
 
 const {
   bindPromptMock,
@@ -63,7 +64,7 @@ const {
       }
     ]
   },
-  mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
+  mcpStatusState: { current: {} },
   openSettingsTabMock: vi.fn(),
   promptCatalogState: {
     current: {
@@ -1207,7 +1208,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original instructions',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
 
     await waitFor(() =>
@@ -1574,7 +1576,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('Improve the supplied system prompt without changing its intent or authority.'),
       content: 'Original prompt',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('1')
 
@@ -1596,7 +1599,8 @@ describe('edit dialogs', () => {
     expect(fetchGenerateMock).toHaveBeenCalledWith({
       prompt: expect.stringContaining('You are a Prompt Generator.'),
       content: 'Alpha Assistant',
-      throwOnError: true
+      throwOnError: true,
+      signal: expect.any(AbortSignal)
     })
     expect(fetchGenerateMock.mock.calls[0][0].prompt).not.toContain(
       'Create a useful system prompt from the supplied name or title.'

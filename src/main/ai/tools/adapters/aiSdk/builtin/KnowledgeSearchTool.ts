@@ -10,9 +10,10 @@
  * bridge runs identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
-import { KB_SEARCH_TOOL_NAME, kbSearchInputSchema, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
+
+import { KB_SEARCH_TOOL_NAME, kbSearchInputSchema, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 
 import {
   KNOWLEDGE_SEARCH_DESCRIPTION,

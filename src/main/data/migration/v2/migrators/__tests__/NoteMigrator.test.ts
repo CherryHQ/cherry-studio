@@ -1,7 +1,8 @@
-import { noteTable } from '@data/db/schemas/note'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { noteTable } from '@data/db/schemas/note'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { NoteMigrator } from '../NoteMigrator'

@@ -101,7 +101,7 @@ papered over).
 | Target | Behavior |
 |---|---|
 | Virtual root | **Rejected** (`INVALID_OPERATION`), regardless of `cascade`. Deleting it would orphan first-turn children (unique-index violation) or leave a rootless topic. |
-| Content message, `cascade = false` | Splice the node out: reparent its children onto its parent (their grandparent), then delete it. A child carries its `siblingsGroupId` (relative to its old parent), so each distinct non-zero moved group is **rebased** to a fresh id above any group already at the destination — it can't merge into an unrelated group there. |
+| Content message, `cascade = false` | For a grouped assistant reply on the active path with the default parent strategy, transfer children to the next live reply in the same group (previous at the end), ordered by creation time then ID. Otherwise reparent children onto the deleted node's parent. Clear descendant context anchors when deleting a grouped context reply, including when no sibling remains. Preserve an active descendant; if the deleted node itself is active, select the successor or fall back to the parent. A child carries its `siblingsGroupId` (relative to its old parent), so each distinct non-zero moved group is **rebased** to a fresh id above any group already at the destination — it can't merge into an unrelated group there. |
 | Content message, `cascade = true` | Delete the message and its whole subtree. |
 | "Clear all messages" | `clearTopicMessages(topicId)` (`DELETE /topics/:topicId/messages`) — deletes every non-root row of the topic in one statement and clears `activeNodeId`; the content-less virtual root stays. The structural replacement for the old "delete the root to clear the topic" (now rejected). |
 

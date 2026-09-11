@@ -67,5 +67,5 @@ export function createSiliconProvider(settings: SiliconProviderSettings = {}): S
       fetch: customFetch
     })
 
-  return provider as SiliconProvider
+  return provider
 }

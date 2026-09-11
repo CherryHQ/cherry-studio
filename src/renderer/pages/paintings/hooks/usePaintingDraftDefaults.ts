@@ -1,7 +1,8 @@
+import { useEffect, useMemo } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useModelById } from '@renderer/hooks/useModel'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { useEffect, useMemo } from 'react'
 
 import type { PaintingDraftDefaults } from '../model/paintingPipeline'
 import { isAvailablePaintingModel } from '../model/utils/paintingModelOptions'

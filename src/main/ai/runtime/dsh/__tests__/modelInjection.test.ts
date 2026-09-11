@@ -1,9 +1,10 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
+
 import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { parse } from 'yaml'
 
 const mocks = vi.hoisted(() => ({
   resolveApiKey: vi.fn(),
@@ -154,7 +155,7 @@ describe('buildDshGatewayInjection', () => {
     })
 
     expect(yaml).not.toContain(GATEWAY_KEY)
-    const route = (parse(yaml) as Array<{ id: string; config?: any }>).find((entry) => entry.id === 'llm')?.config
+    const route = (parse(yaml) as Array<{ id: string; config?: any }>).find((entry) => entry.id === 'llm-pi-ai')?.config
       ?.providers?.[injection.providerName]
     expect(route).toMatchObject({
       apiKeyEnv: 'CHERRY_DSH_API_KEY',
@@ -188,6 +189,31 @@ describe('buildDshGatewayInjection', () => {
 })
 
 describe('buildDshProviderInjection', () => {
+  it('routes a model-level Responses hint through a custom provider Chat base URL', () => {
+    const provider = {
+      id: 'custom-provider',
+      name: 'Custom Provider',
+      reportsActualCost: false,
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://express-ent-admin.cherryin.net/v1'
+        }
+      }
+    } as unknown as Provider
+    const model = makeModel({
+      id: 'custom-provider::openai/gpt-6-astra',
+      providerId: 'custom-provider',
+      apiModelId: 'openai/gpt-6-astra',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.api).toBe('openai-responses')
+    expect(injection.baseUrl).toBe('https://express-ent-admin.cherryin.net/v1')
+  })
+
   it('coerces user headers to the strings the dsh route schema accepts', () => {
     const provider = {
       ...nativeProvider,
@@ -198,6 +224,20 @@ describe('buildDshProviderInjection', () => {
     const injection = buildDshProviderInjection(provider, model, 'sk-native')
 
     expect(injection.headers).toEqual({ 'x-trace': 'on', 'x-legacy': '42' })
+  })
+
+  it('adds stable TokenDance app attribution', () => {
+    const provider = {
+      ...nativeProvider,
+      id: 'tokendance',
+      presetProviderId: 'tokendance',
+      settings: { extraHeaders: { 'x-app-url': 'https://wrong.example', 'x-trace': 'on' } }
+    } as unknown as Provider
+    const model = makeModel({ id: 'tokendance::gpt-5', providerId: 'tokendance', apiModelId: 'gpt-5' })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.headers).toEqual({ 'x-trace': 'on', 'X-App-URL': 'app://cherryai.com.cn' })
   })
 })
 

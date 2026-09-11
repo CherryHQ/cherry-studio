@@ -1,6 +1,7 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { type FilePreviewFileOpener, FilePreviewNavigationContext } from './useFilePreviewNavigation'
 
