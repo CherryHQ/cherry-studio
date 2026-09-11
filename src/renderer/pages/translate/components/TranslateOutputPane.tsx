@@ -1,8 +1,9 @@
-import { defaultMarkdownPlugins, Scrollbar, StreamingMarkdown, withMath } from '@cherrystudio/ui'
 import { Check, Copy, NotebookPen } from 'lucide-react'
 import type { Ref } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { defaultMarkdownPlugins, Scrollbar, StreamingMarkdown, withMath } from '@cherrystudio/ui'
 
 import IconButton from './IconButton'
 

@@ -1,5 +1,6 @@
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it } from 'vitest'
+
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 import { WebSearchConfigError } from '../../WebSearchConfigError'
 import { ApiKeyRotationState, resolveProviderApiHost } from '../provider'

@@ -10,15 +10,7 @@ export class ProviderSpecificError extends AISDKError {
 
   readonly provider: string
 
-  constructor({
-    message,
-    provider,
-    cause
-  }: {
-    message: string
-    provider: string
-    cause?: unknown
-  }) {
+  constructor({ message, provider, cause }: { message: string; provider: string; cause?: unknown }) {
     super({ name, message, cause })
     this.provider = provider
   }

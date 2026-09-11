@@ -1,8 +1,9 @@
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
-import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   clearCliConfig: vi.fn(),
@@ -389,7 +390,7 @@ describe('useConfigPanelController', () => {
       })
       await act(async () => {
         await result.current.configPanelProps?.onSubmit({
-          modelId: 'deepseek::deepseek-chat' as any,
+          modelId: 'deepseek::deepseek-chat',
           config: {}
         })
       })
@@ -567,7 +568,7 @@ describe('useConfigPanelController', () => {
         result.current.openConfigurePanel({ id: 'p1' } as Provider)
       })
       await result.current.configPanelProps!.onSubmit({
-        modelId: 'anthropic::claude-sonnet-4-5' as any,
+        modelId: 'anthropic::claude-sonnet-4-5',
         config: { permissionMode: 'plan' }
       })
 

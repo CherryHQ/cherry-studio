@@ -64,7 +64,7 @@ function ItemCard({ item, dragging }: { item: ExampleItem; dragging: boolean }) 
   return (
     <div
       className={clsx(
-        'select-none rounded-md border p-3 shadow-sm transition',
+        'rounded-md border p-3 shadow-sm transition select-none',
         dragging ? 'opacity-50 ring-2 ring-blue-400' : 'bg-white'
       )}>
       <div className="text-sm font-medium">{item.label}</div>
@@ -96,7 +96,7 @@ function VerticalDemo(args: any) {
         className="w-full rounded-md border px-3 py-2 text-sm"
       />
 
-      <div className="overflow-x-auto h-[500px]">
+      <div className="h-[500px] overflow-x-auto">
         <Sortable<ExampleItem>
           items={filteredList}
           itemKey="id"

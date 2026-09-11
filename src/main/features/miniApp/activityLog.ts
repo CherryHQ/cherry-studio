@@ -15,6 +15,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { shell } from 'electron'
+
 import { loggerService } from '@logger'
 import {
   type MiniAppActivityEntry,
@@ -23,7 +25,6 @@ import {
   type MiniAppActivityListing
 } from '@shared/types/miniAppActivity'
 import type { MiniAppMethod } from '@shared/types/miniAppManifest'
-import { shell } from 'electron'
 
 import { miniAppLogsPath } from './paths'
 

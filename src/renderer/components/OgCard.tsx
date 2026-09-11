@@ -1,9 +1,9 @@
 import '@renderer/assets/styles/vendor/og-crd.css'
+import { OgCard as OgCrdCard } from 'og-crd'
+import { type CSSProperties, type PropsWithChildren, useEffect, useMemo } from 'react'
 
 import { Skeleton } from '@cherrystudio/ui'
 import { useMetaDataParser } from '@renderer/hooks/useMetaDataParser'
-import { OgCard as OgCrdCard } from 'og-crd'
-import { type CSSProperties, type PropsWithChildren, useEffect, useMemo } from 'react'
 
 type Props = {
   link: string

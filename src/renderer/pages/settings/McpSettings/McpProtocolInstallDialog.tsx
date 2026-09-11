@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -10,8 +13,6 @@ import {
 } from '@cherrystudio/ui'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
 import type { ProtocolMcpServerInstall } from '@shared/data/types/mcpProtocolInstall'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { McpServerConfigPreview } from './ProtocolInstallWarning'
 
@@ -51,7 +52,7 @@ const McpProtocolInstallDialog = ({ servers, onClose, onInstall }: McpProtocolIn
                   key={`${server.name}-${index}`}
                   className="flex flex-col gap-3 rounded-lg border border-border bg-background p-4">
                   <div className="flex min-w-0 items-center justify-between gap-3">
-                    <span className="truncate font-medium text-sm">{server.name}</span>
+                    <span className="truncate text-sm font-medium">{server.name}</span>
                     <Badge variant="outline" className="shrink-0">
                       {t(getMcpTypeLabelKey(serverType))}
                     </Badge>

@@ -1375,11 +1375,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.04815
+          "perMillionTokens": 0.09
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.19305
+          "perMillionTokens": 0.3
         }
       }
     },
@@ -7250,11 +7250,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.32
+          "perMillionTokens": 0.2574
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.8899999999999999
+          "perMillionTokens": 1.0287
         }
       }
     },
@@ -7304,6 +7304,42 @@
           }
         ],
         "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
+      "contextWindow": 1000000,
+      "family": "deepseek-flash",
+      "id": "deepseek-flash",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 393216,
+      "metadata": {},
+      "name": "DeepSeek V4.1 Flash",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -7688,6 +7724,35 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output"],
+      "contextWindow": 1048576,
+      "id": "deepseek-v4-1-flash",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "DeepSeek: DeepSeek V4.1 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "high", "max"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "high", "max"]
+      }
+    },
+    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 1000000,
       "family": "deepseek",
@@ -7723,42 +7788,6 @@
           }
         ],
         "supportedEfforts": ["high", "xhigh", "none"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "image-recognition", "reasoning", "structured-output"],
-      "contextWindow": 1000000,
-      "family": "deepseek-flash",
-      "id": "deepseek-v4-1-flash-expires-on",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 393216,
-      "metadata": {},
-      "name": "DeepSeek V4.1 Flash Expires-On-0910",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.014
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.44
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.32
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "high", "max"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -14293,26 +14322,6 @@
       }
     },
     {
-      "capabilities": ["reasoning", "structured-output"],
-      "contextWindow": 131072,
-      "id": "hermes-4-70b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Nous: Hermes 4 70B",
-      "outputModalities": ["text"],
-      "ownedBy": "nousresearch",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.13
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.39999999999999997
-        }
-      }
-    },
-    {
       "capabilities": ["video-recognition", "file-input"],
       "id": "active-speaker-detection",
       "inputModalities": ["video"],
@@ -20737,16 +20746,6 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["video-generation"],
-      "family": "grok",
-      "id": "grok-imagine-video-1-5-preview",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "Grok Imagine Video 1.5 Preview",
-      "outputModalities": ["video"],
-      "ownedBy": "xai"
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 500000,
       "id": "grok-latest",
@@ -22058,11 +22057,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.113
+          "perMillionTokens": 1.085
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.4979999999999998
+          "perMillionTokens": 3.41
         }
       }
     },
@@ -22099,5 +22098,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "8538244368197735"
+  "version": "eb94bb51fd08a3eb"
 }

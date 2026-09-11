@@ -1,8 +1,9 @@
-import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { RefObject } from 'react'
 import { useEffect, useEffectEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { formatQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import type { ComposerDraftToken } from '../../tokens'
 

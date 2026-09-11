@@ -217,10 +217,7 @@ describe('serializeError', () => {
       const retryError = new RetryError({
         message: 'Failed after retries',
         reason: 'maxRetriesExceeded',
-        errors: [
-          'Authorization: Bearer string-secret',
-          { apiKey: 'object-secret', nested: { token: 'nested-secret' } }
-        ] as unknown as Error[]
+        errors: ['Authorization: Bearer string-secret', { apiKey: 'object-secret', nested: { token: 'nested-secret' } }]
       })
 
       const result = serializeError(retryError)

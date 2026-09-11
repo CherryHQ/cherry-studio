@@ -32,15 +32,15 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/sync-registry-data.yml'
-      - 'packages/provider-registry/data/**'
+      - ".github/workflows/sync-registry-data.yml"
+      - "packages/provider-registry/data/**"
       # A new frozen baseline adds a publish dir; the publisher decides what each holds.
-      - 'packages/provider-registry/compat/**'
-      - 'scripts/buildRegistrySyncRequest.js'
-      - 'scripts/publishRegistryCatalog.js'
+      - "packages/provider-registry/compat/**"
+      - "scripts/buildRegistrySyncRequest.js"
+      - "scripts/publishRegistryCatalog.js"
       # A REGISTRY_SCHEMA_VERSION bump changes the publish dir (v{N}); watch its
       # source so a version-only change still creates the new vN/ directory.
-      - 'packages/provider-registry/src/registry-loader.ts'
+      - "packages/provider-registry/src/registry-loader.ts"
   release:
     types: [published]
   workflow_dispatch:

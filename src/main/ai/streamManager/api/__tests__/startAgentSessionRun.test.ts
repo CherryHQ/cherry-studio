@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '../../types'
 
@@ -77,7 +78,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     sendSpy = vi.spyOn(manager, 'send').mockImplementation((input: { topicId: string }) => {
       events.push(`send:${input.topicId}`)
       return { mode: 'started', activeExecutions: [] }
-    }) as unknown as ReturnType<typeof vi.spyOn>
+    })
   })
 
   afterEach(() => {
@@ -173,7 +174,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
 
   it('returns busy when the runtime becomes active during preparation', async () => {
     prepareDispatchMock.mockRejectedValueOnce(
-      DataApiErrorFactory.resourceLocked('Agent session', 's', 'an active turn') as never
+      DataApiErrorFactory.resourceLocked('Agent session', 's', 'an active turn')
     )
 
     await expect(
