@@ -128,7 +128,7 @@ function setup() {
 
 describe('browser snapshots', () => {
   it('handles a real Chromium form without labeling native labels as actions or exposing password values', () => {
-    const tree = buildSnapshotTree(recordedForm as RawSnapshot, (id) => `e${id}`)
+    const tree = buildSnapshotTree(recordedForm, (id) => `e${id}`)
     expect(tree.nodes.find((node) => node.name === 'Name' && node.role === 'textbox')?.value).toBe('Alice')
     expect(tree.nodes.find((node) => node.name === 'Password' && node.role === 'textbox')?.value).toBeUndefined()
     expect(tree.nodes.find((node) => node.name === 'Shadow action' && node.role === 'button')?.ref).toBeDefined()

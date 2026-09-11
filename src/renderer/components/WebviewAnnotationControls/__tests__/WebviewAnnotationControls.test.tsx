@@ -68,10 +68,7 @@ vi.mock('@renderer/components/composer/composerPreset', () => ({
 vi.mock('@renderer/components/composer/composerDraft', () => ({
   createComposerDraftContent: ({ text }: { text: string }) => text,
   serializeComposerDocument: (source: unknown) => ({
-    text:
-      typeof source === 'object' && source !== null && 'text' in source
-        ? String((source as { text: unknown }).text)
-        : '',
+    text: typeof source === 'object' && source !== null && 'text' in source ? String(source.text) : '',
     tokens: []
   })
 }))
