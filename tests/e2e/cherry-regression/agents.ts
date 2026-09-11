@@ -3,11 +3,11 @@ import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
 
-import type { RegressionApp } from './RegressionApp'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
 import { selectVisibleModel } from './models'
-import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
+import type { RegressionApp } from './RegressionApp'
 
 export async function selectAgent(page: Page, name: string): Promise<void> {
   await selectSidebarApp(page, 'Work')

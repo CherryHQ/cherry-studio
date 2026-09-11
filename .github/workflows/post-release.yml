@@ -61,7 +61,7 @@ jobs:
 
       - name: Check out latest main
         if: steps.release-ref.outputs.eligible == 'true' && steps.existing-pr.outputs.exists == 'false'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: main

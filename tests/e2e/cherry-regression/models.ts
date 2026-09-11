@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test'
 
-import type { RegressionApp } from './RegressionApp'
 import { expect } from './fixture'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
+import type { RegressionApp } from './RegressionApp'
 
 export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Provider'
 

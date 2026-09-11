@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Unit tests for imageGenerationJobHandler.
  *
@@ -12,7 +14,6 @@
  * rather than exercised.
  */
 import type { JobContext } from '@main/core/job/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ImageGenerationJobPayload } from '../jobTypes'
 
@@ -324,6 +325,21 @@ describe('imageGenerationJobHandler.execute', () => {
     // Bills the generated URL count, not the persisted file count.
     expect(recordRequestMock).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: 'custom-image:img-job-1', modality: 'image', imageCount: 2 })
+    )
+  })
+
+  it('persists inline data: URL results without downloading (b64_json-style sync responses)', async () => {
+    const inline = 'data:image/jpeg;base64,/9j/4AAQ'
+    submitMock.mockResolvedValue({ imageUrls: [inline, 'https://cdn.example.com/b.png'] })
+    createInternalEntryMock.mockResolvedValueOnce({ id: 'file-inline' }).mockResolvedValueOnce({ id: 'file-b' })
+
+    const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
+    expect(result.files).toEqual([{ id: 'file-inline' }, { id: 'file-b' }])
+    expect(downloadMock).toHaveBeenCalledTimes(1)
+    expect(downloadMock).toHaveBeenCalledWith('https://cdn.example.com/b.png')
+    expect(createInternalEntryMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ source: 'base64', data: inline })
     )
   })
 

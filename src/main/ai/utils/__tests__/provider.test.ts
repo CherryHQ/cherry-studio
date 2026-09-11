@@ -1,5 +1,6 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 import { makeProvider } from '../../__tests__/fixtures'
 import { getBaseUrl, getExtraHeaders } from '../provider'
@@ -102,6 +103,24 @@ describe('getBaseUrl', () => {
 })
 
 describe('getExtraHeaders', () => {
+  it('adds stable TokenDance attribution and replaces case-insensitive user overrides', () => {
+    const provider = makeProvider({
+      id: 'tokendance',
+      settings: { extraHeaders: { 'x-app-url': 'https://wrong.example', 'X-Custom': 'keep' } }
+    })
+
+    expect(getExtraHeaders(provider)).toEqual({
+      'X-Custom': 'keep',
+      'X-App-URL': 'app://cherryai.com.cn'
+    })
+  })
+
+  it('adds TokenDance attribution to providers copied from the preset', () => {
+    const provider = makeProvider({ id: 'custom-tokendance', presetProviderId: 'tokendance' })
+
+    expect(getExtraHeaders(provider)).toEqual({ 'X-App-URL': 'app://cherryai.com.cn' })
+  })
+
   it('adds the Cherry source to the Radeon Cloud preset', () => {
     const provider = makeProvider({
       id: 'radeon-cloud',

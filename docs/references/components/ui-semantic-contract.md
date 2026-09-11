@@ -63,7 +63,8 @@ explicit semantic role or `data-slot`.
 
 ## Build-time generation
 
-The pre-transform Vite plugin parses TSX/JSX with SWC before React compilation. It annotates:
+The pre-transform Vite plugin parses TSX/JSX into an ESTree-compatible AST with Oxc before React compilation. It
+annotates:
 
 - intrinsic roots rendered by a component or fragment branch;
 - nested nodes with an explicit `data-ui`, `data-slot`, `data-testid`, stable `id`/`name`/`role`, or a directly named

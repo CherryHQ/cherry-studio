@@ -10,10 +10,11 @@ import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 
-import { loggerService } from '@logger'
-import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { net } from 'electron'
 import * as z from 'zod'
+
+import { loggerService } from '@logger'
+import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 
 const logger = loggerService.withContext('WeChatProtocol')
 

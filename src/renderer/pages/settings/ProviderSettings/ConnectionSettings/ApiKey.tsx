@@ -1,11 +1,12 @@
+import { Copy, Edit3, Eye, EyeOff, KeyRound, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
-import { Copy, Edit3, Eye, EyeOff, KeyRound, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
@@ -82,7 +83,7 @@ export default function ApiKey({
 
   return (
     <>
-      <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
+      <ProviderSection id="setting-provider-api-key">
         <ProviderField
           className="space-y-2"
           title={

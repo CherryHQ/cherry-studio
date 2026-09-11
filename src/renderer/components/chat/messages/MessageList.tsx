@@ -1,3 +1,5 @@
+import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
@@ -6,11 +8,10 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
+import { captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
@@ -504,8 +505,8 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
       if (action === 'copy') {
-        const canvas = await captureScrollable(captureRef)
-        const blob = canvas ? await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')) : null
+        const imageData = await captureScrollableAsDataUrl(captureRef)
+        const blob = imageData ? await fetch(imageData).then((response) => response.blob()) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
         }
@@ -889,7 +890,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       {meta.selectionLayer && (
         <SelectionBox
           isMultiSelectMode={isMultiSelectMode}
-          scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+          scrollContainerRef={scrollContainerRef}
           messageElements={messageElements.current}
           handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
         />
@@ -897,6 +898,10 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       <MultiSelectActionPopup
         selectedMessageIds={selectedMessageIds}
         isMultiSelectMode={isMultiSelectMode}
+        selectAllState={selection?.selectAllState}
+        selectAllDisabled={selection?.selectAllDisabled}
+        isSelectAllLoading={selection?.isSelectAllLoading}
+        onToggleSelectAll={actions.toggleSelectAllMessages}
         deleteDisabledReason={
           selectedMessageIds
             .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))

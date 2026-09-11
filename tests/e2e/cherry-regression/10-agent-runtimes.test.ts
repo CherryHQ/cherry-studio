@@ -1,6 +1,6 @@
 import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
-import { expect, test } from './fixture'
 import { createAgent, runAgentFileTask, selectAgentWorkspace, startNewAgentTask } from './agents'
+import { expect, test } from './fixture'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 import { closeSettings, ensureCustomChatProvider, selectVisibleModel } from './models'
 

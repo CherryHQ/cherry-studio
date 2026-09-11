@@ -130,7 +130,7 @@ export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string):
   const executablePath = windowsProcessExecutablePath(record.electronPid)
   const isVerifiedExecutable = Boolean(
     record.executablePath &&
-      win32.resolve(executablePath).toLowerCase() === win32.resolve(record.executablePath).toLowerCase()
+    win32.resolve(executablePath).toLowerCase() === win32.resolve(record.executablePath).toLowerCase()
   )
   if (!executablePath || !isVerifiedExecutable) {
     throw new Error('Owned Windows Electron executable could not be verified')

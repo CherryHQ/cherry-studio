@@ -258,7 +258,10 @@ export function renderAggregateMarkdown(report: AggregateReport): string {
         `| ${PLATFORM_LABELS[run.metadata.platform]} | ${MODE_LABELS[run.metadata.mode]} | ${escapeMarkdown(taskLabel(run.metadata.task))} | ${escapeMarkdown(run.metadata.ref)} | \`${run.metadata.commitSha.slice(0, 12)}\` | ${formatDuration(run.startedAt, run.finishedAt)} | ${statusCount(run, 'passed')} | ${statusCount(run, 'failed')} | ${statusCount(run, 'blocked')} | ${VERDICT_LABELS[getRunVerdict(run)]} |`
     ),
     ...(report.missingPlatforms.length > 0
-      ? ['', `> ⚠️ **缺少平台报告：**${report.missingPlatforms.map((platform) => PLATFORM_LABELS[platform]).join('、')}`]
+      ? [
+          '',
+          `> ⚠️ **缺少平台报告：**${report.missingPlatforms.map((platform) => PLATFORM_LABELS[platform]).join('、')}`
+        ]
       : []),
     ''
   ].join('\n')

@@ -1,16 +1,16 @@
-import { SelectionTriggerMode } from '../../../src/shared/data/preference/preferenceTypes'
-import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { join } from 'node:path'
 
-import { expect, test } from './fixture'
-import { dismissOnboarding } from './helpers'
-import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import {
   closeExternalText,
   openExternalText,
   selectExternalText,
   sendSystemHotkey
 } from '../../../scripts/cherry-regression-test/system-automation'
+import { SelectionTriggerMode } from '../../../src/shared/data/preference/preferenceTypes'
+import { expect, test } from './fixture'
+import { dismissOnboarding } from './helpers'
+import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
 
 test.afterEach(({ app }) => closeExternalText(app.record.platform))
 

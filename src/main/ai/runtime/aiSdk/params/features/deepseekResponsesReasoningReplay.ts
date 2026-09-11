@@ -1,7 +1,8 @@
+import type { LanguageModelMiddleware } from 'ai'
+
 import { definePlugin } from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { isDeepSeekModel } from '@shared/utils/model'
-import type { LanguageModelMiddleware } from 'ai'
 
 import type { RequestFeature } from '../feature'
 
@@ -28,7 +29,7 @@ function createDeepseekResponsesReasoningReplayMiddleware(): LanguageModelMiddle
             content: message.content.map((part) => {
               if (part.type !== 'reasoning') return part
               const openai = part.providerOptions?.openai
-              if (openai?.itemId != null || openai?.reasoningEncryptedContent != null) return part
+              if (openai?.reasoningEncryptedContent != null) return part
               return {
                 ...part,
                 providerOptions: {

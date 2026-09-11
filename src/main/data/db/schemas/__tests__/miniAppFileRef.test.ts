@@ -1,10 +1,11 @@
-import { fileEntryTable } from '@data/db/schemas/file'
-import { miniAppFileRefTable, persistentRefAbsenceConditions } from '@data/db/schemas/fileRelations'
-import { miniAppTable } from '@data/db/schemas/miniApp'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { describe, expect, it } from 'vitest'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import { miniAppFileRefTable, persistentRefAbsenceConditions } from '@data/db/schemas/fileRelations'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 
 const APP_ID = 'com.example.mygame'
 

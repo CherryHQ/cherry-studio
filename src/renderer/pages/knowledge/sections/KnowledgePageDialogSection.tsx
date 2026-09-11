@@ -1,10 +1,14 @@
-import AddKnowledgeItemDialog from '../components/AddKnowledgeItemDialog'
-import CreateKnowledgeBaseDialog from '../components/CreateKnowledgeBaseDialog'
-import CreateKnowledgeGroupDialog from '../components/CreateKnowledgeGroupDialog'
-import KnowledgeBaseNameDialog from '../components/KnowledgeBaseNameDialog'
-import RenameKnowledgeGroupDialog from '../components/RenameKnowledgeGroupDialog'
-import RestoreKnowledgeBaseDialog from '../components/RestoreKnowledgeBaseDialog'
+import { lazy, Suspense } from 'react'
+
 import { useKnowledgePage } from '../KnowledgePageProvider'
+
+// Management dialogs are loaded on first open instead of with the page.
+const AddKnowledgeItemDialog = lazy(() => import('../components/AddKnowledgeItemDialog'))
+const CreateKnowledgeBaseDialog = lazy(() => import('../components/CreateKnowledgeBaseDialog'))
+const CreateKnowledgeGroupDialog = lazy(() => import('../components/CreateKnowledgeGroupDialog'))
+const KnowledgeBaseNameDialog = lazy(() => import('../components/KnowledgeBaseNameDialog'))
+const RenameKnowledgeGroupDialog = lazy(() => import('../components/RenameKnowledgeGroupDialog'))
+const RestoreKnowledgeBaseDialog = lazy(() => import('../components/RestoreKnowledgeBaseDialog'))
 
 const KnowledgePageDialogSection = () => {
   const {
@@ -38,7 +42,7 @@ const KnowledgePageDialogSection = () => {
   } = useKnowledgePage()
 
   return (
-    <>
+    <Suspense fallback={null}>
       {isAddSourceDialogOpen ? (
         <AddKnowledgeItemDialog open={isAddSourceDialogOpen} onOpenChange={handleAddSourceDialogOpenChange} />
       ) : null}
@@ -95,7 +99,7 @@ const KnowledgePageDialogSection = () => {
           onCreated={handleCreateBaseCreated}
         />
       ) : null}
-    </>
+    </Suspense>
   )
 }
 

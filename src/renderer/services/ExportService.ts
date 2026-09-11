@@ -1,6 +1,15 @@
+import type { Client } from '@notionhq/client'
+import type { markdownToBlocks } from '@tryfabric/martian'
+import dayjs from 'dayjs'
+import DOMPurify from 'dompurify'
+import type { Blockquote } from 'mdast'
+import type { appendBlocks } from 'notion-helper'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import type { Client } from '@notionhq/client'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
@@ -27,14 +36,9 @@ import {
   getThinkingContent,
   getToolCitationExport
 } from '@renderer/utils/message/find'
-import type { markdownToBlocks } from '@tryfabric/martian'
-import dayjs from 'dayjs'
-import DOMPurify from 'dompurify'
-import type { Blockquote } from 'mdast'
-import type { appendBlocks } from 'notion-helper'
-import remarkParse from 'remark-parse'
-import { unified } from 'unified'
-import { visit } from 'unist-util-visit'
+import type { ContentHash } from '@shared/data/types/file'
+import { AbsoluteFilePathSchema, type FileVersion } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 
 import {
   collectExportableImages,
@@ -527,12 +531,77 @@ const buildMarkdownWithImages = async (
   return { markdown: await build(overrides), pendingWrites }
 }
 
-/** Folder mode: write image assets next to the .md; failures warn but keep the .md. */
-const exportImageAssets = async (dirPath: string, pendingWrites: PendingImageWrite[]): Promise<void> => {
-  const failedCount = await writeImageAssets(dirPath, pendingWrites)
-  if (failedCount > 0) {
-    toast.warning(i18n.t('chat.topics.export.image_mode.write_failed', { count: failedCount }))
+const escapeAssetName = (fileName: string): string => fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// Strips the failed images' assets/ links from the just-written .md; the atomic
+// conditional write refuses when the file changed since expectedVersion (user edits win).
+const repairDanglingImageLinks = async (
+  mdPath: string,
+  markdown: string,
+  failedFileNames: string[],
+  expectedVersion: FileVersion,
+  expectedContentHash: ContentHash | undefined
+): Promise<void> => {
+  let repaired = markdown
+  for (const fileName of failedFileNames) {
+    // 'g' clears every occurrence of a deduped asset name; the alt class excludes
+    // '[' and '\n' so a stray unpaired '![' in user text can never widen the match.
+    repaired = repaired.replace(
+      new RegExp(`!\\[[^\\][\\n]*\\]\\(assets/${escapeAssetName(fileName)}\\)\\n{0,2}`, 'g'),
+      ''
+    )
   }
+  if (repaired === markdown) {
+    logger.warn('No dangling image links matched during the markdown repair', { mdPath, failedFileNames })
+    return
+  }
+  await ipcApi.request('file.write_if_unchanged', {
+    handle: createFilePathHandle(AbsoluteFilePathSchema.parse(mdPath)),
+    data: new TextEncoder().encode(repaired),
+    expectedVersion,
+    expectedContentHash
+  })
+}
+
+// Returns the version+hash pair only while the .md still holds exactly our markdown —
+// an external rewrite voids the repair; the hash closes same-second mtime ambiguity (FAT32/SMB/NFS).
+const readWrittenMarkdownVersion = async (
+  mdPath: string,
+  markdown: string
+): Promise<{ version: FileVersion; contentHash?: ContentHash } | null> => {
+  try {
+    const { content, version, contentHash } = await ipcApi.request('file.read', {
+      handle: createFilePathHandle(AbsoluteFilePathSchema.parse(mdPath)),
+      options: { mode: 'full', encoding: 'binary', withContentHash: true }
+    })
+    return new TextDecoder().decode(content) === markdown ? { version, contentHash } : null
+  } catch {
+    return null
+  }
+}
+
+/** Folder mode: write image assets next to the .md; failed images get their links stripped and warn. */
+const exportImageAssets = async (
+  mdPath: string,
+  markdown: string,
+  pendingWrites: PendingImageWrite[]
+): Promise<void> => {
+  if (pendingWrites.length === 0) return
+  const failed = await writeImageAssets(dirOf(mdPath), pendingWrites)
+  if (failed.length === 0) return
+  // Read back only on failure — the content-equality gate protects external
+  // rewrites, and the all-assets-succeeded path pays no extra IPC.
+  const snapshot = await readWrittenMarkdownVersion(mdPath, markdown)
+  if (snapshot) {
+    try {
+      await repairDanglingImageLinks(mdPath, markdown, failed, snapshot.version, snapshot.contentHash)
+    } catch (error) {
+      logger.warn('Failed to strip dangling image links from the exported markdown', { mdPath, error })
+    }
+  } else {
+    logger.warn('Skipped the dangling-link repair: the exported .md no longer holds this export', { mdPath })
+  }
+  toast.warning(i18n.t('chat.topics.export.image_mode.write_failed', { count: failed.length }))
 }
 
 export const exportTopicAsMarkdown = async (
@@ -561,7 +630,7 @@ export const exportTopicAsMarkdown = async (
       if (!built) return
       const result = await window.api.file.save(fileName, built.markdown)
       if (result) {
-        await exportImageAssets(dirOf(result), built.pendingWrites)
+        await exportImageAssets(result, built.markdown, built.pendingWrites)
         toast.success(i18n.t('message.success.markdown.export.specified'))
       }
     } catch (error: any) {
@@ -581,8 +650,9 @@ export const exportTopicAsMarkdown = async (
         chooseImageMode
       )
       if (!built) return
-      await window.api.file.write(markdownExportPath + '/' + fileName, built.markdown)
-      await exportImageAssets(markdownExportPath, built.pendingWrites)
+      const mdPath = markdownExportPath + '/' + fileName
+      await window.api.file.write(mdPath, built.markdown)
+      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       toast.error(i18n.t('message.error.markdown.export.preconf'))
@@ -622,7 +692,7 @@ export const exportMessageAsMarkdown = async (
       if (!built) return
       const result = await window.api.file.save(fileName, built.markdown)
       if (result) {
-        await exportImageAssets(dirOf(result), built.pendingWrites)
+        await exportImageAssets(result, built.markdown, built.pendingWrites)
         toast.success(i18n.t('message.success.markdown.export.specified'))
       }
     } catch (error: any) {
@@ -638,8 +708,9 @@ export const exportMessageAsMarkdown = async (
       const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
       const built = await buildMarkdownWithImages([message], buildWithOverrides, chooseImageMode)
       if (!built) return
-      await window.api.file.write(markdownExportPath + '/' + fileName, built.markdown)
-      await exportImageAssets(markdownExportPath, built.pendingWrites)
+      const mdPath = markdownExportPath + '/' + fileName
+      await window.api.file.write(mdPath, built.markdown)
+      await exportImageAssets(mdPath, built.markdown, built.pendingWrites)
       toast.success(i18n.t('message.success.markdown.export.preconf'))
     } catch (error: any) {
       toast.error(i18n.t('message.error.markdown.export.preconf'))
@@ -882,7 +953,12 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
         }
       }
     })
-    toast.loading({ title: i18n.t('message.loading.notion.preparing'), promise: responsePromise })
+    const preparingToastKey = 'notion-export:preparing'
+    toast.loading({
+      key: preparingToastKey,
+      title: i18n.t('message.loading.notion.preparing'),
+      promise: responsePromise.finally(() => toast.closeToast(preparingToastKey)).catch(() => undefined)
+    })
     const response = await responsePromise
 
     const exportPromise = appendBlocks({
@@ -890,7 +966,20 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
       children: allBlocks,
       client: notion
     })
-    toast.loading({ title: i18n.t('message.loading.notion.exporting_progress'), promise: exportPromise })
+    const exportingToastKey = 'notion-export:exporting'
+    toast.loading({
+      key: exportingToastKey,
+      title: i18n.t('message.loading.notion.exporting_progress'),
+      promise: exportPromise.finally(() => toast.closeToast(exportingToastKey)).catch(() => undefined)
+    })
+    const result = await exportPromise
+    if ('error' in result || ('apiResponses' in result && result.apiResponses === null)) {
+      throw new Error(
+        'error' in result && typeof result.error === 'string' && result.error
+          ? result.error
+          : i18n.t('message.error.notion.export')
+      )
+    }
 
     toast.success(i18n.t('message.success.notion.export'))
     return true
@@ -1430,7 +1519,7 @@ const getScrollableElement = (): HTMLElement | null => {
     const style = window.getComputedStyle(div)
     if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
       if (div.querySelector('.ProseMirror')) {
-        return div as HTMLElement
+        return div
       }
     }
   }

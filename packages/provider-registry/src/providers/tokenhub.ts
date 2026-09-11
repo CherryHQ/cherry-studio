@@ -6,9 +6,15 @@ import { defineProvider } from './types'
 // definitions live in the creators (models.json); these don't redefine them. apiModelIds are verbatim from
 // cloud.tencent.com/document/product/1823/130079 (note the date suffixes on hunyuan-2.0-*). No per-model
 // pricing is published.
+//
+// Image models (cloud.tencent.com/document/product/1823/130080) are NOT OpenAI-compatible: each family has
+// its own `/v1/wand/*` endpoint (hunyuan / seedream sync, vidu async submit+poll), carried here as
+// `vendorTransport` and executed by main's tokenhub image transport. The full `imageGeneration` block is
+// restated per row because the runtime replaces it wholesale (Design B).
 export default defineProvider({
   id: 'tokenhub',
   name: 'TokenHub',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://tokenhub.tencentmaas.com' },
@@ -17,7 +23,7 @@ export default defineProvider({
   },
   metadata: {
     website: {
-      apiKey: 'https://console.cloud.tencent.com/tokenhub/inference',
+      apiKey: 'https://console.cloud.tencent.com/tokenhub/apikey',
       docs: 'https://cloud.tencent.com/document/product/1823',
       models: 'https://cloud.tencent.com/document/product/1823/130079',
       official: 'https://cloud.tencent.com/product/tokenhub'
@@ -47,6 +53,90 @@ export default defineProvider({
     { modelId: 'minimax-m2-7', apiModelId: 'minimax-m2.7' },
     { modelId: 'minimax-m3', apiModelId: 'minimax-m3' },
     { modelId: 'qwen3-5-flash', apiModelId: 'qwen3.5-flash' },
-    { modelId: 'qwen3-5-plus', apiModelId: 'qwen3.5-plus' }
+    { modelId: 'qwen3-5-plus', apiModelId: 'qwen3.5-plus' },
+    // image (1823/135745 — hy, 1823/136609 — seedream, 1823/135746 — vidu)
+    {
+      modelId: 'hy-image-v3-0',
+      apiModelId: 'hy-image-v3',
+      inputModalities: ['text', 'image'],
+      imageGeneration: {
+        modes: {
+          generate: {
+            maxInputImages: 3,
+            supports: {
+              size: {
+                type: 'enum',
+                options: ['1024x1024', '1280x768', '768x1280', '1024x768', '768x1024', 'custom'],
+                default: '1024x1024',
+                render: 'chips'
+              },
+              customSize: { type: 'size', minSide: 512, maxSide: 2048, pairedEnumKey: 'size' },
+              seed: { type: 'text' },
+              promptEnhancement: { type: 'switch', default: false }
+            },
+            vendorTransport: { endpoint: '/v1/wand/hunyuan-image/v3-generation', isSync: true }
+          }
+        }
+      }
+    },
+    {
+      modelId: 'doubao-seedream-5-0-pro',
+      apiModelId: 'seedream-image-v5.0-pro',
+      imageGeneration: {
+        modes: {
+          generate: {
+            maxInputImages: 10,
+            supports: {
+              imageResolution: { type: 'enum', options: ['1K', '1.5K', '2K'], default: '2K', render: 'chips' },
+              outputFormat: { type: 'enum', options: ['jpeg', 'png'], default: 'jpeg' },
+              addWatermark: { type: 'switch' }
+            },
+            vendorTransport: { endpoint: '/v1/wand/si-image/generation', isSync: true }
+          }
+        }
+      }
+    },
+    {
+      modelId: 'doubao-seedream-5-0-lite',
+      apiModelId: 'seedream-image-v5.0-lite',
+      imageGeneration: {
+        modes: {
+          generate: {
+            maxInputImages: 14,
+            supports: {
+              imageResolution: { type: 'enum', options: ['2K', '3K', '4K'], default: '2K', render: 'chips' },
+              outputFormat: { type: 'enum', options: ['jpeg', 'png'], default: 'jpeg' },
+              addWatermark: { type: 'switch' },
+              sequentialImageGeneration: { type: 'enum', options: ['disabled', 'auto'], default: 'disabled' },
+              maxImages: { type: 'range', min: 1, max: 15, default: 15 }
+            },
+            vendorTransport: { endpoint: '/v1/wand/si-image/generation', isSync: true }
+          }
+        }
+      }
+    },
+    {
+      modelId: 'viduq2',
+      apiModelId: 'vidu-image-q2',
+      inputModalities: ['text', 'image'],
+      imageGeneration: {
+        modes: {
+          generate: {
+            maxInputImages: 7,
+            supports: {
+              aspectRatio: {
+                type: 'enum',
+                options: ['16:9', '9:16', '1:1', '3:4', '4:3', '21:9', '2:3', '3:2'],
+                default: '16:9',
+                render: 'chips'
+              },
+              resolution: { type: 'enum', options: ['1080p', '2K', '4K'], default: '1080p', render: 'chips' },
+              seed: { type: 'text' }
+            },
+            vendorTransport: { endpoint: '/v1/wand/vidu-image/generation' }
+          }
+        }
+      }
+    }
   ]
 })

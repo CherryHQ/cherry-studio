@@ -1,9 +1,10 @@
-import { loggerService } from '@logger'
-import { useTheme } from '@renderer/hooks/useTheme'
 import type { EChartsCoreOption } from 'echarts'
 import * as echarts from 'echarts'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { loggerService } from '@logger'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'

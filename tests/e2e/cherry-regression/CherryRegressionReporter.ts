@@ -9,9 +9,9 @@ import type {
 } from '@playwright/test/reporter'
 
 import { getCase, selectCases } from '../../../scripts/cherry-regression-test/cases'
+import { REQUIRED_CONFIG } from '../../../scripts/cherry-regression-test/config'
 import { getRunPaths } from '../../../scripts/cherry-regression-test/paths'
 import { createRedactor } from '../../../scripts/cherry-regression-test/redaction'
-import { REQUIRED_CONFIG } from '../../../scripts/cherry-regression-test/config'
 import {
   beginCase,
   completeE2eCase,

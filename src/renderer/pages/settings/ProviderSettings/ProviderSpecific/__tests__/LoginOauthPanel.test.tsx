@@ -1,12 +1,13 @@
-import { popup } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
-import { IpcError } from '@shared/ipc/errors/IpcError'
-import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 
 import LoginOauthPanel from '../LoginOauthPanel'
 

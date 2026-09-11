@@ -4,6 +4,8 @@
  * Handles CRUD operations for knowledge items stored in SQLite.
  */
 
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -19,7 +21,6 @@ import {
   type KnowledgeItemStatus,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
@@ -407,10 +408,10 @@ export class KnowledgeItemService {
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+    update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
     if (status === 'failed') {
-      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
+      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
     }
     return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
   }
@@ -424,7 +425,7 @@ export class KnowledgeItemService {
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+    update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
     const error = status === 'failed' ? update?.error.trim() : null
 
@@ -562,11 +563,7 @@ export class KnowledgeItemService {
 
   updateStatus(id: string, status: Exclude<KnowledgeItemStatus, 'failed'>, update?: never): KnowledgeItem
   updateStatus(id: string, status: 'failed', update: FailedKnowledgeItemStatusUpdate): KnowledgeItem
-  updateStatus(
-    id: string,
-    status: KnowledgeItemStatus,
-    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
-  ): KnowledgeItem {
+  updateStatus(id: string, status: KnowledgeItemStatus, update?: FailedKnowledgeItemStatusUpdate): KnowledgeItem {
     // Per-type status legality is enforced by the DB CHECK constraint.
     const error = status === 'failed' ? update?.error.trim() : null
 
@@ -637,11 +634,14 @@ export class KnowledgeItemService {
    * cannot statically prove the patched key belongs to the resolved item type —
    * `allowedTypes` is the runtime guard that makes the cast sound, so the two are
    * load-bearing together and must be kept in sync.
+   *
+   * A `null` patch value removes the key rather than storing a sentinel, because the
+   * optional path fields are read by absence (`toMaterialRelativePath`'s `??`).
    */
   private patchItemData(
     id: string,
     allowedTypes: KnowledgeItemType[],
-    patch: { indexedRelativePath: string } | { relativePath: string },
+    patch: { indexedRelativePath: string | null } | { relativePath: string },
     label: string
   ): KnowledgeItem {
     const dbService = application.get('DbService')
@@ -659,10 +659,19 @@ export class KnowledgeItemService {
         })
       }
 
+      const nextData: Record<string, unknown> = { ...existingItem.data, ...patch }
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null) {
+          delete nextData[key]
+        }
+      }
+
       const [updatedRow] = tx
         .update(knowledgeItemTable)
         .set({
-          data: { ...existingItem.data, ...patch } as KnowledgeItemData
+          // Runtime guards above narrow the item kind; Drizzle cannot carry that correlation through the spread.
+          // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
+          data: nextData as KnowledgeItemData
         })
         .where(eq(knowledgeItemTable.id, id))
         .returning()
@@ -684,6 +693,15 @@ export class KnowledgeItemService {
 
   updateIndexedRelativePath(id: string, indexedRelativePath: string): KnowledgeItem {
     return this.patchItemData(id, ['file'], { indexedRelativePath }, 'indexed relative path')
+  }
+
+  /**
+   * Unpin a file item from its processed artifact so it indexes from its own bytes again.
+   * Used when a reindex refreshed the source but the base will not regenerate the artifact,
+   * which would otherwise keep describing content the file no longer has.
+   */
+  clearIndexedRelativePath(id: string): KnowledgeItem {
+    return this.patchItemData(id, ['file'], { indexedRelativePath: null }, 'indexed relative path')
   }
 
   /**

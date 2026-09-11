@@ -1,12 +1,12 @@
-import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import type { Locator, Page } from '@playwright/test'
 
-import type { RegressionApp } from './RegressionApp'
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
+import { listOwnedProcessIds, observeOwnedProcess } from '../../../scripts/cherry-regression-test/process-evidence'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 import { expect, test } from './fixture'
 import { openLaunchpadApp } from './helpers'
 import { closeSettings, CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from './models'
-import { listOwnedProcessIds, observeOwnedProcess } from '../../../scripts/cherry-regression-test/process-evidence'
-import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
+import type { RegressionApp } from './RegressionApp'
 
 async function openCodeTool(page: Page, name: string): Promise<void> {
   await openLaunchpadApp(page, 'Code Mate')

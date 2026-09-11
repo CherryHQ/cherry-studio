@@ -54,20 +54,18 @@ describe('SessionCreateTool', () => {
     render(
       <Harness
         input={{ title: 'Research pricing', message: 'Compare the three enterprise plans and cite each source.' }}
-        output={
-          {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  ok: true,
-                  sessionId: 'session-research',
-                  delivery: { status: 'delivering' }
-                })
-              }
-            ]
-          } as never
-        }
+        output={{
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                ok: true,
+                sessionId: 'session-research',
+                delivery: { status: 'delivering' }
+              })
+            }
+          ]
+        }}
       />
     )
 
@@ -83,16 +81,14 @@ describe('SessionCreateTool', () => {
     render(
       <Harness
         input={{ message: 'Do the work.' }}
-        output={
-          {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ ok: true, sessionId: 'session-copy', delivery: { status: 'accepted' } })
-              }
-            ]
-          } as never
-        }
+        output={{
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ ok: true, sessionId: 'session-copy', delivery: { status: 'accepted' } })
+            }
+          ]
+        }}
       />
     )
 

@@ -22,6 +22,12 @@
  * enforce.
  */
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
@@ -31,11 +37,6 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { drainTrailingDispatch } from './_helpers'
 
@@ -118,7 +119,7 @@ async function bootstrapManager(opts: BootstrapOptions = {}): Promise<{
 
   const dbSvc = MockMainDbServiceExport.dbService
   const cacheSvc = MockMainCacheServiceExport.cacheService
-  ;(application.get as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+  ;(application.get as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation((name: string) => {
     switch (name) {
       case 'DbService':
         return dbSvc
@@ -223,6 +224,77 @@ describe('JobManager integration', () => {
       expect(all).toHaveLength(2)
       expect(all.every((r) => r.status === 'cancelled')).toBe(true)
       expect(all.every((r) => r.error?.code === 'JOB_CANCELLED')).toBe(true)
+
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('cancelRequested: settles the leftover without disturbing a newer finished run in the projection', async () => {
+      const dbh = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      // Disabled so recovery's overdue catch-up cannot dispatch a fresh run
+      // mid-test; only the two inserted rows drive the projection.
+      const schedule = jobScheduleService.create({
+        type: 'task.retry',
+        name: 'mixed-run',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: {},
+        catchUpPolicy: { kind: 'skip-missed' },
+        enabled: false
+      })
+
+      const now = Date.now()
+      const cancelRequestedAt = now - 5_000
+      const newerFinishedAt = now - 2_000
+      const inserted = await dbh
+        .insert(jobTable)
+        .values([
+          {
+            type: 'task.retry',
+            status: 'running',
+            queue: 'task.retry',
+            scheduleId: schedule.id,
+            scheduledAt: now - 9_000,
+            startedAt: now - 8_000,
+            attempt: 0,
+            maxAttempts: 1,
+            input: { message: 'leftover' },
+            cancelRequested: true,
+            cancelRequestedAt,
+            metadata: {}
+          },
+          {
+            type: 'task.retry',
+            status: 'completed',
+            queue: 'task.retry',
+            scheduleId: schedule.id,
+            scheduledAt: now - 3_500,
+            startedAt: now - 3_000,
+            finishedAt: newerFinishedAt,
+            attempt: 0,
+            maxAttempts: 1,
+            input: { message: 'newer' },
+            cancelRequested: false,
+            metadata: {}
+          }
+        ])
+        .returning()
+      const leftoverId = inserted.find((r) => r.status === 'running')!.id
+
+      const before = jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])
+      expect(before.get(schedule.id)).toEqual({ kind: 'terminal', status: 'completed', finishedAt: newerFinishedAt })
+
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['task.retry', makeSlowHandler('retry') as JobHandler]]
+      })
+
+      const settled = jobService.getById(leftoverId)
+      expect(settled?.status).toBe('cancelled')
+      expect(settled?.error?.code).toBe('JOB_CANCELLED')
+      // finishedAt is the real settle time; the projection stays put because it
+      // orders cancelled runs by the immutable cancelRequestedAt instead.
+      expect(settled && Date.parse(settled.finishedAt!)).toBeGreaterThanOrEqual(now)
+      expect(settled && Date.parse(settled.cancelRequestedAt!)).toBe(cancelRequestedAt)
+      expect(jobService.getRunStatesByScheduleIds('task.retry', [schedule.id])).toEqual(before)
 
       await teardownManager(scheduler, jobManager)
     })
@@ -752,16 +824,10 @@ describe('JobManager integration', () => {
         handlers: [['parallel.task', makeSlowHandler('abandon') as JobHandler]]
       })
 
-      const handles = await Promise.all(
-        Array.from({ length: 20 }, (_, i) =>
-          jobManager.enqueue(
-            'parallel.task' as never,
-            { message: `n-${i}`, sleepMs: 5 } as never,
-            {
-              queue: `parallel-${i}`
-            } as never
-          )
-        )
+      const handles = Array.from({ length: 20 }, (_, i) =>
+        jobManager.enqueue('parallel.task' as never, { message: `n-${i}`, sleepMs: 5 } as never, {
+          queue: `parallel-${i}`
+        })
       )
 
       const settled = await Promise.all(handles.map((h) => h.finished))
@@ -787,20 +853,16 @@ describe('JobManager integration', () => {
       ;(jobManager as unknown as { globalMaxConcurrency: number }).globalMaxConcurrency = 1
 
       // Queue qB occupies the only global slot with a slow job.
-      const occupant = jobManager.enqueue(
-        'cap.task' as never,
-        { message: 'occupant', sleepMs: 150 } as never,
-        { queue: 'qB' } as never
-      )
+      const occupant = jobManager.enqueue('cap.task' as never, { message: 'occupant', sleepMs: 150 } as never, {
+        queue: 'qB'
+      })
       await drainAllQueues(jobManager)
 
       // Queue qA is enqueued while the global cap is saturated → blocked pending,
       // even though qA's own per-queue slots are free.
-      const starved = jobManager.enqueue(
-        'cap.task' as never,
-        { message: 'starved', sleepMs: 10 } as never,
-        { queue: 'qA' } as never
-      )
+      const starved = jobManager.enqueue('cap.task' as never, { message: 'starved', sleepMs: 10 } as never, {
+        queue: 'qA'
+      })
 
       // Pin the regression deterministically: qA's dispatch must have observed
       // the global cap saturated and set the flag. Drain first so qA's (fire-and-
@@ -848,11 +910,9 @@ describe('JobManager integration', () => {
         throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
       })
 
-      const handle = jobManager.enqueue(
-        'retry.fallback.task' as never,
-        { message: 'doomed' } as never,
-        { maxAttempts: 3 } as never
-      )
+      const handle = jobManager.enqueue('retry.fallback.task' as never, { message: 'doomed' } as never, {
+        maxAttempts: 3
+      })
 
       // Drive the dispatch + handler.execute + fallback finalize chain to
       // completion. Poll the row instead of using a fixed sleep — the
@@ -905,11 +965,7 @@ describe('JobManager integration', () => {
         throw Object.assign(new Error('synthetic-corrupt-terminal'), { code: 'SQLITE_CORRUPT' })
       })
 
-      jobManager.enqueue(
-        'retry.fallback.task.2' as never,
-        { message: 'doubled-doom' } as never,
-        { maxAttempts: 3 } as never
-      )
+      jobManager.enqueue('retry.fallback.task.2' as never, { message: 'doubled-doom' } as never, { maxAttempts: 3 })
 
       // Drive the dispatch + handler + fallback chain. With both retry and
       // terminal writes mocked to fail, the production code falls all the
@@ -955,14 +1011,10 @@ describe('JobManager integration', () => {
       const parent = jobManager.enqueue('settled.payload' as never, { label: 'parent' } as never)
       await parent.finished
 
-      const child = jobManager.enqueue(
-        'settled.payload' as never,
-        { label: 'child' } as never,
-        {
-          parentId: parent.id,
-          metadata: { origin: 'test' }
-        } as never
-      )
+      const child = jobManager.enqueue('settled.payload' as never, { label: 'child' } as never, {
+        parentId: parent.id,
+        metadata: { origin: 'test' }
+      })
       const snapshot = await child.finished
       expect(snapshot.status).toBe('completed')
 
@@ -1056,25 +1108,16 @@ describe('JobManager integration', () => {
       })
       const db = MockMainDbServiceExport.dbService.getDb() as DbType
 
-      const first = jobManager.enqueue(
-        'tx.idem' as never,
-        { message: 'one', sleepMs: 300 } as never,
-        {
-          idempotencyKey: 'tx-idem-key'
-        } as never
-      )
+      const first = jobManager.enqueue('tx.idem' as never, { message: 'one', sleepMs: 300 } as never, {
+        idempotencyKey: 'tx-idem-key'
+      })
 
       let second!: JobHandle
       db.transaction(
         (tx) => {
-          second = jobManager.enqueueTx(
-            tx,
-            'tx.idem' as never,
-            { message: 'two' } as never,
-            {
-              idempotencyKey: 'tx-idem-key'
-            } as never
-          )
+          second = jobManager.enqueueTx(tx, 'tx.idem' as never, { message: 'two' } as never, {
+            idempotencyKey: 'tx-idem-key'
+          })
         },
         { behavior: 'immediate' }
       )
@@ -1096,14 +1139,9 @@ describe('JobManager integration', () => {
       let handle!: JobHandle
       db.transaction(
         (tx) => {
-          handle = jobManager.enqueueTx(
-            tx,
-            'tx.delayed' as never,
-            { message: 'later', sleepMs: 5 } as never,
-            {
-              scheduledAt: Date.now() + 150
-            } as never
-          )
+          handle = jobManager.enqueueTx(tx, 'tx.delayed' as never, { message: 'later', sleepMs: 5 } as never, {
+            scheduledAt: Date.now() + 150
+          })
         },
         { behavior: 'immediate' }
       )
@@ -1137,14 +1175,9 @@ describe('JobManager integration', () => {
       let handle!: JobHandle
       db.transaction(
         (tx) => {
-          handle = jobManager.enqueueTx(
-            tx,
-            'tx.delayed.skew' as never,
-            { message: 'later', sleepMs: 5 } as never,
-            {
-              scheduledAt: Date.now() + 50
-            } as never
-          )
+          handle = jobManager.enqueueTx(tx, 'tx.delayed.skew' as never, { message: 'later', sleepMs: 5 } as never, {
+            scheduledAt: Date.now() + 50
+          })
         },
         { behavior: 'immediate' }
       )

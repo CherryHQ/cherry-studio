@@ -1,6 +1,6 @@
 import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
-import { expect, test } from './fixture'
 import { customAssistantName, ensureCustomAssistant } from './assistants'
+import { expect, test } from './fixture'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, knowledgeName } from './knowledge'
 import { closeSettings } from './models'

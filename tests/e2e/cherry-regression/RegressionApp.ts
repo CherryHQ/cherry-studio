@@ -1,10 +1,11 @@
 import { copyFileSync, mkdirSync } from 'node:fs'
 import { basename, join } from 'node:path'
+
 import type { Browser, Page } from '@playwright/test'
 import { chromium } from '@playwright/test'
 
-import { prepareWindowsCdpConnection } from '../../../scripts/cherry-regression-test/debugBridge'
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/cherry-regression-test/config'
+import { prepareWindowsCdpConnection } from '../../../scripts/cherry-regression-test/debugBridge'
 import {
   ensureProfile,
   readAppRecord,

@@ -1,5 +1,6 @@
-import type { ComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import type { ReactNode } from 'react'
+
+import type { ComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 
 export type ChatInputTokenKind = ComposerInputTokenKind
 

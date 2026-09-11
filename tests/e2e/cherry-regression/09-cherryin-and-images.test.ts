@@ -1,12 +1,12 @@
-import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { join } from 'node:path'
 
-import { expect, test } from './fixture'
-import { addCherryInModel, ensureCherryInSignedIn } from './cherry-in'
-import { dismissOnboarding, selectSidebarApp } from './helpers'
-import { closeSettings, selectChatModel, selectVisibleModel, sendChatMarker } from './models'
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { validateFileEvidence } from '../../../scripts/cherry-regression-test/file-evidence'
 import { saveNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
+import { addCherryInModel, ensureCherryInSignedIn } from './cherry-in'
+import { expect, test } from './fixture'
+import { dismissOnboarding, selectSidebarApp } from './helpers'
+import { closeSettings, selectChatModel, selectVisibleModel, sendChatMarker } from './models'
 
 const IMAGE_PROMPT = 'A red cherry robot holding a blue umbrella in a bright workshop, detailed illustration.'
 

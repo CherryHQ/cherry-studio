@@ -1,17 +1,20 @@
+import { lazy, Suspense, useCallback, useState } from 'react'
+
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
 import { isLoginBasedProvider } from '@shared/utils/provider'
-import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
-import ProviderApiSetupDialog, { type ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
+import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderApiSetupDialog'
 import { ApiKeyProvider } from './hooks/providerSetting/useAuthenticationApiKey'
 import { useProviderApiKey } from './hooks/providerSetting/useProviderApiKey'
 import { ModelList, ModelListHealthProvider } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
+
+const ProviderApiSetupDialog = lazy(() => import('./ConnectionSettings/ProviderApiSetupDialog'))
 
 interface ProviderSettingProps {
   providerId: string
@@ -51,7 +54,8 @@ function ProviderSettingSections({
             onOpenApiSetup={() => openApiSetup('api-key')}
             onContinueApiSetup={() => openApiSetup('models')}
           />
-          <div className="flex min-h-0 flex-1 flex-col">
+          {/* Floor keeps the list usable when a tall auth section leaves no room; the strip scrolls instead. */}
+          <div className="flex min-h-[280px] flex-1 flex-col">
             <ModelList
               providerId={providerId}
               modelPullGuideVersion={modelPullGuideVersion}
@@ -61,7 +65,9 @@ function ProviderSettingSections({
         </div>
       </Scrollbar>
       {apiSetupStep ? (
-        <ProviderApiSetupDialog providerId={providerId} initialStep={apiSetupStep} onClose={closeApiSetup} />
+        <Suspense fallback={null}>
+          <ProviderApiSetupDialog providerId={providerId} initialStep={apiSetupStep} onClose={closeApiSetup} />
+        </Suspense>
       ) : null}
     </>
   )

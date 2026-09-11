@@ -2,11 +2,11 @@ import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
 
-import type { RegressionApp } from './RegressionApp'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
 import { openSettingsSection, selectVisibleModel, skipNewProviderModelSetup } from './models'
-import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
+import type { RegressionApp } from './RegressionApp'
 
 export const EMBEDDING_PROVIDER = 'Cherry Regression Embedding'
 export function knowledgeName(app: RegressionApp): string {
