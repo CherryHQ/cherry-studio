@@ -1,6 +1,8 @@
-import { Tooltip } from '@cherrystudio/ui'
 import type { FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { TooltipLabelWithShortcut } from '@renderer/components/command'
 
 interface Props {
   disabled: boolean
@@ -55,7 +57,16 @@ const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage, 
   )
 
   if (shortcutLabel) {
-    return <Tooltip content={`${t('chat.input.send')} (${shortcutLabel})`}>{button}</Tooltip>
+    // `asChild` keeps the send control itself as the tooltip trigger: the default wrapper would
+    // own the hover/focus handlers, so a keyboard user tabbing to the control would never see
+    // the shortcut, nor would assistive technology tie the description to it.
+    return (
+      <Tooltip
+        asChild
+        content={<TooltipLabelWithShortcut label={t('chat.input.send')} shortcutLabel={shortcutLabel} />}>
+        {button}
+      </Tooltip>
+    )
   }
 
   return button

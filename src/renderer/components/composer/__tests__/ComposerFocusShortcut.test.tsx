@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CommandContextKeyProvider } from '@renderer/components/command/CommandContextKeyProvider'
 import { CommandProvider } from '@renderer/components/command/CommandProvider'
+import i18n from '@renderer/i18n/resolver'
 
 import { ComposerFocusShortcut } from '../ComposerFocusShortcut'
 
@@ -59,6 +60,16 @@ describe('ComposerFocusShortcut', () => {
     const { input, user } = mount()
     await user.keyboard('{Control>}i{/Control}')
     expect(input).not.toHaveFocus()
+  })
+
+  it('names the shortcut for assistive technology, which cannot read the keycap', () => {
+    mount()
+
+    // The keycap itself is aria-hidden, so the label beside it is the only announceable form.
+    // Read through the same i18n instance the component resolves against, so the assertion
+    // does not depend on which locale the test setup initialized.
+    expect(screen.getByText(i18n.t('settings.shortcuts.focus_input'))).toHaveClass('sr-only')
+    expect(screen.getByText('Ctrl+I')).toHaveAttribute('aria-hidden', 'true')
   })
 
   it.each(['disabled', 'readonly'])('hides the hint and ignores the shortcut when %s', async (mode) => {
