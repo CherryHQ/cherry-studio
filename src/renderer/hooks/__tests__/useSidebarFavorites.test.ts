@@ -26,6 +26,27 @@ describe('useSidebarFavorites', () => {
     expect(setFavorites).not.toHaveBeenCalled()
   })
 
+  it('keeps mini app actions stable while using the latest favorites', () => {
+    const setFavorites = vi.fn().mockResolvedValue(undefined)
+    MockUsePreferenceUtils.mockPreferenceReturn('ui.sidebar.favorites', [], setFavorites)
+    const { result, rerender } = renderHook(() => useSidebarFavorites())
+    const toggleMiniApp = result.current.toggleMiniApp
+
+    MockUsePreferenceUtils.mockPreferenceReturn(
+      'ui.sidebar.favorites',
+      [{ type: 'mini_app', id: 'existing-app' }],
+      setFavorites
+    )
+    rerender()
+
+    expect(result.current.toggleMiniApp).toBe(toggleMiniApp)
+    act(() => result.current.toggleMiniApp('new-app'))
+    expect(setFavorites).toHaveBeenCalledWith([
+      { type: 'mini_app', id: 'existing-app' },
+      { type: 'mini_app', id: 'new-app' }
+    ])
+  })
+
   describe('entity favorites (agents / assistants)', () => {
     it('toggles an agent favorite on and exposes it in agentFavoriteIds', () => {
       const setFavorites = vi.fn().mockResolvedValue(undefined)

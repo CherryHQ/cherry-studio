@@ -249,7 +249,7 @@ describe('useChatWriteActions — clear context', () => {
     vi.mocked(cache.createMessageTrigger).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          resolveCreate = resolve as typeof resolveCreate
+          resolveCreate = resolve
         }) as never
     )
     const { actions, result } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
@@ -378,8 +378,8 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ params: { id: 'a1' } })
     expect(cache.seedOptimisticBranch).toHaveBeenCalledTimes(2)
     const reconcile = vi.mocked(cache.seedOptimisticBranch).mock.calls[1][0]
-    reconcile([], 'a1')
-    expect(cache.branchWithoutIds).toHaveBeenLastCalledWith([], new Set(['a1-old', 'a1', 'a2']), 'a1')
+    reconcile([])
+    expect(cache.branchWithoutIds).toHaveBeenLastCalledWith([], new Set(['a1-old', 'a1', 'a2']))
     expect(invalidateMessages).toHaveBeenCalledWith(['a1-old', 'a1', 'a2'])
   })
 

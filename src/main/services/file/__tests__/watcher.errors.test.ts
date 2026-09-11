@@ -1,14 +1,15 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mocks = vi.hoisted(() => {
   type Handler = (...args: unknown[]) => void
 
   const watchers: Array<{
-    close: ReturnType<typeof vi.fn>
+    close: ReturnType<typeof vi.fn<(...args: any[]) => any>>
     emit: (event: string, ...args: unknown[]) => void
     handlers: Map<string, Handler>
-    removeAllListeners: ReturnType<typeof vi.fn>
+    removeAllListeners: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }> = []
 
   const watch = vi.fn((_path: string, _options: { usePolling?: boolean }) => {

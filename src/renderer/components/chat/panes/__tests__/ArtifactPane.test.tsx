@@ -1,3 +1,10 @@
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type React from 'react'
+import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
+import { SWRConfig } from 'swr'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
@@ -6,12 +13,6 @@ import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type React from 'react'
-import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
-import { SWRConfig } from 'swr'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane, {
   ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
@@ -249,7 +250,8 @@ function binaryReadResult(content: Uint8Array) {
 }
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@cherrystudio/ui', async (importActual) => {
@@ -390,6 +392,16 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
+}))
+
+// ArtifactPane renders markdown files through the shared StaticMarkdown renderer;
+// stub it so this unit test doesn't pull in the full Streamdown component graph.
+vi.mock('@renderer/components/markdown', () => ({
+  StaticMarkdown: ({ id, children }: { id: string; children: string }) => (
+    <div data-testid="markdown" data-md-id={id}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('motion/react', () => ({
@@ -558,6 +570,7 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
+  platform: 'darwin',
   isMac: true,
   isWin: false
 }))

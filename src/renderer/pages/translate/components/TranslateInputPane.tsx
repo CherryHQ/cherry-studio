@@ -1,3 +1,8 @@
+import { Check, Copy, LoaderCircle, X } from 'lucide-react'
+import type { KeyboardEvent, Ref } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Scrollbar } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
@@ -6,10 +11,6 @@ import uploadPptIcon from '@renderer/assets/images/translate/upload-ppt.svg'
 import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import { useDrag } from '@renderer/hooks/useDrag'
-import { Copy, LoaderCircle, X } from 'lucide-react'
-import type { KeyboardEvent, Ref } from 'react'
-import { useCallback, useLayoutEffect, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import IconButton from './IconButton'
 
@@ -22,6 +23,7 @@ type Props = {
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   onSelectFile: () => void
+  copied: boolean
   onCopy: () => void
   onCancelOcr: () => void
   disabled: boolean
@@ -38,6 +40,7 @@ const TranslateInputPane = ({
   onPaste,
   onDrop,
   onSelectFile,
+  copied,
   onCopy,
   onCancelOcr,
   disabled,
@@ -96,7 +99,7 @@ const TranslateInputPane = ({
           disabled={!text}
           aria-label={t('common.copy')}
           className="absolute top-4 right-3">
-          <Copy size={14} />
+          {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
         </IconButton>
       </div>
       {!text && (

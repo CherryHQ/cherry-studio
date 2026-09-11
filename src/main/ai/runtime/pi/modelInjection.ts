@@ -10,11 +10,13 @@
  * `AuthStorage.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
  */
 
+import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+
 import { application } from '@application'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
@@ -32,7 +34,8 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
-import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
+import { isLoginBasedProvider, matchesPreset, resolveEndpointDialect } from '@shared/utils/provider'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
@@ -178,7 +181,7 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    headers: toPiHeaders(provider.settings?.extraHeaders),
+    headers: toPiHeaders(getExtraHeaders(provider)),
     models: [modelConfig]
   }
 
@@ -323,7 +326,15 @@ export async function resolvePiProviderInjectionForSession(
   enabledApiKeys?: readonly ApiKeyEntry[]
 ): Promise<PiProviderInjection> {
   if (!usesPiGateway(provider)) {
-    return resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
+    const injection = resolvePiProviderInjectionFromSnapshot(provider, model, enabledApiKeys)
+    const headers = injection.providerConfig.headers
+    if (
+      matchesPreset(provider, SystemProviderIds.opencode) &&
+      !Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
+    ) {
+      injection.providerConfig.headers = { ...headers, ...toPiHeaders({ 'x-opencode-session': sessionId }) }
+    }
+    return injection
   }
 
   const gateway = await resolveApiGatewayRuntime(sessionId)
@@ -379,6 +390,29 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
 }
 
+/** pi's thinking ladder. `off` is its name for Cherry's `none`; the rest share Cherry's spelling. */
+const PI_THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const
+
+/**
+ * Project the model's declared efforts onto pi's ladder, marking the rest `null`.
+ *
+ * pi clamps its own default level (`medium`) against this map. Without one it assumes every level
+ * below `xhigh` is available and sends `medium` verbatim — which strict endpoints reject for models
+ * like Kimi K3, whose vocabulary is low/high/max (#20029). A model declaring no concrete tier gets
+ * no map: its toggle is expressed by the wire, and an all-`null` ladder would disable thinking.
+ */
+function buildThinkingLevelMap(model: Model): ProviderModelConfig['thinkingLevelMap'] | undefined {
+  const declared = model.reasoning?.selectableEfforts ?? []
+  if (!declared.some((effort) => effort !== 'none' && effort !== 'auto')) return undefined
+
+  const map: NonNullable<ProviderModelConfig['thinkingLevelMap']> = {}
+  for (const level of PI_THINKING_LEVELS) {
+    const effort = level === 'off' ? 'none' : level
+    map[level] = declared.includes(effort) ? effort : null
+  }
+  return map
+}
+
 function buildPiModelConfig(
   provider: Provider,
   model: Model,
@@ -393,12 +427,14 @@ function buildPiModelConfig(
   if (supportsImage) {
     input.push('image')
   }
+  const thinkingLevelMap = buildThinkingLevelMap(model)
 
   return {
     id,
     name: model.name,
     api,
     reasoning: model.capabilities.includes(MODEL_CAPABILITY.REASONING) || model.reasoning !== undefined,
+    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
     input,
     // pi tracks per-token cost for its own UI; Cherry owns cost accounting, so
     // leave zeros — pi's tracking is unused here.

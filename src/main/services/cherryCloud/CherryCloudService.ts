@@ -1,14 +1,22 @@
+import { app, net, shell } from 'electron'
+import type { ZodType } from 'zod'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
+import { SignatureClient } from '@main/ai/provider/cherryai'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  type EndpointType,
+  type ModelCapability,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
-import { app, net, shell } from 'electron'
-import type { ZodType } from 'zod'
 
 import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
@@ -20,6 +28,7 @@ import {
   refreshProductSessionResponseSchema
 } from './contracts'
 import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from './crypto'
+import { getMachineCode } from './machineCode'
 
 const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
@@ -86,6 +95,13 @@ export class CherryCloudLoginUnavailableError extends Error {
   }
 }
 
+export class CherryCloudUpgradeRequiredError extends Error {
+  constructor() {
+    super('Update Cherry Studio to sign in to Cherry Cloud')
+    this.name = 'CherryCloudUpgradeRequiredError'
+  }
+}
+
 class CherryCloudSessionRequiredError extends Error {
   constructor() {
     super('Cherry Cloud account is not signed in')
@@ -97,6 +113,7 @@ class CherryCloudSessionRequiredError extends Error {
 @ServicePhase(Phase.WhenReady)
 export class CherryCloudService extends BaseService {
   private cloudState = emptyState()
+  private machineCode: string | null = null
   private lifecycleGeneration = 0
   private authorizationOperation: AuthorizationOperation | null = null
   private loginPromise: Promise<CherryCloudStatus> | null = null
@@ -149,6 +166,7 @@ export class CherryCloudService extends BaseService {
     this.clearSessionExpiryTimer()
     if (this.cloudState.session) this.sessionGeneration += 1
     this.cloudState = emptyState()
+    this.machineCode = null
   }
 
   public async getStatus(): Promise<CherryCloudStatus> {
@@ -206,6 +224,10 @@ export class CherryCloudService extends BaseService {
     this.assertAuthorizationOperation(operation)
     if (current.phase !== 'signed-out') return current
 
+    const machineCode = await getMachineCode()
+    this.assertLifecycleGeneration(lifecycleGeneration)
+    this.assertAuthorizationOperation(operation)
+    this.machineCode = machineCode
     const device = this.getOrCreateDevice()
     const secrets = createAuthorizationSecrets()
     const loopbackCallback = await this.openLoopbackCallback(lifecycleGeneration, operation)
@@ -224,6 +246,7 @@ export class CherryCloudService extends BaseService {
           code_challenge: secrets.codeChallenge,
           code_challenge_method: 'S256',
           device_public_key: device.publicKey,
+          machine_code: machineCode,
           platform: platformName(),
           client_version: app.getVersion().replace(/^v/, ''),
           ...(loopbackCallback ? { callback_port: loopbackCallback.port } : {})
@@ -396,6 +419,7 @@ export class CherryCloudService extends BaseService {
         session
       }
       this.scheduleSessionExpiry(session)
+      application.get('MainWindowService').showMainWindow()
       void application
         .get('ApiGatewayService')
         .start()
@@ -607,12 +631,44 @@ export class CherryCloudService extends BaseService {
       endpoint_type: EndpointType
       context_window: number
       max_output_tokens: number
+      capabilities?: ModelCapability[]
     }>
   ): void {
     const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
-    const remoteByModelId = new Map(models.map((model) => [model.id, model]))
-    const missing = models.filter((model) => !currentByModelId.has(model.id))
+    const missingCapabilityModelIds = models
+      .filter((model) => model.capabilities === undefined)
+      .map((model) => model.id)
+    const registryCapabilitiesByModelId = new Map<string, ModelCapability[]>()
+
+    if (missingCapabilityModelIds.length > 0) {
+      try {
+        for (const model of providerRegistryService.resolveModels(
+          CHERRY_CLOUD_PROVIDER_ID,
+          missingCapabilityModelIds
+        )) {
+          if (!model.presetModelId) continue
+          const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+          registryCapabilitiesByModelId.set(modelId, model.capabilities)
+        }
+      } catch (error) {
+        logger.warn('Cherry Cloud registry capability fallback failed', {
+          modelCount: missingCapabilityModelIds.length,
+          reason: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    const reconciledModels = models.map((model) => ({
+      ...model,
+      capabilities:
+        model.capabilities ??
+        registryCapabilitiesByModelId.get(model.id) ??
+        currentByModelId.get(model.id)?.capabilities ??
+        []
+    }))
+    const remoteByModelId = new Map(reconciledModels.map((model) => [model.id, model]))
+    const missing = reconciledModels.filter((model) => !currentByModelId.has(model.id))
     const updates = current.flatMap((model) => {
       const modelId = parseUniqueModelId(model.id).modelId
       const remote = remoteByModelId.get(modelId)
@@ -624,6 +680,8 @@ export class CherryCloudService extends BaseService {
         model.endpointTypes[0] === remote.endpoint_type &&
         model.contextWindow === remote.context_window &&
         model.maxOutputTokens === remote.max_output_tokens &&
+        model.capabilities.length === remote.capabilities.length &&
+        model.capabilities.every((capability) => remote.capabilities.includes(capability)) &&
         model.supportsStreaming &&
         model.isEnabled
       ) {
@@ -638,6 +696,7 @@ export class CherryCloudService extends BaseService {
             endpointTypes: [remote.endpoint_type],
             contextWindow: remote.context_window,
             maxOutputTokens: remote.max_output_tokens,
+            capabilities: remote.capabilities,
             supportsStreaming: true,
             isEnabled: true
           }
@@ -656,6 +715,7 @@ export class CherryCloudService extends BaseService {
             endpointTypes: [model.endpoint_type],
             contextWindow: model.context_window,
             maxOutputTokens: model.max_output_tokens,
+            capabilities: model.capabilities,
             supportsStreaming: true
           }
         }))
@@ -688,7 +748,9 @@ export class CherryCloudService extends BaseService {
     const url = this.resolveRequestUrl(path)
     const headers = new Headers(init?.headers)
     const idempotencyKey =
-      url.pathname === '/v1/messages' ? (headers.get('Idempotency-Key') ?? createIdempotencyKey()) : undefined
+      url.pathname === '/v1/messages' || url.pathname === '/v1/chat/completions'
+        ? (headers.get('Idempotency-Key') ?? createIdempotencyKey())
+        : undefined
     const response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
     if (response.status === 401) await this.clearSession(session)
     return response
@@ -848,11 +910,15 @@ export class CherryCloudService extends BaseService {
   ): Promise<Response> {
     const device = this.cloudState.device
     if (!device) throw new Error('Cherry Cloud device credentials are unavailable')
+    const machineCode = this.machineCode ?? (await getMachineCode())
+    if (this.cloudState.device !== device) throw new Error('Cherry Cloud device credentials changed')
+    this.machineCode = machineCode
     const method = (init?.method ?? 'GET').toUpperCase()
     const body = Buffer.from(init?.body ?? '', 'utf8')
     const headers = new Headers(init?.headers)
     for (const name of [
       'Cherry-Device-ID',
+      'Cherry-Machine-Code',
       'Cherry-Request-ID',
       'Cherry-Timestamp',
       'Cherry-Body-SHA256',
@@ -869,6 +935,7 @@ export class CherryCloudService extends BaseService {
     const requestTarget = `${url.pathname}${url.search}`
     const signature = createDeviceSignature({
       privateKey: device.privateKey,
+      machineCode,
       method,
       requestTarget,
       body,
@@ -937,14 +1004,25 @@ export class CherryCloudService extends BaseService {
   }
 
   private async postJson<T>(path: string, body: unknown, schema: ZodType<T>, signal?: AbortSignal): Promise<T> {
+    const clientSecret = import.meta.env.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET
+    if (!clientSecret) {
+      logger.warn('Cherry Cloud client secret is not configured')
+      throw new CherryCloudLoginUnavailableError()
+    }
+    const bodyString = JSON.stringify(body)
+    const signature = new SignatureClient('cherry-studio', clientSecret).generateSignature({
+      method: 'POST',
+      path,
+      body: bodyString
+    })
     let response: Response
     try {
       const timeoutSignal = AbortSignal.timeout(CLOUD_CONTROL_REQUEST_TIMEOUT_MS)
       response = await net.fetch(`${resolveApiOrigin()}${path}`, {
         method: 'POST',
         redirect: 'error',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json', ...signature },
+        body: bodyString,
         signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
       })
     } catch (error) {
@@ -955,6 +1033,7 @@ export class CherryCloudService extends BaseService {
       })
       throw new CherryCloudLoginUnavailableError()
     }
+    if (response.status === 426) throw new CherryCloudUpgradeRequiredError()
     if (response.status === 404 || response.status >= 500) {
       logger.warn('Cherry Cloud login service returned an unavailable response', { path, status: response.status })
       throw new CherryCloudLoginUnavailableError()

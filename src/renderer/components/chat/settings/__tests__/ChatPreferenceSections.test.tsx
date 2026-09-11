@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import ChatPreferenceSections from '../ChatPreferenceSections'
 
@@ -71,12 +72,12 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const { EditableNumber } = await importOriginal<typeof CherryStudioUi>()
+  const { InputNumber } = await importOriginal<typeof CherryStudioUi>()
 
   return {
     CustomTag: ({ children }: PropsWithChildren) => <span>{children}</span>,
     Divider: ({ className }: { className?: string }) => <hr className={className} />,
-    EditableNumber,
+    InputNumber,
     Flex: ({ children, className }: PropsWithChildren<{ className?: string }>) => (
       <div className={className}>{children}</div>
     ),
@@ -173,12 +174,12 @@ describe('ChatPreferenceSections', () => {
     const thresholdInput = screen.getByRole('spinbutton', {
       name: 'settings.messages.input.paste_long_text_threshold'
     })
-    expect(thresholdInput).toHaveAttribute('min', '500')
-    expect(thresholdInput).toHaveAttribute('max', '10000')
-    expect(thresholdInput).toHaveAttribute('step', '100')
+    expect(thresholdInput).toHaveAttribute('aria-valuemin', '500')
+    expect(thresholdInput).toHaveAttribute('aria-valuemax', '10000')
 
     await user.clear(thresholdInput)
     await user.type(thresholdInput, '2400')
+    await user.tab()
 
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.paste_long_text_threshold', 2400)
   })

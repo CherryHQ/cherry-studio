@@ -1,3 +1,6 @@
+import type { ChatRequestOptions } from 'ai'
+import { useCallback, useMemo, useRef, useState } from 'react'
+
 /**
  * Build the `ChatWriteActions` bag passed down through context.
  *
@@ -33,8 +36,6 @@ import type {
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
 import { resolveUniqueModelIds } from '@shared/utils/model'
-import type { ChatRequestOptions } from 'ai'
-import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
@@ -140,9 +141,7 @@ export function useChatWriteActions(params: Params): Result {
     const operation = (async () => {
       const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
       if (hasClearContextPart(activeMessage?.parts)) {
-        await seedOptimisticBranch((items, branchActiveNodeId) =>
-          branchWithoutIds(items, new Set([activeNodeId]), branchActiveNodeId)
-        )
+        await seedOptimisticBranch((items) => branchWithoutIds(items, new Set([activeNodeId])))
         try {
           await deleteMessageTrigger({ params: { id: activeNodeId }, query: { cascade: false } })
           logger.info('Removed context boundary', { messageId: activeNodeId, topicId: topic.id })
@@ -219,11 +218,8 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error('Message deletion is unavailable')
       }
 
-      const optimisticIds = new Set([id])
-      await seedOptimisticBranch((prev, branchActiveNodeId) =>
-        branchWithoutIds(prev, optimisticIds, branchActiveNodeId)
-      )
-
+      // Main owns context inheritance and reparenting; wait for its authoritative
+      // refresh to preserve the surviving replies in the group.
       try {
         await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
         invalidateCachedMessageUiStates([id])
@@ -233,7 +229,7 @@ export function useChatWriteActions(params: Params): Result {
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
+    [deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
@@ -247,14 +243,10 @@ export function useChatWriteActions(params: Params): Result {
       }
       // Optimistically remove only the rendered representatives. The service resolves the
       // complete sibling group inside its transaction and returns the authoritative ids.
-      await seedOptimisticBranch((prev, branchActiveNodeId) =>
-        branchWithoutIds(prev, new Set(uniqueMessageIds), branchActiveNodeId)
-      )
+      await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(uniqueMessageIds)))
       try {
         const result = await deleteMessageGroupTrigger({ params: { id: uniqueMessageIds[0] } })
-        await seedOptimisticBranch((prev, branchActiveNodeId) =>
-          branchWithoutIds(prev, new Set(result.deletedIds), branchActiveNodeId)
-        )
+        await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
         invalidateCachedMessageUiStates(result.deletedIds)
         logger.info('Deleted message group', { count: result.deletedIds.length })
       } catch (err) {
@@ -404,7 +396,7 @@ export function useChatWriteActions(params: Params): Result {
             status: newMessage.status,
             createdAt: newMessage.createdAt
           }
-        } as CherryUIMessage
+        }
       ])
       // Sync `useChat` from DB before regenerate. The server flipped
       // `activeNodeId` to the new branch in the same transaction.

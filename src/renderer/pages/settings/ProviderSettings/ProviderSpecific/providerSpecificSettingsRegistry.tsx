@@ -1,9 +1,10 @@
+import { lazy, type ReactNode } from 'react'
+
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import type { Provider } from '@shared/data/types/provider'
 import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
-import { lazy, type ReactNode } from 'react'
 
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 
@@ -17,7 +18,6 @@ const LmStudioSettings = lazy(() => import('./LmStudioSettings'))
 const LoginOauthPanel = lazy(() => import('./LoginOauthPanel'))
 const OvmsSettings = lazy(() => import('./OvmsSettings'))
 const ProviderOauth = lazy(() => import('./ProviderOauth'))
-const RadeonCloudBenefits = lazy(() => import('./RadeonCloudBenefits'))
 const VertexAiSettings = lazy(() => import('./VertexAiSettings'))
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
@@ -35,11 +35,6 @@ export type ProviderSpecificRegistryEntry = {
 
 export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlacement, ProviderSpecificRegistryEntry[]> = {
   beforeAuth: [
-    {
-      key: 'radeon-cloud-benefits',
-      when: ({ provider }) => matchesPreset(provider, 'radeon-cloud'),
-      render: () => <RadeonCloudBenefits />
-    },
     {
       key: 'oauth',
       when: ({ provider }) => isProviderSupportAuth(provider),

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   findExecutableInEnv: vi.fn<(name: string) => Promise<string | null>>(),
-  getByFolderName: vi.fn(() => null as unknown),
+  getByFolderName: vi.fn(() => null),
   listAll: vi.fn<() => Array<{ folderName: string; name: string }>>(),
   getInstalledSkillDirectory: vi.fn(() => ''),
   skillPluginDirectory: { value: '/nonexistent-claude-root' }

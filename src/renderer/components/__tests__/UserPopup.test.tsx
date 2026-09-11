@@ -1,11 +1,12 @@
-import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import type * as ImageUtils from '@renderer/utils/image'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import type * as ImageUtils from '@renderer/utils/image'
 
 const mocks = vi.hoisted(() => ({
   appEdition: 'cn' as 'cn' | 'global',

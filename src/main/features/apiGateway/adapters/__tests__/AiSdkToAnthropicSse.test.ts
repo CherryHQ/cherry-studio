@@ -1,4 +1,4 @@
-import type { MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'
+import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
@@ -302,7 +302,7 @@ describe('AiSdkToAnthropicSse', () => {
             ]
           }
         ]
-      } as MessageCreateParams)
+      })
 
       const signatures = messages[0].parts.map(
         (part) => (part as { callProviderMetadata?: { google?: { thoughtSignature?: string } } }).callProviderMetadata

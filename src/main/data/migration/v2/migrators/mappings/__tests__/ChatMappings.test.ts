@@ -1,5 +1,8 @@
 import type * as FsPromises from 'node:fs/promises'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { describe, expect, it, vi } from 'vitest'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import type {
   CherryMessagePart,
@@ -10,8 +13,6 @@ import type {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { resolveUniqueModelId } from '@shared/utils/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it, vi } from 'vitest'
 
 // Use the repo-wide application mock; the default `getPath` already
 // returns deterministic `/mock/<key>/<filename>` paths.
@@ -287,7 +288,7 @@ function block(type: string, extra: Record<string, unknown> = {}): OldBlock {
     createdAt: '2025-01-01T00:00:00.000Z',
     status: 'success',
     ...extra
-  } as OldBlock
+  }
 }
 
 describe('transformBlocksToParts', () => {
@@ -984,7 +985,7 @@ describe('transformMessage', () => {
         updatedAt: '2025-02-03T00:00:00.000Z',
         metadata: { legacy: 'value' },
         error: { name: 'OldErr', message: 'old' }
-      } as OldMainTextBlockType
+      }
     ]
     const result = await transformMessage(msg('m1', 'assistant'), null, 0, blocks, 't1')
     const part = result.data.parts?.[0] as TextUIPart
@@ -999,7 +1000,7 @@ describe('transformMessage', () => {
         results: [{ title: 'Ex', url: 'https://ex.com', content: 'snippet' }],
         source: 'websearch'
       }
-    } as OldCitationBlock
+    }
     const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'cited [1]'), citationBlock]
     const result = await transformMessage(msg('m1', 'assistant'), null, 0, blocks, 't1')
     const textPart = result.data.parts?.find((p) => p.type === 'text') as TextUIPart
@@ -1034,16 +1035,15 @@ describe('normalizeStatus', () => {
 // ============================================================================
 
 describe('estimateLegacyRequestCount', () => {
-  const block = (type: string): OldBlock =>
-    ({
-      id: `block-${type}`,
-      messageId: 'message-1',
-      type,
-      createdAt: '2025-01-01T00:00:00.000Z',
-      status: 'success',
-      ...(type === 'tool' ? { toolId: `tool-${type}` } : {}),
-      ...(type === 'main_text' || type === 'thinking' ? { content: 'output' } : {})
-    }) as OldBlock
+  const block = (type: string): OldBlock => ({
+    id: `block-${type}`,
+    messageId: 'message-1',
+    type,
+    createdAt: '2025-01-01T00:00:00.000Z',
+    status: 'success',
+    ...(type === 'tool' ? { toolId: `tool-${type}` } : {}),
+    ...(type === 'main_text' || type === 'thinking' ? { content: 'output' } : {})
+  })
 
   it('uses one baseline request for text-only and empty historical messages', () => {
     expect(estimateLegacyRequestCount([])).toBe(1)
@@ -1164,7 +1164,7 @@ describe('extractCitationReferences', () => {
   it('extracts memory citations with fields mapped', async () => {
     const block: OldCitationBlock = {
       ...baseCitationBlock,
-      memories: [{ id: 'mem1', memory: 'user likes coffee', hash: 'abc', score: 0.9 } as any]
+      memories: [{ id: 'mem1', memory: 'user likes coffee', hash: 'abc', score: 0.9 }]
     }
     const refs = extractCitationReferences(block)
     expect(refs).toHaveLength(1)
@@ -1179,7 +1179,7 @@ describe('extractCitationReferences', () => {
       ...baseCitationBlock,
       response: { results: [{ title: 'T', url: 'https://x.com' }], source: 'bing' },
       knowledge: [{ id: 'k1', content: 'doc' } as any],
-      memories: [{ id: 'm1', memory: 'fact' } as any]
+      memories: [{ id: 'm1', memory: 'fact' }]
     }
     const refs = extractCitationReferences(block)
     expect(refs).toHaveLength(3)

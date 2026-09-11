@@ -1,10 +1,11 @@
 import { EventEmitter } from 'node:events'
 import type * as NodeFs from 'node:fs'
 
-import { WindowType } from '@main/core/window/types'
-import type { DetectedWindow } from '@shared/types/screenshot'
 import type { Display } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WindowType } from '@main/core/window/types'
+import type { DetectedWindow } from '@shared/types/screenshot'
 
 import type { CaptureResult, RawWindowInfo } from '../types'
 
@@ -30,8 +31,7 @@ vi.mock('@main/utils/screenCapturePermission', () => capture)
 const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
 vi.mock('../windowEnumerator', () => enumerator)
 
-const localModel = vi.hoisted(() => ({ isReady: vi.fn(() => true) }))
-vi.mock('@main/ai/localModel', () => ({ localModelService: localModel }))
+const localModel = vi.hoisted(() => ({ isCapabilityReady: vi.fn(() => true) }))
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
@@ -186,7 +186,8 @@ const container = vi.hoisted(() => {
       MediaProtocolService: mediaProtocolService,
       WindowManager: windowManager,
       IpcApiService: ipcApiService,
-      OcrInferenceService: ocrInferenceService
+      OcrInferenceService: ocrInferenceService,
+      LocalModelService: localModel
     },
     preferenceService,
     mediaProtocolService,
@@ -348,7 +349,7 @@ describe('ScreenshotOverlayService', () => {
     enumerator.listWindowsOffThread.mockResolvedValue([])
     capture.listMonitors.mockReturnValue([])
     capture.captureAllMonitors.mockReturnValue(new Map())
-    localModel.isReady.mockReturnValue(true)
+    localModel.isCapabilityReady.mockReturnValue(true)
     container.ocrInferenceService.recognize.mockResolvedValue({ text: '', lines: [] })
     startService()
   })
@@ -1202,7 +1203,7 @@ describe('ScreenshotOverlayService', () => {
       // later, and reporting "no text" there sends them looking for the wrong problem.
       singleDisplaySetup()
       await service.startCapture()
-      localModel.isReady.mockReturnValue(false)
+      localModel.isCapabilityReady.mockReturnValue(false)
 
       const result = await service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(1))
 

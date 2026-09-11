@@ -1,8 +1,10 @@
 import { writeFileSync } from 'node:fs'
 
+import dayjs from 'dayjs'
+import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { localModelService } from '@main/ai/localModel'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
@@ -19,8 +21,6 @@ import {
 import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
-import dayjs from 'dayjs'
-import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
 
 import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
@@ -259,7 +259,7 @@ export class ScreenshotOverlayService extends BaseService {
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
-        const ocrAvailable = localModelService.isReady('ocr')
+        const ocrAvailable = application.get('LocalModelService').isCapabilityReady('ocr')
 
         // Which overlay covers which display, for the snap-target push below.
         const snapOverlays: { windowId: WindowId; display: Display }[] = []
@@ -451,7 +451,7 @@ export class ScreenshotOverlayService extends BaseService {
 
     // Re-checked per request, never cached from initData: the user can delete the
     // model in settings while the overlay is open.
-    if (!localModelService.isReady('ocr')) return { status: 'unavailable' }
+    if (!application.get('LocalModelService').isCapabilityReady('ocr')) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }

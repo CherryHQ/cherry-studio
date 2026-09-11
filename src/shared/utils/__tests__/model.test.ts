@@ -1,9 +1,12 @@
+import { describe, expect, it } from 'vitest'
+
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
   areDifferentModelIdentities,
   deriveModelGroupName,
   findNewestDifferentModelReference,
+  getRawModelId,
   isAudioModel,
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -20,7 +23,6 @@ import {
   resolveUniqueModelIds,
   supportsDynamicallyLoadedTools
 } from '@shared/utils/model'
-import { describe, expect, it } from 'vitest'
 
 const createModel = (capabilities: Model['capabilities'] = []): Model => ({
   id: 'openai::gpt-4o',
@@ -119,6 +121,14 @@ describe('shared model capability helpers', () => {
 
       expect(findNewestDifferentModelReference(reference, candidates)).toEqual(candidates[2])
     })
+  })
+
+  it.each([
+    [undefined, 'gpt-4o'],
+    ['', 'gpt-4o'],
+    ['custom-wire-id', 'custom-wire-id']
+  ])('resolves a usable wire model id for apiModelId %j', (apiModelId, expected) => {
+    expect(getRawModelId({ ...createModel(), apiModelId })).toBe(expected)
   })
 
   describe('deriveModelGroupName', () => {

@@ -13,8 +13,12 @@
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { useDataChange, useInfiniteFlatItems } from '@renderer/data/hooks/useDataApi'
+import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import type {
   BranchMessage,
@@ -23,8 +27,6 @@ import type {
   Message as SharedMessage
 } from '@shared/data/types/message'
 import { resolveUniqueModelIds } from '@shared/utils/model'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
@@ -117,7 +119,7 @@ function projectBranchMessages(items: BranchMessage[]): BranchProjection {
     const message = pickDisplayMember(bucket, item.message.id)
     displayMessages.push({ message, isActiveBranch: message.id === item.message.id })
     if (bucket.length < 2) continue
-    bucket.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    bucket.sort(compareMessageOrder)
     for (const member of bucket) siblingsMap[member.id] = bucket
   }
   return { displayMessages, siblingsMap }
@@ -143,6 +145,11 @@ export interface UseTopicMessagesResult {
   /** Whether older pages remain on the server. */
   hasOlder: boolean
   /**
+   * Load-all handle for the multi-select "select all" action: pages to the
+   * end (so parts are resident for export) with start/stop control.
+   */
+  selectAllPagination: MessageListSelectAllPagination
+  /**
    * SWR mutator for the underlying infinite cache entry. Exposed so
    * `useTopicMessagesCache` can apply optimistic writes via the updater
    * form (`mutate((pages) => next, { revalidate: false })`).
@@ -160,7 +167,17 @@ export function useTopicMessages(
   // `limit` is part of the SWR infinite key, so toggling the preference
   // mid-session swaps to a fresh cache entry instead of mixing page sizes.
   const pageSize = messageNavigation === 'anchor' ? ANCHOR_RAIL_PAGE_SIZE : PAGE_SIZE
-  const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useConversationHistoryQuery(
+  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
+  // page — same pattern as `useTopics({ loadAll: true })`. `loadNext` is
+  // fire-and-forget (its promise is dropped inside useDataApi), so a failed
+  // page fetch is detected via the query `error` and abandons load-all
+  // instead of retrying on every render; the user can re-trigger select-all.
+  const [loadAllRequested, setLoadAllRequested] = useState(false)
+  const stopLoadAll = useCallback(() => setLoadAllRequested(false), [])
+  useEffect(() => {
+    stopLoadAll()
+  }, [stopLoadAll, topicId])
+  const { pages, isLoading, isRefreshing, error, mutate, loadNext, hasNext } = useConversationHistoryQuery(
     '/topics/:topicId/messages',
     {
       params: { topicId },
@@ -169,6 +186,9 @@ export function useTopicMessages(
       enabled,
       swrOptions: {
         dedupingInterval: 0,
+        // Paging to the end must not revalidate the first page on every step
+        // (same as `useTopics({ loadAll: true })`); restored once finished.
+        revalidateFirstPage: !loadAllRequested,
         ...(!fetchOnMount && {
           revalidateIfStale: false,
           revalidateOnMount: false
@@ -192,6 +212,29 @@ export function useTopicMessages(
     [pages, topicId]
   )
   const activeNodeId = pages[0]?.activeNodeId ?? null
+
+  // Errors that predate the load-all are baseline; only a NEW error while paging
+  // abandons it. A retained error would otherwise deadlock a retried select-all
+  // behind the !error gate, so starting also revalidates it away.
+  const loadAllBaselineErrorRef = useRef<Error | undefined>(undefined)
+  const startLoadAll = useCallback(() => {
+    loadAllBaselineErrorRef.current = error
+    setLoadAllRequested(true)
+    if (error) void mutate()
+  }, [error, mutate])
+  useEffect(() => {
+    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing && !error) {
+      loadNext()
+    }
+  }, [enabled, error, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext])
+  // A failed page fetch (new error vs the start baseline) abandons the load-all.
+  useEffect(() => {
+    if (error && loadAllRequested && error !== loadAllBaselineErrorRef.current) stopLoadAll()
+  }, [error, loadAllRequested, stopLoadAll])
+  // Fully loaded — reset so first-page revalidation resumes after select-all.
+  useEffect(() => {
+    if (loadAllRequested && !hasNext) stopLoadAll()
+  }, [hasNext, loadAllRequested, stopLoadAll])
 
   // On remount with stale SWR cache, SWR may expose cached data while it
   // revalidates. Track freshness per topic so the loading gate blocks stale
@@ -263,6 +306,16 @@ export function useTopicMessages(
 
   const isStale = enabled && (readyTopicId !== topicId || !pagesBelongToTopic)
 
+  const selectAllPagination = useMemo<MessageListSelectAllPagination>(
+    () => ({
+      hasOlder: hasNext,
+      isLoading: enabled && loadAllRequested && hasNext,
+      start: startLoadAll,
+      stop: stopLoadAll
+    }),
+    [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
+  )
+
   return {
     uiMessages,
     siblingsMap: branchProjection.siblingsMap,
@@ -272,6 +325,7 @@ export function useTopicMessages(
     activeNodeId,
     loadOlder: loadNext,
     hasOlder: hasNext,
+    selectAllPagination,
     mutate: mutate
   }
 }

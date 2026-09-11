@@ -1,10 +1,11 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { McpServer } from '@shared/data/types/mcpServer'
-import type { McpServerLogEntry } from '@shared/types/mcp'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpServerLogEntry } from '@shared/types/mcp'
 
 import McpSettings from '../McpSettings'
 import { formatMcpLogs } from '../utils'
@@ -38,7 +39,7 @@ vi.mock('@renderer/hooks/useMcpServer', async (importOriginal) => ({
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate,
   useParams: () => ({ serverId: currentServer.id }),
-  useSearch: () => currentSearch
+  getRouteApi: () => ({ useSearch: () => currentSearch })
 }))
 
 vi.mock('@renderer/services/popup', () => ({

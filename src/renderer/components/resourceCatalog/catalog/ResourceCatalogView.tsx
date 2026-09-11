@@ -1,10 +1,11 @@
+import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button } from '@cherrystudio/ui'
 import { ResourceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog'
-import type { ResourceType } from '@renderer/types/resourceCatalog'
+import type { ResourceItem, ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
-import { lazy, type ReactNode, Suspense, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceGrid } from './ResourceGrid'
 
@@ -23,6 +24,9 @@ export type ResourceCatalogViewProps = {
   variant?: 'library' | 'settings'
   title?: ReactNode
   description?: ReactNode
+  toolbarFooter?: ReactNode
+  allowColumnToggle?: boolean
+  filterResource?: (resource: ResourceItem) => boolean
 }
 
 export function ResourceCatalogView({
@@ -32,20 +36,23 @@ export function ResourceCatalogView({
   toolbarLeading,
   variant = 'library',
   title,
-  description
+  description,
+  toolbarFooter,
+  allowColumnToggle,
+  filterResource
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
   const hasActiveDialog = Boolean(
     dialogs.selectedSkill ||
-      dialogs.assistantImportOpen ||
-      (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
-      dialogs.skillImportOpen ||
-      dialogs.skillMarketplaceOpen ||
-      (resourceType === 'skill' && dialogs.systemSkillOpen) ||
-      dialogs.createDialogOpen ||
-      dialogs.createDialogKind ||
-      dialogs.editDialogTarget
+    dialogs.assistantImportOpen ||
+    (resourceType === 'assistant' && dialogs.assistantLibraryOpen) ||
+    dialogs.skillImportOpen ||
+    dialogs.skillMarketplaceOpen ||
+    (resourceType === 'skill' && dialogs.systemSkillOpen) ||
+    dialogs.createDialogOpen ||
+    dialogs.createDialogKind ||
+    dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
 
@@ -64,7 +71,7 @@ export function ResourceCatalogView({
         {resourceError ? (
           <>
             {toolbarLeading ? (
-              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-border-subtle border-b px-2">
+              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-b border-border-subtle px-2">
                 <div className="flex shrink-0 items-center">{toolbarLeading}</div>
               </div>
             ) : null}
@@ -86,6 +93,9 @@ export function ResourceCatalogView({
         ) : (
           <ResourceGrid
             {...gridProps}
+            resources={filterResource ? gridProps.resources.filter(filterResource) : gridProps.resources}
+            toolbarFooter={toolbarFooter}
+            allowColumnToggle={allowColumnToggle}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
             variant={variant}

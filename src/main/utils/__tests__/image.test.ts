@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 
-import { cropPng, transcodeToEntityWebp } from '../image'
+import { clampImageForModel, cropPng, transcodeToEntityWebp } from '../image'
 
 /** A valid 1×1 PNG. */
 const PNG_1X1 = Buffer.from(
@@ -37,6 +37,31 @@ describe('transcodeToEntityWebp', () => {
 
   it('throws on undecodable input', async () => {
     await expect(transcodeToEntityWebp(new Uint8Array([1, 2, 3]))).rejects.toThrow()
+  })
+})
+
+describe('clampImageForModel', () => {
+  it('shrinks a tall image until its longest edge fits, keeping aspect ratio and format', async () => {
+    // A full-page browser screenshot: narrow, and far taller than any provider's per-edge limit.
+    const tall = await sharp({ create: { width: 100, height: 3000, channels: 3, background: '#ff0000' } })
+      .png()
+      .toBuffer()
+
+    const out = await clampImageForModel(tall)
+
+    expect(out).not.toBeNull()
+    const meta = await sharp(out!).metadata()
+    expect(meta.format).toBe('png')
+    expect(meta.height).toBe(2000)
+    expect(meta.width).toBe(67)
+  })
+
+  it('returns null for an image that already fits, so callers can skip re-encoding', async () => {
+    await expect(clampImageForModel(new Uint8Array(PNG_1X1))).resolves.toBeNull()
+  })
+
+  it('throws on undecodable input', async () => {
+    await expect(clampImageForModel(new Uint8Array([1, 2, 3]))).rejects.toThrow()
   })
 })
 
