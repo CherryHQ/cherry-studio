@@ -1,6 +1,7 @@
+import { Trans } from 'react-i18next'
+
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { BuiltinMcpServerNames } from '@shared/utils/mcp'
-import { Trans } from 'react-i18next'
 
 export const QVERIS_API_KEY_REGISTRATION_URL = 'https://qveris.ai'
 

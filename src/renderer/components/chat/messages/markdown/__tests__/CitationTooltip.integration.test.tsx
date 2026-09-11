@@ -1,6 +1,7 @@
-import type { Citation } from '@renderer/types/message'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type { Citation } from '@renderer/types/message'
 
 import CitationSup from '../CitationSup'
 

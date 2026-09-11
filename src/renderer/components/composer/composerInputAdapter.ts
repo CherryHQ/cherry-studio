@@ -6,13 +6,14 @@
  * than a stub.
  */
 
+import type { Editor, JSONContent } from '@tiptap/core'
+
 import {
   getComposerCursorTextOffset,
   getComposerInputText,
   getComposerPositionAtTextOffset
 } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
-import type { Editor, JSONContent } from '@tiptap/core'
 
 import { createComposerPlainTextContent } from './composerTokenMarkers'
 import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'

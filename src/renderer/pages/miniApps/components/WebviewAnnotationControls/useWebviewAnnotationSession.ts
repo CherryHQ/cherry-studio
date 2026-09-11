@@ -1,3 +1,7 @@
+import type { WebviewTag } from 'electron'
+import type { RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
+
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import {
@@ -9,9 +13,6 @@ import {
   type WebviewAnnotationLocale,
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
-import type { WebviewTag } from 'electron'
-import type { RefObject } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('useWebviewAnnotationSession')
 const SNAPSHOT_TIMEOUT_MS = 2_000

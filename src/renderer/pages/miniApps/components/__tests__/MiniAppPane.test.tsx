@@ -1,9 +1,10 @@
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
 import type { RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppPane from '../MiniAppPane'
 

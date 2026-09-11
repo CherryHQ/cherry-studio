@@ -4,8 +4,9 @@
  * Transforms legacy Redux McpServer objects to SQLite mcp_server table rows.
  */
 
-import type { InsertMcpServerRow } from '@data/db/schemas/mcpServer'
 import { v4 as uuidv4 } from 'uuid'
+
+import type { InsertMcpServerRow } from '@data/db/schemas/mcpServer'
 
 function toNullable<T>(value: unknown): T | null {
   return (value ?? null) as T | null
@@ -24,7 +25,7 @@ const VALID_MCP_SERVER_TYPES = new Set(['stdio', 'sse', 'streamableHttp', 'inMem
  */
 function toMcpServerType(value: unknown): InsertMcpServerRow['type'] {
   if (typeof value !== 'string') return null
-  if (VALID_MCP_SERVER_TYPES.has(value)) return value as InsertMcpServerRow['type']
+  if (VALID_MCP_SERVER_TYPES.has(value)) return value
   if (value.includes('http')) return 'streamableHttp'
   return null
 }

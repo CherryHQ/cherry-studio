@@ -1,5 +1,6 @@
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { ipcApi } from '../index'
 

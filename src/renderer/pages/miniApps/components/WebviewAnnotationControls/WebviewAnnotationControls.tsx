@@ -1,3 +1,9 @@
+import type { WebviewTag } from 'electron'
+import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
+import type { RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Button,
@@ -18,11 +24,6 @@ import {
   type WebviewAnnotationLocale,
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
-import type { WebviewTag } from 'electron'
-import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import type { RefObject } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useWebviewAnnotationSession } from './useWebviewAnnotationSession'
 

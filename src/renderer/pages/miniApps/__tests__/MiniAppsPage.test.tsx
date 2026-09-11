@@ -1,11 +1,12 @@
-import type * as CherryStudioUI from '@cherrystudio/ui'
-import type * as UseCacheModule from '@data/hooks/useCache'
-import type * as MiniAppPresets from '@shared/data/presets/miniApps'
-import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import type * as UseCacheModule from '@data/hooks/useCache'
+import type * as MiniAppPresets from '@shared/data/presets/miniApps'
+import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppsPage from '../MiniAppsPage'
 
@@ -226,7 +227,10 @@ vi.mock('../InstallMiniAppPanel', () => ({
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', resolvedLanguage: 'en' } })
+  useTranslation: () => ({
+    t: (key: string) => (key === 'mini_apps.yuanbao' ? '腾讯元宝' : key),
+    i18n: { language: 'zh-CN', resolvedLanguage: 'zh-CN' }
+  })
 }))
 
 describe('MiniAppsPage', () => {
@@ -262,6 +266,23 @@ describe('MiniAppsPage', () => {
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+  })
+
+  it('finds a translated tile by its displayed name, original name, and URL', async () => {
+    const user = userEvent.setup()
+    mocks.apps.push(
+      stubApp({ appId: 'yuanbao', name: 'Yuanbao', nameKey: 'mini_apps.yuanbao', url: 'https://yuanbao.tencent.com' })
+    )
+    render(<MiniAppsPage />)
+
+    const search = screen.getByPlaceholderText('common.search')
+    expect(screen.getByRole('button', { name: '腾讯元宝' })).toBeInTheDocument()
+    for (const query of ['腾讯元宝', '元宝', 'YUANBAO', 'tencent.com']) {
+      await user.clear(search)
+      await user.type(search, query)
+      expect(screen.getByRole('button', { name: '腾讯元宝' })).toBeInTheDocument()
+      expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+    }
   })
 
   it('edits the latest app data after a non-visual configuration update', async () => {

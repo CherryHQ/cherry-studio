@@ -77,7 +77,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, statu
   if (isProcessing) {
     return (
       <div
-        className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-tertiary leading-5"
+        className="flex min-h-7 flex-row items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-tertiary select-none"
         data-testid="message-status-placeholder">
         <span data-testid="message-status-text">{t(PLACEHOLDER_LABEL_KEYS[status])}</span>
         <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />

@@ -1,5 +1,6 @@
-import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 const mocks = vi.hoisted(() => ({
   getPersist: vi.fn(),

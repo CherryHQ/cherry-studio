@@ -1,7 +1,8 @@
-import { loggerService } from '@logger'
-import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import type { IpcMainInvokeEvent } from 'electron'
 import { ipcMain } from 'electron'
+
+import { loggerService } from '@logger'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 
 import { validateSender } from './validateSender'
 

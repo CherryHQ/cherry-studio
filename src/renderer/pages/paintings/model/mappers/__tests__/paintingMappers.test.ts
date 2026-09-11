@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileMetadata } from '@renderer/types/file'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { paintingDataToCreateDto } from '../paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../paintingDataToUpdateDto'

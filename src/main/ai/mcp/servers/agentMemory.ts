@@ -1,6 +1,7 @@
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+
 import { loggerService } from '@logger'
 import { memoryTool, type MemoryToolContext } from '@main/ai/agents/tools/memoryTools'
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { createNeutralToolMcpServer } from './neutralToolMcpServer'
 

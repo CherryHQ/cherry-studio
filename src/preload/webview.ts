@@ -1,3 +1,5 @@
+import { ipcRenderer } from 'electron'
+
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
@@ -9,7 +11,6 @@ import {
   MINI_APP_KEYDOWN_CHANNEL,
   toMiniAppKeyPayload
 } from '@shared/utils/webviewKey'
-import { ipcRenderer } from 'electron'
 
 import { WebviewAnnotationController } from './WebviewAnnotationController'
 
