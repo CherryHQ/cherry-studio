@@ -4946,6 +4946,7 @@
   "settings.tool.websearch.model_tools_preferred.description": "Modelin yerleşik web araması ve URL getirme özelliklerini tercih eder; kullanılamadığında otomatik olarak yukarıdaki hizmetlere başvurur.",
   "settings.tool.websearch.model_tools_preferred.label": "Modelin yerleşik web araçlarını tercih et",
   "settings.tool.websearch.provider_description.bocha": "Gerçek zamanlı web ve yapılandırılmış sonuçlar sunan Çin merkezli yapay zekâ arama API'si.",
+  "settings.tool.websearch.provider_description.duckduckgo": "DuckDuckGo'nun HTML uç noktası üzerinden ücretsiz anahtar kelime araması. API anahtarı gerekmez.",
   "settings.tool.websearch.provider_description.exa": "Yapay zekâ uygulamaları için semantik web erişimine göre ayarlanmış nöral arama API'si.",
   "settings.tool.websearch.provider_description.exa_mcp": "Exa aramasını Exa MCP Server üzerinden ajanların kullanımına sunar.",
   "settings.tool.websearch.provider_description.fetch": "Yerleşik URL getirme sağlayıcısı. Arama sonuçlarını zenginleştirmek için bir URL'den web sayfası içeriğini getirir.",
