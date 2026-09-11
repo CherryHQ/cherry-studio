@@ -99,7 +99,13 @@ Improvements to code quality, performance, and maintainability.
 - No full imports of large dependencies when only a small part is used (tree-shaking)
 
 ### B2. Code Simplification
-- Clearly duplicated or similar logic extracted (judge by complexity and maintenance
+- Existing utilities reused where their contracts fit: search relevant shared,
+  process, domain, and package utilities before accepting a local reimplementation.
+  A finding must cite the existing public API and show compatible inputs, outputs,
+  errors, side effects, runtime requirements, and resource ownership within allowed
+  dependency boundaries. Similar names or syntax alone do not establish equivalence;
+  do not move business policy into a utility or expand its API solely to force reuse.
+- Remaining duplicated or similar logic extracted (judge by complexity and maintenance
   cost, not count threshold)
 - Deep nested if/else simplified with early return
 - Redundant conditional checks merged or eliminated
