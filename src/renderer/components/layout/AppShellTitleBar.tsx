@@ -2,6 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import type { Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
+import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +25,7 @@ export function AppShellTitleBar({
 }) {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
+  const title = activeTab && isPageTitledRoute(activeTab.url) ? getDefaultRouteTitle(activeTab.url) : activeTab?.title
 
   return (
     <header
@@ -48,7 +50,7 @@ export function AppShellTitleBar({
         ) : (
           <div className="flex min-w-0 items-center gap-2 px-1 text-sidebar-foreground text-sm">
             {activeTab && <TabIcon tab={activeTab} size={15} />}
-            <span className="truncate">{activeTab?.title}</span>
+            <span className="truncate">{title}</span>
           </div>
         )}
       </div>
