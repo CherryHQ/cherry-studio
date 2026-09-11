@@ -422,9 +422,9 @@ vi.mock('../constants/cliTools', () => ({
     { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.DEEPSEEK_HARNESS, label: 'DeepSeek Harness', icon: () => null },
     { value: CodeCli.HERMES, label: 'Hermes', icon: () => null },
+    { value: CodeCli.MCODE, label: 'MiniMax Code', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
-  ],
-  PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
+  ]
 }))
 
 vi.mock('../hooks/useAvailableTerminals', () => ({
@@ -515,6 +515,7 @@ function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, u
     [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
     [CodeCli.DEEPSEEK_HARNESS]: { ...base, ...overrides[CodeCli.DEEPSEEK_HARNESS] },
     [CodeCli.HERMES]: { ...base, ...overrides[CodeCli.HERMES] },
+    [CodeCli.MCODE]: { ...base, ...overrides[CodeCli.MCODE] },
     [CodeCli.QODER_CLI]: { ...base, ...overrides[CodeCli.QODER_CLI] }
   }
 }
@@ -1191,6 +1192,30 @@ describe('CodeCliPage', () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
     // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
     expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
+  })
+
+  it('clears Cherry-managed MiniMax Code providers before uninstalling the binary', async () => {
+    const events: string[] = []
+    mockCodeCliState({
+      selectedCliTool: CodeCli.MCODE,
+      providerConfigs: { anthropic: { modelId: 'anthropic::claude-new', config: {} } },
+      currentProviderId: 'anthropic'
+    })
+    clearCliConfigMock.mockImplementation(async () => {
+      events.push('clear-provider')
+    })
+    removeMock.mockImplementation(async () => {
+      events.push('remove-binary')
+      return true
+    })
+
+    render(<CodeCliPage />)
+    fireEvent.click(screen.getByText('remove tool'))
+    fireEvent.click(await screen.findByText('confirm remove'))
+
+    await waitFor(() => expect(removeMock).toHaveBeenCalledWith(CodeCli.MCODE))
+    expect(events).toEqual(['clear-provider', 'remove-binary'])
+    expect(clearCliConfigMock).toHaveBeenCalledTimes(1)
   })
 
   it('stops the managed DeepSeek Harness process before uninstalling and only then clears CodeMate selection', async () => {

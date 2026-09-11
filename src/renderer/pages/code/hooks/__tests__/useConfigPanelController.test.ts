@@ -5,6 +5,7 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  activateMiniMaxCodeOfficial: vi.fn(),
   clearCliConfig: vi.fn(),
   writeCliConfigDraft: vi.fn(),
   writeOwnLoginCliConfigDraft: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../../cliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
+vi.mock('../../cliConfig/official', () => ({ activateMiniMaxCodeOfficial: mocks.activateMiniMaxCodeOfficial }))
 vi.mock('../../cliConfig/draft', () => ({
   writeCliConfigDraft: mocks.writeCliConfigDraft,
   writeOwnLoginCliConfigDraft: mocks.writeOwnLoginCliConfigDraft,
@@ -146,6 +148,8 @@ describe('useConfigPanelController', () => {
       // clearAllMocks() keeps the never-resolving clearCliConfig impl from the in-flight guard tests.
       mocks.clearCliConfig.mockReset()
       mocks.clearCliConfig.mockResolvedValue(undefined)
+      mocks.activateMiniMaxCodeOfficial.mockReset()
+      mocks.activateMiniMaxCodeOfficial.mockResolvedValue(undefined)
       mocks.writeCliConfigDraft.mockReset()
       mocks.writeCliConfigDraft.mockResolvedValue(undefined)
     })
@@ -235,6 +239,20 @@ describe('useConfigPanelController', () => {
 
       expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.GEMINI_CLI })
       expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
+    })
+
+    it('activates MiniMax Code Official through its dedicated lifecycle boundary', async () => {
+      const options = { ...baseOptions(), selectedCliTool: CodeCli.MCODE, currentProviderId: 'p1' }
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent(ownLoginProvider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.activateMiniMaxCodeOfficial).toHaveBeenCalledWith()
+      expect(mocks.clearCliConfig).not.toHaveBeenCalled()
       expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
     })
 

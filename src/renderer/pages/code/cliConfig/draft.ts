@@ -11,6 +11,7 @@ import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/p
 import { getAdapter, sanitizeCliConfigBlob } from './adapters'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
 import { readConfigFiles } from './file'
+import { resolveMiniMaxCodeProviderInfo } from './resolvers'
 import type {
   CliConfigDraftBuildArgs,
   CliConfigFileDraft,
@@ -41,7 +42,7 @@ const logger = loggerService.withContext('writeCliConfigDraft')
 const OLLAMA_FALLBACK_TOOLS: string[] = [CodeCli.CLAUDE_CODE, CodeCli.OPEN_CODE, CodeCli.PI]
 
 async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConfigContext | null> {
-  if (!FILE_CONFIGURED_CLI_TOOLS.has(args.cliTool)) return null
+  if (!FILE_CONFIGURED_CLI_TOOLS.has(args.cliTool) && args.cliTool !== CodeCli.MCODE) return null
   if (!isUniqueModelId(args.modelId)) {
     throw new Error(`Invalid model id: ${args.modelId}`)
   }
@@ -159,6 +160,24 @@ export async function writeCliConfigDraft(args: {
     }
     const context = await resolveContext(writeArgs)
     if (!context) return
+    if (args.cliTool === CodeCli.MCODE) {
+      const { apiFormat, baseUrl } = resolveMiniMaxCodeProviderInfo(
+        context.provider,
+        context.modelRecord?.endpointTypes
+      )
+      if (!context.apiKey) throw new Error('MiniMax Code provider config is missing the API key')
+      if (!baseUrl) throw new Error('MiniMax Code provider config is missing a supported endpoint base URL')
+      const result = await ipcApi.request('code_cli.mcode_provider.apply', {
+        providerName: context.provider.name,
+        baseUrl,
+        apiFormat,
+        model: context.model,
+        apiKey: context.apiKey
+      })
+      if (!result.success) throw new Error(result.message)
+      logger.info('Applied MiniMax Code provider config')
+      return
+    }
     assertCliConfigCredentials(args.cliTool, context)
     // Gateway: always rebuild so the freshly-resolved gateway key/model is (re)injected — the preview
     // draft may carry a stale/empty key built before the gateway started. Passing `args.files` as the

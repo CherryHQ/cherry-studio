@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
   removeTool: vi.fn<(_request: BinaryRemoveRequest) => Promise<BinaryRemoveResult>>(),
+  prepareRuntimeForExecution: vi.fn(),
   getToolSnapshots: vi.fn()
 }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
@@ -56,6 +57,14 @@ const shellEnvMock = vi.hoisted(() => ({
   getShellEnv: vi.fn(),
   getRawShellEnv: vi.fn()
 }))
+const processRunnerMock = vi.hoisted(() => ({
+  executeCommand: vi.fn(),
+  removeEnvProxy: vi.fn()
+}))
+const miniMaxCodeConfigMock = vi.hoisted(() => ({
+  activateMiniMaxCodeModel: vi.fn(),
+  restoreMiniMaxCodeSelection: vi.fn()
+}))
 // Default null = no bundled MinGit, matching a build/host without the Windows bundle.
 const bundledGitMock = vi.hoisted(() => ({
   getBundledGitPath: vi.fn(),
@@ -84,12 +93,18 @@ vi.mock('@main/core/platform', () => ({
 }))
 
 vi.mock('@main/utils/processRunner', () => ({
-  removeEnvProxy: vi.fn()
+  executeCommand: processRunnerMock.executeCommand,
+  removeEnvProxy: processRunnerMock.removeEnvProxy
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: shellEnvMock.getShellEnv,
   getRawShellEnv: shellEnvMock.getRawShellEnv
+}))
+
+vi.mock('../miniMaxCodeConfig', () => ({
+  activateMiniMaxCodeModel: miniMaxCodeConfigMock.activateMiniMaxCodeModel,
+  restoreMiniMaxCodeSelection: miniMaxCodeConfigMock.restoreMiniMaxCodeSelection
 }))
 
 vi.mock('@main/utils/bundledGit', () => ({
@@ -171,6 +186,7 @@ describe('CodeCliService', () => {
     )
     binaryManagerMock.installByName.mockResolvedValue(undefined)
     binaryManagerMock.removeTool.mockResolvedValue({ status: 'removed' })
+    binaryManagerMock.prepareRuntimeForExecution.mockResolvedValue(undefined)
     skillServiceMock.syncBuiltinSkill.mockResolvedValue(false)
     skillServiceMock.uninstallBuiltinSkill.mockResolvedValue(false)
     hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
@@ -184,6 +200,14 @@ describe('CodeCliService', () => {
       geminiDir: '/mock/antigravity data',
       model: 'gemini-2.5-pro'
     })
+    processRunnerMock.executeCommand.mockReset()
+    miniMaxCodeConfigMock.activateMiniMaxCodeModel.mockReset().mockResolvedValue({
+      configPath: '/mock/home/.minimax/config.yaml',
+      appliedDefaultModel: 'custom_provider:cherry-deepseek/deepseek-reasoner',
+      defaultModel: { present: true, value: 'minimax/MiniMax-M2.7' },
+      defaultModelVariant: { present: false }
+    })
+    miniMaxCodeConfigMock.restoreMiniMaxCodeSelection.mockReset().mockResolvedValue(undefined)
   })
 
   it('should extend BaseService', async () => {
@@ -204,7 +228,7 @@ describe('CodeCliService', () => {
     expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
 
     await codeCliService._doAllReady()
-    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(13)
+    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(14)
     expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
       'code-mate-codex',
       path.join('/mock/binary-data', 'code-mate-codex'),
@@ -225,6 +249,308 @@ describe('CodeCliService', () => {
     // loadModules() already created one instance,
     // so creating another should throw
     expect(() => new CodeCliService()).toThrow(/already been instantiated/)
+  })
+
+  describe('MiniMax Code provider management', () => {
+    const providerList = (providers: Array<Record<string, unknown>>) =>
+      JSON.stringify({ minimaxModelSource: 'token_plan', providers })
+
+    it('activates a new Cherry provider before removing the previous managed provider', async () => {
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce(
+          providerList([
+            { providerId: 'custom_provider:user', name: 'User Provider', kind: 'custom' },
+            { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' }
+          ])
+        )
+        .mockResolvedValueOnce('Provider added: [Cherry Studio] DeepSeek')
+        .mockResolvedValueOnce(
+          providerList([
+            { providerId: 'custom_provider:user', name: 'User Provider', kind: 'custom' },
+            { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' },
+            { providerId: 'custom_provider:cherry-deepseek', name: '[Cherry Studio] DeepSeek', kind: 'custom' }
+          ])
+        )
+        .mockResolvedValueOnce(JSON.stringify({ success: true, status: { state: 'available' } }))
+        .mockResolvedValueOnce(
+          providerList([
+            { providerId: 'custom_provider:user', name: 'User Provider', kind: 'custom' },
+            { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' },
+            {
+              providerId: 'custom_provider:cherry-deepseek',
+              name: '[Cherry Studio] DeepSeek',
+              kind: 'custom',
+              active: true,
+              models: [{ modelId: 'deepseek-reasoner', selected: true }]
+            }
+          ])
+        )
+        .mockResolvedValueOnce('Provider removed: custom_provider:cherry-old')
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.applyMiniMaxCodeProvider({
+          providerName: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiFormat: 'openai-responses',
+          model: 'deepseek-reasoner',
+          apiKey: 'sk-secret'
+        })
+      ).resolves.toEqual({ success: true })
+
+      const calls = processRunnerMock.executeCommand.mock.calls
+      expect(calls[1][0]).toBe('/mock/bin/mcode')
+      expect(calls[1][1]).toEqual([
+        'provider',
+        'add',
+        '--name',
+        '[Cherry Studio] DeepSeek',
+        '--base-url',
+        'https://api.deepseek.com/v1',
+        '--api-format',
+        'openai-responses',
+        '--model',
+        'deepseek-reasoner',
+        '--api-key-env',
+        'CHERRY_STUDIO_MCODE_API_KEY'
+      ])
+      expect(calls[1][2].env.CHERRY_STUDIO_MCODE_API_KEY).toBe('sk-secret')
+      expect(calls[1][1]).not.toContain('sk-secret')
+      expect(calls[3][1]).toEqual([
+        'provider',
+        'test',
+        'custom_provider:cherry-deepseek',
+        '--model',
+        'deepseek-reasoner',
+        '--json'
+      ])
+      expect(miniMaxCodeConfigMock.activateMiniMaxCodeModel).toHaveBeenCalledWith(
+        expect.any(Object),
+        '/mock/binary-data',
+        'custom_provider:cherry-deepseek',
+        'deepseek-reasoner'
+      )
+      expect(calls[5][1]).toEqual(['provider', 'remove', 'custom_provider:cherry-old', '--yes'])
+      expect(calls.flatMap(([, args]) => args)).not.toContain('custom_provider:user')
+    })
+
+    it('keeps the previous managed provider when the new provider cannot be activated', async () => {
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce(
+          providerList([{ providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' }])
+        )
+        .mockRejectedValueOnce(new Error('Provider connectivity test failed'))
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.applyMiniMaxCodeProvider({
+          providerName: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiFormat: 'openai-responses',
+          model: 'deepseek-reasoner',
+          apiKey: 'sk-secret'
+        })
+      ).resolves.toEqual({ success: false, message: 'Provider connectivity test failed' })
+
+      expect(processRunnerMock.executeCommand).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps the exact managed provider when mcode updates it in place', async () => {
+      const providers = [
+        { providerId: 'custom_provider:target', name: '[Cherry Studio] DeepSeek', kind: 'custom' },
+        { providerId: 'custom_provider:stale', name: '[Cherry Studio] Stale', kind: 'custom' }
+      ]
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce(providerList(providers))
+        .mockResolvedValueOnce('Provider updated: [Cherry Studio] DeepSeek')
+        .mockResolvedValueOnce(providerList(providers))
+        .mockResolvedValueOnce(JSON.stringify({ success: true, status: { state: 'available' } }))
+        .mockResolvedValueOnce(
+          providerList([
+            {
+              ...providers[0],
+              active: true,
+              models: [{ modelId: 'deepseek-reasoner', selected: true }]
+            },
+            providers[1]
+          ])
+        )
+        .mockResolvedValueOnce('Provider removed: custom_provider:stale')
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.applyMiniMaxCodeProvider({
+          providerName: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiFormat: 'openai-responses',
+          model: 'deepseek-reasoner',
+          apiKey: 'sk-secret'
+        })
+      ).resolves.toEqual({ success: true })
+
+      expect(processRunnerMock.executeCommand.mock.calls[5][1]).toEqual([
+        'provider',
+        'remove',
+        'custom_provider:stale',
+        '--yes'
+      ])
+    })
+
+    it('removes a newly added provider when its connectivity test fails', async () => {
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce(
+          providerList([{ providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' }])
+        )
+        .mockResolvedValueOnce('Provider added: [Cherry Studio] DeepSeek')
+        .mockResolvedValueOnce(
+          providerList([
+            { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' },
+            { providerId: 'custom_provider:cherry-new', name: '[Cherry Studio] DeepSeek', kind: 'custom' }
+          ])
+        )
+        .mockResolvedValueOnce(JSON.stringify({ success: false, status: { lastErrorMessage: 'Unauthorized' } }))
+        .mockResolvedValueOnce('Provider removed: custom_provider:cherry-new')
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.applyMiniMaxCodeProvider({
+          providerName: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiFormat: 'openai-responses',
+          model: 'deepseek-reasoner',
+          apiKey: 'sk-secret'
+        })
+      ).resolves.toEqual({ success: false, message: 'Unauthorized' })
+
+      expect(miniMaxCodeConfigMock.activateMiniMaxCodeModel).not.toHaveBeenCalled()
+      expect(processRunnerMock.executeCommand.mock.calls[4][1]).toEqual([
+        'provider',
+        'remove',
+        'custom_provider:cherry-new',
+        '--yes'
+      ])
+    })
+
+    it('re-enumerates and removes a newly persisted provider when post-add discovery repeatedly fails', async () => {
+      const previous = providerList([
+        { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' }
+      ])
+      const withCandidate = providerList([
+        { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' },
+        { providerId: 'custom_provider:cherry-new', name: '[Cherry Studio] DeepSeek', kind: 'custom' }
+      ])
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce(previous)
+        .mockResolvedValueOnce('Provider added: [Cherry Studio] DeepSeek')
+        .mockRejectedValueOnce(new Error('provider list temporarily unavailable'))
+        .mockRejectedValueOnce(new Error('provider list temporarily unavailable'))
+        .mockRejectedValueOnce(new Error('provider list temporarily unavailable'))
+        .mockResolvedValueOnce(withCandidate)
+        .mockResolvedValueOnce('Provider removed: custom_provider:cherry-new')
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.applyMiniMaxCodeProvider({
+          providerName: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiFormat: 'openai-responses',
+          model: 'deepseek-reasoner',
+          apiKey: 'sk-secret'
+        })
+      ).resolves.toEqual({ success: false, message: 'provider list temporarily unavailable' })
+
+      expect(processRunnerMock.executeCommand.mock.calls.at(-1)?.[1]).toEqual([
+        'provider',
+        'remove',
+        'custom_provider:cherry-new',
+        '--yes'
+      ])
+    })
+
+    it('restores the prior model selection before removing a provider that fails activation verification', async () => {
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce(providerList([]))
+        .mockResolvedValueOnce('Provider added: [Cherry Studio] DeepSeek')
+        .mockResolvedValueOnce(
+          providerList([{ providerId: 'custom_provider:cherry-new', name: '[Cherry Studio] DeepSeek', kind: 'custom' }])
+        )
+        .mockResolvedValueOnce(JSON.stringify({ success: true, status: { state: 'available' } }))
+        .mockResolvedValueOnce(
+          providerList([{ providerId: 'custom_provider:cherry-new', name: '[Cherry Studio] DeepSeek', kind: 'custom' }])
+        )
+        .mockResolvedValueOnce('Provider removed: custom_provider:cherry-new')
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.applyMiniMaxCodeProvider({
+          providerName: 'DeepSeek',
+          baseUrl: 'https://api.deepseek.com/v1',
+          apiFormat: 'openai-responses',
+          model: 'deepseek-reasoner',
+          apiKey: 'sk-secret'
+        })
+      ).resolves.toEqual({ success: false, message: 'MiniMax Code did not activate the applied provider' })
+
+      expect(miniMaxCodeConfigMock.restoreMiniMaxCodeSelection).toHaveBeenCalledOnce()
+      expect(processRunnerMock.executeCommand.mock.calls[5][1]).toEqual([
+        'provider',
+        'remove',
+        'custom_provider:cherry-new',
+        '--yes'
+      ])
+      expect(miniMaxCodeConfigMock.restoreMiniMaxCodeSelection.mock.invocationCallOrder[0]).toBeLessThan(
+        processRunnerMock.executeCommand.mock.invocationCallOrder[5]
+      )
+    })
+
+    it('clears only providers managed by Cherry Studio', async () => {
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce(
+          providerList([
+            { providerId: 'custom_provider:user', name: 'User Provider', kind: 'custom' },
+            { providerId: 'custom_provider:cherry-one', name: '[Cherry Studio] One', kind: 'custom' },
+            { providerId: 'custom_provider:cherry-two', name: '[Cherry Studio] Two', kind: 'custom' }
+          ])
+        )
+        .mockResolvedValueOnce('Provider removed: custom_provider:cherry-one')
+        .mockResolvedValueOnce('Provider removed: custom_provider:cherry-two')
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.clearMiniMaxCodeProviders()).resolves.toEqual({ success: true })
+
+      const removeCalls = processRunnerMock.executeCommand.mock.calls.slice(1).map(([, args]) => args)
+      expect(removeCalls).toEqual([
+        ['provider', 'remove', 'custom_provider:cherry-one', '--yes'],
+        ['provider', 'remove', 'custom_provider:cherry-two', '--yes']
+      ])
+      expect(removeCalls.flat()).not.toContain('custom_provider:user')
+    })
+
+    it('activates the official Token Plan through the public provider command', async () => {
+      processRunnerMock.executeCommand
+        .mockResolvedValueOnce('Using MiniMax Token Plan')
+        .mockResolvedValueOnce(
+          providerList([
+            { providerId: 'custom_provider:user', name: 'User Provider', kind: 'custom' },
+            { providerId: 'custom_provider:cherry-old', name: '[Cherry Studio] Old', kind: 'custom' }
+          ])
+        )
+        .mockResolvedValueOnce('Provider removed: custom_provider:cherry-old')
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.activateMiniMaxCodeOfficial()).resolves.toEqual({ success: true })
+
+      expect(processRunnerMock.executeCommand.mock.calls[0][1]).toEqual(['provider', 'use', 'token-plan'])
+      expect(processRunnerMock.executeCommand.mock.calls[2][1]).toEqual([
+        'provider',
+        'remove',
+        'custom_provider:cherry-old',
+        '--yes'
+      ])
+      expect(processRunnerMock.executeCommand.mock.calls.flatMap(([, args]) => args)).not.toContain(
+        'custom_provider:user'
+      )
+    })
   })
 
   describe('CLI skill lifecycle', () => {
@@ -805,6 +1131,25 @@ describe('CodeCliService', () => {
       expect(launchEnv.PRIVATE_TOKEN).toBe('must-not-be-exported')
     })
 
+    it('launches managed MiniMax Code with its compatible Node before the mutable runtime shim', async () => {
+      binaryManagerMock.prepareRuntimeForExecution.mockResolvedValue('/mock/mcode-node/bin')
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'own-login',
+        cliTool: CodeCli.MCODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(binaryManagerMock.prepareRuntimeForExecution).toHaveBeenCalledWith('mcode')
+      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
+      expect(launchArgs).toContain(
+        "PATH='\\''/mock/mcode-node/bin:/mock/binary-data/shims:/mock/binary-data:/usr/local/bin:/usr/bin'\\''"
+      )
+    })
+
     it('single-quotes a directory containing spaces and $() in the assembled command', async () => {
       // Fake timers swallow the terminal-availability probe's 5s race timeouts (nothing the launch
       // awaits depends on them — the mocked probe resolves via microtasks).
@@ -1287,31 +1632,51 @@ describe('CodeCliService', () => {
       expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
     })
 
-    it('exempts providerless CLIs (Qoder) from the provider/model requirement', async () => {
+    it.each([CodeCli.QODER_CLI, CodeCli.GITHUB_COPILOT_CLI])(
+      'exempts providerless CLI %s from the provider/model requirement',
+      async (cliTool) => {
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'own-login',
+          cliTool,
+          directory: '/tmp/project'
+        })
+
+        // Providerless CLIs skip the provider/model guards, so control reaches the directory guard.
+        expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
+      }
+    )
+
+    it.each([CodeCli.CLAUDE_CODE, CodeCli.MCODE])(
+      'exempts an own-login run of login-capable tool %s from the provider/model requirement',
+      async (cliTool) => {
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'own-login',
+          cliTool,
+          directory: '/tmp/project'
+        })
+
+        // The own-login mode skips the provider/model guards for login-capable tools, so control
+        // reaches the directory guard.
+        expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
+      }
+    )
+
+    it('requires a provider for a normal MiniMax Code launch', async () => {
       const { codeCliService } = await loadModules()
 
       const result = await codeCliService.run({
-        mode: 'own-login',
-        cliTool: CodeCli.QODER_CLI,
+        mode: 'normal',
+        cliTool: CodeCli.MCODE,
+        model: 'MiniMax-M2.1',
+        providerId: '',
         directory: '/tmp/project'
       })
 
-      // Providerless CLIs skip the provider/model guards, so control reaches the directory guard.
-      expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
-    })
-
-    it('exempts an own-login run of a login-capable tool from the provider/model requirement', async () => {
-      const { codeCliService } = await loadModules()
-
-      const result = await codeCliService.run({
-        mode: 'own-login',
-        cliTool: CodeCli.CLAUDE_CODE,
-        directory: '/tmp/project'
-      })
-
-      // The own-login mode skips the provider/model guards for login-capable tools, so control
-      // reaches the directory guard.
-      expect(result).toEqual({ success: false, message: expect.stringContaining('Directory does not exist') })
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for mcode' })
     })
 
     it('still requires a provider for a non-login-capable tool even in own-login mode', async () => {

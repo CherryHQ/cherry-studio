@@ -179,15 +179,16 @@ export function mergePathSuffixes(
 }
 
 // `extraPathPrefixes` are prepended after the mise shims dir but before the
-// caller's existing PATH — used by the mise install subprocess to put mise's own
-// dir on PATH so a re-exec'd child mise resolves.
+// caller's existing PATH. `runtimePathPrefixes` go before the shims so a CLI's
+// declared interpreter wins over the mutable global runtime shim.
 export function mergeBinaryExecutionEnv(
   env: Record<string, string>,
-  extraPathPrefixes: string[] = []
+  extraPathPrefixes: string[] = [],
+  runtimePathPrefixes: string[] = []
 ): Record<string, string> {
   const binaryEnv = getBinaryExecutionEnv()
   return {
-    ...mergePathPrefixes(env, [binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes]),
+    ...mergePathPrefixes(env, [...runtimePathPrefixes, binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes]),
     ...binaryEnv
   }
 }

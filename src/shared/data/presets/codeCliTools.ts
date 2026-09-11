@@ -1,5 +1,10 @@
 import { CodeCli } from '@shared/types/codeCli'
 
+export interface CodeCliRuntimeRequirement {
+  tool: `node@${string}`
+  versionRange: string
+}
+
 /** Canonical acquisition facts for a Code CLI tool. */
 export interface CodeCliToolPreset {
   id: CodeCli
@@ -14,6 +19,7 @@ export interface CodeCliToolPreset {
   miseNpmShellOut?: boolean
   /** Exact npm packages whose lifecycle scripts mise may run during installation. */
   npmAllowBuilds?: readonly string[]
+  runtimeRequirement?: Readonly<CodeCliRuntimeRequirement>
   /**
    * A peer this tool needs at runtime but whose absence an install still reports
    * as success, named as `peer` resolved from `host`'s own entry point.
@@ -32,6 +38,9 @@ function defineCodeCliTool({ pipxExtras, ...definition }: CodeCliToolDefinition)
   const extras = definition.install === 'pipx' && pipxExtras?.length ? pipxExtras.join(',') : ''
   return Object.freeze({
     ...definition,
+    ...(definition.runtimeRequirement
+      ? { runtimeRequirement: Object.freeze({ ...definition.runtimeRequirement }) }
+      : {}),
     skillNamespace: `code-cli:${definition.id}` as const,
     miseTool: extras ? `${packageTool}[extras=${extras}]` : packageTool
   })
@@ -110,6 +119,23 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     skillFolderName: 'code-mate-kimi-code',
     packageName: '@moonshot-ai/kimi-code',
     install: 'npm'
+  }),
+  defineCodeCliTool({
+    id: CodeCli.MCODE,
+    executable: 'mcode',
+    skillFolderName: 'code-mate-mcode',
+    packageName: '@minimax-ai/code',
+    install: 'npm',
+    // The official npm installer also allows @minimax-ai/code so its postinstall
+    // verifier can run after dependency scripts. mise/aube runs that verifier
+    // before better-sqlite3's installer, aborting a clean install. Allow the
+    // native dependency itself; provider discovery exercises the resulting
+    // binding before Cherry applies a provider configuration.
+    npmAllowBuilds: ['better-sqlite3'],
+    runtimeRequirement: {
+      tool: 'node@22.19',
+      versionRange: '>=22.19 <23 || >=24 <27'
+    }
   }),
   defineCodeCliTool({
     id: CodeCli.QODER_CLI,

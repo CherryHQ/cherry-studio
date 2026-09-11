@@ -30,7 +30,7 @@ import {
   TOOL_KEY_RE,
   validateBinaryToolDefinition
 } from '@shared/data/presets/binaryTools'
-import { CODE_CLI_TOOL_PRESETS } from '@shared/data/presets/codeCliTools'
+import { CODE_CLI_TOOL_PRESETS, type CodeCliRuntimeRequirement } from '@shared/data/presets/codeCliTools'
 import type {
   BinaryApplication,
   BinaryAvailability,
@@ -42,7 +42,7 @@ import type {
   BinaryToolSnapshot
 } from '@shared/types/binary'
 import { Mutex } from 'async-mutex'
-import { valid as semverValid } from 'semver'
+import { satisfies as semverSatisfies, valid as semverValid } from 'semver'
 
 import { sanitizedCommandError } from './commandError'
 import { provideManagedPython } from './pythonRuntime'
@@ -223,8 +223,14 @@ export type ManagedCliInventoryEntry = {
 }
 
 /** A code-owned fixed tool definition. Structural — never a persisted custom entry. */
-type FixedToolDefinition = { name: string; tool: string; npmAllowBuilds?: readonly string[] }
-type InstallableToolDefinition = CustomToolDefinition & Pick<FixedToolDefinition, 'npmAllowBuilds'>
+type FixedToolDefinition = {
+  name: string
+  tool: string
+  npmAllowBuilds?: readonly string[]
+  runtimeRequirement?: Readonly<CodeCliRuntimeRequirement>
+}
+type InstallableToolDefinition = CustomToolDefinition &
+  Pick<FixedToolDefinition, 'npmAllowBuilds' | 'runtimeRequirement'>
 type MiseInstallEntry = { version?: string; active?: boolean; install_path?: string }
 
 // One build's env and the facts derived from it, so no caller can pair them
@@ -271,7 +277,8 @@ const FIXED_CATALOG: ReadonlyMap<string, FixedToolDefinition> = new Map<string, 
     {
       name: preset.executable,
       tool: preset.miseTool,
-      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {})
+      ...(preset.npmAllowBuilds?.length ? { npmAllowBuilds: preset.npmAllowBuilds } : {}),
+      ...(preset.runtimeRequirement ? { runtimeRequirement: preset.runtimeRequirement } : {})
     }
   ])
 ])
@@ -1298,14 +1305,12 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  private async installWithMise(
+  private async selectRuntime(
     definition: InstallableToolDefinition,
-    targetVersion: string | undefined,
     definitions: CustomToolDefinition[]
-  ): Promise<string> {
-    const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
+  ): Promise<string | undefined> {
     const backend = definition.tool.split(':')[0]
-    const defaultRuntime = RUNTIME_DEPS[backend]
+    const defaultRuntime = definition.runtimeRequirement?.tool ?? RUNTIME_DEPS[backend]
     const runtimeName = defaultRuntime?.split('@')[0]
     const pinnedRuntime = runtimeName
       ? definitions.find((entry) => {
@@ -1313,14 +1318,24 @@ export class BinaryManager extends BaseService {
           return isRuntimeDependency(entry.tool) && runtimeTool.split('@')[0] === runtimeName
         })
       : undefined
-    // The narrow template type is RUNTIME_DEPS's guarantee; the local is just a
-    // `<tool>@<version>` command fragment, which the pinned-runtime branch widens.
-    let runtime: string | undefined = defaultRuntime
-    if (pinnedRuntime) {
-      const runtimeTool = pinnedRuntime.tool.replace(/@[^@]+$/, '')
-      const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
-      runtime = `${runtimeTool}@${runtimeVersion}`
+    if (!pinnedRuntime) return defaultRuntime
+
+    const runtimeTool = pinnedRuntime.tool.replace(/@[^@]+$/, '')
+    const runtimeVersion = pinnedRuntime.requestedVersion ?? (await this.getInstalledVersion(runtimeTool))
+    if (definition.runtimeRequirement && !semverSatisfies(runtimeVersion, definition.runtimeRequirement.versionRange)) {
+      return defaultRuntime
     }
+    return `${runtimeTool}@${runtimeVersion}`
+  }
+
+  private async installWithMise(
+    definition: InstallableToolDefinition,
+    targetVersion: string | undefined,
+    definitions: CustomToolDefinition[]
+  ): Promise<string> {
+    const requested = targetVersion ?? definition.requestedVersion ?? 'latest'
+    const backend = definition.tool.split(':')[0]
+    const runtime = await this.selectRuntime(definition, definitions)
     const toolSpec = `${addNpmAllowBuildsOption(definition.tool, definition.npmAllowBuilds)}@${requested}`
     const includePrerelease = MISE_PRERELEASE_TOOLS.has(definition.tool)
     const shellOutNpm = MISE_NPM_SHELL_OUT_TOOLS.has(definition.tool)
@@ -1354,6 +1369,20 @@ export class BinaryManager extends BaseService {
     }
     await this.runMise(['reshim'])
     return this.getInstalledVersion(definition.tool, requested)
+  }
+
+  /** Prepare and return the compatible runtime bin required by a managed fixed tool. */
+  public async prepareRuntimeForExecution(name: string): Promise<string | undefined> {
+    const definition = this.resolveFixedDefinition(name)
+    if (!definition?.runtimeRequirement) return undefined
+    if (!this.miseBin) throw new Error('Binary backend not available')
+
+    return this.mutationMutex.runExclusive(async () => {
+      const definitions = await this.appliedRuntimeDefinitions(this.getCustomDefinitions())
+      const runtime = await this.selectRuntime(definition, definitions)
+      if (!runtime) throw new Error(`Runtime requirement is missing for ${name}`)
+      return this.prepareNpmRuntime(runtime)
+    })
   }
 
   private async getInstalledVersion(tool: string, requested?: string): Promise<string> {
@@ -1473,7 +1502,7 @@ export class BinaryManager extends BaseService {
    * is authoritative — it wins over any stale same-name Preference entry left by a
    * prior version. A custom name resolves only from the persisted custom registry.
    */
-  private resolveDefinition(name: string): CustomToolDefinition | undefined {
+  private resolveDefinition(name: string): InstallableToolDefinition | undefined {
     return this.resolveFixedDefinition(name) ?? this.getCustomDefinitions().find((entry) => entry.name === name)
   }
 

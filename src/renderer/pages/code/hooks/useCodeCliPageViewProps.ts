@@ -8,14 +8,15 @@ import {
   CodeCli,
   GATEWAY_CAPABLE_CLI_TOOLS,
   isApiGatewayProviderId,
-  LOGIN_CAPABLE_CLI_TOOLS
+  LOGIN_CAPABLE_CLI_TOOLS,
+  PROVIDERLESS_CLI_TOOLS
 } from '@shared/types/codeCli'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { clearCliConfig, resolveCliConfigApplyContext } from '../cliConfig'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
-import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
+import { CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types'
 import { useApiGatewayProvider } from './useApiGatewayProvider'
@@ -292,9 +293,20 @@ export function useCodeCliPageViewProps(
     async (toolId: CodeCli) => {
       if (toolId === CodeCli.DEEPSEEK_HARNESS && !(await deepSeekHarness.onStop())) return
       if (toolId === CodeCli.HERMES && !(await hermesDashboard.onStop())) return
+      // MCode provider cleanup resolves the installed CLI in order to use its
+      // public provider commands. Run it before binary removal; doing this
+      // afterward would lazily reinstall the binary we just removed.
+      if (toolId === CodeCli.MCODE && currentProviderId) {
+        try {
+          await clearCliConfig({ cliTool: toolId })
+        } catch (err) {
+          logger.error('Failed to clear CLI config before tool removal:', err as Error)
+          toast.error(t('code.clear_config_failed'))
+        }
+      }
       const success = await remove(toolId)
       if (success && currentProviderId) {
-        if (toolId !== CodeCli.DEEPSEEK_HARNESS) {
+        if (toolId !== CodeCli.DEEPSEEK_HARNESS && toolId !== CodeCli.MCODE) {
           try {
             await clearCliConfig({ cliTool: toolId })
           } catch (err) {

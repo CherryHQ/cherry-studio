@@ -22,6 +22,7 @@ export { validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
 export { gatewayExpectedModel, gatewayModelIdFromAddress } from './gatewayModel'
 export { resolveLaunchModelId } from './launchModelId'
+export { activateMiniMaxCodeOfficial } from './official'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
 export {
   CLAUDE_PERMISSION_MODES,

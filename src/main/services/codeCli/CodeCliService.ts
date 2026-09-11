@@ -9,7 +9,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
-import { removeEnvProxy } from '@main/utils/processRunner'
+import { executeCommand, removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
 import {
   CODE_CLI_TOOL_PRESET_BY_EXECUTABLE,
@@ -17,7 +17,7 @@ import {
   CODE_CLI_TOOL_PRESETS,
   type CodeCliToolPreset
 } from '@shared/data/presets/codeCliTools'
-import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type { CodeCliRunInput, MiniMaxCodeProviderApplyInput } from '@shared/ipc/schemas/codeCli'
 import type {
   BinaryInstallByNameRequest,
   BinaryRemoveRequest,
@@ -27,6 +27,7 @@ import type {
 import {
   CodeCli,
   LOGIN_CAPABLE_CLI_TOOLS,
+  PROVIDERLESS_CLI_TOOLS,
   TerminalApp,
   type TerminalConfig,
   type TerminalConfigWithCommand
@@ -41,6 +42,11 @@ import { promisify } from 'util'
 
 import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
+import {
+  activateMiniMaxCodeModel,
+  type MiniMaxCodeSelectionReceipt,
+  restoreMiniMaxCodeSelection
+} from './miniMaxCodeConfig'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -52,6 +58,21 @@ import {
 const execAsync = promisify(require('child_process').exec)
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('CodeCliService')
+const MCODE_PROVIDER_NAME_PREFIX = '[Cherry Studio] '
+const MCODE_PROVIDER_API_KEY_ENV = 'CHERRY_STUDIO_MCODE_API_KEY'
+const MCODE_PROVIDER_COMMAND_TIMEOUT = 30_000
+const MCODE_PROVIDER_DISCOVERY_ATTEMPTS = 3
+
+interface MiniMaxCodeListedProvider {
+  providerId: string
+  name: string
+  kind?: string
+  active?: boolean
+  models?: Array<{
+    modelId?: string
+    selected?: boolean
+  }>
+}
 
 /**
  * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
@@ -89,6 +110,7 @@ export class CodeCliService extends BaseService {
     timestamp: number
   } | null = null
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
+  private mcodeProviderTail: Promise<void> = Promise.resolve()
 
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
@@ -211,6 +233,273 @@ export class CodeCliService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.terminalsCache = null
+  }
+
+  private enqueueMiniMaxCodeProviderOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.mcodeProviderTail.then(operation, operation)
+    this.mcodeProviderTail = result.then(
+      () => undefined,
+      () => undefined
+    )
+    return result
+  }
+
+  private async resolveMiniMaxCodeCommand(): Promise<{ path: string; env: Record<string, string> }> {
+    const binaryManager = application.get('BinaryManager')
+    let snapshot = (await binaryManager.getToolSnapshots(['mcode'])).mcode
+    if (snapshot.availability.source === 'none') {
+      await binaryManager.installByName({ name: 'mcode' })
+      snapshot = (await binaryManager.getToolSnapshots(['mcode'])).mcode
+    }
+    if (snapshot.availability.source === 'none') {
+      throw new Error('MiniMax Code is not available after install')
+    }
+
+    const shellEnv = await getRawShellEnv()
+    if (snapshot.availability.source === 'system') {
+      const env = { ...shellEnv }
+      removeEnvProxy(env)
+      return { path: snapshot.availability.path, env }
+    }
+
+    const runtimeBin = await binaryManager.prepareRuntimeForExecution('mcode')
+    const env = mergeBinaryExecutionEnv(shellEnv, [application.getPath('cherry.bin')], runtimeBin ? [runtimeBin] : [])
+    removeEnvProxy(env)
+    return { path: snapshot.availability.path, env }
+  }
+
+  private async runMiniMaxCodeProviderCommand(
+    runtime: { path: string; env: Record<string, string> },
+    args: string[],
+    extraEnv: Record<string, string> = {}
+  ): Promise<string> {
+    return executeCommand(runtime.path, ['provider', ...args], {
+      env: { ...runtime.env, ...extraEnv },
+      maxOutputBytes: 1024 * 1024,
+      timeout: MCODE_PROVIDER_COMMAND_TIMEOUT
+    })
+  }
+
+  private async listManagedMiniMaxCodeProviders(runtime: {
+    path: string
+    env: Record<string, string>
+  }): Promise<MiniMaxCodeListedProvider[]> {
+    const output = await this.runMiniMaxCodeProviderCommand(runtime, ['list', '--json'])
+    const parsed: unknown = JSON.parse(output)
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { providers?: unknown }).providers)) {
+      throw new Error('MiniMax Code returned an invalid provider list')
+    }
+    return (parsed as { providers: unknown[] }).providers.filter((provider): provider is MiniMaxCodeListedProvider => {
+      if (!provider || typeof provider !== 'object') return false
+      const entry = provider as Partial<MiniMaxCodeListedProvider>
+      return (
+        entry.kind === 'custom' &&
+        typeof entry.providerId === 'string' &&
+        entry.providerId.startsWith('custom_provider:') &&
+        typeof entry.name === 'string' &&
+        entry.name.startsWith(MCODE_PROVIDER_NAME_PREFIX)
+      )
+    })
+  }
+
+  private async listManagedMiniMaxCodeProvidersWithRetry(runtime: {
+    path: string
+    env: Record<string, string>
+  }): Promise<MiniMaxCodeListedProvider[]> {
+    let lastError: unknown
+    for (let attempt = 1; attempt <= MCODE_PROVIDER_DISCOVERY_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.listManagedMiniMaxCodeProviders(runtime)
+      } catch (error) {
+        lastError = error
+        logger.warn('Failed to enumerate MiniMax Code providers', { attempt, error: error as Error })
+      }
+    }
+    throw lastError
+  }
+
+  private assertMiniMaxCodeProviderTestSucceeded(output: string): void {
+    const parsed: unknown = JSON.parse(output)
+    if (!parsed || typeof parsed !== 'object') throw new Error('MiniMax Code returned an invalid provider test result')
+    const result = parsed as {
+      success?: unknown
+      message?: unknown
+      status?: { lastErrorMessage?: unknown }
+    }
+    if (result.success === true) return
+    const detail =
+      (typeof result.status?.lastErrorMessage === 'string' && result.status.lastErrorMessage) ||
+      (typeof result.message === 'string' && result.message)
+    throw new Error(detail || 'MiniMax Code provider connectivity test failed')
+  }
+
+  private isMiniMaxCodeProviderSelected(
+    provider: MiniMaxCodeListedProvider,
+    providerId: string,
+    modelId: string
+  ): boolean {
+    return (
+      provider.providerId === providerId &&
+      provider.active === true &&
+      provider.models?.some((model) => model.modelId === modelId && model.selected === true) === true
+    )
+  }
+
+  public async applyMiniMaxCodeProvider(input: MiniMaxCodeProviderApplyInput): Promise<OperationResult> {
+    return this.enqueueMiniMaxCodeProviderOperation(async () => {
+      let runtime: { path: string; env: Record<string, string> } | undefined
+      let createdProviderId: string | undefined
+      let selectionReceipt: MiniMaxCodeSelectionReceipt | undefined
+      let providerPersisted = false
+      let previousIds = new Set<string>()
+      const managedName = `${MCODE_PROVIDER_NAME_PREFIX}${input.providerName}`
+      try {
+        runtime = await this.resolveMiniMaxCodeCommand()
+        const previousProviders = await this.listManagedMiniMaxCodeProviders(runtime)
+        previousIds = new Set(previousProviders.map((provider) => provider.providerId))
+        await this.runMiniMaxCodeProviderCommand(
+          runtime,
+          [
+            'add',
+            '--name',
+            managedName,
+            '--base-url',
+            input.baseUrl,
+            '--api-format',
+            input.apiFormat,
+            '--model',
+            input.model,
+            '--api-key-env',
+            MCODE_PROVIDER_API_KEY_ENV
+          ],
+          { [MCODE_PROVIDER_API_KEY_ENV]: input.apiKey }
+        )
+        providerPersisted = true
+
+        const providers = await this.listManagedMiniMaxCodeProvidersWithRetry(runtime)
+        const appliedProvider =
+          providers.find((provider) => !previousIds.has(provider.providerId)) ??
+          providers.find((provider) => provider.name === managedName) ??
+          providers.at(-1)
+        if (!appliedProvider) throw new Error('MiniMax Code did not retain the applied provider')
+        if (!previousIds.has(appliedProvider.providerId)) createdProviderId = appliedProvider.providerId
+
+        const testOutput = await this.runMiniMaxCodeProviderCommand(runtime, [
+          'test',
+          appliedProvider.providerId,
+          '--model',
+          input.model,
+          '--json'
+        ])
+        this.assertMiniMaxCodeProviderTestSucceeded(testOutput)
+
+        selectionReceipt = await activateMiniMaxCodeModel(
+          runtime.env,
+          application.getPath('sys.home'),
+          appliedProvider.providerId,
+          input.model
+        )
+        const verifiedProviders = await this.listManagedMiniMaxCodeProviders(runtime)
+        if (
+          !verifiedProviders.some((provider) =>
+            this.isMiniMaxCodeProviderSelected(provider, appliedProvider.providerId, input.model)
+          )
+        ) {
+          throw new Error('MiniMax Code did not activate the applied provider')
+        }
+
+        for (const provider of verifiedProviders) {
+          if (provider.providerId === appliedProvider.providerId) continue
+          await this.runMiniMaxCodeProviderCommand(runtime, ['remove', provider.providerId, '--yes']).catch((error) =>
+            logger.warn('Failed to remove a stale Cherry-managed MiniMax Code provider', error as Error)
+          )
+        }
+        return { success: true }
+      } catch (error) {
+        const rollbackFailures: string[] = []
+        let selectionRestored = selectionReceipt === undefined
+        if (selectionReceipt) {
+          try {
+            await restoreMiniMaxCodeSelection(selectionReceipt)
+            selectionRestored = true
+          } catch (restoreError) {
+            rollbackFailures.push('previous MiniMax Code selection could not be restored')
+            logger.warn('Failed to restore the previous MiniMax Code selection', restoreError as Error)
+          }
+        }
+        if (runtime && providerPersisted && selectionRestored) {
+          let rollbackProviderIds = createdProviderId ? [createdProviderId] : []
+          if (rollbackProviderIds.length === 0) {
+            try {
+              const currentProviders = await this.listManagedMiniMaxCodeProvidersWithRetry(runtime)
+              rollbackProviderIds = currentProviders
+                .filter((provider) => !previousIds.has(provider.providerId) && provider.name === managedName)
+                .map((provider) => provider.providerId)
+            } catch (enumerateError) {
+              rollbackFailures.push('new MiniMax Code provider could not be identified for cleanup')
+              logger.warn(
+                'Failed to identify the rejected Cherry-managed MiniMax Code provider',
+                enumerateError as Error
+              )
+            }
+          }
+          for (const providerId of rollbackProviderIds) {
+            try {
+              await this.runMiniMaxCodeProviderCommand(runtime, ['remove', providerId, '--yes'])
+            } catch (removeError) {
+              rollbackFailures.push(`new MiniMax Code provider ${providerId} could not be removed`)
+              logger.warn('Failed to remove the rejected Cherry-managed MiniMax Code provider', removeError as Error)
+            }
+          }
+        }
+        const failure = error instanceof Error ? error.message : String(error)
+        const rollbackSuffix =
+          rollbackFailures.length > 0 ? `; rollback incomplete: ${rollbackFailures.join('; ')}` : ''
+        const message = `${failure}${rollbackSuffix}`.replaceAll(input.apiKey, REDACTED)
+        logger.warn('Failed to apply MiniMax Code provider', { message })
+        return { success: false, message }
+      }
+    })
+  }
+
+  public async clearMiniMaxCodeProviders(): Promise<OperationResult> {
+    return this.enqueueMiniMaxCodeProviderOperation(async () => {
+      try {
+        const runtime = await this.resolveMiniMaxCodeCommand()
+        const providers = await this.listManagedMiniMaxCodeProviders(runtime)
+        for (const provider of providers) {
+          await this.runMiniMaxCodeProviderCommand(runtime, ['remove', provider.providerId, '--yes'])
+        }
+        return { success: true }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.warn('Failed to clear Cherry-managed MiniMax Code providers', { message })
+        return { success: false, message }
+      }
+    })
+  }
+
+  public async activateMiniMaxCodeOfficial(): Promise<OperationResult> {
+    return this.enqueueMiniMaxCodeProviderOperation(async () => {
+      try {
+        const runtime = await this.resolveMiniMaxCodeCommand()
+        await this.runMiniMaxCodeProviderCommand(runtime, ['use', 'token-plan'])
+        const providers = await this.listManagedMiniMaxCodeProviders(runtime).catch((error) => {
+          logger.warn('Failed to list stale MiniMax Code providers after activating Official', error as Error)
+          return []
+        })
+        for (const provider of providers) {
+          await this.runMiniMaxCodeProviderCommand(runtime, ['remove', provider.providerId, '--yes']).catch((error) =>
+            logger.warn('Failed to remove a stale Cherry-managed MiniMax Code provider', error as Error)
+          )
+        }
+        return { success: true }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.warn('Failed to activate MiniMax Code Official', { message })
+        return { success: false, message }
+      }
+    })
   }
 
   /**
@@ -468,7 +757,7 @@ export class CodeCliService extends BaseService {
 
     const normal = input.mode === 'normal' ? input : null
     const isLoginFlow = input.mode === 'login-flow'
-    const isProviderlessCli = cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI
+    const isProviderlessCli = PROVIDERLESS_CLI_TOOLS.has(cliTool)
     // "Own login" run: the CLI uses its own stored account login, so no Cherry
     // provider/model is injected (the renderer already cleared any prior config).
     // Gated to login-capable tools so a genuinely missing provider still errors.
@@ -542,6 +831,16 @@ export class CodeCliService extends BaseService {
 
     const executablePath = availability.path
     const usesCherryExecutionEnv = availability.source !== 'system'
+    let runtimeBin: string | undefined
+    if (availability.source === 'mise') {
+      try {
+        runtimeBin = await binaryManager.prepareRuntimeForExecution(executableName)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error(`Failed to prepare runtime for ${cliTool}:`, error as Error)
+        return { success: false, message: `Failed to prepare runtime for ${cliTool}: ${errorMessage}` }
+      }
+    }
 
     // Cherry's MISE_* variables are needed for currently available mise shims
     // and bundled binaries. A system CLI receives no Cherry environment: adding
@@ -553,7 +852,7 @@ export class CodeCliService extends BaseService {
       Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
     )
     const env: Record<string, string> = usesCherryExecutionEnv
-      ? mergeBinaryExecutionEnv(rawPathEnv, [application.getPath('cherry.bin')])
+      ? mergeBinaryExecutionEnv(rawPathEnv, [application.getPath('cherry.bin')], runtimeBin ? [runtimeBin] : [])
       : {}
     // For a managed Windows launch buildEnvPrefix rewrites PATH inside the
     // terminal from `env`, so the bundled-git tail must land here too, not only

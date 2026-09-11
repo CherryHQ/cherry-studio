@@ -320,6 +320,7 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'antigravity-cli',
   'qwen-code',
   'kimi-code',
+  'mcode',
   'qoder-cli',
   'github-copilot-cli',
   'pi',
