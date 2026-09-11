@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'node:url'
 
-import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
+
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl, tryFileUrlToPath } from '../url'
 
@@ -151,7 +152,7 @@ describe('fileUrlToPath', () => {
   })
 
   it('throws on malformed percent-encoding', () => {
-    expect(() => fileUrlToPath('file:///foo/%zz.pdf' as FileUrlString)).toThrow(URIError)
+    expect(() => fileUrlToPath('file:///foo/%zz.pdf')).toThrow(URIError)
   })
 
   // Cross-module contract, not a restatement of the decode cases above: the

@@ -1,5 +1,6 @@
-import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { describe, expect, it } from 'vitest'
+
+import type { McpCallToolResponse } from '@main/ai/mcp/types'
 
 import { hasMultimodalContent, mcpResultToTextSummary } from '../utils'
 

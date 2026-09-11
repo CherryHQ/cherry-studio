@@ -1,6 +1,7 @@
-import { useImageTools } from '@renderer/components/ActionTools'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useImageTools } from '@renderer/components/ActionTools'
 
 import ImagePreviewLayout from '../ImagePreviewLayout'
 import type { BasicPreviewHandles } from '../types'

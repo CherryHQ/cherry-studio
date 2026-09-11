@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { createAssistantFileAttachmentHandle } from '@main/ai/messages/assistantFileAttachments'
 import type * as ReadFileToolModule from '@main/ai/tools/adapters/aiSdk/builtin/ReadFileTool'
 import type * as MoveToTrashModule from '@main/ai/tools/moveToTrash'
 import type * as SaveAttachmentModule from '@main/ai/tools/saveAttachment'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   listSessionMessages: vi.fn(),

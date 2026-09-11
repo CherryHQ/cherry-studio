@@ -1,7 +1,8 @@
+import type { LanguageCode } from 'tesseract.js'
+
 import { loggerService } from '@logger'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
-import type { LanguageCode } from 'tesseract.js'
 
 import { type PreparedTesseractContext, TesseractProcessorOptionsSchema } from '../types'
 

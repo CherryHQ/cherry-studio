@@ -1,7 +1,8 @@
-import { Button } from '@cherrystudio/ui'
-import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
+import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 
 import { MODEL_ENDPOINT_OPTIONS } from './helpers'
 import type { ModelDrawerEndpointType } from './types'
