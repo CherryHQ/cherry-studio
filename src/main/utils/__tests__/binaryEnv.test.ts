@@ -6,7 +6,8 @@ import {
   getBinaryShimsDir,
   mergeBinaryExecutionEnv,
   mergePathPrefixes,
-  mergePathSuffixes
+  mergePathSuffixes,
+  sanitizeEnvNullBytes
 } from '../binaryEnv'
 
 // Real `node:path` (posix on CI) — the dedup's canonicalization runs against
@@ -78,6 +79,26 @@ describe('mergePathPrefixes', () => {
     const env = mergePathSuffixes({ PATH: '/user/mise/shims:/usr/bin' }, ['/mock/cherry.bin'])
 
     expect(env.PATH.split(':')).toEqual(['/user/mise/shims', '/usr/bin', '/mock/cherry.bin'])
+  })
+})
+
+describe('sanitizeEnvNullBytes', () => {
+  it('drops a non-PATH entry whose value carries a NUL', () => {
+    // Node rejects the whole child env for a NUL in ANY value, so a broken
+    // non-PATH variable must not survive either (#20344).
+    expect(sanitizeEnvNullBytes({ SAFE: 'ok', BROKEN: 'a\0b' })).toEqual({ SAFE: 'ok' })
+  })
+
+  it('keeps PATH’s valid segments and drops only the NUL-bearing one', () => {
+    // The whole PATH is load-bearing: discarding it wholesale would cost the
+    // user every other directory.
+    const env = sanitizeEnvNullBytes({ PATH: '/usr/bin:/broken\0dir:/opt/bin' })
+
+    expect(env.PATH).toBe('/usr/bin:/opt/bin')
+  })
+
+  it('leaves a clean environment and undefined values untouched', () => {
+    expect(sanitizeEnvNullBytes({ A: 'x', B: undefined })).toEqual({ A: 'x', B: undefined })
   })
 })
 

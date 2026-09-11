@@ -203,6 +203,29 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(env.Path).not.toContain('.cherrystudio')
   })
 
+  it('strips a NUL-bearing PATH segment from the raw env system binaries receive', async () => {
+    // `getRawShellEnv` deliberately skips PATH canonicalization, so this asserts
+    // on it directly: the capture itself must drop the bad segment or the spawn
+    // rejects the whole env (#20344).
+    mockRegistryPaths({ system: 'C:\\Windows;C:\\broken\0dir;C:\\NodeJS' })
+
+    await refreshShellEnv()
+    const env = await getRawShellEnv()
+
+    expect(env.Path).not.toContain('\0')
+    expect(env.Path).toContain('C:\\NodeJS')
+  })
+
+  it('drops a NUL-bearing non-PATH value from the raw env', async () => {
+    process.env.BROKEN_VALUE = 'a\0b'
+    mockRegistryPaths({ system: 'C:\\Windows' })
+
+    await refreshShellEnv()
+    const env = await getRawShellEnv()
+
+    expect(env.BROKEN_VALUE).toBeUndefined()
+  })
+
   it('should append Cherry Studio tool directories to PATH', async () => {
     mockRegistryPaths({ system: 'C:\\Windows' })
 

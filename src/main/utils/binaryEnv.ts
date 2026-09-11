@@ -47,6 +47,32 @@ function binaryDataDir(): string {
   return application.getPath('feature.binary.data')
 }
 
+/** Keep PATH's valid segments — a single bad segment must not cost the whole value. */
+function stripNullBytePathSegments(value: string): string {
+  const separator = isWin ? ';' : path.delimiter
+  return value
+    .split(separator)
+    .filter((segment) => !segment.includes('\0'))
+    .join(separator)
+}
+
+/**
+ * Remove NUL bytes from an environment map so `spawn` cannot reject it (#20344).
+ * The check is not PATH-only: Node throws for a NUL in any value. PATH keeps its
+ * valid segments; every other value has no partial form, so its entry is dropped.
+ */
+export function sanitizeEnvNullBytes<T extends Record<string, string | undefined>>(env: T): T {
+  const sanitized: Record<string, string | undefined> = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value !== 'string' || !value.includes('\0')) {
+      sanitized[key] = value
+    } else if (key.toLowerCase() === 'path') {
+      sanitized[key] = stripNullBytePathSegments(value)
+    }
+  }
+  return sanitized as T
+}
+
 /** The mise shims dir — where installed-tool shim executables land. */
 export function getBinaryShimsDir(): string {
   return path.join(binaryDataDir(), 'shims')

@@ -6,6 +6,7 @@ import crossSpawn from 'cross-spawn'
 import path from 'path'
 import { promisify } from 'util'
 
+import { sanitizeEnvNullBytes } from './binaryEnv'
 import { getShellEnv } from './shellEnv'
 
 const execFileAsync = promisify(execFile)
@@ -44,7 +45,7 @@ export function runInstallScript(scriptPath: string, extraEnv?: Record<string, s
     logger.info(`Running script at: ${installScriptPath}`)
 
     const nodeProcess = spawn(process.execPath, [installScriptPath], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv }
+      env: sanitizeEnvNullBytes({ ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv })
     })
 
     nodeProcess.stdout.on('data', (data) => {

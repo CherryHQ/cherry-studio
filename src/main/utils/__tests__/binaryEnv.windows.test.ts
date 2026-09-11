@@ -27,7 +27,12 @@ vi.mock('@application', () => ({
 
 vi.mock('path')
 
-import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv, mergePathSuffixes } from '../binaryEnv'
+import {
+  getBinaryIsolatedHomeEnv,
+  mergeBinaryExecutionEnv,
+  mergePathSuffixes,
+  sanitizeEnvNullBytes
+} from '../binaryEnv'
 
 describe('mergeBinaryExecutionEnv (Windows)', () => {
   beforeEach(async () => {
@@ -110,6 +115,15 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     const pathKeys = Object.keys(merged).filter((key) => key.toLowerCase() === 'path')
     expect(pathKeys).toHaveLength(1)
     expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\User\\Bin', 'C:\\Windows', 'C:\\DATA\\BIN'])
+  })
+
+  it('strips a NUL-bearing PATH segment and drops other NUL env values', () => {
+    // Windows splits PATH on `;`, so the same rule must hold for the separator
+    // the platform actually uses — and a broken non-PATH var is dropped too.
+    const env = sanitizeEnvNullBytes({ Path: 'C:\\Windows;C:\\broken\0dir', BROKEN: 'x\0y' })
+
+    expect(env.Path).toBe('C:\\Windows')
+    expect(env.BROKEN).toBeUndefined()
   })
 
   it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {

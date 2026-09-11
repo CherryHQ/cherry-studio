@@ -12,6 +12,7 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
@@ -400,7 +401,7 @@ export class OvmsManager extends BaseService {
       }
 
       logger.info(`Running ovdnd --pull for ${modelId} from ${modelSource}`)
-      const { stdout } = await execFileAsync(ovdndPath, args, { env: env, cwd: ovdndDir })
+      const { stdout } = await execFileAsync(ovdndPath, args, { env: sanitizeEnvNullBytes(env), cwd: ovdndDir })
 
       logger.info('Model download completed')
       logger.debug(`Command output: ${stdout}`)
