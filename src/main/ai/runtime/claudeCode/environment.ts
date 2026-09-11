@@ -30,7 +30,7 @@ import { isAnthropicProvider, isExternalCliProvider } from '@shared/utils/provid
 
 const logger = loggerService.withContext('ClaudeCodeEnvironment')
 
-const MIN_AUTO_COMPACT_WINDOW = 100_000
+export const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
 /**
  * Slack between the SDK's local token estimate and the provider's own count.
