@@ -67,6 +67,7 @@ import type { ToolPolicySnapshot } from './ClaudeCodeSessionStateService'
 import {
   AUTO_COMPACT_TRIGGER_PCT,
   buildEnvironment,
+  MIN_AUTO_COMPACT_WINDOW,
   resolveAutoCompactWindow,
   resolveClaudeExecutablePath,
   resolveRequestedOutputTokens
@@ -289,17 +290,18 @@ export async function buildClaudeCodeSessionSettings(
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
   )
   const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens, provider)
-  // Only pin the request when we also budget for it; otherwise the CLI's own default applies.
-  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
+  // Pin the request whenever the catalog window is usable, even when the budget is omitted
+  // (untrusted large-output corner): otherwise the CLI silently falls back to its own defaults.
+  const hasUsableContextWindow =
+    typeof declaredContextWindow === 'number' &&
+    Number.isInteger(declaredContextWindow) &&
+    declaredContextWindow >= MIN_AUTO_COMPACT_WINDOW
+  if (hasUsableContextWindow && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(requestedOutputTokens)
   }
   // Undocumented, and the only way to declare a third-party model's window — without it every
   // non-`claude-*` model is treated as 200K. The budget belongs in `autoCompactWindow`.
-  if (
-    autoCompactWindow !== undefined &&
-    declaredContextWindow !== undefined &&
-    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined
-  ) {
+  if (hasUsableContextWindow && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
     env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(declaredContextWindow)
   }
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that

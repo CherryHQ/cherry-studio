@@ -742,7 +742,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   // A large output cap cannot fit alongside the SDK floor inside the
   // safety-adjusted room — pinning 100K would oversize the budget, so the
-  // window is omitted and the CLI defaults apply instead.
+  // budget is omitted while the usable window still pins the request.
   it('omits the auto-compact window for a large output cap that outruns the margined room', async () => {
     const untrustedProvider = {
       id: 'openrouter',
@@ -760,6 +760,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect(settings.settings).not.toHaveProperty('autoCompactWindow')
+    // The budget is omitted but the usable window still pins the request, so the CLI
+    // keeps the catalog output cap and window instead of its own defaults.
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000',
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '256000'
+    })
   })
 
   // A custom provider cloned from the Anthropic preset reports an accurate
