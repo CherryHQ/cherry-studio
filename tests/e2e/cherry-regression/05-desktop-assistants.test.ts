@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { expect, test } from './fixture'
 import { dismissOnboarding } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
+import { sendIpcEventToOwnedWindow } from '../../../scripts/cherry-regression-test/lifecycle'
 import {
   closeExternalText,
   openExternalText,
@@ -87,7 +88,7 @@ test('[C-02] 使用快捷助手完成全局问答 @quick-assistant', async ({ ap
   await invokeQuickAssistant(app, prompt)
 })
 
-test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant', async ({ app, mainWindow: page }) => {
+test('[C-03] 使用划词助手处理选中文本 @selection-assistant', async ({ app, mainWindow: page }) => {
   const providerId = await ensureCustomChatProvider(app, page)
 
   await page.getByRole('button', { name: 'Selection Assistant', exact: true }).click()
@@ -126,12 +127,20 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
       document.body.dataset.selectedText = (selectionData as { text: string }).text
     })
   })
-  openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
+  if (app.record.platform === 'windows') {
+    await sendIpcEventToOwnedWindow(app.paths, '/windows/selection/toolbar/', 'selection.text_selected', {
+      text: 'The validation label is SELECTION_ASSISTANT_PASS.'
+    })
+  } else {
+    openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
+  }
   await expect
     .poll(
       async () => {
-        selectExternalText(app.record.platform)
-        sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 'k'])
+        if (app.record.platform === 'macos') {
+          selectExternalText(app.record.platform)
+          sendSystemHotkey(app.record.platform, ['Meta', 'Shift', 'k'])
+        }
         await selection.waitForTimeout(1_000)
         return selection.locator('body').getAttribute('data-selected-text')
       },

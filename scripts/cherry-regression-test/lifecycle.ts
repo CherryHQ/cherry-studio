@@ -130,6 +130,15 @@ async function waitForExit(pid: number, timeoutMs = 8_000): Promise<boolean> {
   return !isAlive(pid)
 }
 
+async function waitForPortRelease(platform: Platform, port: number, timeoutMs = 30_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!findListeningPid(platform, port)) return true
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 250))
+  }
+  return !findListeningPid(platform, port)
+}
+
 function terminateExactProcess(pid: number, platform: Platform): void {
   if (!isAlive(pid)) return
   if (platform === 'windows') {
@@ -478,6 +487,37 @@ export async function prepareWindowsCdpConnection(record: AppRecord): Promise<vo
   throw new Error('Non-main Windows CDP targets did not close')
 }
 
+export async function sendIpcEventToOwnedWindow(
+  paths: RunPaths,
+  windowPath: string,
+  event: string,
+  payload: unknown
+): Promise<void> {
+  const record = readAppRecord(paths)
+  if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')
+  assertOwnedProcess(record, record.electronPid, 'electron')
+  const debuggerUrl = await ownedMainInspectorUrl(record)
+  const sent = await evaluateCdpExpression<boolean>(
+    debuggerUrl,
+    `(() => {
+      const electron = process.mainModule?.require?.('electron')
+      if (!electron?.BrowserWindow) throw new Error('Electron BrowserWindow is unavailable')
+      const targetPath = ${JSON.stringify(windowPath.toLowerCase())}
+      const target = electron.BrowserWindow.getAllWindows().find((window) => {
+        try {
+          return new URL(window.webContents.getURL()).pathname.toLowerCase() === targetPath
+        } catch {
+          return false
+        }
+      })
+      if (!target) return false
+      target.webContents.send('ipc-api:event', ${JSON.stringify(event)}, ${JSON.stringify(payload)})
+      return true
+    })()`
+  )
+  if (!sent) throw new Error(`Owned Cherry Studio window is unavailable: ${windowPath}`)
+}
+
 export async function sendProtocolUrlToOwnedApp(record: AppRecord, url: string): Promise<void> {
   if (!isAlive(record.electronPid)) throw new Error('Owned Cherry Studio instance is not running')
   assertOwnedProcess(record, record.electronPid, 'electron')
@@ -579,6 +619,9 @@ export async function stopOwnedApp(paths: RunPaths): Promise<void> {
   const remaining = ownedPids.filter(isAlive)
   if (remaining.length > 0) {
     throw new Error(`Owned Cherry Studio processes did not exit after SIGTERM: ${remaining.join(', ')}`)
+  }
+  if (!(await waitForPortRelease(record.platform, record.cdpPort))) {
+    throw new Error(`CDP port ${record.cdpPort} was not released after stopping the owned application`)
   }
 }
 

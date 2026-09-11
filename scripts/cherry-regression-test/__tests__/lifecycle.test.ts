@@ -20,6 +20,7 @@ import {
   type AppRecord,
   ensureProfile,
   prepareWindowsCdpConnection,
+  sendIpcEventToOwnedWindow,
   sendProtocolUrlToOwnedApp,
   stopOwnedApp
 } from '../lifecycle'
@@ -80,13 +81,14 @@ describe('owned application lifecycle', () => {
     }
   })
 
-  it('force terminates the verified Windows process tree', async () => {
+  it('force terminates the verified Windows process tree and waits for its CDP listener', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-lifecycle-'))
     const paths = getRunPaths(directory)
     ensureRunDirectories(paths)
     const runnerPid = 42_000
     const electronPid = 42_001
     const alive = new Set([runnerPid, electronPid])
+    let cdpChecks = 0
     const targetRoot = 'D:\\target-app'
     const record: AppRecord = {
       schemaVersion: 1,
@@ -121,7 +123,10 @@ describe('owned application lifecycle', () => {
         else alive.delete(Number(args[1]))
         return ''
       }
-      if (script.includes('Get-NetTCPConnection')) return String(electronPid)
+      if (script.includes('Get-NetTCPConnection')) {
+        cdpChecks += 1
+        return alive.has(electronPid) || cdpChecks === 2 ? String(electronPid) : ''
+      }
       if (script.includes('CommandLine')) return script.includes(String(electronPid)) ? targetRoot : 'pnpm debug'
       if (script.includes('ParentProcessId')) return script.includes(String(electronPid)) ? String(runnerPid) : '1'
       throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
@@ -139,6 +144,7 @@ describe('owned application lifecycle', () => {
         ['/PID', String(runnerPid), '/T', '/F'],
         expect.anything()
       )
+      expect(cdpChecks).toBe(3)
     } finally {
       rmSync(directory, { force: true, recursive: true })
     }
@@ -187,7 +193,8 @@ describe('owned application lifecycle', () => {
         else alive.delete(Number(args[1]))
         return ''
       }
-      if (script.includes('Get-NetTCPConnection')) return String(currentElectronPid)
+      if (script.includes('Get-NetTCPConnection'))
+        return alive.has(currentElectronPid) ? String(currentElectronPid) : ''
       if (script.includes('CommandLine')) return script.includes(String(currentElectronPid)) ? targetRoot : 'pnpm debug'
       if (script.includes('ParentProcessId'))
         return script.includes(String(currentElectronPid)) ? String(currentParentPid) : '1'
@@ -258,6 +265,55 @@ describe('owned application lifecycle', () => {
       expect.stringContaining("electron.app.emit('open-url'")
     )
     expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain(callback)
+  })
+
+  it('sends an IpcApi event to an owned window through the main-process inspector', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-lifecycle-'))
+    const paths = getRunPaths(directory)
+    ensureRunDirectories(paths)
+    const electronPid = 42_001
+    const targetRoot = 'D:\\target-app'
+    const record: AppRecord = {
+      schemaVersion: 1,
+      ownership: 'regression-driver',
+      policy: 'ephemeral',
+      mode: 'branch',
+      platform: 'windows',
+      profile: 'authenticated',
+      runKey: 'test-run',
+      targetRoot,
+      command: 'pnpm.cmd',
+      args: ['debug'],
+      cwd: targetRoot,
+      runnerPid: 42_000,
+      electronPid,
+      cdpPort: 9222,
+      targetUrl: 'http://127.0.0.1:9222',
+      logPath: join(paths.logs, 'electron.log'),
+      startedAt: '2026-08-22T00:00:00.000Z',
+      restartCount: 0
+    }
+    writeFileSync(paths.appRecord, JSON.stringify(record))
+    vi.spyOn(process, 'kill').mockReturnValue(true)
+    mockMainInspector()
+    execFileSyncMock.mockImplementation((file: string, args: string[]) => {
+      const script = String(args.at(-1))
+      if (script.includes('Get-NetTCPConnection')) return String(electronPid)
+      if (script.includes('CommandLine')) return targetRoot
+      throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
+    })
+
+    try {
+      await sendIpcEventToOwnedWindow(paths, '/windows/selection/toolbar/', 'selection.text_selected', {
+        text: 'SELECTION_ASSISTANT_PASS'
+      })
+      expect(evaluateCdpExpressionMock).toHaveBeenCalledWith(
+        'ws://127.0.0.1:9229/main-process',
+        expect.stringContaining('target.webContents.send(\'ipc-api:event\', "selection.text_selected"')
+      )
+    } finally {
+      rmSync(directory, { force: true, recursive: true })
+    }
   })
 
   it('disposes non-main windows before a Windows CDP connection', async () => {

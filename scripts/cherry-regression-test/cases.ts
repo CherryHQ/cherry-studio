@@ -31,7 +31,7 @@ export const REGRESSION_CASES: RegressionCase[] = [
   },
   {
     id: 'C-03',
-    title: '使用划词助手处理跨应用选中文本',
+    title: '使用划词助手处理选中文本',
     task: 'selection-assistant',
     profile: 'authenticated',
     modes: [...modes]
