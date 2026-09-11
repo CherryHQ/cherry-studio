@@ -1,4 +1,4 @@
-import { redactRecord, redactSecretText, redactToShape, redactUrlParams } from '@shared/utils/redaction'
+import { redactSecretText, redactToShape, redactUrlParams } from '@shared/utils/redaction'
 
 const MAX_MESSAGE_CHARS = 500
 const MAX_STACK_CHARS = 600
@@ -12,10 +12,6 @@ function truncate(text: string, max: number): string {
 
 function safeText(value: unknown, max: number): string {
   return truncate(redactSecretText(String(value)), max)
-}
-
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
@@ -48,7 +44,7 @@ export function chatErrorContext(error: unknown, depth = 0): Record<string, unkn
   if (typeof source.reason === 'string') context.reason = safeText(source.reason, MAX_MESSAGE_CHARS)
   if (source.requestBodyValues != null) context.requestShape = redactToShape(source.requestBodyValues)
   if (source.responseBody != null) context.responseBody = safeText(source.responseBody, MAX_RESPONSE_BODY_CHARS)
-  if (isStringRecord(source.responseHeaders)) context.responseHeaders = redactRecord(source.responseHeaders)
+  if (source.responseHeaders != null) context.responseHeaders = redactToShape(source.responseHeaders)
   if (source.data != null) context.data = redactToShape(source.data)
   if (typeof source.toolName === 'string') context.toolName = source.toolName
   // The "we parsed it wrong" side: JSONParseError.text, TypeValidationError.value,

@@ -27,6 +27,7 @@ describe('chatErrorContext', () => {
     expect(context.url).toBe('https://api.example.com/v1/chat/completions?api_key=%3Credacted%3E')
     expect(context.errorMessage).toBe('Provider rejected the request')
     expect(context.responseBody).toContain('rate_limit_exceeded')
+    expect(context.responseHeaders).toMatchObject({ 'content-type': 'application/json' })
     expect(context.requestShape).toMatchObject({
       model: 'gpt-5',
       max_tokens: 4096,
