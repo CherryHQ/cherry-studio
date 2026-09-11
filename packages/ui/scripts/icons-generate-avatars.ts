@@ -2,7 +2,7 @@
  * Generate Avatar components for all icon directories
  *
  * This script creates avatar.tsx for each icon that has a color.tsx,
- * then updates the per-icon index.ts to include the Avatar export.
+ * then updates the per-icon component module to include the Avatar export.
  *
  * Smart background detection:
  *   - SVGs with a detected background shape → full-size Color icon
@@ -16,6 +16,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
+
 import { type Config, optimize } from 'svgo'
 
 import {
@@ -241,7 +242,21 @@ function generateNeutralBackgroundAvatar(baseDir: string, dirName: string): void
 }
 
 /**
- * Generate per-icon index.tsx with compound export (variant prop + Avatar).
+ * Resolve the component module while preserving legacy index.tsx files.
+ */
+export function resolveIconComponentModule(baseDir: string, dirName: string) {
+  const legacyPath = path.join(baseDir, dirName, 'index.tsx')
+  const namedPath = path.join(baseDir, dirName, `${dirName}.tsx`)
+  const useNamedModule = fs.existsSync(namedPath) || !fs.existsSync(legacyPath)
+
+  return {
+    outPath: useNamedModule ? namedPath : legacyPath,
+    modulePath: useNamedModule ? `./${dirName}/${dirName}` : undefined
+  }
+}
+
+/**
+ * Generate the per-icon compound export (variant prop + Avatar).
  */
 function generateIconIndex(baseDir: string, dirName: string): void {
   const colorName = getComponentName(baseDir, dirName)
@@ -249,9 +264,10 @@ function generateIconIndex(baseDir: string, dirName: string): void {
   const hasDark = fs.existsSync(path.join(baseDir, dirName, 'dark.tsx'))
   const lightContent = fs.readFileSync(path.join(baseDir, dirName, 'light.tsx'), 'utf-8')
   const usesCurrentColor = lightContent.includes('currentColor')
+  const { outPath } = resolveIconComponentModule(baseDir, dirName)
 
   codegenIconIndex({
-    outPath: path.join(baseDir, dirName, 'index.tsx'),
+    outPath,
     colorName,
     hasAvatar: true,
     hasDark,
@@ -266,7 +282,8 @@ function generateIconIndex(baseDir: string, dirName: string): void {
 function generateBarrelIndex(baseDir: string, iconDirs: string[]): void {
   const entries = iconDirs.map((dirName) => ({
     dirName,
-    colorName: getComponentName(baseDir, dirName)
+    colorName: getComponentName(baseDir, dirName),
+    modulePath: resolveIconComponentModule(baseDir, dirName).modulePath
   }))
 
   const headerLines = [
@@ -332,7 +349,8 @@ export function generateAvatars(options: { iconType?: LogoType; only?: Set<strin
   const keyTypeName = iconType === 'models' ? 'ModelIconKey' : 'ProviderIconKey'
   const catalogEntries = iconDirs.map((dirName) => ({
     dirName,
-    colorName: getComponentName(baseDir, dirName)
+    colorName: getComponentName(baseDir, dirName),
+    modulePath: resolveIconComponentModule(baseDir, dirName).modulePath
   }))
   codegenMetaCatalog({
     outPath: path.join(baseDir, 'meta-catalog.ts'),

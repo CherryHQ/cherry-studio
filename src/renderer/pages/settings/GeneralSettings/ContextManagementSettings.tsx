@@ -1,3 +1,6 @@
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   InfoTooltip,
   InputGroup,
@@ -29,8 +32,6 @@ import {
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
-import { useCallback } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
   <SettingRowTitle className="gap-1">
@@ -190,6 +191,7 @@ export const ContextManagementSettings = () => {
                     filter={chatModelFilter}
                     onSelect={handleSelectCompressModel}
                     placeholder={t('settings.models.context_management.compress_model_follow')}
+                    noneOptionLabel={t('settings.models.context_management.compress_model_follow')}
                   />
                 </div>
               </SettingRow>

@@ -1,3 +1,6 @@
+import type { UIMessagePart } from 'ai'
+import { isToolUIPart } from 'ai'
+
 import {
   type AskUserQuestionToolInput,
   isAskUserQuestionToolName,
@@ -6,8 +9,6 @@ import {
 import { APPROVAL_REQUESTED } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { UIMessagePart } from 'ai'
-import { isToolUIPart } from 'ai'
 
 export type AskUserQuestionComposerRequest = {
   messageId: string

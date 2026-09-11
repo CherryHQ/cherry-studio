@@ -1,3 +1,6 @@
+import type { IpcMainInvokeEvent } from 'electron'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Tests for the Preference_Subscribe IPC handler.
  *
@@ -8,8 +11,6 @@
  * resolvable window.
  */
 import { IpcChannel } from '@shared/IpcChannel'
-import type { IpcMainInvokeEvent } from 'electron'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from main.setup.ts — we want the REAL PreferenceService
 vi.unmock('@main/data/PreferenceService')

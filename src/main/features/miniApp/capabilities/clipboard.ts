@@ -9,10 +9,11 @@
  * rest on Chromium never focusing a `display: none` guest.
  */
 
-import { application } from '@application'
-import { MINI_APP_GUEST_LIMITS } from '@shared/ipc/schemas/miniAppBridge'
 import { clipboard, webContents } from 'electron'
 import * as z from 'zod'
+
+import { application } from '@application'
+import { MINI_APP_GUEST_LIMITS } from '@shared/ipc/schemas/miniAppBridge'
 
 import { PermissionDeniedError } from '../grants'
 import { ConcurrentRateLimiter } from './quota'
