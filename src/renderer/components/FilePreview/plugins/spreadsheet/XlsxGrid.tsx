@@ -52,6 +52,11 @@ const cornersToRect = (anchor: CellRef, active: CellRef): CellRangeRect => ({
   right: Math.max(anchor.col, active.col)
 })
 
+/** Rect equality by value: hover and selection are compared by their four coordinates, never by object identity. */
+const sameRect = (a: CellRangeRect | null, b: CellRangeRect | null): boolean =>
+  a === b ||
+  (a !== null && b !== null && a.top === b.top && a.left === b.left && a.bottom === b.bottom && a.right === b.right)
+
 /** A selection is one logical cell when it is 1x1, or when it is exactly the merged range holding its anchor. */
 const isSingleLogicalCell = (rect: CellRangeRect, anchorMerge: MergeRangeLike | undefined): boolean => {
   if (rect.top === rect.bottom && rect.left === rect.right) return true
@@ -73,6 +78,12 @@ export interface XlsxGridProps {
   zoom: number
   /** Fires once per committed selection (pointer release, click, key up), never during a drag. */
   onSelectCell?: (info: SelectedCellInfo | null) => void
+  /**
+   * Region-pick mode switch. Switching it on clears the current selection so a pick starts from nothing, and
+   * while it stays on the cell (or merged range) under the pointer is highlighted. Picks themselves commit
+   * through `onSelectCell` exactly as they do with it off.
+   */
+  pickerActive?: boolean
   /** Chart rendering hook. Returns a cleanup function; the panel passes in a ChartRenderer implementation. */
   renderChart?: (chart: ChartModel, container: HTMLElement) => () => void
 }
@@ -324,9 +335,11 @@ const ChartHost = ({ chart, renderChart }: ChartHostProps) => {
   return <div ref={setRef} className="h-full w-full" role="img" aria-label={chart.title || t('xlsx_preview.chart')} />
 }
 
-const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }: XlsxGridProps) => {
+const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, pickerActive, renderChart }: XlsxGridProps) => {
   const scrollElRef = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<GridSelection | null>(null)
+  /** Cell or merged range under the pointer while picking. Null whenever the picker is off. */
+  const [hoverRect, setHoverRect] = useState<CellRangeRect | null>(null)
   // Pointer and key handlers extend the live selection, so they read it from a ref instead of the render snapshot.
   const selectionRef = useRef<GridSelection | null>(null)
   const dragRef = useRef<{ pointerId: number; selection: GridSelection } | null>(null)
@@ -514,6 +527,19 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     commitSelection(null)
   }, [applySelection, commitSelection])
 
+  // A pick starts from nothing, so switching the picker on drops whatever was selected while browsing. Only the
+  // off -> on edge does it: clearSelection's identity changes on every scroll (through findMerge ->
+  // visibleMergeByCell), so an effect that merely depended on it would wipe the user's pick each time the grid
+  // scrolls. Switching the picker off keeps the pick and only drops the hover highlight.
+  const pickerWasActiveRef = useRef(false)
+  useEffect(() => {
+    const isActive = Boolean(pickerActive)
+    if (pickerWasActiveRef.current === isActive) return
+    pickerWasActiveRef.current = isActive
+    if (isActive) clearSelection()
+    else setHoverRect(null)
+  }, [pickerActive, clearSelection])
+
   // Keyboard navigation may target an unmounted virtualized cell, so scroll to it after moving.
   const moveSelection = useCallback(
     (dRow: number, dCol: number) => {
@@ -636,6 +662,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       // A drag released outside the window never gets its trailing click, so clear the flag when the next one starts.
       suppressClickRef.current = false
       if (e.button !== 0) return
+      // The selection visuals own the screen from here, so the hover highlight steps aside.
+      if (pickerActive) setHoverRect(null)
       const target = cellAtPointer(e.clientX, e.clientY)
       if (!target || target.inHeader || target.row > sheet.rowCount || target.col > sheet.colCount) return
       // Address a merged range by its master, the way selectCell does. Pressing a follower coordinate produces
@@ -651,13 +679,34 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       dragRef.current = { pointerId: e.pointerId, selection: next }
       e.currentTarget.setPointerCapture?.(e.pointerId)
     },
-    [applySelection, cellAtPointer, findMerge, sheet.colCount, sheet.rowCount]
+    [applySelection, cellAtPointer, findMerge, pickerActive, sheet.colCount, sheet.rowCount]
   )
+
+  // pointermove fires at display refresh rate, so an unchanged hover keeps the current rect and never reaches render.
+  const updateHoverRect = useCallback((next: CellRangeRect | null) => {
+    setHoverRect((current) => (sameRect(current, next) ? current : next))
+  }, [])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current
-      if (!drag || drag.pointerId !== e.pointerId) return
+      if (!drag) {
+        // No drag in flight: while picking, the highlight follows the pointer. With the picker off the grid has
+        // no hover visual at all, so a plain move stays the no-op it has always been.
+        if (!pickerActive) return
+        const hovered = cellAtPointer(e.clientX, e.clientY)
+        if (!hovered || hovered.inHeader || hovered.row > sheet.rowCount || hovered.col > sheet.colCount) {
+          updateHoverRect(null)
+          return
+        }
+        // A merged range highlights as the one unit a click on it would pick.
+        const hoveredMerge = findMerge(hovered.row, hovered.col)
+        updateHoverRect(
+          hoveredMerge ?? { top: hovered.row, left: hovered.col, bottom: hovered.row, right: hovered.col }
+        )
+        return
+      }
+      if (drag.pointerId !== e.pointerId) return
       const target = cellAtPointer(e.clientX, e.clientY)
       if (!target) return
       // Dragging back over the sticky headers puts the pointer at a negative content offset, which
@@ -677,7 +726,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       dragRef.current = { pointerId: drag.pointerId, selection: next }
       applySelection(next)
     },
-    [applySelection, cellAtPointer, findMerge, sheet.colCount, sheet.rowCount]
+    [applySelection, cellAtPointer, findMerge, pickerActive, sheet.colCount, sheet.rowCount, updateHoverRect]
   )
 
   // Every pointer termination commits what the grid is already showing. pointerdown moves the visual selection
@@ -705,6 +754,11 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     commitSelection(drag.selection)
   }, [commitSelection])
 
+  // The pointer left the grid, so there is no cell under it to highlight any more.
+  const handlePointerLeave = useCallback(() => {
+    if (pickerActive) setHoverRect(null)
+  }, [pickerActive])
+
   const handleClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!suppressClickRef.current) return
     suppressClickRef.current = false
@@ -723,6 +777,23 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     [selectionRect, rowLayout, colLayout]
   )
 
+  const hoverRectPx = useMemo(
+    () => (hoverRect ? mergeRectPx(hoverRect, rowLayout, colLayout) : null),
+    [hoverRect, rowLayout, colLayout]
+  )
+  // The picked unit keeps its own outline: a hover highlight anywhere inside it would out-rank the pick marker,
+  // which is what the sibling producers' `:not([data-*-picked])` hover rules exist to prevent. A range pick's
+  // unit is the whole range, exactly as a picked PDF page is the whole page, so containment — not equality — is
+  // the guard: a single cell of a picked A2:B2 must stay hover-free too.
+  const hoverInsidePick = Boolean(
+    hoverRect &&
+      selectionRect &&
+      hoverRect.top >= selectionRect.top &&
+      hoverRect.bottom <= selectionRect.bottom &&
+      hoverRect.left >= selectionRect.left &&
+      hoverRect.right <= selectionRect.right
+  )
+
   const totalWidth = colLayout.totalSize * zoom + scaledHeaderWidth
   const totalHeight = rowLayout.totalSize * zoom + scaledHeaderHeight
 
@@ -730,7 +801,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     <div
       ref={scrollElCallback}
       data-testid="xlsx-grid-scroll"
-      className="relative h-full w-full overflow-auto bg-background"
+      data-picker={pickerActive ? 'true' : undefined}
+      className={cn('relative h-full w-full overflow-auto bg-background', pickerActive && 'cursor-cell')}
       onScroll={handleScroll}
       onKeyDown={handleKeyDown}
       onKeyUp={commitPendingKeySelection}
@@ -739,6 +811,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
+      onPointerLeave={handlePointerLeave}
       onClickCapture={handleClickCapture}
       role="grid"
       aria-label={sheet.name}
@@ -925,6 +998,17 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
               )
             })}
           </div>
+
+          {/* Hover highlight while picking. It carries no z-index and precedes the selection visuals in DOM
+              order, so a pick always paints above it. */}
+          {pickerActive && hoverRectPx && !hoverInsidePick && (
+            <div
+              aria-hidden
+              data-testid="xlsx-grid-hover-cell"
+              className="pointer-events-none absolute bg-primary/5 outline-2 outline-primary/40"
+              style={{ top: hoverRectPx.y, left: hoverRectPx.x, width: hoverRectPx.width, height: hoverRectPx.height }}
+            />
+          )}
 
           {/* Selection visuals, last in DOM order and below the sticky headers. A single cell gets the content
               overlay; a multi-cell range only gets an outline, since there is no one cell whose text to expand. */}

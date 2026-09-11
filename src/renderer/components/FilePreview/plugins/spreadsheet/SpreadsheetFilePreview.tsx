@@ -290,6 +290,7 @@ export default function SpreadsheetFilePreview({
             imageUrls={imageUrls}
             zoom={zoom}
             onSelectCell={handleSelectCell}
+            pickerActive={onSelectionReference !== undefined}
             renderChart={renderChart}
           />
         </div>

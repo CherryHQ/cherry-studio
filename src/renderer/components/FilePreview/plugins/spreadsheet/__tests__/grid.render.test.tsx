@@ -529,8 +529,14 @@ const pointerAt = (contentX: number, contentY: number, init: MouseEventInit = {}
 // Sales-sheet content coordinates (row 1 is 36px tall, later rows 20px; col A is 110px wide, later cols 64px;
 // row 7 is hidden, so row 8 starts at y=136).
 const IN_A2 = { x: 10, y: 46 }
+const IN_B2 = { x: 120, y: 46 }
+const IN_C2 = { x: 180, y: 46 }
 const IN_B3 = { x: 120, y: 66 }
 const IN_B8 = { x: 120, y: 146 }
+const IN_A3 = { x: 10, y: 66 }
+const IN_C3 = { x: 180, y: 66 }
+/** Inside C1, one of the cells the A1:D1 title merge covers. */
+const IN_C1 = { x: 180, y: 10 }
 
 describe('XlsxGrid — range selection', () => {
   it('drags a range through rows the virtualizer never mounted, and commits only on release', () => {
@@ -776,6 +782,152 @@ describe('XlsxGrid — range selection', () => {
 
     expect(onSelectCell).not.toHaveBeenCalled()
     expect(screen.queryByTestId('xlsx-grid-selection-range')).not.toBeInTheDocument()
+  })
+})
+
+describe('XlsxGrid — picker hover', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('highlights the cell under the pointer while picking', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    // B3: col B starts at x=110 and is 64 wide; row 3 starts at y=56 (row 1 is 36 tall, row 2 is 20) and is 20 tall.
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({
+      top: '56px',
+      left: '110px',
+      width: '64px',
+      height: '20px'
+    })
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_C3.x, IN_C3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({ top: '56px', left: '174px', width: '64px' })
+
+    fireEvent.pointerLeave(scroll)
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+  })
+
+  it('shows no hover highlight when the picker is off', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_C3.x, IN_C3.y))
+
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+    expect(scroll).not.toHaveAttribute('data-picker')
+    expect(scroll).not.toHaveClass('cursor-cell')
+  })
+
+  it('highlights a merged range as the one unit a click on it would pick', () => {
+    showTitleMergeRange()
+    const { container } = render(
+      <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />
+    )
+    setScrollViewport(container)
+
+    // C1 is covered by the A1:D1 title merge, so the highlight spans the merge rather than the cell under the pointer.
+    fireEvent.pointerMove(screen.getByTestId('xlsx-grid-scroll'), pointerAt(IN_C1.x, IN_C1.y))
+
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({
+      top: '0px',
+      left: '0px',
+      width: '302px',
+      height: '36px'
+    })
+  })
+
+  it('hides the hover highlight while a range is being dragged', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toBeInTheDocument()
+
+    // The drawn range is its own visual; a highlight trailing the pointer would double-draw its leading edge.
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B3.x, IN_B3.y))
+
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+    expect(screen.getByTestId('xlsx-grid-selection-range')).toBeInTheDocument()
+  })
+
+  it('does not draw the hover highlight over the picked cell', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.click(screen.getByText('Quarter')) // A2
+
+    // The pick keeps its own marker: a hover box on top of it would out-rank exactly the thing it marks.
+    fireEvent.pointerMove(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_A3.x, IN_A3.y))
+    expect(screen.getByTestId('xlsx-grid-hover-cell')).toHaveStyle({
+      top: '56px',
+      left: '0px',
+      width: '110px',
+      height: '20px'
+    })
+  })
+
+  it('does not draw the hover highlight over any cell inside a picked multi-cell range', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} pickerActive />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    // Drag-pick A2:B2.
+    fireEvent.pointerDown(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    fireEvent.pointerMove(scroll, pointerAt(IN_B2.x, IN_B2.y))
+    fireEvent.pointerUp(scroll, pointerAt(IN_B2.x, IN_B2.y))
+
+    // Every cell the range covers stays hover-free, not just the one the equality check used to catch.
+    fireEvent.pointerMove(scroll, pointerAt(IN_A2.x, IN_A2.y))
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_B2.x, IN_B2.y))
+    expect(screen.queryByTestId('xlsx-grid-hover-cell')).not.toBeInTheDocument()
+
+    fireEvent.pointerMove(scroll, pointerAt(IN_C2.x, IN_C2.y))
+    const hover = screen.getByTestId('xlsx-grid-hover-cell')
+    expect(hover).toBeInTheDocument()
+    // No z-index: plain DOM order is what keeps the picked range's outline painted above the hover.
+    expect(hover.className).not.toContain('z-10')
+  })
+
+  it('clears the selection when picking is switched on, and only on that switch', () => {
+    const onSelectCell = vi.fn()
+    const grid = (pickerActive?: boolean) => (
+      <XlsxGrid
+        sheet={salesSheet}
+        styles={model.styles}
+        imageUrls={{}}
+        zoom={1}
+        onSelectCell={onSelectCell}
+        pickerActive={pickerActive}
+      />
+    )
+    const { container, rerender } = render(grid())
+
+    fireEvent.click(screen.getByText('Quarter')) // A2, picked while browsing
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ range: 'A2' }))
+
+    rerender(grid(true))
+    expect(onSelectCell).toHaveBeenLastCalledWith(null)
+    expect(screen.queryByTestId('xlsx-grid-selected-overlay')).not.toBeInTheDocument()
+
+    // Scrolling rebuilds the merge index the clear hangs off. Repeating the clear on that identity change would
+    // wipe every pick the user makes from the next scroll onwards.
+    const callsAfterSwitch = onSelectCell.mock.calls.length
+    setScrollViewport(container)
+    rerender(grid(true))
+    expect(onSelectCell).toHaveBeenCalledTimes(callsAfterSwitch)
+
+    // Switching picking back off clears nothing.
+    rerender(grid())
+    expect(onSelectCell).toHaveBeenCalledTimes(callsAfterSwitch)
   })
 })
 
