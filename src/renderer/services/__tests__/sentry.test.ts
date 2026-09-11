@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { initMock } = vi.hoisted(() => ({ initMock: vi.fn() }))
+const { initMock, captureExceptionMock } = vi.hoisted(() => ({ initMock: vi.fn(), captureExceptionMock: vi.fn() }))
 
-vi.mock('@sentry/electron/renderer', () => ({ init: initMock }))
+vi.mock('@sentry/electron/renderer', () => ({ init: initMock, captureException: captureExceptionMock }))
+vi.unmock('@logger')
 
+import { loggerService } from '../LoggerService'
 import { initSentry } from '../sentry'
 
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubEnv('DEV', false)
+  document.head.innerHTML = '<meta name="logger-window-source" content="QuickAssistant" />'
 })
 
 afterEach(() => {
@@ -44,5 +47,28 @@ describe('renderer Sentry initialization', () => {
     expect(JSON.stringify(event)).not.toContain('real-token')
     expect(JSON.stringify(event)).not.toContain('real-api-key')
     expect(JSON.stringify(event)).not.toContain('oauth-secret')
+    expect(event.tags).toMatchObject({ window: 'QuickAssistant', 'app.edition': 'global', 'event.process': 'renderer' })
+    expect(options.release).toBe(`CherryStudio@${event.tags['app.version']}`)
+  })
+
+  it('captures handled render errors in their originating process with safe context', () => {
+    initSentry()
+    const error = new TypeError('Render failed')
+    loggerService
+      .withContext('ErrorBoundary', { prompt: 'private conversation' })
+      .error('Caught a render error', error, {
+        operation: 'react.render',
+        componentStack: 'at MessageList',
+        apiKey: 'private-key'
+      })
+    const [reported, context] = captureExceptionMock.mock.calls[0]
+    expect(reported).toMatchObject({ name: 'TypeError', message: 'Render failed', stack: error.stack })
+    expect(context.tags).toMatchObject({
+      module: 'ErrorBoundary',
+      operation: 'react.render',
+      'event.process': 'renderer'
+    })
+    expect(context.extra).toEqual({ componentStack: 'at MessageList' })
+    expect(JSON.stringify(context)).not.toContain('private')
   })
 })

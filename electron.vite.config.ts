@@ -19,6 +19,7 @@ import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
 import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
+import { getSentryBuildContext } from './src/shared/utils/sentry'
 
 type ElectronBuilderConfig = {
   releaseInfo?: {
@@ -66,6 +67,7 @@ export function resolveRendererEdition(value: string | undefined): AppEdition {
 }
 
 const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
+const sentryBuildContext = getSentryBuildContext(pkg.name, pkg.version, rendererEdition)
 const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
 const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
@@ -76,7 +78,7 @@ const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer'
         project: process.env.SENTRY_PROJECT,
         telemetry: false,
         release: {
-          name: `${pkg.name}@${pkg.version}`,
+          name: sentryBuildContext.release,
           create: false,
           finalize: false,
           setCommits: false
@@ -150,6 +152,7 @@ export const mainResolveAlias = {
 
 export default defineConfig({
   main: {
+    define: { __APP_EDITION__: JSON.stringify(rendererEdition) },
     plugins: [
       chunkExportGuardPlugin(),
       miniAppThemeAssetPlugin(),

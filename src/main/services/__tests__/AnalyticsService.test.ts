@@ -53,6 +53,7 @@ vi.mock('@main/utils/systemInfo', () => ({
 }))
 
 vi.mock('../sentry', () => ({
+  attachSentryLogTransport: () => () => {},
   setSentryReportingEnabled: mockSetSentryReportingEnabled
 }))
 

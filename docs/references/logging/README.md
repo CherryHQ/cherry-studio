@@ -3,6 +3,10 @@ description: How to log through the unified LoggerService in main and renderer, 
 sources:
   - src/main/core/logger/LoggerService.ts
   - src/renderer/services/LoggerService.ts
+  - src/main/services/sentry.ts
+  - src/main/services/AnalyticsService.ts
+  - src/renderer/services/sentry.ts
+  - src/shared/utils/sentry.ts
 ---
 
 # How to use the LoggerService
@@ -10,6 +14,36 @@ sources:
 This is a developer document on how to use the logger.
 
 CherryStudio uses a unified logging service to print and record logs. **Unless there is a special reason, do not use `console.xxx` to print logs**.
+
+## Error reporting
+
+In production, `AnalyticsService` connects the main-process Winston logger to Sentry.
+Reporting requires the existing data-collection preference and acceptance of the current
+privacy policy; disabling collection immediately blocks capture and outbound reporting.
+The connection is removed when the service stops.
+
+Only `error` entries with a stack are eligible. Pass the original `Error` as the first
+data argument (`logger.error('Operation failed', error)`) to preserve its name, message,
+and stack. Renderer errors are captured by the renderer SDK so their source-map
+Debug IDs survive; local logs still follow the existing log IPC path, with cancellation
+names and string error codes serialized explicitly. Abort/cancellation errors and Sentry's
+own diagnostic errors are excluded. Uncaught exceptions remain owned by the SDK.
+
+Reports include exception details, module/window/process, operation, string error code, and the
+React component stack when available. Arbitrary log context and additional business
+data are not forwarded. The existing Sentry redaction applies before sending, and the
+SDK deduplicates consecutive identical exceptions. Local file logging is retained.
+
+Use a fixed operation identifier in error metadata, for example
+`logger.error('Save failed', error, { operation: 'translate.history.save' })`.
+Operation identifiers allow letters, digits, dots, underscores and hyphens, start
+with a letter, and are at most 80 characters. Never derive them from user input.
+ErrorBoundary uses `react.render`; translate mutations reuse their fixed error
+translation keys. Unhandled renderer errors also carry the HTML-declared window name.
+
+Both processes use the same package-based `release` as source-map uploads, plus
+`app.version`, `app.edition` (`global` / `cn`), and `app.channel` (the prerelease
+identifier, or `stable`). These describe the running build, not the selected update feed.
 
 The following are detailed instructions.
 

@@ -8,7 +8,7 @@ import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 
-import { setSentryReportingEnabled } from './sentry'
+import { attachSentryLogTransport, setSentryReportingEnabled } from './sentry'
 
 const logger = loggerService.withContext('AnalyticsService')
 
@@ -49,6 +49,7 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   protected async onInit() {
+    this.registerDisposable(attachSentryLogTransport())
     // The reconciler is the sole driver of activate/deactivate (latest-wins): a re-enable that lands
     // while the async onDeactivate (`await client.destroy()`) is in flight must not be dropped by the
     // shared `_activating` guard. The reconciler holds no OS resources and is a construct-once field
