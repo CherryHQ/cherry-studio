@@ -1,7 +1,8 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useToolApprovalComposerOverrides } from '../useToolApprovalComposerOverrides'
 

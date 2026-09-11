@@ -1,6 +1,7 @@
+import crypto from 'crypto'
+
 import { application } from '@application'
 import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
-import crypto from 'crypto'
 
 import { hashPairedDeviceToken } from '../pairedDeviceToken'
 

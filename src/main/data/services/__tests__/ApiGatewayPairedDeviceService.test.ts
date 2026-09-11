@@ -1,9 +1,10 @@
-import { apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
-import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
-import { ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
+
+import { apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
+import { apiGatewayPairedDeviceService } from '@data/services/ApiGatewayPairedDeviceService'
+import { ErrorCode } from '@shared/data/api/errors'
 
 describe('ApiGatewayPairedDeviceService', () => {
   const dbh = setupTestDatabase()

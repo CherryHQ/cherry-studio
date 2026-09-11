@@ -1,6 +1,8 @@
 import { timingSafeEqual } from 'node:crypto'
 import { hostname, networkInterfaces } from 'node:os'
 
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
@@ -10,7 +12,6 @@ import type { ApiGatewayPairedDeviceMetadata } from '@shared/data/types/apiGatew
 import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
-import { v4 as uuidv4 } from 'uuid'
 
 import { ApiGatewayPairing, type ApiGatewayPairingResult } from './ApiGatewayPairing'
 import type { ApiGateway } from './server'
@@ -312,7 +313,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       host: 'feature.api_gateway.host',
       port: 'feature.api_gateway.port',
       apiKey: 'feature.api_gateway.api_key'
-    }) as ApiGatewayConfig
+    })
 
     return config
   }

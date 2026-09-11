@@ -1,7 +1,8 @@
-import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
-import { BaseService } from '@main/core/lifecycle'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
+import { BaseService } from '@main/core/lifecycle'
 
 // Hoisted: `BaseService` imports `electron`, so the mock factory runs during the static
 // import above — before any top-level `const` of this file would be initialised.

@@ -1,9 +1,3 @@
-import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import EditIcon from '@renderer/components/icons/EditIcon'
-import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
-import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import {
   Copy,
@@ -18,6 +12,13 @@ import {
   Sparkles,
   UploadIcon
 } from 'lucide-react'
+
+import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import EditIcon from '@renderer/components/icons/EditIcon'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
 export type SessionExportMenuOptions = Record<
   | 'docx'

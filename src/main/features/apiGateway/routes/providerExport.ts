@@ -1,9 +1,10 @@
+import { bearer } from '@elysia/bearer'
+import { Elysia } from 'elysia'
+
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { bearer } from '@elysia/bearer'
 import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
-import { Elysia } from 'elysia'
 
 import { authorizePairedDeviceRequest } from '../middleware/auth'
 

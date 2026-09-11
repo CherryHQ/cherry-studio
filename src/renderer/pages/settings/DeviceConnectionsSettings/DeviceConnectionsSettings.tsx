@@ -1,3 +1,10 @@
+import { MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, IndicatorLight, Switch, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import {
@@ -12,12 +19,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { OutputFor } from '@shared/ipc/types'
-import { MonitorSmartphone, QrCode, Trash2, TriangleAlert } from 'lucide-react'
-import { QRCodeSVG } from 'qrcode.react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const LAN_HOST = '0.0.0.0'
 const LOOPBACK_HOST = '127.0.0.1'

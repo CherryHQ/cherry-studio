@@ -1,5 +1,6 @@
-import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
 import * as z from 'zod'
+
+import type { ApiGatewayStatusResult, ApiGatewayStopResult } from '@shared/types/apiGateway'
 
 import { defineRoute } from '../define'
 

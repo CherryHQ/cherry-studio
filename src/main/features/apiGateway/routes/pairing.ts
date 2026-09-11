@@ -1,11 +1,12 @@
 import { hostname } from 'node:os'
 
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { ApiGatewayPairedDeviceMetadataSchema } from '@shared/data/types/apiGatewayPairedDevice'
 import { app } from 'electron'
 import { Elysia } from 'elysia'
 import * as z from 'zod'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { ApiGatewayPairedDeviceMetadataSchema } from '@shared/data/types/apiGatewayPairedDevice'
 
 const logger = loggerService.withContext('PairingRoutes')
 const MAX_PAIRING_BODY_BYTES = 4 * 1024

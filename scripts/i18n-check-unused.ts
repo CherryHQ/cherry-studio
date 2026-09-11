@@ -1,9 +1,10 @@
-import { Command } from 'commander'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as readline from 'readline/promises'
-import { type CallExpression, Node, Project, type SourceFile } from 'ts-morph'
 import { pathToFileURL } from 'url'
+
+import { Command } from 'commander'
+import { type CallExpression, Node, Project, type SourceFile } from 'ts-morph'
 
 import { COMMAND_DEFINITIONS } from '../src/shared/utils/command/definitions'
 import { sortedObjectByKeys } from './sort'

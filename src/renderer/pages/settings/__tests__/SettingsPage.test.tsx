@@ -1,8 +1,9 @@
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
 
 import SettingsPage from '../SettingsPage'
 

@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { IpcRouter } from '@main/ipc/IpcRouter'
 import { apiGatewayRequestSchemas } from '@shared/ipc/schemas/apiGateway'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))

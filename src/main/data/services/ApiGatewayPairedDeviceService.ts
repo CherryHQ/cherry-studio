@@ -1,3 +1,5 @@
+import { desc, eq } from 'drizzle-orm'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type ApiGatewayPairedDeviceRow, apiGatewayPairedDeviceTable } from '@data/db/schemas/apiGatewayPairedDevice'
@@ -8,7 +10,6 @@ import {
   type ApiGatewayPairedDeviceMetadata,
   ApiGatewayPairedDeviceMetadataSchema
 } from '@shared/data/types/apiGatewayPairedDevice'
-import { desc, eq } from 'drizzle-orm'
 
 import { timestampToISO } from './utils/rowMappers'
 
