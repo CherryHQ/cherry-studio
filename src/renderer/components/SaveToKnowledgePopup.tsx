@@ -33,7 +33,7 @@ import type { NotesTreeNode } from '@renderer/types/note'
 import type { Topic } from '@renderer/types/topic'
 import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
 import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@renderer/utils/knowledge'
-import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
+import { KnowledgeFileResolveError, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
@@ -359,6 +359,14 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
           const fileResults = await Promise.allSettled(result.files.map(resolveKnowledgeFileMetadataEntryData))
+          const probeFailure = fileResults.find(
+            (item): item is PromiseRejectedResult =>
+              item.status === 'rejected' && !(item.reason instanceof KnowledgeFileResolveError)
+          )
+          if (probeFailure) {
+            throw probeFailure.reason
+          }
+
           const fileData = fileResults.flatMap((item) => (item.status === 'fulfilled' ? [item.value] : []))
           const failedFiles = fileResults.flatMap((item, index) =>
             item.status === 'rejected'

@@ -9,6 +9,7 @@ import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 
 const mocks = vi.hoisted(() => ({
   getMessageTitle: vi.fn(),
@@ -401,5 +402,39 @@ describe('SaveToKnowledgePopup', () => {
     expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
     expect(toast.error).not.toHaveBeenCalled()
     await expect(promise).resolves.toEqual({ success: true, savedCount: 2 })
+  })
+
+  it('does not treat an IPC probe failure as a skippable missing file', async () => {
+    const files = [createFile('/tmp/ok.pdf', 'ok'), createFile('/tmp/probe-fail.pdf', 'probe-fail')]
+    mocks.ipcRequest.mockImplementation(async (route: string, handle?: { path?: string }) => {
+      if (route !== 'file.get_metadata') {
+        return undefined
+      }
+      if (handle?.path?.includes('probe-fail')) {
+        throw new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result')
+      }
+      return {
+        kind: 'file',
+        type: 'document',
+        mime: 'application/pdf',
+        size: 1024,
+        createdAt: 0,
+        modifiedAt: 0
+      }
+    })
+
+    render(<PopupHost />)
+    act(() => {
+      void SaveToKnowledgePopup.showForMessage(createMessageWithFiles(files))
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    })
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('chat.save.knowledge.error.save_failed'))
+    expect(mocks.submitKnowledgeItems).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 })
