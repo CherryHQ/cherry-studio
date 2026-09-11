@@ -47,6 +47,9 @@ const chatEffortModels: Array<{
   { modelId: 'deepseek-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-flash-vision-exp', values: ['high', 'max'] },
+  // models.dev leaves this SKU unclassified (no provider.npm); it prints a
+  // chat/completions effort ladder, so pin chat like the family above.
+  { modelId: 'deepseek-v4-1-flash', values: ['low', 'high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
   { modelId: 'glm-5-2', values: ['high', 'max'] },
   { modelId: 'glm-5-3', values: ['low', 'high', 'max'], defaultEffort: 'max' },
