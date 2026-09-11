@@ -1,9 +1,10 @@
+import type * as FsModule from 'fs'
 import { EventEmitter } from 'node:events'
 
-import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
 import { shell } from 'electron'
-import type * as FsModule from 'fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 const {
   getBrowserService,

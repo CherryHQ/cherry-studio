@@ -1,9 +1,3 @@
-import { loggerService } from '@logger'
-import { usePreference } from '@renderer/data/hooks/usePreference'
-import { ipcApi } from '@renderer/ipc'
-import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
-import type { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import { getWebviewPartition } from '@shared/utils/webviewSecurity'
 import type {
   DidFailLoadEvent,
   DidNavigateEvent,
@@ -14,6 +8,13 @@ import type {
 } from 'electron'
 import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+import { loggerService } from '@logger'
+import { usePreference } from '@renderer/data/hooks/usePreference'
+import { ipcApi } from '@renderer/ipc'
+import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
+import type { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import { getWebviewPartition } from '@shared/utils/webviewSecurity'
 
 const logger = loggerService.withContext('WebviewHost')
 

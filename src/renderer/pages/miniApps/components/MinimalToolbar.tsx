@@ -1,3 +1,10 @@
+import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
+import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
+import type { FC, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v5 as uuidv5 } from 'uuid'
+
 import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
@@ -12,12 +19,6 @@ import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
-import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
-import type { FC, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v5 as uuidv5 } from 'uuid'
 
 const logger = loggerService.withContext('MinimalToolbar')
 

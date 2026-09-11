@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import * as fileUtils from '@main/utils/file'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import * as fileUtils from '@main/utils/file'
 
 import {
   AgentDevPreviewRequestPolicy,

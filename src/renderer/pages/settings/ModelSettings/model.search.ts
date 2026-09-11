@@ -1,9 +1,9 @@
 import type { SettingsSearchEntry } from '../settingsSearch/types'
 
-// Indexed rows = statically visible actionable rows (D8). Retry sub-rows and
-// the quick-model/translate drawers (PageSidePanel) stay out — conditional or
-// drawer-anchored. The compact variant (onboarding) renders without ids, so
-// ids never duplicate across the two mount shapes.
+// Indexed rows = statically visible actionable rows (D8). The quick-model and
+// translate drawers (PageSidePanel) stay out because they are drawer-anchored.
+// The compact variant (onboarding) renders without ids, so ids never duplicate
+// across the two mount shapes.
 export const route = '/settings/model'
 
 export const entries: SettingsSearchEntry[] = [
@@ -30,12 +30,5 @@ export const entries: SettingsSearchEntry[] = [
     titleKey: 'settings.models.painting_model',
     groupKey: 'settings.model',
     descriptionKey: 'settings.models.painting_model_description'
-  },
-  {
-    anchorId: 'retry-enabled',
-    titleKey: 'settings.models.retry.label',
-    groupKey: 'settings.model',
-    descriptionKey: 'settings.models.retry.description',
-    aliases: ['retry', '重试']
   }
 ]

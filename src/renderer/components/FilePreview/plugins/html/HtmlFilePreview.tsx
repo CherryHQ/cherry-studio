@@ -1,3 +1,9 @@
+import FileCode from 'lucide-react/dist/esm/icons/file-code'
+import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
+import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
+import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import HtmlPreviewFrame, {
@@ -9,11 +15,6 @@ import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
-import FileCode from 'lucide-react/dist/esm/icons/file-code'
-import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
-import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
@@ -33,7 +34,7 @@ function HtmlPreviewLoading() {
   const { t } = useTranslation()
 
   return (
-    <div role="status" className="flex h-full items-center justify-center gap-2 text-muted-foreground text-sm">
+    <div role="status" className="flex h-full items-center justify-center gap-2 text-sm text-muted-foreground">
       <LoaderCircle className="size-4 animate-spin" aria-hidden />
       <span>{t('file_preview.loading')}</span>
     </div>

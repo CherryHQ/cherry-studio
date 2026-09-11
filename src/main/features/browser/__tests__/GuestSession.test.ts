@@ -1,5 +1,6 @@
-import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 import { GuestSession } from '../session/GuestSession'
 import { createGuest } from './guestFixture'

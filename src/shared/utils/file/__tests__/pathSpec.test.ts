@@ -1,5 +1,6 @@
-import { isPosixPath, isWindowsPath, parsePosixPath, parseWindowsPath } from '@shared/utils/file/pathSpec'
 import { describe, expect, it } from 'vitest'
+
+import { isPosixPath, isWindowsPath, parsePosixPath, parseWindowsPath } from '@shared/utils/file/pathSpec'
 
 describe('parsePosixPath', () => {
   it.each([

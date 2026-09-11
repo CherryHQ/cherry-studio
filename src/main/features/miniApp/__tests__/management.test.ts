@@ -2,15 +2,16 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppGrantTable, miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { writeStorage } from '../capabilities/storageFile'
 import { pendingDeclaredAdditions } from '../grants'
@@ -63,7 +64,7 @@ vi.mock('@application', async () => {
         spy.order.push('mutate')
         return result
       }),
-      // NOT `vi.fn()`: a no-op never fires the broadcast, so the badge assertion below
+      // NOT `vi.fn()`: a no-op never publishes state, so the badge assertion below
       // passes for a build that recomputes nothing. Derive, then broadcast.
       broadcastAttentionState: vi.fn(() => {
         // Same reason as `countRows`: `dbh` is scoped to the describe block.
@@ -84,14 +85,14 @@ vi.mock('@application', async () => {
             )
           }))
           .filter((entry) => entry.pendingPermissions.length > 0)
-        application.get('IpcApiService').broadcast('mini_app.runtime.attention', { apps: pending })
+        application.get('CacheService').setShared('mini_app.attention', pending)
       }),
       clearPendingSnooze: vi.fn(),
       updateVersionOf: vi.fn(() => null)
     },
-    IpcApiService: {
-      broadcast: vi.fn((event: string, payload: { apps: Array<{ appId: string }> }) => {
-        if (event === 'mini_app.runtime.attention') spy.attention.push(payload.apps.map((a) => a.appId))
+    CacheService: {
+      setShared: vi.fn((_key: string, apps: Array<{ appId: string }>) => {
+        spy.attention.push(apps.map((app) => app.appId))
       })
     }
   })
@@ -107,9 +108,8 @@ vi.mock('../install/webInstaller', async (importOriginal) => ({
   checkForUpdate
 }))
 
-const { checkUpdateOnOpen, clearMiniAppData, grantPendingAdditions, miniAppDetail, revokeMiniAppGrant } = await import(
-  '../management'
-)
+const { checkUpdateOnOpen, clearMiniAppData, grantPendingAdditions, miniAppDetail, revokeMiniAppGrant } =
+  await import('../management')
 const { listGrants } = await import('../grants')
 
 const APP_ID = 'com.example.mygame'

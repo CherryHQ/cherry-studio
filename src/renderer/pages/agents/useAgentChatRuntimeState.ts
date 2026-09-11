@@ -1,3 +1,6 @@
+import { isToolUIPart } from 'ai'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
@@ -24,8 +27,6 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -60,7 +61,7 @@ function isAskUserQuestionApprovalResponse(input: MessageToolApprovalInput): inp
   return (
     input.approved === true &&
     !!input.updatedInput &&
-    isAskUserQuestionToolName(getToolNameFromPart(input.match.part as AskUserQuestionApprovalPart)) &&
+    isAskUserQuestionToolName(getToolNameFromPart(input.match.part)) &&
     !!parseAskUserQuestionToolInput(input.updatedInput)?.answers
   )
 }
