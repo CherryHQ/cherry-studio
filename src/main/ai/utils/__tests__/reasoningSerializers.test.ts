@@ -232,7 +232,9 @@ describe('OpenAI Responses reasoning summary', () => {
 })
 
 describe('resolveReasoningInvocation logging', () => {
-  beforeEach(() => mockMainLoggerService.info.mockClear())
+  beforeEach(() => {
+    mockMainLoggerService.info.mockClear()
+  })
 
   // `resolveReasoningInvocation` runs for every message. 'default' means the user asked for
   // nothing, and it reaches the omit paths on ordinary traffic: any non-reasoning model, plus
