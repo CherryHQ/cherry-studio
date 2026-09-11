@@ -2,12 +2,13 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FileEntryId } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { FileEntryId } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -21,9 +22,8 @@ const mockLoggerWarn = mockMainLoggerService.warn
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { batchPermanentDelete, batchRestore, batchTrash, emptyTrash, permanentDelete, restore, trash } = await import(
-  '../lifecycle'
-)
+const { batchPermanentDelete, batchRestore, batchTrash, emptyTrash, permanentDelete, restore, trash } =
+  await import('../lifecycle')
 const { exists } = await import('@main/utils/file')
 const { createInternal, ensureExternal } = await import('../create')
 

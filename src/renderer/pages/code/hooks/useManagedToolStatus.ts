@@ -1,8 +1,9 @@
+import { useEffect } from 'react'
+
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { ManagedToolStatusState } from '@shared/types/managedTool'
-import { useEffect } from 'react'
 
 const logger = loggerService.withContext('useManagedToolStatus')
 

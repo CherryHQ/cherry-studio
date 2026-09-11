@@ -29,7 +29,7 @@ export const Default: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 h-64 border border-gray-300 rounded">
+      <div className="h-64 w-96 rounded border border-gray-300">
         <Story />
       </div>
     )
@@ -40,9 +40,9 @@ export const Default: Story = {
 export const WithCards: Story = {
   args: {
     children: (
-      <div className="p-4 space-y-4">
+      <div className="space-y-4 p-4">
         {Array.from({ length: 20 }, (_, i) => (
-          <div key={i} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div key={i} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <h3 className="mb-2 text-lg font-semibold">Card {i + 1}</h3>
             <p className="text-sm text-gray-600">
               This is a sample card with some content to demonstrate scrolling behavior.
@@ -54,7 +54,7 @@ export const WithCards: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 h-96 bg-gray-50 rounded-lg">
+      <div className="h-96 w-96 rounded-lg bg-gray-50">
         <Story />
       </div>
     )
@@ -66,9 +66,9 @@ export const HorizontalContent: Story = {
   args: {
     children: (
       <div className="p-4">
-        <div className="flex gap-4 mb-4">
+        <div className="mb-4 flex gap-4">
           {Array.from({ length: 10 }, (_, i) => (
-            <div key={i} className="min-w-[150px] p-3 bg-blue-100 rounded">
+            <div key={i} className="min-w-[150px] rounded bg-blue-100 p-3">
               Column {i + 1}
             </div>
           ))}
@@ -83,7 +83,7 @@ export const HorizontalContent: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-[500px] h-80 border border-gray-300 rounded overflow-x-auto">
+      <div className="h-80 w-[500px] overflow-x-auto rounded border border-gray-300">
         <Story />
       </div>
     )
@@ -98,13 +98,13 @@ export const InteractiveList: Story = {
     }
 
     return (
-      <div className="w-96 h-64 border border-gray-300 rounded">
+      <div className="h-64 w-96 rounded border border-gray-300">
         <Scrollbar onScroll={handleScroll}>
           <div className="p-4">
             {Array.from({ length: 30 }, (_, i) => (
               <div
                 key={i}
-                className="mb-2 p-3 bg-gray-100 rounded cursor-pointer hover:bg-gray-200 transition-colors"
+                className="mb-2 cursor-pointer rounded bg-gray-100 p-3 transition-colors hover:bg-gray-200"
                 onClick={() => alert(`Clicked item ${i + 1}`)}>
                 Interactive Item {i + 1}
               </div>
@@ -176,7 +176,7 @@ class ShoppingCart {
   },
   decorators: [
     (Story) => (
-      <div className="w-[600px] h-96 bg-gray-900 text-green-400 rounded-lg overflow-hidden">
+      <div className="h-96 w-[600px] overflow-hidden rounded-lg bg-gray-900 text-green-400">
         <Story />
       </div>
     )
@@ -187,7 +187,7 @@ class ShoppingCart {
 export const LongArticle: Story = {
   args: {
     children: (
-      <article className="p-6 max-w-prose">
+      <article className="max-w-prose p-6">
         <h1 className="mb-4 text-2xl font-bold">The Art of Scrolling</h1>
 
         <p className="mb-4">
@@ -250,7 +250,7 @@ export const LongArticle: Story = {
   },
   decorators: [
     (Story) => (
-      <div className="w-[600px] h-96 bg-white border border-gray-300 rounded-lg">
+      <div className="h-96 w-[600px] rounded-lg border border-gray-300 bg-white">
         <Story />
       </div>
     )

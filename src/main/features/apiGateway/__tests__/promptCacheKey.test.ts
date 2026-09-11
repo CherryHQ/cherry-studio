@@ -1,8 +1,9 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { generateText } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
+
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { applyAgentPromptCacheKey } from '../utils/promptCacheKey'
 
@@ -26,7 +27,7 @@ function model(providerId: string, endpointType: EndpointType): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
-  } as Model
+  }
 }
 
 const SESSION_ID = '018f2f45-agent-session'

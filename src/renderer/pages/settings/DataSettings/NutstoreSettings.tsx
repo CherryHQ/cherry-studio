@@ -1,3 +1,10 @@
+import dayjs from 'dayjs'
+import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { type FileStat } from 'webdav'
+
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
@@ -24,12 +31,6 @@ import {
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
-import dayjs from 'dayjs'
-import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { type FileStat } from 'webdav'
 
 import NutstorePathPopup from './NutstorePathPopup'
 

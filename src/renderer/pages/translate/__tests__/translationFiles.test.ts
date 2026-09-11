@@ -1,8 +1,9 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dataApiService } from '@data/DataApiService'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const ipcRequest = vi.hoisted(() => vi.fn())
 

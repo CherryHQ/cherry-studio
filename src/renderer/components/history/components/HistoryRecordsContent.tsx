@@ -1,6 +1,7 @@
-import { isMac } from '@renderer/utils/platform'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { isMac } from '@renderer/utils/platform'
 
 import type { HistoryRecordDescriptor } from '../historyRecordsDescriptor'
 import type { HistoryRecordsController } from '../useHistoryRecordsController'
