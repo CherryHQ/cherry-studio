@@ -10,9 +10,8 @@
  * inlines the bytes as base64 `data:` URLs before they hit the provider.
  *
  * Large-file upload through provider File APIs (Gemini File / OpenAI
- * Files) is not yet wired — see
- * `v2-refactor-temp/docs/ai/large-file-upload-port.md`. Until that
- * lands, large PDFs / media fall back to inline base64 here.
+ * Files) is not yet wired (GitHub issue #19706). Large PDFs / media
+ * currently fall back to inline base64 here.
  */
 
 import { fileURLToPath } from 'node:url'

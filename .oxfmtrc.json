@@ -15,7 +15,7 @@
     "out/**",
     "resources/**",
     "storybook-static/**",
-    "v2-refactor-temp/**",
+    "scripts/data-classify/**",
     "**/dist/**",
     "**/storybook-static/**",
     "**/vendor/**",

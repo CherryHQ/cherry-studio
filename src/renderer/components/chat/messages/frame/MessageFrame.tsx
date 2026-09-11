@@ -188,6 +188,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
     [actions, isMultiSelectMode, isSelected, message.id]
   )
 
+  // No checkbox is rendered past this point; useMessageSelectionController's selectableIds mirrors this exclusion.
   if (message.isContextBoundary) {
     return (
       <div
