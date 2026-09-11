@@ -209,6 +209,8 @@ coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixe
   xlsx cell range) and reports it; it reports `null` when the pick is cleared. The callback's presence is the
   capture switch: the embedding surface passes it only while its picker is on, so a plugin never needs a
   separate mode flag. Plugins without such a mapping ignore the prop entirely.
+- The xlsx grid follows the same picker model as the block producers: while the callback is present it starts
+  from an empty selection, highlights the cell or merged range under the pointer, and commits on click or drag.
 - The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
   conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
 - The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
