@@ -354,9 +354,12 @@ export class AiStreamManager extends BaseService {
   /** Terminal persistence listeners currently writing by topic. Unlike `hasLiveStream`, this remains
    *  true after terminal status is published and clears before runtime/renderer terminal listeners run. */
   private readonly terminalPersistenceCounts = new Map<string, number>()
-  /** Terminal dispatch + lifecycle still running by topic. Admission waits on it: a follow-up released
-   *  by a cleanup listener must not evict the stream before its terminal lifecycle has run. */
-  private readonly terminalDispatchInFlight = new Map<string, Promise<void>>()
+  /** Terminal dispatches still running by topic (counted, so multi-model siblings settle together).
+   *  Admission waits on it so a follow-up cannot evict a stream before its terminal lifecycle ran. */
+  private readonly terminalDispatchInFlight = new Map<
+    string,
+    { pending: number; settled: Promise<void>; release: () => void }
+  >()
   /** Steer continuations suppressed by the write-quiesce gate; the last hold's disposal re-kicks
    *  them (mirrors JobManager's suppressed-fires sets). */
   private readonly suppressedChatContinuationTopicIds = new Set<string>()
@@ -995,7 +998,7 @@ export class AiStreamManager extends BaseService {
 
   /** Resolves once this topic's in-flight terminal dispatch (listeners + lifecycle) has settled. */
   whenTerminalDispatchSettled(topicId: string): Promise<void> {
-    return this.terminalDispatchInFlight.get(topicId) ?? Promise.resolve()
+    return this.terminalDispatchInFlight.get(topicId)?.settled ?? Promise.resolve()
   }
 
   /**
@@ -1612,17 +1615,28 @@ export class AiStreamManager extends BaseService {
     this.runTerminalLifecycle(stream)
   }
 
-  /** Marks the topic's terminal dispatch in flight; the returned release settles it. Synchronous on
-   *  both ends so the terminal handlers keep their microtask timing. */
+  /** Counts a terminal dispatch in flight for the topic; the returned release settles the topic once every
+   *  counted dispatch has released. Synchronous on both ends so the terminal handlers keep their timing. */
   private beginTerminalDispatch(topicId: string): () => void {
-    let release!: () => void
-    const inFlight = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    this.terminalDispatchInFlight.set(topicId, inFlight)
+    let gate = this.terminalDispatchInFlight.get(topicId)
+    if (!gate) {
+      let release!: () => void
+      const settled = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      gate = { pending: 0, settled, release }
+      this.terminalDispatchInFlight.set(topicId, gate)
+    }
+    const inFlight = gate
+    inFlight.pending += 1
+    let released = false
     return () => {
+      if (released) return
+      released = true
+      inFlight.pending -= 1
+      if (inFlight.pending > 0) return
       if (this.terminalDispatchInFlight.get(topicId) === inFlight) this.terminalDispatchInFlight.delete(topicId)
-      release()
+      inFlight.release()
     }
   }
 

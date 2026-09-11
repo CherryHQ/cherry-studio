@@ -1465,6 +1465,47 @@ describe('AiStreamManager', () => {
       ])
     })
 
+    it('settles the terminal dispatch only after every execution of a multi-model topic has dispatched', async () => {
+      const topicId = 'multi-terminal'
+      const first = 'provider-a::model-a'
+      const last = 'provider-b::model-b'
+      let releaseFirst!: () => void
+      const cleanup = new FakeListener('cleanup:multi-terminal', 'cleanup')
+      cleanup.onDoneImpl = (result) => {
+        if (result.modelId !== first) return
+        return new Promise<void>((resolve) => {
+          releaseFirst = resolve
+        })
+      }
+      mgr.send({
+        topicId,
+        models: [
+          { modelId: first, request: req(topicId) },
+          { modelId: last, request: req(topicId) }
+        ],
+        listeners: [cleanup],
+        isPersistentConversation: true
+      })
+
+      // The first execution's dispatch is parked on its cleanup listener while the last one ends the topic.
+      const firstTerminal = mgr.onExecutionDone(topicId, first)
+      await vi.advanceTimersByTimeAsync(0)
+      await mgr.onExecutionDone(topicId, last)
+      expect(conversationCompletedEvents).toHaveLength(1)
+
+      let settled = false
+      const settledPromise = mgr.whenTerminalDispatchSettled(topicId).then(() => {
+        settled = true
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(settled).toBe(false)
+
+      releaseFirst()
+      await settledPromise
+      await firstTerminal
+      expect(conversationCompletedEvents).toHaveLength(1)
+    })
+
     it('keeps the previous turn terminal lifecycle when a follow-up is admitted after the dispatch settles', async () => {
       let releaseB!: () => void
       const a = new FakeListener('cleanup-a:a', 'cleanup')
