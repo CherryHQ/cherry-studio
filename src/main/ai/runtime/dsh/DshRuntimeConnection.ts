@@ -391,9 +391,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
       const client = new sdk.HarnessClient({
-        command: process.execPath,
-        args: [resolveDshRuntimeBinPath(), this.compositionPath],
-        cwd: workspacePath,
+        dshBin: resolveDshRuntimeBinPath(),
+        profile: 'cherry',
+        processCwd: workspacePath,
         env: {
           ...binaryExecutionEnv,
           ...(loginShellEnv.HOME !== undefined
@@ -403,6 +403,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
               : {}),
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
+          CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
           [BRIDGE_TOKEN_ENV]: this.bridge.authenticationToken,
           DSH_HOME: dshRoot
@@ -712,8 +713,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
-        // The SDK server forwards session-log envelopes verbatim; the rc.6 pin keeps this
-        // single wire-boundary cast sound. Unknown merged types fall through the adapter.
+        // The SDK server forwards session-log envelopes verbatim across this wire boundary.
+        // Unknown merged types fall through the adapter.
         const event = params.event as SessionEvent
         if (params.sessionId !== this.input.sessionId) {
           // Every other session in this process is a descendant (or one racing its
