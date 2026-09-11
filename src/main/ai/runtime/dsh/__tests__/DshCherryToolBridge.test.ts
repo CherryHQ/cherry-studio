@@ -252,4 +252,32 @@ describe('DshCherryToolBridge', () => {
     await expect(access(toolResultRoot)).rejects.toMatchObject({ code: 'ENOENT' })
     await bridge.close()
   })
+
+  // Real-chain behavior tests driven by fake timers: the SDK client's request timer actually
+  // runs, so a regression to the 60s default fires it and turns these red (#20266). Outcomes
+  // are asserted, never the RequestOptions shape (#20297 review).
+  describe('forwarding behavior', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('completes a signal-less call that outlasts the SDK 60s default timeout (#20266)', async () => {
+      const server = createServer([tool('run')], async () => {
+        await new Promise((resolve) => setTimeout(resolve, 65_000))
+        return { content: [{ type: 'text', text: 'slow but done' }] }
+      })
+      const bridge = await buildDshCherryToolBridge({ server: { name: 'server', instance: server } }, bridgeOptions())
+
+      const completion = expect(bridge.callTool('mcp__server__run', { value: 'x' })).resolves.toMatchObject({
+        text: 'slow but done'
+      })
+      await vi.advanceTimersByTimeAsync(65_000)
+      await completion
+      await bridge.close()
+    })
+  })
 })

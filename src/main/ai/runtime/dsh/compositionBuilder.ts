@@ -192,6 +192,9 @@ export function buildDshCompositionYaml(input: DshCompositionInput): string {
     // token-meter rejects any config key; session-projection carries its contextBreakdown unit.
     entry('token-meter', '@deepseek-ai/dsh-token-meter'),
     entry('session-projection', '@deepseek-ai/dsh-session-projection'),
+    // Continuable subagents: `list_agents` and a `send_message` to an idle child both
+    // resolve `sessionQuery`, and throw without it (rc.7 used sessionProjections).
+    entry('session-query', '@deepseek-ai/dsh-session-query'),
     // Both configless: pruner defaults match dsh's base bundle (8192/4096/1024 chars);
     // compaction auto-triggers at 80% of contextWindow and summarizes via the routed model.
     entry('tool-result-pruner', '@deepseek-ai/dsh-compaction-tool-result-pruner'),

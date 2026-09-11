@@ -327,7 +327,10 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.state.selection).toEqual({
       enabled: true,
       isMultiSelectMode: true,
-      selectedMessageIds: ['user-1']
+      selectedMessageIds: ['user-1'],
+      selectAllState: 'indeterminate',
+      selectAllDisabled: false,
+      isSelectAllLoading: false
     })
     expect(useMessageExportActionsMock).toHaveBeenCalledWith({
       topicName: 'Agent session'
