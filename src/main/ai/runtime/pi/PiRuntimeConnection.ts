@@ -902,7 +902,9 @@ function withPiInvocationCapture(
             (event.type === 'text_start' ||
               event.type === 'text_delta' ||
               event.type === 'thinking_start' ||
-              event.type === 'thinking_delta')
+              event.type === 'thinking_delta' ||
+              event.type === 'toolcall_start' ||
+              event.type === 'toolcall_delta')
           ) {
             firstTokenAt = Date.now()
           }
