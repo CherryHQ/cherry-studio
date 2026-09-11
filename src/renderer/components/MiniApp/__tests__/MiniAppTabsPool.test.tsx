@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as MiniAppWebviewService from '@renderer/services/MiniAppWebviewService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 // `WebviewContainer` renders an Electron `<webview>` element which JSDOM can't
@@ -65,6 +66,7 @@ const mocks = vi.hoisted(() => ({
   setSplitOpen: vi.fn(),
   setSplitMiniAppId: vi.fn(),
   clearWebviewState: vi.fn(),
+  setWebviewElement: vi.fn(),
   focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
   loadHandlers: new Map<string, (appid: string) => void>(),
   contextKeys: [] as Array<{ key: string; value: unknown }>,
@@ -119,13 +121,22 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('@renderer/utils/webviewStateManager', () => ({
-  clearWebviewState: mocks.clearWebviewState,
-  getWebviewLoaded: () => false,
-  setWebviewLoaded: vi.fn()
-}))
+vi.mock('@renderer/services/MiniAppWebviewService', async (importOriginal) => {
+  const actual = await importOriginal<typeof MiniAppWebviewService>()
+  return {
+    ...actual,
+    clearWebviewState: mocks.clearWebviewState.mockImplementation(actual.clearWebviewState),
+    setWebviewElement: mocks.setWebviewElement.mockImplementation(actual.setWebviewElement),
+    setWebviewLoaded: vi.fn(actual.setWebviewLoaded)
+  }
+})
 
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import {
+  clearAllWebviewStates,
+  clearWebviewState,
+  getWebviewElement,
+  setWebviewLoaded
+} from '@renderer/services/MiniAppWebviewService'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
 
@@ -171,7 +182,9 @@ describe('MiniAppTabsPool', () => {
     mocks.closeTab.mockReset()
     mocks.setSplitOpen.mockReset()
     mocks.setSplitMiniAppId.mockReset()
-    mocks.clearWebviewState.mockReset()
+    mocks.clearWebviewState.mockClear()
+    clearAllWebviewStates()
+    mocks.setWebviewElement.mockClear()
     mocks.focusHandlers.clear()
     mocks.loadHandlers.clear()
     mocks.contextKeys = []
@@ -179,6 +192,21 @@ describe('MiniAppTabsPool', () => {
 
   /** Latest value the pool published for `webview.focused`. */
   const focusedKey = () => mocks.contextKeys.filter((e) => e.key === 'webview.focused').at(-1)?.value
+
+  it('publishes the concrete WebView while the pool owns it', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    const { unmount } = render(<MiniAppTabsPool />)
+    const webview = screen.getByTestId('webview-alpha')
+
+    expect(getWebviewElement('alpha')).toBe(webview)
+
+    unmount()
+    expect(getWebviewElement('alpha')).toBeNull()
+  })
 
   it('keeps webview.focused set when another pane mounts behind the focused one', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha')]

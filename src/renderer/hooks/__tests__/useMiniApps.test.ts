@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { dataApiService } from '@data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 const mockTabs = vi.hoisted(() => ({
@@ -31,7 +31,7 @@ vi.mock('@renderer/hooks/tab', () => ({
       : null
 }))
 
-vi.mock('@renderer/utils/webviewStateManager', () => ({
+vi.mock('@renderer/services/MiniAppWebviewService', () => ({
   clearWebviewState: vi.fn(),
   setWebviewLoaded: vi.fn()
 }))
