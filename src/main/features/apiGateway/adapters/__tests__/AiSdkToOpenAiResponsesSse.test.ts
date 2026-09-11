@@ -293,15 +293,11 @@ describe('AiSdkToOpenAiResponsesSse', () => {
       expect(types[types.length - 1]).toBe('response.incomplete')
       expect(types).not.toContain('response.completed')
 
-      const incomplete = events.find((e) => e.type === 'response.incomplete') as
-        | OpenAI.Responses.ResponseIncompleteEvent
-        | undefined
+      const incomplete = events.find((e) => e.type === 'response.incomplete')
       expect(incomplete?.response.status).toBe('incomplete')
       expect(incomplete?.response.incomplete_details).toEqual({ reason })
 
-      const itemDone = events.find((e) => e.type === 'response.output_item.done') as
-        | OpenAI.Responses.ResponseOutputItemDoneEvent
-        | undefined
+      const itemDone = events.find((e) => e.type === 'response.output_item.done')
       expect(itemDone?.item).toMatchObject({ type: 'message', status: 'incomplete' })
     })
 
