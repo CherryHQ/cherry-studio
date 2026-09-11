@@ -19,6 +19,7 @@ export const PROVIDER_ICON_LOADERS = {
   aionlabs: () => import('./aionlabs').then(({ AionlabsIcon }) => AionlabsIcon),
   alayanew: () => import('./alayanew').then(({ AlayanewIcon }) => AlayanewIcon),
   allenai: () => import('./allenai').then(({ AllenaiIcon }) => AllenaiIcon),
+  anonrouter: () => import('./anonrouter/anonrouter').then(({ AnonrouterIcon }) => AnonrouterIcon),
   anthropic: () => import('./anthropic').then(({ AnthropicIcon }) => AnthropicIcon),
   application: () => import('./application').then(({ ApplicationIcon }) => ApplicationIcon),
   'arcee-ai': () => import('./arcee-ai').then(({ ArceeAiIcon }) => ArceeAiIcon),

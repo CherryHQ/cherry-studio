@@ -18,6 +18,7 @@ import { AihubmixIcon } from './aihubmix'
 import { AionlabsIcon } from './aionlabs'
 import { AlayanewIcon } from './alayanew'
 import { AllenaiIcon } from './allenai'
+import { AnonrouterIcon } from './anonrouter/anonrouter'
 import { AnthropicIcon } from './anthropic'
 import { ApplicationIcon } from './application'
 import { ArceeAiIcon } from './arcee-ai'
@@ -183,6 +184,7 @@ export const PROVIDER_ICON_CATALOG = {
   aionlabs: AionlabsIcon,
   alayanew: AlayanewIcon,
   allenai: AllenaiIcon,
+  anonrouter: AnonrouterIcon,
   anthropic: AnthropicIcon,
   application: ApplicationIcon,
   'arcee-ai': ArceeAiIcon,
