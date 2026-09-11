@@ -49,15 +49,14 @@ const isProd = process.env.NODE_ENV === 'production'
 const SENTRY_UPLOAD_ENV_KEYS = ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT'] as const
 
 export function resolveSentryBuildSettings(env: NodeJS.ProcessEnv) {
-  const enabled = Boolean(env.MAIN_VITE_SENTRY_DSN?.trim())
-  const sourceMapUploadEnabled = env.NODE_ENV === 'production' && env.SENTRY_SOURCE_MAP_UPLOAD === 'true' && enabled
+  const sourceMapUploadEnabled = env.NODE_ENV === 'production' && env.SENTRY_SOURCE_MAP_UPLOAD === 'true'
   const missingUploadEnv = sourceMapUploadEnabled ? SENTRY_UPLOAD_ENV_KEYS.filter((key) => !env[key]?.trim()) : []
 
   if (missingUploadEnv.length > 0) {
     throw new Error(`Sentry production builds require: ${missingUploadEnv.join(', ')}`)
   }
 
-  return { enabled, sourceMapUploadEnabled }
+  return { sourceMapUploadEnabled }
 }
 
 export function resolveRendererEdition(value: string | undefined): AppEdition {
@@ -67,7 +66,7 @@ export function resolveRendererEdition(value: string | undefined): AppEdition {
 }
 
 const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
-const { enabled: sentryEnabled, sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
+const { sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
 const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
 const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
   sourceMapUploadEnabled
@@ -217,8 +216,7 @@ export default defineConfig({
       __APP_EDITION__: JSON.stringify(rendererEdition),
       __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
       __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
-      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version),
-      __SENTRY_ENABLED__: JSON.stringify(sentryEnabled)
+      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
     },
     plugins: [
       uiContractPlugin(),

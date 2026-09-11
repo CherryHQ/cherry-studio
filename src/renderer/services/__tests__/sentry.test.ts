@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { initMock } = vi.hoisted(() => ({ initMock: vi.fn() }))
 
@@ -8,11 +8,16 @@ import { initSentry } from '../sentry'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.stubEnv('DEV', false)
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe('renderer Sentry initialization', () => {
-  it('does not install renderer capture when the build has no Sentry DSN', () => {
-    vi.stubGlobal('__SENTRY_ENABLED__', false)
+  it('does not install renderer capture in development', () => {
+    vi.stubEnv('DEV', true)
 
     initSentry()
 
@@ -20,8 +25,6 @@ describe('renderer Sentry initialization', () => {
   })
 
   it('forwards sanitized renderer errors through the consent-gated main process transport', () => {
-    vi.stubGlobal('__SENTRY_ENABLED__', true)
-
     initSentry()
 
     expect(initMock).toHaveBeenCalledTimes(1)

@@ -20,7 +20,7 @@ function collectSentryBuildEnvironments(value: unknown, output: Array<Record<str
   const record = value as Record<string, unknown>
   if (typeof record.env === 'object' && record.env !== null) {
     const env = record.env as Record<string, string>
-    if (env.MAIN_VITE_SENTRY_DSN) output.push(env)
+    if (env.SENTRY_AUTH_TOKEN) output.push(env)
   }
   for (const child of Object.values(record)) collectSentryBuildEnvironments(child, output)
   return output
@@ -36,24 +36,29 @@ describe('Sentry production build', () => {
     expect(() =>
       resolveSentryBuildSettings({
         NODE_ENV: 'production',
-        MAIN_VITE_SENTRY_DSN: 'https://public@example.ingest.sentry.io/1',
         SENTRY_SOURCE_MAP_UPLOAD: 'true'
       })
     ).toThrow('Sentry production builds require: SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT')
   })
 
-  it('does not require upload credentials for the utility-process build used by development', () => {
+  it('does not require upload credentials for ordinary production builds', () => {
     expect(
       resolveSentryBuildSettings({
-        NODE_ENV: 'production',
-        MAIN_VITE_SENTRY_DSN: 'https://public@example.ingest.sentry.io/1'
+        NODE_ENV: 'production'
       })
-    ).toEqual({ enabled: true, sourceMapUploadEnabled: false })
+    ).toEqual({ sourceMapUploadEnabled: false })
+  })
+
+  it('keeps source-map upload opt-in in ordinary build commands', () => {
+    const { scripts } = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
+
+    for (const command of ['build', 'build:cn']) {
+      expect(scripts[command]).not.toContain('SENTRY_SOURCE_MAP_UPLOAD')
+    }
   })
 
   it('generates hidden source maps for every Electron bundle when upload is configured', async () => {
     vi.stubEnv('NODE_ENV', 'production')
-    vi.stubEnv('MAIN_VITE_SENTRY_DSN', 'https://public@example.ingest.sentry.io/1')
     vi.stubEnv('SENTRY_SOURCE_MAP_UPLOAD', 'true')
     vi.stubEnv('SENTRY_AUTH_TOKEN', 'test-token')
     vi.stubEnv('SENTRY_ORG', 'test-org')
@@ -81,6 +86,7 @@ describe('Sentry production build', () => {
     expect(environments).toHaveLength(10)
     for (const env of environments) {
       expect(env).toMatchObject({
+        SENTRY_SOURCE_MAP_UPLOAD: 'true',
         SENTRY_AUTH_TOKEN: '${{ secrets.SENTRY_AUTH_TOKEN }}',
         SENTRY_ORG: '${{ secrets.SENTRY_ORG }}',
         SENTRY_PROJECT: '${{ secrets.SENTRY_PROJECT }}'

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { initMock, makeElectronTransportMock, processExitMock, sendMock, flushMock } = vi.hoisted(() => ({
   initMock: vi.fn(),
@@ -19,14 +19,17 @@ import { initSentry, setSentryReportingEnabled } from '../sentry'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.stubEnv('MAIN_VITE_SENTRY_DSN', 'https://public@example.ingest.sentry.io/1')
+  vi.stubEnv('DEV', false)
   makeElectronTransportMock.mockReturnValue({ send: sendMock, flush: flushMock })
   setSentryReportingEnabled(false)
 })
 
+afterEach(() => vi.unstubAllEnvs())
+
 describe('Sentry consent gate', () => {
-  it('does not initialize Sentry without a configured DSN', () => {
-    vi.stubEnv('MAIN_VITE_SENTRY_DSN', '')
+  it('does not initialize in development even with reporting consent', () => {
+    vi.stubEnv('DEV', true)
+    setSentryReportingEnabled(true)
 
     initSentry()
 

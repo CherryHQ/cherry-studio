@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('Sentry')
+const SENTRY_DSN = 'https://194ceab3bd44e686bd3ebda9de3c20fd@o4509184559218688.ingest.us.sentry.io/4509184569442304'
 
 let reportingEnabled = false
 
@@ -19,14 +20,10 @@ function sanitizeEvent(event: Sentry.ErrorEvent): Sentry.ErrorEvent {
 }
 
 export function initSentry(): void {
-  const dsn = import.meta.env.MAIN_VITE_SENTRY_DSN?.trim()
-  if (!dsn) {
-    logger.info('Sentry is disabled because no DSN is configured')
-    return
-  }
+  if (import.meta.env.DEV) return
 
   Sentry.init({
-    dsn,
+    dsn: SENTRY_DSN,
     maxBreadcrumbs: 0,
     sendClientReports: false,
     sendDefaultPii: false,

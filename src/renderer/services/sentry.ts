@@ -12,7 +12,7 @@ function sanitizeEvent<T>(event: T): T {
 }
 
 export function initSentry(): void {
-  if (!__SENTRY_ENABLED__) return
+  if (import.meta.env.DEV) return
 
   init({
     beforeSend: sanitizeEvent,

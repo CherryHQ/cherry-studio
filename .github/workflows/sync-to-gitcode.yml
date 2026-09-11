@@ -125,7 +125,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
           MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRY_CLOUD_CLIENT_SECRET }}
-          MAIN_VITE_SENTRY_DSN: ${{ secrets.MAIN_VITE_SENTRY_DSN }}
+          SENTRY_SOURCE_MAP_UPLOAD: "true"
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
