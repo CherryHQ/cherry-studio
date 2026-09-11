@@ -142,6 +142,26 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
   return mergeBinaryExecutionEnv(definedEnv, standaloneBinaryDirs)
 }
 
+/**
+ * Combine snapshot and live MISE vars with live values winning. On Windows env
+ * keys are case-insensitive, so same-name keys in different casings collapse to
+ * the live spelling instead of coexisting as duplicates.
+ */
+export function mergeMiseEnvEntries(...sources: Array<Record<string, string>>): Record<string, string> {
+  const merged: Record<string, string> = {}
+  const isWindows = process.platform === 'win32'
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (isWindows) {
+        const existing = Object.keys(merged).find((k) => k.toLowerCase() === key.toLowerCase())
+        if (existing) delete merged[existing]
+      }
+      merged[key] = value
+    }
+  }
+  return merged
+}
+
 interface PendingSteer {
   input: AgentRuntimeUserInput
 }
@@ -290,6 +310,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         : await getShellEnv()
       const loginPathPrefix = buildPiLoginPathPrefix(getPathFromEnvironment(loginPathSource))
       if (loginPathPrefix) settingsManager.setShellCommandPrefix(loginPathPrefix)
+      // The custom bash tool below spawns directly instead of through the prefixed
+      // shell, so it needs the same login PATH layered into its spawn env.
+      // POSIX-only, mirroring the prefix condition above.
+      const loginPathForBash = process.platform === 'win32' ? undefined : getPathFromEnvironment(loginPathSource)
 
       // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
       // from the same store the claude driver reads. These are injected explicitly
@@ -392,11 +416,21 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
         spawnHook: (context) => {
-          const merged = mergePiBashExecutionEnv(context.env)
+          // This tool spawns directly, bypassing the `export PATH=...` prefix, so
+          // layer the same login PATH here — otherwise its commands resolve
+          // against pi's launch PATH only.
+          const definedContextEnv = Object.fromEntries(
+            Object.entries(context.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
+          )
+          const loginLayeredEnv =
+            loginPathForBash === undefined
+              ? definedContextEnv
+              : mergePathSuffixes(definedContextEnv, loginPathForBash.split(':'))
+          const merged = mergePiBashExecutionEnv(loginLayeredEnv)
           // The snapshot can predate the spawn: honor the live spawn env's mise
           // markers too, with live MISE values winning over the snapshot.
           const contextMiseEnvForBash = Object.fromEntries(getMiseEnvEntries(context.env))
-          const userMiseEnvForBash = { ...rawMiseEnvForBash, ...contextMiseEnvForBash }
+          const userMiseEnvForBash = mergeMiseEnvEntries(rawMiseEnvForBash, contextMiseEnvForBash)
           if (hasUserMiseForBash || hasUserMiseEnv(context.env)) {
             const isWindows = process.platform === 'win32'
             const userMiseKeysNormalized = new Set(

@@ -11,6 +11,7 @@ import {
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
@@ -245,7 +246,7 @@ vi.mock('@main/utils/rtk', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: mocks.getShellEnv,
   getRawShellEnv: mocks.getRawShellEnv,
   refreshShellEnv: mocks.refreshShellEnv

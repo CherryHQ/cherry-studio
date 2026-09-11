@@ -20,6 +20,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { skillHandlers } from '@main/ipc/handlers/skill'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 
@@ -34,7 +35,7 @@ vi.mock('@main/utils/markdownParser', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: vi.fn().mockResolvedValue({}),
   getRawShellEnv: vi.fn().mockResolvedValue({})
 }))

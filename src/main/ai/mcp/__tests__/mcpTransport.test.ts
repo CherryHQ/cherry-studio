@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 
@@ -23,7 +24,7 @@ vi.mock('electron', () => ({
   net: { fetch: vi.fn() }
 }))
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/utils/shellEnv')>()),
+  ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: async () => ({ PATH: '/shell/bin' }),
   getRawShellEnv: async () => ({ PATH: '/shell/bin' })
 }))
