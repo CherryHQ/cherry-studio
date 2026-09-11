@@ -113,7 +113,7 @@ const translations: Record<string, string> = {
   'error.diagnostics.preparing_result': 'Preparing results…',
   'error.diagnostics.result': 'Diagnostic result',
   'error.diagnostics.result_summary':
-    '<fixed>Fixed: {{fixed}}</fixed>; <attention>needs attention: {{attention}}</attention>; AI summary: {{summary}}.',
+    '<fixed>Fixed: {{fixed}}</fixed>; <attention>needs attention: {{attention}}</attention>.',
   'error.message': 'Error message',
   'error.modelId': 'Model',
   'error.name': 'Error name',
@@ -265,16 +265,6 @@ function completedDoctorState(
   }
 }
 
-function deferredDiagnosis() {
-  let resolve!: (result: DiagnosisResult) => void
-  return {
-    promise: new Promise<DiagnosisResult>((next) => {
-      resolve = next
-    }),
-    resolve
-  }
-}
-
 describe('ErrorDetailContent diagnostics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -333,8 +323,6 @@ describe('ErrorDetailContent diagnostics', () => {
 
   it('returns from nested error details through the localized header action without unmounting diagnostics', async () => {
     const user = userEvent.setup()
-    const pendingDiagnosis = deferredDiagnosis()
-    mocks.diagnoseError.mockReturnValueOnce(pendingDiagnosis.promise)
     mocks.doctorState = runningDoctorState('quick')
     const view = render(<PopupHost />)
 
@@ -360,13 +348,13 @@ describe('ErrorDetailContent diagnostics', () => {
 
     mocks.doctorState = completedDoctorState([passingVersionResult])
     view.rerender(<PopupHost />)
-    await act(async () => pendingDiagnosis.resolve(aiDiagnosis))
     await user.click(backToOverview)
 
     expect(screen.queryByText('private stack')).not.toBeInTheDocument()
     expect(outerDialog).toBeInTheDocument()
-    expect(await screen.findByText(/AI summary: Provider failed/)).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Diagnostic result' })).toBeInTheDocument()
     await waitFor(() => expect(viewDetails).toHaveFocus())
+    expect(mocks.diagnoseError).not.toHaveBeenCalled()
     expect(mocks.request).not.toHaveBeenCalledWith('diagnostics.doctor.cancel', expect.anything())
   })
 
@@ -413,9 +401,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
     expect(await screen.findByText('Restart Cherry Studio to apply the repair.')).toBeInTheDocument()
     const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    expect(result).toHaveTextContent(
-      'Fixed: Startup configuration; needs attention: 1 item; AI summary: Provider failed.'
-    )
+    expect(result).toHaveTextContent('Fixed: Startup configuration; needs attention: 1 item.')
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
   })
 
@@ -437,7 +423,7 @@ describe('ErrorDetailContent diagnostics', () => {
     )
   })
 
-  it('shows a cached diagnosis as the result without starting another AI request', () => {
+  it('shows only Doctor results and never starts an AI diagnosis', () => {
     mocks.cacheReady = false
     mocks.doctorState = completedDoctorState([passingVersionResult])
 
@@ -445,24 +431,27 @@ describe('ErrorDetailContent diagnostics', () => {
 
     const result = screen.getByRole('region', { name: 'Diagnostic result' })
     const summary = within(result)
-      .getByText(/AI summary: Provider failed/)
+      .getByText(/Fixed: None/)
       .closest('p')
     if (!summary) throw new Error('Expected a single diagnostic result paragraph')
     const fixed = within(result).getByText('Fixed: None')
     const attention = within(result).getByText('needs attention: 0 items')
-    expect(summary).toHaveTextContent('Fixed: None; needs attention: 0 items; AI summary: Provider failed.')
+    expect(summary).toHaveTextContent('Fixed: None; needs attention: 0 items.')
     expect(summary.tagName).toBe('P')
     expect(result.querySelectorAll('p')).toHaveLength(1)
     // The semantic foreground tokens are the visual contract for the two result segments.
     expect(fixed).toHaveClass('text-success')
     expect(attention).toHaveClass('text-warning')
     expect(result).toHaveAttribute('data-variant', 'sectioned')
-    expect(within(result).queryByRole('button', { name: /AI diagnosis/ })).not.toBeInTheDocument()
+    expect(result).not.toHaveTextContent(aiDiagnosis.summary)
+    expect(screen.queryByText(/AI summary/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('AI unavailable')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
     expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
   })
 
-  it('shows a cached diagnosis after an automatic Doctor run fails', async () => {
+  it('shows the Doctor result after an automatic Doctor run fails', async () => {
     let rejectRun!: (error: Error) => void
     mocks.request.mockImplementation((route: string) => {
       if (route === 'diagnostics.doctor.run') {
@@ -473,7 +462,7 @@ describe('ErrorDetailContent diagnostics', () => {
       return Promise.resolve({ status: 'completed' })
     })
 
-    renderErrorDetailContent({ cachedDiagnosis: aiDiagnosis, error: providerError })
+    renderErrorDetailContent({ error: providerError })
 
     expect(screen.getByRole('region', { name: 'Diagnosing' })).toBeVisible()
     expect(screen.queryByRole('region', { name: 'Diagnostic result' })).not.toBeInTheDocument()
@@ -481,8 +470,9 @@ describe('ErrorDetailContent diagnostics', () => {
     await act(async () => rejectRun(new Error('Doctor unavailable')))
 
     expect(await screen.findByRole('region', { name: 'Diagnostic result' })).toHaveTextContent(
-      'AI summary: Provider failed'
+      'Fixed: None; needs attention: 0 items.'
     )
+    expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
   it('shows only user-fixable rows with local details expanded in Action required', async () => {
@@ -519,8 +509,7 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(within(diagnostics).queryByRole('button', { name: /Provider API key/ })).not.toBeInTheDocument()
   })
 
-  it('shows one progress line and no Action required panel while Doctor or AI diagnosis is running', () => {
-    mocks.diagnoseError.mockReturnValueOnce(deferredDiagnosis().promise)
+  it('shows one progress line and no Action required panel while Doctor is running', () => {
     mocks.doctorState = {
       ...runningDoctorState('quick', ['config-boot-config-valid', 'storage-disk-space']),
       results: [lowDiskResult]
@@ -535,81 +524,24 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(within(diagnosing).queryByText('Needs attention')).not.toBeInTheDocument()
     expect(within(diagnosing).getByRole('button', { name: 'Cancel checks' })).toBeEnabled()
     expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /AI diagnosis/ })).not.toBeInTheDocument()
+    expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
-  it('reveals Action required only after a pending AI diagnosis also finishes', async () => {
-    const pendingDiagnosis = deferredDiagnosis()
-    mocks.diagnoseError.mockReturnValueOnce(pendingDiagnosis.promise)
+  it('orders Doctor results, required actions, and basic information', () => {
     mocks.doctorState = completedDoctorState([lowDiskResult])
 
     renderErrorDetailContent({ error: providerError })
 
-    const diagnosing = screen.getByRole('region', { name: 'Diagnosing' })
-    expect(within(diagnosing).getByRole('status')).toHaveTextContent('Preparing results…')
-    expect(within(diagnosing).getByRole('status')).not.toHaveTextContent(/AI|diagnos/i)
-    expect(screen.queryByRole('region', { name: 'Action required' })).not.toBeInTheDocument()
-
-    await act(async () => pendingDiagnosis.resolve(aiDiagnosis))
-
-    expect(screen.getByRole('region', { name: 'Diagnostic result' })).toBeVisible()
-    expect(screen.getByRole('region', { name: 'Action required' })).toBeVisible()
-  })
-
-  it('keeps a successful diagnosis visible when persistence fails', async () => {
-    mocks.doctorState = completedDoctorState()
-
-    renderErrorDetailContent({
-      blockId: 'message-1-part-0',
-      error: providerError,
-      onDiagnosisComplete: () => {
-        throw new Error('write failed')
-      }
-    })
-
-    expect(await screen.findByText(/AI summary: Provider failed/)).toBeVisible()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-  })
-
-  it('ignores an AI diagnosis that finishes after the error details unmount', async () => {
-    const pendingDiagnosis = deferredDiagnosis()
-    const onDiagnosisComplete = vi.fn()
-    mocks.diagnoseError.mockReturnValueOnce(pendingDiagnosis.promise)
-    mocks.doctorState = completedDoctorState()
-    const view = renderErrorDetailContent({
-      blockId: 'message-1-part-0',
-      error: providerError,
-      onDiagnosisComplete
-    })
-
-    await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
-    view.unmount()
-    await act(async () => pendingDiagnosis.resolve(aiDiagnosis))
-
-    expect(onDiagnosisComplete).not.toHaveBeenCalled()
-    expect(screen.queryByText(aiDiagnosis.summary)).not.toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-  })
-
-  it('keeps Doctor results visible and retries an automatic AI diagnosis failure', async () => {
-    const user = userEvent.setup()
-    mocks.doctorState = completedDoctorState([lowDiskResult])
-    mocks.diagnoseError.mockRejectedValueOnce(new Error('AI unavailable')).mockResolvedValueOnce(aiDiagnosis)
-
-    renderErrorDetailContent({ error: providerError })
-
-    const alert = await screen.findByRole('alert')
     const result = screen.getByRole('region', { name: 'Diagnostic result' })
-    expect(alert).toHaveTextContent('AI unavailable')
+    const actionRequired = screen.getByRole('region', { name: 'Action required' })
+    const basicInformation = screen.getByRole('region', { name: 'Basic information' })
+    const panels = screen
+      .getAllByRole('region')
+      .filter((panel) => [result, actionRequired, basicInformation].includes(panel))
+
+    expect(panels).toEqual([result, actionRequired, basicInformation])
     expect(result).toHaveTextContent('needs attention: 1 item')
-    expect(result).toHaveTextContent('AI summary: None')
-    expect(screen.getByRole('region', { name: 'Action required' })).toBeVisible()
-
-    await user.click(within(result).getByRole('button', { name: 'Retry' }))
-
-    expect(await within(result).findByText(/AI summary: Provider failed/)).toBeVisible()
-    expect(within(result).queryByRole('alert')).not.toBeInTheDocument()
-    expect(mocks.diagnoseError).toHaveBeenCalledTimes(2)
+    expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
   it('offers a basic rerun directly from an expired-result warning', async () => {
@@ -645,11 +577,10 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
   })
 
-  it('starts Doctor and AI diagnosis automatically exactly once', async () => {
+  it('starts Doctor automatically exactly once without starting AI diagnosis', async () => {
     const view = renderErrorDetailContent({ error: providerError })
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' })
-    await waitFor(() => expect(mocks.diagnoseError).toHaveBeenCalledOnce())
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick' }))
 
     view.rerender(
       <Dialog open>
@@ -658,8 +589,10 @@ describe('ErrorDetailContent diagnostics', () => {
         </DialogContent>
       </Dialog>
     )
-    expect(mocks.diagnoseError).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('button', { name: /AI diagnosis/ })).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(1)
+    )
+    expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
   it('runs a full check from the diagnostics header', async () => {
@@ -709,27 +642,22 @@ describe('ErrorDetailContent diagnostics', () => {
         actions: [{ kind: 'report' }]
       }
     ])
-    mocks.diagnoseError.mockResolvedValueOnce({
-      ...aiDiagnosis,
-      summary: 'private AI diagnosis'
-    })
-
     renderErrorDetailContent({
       diagnosticReport: { location: 'Agent conversation' },
       error: providerError,
       onOpenDiagnosticReport
     })
 
-    expect(await screen.findByText(/AI summary: private AI diagnosis/)).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Diagnostic result' })).toBeInTheDocument()
     const reportProblem = screen.getByRole('button', { name: 'Report a problem' })
     expect(screen.queryByRole('group', { name: 'Error Details' })).not.toBeInTheDocument()
     await user.click(reportProblem)
 
     const description = onOpenDiagnosticReport.mock.calls[0][0]
     expect(description).toContain('Error message: failed')
-    expect(description).not.toContain('private AI diagnosis')
     expect(description).not.toContain('private Doctor evidence')
     expect(description).not.toContain('private stack')
+    expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
   it('waits for error details to finish closing before opening report review', async () => {

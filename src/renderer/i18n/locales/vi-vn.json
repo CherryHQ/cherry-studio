@@ -1262,7 +1262,7 @@
   "error.diagnostics.diagnosing": "Đang chẩn đoán",
   "error.diagnostics.preparing_result": "Đang chuẩn bị kết quả…",
   "error.diagnostics.result": "Kết quả chẩn đoán",
-  "error.diagnostics.result_summary": "<fixed>Đã sửa: {{fixed}}</fixed>; <attention>cần chú ý: {{attention}}</attention>; tóm tắt AI: {{summary}}.",
+  "error.diagnostics.result_summary": "<fixed>Đã sửa: {{fixed}}</fixed>; <attention>cần chú ý: {{attention}}</attention>.",
   "error.errors": "Lỗi",
   "error.finishReason": "Lý do kết thúc",
   "error.functionality": "Chức năng",

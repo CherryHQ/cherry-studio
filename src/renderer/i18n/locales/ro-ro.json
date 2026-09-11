@@ -1262,7 +1262,7 @@
   "error.diagnostics.diagnosing": "Diagnosticare în curs",
   "error.diagnostics.preparing_result": "Se pregătesc rezultatele…",
   "error.diagnostics.result": "Rezultatul diagnosticului",
-  "error.diagnostics.result_summary": "<fixed>Remediat: {{fixed}}</fixed>; <attention>necesită atenție: {{attention}}</attention>; rezumat AI: {{summary}}.",
+  "error.diagnostics.result_summary": "<fixed>Remediat: {{fixed}}</fixed>; <attention>necesită atenție: {{attention}}</attention>.",
   "error.errors": "Erori",
   "error.finishReason": "Motiv finalizare",
   "error.functionality": "Funcționalitate",

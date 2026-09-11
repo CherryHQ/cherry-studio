@@ -1262,7 +1262,7 @@
   "error.diagnostics.diagnosing": "Diagnosticando",
   "error.diagnostics.preparing_result": "Preparando resultados…",
   "error.diagnostics.result": "Resultado del diagnóstico",
-  "error.diagnostics.result_summary": "<fixed>Corregido: {{fixed}}</fixed>; <attention>requiere atención: {{attention}}</attention>; resumen de IA: {{summary}}.",
+  "error.diagnostics.result_summary": "<fixed>Corregido: {{fixed}}</fixed>; <attention>requiere atención: {{attention}}</attention>.",
   "error.errors": "error",
   "error.finishReason": "Razón de finalización",
   "error.functionality": "función",

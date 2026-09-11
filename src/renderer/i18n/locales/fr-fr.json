@@ -1262,7 +1262,7 @@
   "error.diagnostics.diagnosing": "Diagnostic en cours",
   "error.diagnostics.preparing_result": "Préparation des résultats…",
   "error.diagnostics.result": "Résultat du diagnostic",
-  "error.diagnostics.result_summary": "<fixed>Corrigé : {{fixed}}</fixed> ; <attention>nécessite une attention : {{attention}}</attention> ; résumé de l’IA : {{summary}}.",
+  "error.diagnostics.result_summary": "<fixed>Corrigé : {{fixed}}</fixed> ; <attention>nécessite une attention : {{attention}}</attention>.",
   "error.errors": "erreur",
   "error.finishReason": "Raison de la fin",
   "error.functionality": "fonction",
