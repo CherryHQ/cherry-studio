@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
 import { BrowserSessionService } from '@main/features/browser'
@@ -20,15 +20,15 @@ import { exportAnnotationDocument } from '../annotationExport'
 interface MockGuest extends EventEmitter {
   id: number
   debugger: EventEmitter & {
-    attach: ReturnType<typeof vi.fn>
-    detach: ReturnType<typeof vi.fn>
-    isAttached: ReturnType<typeof vi.fn>
-    sendCommand: ReturnType<typeof vi.fn>
+    attach: Mock<() => void>
+    detach: Mock<() => void>
+    isAttached: Mock<() => boolean>
+    sendCommand: Mock<(method: string, params?: Record<string, unknown>) => Promise<unknown>>
   }
-  getTitle: ReturnType<typeof vi.fn>
-  getURL: ReturnType<typeof vi.fn>
-  isDestroyed: ReturnType<typeof vi.fn>
-  isDevToolsOpened: ReturnType<typeof vi.fn>
+  getTitle: Mock<() => string>
+  getURL: Mock<() => string>
+  isDestroyed: Mock<() => boolean>
+  isDevToolsOpened: Mock<() => boolean>
 }
 
 const annotation: WebviewAnnotation = {
