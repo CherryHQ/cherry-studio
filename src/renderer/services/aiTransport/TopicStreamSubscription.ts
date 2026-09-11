@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import type { StreamChunkPayload } from '@shared/ai/transport'
+import { capAttachReplayChunks, MAX_ATTACH_REPLAY_CHUNKS, type StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -457,9 +457,16 @@ export class TopicStreamSubscription {
         if (this.#disposed) return
         this.#attached = true
         switch (res.status) {
-          case 'attached':
-            for (const payload of res.bufferedChunks) this.#routeChunk(payload)
+          case 'attached': {
+            const chunks = res.bufferedChunks
+            let replay = chunks
+            if (chunks.length > MAX_ATTACH_REPLAY_CHUNKS) {
+              logger.warn('attach replay capped', { total: chunks.length, topicId: this.#topicId })
+              replay = capAttachReplayChunks(chunks, MAX_ATTACH_REPLAY_CHUNKS)
+            }
+            for (const payload of replay) this.#routeChunk(payload)
             break
+          }
           case 'not-found':
           case 'done':
             this.#terminateBranches(branchesAtAttach, { isAbort: false, isError: false })

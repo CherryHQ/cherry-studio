@@ -1878,6 +1878,118 @@ describe('AiStreamManager', () => {
       ])
     })
 
+    it('drops incoming chunks instead of evicting pinned tool openers when the ring is full', () => {
+      // Evicting a still-open `tool-input-start` leaves later live deltas
+      // without their opener, which terminates the resumed stream in
+      // `readUIMessageStream` — so a full ring of pinned openers drops the
+      // incoming segment and stays bounded instead.
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'search'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc2',
+        toolName: 'search'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-delta',
+        toolCallId: 'tc1',
+        inputTextDelta: '{"q":1}'
+      } as UIMessageChunk)
+
+      const snap = ringMgr.inspect('a')!
+      expect(snap.executions[0].bufferedChunkCount).toBe(2)
+      expect(snap.executions[0].droppedChunks).toBe(1)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['tool-input-start', 'tool-input-start'])
+    })
+
+    it('does not keep a dropped tool opener pinned when the ring is full', () => {
+      // A `tool-input-start` dropped by the all-pinned ring must leave the
+      // pin set: otherwise a later live delta reaches a reconnecting
+      // renderer without its opener and terminates stream parsing.
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'search'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc2',
+        toolName: 'search'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc3',
+        toolName: 'search'
+      } as UIMessageChunk)
+
+      const snap = ringMgr.inspect('a')!
+      expect(snap.executions[0].bufferedChunkCount).toBe(2)
+      expect(snap.executions[0].droppedChunks).toBe(1)
+      expect(snap.executions[0].openToolInputCount).toBe(2)
+    })
+
+    it('releases the tool opener pin on tool-input-error so failed inputs stay evictable', () => {
+      // A failed tool input is terminal: keeping its opener pinned would
+      // permanently consume replay capacity and drop later chunks instead.
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'tc1',
+        toolName: 'search'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-error',
+        toolCallId: 'tc1',
+        toolName: 'search',
+        input: {},
+        errorText: 'invalid input'
+      } as UIMessageChunk)
+      expect(ringMgr.inspect('a')!.executions[0].openToolInputCount).toBe(0)
+
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hi' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' } as UIMessageChunk)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.some(({ chunk }) => 'toolCallId' in chunk && chunk.toolCallId === 'tc1')).toBe(
+        false
+      )
+    })
+
     it('replays a post-eviction buffer that the real readUIMessageStream accepts', async () => {
       // Regression for "replay has gaps due to buffer overflow": when the ring
       // evicts a part's opening chunk, the attach replay must still parse
