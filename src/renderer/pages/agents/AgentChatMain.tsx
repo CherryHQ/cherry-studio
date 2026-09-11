@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react'
 
 import type {
   MessageListActions,
+  MessageListSelectAllPagination,
   MessageStreamingLayers,
   MessageToolApprovalInput
 } from '@renderer/components/chat/messages/types'
@@ -26,6 +27,7 @@ interface AgentChatMainProps {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
+  selectAllPagination?: MessageListSelectAllPagination
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   deleteMessage: (messageId: string) => Promise<void>
@@ -45,6 +47,7 @@ export default function AgentChatMain({
   isLoading,
   hasOlder,
   loadOlder,
+  selectAllPagination,
   onOpenCitationsPanel,
   openDiagnosticReport,
   deleteMessage,
@@ -68,6 +71,7 @@ export default function AgentChatMain({
           isLoading={isLoading}
           hasOlder={hasOlder}
           loadOlder={loadOlder}
+          selectAllPagination={selectAllPagination}
           onOpenCitationsPanel={onOpenCitationsPanel}
           openDiagnosticReport={openDiagnosticReport}
           deleteMessage={agentId ? deleteMessage : undefined}
