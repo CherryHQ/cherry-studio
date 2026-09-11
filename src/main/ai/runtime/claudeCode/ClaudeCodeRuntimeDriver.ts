@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -42,6 +43,7 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
@@ -82,6 +84,8 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+/** Cap on the base64 payload: Claude allows 5 MB per image on Bedrock/Vertex (10 MB on the direct API). */
+const CLAUDE_MAX_INLINE_IMAGE_BASE64_BYTES = 5 * MB
 
 function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
   return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
@@ -1263,6 +1267,10 @@ async function materializeUserContent(
     const preparedDataUrl = part.url ? parseDataUrl(part.url) : null
     let parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : null
     if (!parsed) {
+      if (!fileEntryId && part.url?.startsWith('file://') && (await exceedsClaudeInlineImageCap(part.url))) {
+        fallbackParts.push(originalPart)
+        continue
+      }
       const materialized = await materializeNativeFilePart(part)
       if (!materialized) {
         unavailableParts.push(originalPart)
@@ -1360,6 +1368,16 @@ async function extractAttachmentPaths(
     }
   }
   return { files, unavailable }
+}
+
+// An unstat-able file must still reach materialization so it surfaces as unavailable, not as a path.
+async function exceedsClaudeInlineImageCap(fileUrl: string): Promise<boolean> {
+  try {
+    const { size } = await stat(fileURLToPath(fileUrl))
+    return Math.ceil(size / 3) * 4 > CLAUDE_MAX_INLINE_IMAGE_BASE64_BYTES
+  } catch {
+    return false
+  }
 }
 
 function isImageFilePart(part: FileUIPart): boolean {
