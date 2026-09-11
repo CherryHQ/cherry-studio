@@ -5,7 +5,7 @@ import { formatFileSize } from '@renderer/utils/file'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import FileSpreadsheet from 'lucide-react/dist/esm/icons/file-spreadsheet'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
@@ -151,8 +151,23 @@ export default function SpreadsheetFilePreview({
     })
   }, [selectedCell, activeSheet, filePath, metadata.size, metadata.modifiedAt])
 
+  // Capture arms empty. Unlike the block pickers, the grid holds its selection whether or not capture is on
+  // — a cell clicked to read a value stays selected — so switching capture on must not turn that browsing
+  // selection into a pick the user never made. The commit that enables capture reports nothing; every
+  // selection after it reports as usual, including re-picking the very same range. Arming resets only when
+  // capture is switched off, so a host must hold the callback's identity steady while capture stays on —
+  // the artifact pane passes a state setter.
+  const captureArmedRef = useRef(false)
   useEffect(() => {
-    onSelectionReference?.(selectionReference)
+    if (!onSelectionReference) {
+      captureArmedRef.current = false
+      return
+    }
+    if (!captureArmedRef.current) {
+      captureArmedRef.current = true
+      return
+    }
+    onSelectionReference(selectionReference)
   }, [selectionReference, onSelectionReference])
 
   // Build image object URLs from model.images when ready, then revoke the previous table on replacement/unmount.
