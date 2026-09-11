@@ -1,7 +1,8 @@
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { expect, test } from './fixture'
 import { dismissOnboarding, openLaunchpad, openLaunchpadApp, selectSidebarApp } from './helpers'
 
-test('[APP-01] 打开小程序 @mini-app', async ({ mainWindow: page }) => {
+test(...caseDefinition('APP-01'), async ({ mainWindow: page }) => {
   await dismissOnboarding(page)
 
   await openLaunchpadApp(page, 'MiniApp')
@@ -16,7 +17,7 @@ test('[APP-01] 打开小程序 @mini-app', async ({ mainWindow: page }) => {
   await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible({ timeout: 30_000 })
 })
 
-test('[N-01] 创建和保存笔记 @notes', async ({ app, mainWindow }) => {
+test(...caseDefinition('N-01'), async ({ app, mainWindow }) => {
   let page = mainWindow
   await openLaunchpadApp(page, 'Notes')
 

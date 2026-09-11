@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test'
 
 import { completeCherryInOauth } from '../../../scripts/cherry-regression-test/cherryin-oauth'
-import { sendProtocolUrlToOwnedApp } from '../../../scripts/cherry-regression-test/lifecycle'
-import type { RegressionApp } from './app'
+import { sendProtocolUrlToOwnedApp } from '../../../scripts/cherry-regression-test/debugBridge'
+import type { RegressionApp } from './RegressionApp'
 import { expect } from './fixture'
 import { openSettingsSection } from './models'
 

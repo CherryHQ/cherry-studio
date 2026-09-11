@@ -2,14 +2,16 @@ import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
 
-import type { RegressionApp } from './app'
+import type { RegressionApp } from './RegressionApp'
 import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
 import { openSettingsSection, selectVisibleModel, skipNewProviderModelSetup } from './models'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
 
 export const EMBEDDING_PROVIDER = 'Cherry Regression Embedding'
-export const KNOWLEDGE_NAME = 'Cherry Regression Knowledge 31415'
+export function knowledgeName(app: RegressionApp): string {
+  return app.resourceName('Cherry Regression Knowledge 31415')
+}
 
 export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): Promise<void> {
   const { baseUrl, apiKey, model } = app.config.customEmbeddingProvider
@@ -53,10 +55,11 @@ export async function ensureEmbeddingProvider(app: RegressionApp, page: Page): P
 }
 
 export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promise<void> {
+  const name = knowledgeName(app)
   await selectSidebarApp(page, 'Knowledge Base')
   const navigation = page.locator('[data-ui="knowledge.navigation"]')
-  const existingBase = navigation.getByText(KNOWLEDGE_NAME, { exact: true }).first()
-  const selectedBase = page.locator('[data-ui="knowledge.content"]').getByText(KNOWLEDGE_NAME, { exact: true }).first()
+  const existingBase = navigation.getByText(name, { exact: true }).first()
+  const selectedBase = page.locator('[data-ui="knowledge.content"]').getByText(name, { exact: true }).first()
   const createBase = page.getByRole('button', { name: 'Create Knowledge Base', exact: true })
   await expect(existingBase.or(selectedBase).or(createBase).first()).toBeVisible()
 
@@ -66,7 +69,7 @@ export async function ensureKnowledgeBase(app: RegressionApp, page: Page): Promi
     } else {
       await page.getByRole('button', { name: 'Create Knowledge Base', exact: true }).click()
       const dialog = page.getByRole('dialog', { name: 'New Knowledge Base' })
-      await page.getByRole('textbox', { name: 'Name', exact: true }).fill(KNOWLEDGE_NAME)
+      await page.getByRole('textbox', { name: 'Name', exact: true }).fill(name)
       await page.getByRole('button', { name: 'Embedding Model', exact: true }).click()
       await selectVisibleModel(page, app.config.customEmbeddingProvider.model)
       await page.getByRole('button', { name: 'Create', exact: true }).click()

@@ -1,28 +1,27 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 
-import { REGRESSION_CASES } from './cases'
+import { REGRESSION_CASES, selectCases } from './cases'
 import type { CapabilityResult, CaseStatus, RegressionRun, RunMetadata, RunVerdict } from './types'
 
 export function createRun(metadata: RunMetadata): RegressionRun {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     metadata,
     startedAt: new Date().toISOString(),
     capabilities: {},
+    phases: Object.fromEntries(
+      [...new Set(selectCases(metadata.task).map(({ phase }) => phase))].map((phase) => [
+        phase,
+        { status: 'pending', errors: [] }
+      ])
+    ),
     cases: Object.fromEntries(
       REGRESSION_CASES.map((testCase) => [
         testCase.id,
         {
           id: testCase.id,
-          status:
-            testCase.modes.includes(metadata.mode) && (metadata.task === 'all' || testCase.task === metadata.task)
-              ? 'pending'
-              : 'not_applicable',
-          summary: !testCase.modes.includes(metadata.mode)
-            ? `不适用于 ${metadata.mode} 模式`
-            : metadata.task !== 'all' && testCase.task !== metadata.task
-              ? `未被任务 ${metadata.task} 选中`
-              : ''
+          status: metadata.task === 'all' || testCase.task === metadata.task ? 'pending' : 'not_applicable',
+          summary: metadata.task !== 'all' && testCase.task !== metadata.task ? `未被任务 ${metadata.task} 选中` : ''
         }
       ])
     )
@@ -84,7 +83,15 @@ export function finalizeRun(run: RegressionRun): RegressionRun {
       ]
     })
   )
-  return { ...run, cases, finishedAt: new Date().toISOString() }
+  const phases = Object.fromEntries(
+    Object.entries(run.phases).map(([id, phase]) => [
+      id,
+      ['pending', 'running'].includes(phase.status)
+        ? { ...phase, status: 'blocked' as const, errors: [...phase.errors, '阶段在完成前中断'] }
+        : phase
+    ])
+  )
+  return { ...run, cases, phases, finishedAt: new Date().toISOString() }
 }
 
 export function setCapabilities(run: RegressionRun, capabilities: Record<string, CapabilityResult>): RegressionRun {
@@ -98,17 +105,41 @@ export function updateRunMetadata(run: RegressionRun, metadata: Partial<RunMetad
 export function getRunVerdict(run: RegressionRun): RunVerdict {
   const applicable = Object.values(run.cases).filter(({ status }) => status !== 'not_applicable')
   const prefix = run.metadata.mode === 'tag' ? 'release' : 'development'
-  if (applicable.some(({ status }) => status === 'failed')) return `${prefix}_failed`
-  if (applicable.some(({ status }) => status !== 'passed')) return `${prefix}_blocked`
+  const phases = Object.values(run.phases)
+  if (
+    phases.some(({ status, errors }) => status === 'failed' || (errors.length > 0 && status !== 'blocked')) ||
+    applicable.some(({ status }) => status === 'failed')
+  )
+    return `${prefix}_failed`
+  if (
+    phases.length === 0 ||
+    phases.some(({ status }) => status !== 'passed') ||
+    applicable.length === 0 ||
+    applicable.some(({ status }) => status !== 'passed')
+  )
+    return `${prefix}_blocked`
   return `${prefix}_pass`
 }
 
 export function readRun(filePath: string): RegressionRun {
-  return JSON.parse(readFileSync(filePath, 'utf8')) as RegressionRun
+  const run = JSON.parse(readFileSync(filePath, 'utf8')) as RegressionRun
+  if (run.schemaVersion !== 2) throw new Error('Unsupported regression state version; initialize a new run directory')
+  return run
 }
 
 export function writeRun(filePath: string, run: RegressionRun): void {
   const temporaryPath = `${filePath}.tmp-${process.pid}`
   writeFileSync(temporaryPath, `${JSON.stringify(run, null, 2)}\n`, { mode: 0o600 })
   renameSync(temporaryPath, filePath)
+}
+
+export function updatePhase(
+  run: RegressionRun,
+  phaseId: string,
+  status: RegressionRun['phases'][string]['status'],
+  errors: string[] = []
+): RegressionRun {
+  const phase = run.phases[phaseId]
+  if (!phase) throw new Error(`Unknown or unselected regression phase: ${phaseId}`)
+  return { ...run, phases: { ...run.phases, [phaseId]: { status, errors: [...phase.errors, ...errors] } } }
 }

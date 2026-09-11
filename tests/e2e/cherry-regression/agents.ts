@@ -1,8 +1,9 @@
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
 
-import type { RegressionApp } from './app'
+import type { RegressionApp } from './RegressionApp'
 import { expect } from './fixture'
 import { selectSidebarApp } from './helpers'
 import { selectVisibleModel } from './models'
@@ -64,17 +65,17 @@ export async function createAgent(
 }
 
 export async function selectAgentWorkspace(app: RegressionApp, page: Page): Promise<void> {
-  const current = page.getByRole('button', { name: /No work directory|agent-workspace/, exact: true })
-  if ((await current.textContent())?.includes('agent-workspace')) return
+  const current = page.getByRole('button', { name: new RegExp(`No work directory|${app.workspaceName}`), exact: true })
+  if ((await current.textContent())?.includes(app.workspaceName)) return
   await current.click()
-  const existing = page.getByText('agent-workspace', { exact: true })
+  const existing = page.getByText(app.workspaceName, { exact: true })
   if (await existing.isVisible().catch(() => false)) {
     await existing.click()
   } else {
     await page.getByText('Add new work directory', { exact: true }).click()
     chooseNativeFile(app.record.platform, app.paths, app.paths.workspace)
   }
-  await expect(page.getByRole('button', { name: 'agent-workspace', exact: true })).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByRole('button', { name: app.workspaceName, exact: true })).toBeVisible({ timeout: 30_000 })
 }
 
 export async function runAgentFileTask(
@@ -85,6 +86,7 @@ export async function runAgentFileTask(
   timeout = 5 * 60_000
 ): Promise<void> {
   const output = join(app.paths.workspace, fileName)
+  rmSync(output, { force: true })
   const promptPath = output.replaceAll('\\', '/')
   const prompt = `Create the file at the exact absolute path ${JSON.stringify(promptPath)} with the exact text AGENT_FILE_TASK_PASS.`
   const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
@@ -95,7 +97,7 @@ export async function runAgentFileTask(
     await composer.fill(`${retryPrefix}${prompt}`)
     await page.getByRole('button', { name: 'Send', exact: true }).click()
 
-    let outcome: 'completed' | 'created' | 'running' = 'running'
+    let created = false
     await expect
       .poll(
         async () => {
@@ -106,22 +108,23 @@ export async function runAgentFileTask(
           try {
             const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
             await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
-            outcome = 'created'
+            created = true
+            return true
           } catch {
-            outcome = (await messages
+            return await messages
               .last()
               .getByTestId('completed-process-trigger')
               .isVisible()
-              .catch(() => false))
-              ? 'completed'
-              : 'running'
+              .catch(() => false)
           }
-          return outcome
         },
         { timeout }
       )
-      .not.toBe('running')
-    if (outcome === 'created') return
+      .toBe(true)
+    if (created) {
+      await expect(messages.last().getByTestId('completed-process-trigger')).toBeVisible({ timeout })
+      return
+    }
   }
 
   const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')

@@ -4,15 +4,18 @@ import { join, resolve } from 'node:path'
 
 import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts'
 import { probeCapabilities } from './capabilities'
+import { PHASE_IDS, TASK_SELECTIONS } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
 import { createFixtures } from './fixtures'
-import { installReleaseArtifact, launchApp, stopOwnedApp } from './lifecycle'
+import { installReleaseArtifact } from './installation'
+import { launchApp, stopOwnedApp } from './lifecycle'
 import { ensureRunDirectories, getRunPaths } from './paths'
+import { runPhase } from './phases'
 import { createRedactor } from './redaction'
 import { parseRemoteRefs, resolveTrustedRef } from './ref'
 import { aggregateRuns, renderAggregateMarkdown, writeReports } from './report'
 import { createRun, finalizeRun, getRunVerdict, readRun, setCapabilities, updateRunMetadata, writeRun } from './state'
-import { PLATFORMS, type RegressionRun, RUN_MODES, TASK_SELECTIONS } from './types'
+import { PLATFORMS, RUN_MODES } from './types'
 
 function argument(name: string, required = true): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
@@ -196,7 +199,7 @@ async function aggregateCommand(): Promise<void> {
   const modeValue = argument('mode', false)
   const expectedMode = modeValue ? oneOf(modeValue, RUN_MODES, 'mode') : undefined
   const resultFiles = findFiles(input, 'results.json')
-  const runs = resultFiles.map((filePath) => JSON.parse(readFileSync(filePath, 'utf8')) as RegressionRun)
+  const runs = resultFiles.map(readRun)
   const report = aggregateRuns(runs, expectedMode)
   mkdirSync(output, { recursive: true })
   const markdown = renderAggregateMarkdown(report)
@@ -239,6 +242,9 @@ async function main(): Promise<void> {
       break
     case 'launch':
       await launchCommand()
+      break
+    case 'run-phase':
+      await runPhase(runDirectory(), oneOf(argument('phase') ?? '', PHASE_IDS, 'phase'))
       break
     case 'finalize':
       await finalizeCommand()

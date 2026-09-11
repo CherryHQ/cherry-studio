@@ -2,6 +2,12 @@
 
 本目录包含 Cherry Studio 的端到端 (E2E) 测试，使用 Playwright 测试 Electron 应用。
 
+## Critical-path regression
+
+跨平台开发分支和安装包验收使用独立的 [regression workflow](cherry-regression/README.md)，
+通过 CDP 复用控制器持有的应用进程。`pnpm test:e2e` 仍运行下述原有 smoke suite；
+`pnpm test:e2e:regression` 运行新的回归场景。
+
 ## 目录结构
 
 ```

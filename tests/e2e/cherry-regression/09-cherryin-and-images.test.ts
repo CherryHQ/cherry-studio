@@ -1,3 +1,4 @@
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { join } from 'node:path'
 
 import { expect, test } from './fixture'
@@ -9,7 +10,7 @@ import { saveNativeFile } from '../../../scripts/cherry-regression-test/system-a
 
 const IMAGE_PROMPT = 'A red cherry robot holding a blue umbrella in a bright workshop, detailed illustration.'
 
-test('[M-01] 登录 CherryIN 并完成聊天 @cherryin-chat', async ({ app, mainWindow: _mainWindow }) => {
+test(...caseDefinition('M-01'), async ({ app, mainWindow: _mainWindow }) => {
   let page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await ensureCherryInSignedIn(app, page)
@@ -74,7 +75,7 @@ async function generateAndSaveImage(
   await expect(page.getByTestId('artboard-image-transform').last()).toBeVisible()
 }
 
-test('[P-01] 使用图像模型生成图片 @image-generation', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('P-01'), async ({ app, mainWindow: page }) => {
   await ensureCherryInSignedIn(app, page)
   await addCherryInModel(page, app.config.cherryIn.imageModel, 'Image')
   await generateAndSaveImage(app, page, app.config.cherryIn.imageModel, 'image.png')

@@ -1,3 +1,4 @@
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { join } from 'node:path'
 
 import { expect, test } from './fixture'
@@ -21,7 +22,7 @@ async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[
   }
 }
 
-test('[T-01] 文本翻译 @translation', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('T-01'), async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   await selectTranslationModel(page, app.config.customProvider.chatModel)
@@ -36,7 +37,7 @@ test('[T-01] 文本翻译 @translation', async ({ app, mainWindow: page }) => {
   await expect(page.getByText('CherryStudio Neptune 27182 TRANSLATION_MARKER', { exact: true }).last()).toBeVisible()
 })
 
-test('[T-02] PDF 文件翻译 @translation', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('T-02'), async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   await selectTranslationModel(page, app.config.customProvider.chatModel)

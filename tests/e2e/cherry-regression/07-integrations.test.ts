@@ -1,8 +1,9 @@
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { join } from 'node:path'
 
 import { expect, test } from './fixture'
 import { startNewAgentTask } from './agents'
-import { CUSTOM_ASSISTANT, ensureCustomAssistant } from './assistants'
+import { customAssistantName, ensureCustomAssistant } from './assistants'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection, selectVisibleModel } from './models'
 import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
@@ -26,7 +27,7 @@ async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Pr
     .toBe(true)
 }
 
-test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('MCP-01'), async ({ app, mainWindow: page }) => {
   await openSettingsSection(page, 'MCP')
   if (
     !(await page
@@ -54,7 +55,7 @@ test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, ma
   await closeSettings(page)
 
   await ensureCustomAssistant(app, page)
-  await page.getByRole('button', { name: `Edit Assistant: ${CUSTOM_ASSISTANT}`, exact: true }).click()
+  await page.getByRole('button', { name: `Edit Assistant: ${customAssistantName(app)}`, exact: true }).click()
   await page.getByRole('tab', { name: 'MCP', exact: true }).click()
   await page.getByRole('radio', { name: 'Manual', exact: true }).click()
   const server = page.getByRole('switch', { name: 'everything', exact: true })
@@ -82,7 +83,7 @@ test('[MCP-01] 创建并使用 Everything MCP @everything-mcp', async ({ app, ma
   await expect(page.getByText('Connected', { exact: true })).toBeVisible({ timeout: 2 * 60_000 })
 })
 
-test('[A-02] 从文件夹导入 Skill 并验证生效 @skill-import', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('A-02'), async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await openSettingsSection(page, 'Skills')
   if (

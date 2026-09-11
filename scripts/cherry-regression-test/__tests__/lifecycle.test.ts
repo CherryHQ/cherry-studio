@@ -5,6 +5,8 @@ import { join } from 'node:path'
 
 import { afterEach, vi } from 'vitest'
 
+import { sendProtocolUrlToOwnedApp } from '../debugBridge'
+
 const { evaluateCdpExpressionMock, execFileSyncMock } = vi.hoisted(() => ({
   evaluateCdpExpressionMock: vi.fn(),
   execFileSyncMock: vi.fn()
@@ -16,14 +18,7 @@ vi.mock('node:child_process', async (importOriginal) => ({
 }))
 vi.mock('../cdp-client', () => ({ evaluateCdpExpression: evaluateCdpExpressionMock }))
 
-import {
-  type AppRecord,
-  ensureProfile,
-  prepareWindowsCdpConnection,
-  sendIpcEventToOwnedWindow,
-  sendProtocolUrlToOwnedApp,
-  stopOwnedApp
-} from '../lifecycle'
+import { type AppRecord, ensureProfile, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 afterEach(() => {
@@ -265,108 +260,6 @@ describe('owned application lifecycle', () => {
       expect.stringContaining("electron.app.emit('open-url'")
     )
     expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain(callback)
-  })
-
-  it('sends an IpcApi event to an owned window through the main-process inspector', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-lifecycle-'))
-    const paths = getRunPaths(directory)
-    ensureRunDirectories(paths)
-    const electronPid = 42_001
-    const targetRoot = 'D:\\target-app'
-    const record: AppRecord = {
-      schemaVersion: 1,
-      ownership: 'regression-driver',
-      policy: 'ephemeral',
-      mode: 'branch',
-      platform: 'windows',
-      profile: 'authenticated',
-      runKey: 'test-run',
-      targetRoot,
-      command: 'pnpm.cmd',
-      args: ['debug'],
-      cwd: targetRoot,
-      runnerPid: 42_000,
-      electronPid,
-      cdpPort: 9222,
-      targetUrl: 'http://127.0.0.1:9222',
-      logPath: join(paths.logs, 'electron.log'),
-      startedAt: '2026-08-22T00:00:00.000Z',
-      restartCount: 0
-    }
-    writeFileSync(paths.appRecord, JSON.stringify(record))
-    vi.spyOn(process, 'kill').mockReturnValue(true)
-    mockMainInspector()
-    execFileSyncMock.mockImplementation((file: string, args: string[]) => {
-      const script = String(args.at(-1))
-      if (script.includes('Get-NetTCPConnection')) return String(electronPid)
-      if (script.includes('CommandLine')) return targetRoot
-      throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
-    })
-
-    try {
-      await sendIpcEventToOwnedWindow(paths, '/windows/selection/toolbar/', 'selection.text_selected', {
-        text: 'SELECTION_ASSISTANT_PASS'
-      })
-      expect(evaluateCdpExpressionMock).toHaveBeenCalledWith(
-        'ws://127.0.0.1:9229/main-process',
-        expect.stringContaining('target.webContents.send(\'ipc-api:event\', "selection.text_selected"')
-      )
-    } finally {
-      rmSync(directory, { force: true, recursive: true })
-    }
-  })
-
-  it('disposes non-main windows before a Windows CDP connection', async () => {
-    const electronPid = 42_001
-    const targetRoot = 'D:\\target-app'
-    const record: AppRecord = {
-      schemaVersion: 1,
-      ownership: 'regression-driver',
-      policy: 'ephemeral',
-      mode: 'branch',
-      platform: 'windows',
-      profile: 'authenticated',
-      runKey: 'test-run',
-      targetRoot,
-      command: 'pnpm.cmd',
-      args: ['debug'],
-      cwd: targetRoot,
-      runnerPid: 42_000,
-      electronPid,
-      cdpPort: 9222,
-      targetUrl: 'http://127.0.0.1:9222',
-      logPath: 'D:\\run\\electron.log',
-      startedAt: '2026-08-22T00:00:00.000Z',
-      restartCount: 0
-    }
-    vi.spyOn(process, 'kill').mockReturnValue(true)
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(async (url: string) => ({
-        json: async () =>
-          url.includes(':9229')
-            ? [{ type: 'node', webSocketDebuggerUrl: 'ws://127.0.0.1:9229/main-process' }]
-            : [{ title: 'Cherry Studio', type: 'page', url: 'http://localhost/windows/main/index.html' }],
-        ok: true,
-        status: 200
-      }))
-    )
-    evaluateCdpExpressionMock.mockResolvedValue(2)
-    execFileSyncMock.mockImplementation((file: string, args: string[]) => {
-      const script = String(args.at(-1))
-      if (script.includes('Get-NetTCPConnection')) return String(electronPid)
-      if (script.includes('CommandLine')) return `${targetRoot}\\node_modules\\electron\\electron.exe ${targetRoot}`
-      throw new Error(`Unexpected command: ${file} ${args.join(' ')}`)
-    })
-
-    await prepareWindowsCdpConnection(record)
-
-    expect(evaluateCdpExpressionMock).toHaveBeenCalledWith(
-      'ws://127.0.0.1:9229/main-process',
-      expect.stringContaining('/windows/main/index.html')
-    )
-    expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain('pathname !== mainWindowPath')
-    expect(evaluateCdpExpressionMock.mock.calls[0][1]).toContain('window.destroy()')
   })
 
   it('delivers a protocol URL through the owned macOS main-process inspector', async () => {

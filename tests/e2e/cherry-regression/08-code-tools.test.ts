@@ -1,6 +1,7 @@
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import type { Locator, Page } from '@playwright/test'
 
-import type { RegressionApp } from './app'
+import type { RegressionApp } from './RegressionApp'
 import { expect, test } from './fixture'
 import { openLaunchpadApp } from './helpers'
 import { closeSettings, CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from './models'
@@ -55,7 +56,7 @@ async function launchWithWorkspace(app: RegressionApp, page: Page): Promise<void
   }
 }
 
-test('[CODE-01] 启动 Claude Code @code-cli', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('CODE-01'), async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   const baseline = new Set(listOwnedProcessIds(app.record))
@@ -67,7 +68,7 @@ test('[CODE-01] 启动 Claude Code @code-cli', async ({ app, mainWindow: page })
     .toBe(true)
 })
 
-test('[CODE-02] 启动 Codex @code-cli', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('CODE-02'), async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   const baseline = new Set(listOwnedProcessIds(app.record))
@@ -79,7 +80,7 @@ test('[CODE-02] 启动 Codex @code-cli', async ({ app, mainWindow: page }) => {
     .toBe(true)
 })
 
-test('[CODE-03] 启动 OpenClaw @openclaw', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('CODE-03'), async ({ app, mainWindow: page }) => {
   await ensureCustomChatProvider(app, page)
   await closeSettings(page)
   const baseline = new Set(listOwnedProcessIds(app.record))

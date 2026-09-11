@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { REGRESSION_CASES } from './cases'
+import { REGRESSION_CASES, type TaskSelection } from './cases'
 import { getRunVerdict } from './state'
 import {
   type AggregateReport,
@@ -10,8 +10,7 @@ import {
   PLATFORMS,
   type RegressionRun,
   type RunMode,
-  type RunVerdict,
-  type TaskSelection
+  type RunVerdict
 } from './types'
 
 const STATUS_LABELS: Record<CaseStatus, string> = {
@@ -146,6 +145,14 @@ export function renderMarkdown(run: RegressionRun): string {
     '| ---: | ---: | ---: | ---: | ---: |',
     `| ${testCases.length} | ${statusCount(run, 'passed')} | ${statusCount(run, 'failed')} | ${statusCount(run, 'blocked')} | ${statusCount(run, 'pending') + statusCount(run, 'running')} |`,
     '',
+    '## 阶段执行',
+    '',
+    '| 阶段 | 状态 | 执行器错误 |',
+    '| --- | --- | --- |',
+    ...Object.entries(run.phases).map(
+      ([id, phase]) => `| ${id} | ${STATUS_LABELS[phase.status]} | ${escapeMarkdown(phase.errors.join('；'))} |`
+    ),
+    '',
     '## 测试项明细',
     '',
     '| 编号 | 测试项 | 结果 | 结果说明 | 自动化产物 |',
@@ -172,10 +179,19 @@ export function renderMarkdown(run: RegressionRun): string {
 
 export function renderJUnit(run: RegressionRun): string {
   const results = REGRESSION_CASES.map((testCase) => ({ testCase, result: run.cases[testCase.id] }))
-  const failures = results.filter(({ result }) => result.status === 'failed').length
-  const skipped = results.filter(({ result }) =>
-    ['blocked', 'not_applicable', 'pending', 'running'].includes(result.status)
-  ).length
+  const phaseIssues = Object.entries(run.phases)
+    .filter(([, phase]) => phase.status !== 'passed' || phase.errors.length > 0)
+    .map(([id, phase]) => ({
+      id,
+      message: phase.errors.join('; ') || '阶段未成功完成',
+      failed: phase.status === 'failed' || (phase.errors.length > 0 && phase.status !== 'blocked')
+    }))
+  const failedPhases = phaseIssues.filter(({ failed }) => failed).length
+  const failures = failedPhases + results.filter(({ result }) => result.status === 'failed').length
+  const skipped =
+    phaseIssues.length -
+    failedPhases +
+    results.filter(({ result }) => ['blocked', 'not_applicable', 'pending', 'running'].includes(result.status)).length
   const cases = results.map(({ testCase, result }) => {
     const name = `${testCase.id} ${testCase.title}`
     if (result.status === 'failed') {
@@ -189,9 +205,13 @@ export function renderJUnit(run: RegressionRun): string {
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    `<testsuites tests="${results.length}" failures="${failures}" skipped="${skipped}">`,
-    `  <testsuite name="cherry-regression-${run.metadata.platform}" tests="${results.length}" failures="${failures}" skipped="${skipped}">`,
+    `<testsuites tests="${results.length + phaseIssues.length}" failures="${failures}" skipped="${skipped}">`,
+    `  <testsuite name="cherry-regression-${run.metadata.platform}" tests="${results.length + phaseIssues.length}" failures="${failures}" skipped="${skipped}">`,
     ...cases,
+    ...phaseIssues.map(
+      ({ id, failed, message }) =>
+        `    <testcase classname="cherry-regression.executor" name="${escapeXml(id)}"><${failed ? 'failure' : 'skipped'} message="${escapeXml(message)}" /></testcase>`
+    ),
     '  </testsuite>',
     '</testsuites>',
     ''

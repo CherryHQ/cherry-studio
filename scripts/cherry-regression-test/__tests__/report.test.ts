@@ -53,7 +53,7 @@ describe('regression report gate', () => {
     expect(markdown).not.toContain('## Results')
     expect(markdown).not.toContain('Failures and Blockers')
     expect(renderJUnit(run)).toContain('<skipped message="任务在生成最终报告前未完成"')
-    expect(renderJUnit(run)).toContain('tests="22"')
+    expect(renderJUnit(run)).toContain('classname="cherry-regression.executor" name="01-startup"><skipped')
   })
 
   it('keeps a missing branch matrix in the development verdict namespace', () => {

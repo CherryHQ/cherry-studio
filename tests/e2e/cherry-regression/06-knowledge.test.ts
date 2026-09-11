@@ -1,10 +1,11 @@
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { expect, test } from './fixture'
-import { CUSTOM_ASSISTANT, ensureCustomAssistant } from './assistants'
+import { customAssistantName, ensureCustomAssistant } from './assistants'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
-import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, KNOWLEDGE_NAME } from './knowledge'
+import { EMBEDDING_PROVIDER, ensureEmbeddingProvider, ensureKnowledgeBase, knowledgeName } from './knowledge'
 import { closeSettings } from './models'
 
-test('[K-01] 配置嵌入服务商并创建知识库 @knowledge-import', async ({ app, mainWindow }) => {
+test(...caseDefinition('K-01'), async ({ app, mainWindow }) => {
   let page = mainWindow
   await ensureEmbeddingProvider(app, page)
   await expect(page.getByRole('heading', { name: EMBEDDING_PROVIDER, exact: true, level: 1 })).toBeVisible()
@@ -24,29 +25,29 @@ test('[K-01] 配置嵌入服务商并创建知识库 @knowledge-import', async (
   await dismissOnboarding(page)
   await selectSidebarApp(page, 'Knowledge Base')
   await expect(
-    page.locator('[data-ui="knowledge.navigation"]').getByText(KNOWLEDGE_NAME, { exact: true })
+    page.locator('[data-ui="knowledge.navigation"]').getByText(knowledgeName(app), { exact: true })
   ).toBeVisible()
 })
 
-test('[K-02] 基于知识库问答并验证引用 @knowledge-qa', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('K-02'), async ({ app, mainWindow: page }) => {
   await ensureEmbeddingProvider(app, page)
   await closeSettings(page)
   await ensureKnowledgeBase(app, page)
 
   await ensureCustomAssistant(app, page)
-  await page.getByRole('button', { name: `Edit Assistant: ${CUSTOM_ASSISTANT}`, exact: true }).click()
+  await page.getByRole('button', { name: `Edit Assistant: ${customAssistantName(app)}`, exact: true }).click()
   await page.getByRole('tab', { name: 'Knowledge', exact: true }).click()
   if (
     !(await page
-      .getByText(KNOWLEDGE_NAME, { exact: true })
+      .getByText(knowledgeName(app), { exact: true })
       .isVisible()
       .catch(() => false))
   ) {
     await page.getByRole('button', { name: 'Add knowledge base', exact: true }).click()
-    await page.getByText(KNOWLEDGE_NAME, { exact: true }).click()
+    await page.getByText(knowledgeName(app), { exact: true }).click()
   }
   const assistantDialog = page.getByRole('dialog').last()
-  await expect(assistantDialog.getByText(KNOWLEDGE_NAME, { exact: true })).toBeVisible()
+  await expect(assistantDialog.getByText(knowledgeName(app), { exact: true })).toBeVisible()
   await assistantDialog.getByRole('button', { name: 'Close', exact: true }).click()
 
   const sendQuestion = async () => {
@@ -55,7 +56,7 @@ test('[K-02] 基于知识库问答并验证引用 @knowledge-qa', async ({ app, 
     await page.getByRole('button', { name: 'Input Quick Panel', exact: true }).click()
     const quickPanel = page.getByTestId('quick-panel')
     await quickPanel.getByText('Knowledge Base', { exact: true }).click()
-    await quickPanel.getByText(KNOWLEDGE_NAME, { exact: true }).click()
+    await quickPanel.getByText(knowledgeName(app), { exact: true }).click()
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Send', exact: true }).click()
   }

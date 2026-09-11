@@ -1,10 +1,12 @@
+import { copyFileSync, mkdirSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import type { Browser, Page } from '@playwright/test'
 import { chromium } from '@playwright/test'
 
+import { prepareWindowsCdpConnection } from '../../../scripts/cherry-regression-test/debugBridge'
 import { loadTestConfig, type RegressionTestConfig } from '../../../scripts/cherry-regression-test/config'
 import {
   ensureProfile,
-  prepareWindowsCdpConnection,
   readAppRecord,
   restartApp,
   type AppRecord
@@ -18,8 +20,22 @@ export class RegressionApp {
   readonly paths: RunPaths
   private browser?: Browser
 
-  constructor(runDirectory: string) {
-    this.paths = getRunPaths(runDirectory)
+  constructor(
+    runDirectory: string,
+    readonly caseId: string
+  ) {
+    const paths = getRunPaths(runDirectory)
+    this.paths = { ...paths, workspace: join(paths.workspace, `agent-workspace-${caseId}`) }
+    mkdirSync(this.paths.workspace, { recursive: true })
+    copyFileSync(join(paths.workspace, 'TASK.md'), join(this.paths.workspace, 'TASK.md'))
+  }
+
+  get workspaceName(): string {
+    return basename(this.paths.workspace)
+  }
+
+  resourceName(name: string): string {
+    return `${name} ${this.caseId}`
   }
 
   get config(): RegressionTestConfig {
@@ -38,7 +54,6 @@ export class RegressionApp {
   private async connect(): Promise<Browser> {
     if (this.browser?.isConnected()) return this.browser
     const record = this.record
-    await prepareWindowsCdpConnection(record)
     const { cdpPort } = record
     this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, {
       isLocal: true,
@@ -64,21 +79,7 @@ export class RegressionApp {
         })
       if (page) {
         await page.locator('#root').waitFor({ state: 'visible', timeout: 60_000 })
-        if (this.record.profile === 'authenticated') {
-          const status = await page.evaluate(() => window.api.preference.get('app.onboarding.provider_setup.status'))
-          if (status === 'pending') {
-            await page.evaluate(async () => {
-              await window.api.preference.setMultiple({
-                'app.onboarding.provider_setup.status': 'skipped',
-                'app.privacy.data_collection.enabled': false
-              })
-            })
-          }
-          await page
-            .locator('[data-ui="app.shell"]')
-            .first()
-            .waitFor({ state: 'visible', timeout: 2 * 60_000 })
-        }
+
         return page
       }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 500))
@@ -112,13 +113,15 @@ export class RegressionApp {
 
   async restart(profile?: TestProfile): Promise<Page> {
     await this.disconnect()
-    await restartApp(this.paths, profile)
+    const record = await restartApp(this.paths, profile)
+    await prepareWindowsCdpConnection(record)
     return this.mainWindow()
   }
 
   async useProfile(profile: TestProfile): Promise<Page> {
     await this.disconnect()
-    await ensureProfile(this.paths, profile)
+    const record = await ensureProfile(this.paths, profile)
+    await prepareWindowsCdpConnection(record)
     return this.mainWindow()
   }
 }

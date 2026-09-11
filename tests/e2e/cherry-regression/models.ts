@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 
-import type { RegressionApp } from './app'
+import type { RegressionApp } from './RegressionApp'
 import { expect } from './fixture'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 
@@ -124,8 +124,32 @@ export async function selectChatModel(page: Page, model: string): Promise<void> 
 }
 
 export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<void> {
-  const composer = page.locator('[data-ui="chat.composer"] [contenteditable="true"]').first()
+  const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
+  const previousIds = await messages.evaluateAll((elements) =>
+    elements.map((element) => element.getAttribute('data-message-id'))
+  )
+  const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
   await composer.fill(prompt)
   await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(page.getByText(marker, { exact }).last()).toBeVisible({ timeout: 2 * 60_000 })
+  const excludePrevious = previousIds.map((id) => `:not([data-message-id="${id}"])`).join('')
+  const response = page
+    .locator(`[data-ui~="chat.message"][data-message-id]${excludePrevious}:visible`)
+    .filter({ has: page.locator('.message-assistant') })
+    .last()
+  await expect(response.getByText(marker, { exact })).toBeVisible({ timeout: 2 * 60_000 })
+  const id = await response.getAttribute('data-message-id')
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async (id) => {
+          const response = await window.api.dataApi.request({
+            id: `regression-message-${Date.now()}`,
+            method: 'GET',
+            path: `/messages/${id}`
+          })
+          return (response.data as { status?: string } | undefined)?.status
+        }, id),
+      { timeout: 2 * 60_000 }
+    )
+    .toBe('success')
 }

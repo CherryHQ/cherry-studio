@@ -1,5 +1,6 @@
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { expect, test } from './fixture'
-import { CUSTOM_ASSISTANT, ensureCustomAssistant } from './assistants'
+import { customAssistantName, ensureCustomAssistant } from './assistants'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
 import {
   closeSettings,
@@ -9,7 +10,7 @@ import {
   sendChatMarker
 } from './models'
 
-test('[M-02] 配置自定义聊天服务商并完成聊天 @custom-provider-chat', async ({ app, mainWindow }) => {
+test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
   let page = mainWindow
   await ensureCustomChatProvider(app, page)
   await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
@@ -29,7 +30,7 @@ test('[M-02] 配置自定义聊天服务商并完成聊天 @custom-provider-chat
   await expect(page.getByText(CUSTOM_CHAT_PROVIDER, { exact: true }).first()).toBeVisible()
 })
 
-test('[C-01] 创建自定义助手并聊天 @custom-assistant', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('C-01'), async ({ app, mainWindow: page }) => {
   await ensureCustomAssistant(app, page)
   await sendChatMarker(page, 'In one sentence, what is two plus two?', 'ASSISTANT_PROMPT_PASS', false)
 
@@ -38,6 +39,6 @@ test('[C-01] 创建自定义助手并聊天 @custom-assistant', async ({ app, ma
   await selectSidebarApp(restarted, 'Chat')
   const assistantList = restarted.locator('[data-ui="chat.view"]:visible').getByRole('listbox').first()
   await expect(assistantList).toBeVisible()
-  await assistantList.getByText(CUSTOM_ASSISTANT, { exact: true }).first().click({ noWaitAfter: true })
+  await assistantList.getByText(customAssistantName(app), { exact: true }).first().click({ noWaitAfter: true })
   await expect(restarted.getByText('ASSISTANT_PROMPT_PASS').last()).toBeVisible()
 })

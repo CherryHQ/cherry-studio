@@ -1,44 +1,12 @@
+import type { TaskSelection } from './cases'
+
 export const PLATFORMS = ['macos', 'windows'] as const
 export const RUN_MODES = ['branch', 'tag'] as const
 export const CASE_STATUSES = ['pending', 'running', 'passed', 'failed', 'blocked', 'not_applicable'] as const
-export const TASK_IDS = [
-  'startup-smoke',
-  'mini-app',
-  'notes',
-  'custom-provider-chat',
-  'custom-assistant',
-  'translation',
-  'quick-assistant',
-  'selection-assistant',
-  'knowledge-import',
-  'knowledge-qa',
-  'everything-mcp',
-  'skill-import',
-  'code-cli',
-  'openclaw',
-  'cherryin-chat',
-  'image-generation',
-  'claude-agent-runtime',
-  'pi-runtime',
-  'deepseek-harness-runtime',
-  'agent-basic-task'
-] as const
-export const TASK_SELECTIONS = ['all', ...TASK_IDS] as const
-
 export type Platform = (typeof PLATFORMS)[number]
 export type RunMode = (typeof RUN_MODES)[number]
 export type CaseStatus = (typeof CASE_STATUSES)[number]
-export type TaskId = (typeof TASK_IDS)[number]
-export type TaskSelection = (typeof TASK_SELECTIONS)[number]
 export type TestProfile = 'authenticated' | 'clean'
-
-export interface RegressionCase {
-  id: string
-  title: string
-  task: TaskId
-  profile: TestProfile
-  modes: RunMode[]
-}
 
 export interface CaseResult {
   id: string
@@ -67,12 +35,13 @@ export interface CapabilityResult {
 }
 
 export interface RegressionRun {
-  schemaVersion: 1
+  schemaVersion: 2
   metadata: RunMetadata
   startedAt: string
   finishedAt?: string
   capabilities: Record<string, CapabilityResult>
   cases: Record<string, CaseResult>
+  phases: Record<string, PhaseResult>
 }
 
 export type RunVerdict =
@@ -87,4 +56,9 @@ export interface AggregateReport {
   verdict: RunVerdict
   runs: RegressionRun[]
   missingPlatforms: Platform[]
+}
+
+export interface PhaseResult {
+  status: 'pending' | 'running' | 'passed' | 'failed' | 'blocked'
+  errors: string[]
 }

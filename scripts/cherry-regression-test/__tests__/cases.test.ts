@@ -1,118 +1,70 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
-import { REGRESSION_CASES } from '../cases'
-import { TASK_IDS, TASK_SELECTIONS } from '../types'
+import type { JSONReport, JSONReportSuite } from '@playwright/test/reporter'
+import { parse } from 'yaml'
 
-const CASE_IDS = [
-  'S-01',
-  'APP-01',
-  'N-01',
-  'M-02',
-  'C-01',
-  'T-01',
-  'T-02',
-  'C-02',
-  'C-03',
-  'K-01',
-  'K-02',
-  'MCP-01',
-  'A-02',
-  'CODE-01',
-  'CODE-02',
-  'CODE-03',
-  'M-01',
-  'P-01',
-  'A-03',
-  'A-04',
-  'A-05',
-  'A-01'
-]
+import { getCase, missingCapabilities, PHASE_IDS, REGRESSION_CASES, selectCases } from '../cases'
 
-const TEST_FILES = [
-  '01-startup.test.ts',
-  '02-basic-features.test.ts',
-  '03-models-and-assistants.test.ts',
-  '04-translation.test.ts',
-  '05-desktop-assistants.test.ts',
-  '06-knowledge.test.ts',
-  '07-integrations.test.ts',
-  '08-code-tools.test.ts',
-  '09-cherryin-and-images.test.ts',
-  '10-agent-runtimes.test.ts'
-]
-
-describe('regression test manifest', () => {
-  it('orders every required path from quick feedback to complex tasks', () => {
-    expect(REGRESSION_CASES.map(({ id }) => id)).toEqual(CASE_IDS)
+describe('regression execution plan', () => {
+  it('selects only the requested task within its workflow phase', () => {
+    expect(selectCases('code-cli', '08-code-tools').map(({ id }) => id)).toEqual(['CODE-01', 'CODE-02'])
+    expect(selectCases('notes', '03-models-and-assistants')).toEqual([])
+    expect(selectCases('notes', '02-basic-features').map(({ id }) => id)).toEqual(['N-01'])
+    expect(() => getCase('missing')).toThrow('Unknown regression case')
   })
 
-  it('keeps the agreed twenty independently selectable tasks', () => {
-    expect(TASK_IDS).toHaveLength(20)
-    expect(
-      TASK_IDS.map((task) => REGRESSION_CASES.filter((testCase) => testCase.task === task).map(({ id }) => id))
-    ).toEqual([
-      ['S-01'],
-      ['APP-01'],
-      ['N-01'],
-      ['M-02'],
-      ['C-01'],
-      ['T-01', 'T-02'],
-      ['C-02'],
-      ['C-03'],
-      ['K-01'],
-      ['K-02'],
-      ['MCP-01'],
-      ['A-02'],
-      ['CODE-01', 'CODE-02'],
-      ['CODE-03'],
-      ['M-01'],
-      ['P-01'],
-      ['A-03'],
-      ['A-04'],
-      ['A-05'],
-      ['A-01']
-    ])
+  it('keeps each manifest phase executable by the workflow', () => {
+    const workflow = parse(readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8'))
+    const phases = workflow.jobs.test.steps
+      .filter((step: { run?: string }) => step.run?.includes('cli.ts run-phase'))
+      .map((step: { run: string }) => /--phase ([\w-]+)/.exec(step.run)?.[1])
+    expect(phases).toEqual(PHASE_IDS)
+    for (const phase of phases) {
+      expect(existsSync(resolve(`tests/e2e/cherry-regression/${phase}.test.ts`))).toBe(true)
+    }
   })
 
-  it('uses one shared authenticated profile for every case', () => {
-    expect(REGRESSION_CASES.every(({ modes, profile }) => profile === 'authenticated' && modes.length === 2)).toBe(true)
+  it('blocks native interactions when desktop automation is missing without blocking pure UI tasks', () => {
+    expect(missingCapabilities('C-03', { desktopAutomation: { available: false } })).toEqual(['desktopAutomation'])
+    expect(missingCapabilities('C-03', {})).toEqual(['desktopAutomation'])
+    expect(missingCapabilities('C-03', { desktopAutomation: { available: true } })).toEqual([])
+    expect(missingCapabilities('N-01', {})).toEqual([])
   })
+})
 
-  it('maps every manifest case to one Playwright title', () => {
-    const testDirectory = resolve('tests/e2e/cherry-regression')
-    const testFiles = readdirSync(testDirectory)
-      .filter((fileName) => fileName.endsWith('.test.ts'))
-      .sort()
-    const source = testFiles.map((fileName) => readFileSync(resolve(testDirectory, fileName), 'utf8')).join('\n')
-    const definitions = [...source.matchAll(/test\('\[([^\]]+)] (.+) @([a-z0-9-]+)'/g)].map((match) => ({
-      id: match[1],
-      task: match[3],
-      title: match[2]
-    }))
-
-    expect(testFiles).toEqual(TEST_FILES)
-    expect(definitions).toEqual(REGRESSION_CASES.map(({ id, task, title }) => ({ id, task, title })))
-  })
-
-  it('maps every task to one of the ten workflow phases', () => {
-    const workflow = readFileSync(resolve('.github/workflows/cherry-regression-test.yml'), 'utf8')
-    const selectedTasks = [...workflow.matchAll(/needs\.resolve\.outputs\.task == '([a-z0-9-]+)'/g)]
-      .map((match) => match[1])
-      .filter((task) => task !== 'all')
-    const taskInput = workflow.slice(workflow.indexOf('      task:'), workflow.indexOf('\npermissions:'))
-    const taskOptions = [...taskInput.matchAll(/^\s{10}- ([a-z0-9-]+)$/gm)].map((match) => match[1])
-    const phases = workflow.slice(
-      workflow.indexOf('      - name: Phase 01'),
-      workflow.indexOf('      - name: Generate platform report')
-    )
-
-    expect([...selectedTasks].sort()).toEqual([...TASK_IDS].sort())
-    expect(taskOptions).toEqual(TASK_SELECTIONS)
-    expect(workflow).toContain('max-parallel: 1')
-    expect(phases.match(/continue-on-error: true/g)).toHaveLength(10)
-    expect(phases.match(/pnpm test:e2e:regression/g)).toHaveLength(10)
-    expect(workflow).not.toContain('run-agent-task')
-    expect(workflow).not.toContain('agent-preflight')
-  })
+it('discovers each manifest case exactly once through Playwright with its phase and task tag', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cherry-regression-enumeration-'))
+  try {
+    const cli = createRequire(import.meta.url).resolve('@playwright/test/cli')
+    const report = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [cli, 'test', '--config', 'cherry-regression.playwright.config.ts', '--list', '--reporter=json'],
+        {
+          encoding: 'utf8',
+          timeout: 20_000,
+          env: { ...process.env, CHERRY_TEST_RUN_DIR: directory }
+        }
+      )
+    ) as JSONReport
+    const collect = (suites: JSONReportSuite[]): Array<{ id: string | undefined; task: string; phase: string }> =>
+      suites.flatMap((suite) => [
+        ...suite.specs.flatMap((spec) =>
+          spec.tests.map((test) => ({
+            id: test.annotations.find(({ type }) => type === 'regression-case')?.description,
+            task: spec.tags[0],
+            phase: spec.file.replace('.test.ts', '')
+          }))
+        ),
+        ...collect(suite.suites ?? [])
+      ])
+    expect(report.errors).toEqual([])
+    expect(collect(report.suites)).toEqual(REGRESSION_CASES.map(({ id, task, phase }) => ({ id, task, phase })))
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 })

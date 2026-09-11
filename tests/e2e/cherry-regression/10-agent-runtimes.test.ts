@@ -1,3 +1,4 @@
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { expect, test } from './fixture'
 import { createAgent, runAgentFileTask, selectAgentWorkspace, startNewAgentTask } from './agents'
 import { dismissOnboarding, selectSidebarApp } from './helpers'
@@ -12,7 +13,7 @@ async function ensureAgentModel(
   return app.config.customProvider.chatModel
 }
 
-test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('A-03'), async ({ app, mainWindow: page }) => {
   test.setTimeout(15 * 60_000)
   const model = await ensureAgentModel(app, page)
   const name = 'Cherry Regression Claude Agent 31415'
@@ -32,7 +33,7 @@ test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWind
   await expect(restartedAgentView.getByRole('button', { name, exact: true })).toBeVisible()
 })
 
-test('[A-04] Pi Runtime @pi-runtime', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('A-04'), async ({ app, mainWindow: page }) => {
   test.setTimeout(15 * 60_000)
   const model = await ensureAgentModel(app, page)
   await createAgent(page, {
@@ -45,7 +46,7 @@ test('[A-04] Pi Runtime @pi-runtime', async ({ app, mainWindow: page }) => {
   await runAgentFileTask(app, page, 'pi-agent-result.txt', true)
 })
 
-test('[A-05] DeepSeek Harness Runtime @deepseek-harness-runtime', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('A-05'), async ({ app, mainWindow: page }) => {
   test.setTimeout(15 * 60_000)
   const model = await ensureAgentModel(app, page)
   await createAgent(page, { name: 'DeepSeek Harness Agent', runtime: 'DeepSeek Harness', model })
@@ -53,7 +54,7 @@ test('[A-05] DeepSeek Harness Runtime @deepseek-harness-runtime', async ({ app, 
   await runAgentFileTask(app, page, 'dsh-agent-result.txt', true)
 })
 
-test('[A-01] 默认 Agent 完成基础文件任务 @agent-basic-task', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('A-01'), async ({ app, mainWindow: page }) => {
   test.setTimeout(10 * 60_000)
   const modelName = await ensureAgentModel(app, page)
   await startNewAgentTask(page, 'Cherry Assistant')

@@ -39,8 +39,7 @@ The workflow reads these repository variables and secrets:
 - `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_API_KEY`
 - `CHERRY_TEST_CUSTOM_PROVIDER_EMBEDDING_MODEL`
 - `CHERRY_TEST_CHERRYIN_CHAT_MODEL`
-- `CHERRY_TEST_CHERRYIN_GEMINI_IMAGE_MODEL`
-- `CHERRY_TEST_CHERRYIN_IMAGE2_MODEL`
+- `CHERRY_TEST_CHERRYIN_IMAGE_MODEL`
 - `CHERRY_TEST_CHERRYIN_ACCOUNT`
 - `CHERRY_TEST_CHERRYIN_PASSWORD`
 
@@ -50,23 +49,26 @@ unrelated action.
 
 ## Test organization
 
-Each Playwright title starts with the manifest case ID and ends with one task
-tag, for example:
+Read [scenario organization](../../../tests/e2e/cherry-regression/README.md) and the
+[controller contract](../../../scripts/cherry-regression-test/README.md) before making changes.
+
+Register each case from the manifest:
 
 ```ts
-test('[S-01] 应用启动冒烟测试 @startup-smoke', async ({ mainWindow }) => {
-  // deterministic assertions
+test(...caseDefinition('S-01'), async ({ mainWindow }) => {
+  // Assert the user-visible outcome.
 })
 ```
 
-Keep `scripts/cherry-regression-test/cases.ts`, workflow task choices, and test
-titles synchronized. Prefer accessible roles, labels, placeholders, test IDs,
+`cases.ts` owns case IDs, titles, task tags, phases, and capability requirements.
+The workflow accepts a task ID and delegates selection to the controller.
+Prefer accessible roles, labels, placeholders, test IDs,
 and visible text. Native dialogs and cross-application interactions must use
 the repository-owned helpers in `system-automation.ts`.
 
-Record assertions in Playwright, not prose. The custom reporter writes case
-status into `run.json`, saves failure screenshots, and feeds the Chinese
-Markdown/JUnit reports. Do not enable Playwright Trace for credential-bearing
+Record assertions in Playwright, not prose. The custom reporter writes case and phase
+status into `run.json` and feeds the Chinese Markdown/JUnit reports. The fixture
+saves failure screenshots. Executor errors and interrupted phases block a passing verdict. Do not enable Playwright Trace for credential-bearing
 tests because action parameters can expose secrets. A passing result does not
 depend on a model's judgment.
 
@@ -75,18 +77,15 @@ depend on a model's judgment.
 With an initialized run directory and its owned Electron process running:
 
 ```bash
-CHERRY_TEST_RUN_DIR=/absolute/run-directory \
-CHERRY_TEST_PHASE=01-startup \
-pnpm test:e2e:regression tests/e2e/cherry-regression/01-startup.test.ts
+pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase \
+  --run-dir /absolute/run-directory --phase 02-basic-features
 ```
 
-Run one task within a multi-case phase with its tag:
+The task selected when initializing the run determines which cases execute.
+For a Notes-only run, initialize with `--task notes`. Enumeration is read-only:
 
 ```bash
-CHERRY_TEST_RUN_DIR=/absolute/run-directory \
-CHERRY_TEST_PHASE=02-basic-features \
-pnpm test:e2e:regression tests/e2e/cherry-regression/02-basic-features.test.ts \
-  --grep '@notes'
+CHERRY_TEST_RUN_DIR=/tmp/cherry-regression-list pnpm test:e2e:regression --list
 ```
 
 Do not call the regression cleanup command for an Electron instance owned by
@@ -97,9 +96,10 @@ Do not call the regression cleanup command for an Electron instance owned by
 Run the focused script suite and enumerate Playwright cases:
 
 ```bash
-pnpm test:scripts
+pnpm exec vitest run --project scripts scripts/cherry-regression-test
 CHERRY_TEST_RUN_DIR=/absolute/initialized/run-directory \
   pnpm test:e2e:regression --list
+pnpm typecheck:e2e
 pnpm test:lint
 ```
 

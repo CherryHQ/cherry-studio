@@ -12,32 +12,10 @@ on:
         default: "main"
         type: string
       task:
-        description: "Regression task to run"
+        description: "Task ID from the regression manifest, or all (see regression README)"
         required: true
         default: "all"
-        type: choice
-        options:
-          - all
-          - startup-smoke
-          - mini-app
-          - notes
-          - custom-provider-chat
-          - custom-assistant
-          - translation
-          - quick-assistant
-          - selection-assistant
-          - knowledge-import
-          - knowledge-qa
-          - everything-mcp
-          - skill-import
-          - code-cli
-          - openclaw
-          - cherryin-chat
-          - image-generation
-          - claude-agent-runtime
-          - pi-runtime
-          - deepseek-harness-runtime
-          - agent-basic-task
+        type: string
 
 permissions:
   contents: read
@@ -272,144 +250,104 @@ jobs:
           done
 
       - name: Phase 01 - Application startup smoke
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'startup-smoke')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 10
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=01-startup
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/01-startup.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 01-startup
 
       - name: Phase 02 - Mini Apps and Notes
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'mini-app' || needs.resolve.outputs.task == 'notes')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 20
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=02-basic-features
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/02-basic-features.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 02-basic-features
 
       - name: Phase 03 - Models and Custom Assistants
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'custom-provider-chat' || needs.resolve.outputs.task == 'custom-assistant')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=03-models-and-assistants
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/03-models-and-assistants.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 03-models-and-assistants
 
       - name: Phase 04 - Translation
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'translation')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 20
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=04-translation
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/04-translation.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 04-translation
 
       - name: Phase 05 - Quick Assistant and Selection Assistant
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'quick-assistant' || needs.resolve.outputs.task == 'selection-assistant')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 25
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=05-desktop-assistants
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/05-desktop-assistants.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 05-desktop-assistants
 
       - name: Phase 06 - Knowledge Base
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'knowledge-import' || needs.resolve.outputs.task == 'knowledge-qa')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 35
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=06-knowledge
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/06-knowledge.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 06-knowledge
 
       - name: Phase 07 - MCP and Skills
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'everything-mcp' || needs.resolve.outputs.task == 'skill-import')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 35
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=07-integrations
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/07-integrations.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 07-integrations
 
       - name: Phase 08 - Code Tools
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'code-cli' || needs.resolve.outputs.task == 'openclaw')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 30
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=08-code-tools
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/08-code-tools.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 08-code-tools
 
       - name: Phase 09 - CherryIN and Image Generation
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'cherryin-chat' || needs.resolve.outputs.task == 'image-generation')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 45
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=09-cherryin-and-images
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/09-cherryin-and-images.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 09-cherryin-and-images
 
       - name: Phase 10 - Agent Runtimes
-        if: >-
-          !cancelled() && steps.launch.outcome == 'success' &&
-          (needs.resolve.outputs.task == 'all' || needs.resolve.outputs.task == 'claude-agent-runtime' || needs.resolve.outputs.task == 'pi-runtime' || needs.resolve.outputs.task == 'deepseek-harness-runtime' || needs.resolve.outputs.task == 'agent-basic-task')
+        if: "!cancelled() && steps.launch.outcome == 'success'"
         continue-on-error: true
         timeout-minutes: 55
         shell: bash
-        run: |
-          export CHERRY_TEST_PHASE=10-agent-runtimes
-          TEST_TASK="${{ needs.resolve.outputs.task }}"
-          args=(tests/e2e/cherry-regression/10-agent-runtimes.test.ts)
-          [[ "$TEST_TASK" == "all" ]] || args+=(--grep "@$TEST_TASK")
-          pnpm test:e2e:regression "${args[@]}"
+        run: >-
+          pnpm exec tsx scripts/cherry-regression-test/cli.ts run-phase
+          --run-dir "$RUN_DIR"
+          --phase 10-agent-runtimes
 
       - name: Clear end-to-end test configuration
         if: always()

@@ -1,9 +1,10 @@
+import { SelectionTriggerMode } from '../../../src/shared/data/preference/preferenceTypes'
+import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { join } from 'node:path'
 
 import { expect, test } from './fixture'
 import { dismissOnboarding } from './helpers'
 import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
-import { sendIpcEventToOwnedWindow } from '../../../scripts/cherry-regression-test/lifecycle'
 import {
   closeExternalText,
   openExternalText,
@@ -74,7 +75,7 @@ async function invokeQuickAssistant(
   await expect(quick.getByText('Answer this question', { exact: true })).toBeVisible()
 }
 
-test('[C-02] 使用快捷助手完成全局问答 @quick-assistant', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('C-02'), async ({ app, mainWindow: page }) => {
   const providerId = await ensureCustomChatProvider(app, page)
   await configureQuickAssistant(page, providerId, app.config.customProvider.chatModel)
   await closeSettings(page)
@@ -88,12 +89,12 @@ test('[C-02] 使用快捷助手完成全局问答 @quick-assistant', async ({ ap
   await invokeQuickAssistant(app, prompt)
 })
 
-test('[C-03] 使用划词助手处理选中文本 @selection-assistant', async ({ app, mainWindow: page }) => {
+test(...caseDefinition('C-03'), async ({ app, mainWindow: page }) => {
   const providerId = await ensureCustomChatProvider(app, page)
 
   await page.getByRole('button', { name: 'Selection Assistant', exact: true }).click()
   await page.evaluate(
-    async ({ model, providerId }) => {
+    async ({ model, providerId, triggerMode }) => {
       await window.api.preference.setMultiple({
         'chat.default_model_id': `${providerId}::${model}`,
         'feature.selection.action_items': [
@@ -106,14 +107,14 @@ test('[C-03] 使用划词助手处理选中文本 @selection-assistant', async (
           }
         ],
         'feature.selection.enabled': true,
-        'feature.selection.trigger_mode': 'shortcut',
+        'feature.selection.trigger_mode': triggerMode,
         'shortcut.selection.capture_text': {
           binding: ['CommandOrControl', 'Shift', 'K'],
           enabled: true
         }
       })
     },
-    { model: app.config.customProvider.chatModel, providerId }
+    { model: app.config.customProvider.chatModel, providerId, triggerMode: SelectionTriggerMode.Shortcut }
   )
   await expect(page.getByRole('switch').first()).toHaveAttribute('aria-checked', 'true')
   await closeSettings(page)
@@ -133,18 +134,11 @@ test('[C-03] 使用划词助手处理选中文本 @selection-assistant', async (
       document.body.dataset.selectedText = (selectionData as { text: string }).text
     })
   })
-  if (app.record.platform === 'windows') {
-    await sendIpcEventToOwnedWindow(app.paths, '/windows/selection/toolbar/', 'selection.text_selected', {
-      text: 'The validation label is SELECTION_ASSISTANT_PASS.'
-    })
-  }
   await expect
     .poll(
       async () => {
-        if (app.record.platform === 'macos') {
-          selectExternalText(app.record.platform)
-          sendSystemHotkey(app.record.platform, ['Meta', 'Shift', 'k'])
-        }
+        selectExternalText(app.record.platform)
+        sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 'k'])
         await selection.waitForTimeout(1_000)
         return selection.locator('body').getAttribute('data-selected-text')
       },
