@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Exercises the data-collection preference and reconcile-after-settle convergence. The reachable
@@ -27,15 +28,17 @@ const {
     mockTrackAppUpdate: trackAppUpdate,
     mockDestroy: destroy,
     mockSetSentryReportingEnabled: vi.fn(),
-    MockAnalyticsClient: vi.fn(() => ({
-      trackAppLaunch,
-      trackTokenUsage,
-      trackAppUpdate,
-      destroy
-    })),
+    MockAnalyticsClient: vi.fn(function AnalyticsClientMock() {
+      return {
+        trackAppLaunch,
+        trackTokenUsage,
+        trackAppUpdate,
+        destroy
+      }
+    }),
     captured: {
-      prefHandlers: {} as Record<string, (value: never) => void>,
-      preferenceValues: {} as Record<string, boolean | string>
+      prefHandlers: {},
+      preferenceValues: {}
     }
   }
 })
@@ -72,7 +75,7 @@ let destroyResolvers: Array<() => void>
 
 function changePreference(key: string, value: boolean | string): void {
   captured.preferenceValues[key] = value
-  captured.prefHandlers[key]?.(value as never)
+  captured.prefHandlers[key]?.(value)
 }
 
 beforeEach(() => {

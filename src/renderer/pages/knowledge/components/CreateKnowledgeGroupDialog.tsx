@@ -1,5 +1,6 @@
-import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import { useTranslation } from 'react-i18next'
+
+import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 
 interface CreateKnowledgeGroupDialogProps {
   open: boolean

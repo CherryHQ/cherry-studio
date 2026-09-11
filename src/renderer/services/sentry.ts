@@ -1,4 +1,5 @@
 import { init } from '@sentry/electron/renderer'
+
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 
 function sanitizeEvent<T>(event: T): T {

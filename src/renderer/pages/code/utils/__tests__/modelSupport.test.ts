@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
-import { describe, expect, it } from 'vitest'
 
 import { modelSupportsCliTool } from '../modelSupport'
 

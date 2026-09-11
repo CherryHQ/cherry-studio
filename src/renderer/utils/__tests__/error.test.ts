@@ -1,9 +1,10 @@
+import { APICallError, NoSuchToolError, RetryError } from 'ai'
+import { describe, expect, it, vi } from 'vitest'
+
 import { isSerializedAiSdkErrorUnion } from '@renderer/types/error'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { APICallError, NoSuchToolError, RetryError } from 'ai'
-import { describe, expect, it, vi } from 'vitest'
 
 import {
   formatAiSdkError,
@@ -475,10 +476,7 @@ describe('error', () => {
       const retryError = new RetryError({
         message: 'Failed after retries',
         reason: 'maxRetriesExceeded',
-        errors: [
-          'Authorization: Bearer string-secret',
-          { apiKey: 'object-secret', nested: { token: 'nested-secret' } }
-        ] as unknown as Error[]
+        errors: ['Authorization: Bearer string-secret', { apiKey: 'object-secret', nested: { token: 'nested-secret' } }]
       })
 
       const serialized = serializeError(retryError)

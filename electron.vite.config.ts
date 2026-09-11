@@ -1,15 +1,17 @@
-import { sentryVitePlugin } from '@sentry/vite-plugin'
-import { tanstackRouter } from '@tanstack/router-plugin/vite'
-import react from '@vitejs/plugin-react-swc'
-import { CodeInspectorPlugin } from 'code-inspector-plugin'
-import { defineConfig } from 'electron-vite'
 import { readdirSync, readFileSync } from 'fs'
 import { join, resolve } from 'path'
+
+import { sentryVitePlugin } from '@sentry/vite-plugin'
+import tailwindcss from '@tailwindcss/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
+import react from '@vitejs/plugin-react'
+import { CodeInspectorPlugin } from 'code-inspector-plugin'
+import { defineConfig } from 'electron-vite'
 import { visualizer } from 'rollup-plugin-visualizer'
 import type { Plugin } from 'vite'
 import { parse } from 'yaml'
 
-// assert not supported by biome
+// Import attributes are not supported by the current Electron config loader.
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
@@ -87,9 +89,9 @@ const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer'
     : []
 
 // Bundle/externalize split for the main process: everything in `dependencies` is
-// marked `external` below (kept in node_modules of the packaged app), and everything
+// externalized below (kept in node_modules of the packaged app), and everything
 // NOT in `dependencies` (i.e. in `devDependencies`) is bundled into the main bundle by
-// rollup. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
+// Rolldown. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
 // `devDependencies` for exactly this reason — it is pure JS and bundles cleanly. Do NOT
 // move it to `dependencies`: that would externalize it, and since devDependencies are
 // pruned from production packages, the packaged app would fail at runtime with
@@ -100,7 +102,7 @@ const mainExternalDependencies = [
   // targets, not napi sub-packages, so rollup would fail on the .node; production keeps them installed.
   ...Object.keys(pkg.optionalDependencies ?? {})
 ]
-const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
+export const mainExternalModules = ['bufferutil', 'utf-8-validate', 'electron', ...mainExternalDependencies]
 
 export const isMainExternalModule = (id: string) => {
   return mainExternalModules.some((moduleId) => id === moduleId || id.startsWith(`${moduleId}/`))
@@ -157,9 +159,11 @@ export default defineConfig({
     ],
     resolve: { alias: mainResolveAlias },
     build: {
+      externalizeDeps: {
+        include: mainExternalModules
+      },
       lib: { entry: resolve(__dirname, 'src/main/main.ts') },
-      rollupOptions: {
-        external: isMainExternalModule,
+      rolldownOptions: {
         output: {
           manualChunks: (id) => {
             // conf removes its containing file from require.cache; isolate it so the app entry stays cached.
@@ -168,7 +172,8 @@ export default defineConfig({
             // facade chunk, leaving createOpenAI undefined at runtime. Keep it alone.
             if (id.includes('/node_modules/@ai-sdk/openai/')) return 'ai-sdk-openai'
             return undefined
-          }
+          },
+          comments: isProd ? { legal: false } : undefined
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return
@@ -177,18 +182,12 @@ export default defineConfig({
       },
       sourcemap: sentrySourceMap
     },
-    esbuild: isProd ? { legalComments: 'none' } : {},
     optimizeDeps: {
       noDiscovery: isDev
     }
   },
   preload: {
-    plugins: [
-      react({
-        tsDecorators: true
-      }),
-      ...sentrySourceMapPlugins('preload')
-    ],
+    plugins: [...sentrySourceMapPlugins('preload')],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')
@@ -196,7 +195,7 @@ export default defineConfig({
     },
     build: {
       sourcemap: sentrySourceMap,
-      rollupOptions: {
+      rolldownOptions: {
         // Unlike renderer which auto-discovers entries from HTML files,
         // preload requires explicit entry point configuration for multiple scripts
         input: {
@@ -229,10 +228,8 @@ export default defineConfig({
         routesDirectory: resolve('src/renderer/routes'),
         generatedRouteTree: resolve('src/renderer/routeTree.gen.ts')
       }),
-      (async () => (await import('@tailwindcss/vite')).default())(),
-      react({
-        tsDecorators: true
-      }),
+      tailwindcss(),
+      react(),
       ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
       ...visualizerPlugin('renderer'),
       ...sentrySourceMapPlugins('renderer')
@@ -258,8 +255,10 @@ export default defineConfig({
     },
     optimizeDeps: {
       exclude: ['pyodide'],
-      esbuildOptions: {
-        target: 'esnext' // for dev
+      rolldownOptions: {
+        transform: {
+          target: 'esnext' // for dev
+        }
       }
     },
     worker: {
@@ -268,7 +267,7 @@ export default defineConfig({
     build: {
       sourcemap: sentrySourceMap,
       target: 'esnext', // for build
-      rollupOptions: {
+      rolldownOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/windows/main/index.html'),
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
@@ -284,6 +283,7 @@ export default defineConfig({
           warn(warning)
         },
         output: {
+          comments: isProd ? { legal: false } : undefined,
           advancedChunks: {
             // Without this, groups recursively capture dependencies — React
             // itself ends up inside an icon bucket and every window preloads it.
@@ -307,7 +307,6 @@ export default defineConfig({
           }
         }
       }
-    },
-    esbuild: isProd ? { legalComments: 'none' } : {}
+    }
   }
 })

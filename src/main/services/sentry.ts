@@ -1,7 +1,8 @@
 import process from 'node:process'
 
-import { loggerService } from '@logger'
 import * as Sentry from '@sentry/electron/main'
+
+import { loggerService } from '@logger'
 import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('Sentry')

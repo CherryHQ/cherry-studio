@@ -1,12 +1,13 @@
+import type { ProxyConfig } from 'electron'
+import { app, session } from 'electron'
+import { getSystemProxy } from 'os-proxy-config'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import type { ProxyConfig } from 'electron'
-import { app, session } from 'electron'
-import { getSystemProxy } from 'os-proxy-config'
 
 import { NodeProxyController } from './NodeProxyController'
 
@@ -94,7 +95,7 @@ export class ProxyService extends BaseService {
     void this.proxyReconciler.flush().then(() => {
       const error = this.proxyReconciler.getLastError()
       if (error) {
-        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error as Error)
+        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error)
       }
     })
   }

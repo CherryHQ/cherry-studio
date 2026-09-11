@@ -2,10 +2,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { KB } from '@shared/utils/constants'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { KB } from '@shared/utils/constants'
 
 import { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from '../metadata'
 

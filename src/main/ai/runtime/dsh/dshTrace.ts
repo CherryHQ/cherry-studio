@@ -14,9 +14,10 @@ import type { CallId, TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry'
 import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
 import type { ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
+import { type Attributes, type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
+
 import { loggerService } from '@logger'
 import { endAgentRuntimeSpan, startAgentRuntimeChildSpan } from '@main/ai/observability'
-import { type Attributes, type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 import type { AgentRuntimeTraceContext } from '../types'
 
