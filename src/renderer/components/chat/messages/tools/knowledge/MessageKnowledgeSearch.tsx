@@ -11,6 +11,15 @@ function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: Norma
   const query = inputParse.success ? inputParse.data.query : ''
   const resultCount = outputParse.success ? outputParse.data.length : 0
 
+  if (toolResponse.status === 'error') {
+    return (
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] text-muted-foreground leading-5">
+        <span className="min-w-0 truncate">{query}</span>
+        <span className="shrink-0 text-danger">{i18n.t('message.tools.error')}</span>
+      </span>
+    )
+  }
+
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
