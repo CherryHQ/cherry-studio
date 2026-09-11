@@ -69,9 +69,7 @@ const VALID_INSTALL_SOURCES = new Set(['builtin', 'manual', 'ai_assisted', 'prot
 
 /** `install_source` has a CHECK constraint; anything outside the enum becomes null. */
 function toInstallSource(value: unknown): InsertMcpServerRow['installSource'] {
-  return typeof value === 'string' && VALID_INSTALL_SOURCES.has(value)
-    ? (value as InsertMcpServerRow['installSource'])
-    : null
+  return typeof value === 'string' && VALID_INSTALL_SOURCES.has(value) ? value : null
 }
 
 export interface McpServerTransformResult {
