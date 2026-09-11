@@ -1,3 +1,7 @@
+import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Accordion,
   AccordionContent,
@@ -29,9 +33,6 @@ import {
 } from '@renderer/utils/doctor'
 import { type DoctorAction, type DoctorCheckId, type DoctorCheckResult } from '@shared/types/doctor'
 import { doctorCheckDetailKey, doctorCheckTitleKey } from '@shared/utils/doctor'
-import { ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, CircleX } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type DoctorFixTargetNameResolver = (target: string) => string | undefined
 type DoctorStatusIconStatus =

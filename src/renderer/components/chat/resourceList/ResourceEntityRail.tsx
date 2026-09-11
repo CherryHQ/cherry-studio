@@ -1,13 +1,14 @@
+import { MoreHorizontal } from 'lucide-react'
+import type { ReactNode, RefObject } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
-import { MoreHorizontal } from 'lucide-react'
-import type { ReactNode, RefObject } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   buildResourceListGroupDropAnchor,
@@ -29,7 +30,7 @@ export type ResourceEntityRailItem = {
   reorderable?: boolean
   /**
    * When true, a *visible* entity floats into the "已固定" section at the top and cannot be dragged.
-   * It does not affect visibility — an entity with no resources stays hidden whether pinned or not.
+   * It does not affect item visibility.
    */
   pinned?: boolean
   /** Canonical assistant group. Only consulted when `groupByGroup` is enabled. */

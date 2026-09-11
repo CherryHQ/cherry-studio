@@ -43,6 +43,7 @@ export interface DoctorFixMeta {
 }
 
 export const DOCTOR_CHECK_IDS = [
+  'install-architecture-match',
   'install-version-channel',
   'install-update-available',
   'install-native-modules',
@@ -89,6 +90,13 @@ export interface DoctorCheckMeta<Id extends DoctorCheckId> {
 const ENDPOINT_DETAILS = ['reachable', 'untrusted_tls', 'unreachable', 'proxy_auth', 'server_error', 'timeout'] as const
 
 export const DOCTOR_CHECK_CATALOG = {
+  'install-architecture-match': {
+    domain: 'install',
+    tier: 'quick',
+    fixes: [],
+    details: ['translated'],
+    requires: []
+  },
   'install-version-channel': {
     domain: 'install',
     tier: 'quick',
@@ -269,12 +277,10 @@ export const DOCTOR_CHECK_CATALOG = {
 
 export type DoctorCheckCatalog = typeof DOCTOR_CHECK_CATALOG
 export type DoctorFixId<Id extends DoctorCheckId> = DoctorCheckCatalog[Id]['fixes'][number]['id']
-export type DoctorFixTarget<Id extends DoctorCheckId, Fix extends DoctorFixId<Id>> = Extract<
-  DoctorCheckCatalog[Id]['fixes'][number],
-  { id: Fix }
-> extends { targeted: true }
-  ? { readonly target: string }
-  : { readonly target?: never }
+export type DoctorFixTarget<Id extends DoctorCheckId, Fix extends DoctorFixId<Id>> =
+  Extract<DoctorCheckCatalog[Id]['fixes'][number], { id: Fix }> extends { targeted: true }
+    ? { readonly target: string }
+    : { readonly target?: never }
 
 type DoctorFixAction<Id extends DoctorCheckId> = {
   [Fix in DoctorFixId<Id>]: { readonly kind: 'fix'; readonly fixId: Fix } & DoctorFixTarget<Id, Fix>

@@ -1,23 +1,3 @@
-import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { loggerService } from '@logger'
-import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { FilePreview } from '@renderer/components/FilePreview'
-import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
-import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import {
-  FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
-  type FileEditSession
-} from '@renderer/hooks/useFileEditSession'
-import { useFileSize } from '@renderer/hooks/useFileSize'
-import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
-import { toast } from '@renderer/services/toast'
-import { getFileExtension } from '@renderer/utils/file'
-import { joinPath } from '@renderer/utils/path'
-import { isWin } from '@renderer/utils/platform'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { AlertCircle, ArrowLeft, Copy, CopySlash, Eye, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,
@@ -29,6 +9,27 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
+import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { FilePreview } from '@renderer/components/FilePreview'
+import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
+import { useCmTheme } from '@renderer/hooks/useCodeStyle'
+import {
+  FILE_EDIT_MAX_SIZE_BYTES as ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
+  type FileEditSession
+} from '@renderer/hooks/useFileEditSession'
+import { useFileSize } from '@renderer/hooks/useFileSize'
+import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { toast } from '@renderer/services/toast'
+import { getFileExtension } from '@renderer/utils/file'
+import { joinPath } from '@renderer/utils/path'
+import { isWin } from '@renderer/utils/platform'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import {
   type ArtifactPaneFileSelection,
@@ -154,7 +155,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     onEditModeChange
   } = props
   const { t } = useTranslation()
-  const { activeCmTheme } = useCodeStyle()
+  const activeCmTheme = useCmTheme(editMode === 'edit')
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)

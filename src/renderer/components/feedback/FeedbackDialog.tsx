@@ -1,3 +1,7 @@
+import { Bot, ChevronRight, FileArchive, Github } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Dialog,
@@ -19,9 +23,6 @@ import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { POPUP_EXIT_MS } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { Bot, ChevronRight, FileArchive, Github } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 
 export const FEEDBACK_GITHUB_URL = 'https://github.com/CherryHQ/cherry-studio/issues/new/choose'
 

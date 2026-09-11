@@ -1,7 +1,8 @@
+import { trim } from 'es-toolkit/compat'
+
 import { formatApiHost, validateApiHost } from '@renderer/utils/api'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
-import { trim } from 'es-toolkit/compat'
 
 export const CUSTOM_PROVIDER_TEXT_ENDPOINTS = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,

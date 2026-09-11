@@ -1,7 +1,8 @@
-import { cacheService } from '@data/CacheService'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
 
 const runtimeMocks = vi.hoisted(() => ({
   isActiveTab: true,

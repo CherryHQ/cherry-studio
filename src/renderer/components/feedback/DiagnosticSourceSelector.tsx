@@ -1,11 +1,12 @@
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, DescriptionSwitch, SegmentedControl } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { describeDiagnosticChatSource, describeDiagnosticFileSource } from '@renderer/utils/diagnosticSourceSummary'
 import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('DiagnosticSourceSelector')
 const RANGE_OPTIONS = [

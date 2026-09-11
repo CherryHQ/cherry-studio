@@ -20,8 +20,4 @@ export { buildUrlSnapshotFile } from './pipeline/sources/urlSnapshot'
 export { createKnowledgeIndexStoreAtPath } from './pipeline/vectorstore/indexStore/createIndexStore'
 export { hashEmbeddingText } from './pipeline/vectorstore/indexStore/hashing'
 export type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from './pipeline/vectorstore/indexStore/model'
-export type {
-  KnowledgeBaseDiscoveryOptions,
-  KnowledgeBaseDiscoveryPage,
-  KnowledgeBaseDiscoveryScope
-} from './types'
+export type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage, KnowledgeBaseDiscoveryScope } from './types'

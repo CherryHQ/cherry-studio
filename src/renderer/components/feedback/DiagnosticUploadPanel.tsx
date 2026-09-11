@@ -1,3 +1,7 @@
+import type { FormEvent } from 'react'
+import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Alert, Button, Checkbox, DialogFooter, Scrollbar, Textarea } from '@cherrystudio/ui'
 import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
@@ -11,9 +15,6 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
-import type { FormEvent } from 'react'
-import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { DiagnosticSourceSelector, useDiagnosticSourceSelection } from './DiagnosticSourceSelector'
 

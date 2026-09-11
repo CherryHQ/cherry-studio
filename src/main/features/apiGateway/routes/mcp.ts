@@ -1,13 +1,14 @@
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
+import { Elysia } from 'elysia'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
-import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { Elysia } from 'elysia'
-import * as z from 'zod'
 
 import { jsonRpcEnvelope, MCP_TRANSPORT_ERROR } from '../errors'
 import { type McpSessionStore, SessionLimitReachedError, StoreClosedError } from '../McpSessionStore'
@@ -101,7 +102,7 @@ function resolveServer(idOrName: string): McpServer {
  * `/v1/mcps` — exposes the user's configured MCP servers over HTTP so external
  * clients can use Cherry Studio as a local MCP hub (issue #17992; the v1
  * endpoints this restores are documented in
- * `v2-refactor-temp/docs/breaking-changes/2026-06-05-api-gateway-mcp-http-removed.md`).
+ * `docs/changelog/2026-06-05-api-gateway-mcp-http-removed.md`).
  *
  * Sessions are **opt-in by the client** (see `handleProxyPost`): one that sends `initialize`
  * gets an `Mcp-Session-Id` and may hold a `GET` stream for server→client push; one that just

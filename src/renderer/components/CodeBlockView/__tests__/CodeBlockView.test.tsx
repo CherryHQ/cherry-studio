@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import { CodeBlockView } from '../CodeBlockView'
 
@@ -28,7 +29,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ activeCmTheme: 'light' })
+  useCodeStyle: () => ({ activeCmTheme: 'light' }),
+  useCmTheme: () => 'light'
 }))
 
 vi.mock('@renderer/services/PyodideService', () => ({

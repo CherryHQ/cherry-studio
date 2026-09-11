@@ -25,6 +25,5 @@ export const hermesDashboardHandlers: IpcHandlersFor<typeof hermesDashboardReque
         message: redactSecretText(error instanceof Error ? error.message : 'Failed to stop Hermes Dashboard')
       }
     }
-  },
-  'hermes_dashboard.get_status': async () => application.get('HermesDashboardService').getStatus()
+  }
 }

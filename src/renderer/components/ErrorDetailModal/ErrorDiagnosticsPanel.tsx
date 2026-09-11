@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Accordion, Button } from '@cherrystudio/ui'
 import { DiagnosticsPanel } from '@renderer/components/DiagnosticsPanel'
 import { DoctorCheckAccordionItems, DoctorCheckNotices } from '@renderer/components/doctor'
@@ -5,8 +8,6 @@ import { useDoctorController } from '@renderer/hooks/doctor'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import type { DoctorNavigateTarget } from '@shared/types/doctor'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'
 

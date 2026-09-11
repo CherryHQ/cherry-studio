@@ -1,5 +1,6 @@
-import type { DoctorReport } from '@shared/types/doctor'
 import { describe, expect, it } from 'vitest'
+
+import type { DoctorReport } from '@shared/types/doctor'
 
 import { formatDoctorReportForCopy } from '../formatDoctorCopy'
 

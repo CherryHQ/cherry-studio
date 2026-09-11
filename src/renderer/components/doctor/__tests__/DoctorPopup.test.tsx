@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-
-import { popupService } from '@renderer/services/popup'
-import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ChangeEvent } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { popupService } from '@renderer/services/popup'
+import type { DoctorCheckResult, DoctorState } from '@shared/types/doctor'
 
 vi.unmock('@cherrystudio/ui')
 

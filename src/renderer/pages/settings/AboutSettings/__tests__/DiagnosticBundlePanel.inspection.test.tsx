@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { OutputFor } from '@shared/ipc/types'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { OutputFor } from '@shared/ipc/types'
 
 const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),

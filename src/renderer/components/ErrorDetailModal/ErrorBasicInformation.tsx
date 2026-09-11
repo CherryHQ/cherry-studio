@@ -1,9 +1,10 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import type { SerializedError } from '@renderer/types/error'
-import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 import { Copy, Eye } from 'lucide-react'
 import type { Ref } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import type { SerializedError } from '@renderer/types/error'
+import type { DiagnosisContext } from '@renderer/utils/errorDiagnosis'
 
 import { DiagnosticsPanel } from '../DiagnosticsPanel'
 import {

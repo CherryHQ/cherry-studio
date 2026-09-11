@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
   return (
@@ -53,7 +54,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
 
 function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) {
   return (
-    <caption data-slot="table-caption" className={cn('mt-4 text-muted-foreground text-sm', className)} {...props} />
+    <caption data-slot="table-caption" className={cn('mt-4 text-sm text-muted-foreground', className)} {...props} />
   )
 }
 

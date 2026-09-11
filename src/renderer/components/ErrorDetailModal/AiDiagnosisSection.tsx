@@ -1,10 +1,11 @@
+import { CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { AccordionContent, AccordionItem, AccordionTrigger, Badge, Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import { CircleAlert, CircleCheck, Loader2, Sparkles } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
 

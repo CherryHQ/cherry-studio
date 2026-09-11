@@ -1,3 +1,11 @@
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { type ReactNode, useEffect } from 'react'
+import type * as ReactI18nextModule from 'react-i18next'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
@@ -7,16 +15,10 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { type ReactNode, useEffect } from 'react'
-import type * as ReactI18nextModule from 'react-i18next'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
+import type { ComposerToolFooterAction } from '../../toolLauncher'
 import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
@@ -58,6 +60,7 @@ const mocks = vi.hoisted(() => ({
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   toolLaunchers: [] as any[],
   toolLaunchersVersion: 0,
+  registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
@@ -108,9 +111,9 @@ function createDeferred<T>() {
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   targets: Set<Element>
-  observe: ReturnType<typeof vi.fn>
-  unobserve: ReturnType<typeof vi.fn>
-  disconnect: ReturnType<typeof vi.fn>
+  observe: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  unobserve: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  disconnect: ReturnType<typeof vi.fn<(...args: any[]) => any>>
 }
 
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
@@ -264,7 +267,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
     toolsRegistry: {
-      registerLaunchers: vi.fn(() => vi.fn())
+      registerLaunchers: vi.fn((key: string, _entries: unknown[], footerActions: ComposerToolFooterAction[] = []) => {
+        mocks.registeredFooterActions.set(key, footerActions)
+        return vi.fn()
+      })
     },
     triggers: {
       getLaunchers: vi.fn(() => []),
@@ -645,9 +651,10 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    mocks.registeredFooterActions.clear()
     MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
-    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock(callback: ResizeObserverCallback) {
       const instance: ResizeObserverMockInstance = {
         callback,
         targets: new Set(),
@@ -667,8 +674,8 @@ describe('ChatComposer', () => {
         observe: instance.observe,
         unobserve: instance.unobserve,
         disconnect: instance.disconnect
-      } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+      }
+    })
 
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
@@ -1131,13 +1138,13 @@ describe('ChatComposer', () => {
       disabled: false,
       searchAliases: ['clear context']
     })
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual([
-      'composer:customize-toolbar',
-      'composer:clear-context'
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:clear-context'])
+    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')?.map((item) => item.id)).toEqual([
+      'composer:customize-toolbar'
     ])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
 
     const clearContextSwitch = screen.getByRole('switch', { name: 'chat.input.new.context' })
@@ -1172,7 +1179,10 @@ describe('ChatComposer', () => {
     const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
       name: 'chat.input.new.context'
     })
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:customize-toolbar'])
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([])
+    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')?.map((item) => item.id)).toEqual([
+      'composer:customize-toolbar'
+    ])
     const draftBefore = mocks.surfaceProps?.text
 
     fireEvent.click(clearContextButton)
@@ -1716,7 +1726,7 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     const newTopicSwitch = screen.getByRole('switch', { name: 'chat.conversation.new' })
     expect(newTopicSwitch).toBeChecked()
@@ -1737,7 +1747,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems?.map((item) => item.id)).toEqual(['composer:new-conversation'])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('chat.conversation.new')
   })
@@ -2189,7 +2199,7 @@ describe('ChatComposer', () => {
             payload: syncedFile,
             index: 0,
             textOffset: 0
-          } as ComposerSerializedToken
+          }
         ]
       })
     })
@@ -2293,7 +2303,7 @@ describe('ChatComposer', () => {
               promptText: knowledgePrompt,
               index: 0,
               textOffset: 'summarize '.length
-            } as ComposerSerializedToken
+            }
           ]
         })
       })
@@ -3527,7 +3537,7 @@ describe('ChatComposer', () => {
     mocks.modelPending = false
     view.rerender(
       <MessageEditingProvider>
-        <StartEditingButton message={message as any} parts={parts} />
+        <StartEditingButton message={message} parts={parts} />
         <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
       </MessageEditingProvider>
     )
@@ -3854,7 +3864,7 @@ describe('ChatComposer', () => {
 
     view.rerender(
       <MessageEditingProvider>
-        <StartEditingOnMount enabled={false} message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <StartEditingOnMount enabled={false} message={message} parts={[{ type: 'text', text: 'old' }]} />
         <ChatComposer topic={nextTopic} onSend={onSend} />
       </MessageEditingProvider>
     )
@@ -4671,7 +4681,7 @@ describe('ChatComposer', () => {
             payload: syncedFile,
             index: 0,
             textOffset: 0
-          } as ComposerSerializedToken
+          }
         ]
       })
     })
