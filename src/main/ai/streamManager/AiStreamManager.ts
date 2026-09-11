@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto'
 
+import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
+import type { UIMessageChunk } from 'ai'
+
 import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
@@ -15,11 +18,11 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
-import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
   ActiveExecution,
   AiStreamAttachRequest,
@@ -34,7 +37,6 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
@@ -557,7 +559,6 @@ export class AiStreamManager extends BaseService {
     for (const [topicId, stream] of this.activeStreams) {
       // Only streams that persist are waited on. That's listener-derived, not lifecycle-derived:
       // a chunks-only prompt stream (API gateway, orphan translate) is excluded, while a
-      // translate-with-persist carries a TranslationBackend PersistenceListener and IS drained.
       const persistent = [...stream.listeners.keys()].some((id) => id.startsWith('persistence:'))
       if (!persistent) continue
       for (const exec of stream.executions.values()) entries.push([exec.loopPromise, topicId])
@@ -888,15 +889,21 @@ export class AiStreamManager extends BaseService {
     usageContext?: InProcessUsageContext
     /** Trusted in-process classification for remote token analytics. */
     tokenUsageSource?: TokenUsageSource
+    source?: SourceSnapshot | null
+    /** `0` disables same-model retry AND cross-model fallback. */
+    maxRetries?: 0
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
         ? input.messages
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
-    const chatId = input.usageContext ? input.usageContext.agentSessionId : input.streamId
     const request: ManagedAiStreamRequest = {
-      chatId,
+      // A trusted Agent SDK call belongs to its agent session; anything else is its own conversation.
+      conversation: {
+        id: input.usageContext ? input.usageContext.agentSessionId : input.streamId,
+        topicId: input.streamId
+      },
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       messages,
@@ -905,7 +912,15 @@ export class AiStreamManager extends BaseService {
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
-      ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
+      source: input.source,
+      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
+        ? {
+            requestOptions: {
+              ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
+              ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {})
+            }
+          }
+        : {})
     }
     return this.send({
       topicId: input.streamId,
@@ -942,8 +957,9 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * Detach one not-yet-admitted runtime execution without terminalizing its reserved assistant row.
-   * The runtime closes the upstream stream immediately after this call, then waits for the returned
+   * Detach one runtime execution that has produced nothing yet (prompt not admitted, or admitted but
+   * queued behind a runtime-started turn) without terminalizing its reserved assistant row. The
+   * runtime closes the upstream stream immediately after this call, then waits for the returned
    * promise before opening the receive-only generation that preempted it.
    */
   async suspendUnadmittedRuntimeTurn(topicId: string): Promise<void> {
@@ -1881,7 +1897,7 @@ export class AiStreamManager extends BaseService {
         // shape as runtimeTimingSink) so the UI can show "compacting".
         compactionSink: (anchorId, data) => {
           // Broadcast for the live indicator…
-          this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk, exec)
+          this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data }, exec)
           // …and record it, because the broadcast branch is NOT the accumulator
           // branch (pipeStreamLoop tees the stream), so nothing here would
           // otherwise reach the persisted message.

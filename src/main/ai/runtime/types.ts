@@ -1,10 +1,13 @@
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
+import type { UIMessageChunk } from 'ai'
+
 import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import type { AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -13,7 +16,6 @@ import type { MessageSnapshot } from '@shared/data/types/message'
 import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import type { UIMessageChunk } from 'ai'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
 
@@ -132,7 +134,7 @@ export type AgentRuntimeEvent =
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
    *  as the next turn (the `steer_undelivered` fallback). */
   | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
-  /** A steer was injected mid-turn (PreToolUse hook) and the model is about to emit its post-steer
+  /** A steer was injected mid-turn (PreToolUse/PostToolBatch hook) and the model is about to emit its post-steer
    *  assistant message. Marks where the host should roll the assistant message: finalise the
    *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
    *  steer user message sorts between them instead of dangling after the whole turn. */
@@ -161,9 +163,11 @@ export type AgentRuntimeEvent =
    *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
   | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
   /** Runtime-generated content started without a host-admitted user turn. `started` atomically
-   *  transfers generation ownership and asks the host to open a receive-only transcript turn;
-   *  `finished` releases ownership after the SDK result, independently from turn completion. */
-  | { type: 'autonomous-turn-state'; state: 'started' | 'finished' }
+   *  transfers generation ownership and asks the host to open a receive-only transcript turn,
+   *  carrying why the runtime opened it so the transcript can say so; `finished` releases
+   *  ownership after the SDK result, independently from turn completion. */
+  | { type: 'autonomous-turn-state'; state: 'started'; origin: AutonomousTurnOrigin }
+  | { type: 'autonomous-turn-state'; state: 'finished' }
   | { type: 'error'; error: unknown }
 
 /**

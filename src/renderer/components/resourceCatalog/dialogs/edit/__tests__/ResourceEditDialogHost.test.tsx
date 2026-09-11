@@ -1,6 +1,7 @@
-import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 
 import { ResourceEditDialogHost } from '../ResourceEditDialogHost'
 
@@ -34,7 +35,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => vi.fn(() => true)
+  useAgentModelFilter: () => vi.fn(() => true),
+  useAgentModelDisabled: () => vi.fn(() => false)
 }))
 
 vi.mock('../AssistantEditDialog', () => ({

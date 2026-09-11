@@ -2,6 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import type { TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-sdk-client'
+import type { SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
+import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
+
 import { application } from '@application'
 import {
   BRIDGE_SOCKET_ENV,
@@ -9,9 +14,6 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
-import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-sdk-client'
-import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
@@ -21,7 +23,10 @@ import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -45,7 +50,7 @@ import type {
   AgentSessionUsageCapture
 } from '../types'
 import { buildDshCompositionYaml, resolveDshRuntimeBinPath } from './compositionBuilder'
-import { DshBridgeServer } from './DshBridgeServer'
+import { DshBridgeServer, type DshBridgeServerOptions } from './DshBridgeServer'
 import {
   buildDshCherryToolBridge,
   buildDshCherryToolName,
@@ -56,13 +61,19 @@ import {
   warmDshMcpToolCatalogs
 } from './DshCherryToolBridge'
 import { DshSubagentCoordinator, type DshSubagentSink } from './dshChildFlow'
-import { captureDshConnectionSnapshot, DshInvalidConnectionSnapshotError } from './dshConnectionSignature'
+import {
+  captureDshConnectionSnapshot,
+  type DshConnectionSnapshot,
+  DshInvalidConnectionSnapshotError
+} from './dshConnectionSignature'
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
-import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot } from './modelInjection'
+import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot, usesDshGateway } from './modelInjection'
 
 const logger = loggerService.withContext('DshRuntimeConnection')
+
+type BridgeEventSource = Parameters<DshBridgeServerOptions['emit']>[1]
 
 const DSH_TOOL_DESCRIPTORS: readonly DshBuiltinToolDescriptor[] = getDshRuntimeBuiltinTools(process.platform)
 const DSH_READ_TOOLS = DSH_TOOL_DESCRIPTORS.filter((tool) => tool.permissionClass === 'read').map((tool) => tool.name)
@@ -85,6 +96,11 @@ if (DSH_SHELL_TOOL_NAME) {
 export class DshRuntimeConnection implements AgentRuntimeConnection {
   private readonly generation = randomUUID()
   private readonly eventQueue = new AsyncEventQueue<AgentRuntimeEvent>()
+  private readonly sessionEventSeqs = new Map<SessionEventNotification['sessionId'], SessionEvent['seq']>()
+  private readonly pendingBridgeEvents: Array<{
+    event: AgentRuntimeEvent
+    source: BridgeEventSource
+  }> = []
   private readonly committedInvocationIds = new Set<string>()
   private readonly adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
@@ -95,10 +111,10 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     onTurnEnd: (reason) => this.handleTurnEnd(reason),
     onCompaction: (event) => this.eventQueue.push(event),
     onApiRetry: (retry) => this.eventQueue.push({ type: 'api-retry', retry }),
-    onAutonomousTurnState: (state) => {
+    onAutonomousTurnState: (event) => {
       // Reconcile treats a goal round like any live turn: policy swaps wait for idle.
-      if (state === 'started') this.markTurnActive()
-      this.eventQueue.push({ type: 'autonomous-turn-state', state })
+      if (event.state === 'started') this.markTurnActive()
+      this.eventQueue.push({ type: 'autonomous-turn-state', ...event })
     },
     onPlanMode: (active) => this.handlePlanModeFold(active)
   })
@@ -150,9 +166,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.subagents = new DshSubagentCoordinator(input.sessionId, this.buildSubagentSink())
   }
 
-  /** Bridge-socket events. A stream-presented approval whose `tool/call` has not landed yet would
-   *  truncate the turn accumulator instead of showing a card, so materialize its tool part first. */
-  private emitBridgeEvent(event: AgentRuntimeEvent): void {
+  // The socket can outrun session notifications; provenance must land before approval content.
+  private emitBridgeEvent(event: AgentRuntimeEvent, source: BridgeEventSource): void {
+    if (this.closed) return
+    if ((this.sessionEventSeqs.get(source.sessionId) ?? -1) < source.seq) {
+      this.pendingBridgeEvents.push({ event, source })
+      return
+    }
     if (event.type === 'tool-approval-request' && event.request.presentation === 'stream') {
       this.adapter.ensureToolCall(event.request.toolCallId, event.request.toolName, event.request.input)
     }
@@ -212,12 +232,32 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
   async start(): Promise<this> {
     if (this.input.resumeToken) assertValidDshResumeToken(this.input.resumeToken)
+    const resolveInjection = async (snapshot: DshConnectionSnapshot): Promise<DshProviderInjection> => {
+      try {
+        return await resolveDshProviderInjectionFromSnapshot(
+          this.input.sessionId,
+          snapshot.provider,
+          snapshot.model,
+          snapshot.enabledApiKeys,
+          this.input.reasoningEffort ?? 'default'
+        )
+      } catch (error) {
+        if (error instanceof ApiGatewayNotRunningError) {
+          application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
+        }
+        throw error
+      }
+    }
+
     const discoverySnapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
       this.input.agentId,
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
+    // Settle Gateway startup before the authoritative snapshot; resolve again afterward so the
+    // connection is built from the exact provider/model facts protected by the final check.
+    if (usesDshGateway(discoverySnapshot.provider, discoverySnapshot.model)) await resolveInjection(discoverySnapshot)
     await warmDshMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const snapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,
@@ -234,22 +274,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     // dsh has no native permission modes; the bridge plugin enforces the pushed policy.
     this.permissionMode = toBridgePermissionMode(agent.configuration?.permission_mode)
     this.disabledTools = normalizeDisabledTools(agent.disabledTools)
-    let injection: DshProviderInjection
-    try {
-      injection = await resolveDshProviderInjectionFromSnapshot(
-        this.input.sessionId,
-        snapshot.provider,
-        snapshot.model,
-        snapshot.enabledApiKeys,
-        this.input.reasoningEffort ?? 'default'
-      )
-    } catch (error) {
-      // Same prompt path as claude: the renderer offers to enable the disabled gateway.
-      if (error instanceof ApiGatewayNotRunningError) {
-        application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
-      }
-      throw error
-    }
+    const injection = await resolveInjection(snapshot)
     this.modelId = injection.modelId
     this.contextWindow = injection.modelConfig.contextWindow
     this.reasoningEffort = this.input.reasoningEffort ?? 'default'
@@ -280,6 +305,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       agentDataPath: this.agentDataPath,
       agent,
       citationsGuidance,
+      effectiveLanguage: snapshot.effectiveLanguage,
       // Compensates a custom base for the workspace context the native base owns (claude parity).
       customBaseContext: [
         '## Current Workspace',
@@ -338,26 +364,46 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
       this.bridge = new DshBridgeServer({
         sessionId: this.input.sessionId,
-        emit: (event) => this.emitBridgeEvent(event),
+        emit: (event, source) => this.emitBridgeEvent(event, source),
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
+        onGuardCheck: async (toolName, args, cwd) => {
+          const decision = await evaluateUserDataSqliteGuard({
+            runtime: 'dsh',
+            toolName,
+            args,
+            cwd,
+            workspacePath: this.workspacePath
+          })
+          if (!decision) return { kind: 'allow' }
+          logger.info('Blocked a write to user data SQLite', { sessionId: this.input.sessionId, toolName })
+          return { kind: 'deny', ...decision }
+        },
         onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
       })
       await this.bridge.listen()
 
       const sdk = await loadDshSdk()
+      const loginShellEnv = await getShellEnv()
+      const loginPath = getPathFromEnvironment(loginShellEnv)
+      const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
-      // only the routed API key and the bridge socket, never Cherry's own env.
+      // only managed binary locations, the routed API key, and the bridge socket.
       const client = new sdk.HarnessClient({
-        command: process.execPath,
-        args: [resolveDshRuntimeBinPath(), this.compositionPath],
-        cwd: workspacePath,
+        dshBin: resolveDshRuntimeBinPath(),
+        profile: 'cherry',
+        processCwd: workspacePath,
         env: {
-          ...(process.env.PATH !== undefined ? { PATH: process.env.PATH } : {}),
-          ...(process.env.HOME !== undefined ? { HOME: process.env.HOME } : {}),
+          ...binaryExecutionEnv,
+          ...(loginShellEnv.HOME !== undefined
+            ? { HOME: loginShellEnv.HOME }
+            : process.env.HOME !== undefined
+              ? { HOME: process.env.HOME }
+              : {}),
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
+          CHERRY_DSH_CONFIG: this.compositionPath,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
           [BRIDGE_TOKEN_ENV]: this.bridge.authenticationToken,
           DSH_HOME: dshRoot
@@ -572,6 +618,8 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
+    this.pendingBridgeEvents.length = 0
+    this.sessionEventSeqs.clear()
     this.subagents.close()
     // Deny any approval still awaiting a renderer decision so its held tool
     // promise resolves instead of hanging past teardown.
@@ -665,20 +713,25 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         if (notification.method !== 'session.event') continue
         const params = notification.params as { sessionId?: unknown; event?: unknown }
         if (typeof params?.sessionId !== 'string') continue
-        // The SDK server forwards session-log envelopes verbatim; the rc.6 pin keeps this
-        // single wire-boundary cast sound. Unknown merged types fall through the adapter.
+        // The SDK server forwards session-log envelopes verbatim across this wire boundary.
+        // Unknown merged types fall through the adapter.
         const event = params.event as SessionEvent
         if (params.sessionId !== this.input.sessionId) {
           // Every other session in this process is a descendant (or one racing its
           // started/lifecycle signal); the coordinator buffers until a binding lands.
           this.subagents.handleChildEvent(params.sessionId, event)
-          continue
+        } else {
+          this.traceRecorder?.handleEvent(event)
+          this.adapter.handleEvent(event)
         }
-        this.traceRecorder?.handleEvent(event)
-        this.adapter.handleEvent(event)
+        this.sessionEventSeqs.set(params.sessionId, event.seq)
+        for (const pending of this.pendingBridgeEvents.splice(0)) {
+          this.emitBridgeEvent(pending.event, pending.source)
+        }
       }
     } catch (error) {
       if (this.closed) return
+      this.pendingBridgeEvents.length = 0
       logger.error('dsh notification stream failed', error as Error)
       this.eventQueue.push({ type: 'error', error })
       this.eventQueue.close()

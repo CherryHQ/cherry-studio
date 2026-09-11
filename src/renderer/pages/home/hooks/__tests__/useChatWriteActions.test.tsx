@@ -62,7 +62,7 @@ function renderActions(
   stop: () => Promise<void> = vi.fn(async () => {})
 ) {
   const scrollToBottom = vi.fn()
-  const regenerate = vi.fn(async () => {})
+  const regenerate = vi.fn<Parameters<typeof useChatWriteActions>[0]['regenerate']>(async () => {})
   const setMessages = vi.fn()
   const seedReservedMessages = vi.fn(async () => {})
   const { result } = renderHook(() =>
@@ -249,7 +249,7 @@ describe('useChatWriteActions — clear context', () => {
     vi.mocked(cache.createMessageTrigger).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          resolveCreate = resolve as typeof resolveCreate
+          resolveCreate = resolve
         }) as never
     )
     const { actions, result } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
@@ -526,7 +526,7 @@ describe('useChatWriteActions — regenerate', () => {
     })
   })
 
-  it('keeps successful non-text assistants on the ordinary regenerate path', async () => {
+  it('lets Main resolve the current model when regenerating a successful assistant response', async () => {
     const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
     nonTextAssistant.metadata.modelId = 'provider::model-a'
     nonTextAssistant.parts = [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }]
@@ -537,8 +537,9 @@ describe('useChatWriteActions — regenerate', () => {
     expect(streamOpen).not.toHaveBeenCalled()
     expect(regenerate).toHaveBeenCalledWith({
       messageId: 'a1',
-      body: expect.objectContaining({ parentAnchorId: 'u1', mentionedModels: ['provider::model-a'] })
+      body: expect.objectContaining({ parentAnchorId: 'u1' })
     })
+    expect(regenerate.mock.calls[0][0]?.body).not.toHaveProperty('mentionedModels')
   })
 
   it('routes an explicit @ model through Main so a live reply group can append without moving the branch', async () => {
@@ -602,6 +603,7 @@ describe('useChatWriteActions — regenerate', () => {
         fastMode: false
       })
     )
+    expect(streamOpen.mock.calls[0][0]).not.toHaveProperty('mentionedModelIds')
   })
 })
 

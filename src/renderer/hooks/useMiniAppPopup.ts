@@ -1,3 +1,6 @@
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useMemo, useRef } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -11,10 +14,8 @@ import {
 } from '@renderer/utils/miniAppKeepAlive'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
+import type { MiniApp, MiniAppId, SiteMiniApp } from '@shared/data/types/miniApp'
 import { fileUrlToPath } from '@shared/utils/file'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')
 
@@ -23,7 +24,7 @@ function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
 }
 
-type MiniAppInput = Omit<MiniApp, 'appId' | 'presetMiniAppId' | 'status' | 'orderKey'> & {
+type MiniAppInput = Omit<SiteMiniApp, 'kind' | 'appId' | 'presetMiniAppId' | 'status' | 'orderKey'> & {
   appId: string
 }
 
@@ -35,6 +36,7 @@ type MiniAppInput = Omit<MiniApp, 'appId' | 'presetMiniAppId' | 'status' | 'orde
 export function toTransientMiniApp(input: MiniAppInput): MiniApp {
   return {
     ...input,
+    kind: 'site',
     appId: brandId(input.appId),
     // Transient apps opened from raw config (URL bar / openMiniApp(rawApp)) are
     // not preset rows and not custom rows persisted via DataApi — they live

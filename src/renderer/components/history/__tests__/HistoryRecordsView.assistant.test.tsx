@@ -1,10 +1,11 @@
-import type { Assistant } from '@shared/data/types/assistant'
-import type { Topic } from '@shared/data/types/topic'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Assistant } from '@shared/data/types/assistant'
+import type { Topic } from '@shared/data/types/topic'
 
 import deDE from '../../../i18n/locales/de-de.json'
 import elGR from '../../../i18n/locales/el-gr.json'
@@ -15,6 +16,7 @@ import jaJP from '../../../i18n/locales/ja-jp.json'
 import ptPT from '../../../i18n/locales/pt-pt.json'
 import roRO from '../../../i18n/locales/ro-ro.json'
 import ruRU from '../../../i18n/locales/ru-ru.json'
+import trTR from '../../../i18n/locales/tr-tr.json'
 import viVN from '../../../i18n/locales/vi-vn.json'
 import zhCN from '../../../i18n/locales/zh-cn.json'
 import zhTW from '../../../i18n/locales/zh-tw.json'
@@ -1491,7 +1493,7 @@ describe('HistoryRecordsView locale resources', () => {
       'title'
     ]
     const originalLocaleResources = [enUS, zhCN, zhTW]
-    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, viVN]
+    const runtimeLocaleResources = [enUS, zhCN, zhTW, deDE, elGR, esES, frFR, jaJP, ptPT, roRO, ruRU, trTR, viVN]
 
     for (const resource of runtimeLocaleResources) {
       for (const key of requiredGlobalKeys) {

@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StreamListener } from '../../types'
 
@@ -30,7 +31,7 @@ const { sessionGetById, runtimeBusy } = vi.hoisted(() => ({
 }))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
-  agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
+  agentChatContextProvider: { prepareAgentSessionDispatch: prepareDispatchMock }
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -77,7 +78,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     sendSpy = vi.spyOn(manager, 'send').mockImplementation((input: { topicId: string }) => {
       events.push(`send:${input.topicId}`)
       return { mode: 'started', activeExecutions: [] }
-    }) as unknown as ReturnType<typeof vi.spyOn>
+    })
   })
 
   afterEach(() => {
@@ -131,6 +132,29 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
     expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({ listeners: [primary, extra] }))
   })
 
+  it('passes notification authority through the Agent Session admission contract', async () => {
+    const primary = listener('task')
+    const trustedNotifyChannels = [{ id: 'channel-1', type: 'telegram' }] as const
+    const run = startAgentSessionRun({
+      sessionId: 's',
+      userParts: [text('scheduled')],
+      listeners: [primary],
+      trustedNotifyChannels
+    })
+    await flush()
+
+    const [, request, authority] = prepareDispatchMock.mock.calls[0] as unknown as [
+      StreamListener,
+      { topicId: string },
+      unknown
+    ]
+    expect(request).not.toHaveProperty('trustedNotifyChannels')
+    expect(authority).toEqual({ trustedNotifyChannels })
+
+    prepareResolvers[0]()
+    await run
+  })
+
   it('returns busy before preparing a task turn', async () => {
     const manager = managerHolder.current as ManagerInstance
     vi.spyOn(manager, 'hasLiveStream').mockReturnValue(true)
@@ -150,7 +174,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization', () => {
 
   it('returns busy when the runtime becomes active during preparation', async () => {
     prepareDispatchMock.mockRejectedValueOnce(
-      DataApiErrorFactory.resourceLocked('Agent session', 's', 'an active turn') as never
+      DataApiErrorFactory.resourceLocked('Agent session', 's', 'an active turn')
     )
 
     await expect(

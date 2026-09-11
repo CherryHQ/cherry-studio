@@ -1,10 +1,11 @@
+import { net } from 'electron'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { isAbortError } from '@main/utils/error'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 import { isHttpUrl } from '@shared/utils/url'
-import { net } from 'electron'
-import * as z from 'zod'
 
 import { fetchWebSearchContent } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
@@ -81,7 +82,8 @@ export class SearxngProvider extends BaseWebSearchProvider {
     })
 
     const engines = payload.engines
-      .filter((engine) => engine.enabled && engine.categories.includes('general') && engine.categories.includes('web'))
+      .filter((engine) => engine.enabled && engine.categories.includes('general'))
+      .sort((left, right) => Number(right.categories.includes('web')) - Number(left.categories.includes('web')))
       .map((engine) => engine.name)
 
     if (engines.length === 0) {

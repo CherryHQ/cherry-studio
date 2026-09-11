@@ -1,6 +1,7 @@
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+
 import { NormalTooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
 export type IconButtonSize = 'xs' | 'sm' | 'md'
 export type IconButtonTone = 'ghost' | 'destructive' | 'star'

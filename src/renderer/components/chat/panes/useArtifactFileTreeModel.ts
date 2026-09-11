@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
@@ -5,7 +7,6 @@ import { ipcApi } from '@renderer/ipc'
 import { joinPath } from '@renderer/utils/path'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } from './artifactPanePath'
 

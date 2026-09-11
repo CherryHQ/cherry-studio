@@ -1,3 +1,5 @@
+import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { HtmlArtifactPopupHost } from '@renderer/components/chat/HtmlArtifactPopupContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
@@ -6,17 +8,17 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
+import { dataUrlToBlob } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComponentProps, lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
 import { MessagesContainer } from './layout/shared'
 import MessageAnchorLine from './list/MessageAnchorLine'
+import { MessageCaptureLeaseProvider, useMessageCaptureLeases } from './list/MessageCaptureLeaseContext'
 import MessageGroup from './list/MessageGroup'
 import { MessageListSearch } from './list/MessageListSearch'
 import MessageNavigation from './list/MessageNavigation'
@@ -28,6 +30,7 @@ import {
 } from './list/MessageVirtualList'
 import SelectionBox from './list/SelectionBox'
 import {
+  useAnyMessageListItemProcessing,
   useMessageListActions,
   useMessageListData,
   useMessageListMeta,
@@ -208,6 +211,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const topicImageCaptureRef = useRef<HTMLDivElement | null>(null)
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const { leasedMessageIds, acquireMessageCaptureLease } = useMessageCaptureLeases()
   const isLoadingMoreRef = useRef(false)
   const [groupLayoutOverrides, setGroupLayoutOverrides] = useState<Record<string, MultiModelMessageStyle>>({})
   const [topicImageCaptureActions, setTopicImageCaptureActions] = useState<PendingTopicImageRuntimeAction[]>([])
@@ -215,6 +219,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
+  const captureLeaseGroupKeys = useMemo(() => {
+    if (leasedMessageIds.length === 0) return []
+
+    const leasedIds = new Set(leasedMessageIds)
+    return groupedMessages.flatMap(([groupKey, groupMessages]) =>
+      groupMessages.some((message) => leasedIds.has(message.id)) ? [groupKey] : []
+    )
+  }, [groupedMessages, leasedMessageIds])
   // Streaming allocates a fresh `messages` array per chunk, so the anchor rail
   // needs a projection that only changes when its topology does — otherwise its
   // `memo` never bails and every chunk re-renders all of its ticks.
@@ -233,6 +245,16 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
+  const latestAssistantGroupMessages = useMemo(
+    () =>
+      latestAssistantGroupKey
+        ? (groupedMessages
+            .find(([key]) => key === latestAssistantGroupKey)?.[1]
+            .filter((message) => message.role === 'assistant') ?? [])
+        : [],
+    [groupedMessages, latestAssistantGroupKey]
+  )
+  const shouldKeepLatestAssistantGroupMounted = useAnyMessageListItemProcessing(latestAssistantGroupMessages)
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -290,6 +312,14 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   }, [])
 
   const getMessageElement = useCallback((id: string) => messageElements.current.get(id) ?? null, [])
+
+  const messageCaptureLeaseContextValue = useMemo(
+    () => ({
+      acquireMessageCaptureLease,
+      getRenderedMessageElement: getMessageElement
+    }),
+    [acquireMessageCaptureLease, getMessageElement]
+  )
 
   const scrollToBottom = useCallback(() => {
     messageListRef.current?.scrollToBottom()
@@ -492,9 +522,11 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
 
   const executeTopicImageAction = useCallback(
     async (action: TopicImageRuntimeAction, captureRef: React.RefObject<HTMLElement | null>) => {
+      const { exportService } = await import('@renderer/services/ExportService')
+
       if (action === 'copy') {
-        const canvas = await captureScrollable(captureRef)
-        const blob = canvas ? await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png')) : null
+        const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
+        const blob = imageData ? dataUrlToBlob(imageData) : null
         if (!blob) {
           throw new Error('Failed to capture topic image')
         }
@@ -506,7 +538,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await captureScrollableAsDataUrl(captureRef)
+      const imageData = await exportService.captureScrollableAsDataUrl(captureRef)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
@@ -712,6 +744,13 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     })
   }, [bindRuntime])
 
+  const keepMountedKeys = useMemo(() => {
+    const keys = new Set<string>()
+    if (shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey) keys.add(latestAssistantGroupKey)
+    for (const key of captureLeaseGroupKeys) keys.add(key)
+    return [...keys]
+  }, [captureLeaseGroupKeys, latestAssistantGroupKey, shouldKeepLatestAssistantGroupMounted])
+
   if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
     return <MessageListInitialLoading />
   }
@@ -719,17 +758,6 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const latestAssistantGroupMessages = latestAssistantGroupKey
-    ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
-    : undefined
-  const shouldKeepLatestAssistantGroupMounted =
-    latestAssistantGroupMessages?.some(
-      (message) =>
-        message.role === 'assistant' &&
-        (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
-    ) ?? false
-  const keepMountedKeys =
-    shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
@@ -887,7 +915,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       {meta.selectionLayer && (
         <SelectionBox
           isMultiSelectMode={isMultiSelectMode}
-          scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+          scrollContainerRef={scrollContainerRef}
           messageElements={messageElements.current}
           handleSelectMessage={(messageId, selected) => actions.selectMessage?.(messageId, selected)}
         />
@@ -895,6 +923,10 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
       <MultiSelectActionPopup
         selectedMessageIds={selectedMessageIds}
         isMultiSelectMode={isMultiSelectMode}
+        selectAllState={selection?.selectAllState}
+        selectAllDisabled={selection?.selectAllDisabled}
+        isSelectAllLoading={selection?.isSelectAllLoading}
+        onToggleSelectAll={actions.toggleSelectAllMessages}
         deleteDisabledReason={
           selectedMessageIds
             .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
@@ -914,7 +946,11 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
     </MessagesContainer>
   )
 
-  return <HtmlArtifactPopupHost>{messageList}</HtmlArtifactPopupHost>
+  return (
+    <HtmlArtifactPopupHost>
+      <MessageCaptureLeaseProvider value={messageCaptureLeaseContextValue}>{messageList}</MessageCaptureLeaseProvider>
+    </HtmlArtifactPopupHost>
+  )
 }
 
 export default MessageList

@@ -1,9 +1,10 @@
 import type * as NodeModule from 'node:module'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockCreateRequire = vi.hoisted(() => vi.fn())
 const { manifestRef, mockExecFileAsync, mockFs, mockFsp, mockPreferenceService, platformMock } = vi.hoisted(() => ({
@@ -240,7 +241,7 @@ describe('BinaryManager', () => {
     // first registration only happens once onAllReady fires (all phases ready).
     it('does not touch PreferenceService during the initial-bootstrap onInit', async () => {
       const service = new BinaryManager()
-      ;(application.get as unknown as ReturnType<typeof vi.fn>).mockClear()
+      ;(application.get as unknown as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockClear()
 
       await (service as any).onInit()
 
@@ -311,6 +312,15 @@ describe('BinaryManager', () => {
 
     it('drops a custom entry whose normalized spec aliases a fixed catalog tool', async () => {
       setRegistry([{ name: 'myuv', tool: 'core:uv' }])
+      const service = new BinaryManager()
+
+      await runAllReadyTasks(service)
+
+      expect(mockPreferenceService.set).toHaveBeenCalledWith('feature.binary.tools', [])
+    })
+
+    it('drops a custom Hermes recipe that aliases the Dashboard-enabled fixed recipe', async () => {
+      setRegistry([{ name: 'my-hermes', tool: 'pipx:hermes-agent' }])
       const service = new BinaryManager()
 
       await runAllReadyTasks(service)
@@ -832,6 +842,28 @@ describe('BinaryManager', () => {
       // calling this `applied` would grant Update/Uninstall over another backend's fd.
       expect(snapshots.fd.application).toEqual({ status: 'broken', version: '10.0.0' })
       expect(snapshots.fd.availability).toEqual({ source: 'system', path: '/usr/local/bin/fd' })
+    })
+
+    it('matches a fixed pipx recipe when mise omits its installation options', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return { stdout: JSON.stringify({ 'pipx:hermes-agent': [{ version: '0.19.0', active: true }] }), stderr: '' }
+        }
+        if (args[0] === 'which')
+          return { stdout: '/mock/mise/installs/pipx-hermes-agent/0.19.0/bin/hermes\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const snapshots = await service.getToolSnapshots(['hermes'])
+
+      expect(snapshots.hermes).toEqual({
+        name: 'hermes',
+        availability: { source: 'mise', path: '/mock/feature.binary.data/shims/hermes', version: '0.19.0' },
+        application: { status: 'applied', version: '0.19.0' }
+      })
     })
 
     it('matches a non-runtime fixed recipe when mise reports its core-prefixed identity', async () => {
@@ -2013,6 +2045,41 @@ describe('BinaryManager', () => {
       expect(miseArgs).toContainEqual(['use', '-g', 'fd@10.0.0'])
       expect(miseArgs).toContainEqual(['prune', 'fd'])
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
+    })
+
+    it('passes a fixed npm lifecycle allowlist as typed mise tool options', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@vendor/native-cli': [{ version: '1.2.3', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/native-cli\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        (service as any).applyDefinition(
+          {
+            name: 'native-cli',
+            tool: 'npm:@vendor/native-cli',
+            npmAllowBuilds: ['@vendor/native-cli', 'better-sqlite3']
+          },
+          undefined,
+          []
+        )
+      ).resolves.toBeUndefined()
+
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+        'use',
+        '-g',
+        'node@22',
+        'npm:@vendor/native-cli[allow_builds=["\\u0040vendor/native-cli","better-sqlite3"]]@latest'
+      ])
     })
 
     it('accepts a recipe whose bins are not named after it (core:rust ships rustc/cargo)', async () => {
@@ -3888,11 +3955,11 @@ describe('BinaryManager', () => {
   })
 
   describe('extractBundledBinaries', () => {
-    let mockFsp: Record<string, ReturnType<typeof vi.fn>>
+    let mockFsp: Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
 
     beforeEach(async () => {
       const fspModule = await import('node:fs/promises')
-      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn>>
+      mockFsp = fspModule.default as unknown as Record<string, ReturnType<typeof vi.fn<(...args: any[]) => any>>>
     })
 
     it('skips extraction when bundled version matches installed version', async () => {

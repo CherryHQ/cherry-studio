@@ -1,3 +1,5 @@
+import { describe, expect, it } from 'vitest'
+
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
@@ -7,7 +9,6 @@ import {
   isServerToolModelEligible,
   resolveWebToolRoutes
 } from '@shared/utils/provider'
-import { describe, expect, it } from 'vitest'
 
 const model = (apiModelId: string, overrides: Partial<Model> = {}): Model => ({
   id: `provider::${apiModelId}`,
@@ -37,7 +38,7 @@ describe('server-tool model eligibility', () => {
     const custom = model('private-model')
 
     expect(isBuiltinWebSearchAvailable(custom, provider('model-dependent'))).toBe(false)
-    expect(isBuiltinWebSearchAvailable(custom, { serverTools: [] } as unknown as Provider)).toBe(false)
+    expect(isBuiltinWebSearchAvailable(custom, { id: 'custom', serverTools: [] })).toBe(false)
   })
 
   it.each(['deepseek-v3', 'deepseek-v3.2', 'deepseek-v4-flash', 'deepseek-v4-pro'])(
@@ -64,7 +65,7 @@ describe('server-tool model eligibility', () => {
         webSearchEnabled: true,
         clientSearchAvailable: true,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        modelToolsPreferred: true,
         endpointType
       })
 
@@ -121,7 +122,7 @@ describe('server-tool model eligibility', () => {
         webSearchEnabled: true,
         clientSearchAvailable: false,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        modelToolsPreferred: true,
         hasFunctionToolSignals: true
       })
     ).toMatchObject({ webSearch: 'none', reasons: { webSearch: 'gemini-function-tool-conflict' } })
@@ -132,12 +133,12 @@ describe('server-tool model eligibility', () => {
         model('google/gemini-3-1-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
         {
           ...gateway
-        } as Provider,
+        },
         {
           webSearchEnabled: true,
           clientSearchAvailable: false,
           clientFetchAvailable: false,
-          clientToolsPreferred: false,
+          modelToolsPreferred: true,
           hasFunctionToolSignals: true
         }
       )
@@ -167,42 +168,63 @@ describe('web-tool routing', () => {
   }
 
   it('selects the preferred side for both search and fetch when both sides are available', () => {
-    expect(resolveWebToolRoutes(claude, serverProvider, { ...bothEnabled, clientToolsPreferred: true })).toEqual({
-      webSearch: 'client',
-      webFetch: 'client'
-    })
-    expect(resolveWebToolRoutes(claude, serverProvider, { ...bothEnabled, clientToolsPreferred: false })).toEqual({
+    expect(resolveWebToolRoutes(claude, serverProvider, { ...bothEnabled, modelToolsPreferred: true })).toEqual({
       webSearch: 'server',
       webFetch: 'server'
     })
-  })
-
-  it('falls back only when the preferred side has no enabled capability', () => {
-    expect(
-      resolveWebToolRoutes(claude, { serverTools: [] } as unknown as Provider, {
-        ...bothEnabled,
-        clientToolsPreferred: false
-      })
-    ).toEqual({
+    expect(resolveWebToolRoutes(claude, serverProvider, { ...bothEnabled, modelToolsPreferred: false })).toEqual({
       webSearch: 'client',
       webFetch: 'client'
     })
   })
 
-  it('never mixes client and server tools when the selected side lacks one capability', () => {
+  it.each([
+    {
+      name: 'configured services when model-native tools are unavailable',
+      provider: { serverTools: [] } as unknown as Provider,
+      clientSearchAvailable: true,
+      clientFetchAvailable: true,
+      modelToolsPreferred: true,
+      expected: { webSearch: 'client', webFetch: 'client' }
+    },
+    {
+      name: 'model-native tools when configured services are unavailable',
+      provider: serverProvider,
+      clientSearchAvailable: false,
+      clientFetchAvailable: false,
+      modelToolsPreferred: false,
+      expected: { webSearch: 'server', webFetch: 'server' }
+    },
+    {
+      name: 'no tools when neither side is available',
+      provider: { serverTools: [] } as unknown as Provider,
+      clientSearchAvailable: false,
+      clientFetchAvailable: false,
+      modelToolsPreferred: true,
+      expected: {
+        webSearch: 'none',
+        webFetch: 'none',
+        reasons: { webSearch: 'no-backend', webFetch: 'no-backend' }
+      }
+    }
+  ])('falls back to $name', ({ provider, expected, ...options }) => {
+    expect(resolveWebToolRoutes(claude, provider, { webSearchEnabled: true, ...options })).toEqual(expected)
+  })
+
+  it('routes each capability through its preferred side and then the available fallback', () => {
     expect(
       resolveWebToolRoutes(claude, provider('all-chat-models'), {
         ...bothEnabled,
-        clientToolsPreferred: false
+        modelToolsPreferred: true
       })
-    ).toEqual({ webSearch: 'server', webFetch: 'none', reasons: { webFetch: 'no-backend' } })
+    ).toEqual({ webSearch: 'server', webFetch: 'client' })
     expect(
       resolveWebToolRoutes(claude, serverProvider, {
         ...bothEnabled,
         clientSearchAvailable: false,
-        clientToolsPreferred: true
+        modelToolsPreferred: false
       })
-    ).toEqual({ webSearch: 'none', webFetch: 'client', reasons: { webSearch: 'no-backend' } })
+    ).toEqual({ webSearch: 'server', webFetch: 'client' })
   })
 
   it('recognizes provider-native URL fetch for supported model families', () => {
@@ -237,7 +259,7 @@ describe('web-tool routing', () => {
     expect(
       resolveWebToolRoutes(model('private-model'), { serverTools: [] } as unknown as Provider, {
         ...bothEnabled,
-        clientToolsPreferred: true
+        modelToolsPreferred: false
       })
     ).toEqual({
       webSearch: 'none',
@@ -263,8 +285,24 @@ describe('conflict-aware routing', () => {
         webSearchEnabled: true,
         clientSearchAvailable: true,
         clientFetchAvailable: true,
-        clientToolsPreferred: false,
+        modelToolsPreferred: true,
         hasFunctionToolSignals: true
+      })
+    ).toEqual({ webSearch: 'client', webFetch: 'client' })
+  })
+
+  it('coordinates web routes to the side with broader coverage when pre-3 Gemini cannot mix them', () => {
+    const searchOnlyProvider = {
+      id: 'gemini',
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+    } as Provider
+
+    expect(
+      resolveWebToolRoutes(gemini25, searchOnlyProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: true,
+        modelToolsPreferred: true
       })
     ).toEqual({ webSearch: 'client', webFetch: 'client' })
   })
@@ -275,7 +313,7 @@ describe('conflict-aware routing', () => {
         webSearchEnabled: true,
         clientSearchAvailable: false,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        modelToolsPreferred: true,
         hasFunctionToolSignals: true
       })
     ).toEqual({
@@ -297,7 +335,7 @@ describe('conflict-aware routing', () => {
         webSearchEnabled: true,
         clientSearchAvailable: false,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        modelToolsPreferred: true,
         reasoningEffort: 'minimal'
       })
     ).toEqual({
@@ -310,7 +348,7 @@ describe('conflict-aware routing', () => {
         webSearchEnabled: true,
         clientSearchAvailable: false,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        modelToolsPreferred: true,
         reasoningEffort: 'high'
       })
     ).toMatchObject({ webSearch: 'server' })

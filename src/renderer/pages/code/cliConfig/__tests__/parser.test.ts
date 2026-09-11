@@ -1,8 +1,9 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { CliConfigFileDraft, CliConfigTarget } from '../index'
 import { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft, readCliConfigDraft } from '../index'
@@ -88,7 +89,8 @@ describe('extractConnectionFromCliConfigDraft', () => {
     ['opencode', CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', 'https://api.deepseek.com/v1'],
     ['gemini', CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro', 'https://generativelanguage.googleapis.com'],
     ['qwen', CodeCli.QWEN_CODE, chatProvider, 'qwen3-max', 'https://api.deepseek.com/v1'],
-    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', 'https://api.deepseek.com/v1']
+    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', 'https://api.deepseek.com/v1'],
+    ['hermes', CodeCli.HERMES, chatProvider, 'hermes-3', 'https://api.deepseek.com/v1']
   ]
 
   it.each(cases)('round-trips baseUrl/apiKey/model for %s', async (_name, cliTool, provider, model, baseUrl) => {
@@ -102,7 +104,7 @@ describe('extractConnectionFromCliConfigDraft', () => {
 
   it('returns null when a draft file is malformed', () => {
     const badClaude: CliConfigFileDraft = {
-      target: 'claude-settings' as CliConfigTarget,
+      target: 'claude-settings',
       label: '',
       path: '',
       language: 'json',
@@ -141,7 +143,15 @@ describe('extractConnectionFromCliConfigDraft', () => {
       ]
     ],
     ['qwen', CodeCli.QWEN_CODE, [{ target: 'qwen-settings', label: '', path: '', language: 'json', content: '{}' }]],
-    ['kimi', CodeCli.KIMI_CODE, [{ target: 'kimi-config', label: '', path: '', language: 'toml', content: '' }]]
+    ['kimi', CodeCli.KIMI_CODE, [{ target: 'kimi-config', label: '', path: '', language: 'toml', content: '' }]],
+    [
+      'hermes',
+      CodeCli.HERMES,
+      [
+        { target: 'hermes-config', label: '', path: '', language: 'yaml', content: '' },
+        { target: 'hermes-env', label: '', path: '', language: 'dotenv', content: '' }
+      ]
+    ]
   ]
 
   it.each(emptyFileCases)('returns null for an existing-but-empty %s config', (_name, cliTool, files) => {
@@ -154,7 +164,7 @@ describe('extractConnectionFromCliConfigDraft', () => {
   it('opencode: extracts the model addressing key, not the display name', () => {
     const files: CliConfigFileDraft[] = [
       {
-        target: 'opencode-config' as CliConfigTarget,
+        target: 'opencode-config',
         label: '',
         path: '',
         language: 'json',
@@ -252,7 +262,7 @@ describe('extractConfigFromCliConfigDraft', () => {
 
   it('returns null when a draft file is malformed', () => {
     const badKimi: CliConfigFileDraft = {
-      target: 'kimi-config' as CliConfigTarget,
+      target: 'kimi-config',
       label: '',
       path: '',
       language: 'toml',

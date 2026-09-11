@@ -1,15 +1,3 @@
-import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
-import { useIcon } from '@cherrystudio/ui/icons'
-import { loggerService } from '@logger'
-import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
-import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { useCommandHandler } from '@renderer/hooks/command'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { toast } from '@renderer/services/toast'
-import { getModelLogoRef } from '@renderer/utils/model'
-import { isDev } from '@renderer/utils/platform'
-import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { first } from 'es-toolkit/compat'
 import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
@@ -24,6 +12,20 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
+import { loggerService } from '@logger'
+import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
+import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
+import { getModelLogoRef } from '@renderer/utils/model'
+import { isDev } from '@renderer/utils/platform'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
 
 import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
 import { SelectorShell } from '../SelectorShell'
@@ -154,6 +156,7 @@ function modelsFromSelectedIds(
 
 function ModelRow({
   item,
+  disabled,
   isFocused,
   onPin,
   onSelect,
@@ -165,6 +168,7 @@ function ModelRow({
   t
 }: {
   item: ModelSelectorModelItem
+  disabled: boolean
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
   onSelect: (item: ModelSelectorModelItem) => void
@@ -179,8 +183,10 @@ function ModelRow({
   const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
   const disambiguationLabel = item.showIdentifier
-    ? `${providerName} · ${item.modelIdentifier}`
-    : item.isPinned
+    ? item.groupKind === 'pinned'
+      ? `${providerName} · ${item.modelIdentifier}`
+      : item.modelIdentifier
+    : item.groupKind === 'pinned'
       ? providerName
       : undefined
 
@@ -234,6 +240,7 @@ function ModelRow({
   return (
     <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
       <ModelSelectorRow
+        disabled={disabled}
         selected={isSelected}
         focused={isFocused}
         showSelectedIndicator={!showCheckbox && isSelected}
@@ -334,6 +341,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     showTagFilter = true,
     showPinnedModels = true,
     showPinActions = true,
+    isModelDisabled,
+    includeAgentOnlyModels = false,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
     align = 'start',
@@ -402,6 +411,10 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const open = openProp ?? internalOpen
   const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
+  const isSelectionDisabled = useCallback(
+    (model: Model, provider?: Provider) => Boolean(isModelDisabled?.(model, provider)),
+    [isModelDisabled]
+  )
 
   // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while
   // rendering the open->closed transition unmounts it in that same commit, so the closed-state
@@ -478,6 +491,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     visibleSelectedModelIdSet
   } = useModelSelectorData({
     enabled: dataEnabled,
+    includeAgentOnlyModels,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
@@ -565,6 +579,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
+      if (isSelectionDisabled(item.model, item.provider)) return
       skipNextFocusScroll.current = true
 
       if (multiple && multiSelectModeRef.current) {
@@ -583,7 +598,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       emitSelection([item.modelId])
       setOpen(false)
     },
-    [emitSelection, multiple, rawSelectedModelIds, setOpen]
+    [emitSelection, isSelectionDisabled, multiple, rawSelectedModelIds, setOpen]
   )
 
   const handleClose = useCallback(() => {
@@ -827,6 +842,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           }}>
           <ModelRow
             item={item}
+            disabled={isSelectionDisabled(item.model, item.provider)}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
             isSelected={visibleSelectedModelIdSet.has(item.modelId)}
@@ -846,6 +862,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       handleSelectItem,
       handleTogglePin,
       isPinActionDisabled,
+      isSelectionDisabled,
       multiple,
       multiSelectMode,
       setFocusedItemKey,

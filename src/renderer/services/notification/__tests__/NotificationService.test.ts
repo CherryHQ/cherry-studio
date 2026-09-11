@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { Notification, NotificationSource } from '@renderer/types/notification'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   request: vi.fn()
@@ -22,7 +23,8 @@ const PREF_BY_SOURCE: Record<NotificationSource, UnifiedPreferenceKeyType> = {
   assistant: 'app.notification.assistant.enabled',
   backup: 'app.notification.backup.enabled',
   knowledge: 'app.notification.knowledge.enabled',
-  update: 'app.notification.update.enabled'
+  update: 'app.notification.update.enabled',
+  'mini-app': 'app.notification.mini_app.enabled'
 }
 
 const buildNotification = (source: NotificationSource): Notification => ({

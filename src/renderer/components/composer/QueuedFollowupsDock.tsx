@@ -1,10 +1,11 @@
+import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { type ChatInputTokenKind, type ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import { cn } from '@renderer/utils/style'
-import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import { excludeComposerDraftTokens } from './composerDraft'
 import type { FollowupQueueItem } from './useFollowupQueue'
@@ -78,7 +79,7 @@ function QueuedFollowupRow({
         <GripVertical className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        {previewText ? <span className="line-clamp-2 text-foreground text-sm">{previewText}</span> : null}
+        {previewText ? <span className="line-clamp-2 text-sm text-foreground">{previewText}</span> : null}
         <DraftTokenChips item={item} hasText={Boolean(previewText)} />
       </div>
       <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
@@ -151,7 +152,7 @@ export function QueuedFollowupsDock({
       className="mx-2 mb-1.5 rounded-[16px] border-[0.5px] border-border p-1.5 backdrop-blur"
       style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
       <div className="flex items-center justify-between px-1.5 pb-1">
-        <span className="text-muted-foreground text-xs">
+        <span className="text-xs text-muted-foreground">
           {t('chat.input.followup_queue.title', { count: items.length })}
         </span>
         <Tooltip

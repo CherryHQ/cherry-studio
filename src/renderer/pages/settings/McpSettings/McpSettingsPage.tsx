@@ -1,3 +1,8 @@
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
+import { FolderCog, Server, ShoppingBag } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Flex, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -9,10 +14,6 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { FolderCog, Server, ShoppingBag } from 'lucide-react'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { getMcpProviderLogo, getProviderDisplayName, providers } from './providers/config'
 
@@ -50,6 +51,7 @@ const McpSettings: FC = () => {
           <Scrollbar className="min-h-0 flex-1">
             <MenuList className={settingsSubmenuListClassName}>
               <MenuItem
+                id="setting-mcp-servers-tab-servers"
                 label={t('settings.mcp.title')}
                 active={activeView === 'servers'}
                 onClick={() => navigate({ to: '/settings/mcp/servers' })}
@@ -60,6 +62,7 @@ const McpSettings: FC = () => {
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.mcp.discover', 'Discover')}</div>
               <MenuItem
+                id="setting-mcp-builtin-tab-builtin"
                 label={t('settings.mcp.builtinServers', 'Built-in Servers')}
                 active={activeView === 'builtin'}
                 onClick={() => navigate({ to: '/settings/mcp/builtin' })}
@@ -68,6 +71,7 @@ const McpSettings: FC = () => {
                 labelClassName={settingsSubmenuItemLabelClassName}
               />
               <MenuItem
+                id="setting-mcp-marketplaces-tab-marketplaces"
                 label={t('settings.mcp.marketplaces', 'Marketplaces')}
                 active={activeView === 'marketplaces'}
                 onClick={() => navigate({ to: '/settings/mcp/marketplaces' })}

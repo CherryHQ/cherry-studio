@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
@@ -8,6 +10,7 @@ import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 
 // Headless behavior leaf inside the providers: the shared window runtime (same route
@@ -16,6 +19,14 @@ import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell
 // none of the main-only concerns (boot spinner/timer, update/storage notification).
 function SubWindowRuntime(): null {
   useWindowRuntime()
+
+  // Same route tree as main, so topic/message exports run here too — register the
+  // image-mode popup behind the services seam like MainApp does.
+  useEffect(() => {
+    registerImageModeChooser((imageCount) =>
+      import('@renderer/components/MarkdownImageExportPopup').then((m) => m.default.show({ imageCount }))
+    )
+  }, [])
 
   return null
 }

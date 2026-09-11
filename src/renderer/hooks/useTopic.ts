@@ -13,6 +13,9 @@
  * once Phase 2 finishes.
  */
 
+import { isEqual } from 'es-toolkit/compat'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import {
@@ -30,14 +33,13 @@ import { useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
+import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 import { ErrorCode, isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
-import { isEqual } from 'es-toolkit/compat'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
 
@@ -224,7 +226,7 @@ export async function getTopicMessages(
       cursor = response.nextCursor
     } while (cursor && (!options.maxMessages || collected < options.maxMessages))
 
-    return pages.reverse().flat()
+    return withPriorCitationParts(pages.reverse().flat())
   } catch (error: unknown) {
     if (error instanceof Object && 'code' in error && error.code === ErrorCode.NOT_FOUND) {
       logger.debug(`Topic ${id} not found in Data API, returning empty`)
@@ -554,20 +556,9 @@ export interface UseActiveTopicOptions {
   activeTopicId: string | null
   /** Write back when initialTopic or setActiveTopic fires. */
   setActiveTopicId: (id: string | null) => void
-  /**
-   * Pass `true` for callers that don't want any reconciliation or visible
-   * activeTopic (e.g. message-only view loads its target via `useTopicById`).
-   * In passive mode the hook becomes a no-op except for tracking `pendingTopic`.
-   */
-  passive?: boolean
 }
 
-export function useActiveTopic({
-  initialTopic,
-  activeTopicId,
-  setActiveTopicId,
-  passive = false
-}: UseActiveTopicOptions) {
+export function useActiveTopic({ initialTopic, activeTopicId, setActiveTopicId }: UseActiveTopicOptions) {
   // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
   // loadAll `/topics` list. The entry route chooses the id without waiting for topic
   // history pagination; this hook then loads only that active row while the rail keeps
@@ -576,7 +567,7 @@ export function useActiveTopic({
     topic: apiActiveTopic,
     isLoading: isActiveTopicQueryLoading,
     error
-  } = useTopicById(passive || !activeTopicId ? undefined : activeTopicId)
+  } = useTopicById(activeTopicId || undefined)
   // NOT_FOUND is authoritative even if SWR still exposes cached data or a matching optimistic
   // topic. Otherwise cross-window deletion can strand HomePage on a stale active topic.
   const isNotFound = isDataApiNotFoundError(error)
@@ -593,23 +584,21 @@ export function useActiveTopic({
   const hasAppliedInitialTopicRef = useRef(false)
 
   useEffect(() => {
-    if (passive) return
     if (!initialTopic) return
     setPendingTopic((prev) => prev ?? initialTopic)
     if (hasAppliedInitialTopicRef.current) return
 
     hasAppliedInitialTopicRef.current = true
     if (activeTopicId !== initialTopic.id) setActiveTopicId(initialTopic.id)
-  }, [activeTopicId, initialTopic, passive, setActiveTopicId])
+  }, [activeTopicId, initialTopic, setActiveTopicId])
 
   const activeTopic = useMemo<RendererTopic | undefined>(() => {
-    if (passive) return undefined
     if (isNotFound) return undefined
     if (!activeTopicId) return pendingTopic
     if (queryTopic) return queryTopic
     if (pendingTopic?.id === activeTopicId) return pendingTopic
     return undefined
-  }, [activeTopicId, isNotFound, passive, pendingTopic, queryTopic])
+  }, [activeTopicId, isNotFound, pendingTopic, queryTopic])
 
   // Where the active topic resolved from. 'query' = persisted (fetched by id);
   // 'pending' = optimistic / temporary topic not yet persisted. Mirrors
@@ -624,14 +613,10 @@ export function useActiveTopic({
 
   const setActiveTopic = useCallback(
     (next: RendererTopic) => {
-      if (passive) {
-        setPendingTopic(next)
-        return
-      }
       setActiveTopicId(next.id)
       setPendingTopic(next)
     },
-    [passive, setActiveTopicId]
+    [setActiveTopicId]
   )
 
   // Clear the active topic entirely. Both `activeTopicId` and the in-memory `pendingTopic`
@@ -640,15 +625,14 @@ export function useActiveTopic({
   // was just deleted when creating its replacement fails.
   const clearActiveTopic = useCallback(() => {
     setPendingTopic(undefined)
-    if (!passive) setActiveTopicId(null)
-  }, [passive, setActiveTopicId])
+    setActiveTopicId(null)
+  }, [setActiveTopicId])
 
   useEffect(() => {
-    if (passive) return
     if (activeTopic) {
       void EventEmitter.emit(EVENT_NAMES.CHANGE_TOPIC, activeTopic)
     }
-  }, [activeTopic, passive])
+  }, [activeTopic])
 
   // Mirror `useActiveSession`: once the topic resolves (from the by-id query or the
   // pending fallback) we are no longer loading, even while a background revalidation runs.

@@ -1,16 +1,18 @@
+import os from 'os'
+import path from 'path'
+import { isMainThread } from 'worker_threads'
+
+import { app, ipcMain } from 'electron'
+import winston from 'winston'
+import DailyRotateFile from 'winston-daily-rotate-file'
+
 /* eslint-disable no-restricted-syntax */
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
-import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
-import { app, ipcMain } from 'electron'
-import os from 'os'
-import path from 'path'
-import winston from 'winston'
-import DailyRotateFile from 'winston-daily-rotate-file'
-import { isMainThread } from 'worker_threads'
+import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
 
 const ANSICOLORS = {
   RED: '\x1b[31m',
@@ -115,7 +117,7 @@ export class LoggerService {
         filename: path.join(this.logsDir, 'app.%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: '10m',
-        maxFiles: '30d'
+        maxFiles: `${MAX_LOG_RETENTION_DAYS}d`
       })
     )
 
@@ -126,7 +128,7 @@ export class LoggerService {
         filename: path.join(this.logsDir, 'app-error.%DATE%.log'),
         datePattern: 'YYYY-MM-DD',
         maxSize: '10m',
-        maxFiles: '60d'
+        maxFiles: `${MAX_LOG_RETENTION_DAYS}d`
       })
     )
 
@@ -248,28 +250,56 @@ export class LoggerService {
       }
     }
 
-    // add source information to meta
+    // Winston merges only the first splat object into the logged line (no
+    // `format.splat()` configured), so collapse caller data + source into one meta.
+    const entry: Record<string, unknown> = {}
+    const rest: unknown[] = []
+    let fileMessage = message
+
+    const [first, ...others] = meta
+    if (first instanceof Error) {
+      Object.assign(entry, first)
+      entry.stack = first.stack
+      fileMessage = `${message} ${first.message}`
+    } else if (first !== null && typeof first === 'object') {
+      Object.assign(entry, first)
+    } else if (first !== undefined) {
+      rest.push(first)
+    }
+    for (const item of others) {
+      rest.push(item instanceof Error ? { name: item.name, message: item.message, stack: item.stack } : item)
+    }
+    if (rest.length > 0) {
+      entry.data = rest
+    }
+
+    // source fields assigned last so caller data can never clobber them
     // renderer process has its own module and context, do not use this.module and this.context
-    const sourceWithContext: LogSourceWithContext = source
+    entry.process = source.process
     if (source.process === 'main') {
-      sourceWithContext.module = this.module
+      entry.module = this.module
       if (Object.keys(this.context).length > 0) {
-        sourceWithContext.context = this.context
+        entry.context = this.context
+      }
+    } else {
+      if (source.window !== undefined) {
+        entry.window = source.window
+      }
+      if (source.module !== undefined) {
+        entry.module = source.module
+      }
+      if (source.context !== undefined) {
+        entry.context = source.context
       }
     }
-    meta.push(sourceWithContext)
 
     // add extra system information for error and warn levels
     if (level === LEVEL.ERROR || level === LEVEL.WARN) {
-      const extra = {
-        sys: SYSTEM_INFO,
-        appver: APP_VERSION
-      }
-
-      meta.push(extra)
+      entry.sys = SYSTEM_INFO
+      entry.appver = APP_VERSION
     }
 
-    this.logger.log(level, message, ...meta)
+    this.logger.log(level, fileMessage, entry)
   }
 
   /**

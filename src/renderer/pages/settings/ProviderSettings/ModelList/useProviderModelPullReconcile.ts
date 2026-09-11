@@ -1,3 +1,6 @@
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -13,8 +16,6 @@ import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/Prov
 import { toast } from '@renderer/services/toast'
 import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { chunkArray } from '../utils/chunkArray'
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
@@ -29,6 +30,11 @@ function uniqueById(models: Model[]): Model[] {
     }
   }
   return Array.from(result.values())
+}
+
+interface ProviderModelLoadResult {
+  models: Model[]
+  error: unknown | null
 }
 
 async function deleteModelsSkippingDefaults(
@@ -136,25 +142,40 @@ export function useProviderModelPullReconcile(providerId: string) {
         fetchResolvedProviderModels(providerId)
       ])
       if (!isLatestLoad()) {
-        return
+        return null
       }
 
-      const catalog = catalogResult.status === 'fulfilled' ? catalogResult.value : []
-      const fetched = fetchedResult.status === 'fulfilled' ? fetchedResult.value : []
+      const catalog = (catalogResult.status === 'fulfilled' ? catalogResult.value : []).filter((model) =>
+        model.name?.trim()
+      )
+      const fetched = (fetchedResult.status === 'fulfilled' ? fetchedResult.value : []).filter((model) =>
+        model.name?.trim()
+      )
       const hasLoadedAllModels = catalogResult.status === 'fulfilled' && fetchedResult.status === 'fulfilled'
+      const loadError =
+        fetchedResult.status === 'rejected'
+          ? fetchedResult.reason
+          : catalogResult.status === 'rejected'
+            ? catalogResult.reason
+            : null
 
-      setCatalogModels(catalog.filter((model) => model.name?.trim()))
-      setFetchedModels(fetched.filter((model) => model.name?.trim()))
+      setCatalogModels(catalog)
+      setFetchedModels(fetched)
       setHasLoadedCompleteRemoteModels(hasLoadedAllModels)
 
       if (!hasLoadedAllModels) {
         logger.error('Failed to load provider models for manage drawer', {
           providerId,
-          catalogError: catalogResult.status === 'rejected' ? catalogResult.reason : undefined,
-          upstreamError: fetchedResult.status === 'rejected' ? fetchedResult.reason : undefined
+          catalogFailed: catalogResult.status === 'rejected',
+          upstreamFailed: fetchedResult.status === 'rejected'
         })
         setLoadErrorMessage(t('settings.models.manage.sync_pull_failed'))
       }
+
+      return {
+        models: uniqueById([...fetched, ...catalog]),
+        error: loadError
+      } satisfies ProviderModelLoadResult
     } finally {
       if (isLatestLoad()) {
         setIsLoadingModels(false)

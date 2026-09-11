@@ -1,3 +1,7 @@
+import { ArrowLeft, MoreHorizontal, Trash2, Upload } from 'lucide-react'
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Dialog,
@@ -26,9 +30,6 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
-import { ArrowLeft, MoreHorizontal, Trash2, Upload } from 'lucide-react'
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { FileContextMenuActions } from './FileContextMenu'
 import type { FileItem } from './fileDisplay'
@@ -174,6 +175,17 @@ function canStartInlineRename(file: FileItem | undefined): file is FileItem {
   return Boolean(file && !file.trashed && !file.isMissing)
 }
 
+function useStableFileEntries(entries: FileEntry[]): FileEntry[] {
+  const stableRef = useRef(entries)
+  if (
+    stableRef.current.length !== entries.length ||
+    stableRef.current.some((entry, index) => entry !== entries[index])
+  ) {
+    stableRef.current = entries
+  }
+  return stableRef.current
+}
+
 function toFileItem(
   entry: FileEntry,
   metadataById: FileMetadataById,
@@ -272,7 +284,7 @@ const FileToolbar = memo(function FileToolbar({
 
   return (
     <div className="flex h-7 shrink-0 items-center gap-1">
-      <span className="text-muted-foreground text-xs">
+      <span className="text-xs text-muted-foreground">
         {t('files.footer_selected_count', { count: selectedCount })}
       </span>
       <DropdownMenu>
@@ -280,7 +292,7 @@ const FileToolbar = memo(function FileToolbar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
+            className="size-6 !text-muted-foreground hover:bg-transparent hover:!text-foreground"
             aria-label={t('files.actions')}>
             <MoreHorizontal size={14} />
           </Button>
@@ -313,7 +325,9 @@ function FilesPage() {
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
+  const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectionAnchorIdRef = useRef<string | null>(null)
 
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -327,7 +341,15 @@ function FilesPage() {
   // renders a friendly format label derived from `ext` (e.g. `md` → Markdown).
   // Sort by raw `ext` server-side so cursor pagination stays globally stable.
   const serverSortKey: ServerSortKey = sortKey === 'type' ? 'ext' : sortKey
-  const activeFilesQuery = useMemo(() => ({ sortBy: serverSortKey, sortOrder: sortDir }), [serverSortKey, sortDir])
+  const activeFileType = filter.kind === 'type' ? filter.value : undefined
+  const activeFilesQuery = useMemo(
+    () => ({
+      sortBy: serverSortKey,
+      sortOrder: sortDir,
+      ...(activeFileType && { fileType: activeFileType })
+    }),
+    [activeFileType, serverSortKey, sortDir]
+  )
   const trashedFilesQuery = useMemo(
     () => ({ inTrash: true, sortBy: serverSortKey, sortOrder: sortDir }),
     [serverSortKey, sortDir]
@@ -345,6 +367,7 @@ function FilesPage() {
   } = useInfiniteQuery('/files/entries', {
     query: activeFilesQuery,
     limit: FILES_PAGE_LIMIT,
+    enabled: !isTrash,
     swrOptions: { keepPreviousData: true }
   })
   const {
@@ -359,6 +382,7 @@ function FilesPage() {
   } = useInfiniteQuery('/files/entries', {
     query: trashedFilesQuery,
     limit: FILES_PAGE_LIMIT,
+    enabled: isTrash,
     swrOptions: { keepPreviousData: true }
   })
   const {
@@ -369,24 +393,31 @@ function FilesPage() {
     swrOptions: { keepPreviousData: true }
   })
 
-  const isFilesLoading = isActiveFilesLoading || isTrashedFilesLoading
-  const isFilesRefreshing = isActiveFilesRefreshing || isTrashedFilesRefreshing
-  const activeEntries = useInfiniteFlatItems(activeFilePages)
-  const trashedEntries = useInfiniteFlatItems(trashedFilePages)
-  const activeFilesTotal = activeFilePages[0]?.total ?? activeEntries.length
-  const trashedFilesTotal = trashedFilePages[0]?.total ?? trashedEntries.length
-  const entries = useMemo(() => [...activeEntries, ...trashedEntries], [activeEntries, trashedEntries])
-  const previousNonEmptyEntriesRef = useRef<FileEntry[]>([])
-  const isFileQueryPending = isFilesLoading || isFilesRefreshing
+  const viewKey = isTrash ? 'trash' : 'active'
+  const currentFilePages = isTrash ? trashedFilePages : activeFilePages
+  const entries = useStableFileEntries(useInfiniteFlatItems(currentFilePages))
+  const activeFilesTotal =
+    activeFilePages[0]?.total ?? activeFilePages.reduce((sum, page) => sum + page.items.length, 0)
+  const trashedFilesTotal =
+    trashedFilePages[0]?.total ?? trashedFilePages.reduce((sum, page) => sum + page.items.length, 0)
+  const isFilesLoading = isTrash ? isTrashedFilesLoading : isActiveFilesLoading
+  const isFilesRefreshing = isTrash ? isTrashedFilesRefreshing : isActiveFilesRefreshing
+  const previousNonEmptyEntriesRef = useRef<{ active: FileEntry[]; trash: FileEntry[] }>({ active: [], trash: [] })
+  const previousEntries = previousNonEmptyEntriesRef.current[viewKey]
   const displayEntryCandidate =
-    entries.length === 0 && isFileQueryPending && previousNonEmptyEntriesRef.current.length > 0
-      ? previousNonEmptyEntriesRef.current
+    entries.length === 0 && (isFilesLoading || isFilesRefreshing) && previousEntries.length > 0
+      ? previousEntries
       : entries
-  const displayEntries = useDeferredValue(displayEntryCandidate)
+  const displayStateCandidate = useMemo(
+    () => ({ viewKey, entries: displayEntryCandidate }),
+    [displayEntryCandidate, viewKey]
+  )
+  const deferredDisplayState = useDeferredValue(displayStateCandidate)
+  const displayEntries = deferredDisplayState.viewKey === viewKey ? deferredDisplayState.entries : displayEntryCandidate
 
   useEffect(() => {
-    if (entries.length > 0) previousNonEmptyEntriesRef.current = entries
-  }, [entries])
+    if (entries.length > 0) previousNonEmptyEntriesRef.current[viewKey] = entries
+  }, [entries, viewKey])
 
   useEffect(() => {
     resetActiveFiles()
@@ -437,7 +468,7 @@ function FilesPage() {
     return () => {
       cancelled = true
     }
-  }, [displayEntries, isFilesLoading, isFilesRefreshing])
+  }, [displayEntries, isFilesLoading, isFilesRefreshing, viewKey])
 
   const files = useMemo(() => {
     return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
@@ -449,7 +480,6 @@ function FilesPage() {
     await Promise.all([refreshActiveFiles(), refreshTrashedFiles(), refetchFileStats()])
   }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
 
-  const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const activeFilterLabel =
     filter.kind === 'library'
@@ -505,31 +535,6 @@ function FilesPage() {
     loadMoreTrashedFiles,
     requestLoadMore
   ])
-
-  const maybeFillClientFilteredViewport = useCallback(() => {
-    // Type filters are applied client-side over the loaded active pages.
-    // If the filtered rows do not make the container scrollable, scroll-load
-    // cannot fire, so proactively fetch another active page until scrolling can engage.
-    if (filter.kind === 'library') return
-    const el = contentScrollRef.current
-    if (!el || !hasMoreActiveFiles || isLoadingMoreActiveFiles || pendingLoadMoreRef.current) return
-    if (el.scrollHeight > el.clientHeight) return
-
-    requestLoadMore(loadMoreActiveFiles)
-  }, [filter.kind, hasMoreActiveFiles, isLoadingMoreActiveFiles, loadMoreActiveFiles, requestLoadMore])
-
-  useEffect(() => {
-    if (filter.kind === 'library') return
-    const el = contentScrollRef.current
-    if (!el) return
-
-    maybeFillClientFilteredViewport()
-    if (typeof ResizeObserver === 'undefined') return
-
-    const resizeObserver = new ResizeObserver(() => maybeFillClientFilteredViewport())
-    resizeObserver.observe(el)
-    return () => resizeObserver.disconnect()
-  }, [filter.kind, maybeFillClientFilteredViewport])
 
   const handleOpen = useCallback(
     (file: FileItem) => {
@@ -617,10 +622,6 @@ function FilesPage() {
     return result
   }, [files, filter])
 
-  useEffect(() => {
-    maybeFillClientFilteredViewport()
-  }, [maybeFillClientFilteredViewport, filteredFiles.length, files.length])
-
   const fileCounts = useMemo(() => {
     const counts: Record<string, number> = {
       all: fileStats?.activeTotal ?? activeFilesTotal,
@@ -649,13 +650,35 @@ function FilesPage() {
     return t('files.delete.label')
   }, [isTrash, selectedFiles, t])
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }, [])
+  const handleSelect = useCallback(
+    (id: string, isChecked: boolean, shouldSelectRange: boolean) => {
+      const anchorIndex = selectionAnchorIdRef.current
+        ? filteredFiles.findIndex((file) => file.id === selectionAnchorIdRef.current)
+        : -1
+      const targetIndex = filteredFiles.findIndex((file) => file.id === id)
+      const isRangeSelection = shouldSelectRange && anchorIndex >= 0
+      const selectionIds = isRangeSelection
+        ? filteredFiles
+            .slice(Math.min(anchorIndex, targetIndex), Math.max(anchorIndex, targetIndex) + 1)
+            .map((file) => file.id)
+        : [id]
+
+      if (!isRangeSelection) selectionAnchorIdRef.current = id
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const selectionId of selectionIds) {
+          if (isChecked) next.add(selectionId)
+          else next.delete(selectionId)
+        }
+        return next
+      })
+    },
+    [filteredFiles]
+  )
+
+  useEffect(() => {
+    if (selectedIds.size === 0) selectionAnchorIdRef.current = null
+  }, [selectedIds])
 
   const handleSelectAllVisible = useCallback(
     (checked: boolean) => {
@@ -714,9 +737,8 @@ function FilesPage() {
     [files, isTrash, refetchFiles, t]
   )
 
-  const handleDelete = useCallback(
-    (ids?: Set<string>) => {
-      const targetIds = ids ?? selectedIds
+  const requestDelete = useCallback(
+    (targetIds: Set<string>) => {
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
@@ -727,7 +749,12 @@ function FilesPage() {
 
       void performDelete(new Set(targets.map((file) => file.id)))
     },
-    [files, isTrash, performDelete, selectedIds]
+    [files, isTrash, performDelete]
+  )
+
+  const handleDelete = useCallback(
+    (ids?: Set<string>) => requestDelete(ids ?? selectedIds),
+    [requestDelete, selectedIds]
   )
 
   const emptyTrash = useCallback(async () => {
@@ -809,14 +836,19 @@ function FilesPage() {
     setRenamingId(id)
   }, [])
 
+  const handleDeleteOne = useCallback((id: string) => requestDelete(new Set([id])), [requestDelete])
+  const handleRestoreOne = useCallback((id: string) => void handleRestore(new Set([id])), [handleRestore])
+  const handleRenameConfirm = useCallback((id: string, name: string) => void handleRename(id, name), [handleRename])
+  const handleRenameCancel = useCallback(() => setRenamingId(null), [])
+
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
       onRename: startInlineRename,
-      onDelete: (id) => handleDelete(new Set([id])),
-      onRestore: (id) => void handleRestore(new Set([id])),
+      onDelete: handleDeleteOne,
+      onRestore: handleRestoreOne,
       onShowInFolder: handleShowInFolder
     }),
-    [handleDelete, handleRestore, handleShowInFolder, startInlineRename]
+    [handleDeleteOne, handleRestoreOne, handleShowInFolder, startInlineRename]
   )
 
   const handleSort = useCallback(
@@ -847,10 +879,31 @@ function FilesPage() {
 
         startInlineRename(selectedFile.id)
       }
+      if (
+        (isMac ? e.metaKey : e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'a' &&
+        !isImageGrid &&
+        filteredFiles.length > 0
+      ) {
+        e.preventDefault()
+        handleSelectAllVisible(true)
+      }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
+  }, [
+    embeddedPreview,
+    files,
+    selectedIds,
+    handleDelete,
+    renamingId,
+    startInlineRename,
+    isImageGrid,
+    filteredFiles,
+    handleSelectAllVisible
+  ])
 
   return (
     <div data-ui="files.view" className="relative flex min-h-0 flex-1 overflow-hidden">
@@ -875,7 +928,7 @@ function FilesPage() {
             <DialogHeader>
               <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
             </DialogHeader>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               {t('files.permanent_delete_confirm.description', { count: permanentDeleteConfirmCount })}
             </p>
             <DialogFooter>
@@ -912,7 +965,7 @@ function FilesPage() {
           }}>
           <PageHeader
             title={activeFilterLabel}
-            className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']"
+            className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']"
             action={
               <div className="flex shrink-0 items-center gap-2">
                 {!isImageGrid && selectedIds.size > 0 && (
@@ -930,7 +983,7 @@ function FilesPage() {
                     size="sm"
                     disabled={filteredFiles.length === 0}
                     onClick={handleEmptyTrash}
-                    className="-translate-y-px h-7 px-2.5 text-muted-foreground text-xs hover:text-destructive">
+                    className="h-7 -translate-y-px px-2.5 text-xs text-muted-foreground hover:text-destructive">
                     <Trash2 className="size-3.5" />
                     {t('files.empty_trash')}
                   </Button>
@@ -939,7 +992,7 @@ function FilesPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => void handleUploadClick()}
-                    className="-translate-y-px h-7 gap-1.5 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground">
+                    className="h-7 -translate-y-px gap-1.5 rounded-md px-2.5 text-xs text-muted-foreground hover:text-foreground">
                     <Upload className="size-3.5 translate-y-px" />
                     <span>{t('files.upload')}</span>
                   </Button>
@@ -949,10 +1002,10 @@ function FilesPage() {
           />
 
           {dragOver && (
-            <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border-strong border-dashed bg-accent/25">
+            <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-dashed border-border-strong bg-accent/25">
               <div className="text-center">
                 <Upload size={28} className="mx-auto mb-2 text-muted-foreground" />
-                <p className="text-muted-foreground text-xs">{t('files.drag_upload')}</p>
+                <p className="text-xs text-muted-foreground">{t('files.drag_upload')}</p>
               </div>
             </div>
           )}
@@ -982,7 +1035,7 @@ function FilesPage() {
               // an empty state — otherwise the no-result state flashes before the
               // list arrives.
               isFilesLoading ? (
-                <div className="flex h-full flex-1 items-center justify-center text-muted-foreground text-sm">
+                <div className="flex h-full flex-1 items-center justify-center text-sm text-muted-foreground">
                   {t('common.loading')}
                 </div>
               ) : (
@@ -1000,14 +1053,13 @@ function FilesPage() {
                   <FileGrid
                     files={filteredFiles}
                     scrollRef={contentScrollRef}
-                    onLayoutChange={maybeFillClientFilteredViewport}
                     onOpen={handleOpen}
-                    onDelete={(id) => handleDelete(new Set([id]))}
+                    onDelete={handleDeleteOne}
                     isTrash={isTrash}
                     menuActions={listMenuActions}
                     renamingId={renamingId}
-                    onRenameConfirm={(id, name) => void handleRename(id, name)}
-                    onRenameCancel={() => setRenamingId(null)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 ) : (
                   <FileList
@@ -1018,13 +1070,13 @@ function FilesPage() {
                     onOpen={handleOpen}
                     isTrash={isTrash}
                     menuActions={listMenuActions}
-                    onDelete={(id) => handleDelete(new Set([id]))}
-                    onRestore={(id) => void handleRestore(new Set([id]))}
+                    onDelete={handleDeleteOne}
+                    onRestore={handleRestoreOne}
                     onRename={startInlineRename}
                     onShowInFolder={handleShowInFolder}
                     renamingId={renamingId}
-                    onRenameConfirm={(id, name) => void handleRename(id, name)}
-                    onRenameCancel={() => setRenamingId(null)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 )}
               </>
@@ -1051,7 +1103,7 @@ function FilesPage() {
                   onClick={() => setEmbeddedPreview(null)}>
                   <ArrowLeft className="size-3.5" />
                 </Button>
-                <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-foreground">{embeddedPreview.fileName}</span>
               </>
             }
           />

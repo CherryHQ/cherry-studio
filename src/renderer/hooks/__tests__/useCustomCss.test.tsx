@@ -1,6 +1,7 @@
-import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+
+import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 
 import { useCustomCssInjection } from '../useCustomCss'
 

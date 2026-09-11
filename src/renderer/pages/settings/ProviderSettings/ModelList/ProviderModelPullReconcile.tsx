@@ -1,8 +1,9 @@
-import { Button, ButtonGroupItem } from '@cherrystudio/ui'
 import { ArrowRight, RefreshCw } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, ButtonGroupItem } from '@cherrystudio/ui'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelListSyncDrawer from './ModelListSyncDrawer'
@@ -86,7 +87,9 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
         loadErrorMessage={pullReconcile.loadErrorMessage}
         staleModelCount={pullReconcile.staleModelCount}
         staleModelIds={pullReconcile.staleModelIds}
-        onRetryLoadModels={pullReconcile.reloadModels}
+        onRetryLoadModels={async () => {
+          await pullReconcile.reloadModels()
+        }}
         onAddModels={pullReconcile.addModels}
         onRemoveModels={pullReconcile.removeModels}
         onCleanStaleModels={pullReconcile.cleanStaleModels}

@@ -1,5 +1,6 @@
-import i18n, { initI18n } from '@renderer/i18n/resolver'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import i18n, { initI18n } from '@renderer/i18n/resolver'
 
 // The global renderer setup already calls initI18n(); these tests assert the
 // lazy-load contract (on-demand pack loading, fallback, idempotency) explicitly.
@@ -32,6 +33,13 @@ describe('renderer i18n lazy init', () => {
     expect(i18n.language).toBe('en-US')
     expect(i18n.hasResourceBundle('en-US', 'translation')).toBe(true)
     expect(i18n.t('common.copy')).toBe('Copy')
+  })
+
+  it('lazy-loads the Turkish pack when switching language', async () => {
+    await i18n.changeLanguage('tr-TR')
+
+    expect(i18n.hasResourceBundle('tr-TR', 'translation')).toBe(true)
+    expect(i18n.t('common.copy')).toBe('Kopyala')
   })
 
   it('uses singular and plural diagnostic file summaries in English', async () => {

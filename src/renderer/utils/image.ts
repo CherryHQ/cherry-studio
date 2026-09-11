@@ -1,11 +1,12 @@
+import type * as HtmlToImage from 'html-to-image'
+import { Base64 } from 'js-base64'
+
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
-import type * as HtmlToImage from 'html-to-image'
-import { Base64 } from 'js-base64'
 
 const logger = loggerService.withContext('Utils:image')
 const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
@@ -16,6 +17,9 @@ const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAA
  * content in the rasterized image.
  */
 export const IMAGE_CAPTURE_ATTRIBUTE = 'data-image-capturing'
+
+/** Marks interactive HTML artifact subtrees; both export paths omit them (shared policy selector). */
+const HTML_ARTIFACT_ATTRIBUTE = 'data-html-artifact'
 
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
@@ -170,16 +174,17 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
 }
 
 /**
- * 捕获可滚动元素的完整内容图像。
+ * 捕获可滚动元素的完整内容图像（html-to-image 克隆管线）。
+ * 仅作为原生合成器截图不可用时的回退路径；产品入口应优先走
+ * {@link captureScrollableImage}。
  * @param elRef 可滚动元素的引用
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
-export const captureScrollable = async (elRef: React.RefObject<HTMLElement | null>) => {
-  const el = elRef.current
-
+async function captureScrollableElement(el: HTMLElement | null) {
   if (el) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
+    const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
     try {
       // Mark the subtree before measuring: capture-only CSS keyed off this
@@ -211,7 +216,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
           // Interactive HTML artifacts are intentionally omitted from image exports.
-          if (node.hasAttribute('data-html-artifact')) {
+          if (node.hasAttribute(HTML_ARTIFACT_ATTRIBUTE)) {
             return false
           }
           if (node.style.display === 'none') {
@@ -257,12 +262,198 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       logger.error('Error capturing scrollable element:', error as Error)
       throw error
     } finally {
-      el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+      if (captureMarker === null) {
+        el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+      } else {
+        el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, captureMarker)
+      }
       restoreLocalImageSources?.()
     }
   }
 
   return Promise.resolve(undefined)
+}
+
+export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>) => captureScrollableElement(elRef.current)
+
+function markElementForCapture(el: HTMLElement): () => void {
+  const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+  el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+  return () => {
+    if (captureMarker === null) {
+      el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+    } else {
+      el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, captureMarker)
+    }
+  }
+}
+
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
+/** Chromium composited-surface edge cap; larger capture requests are not worth attempting. */
+const MAX_NATIVE_CAPTURE_PHYSICAL_DIMENSION = 16384
+
+/**
+ * Compute the page-space capture clip for `el`, mirroring DevTools' own
+ * "capture node screenshot" recipe: the element rect relative to the
+ * documentElement rect (page coordinates, scroll- and root-transform-agnostic).
+ * Uses scrollWidth/Height so content that the capture-only CSS expanded beyond
+ * the border box (wide tables) stays inside the clip.
+ */
+function computeCaptureClip(el: HTMLElement): { x: number; y: number; width: number; height: number } | undefined {
+  const rect = el.getBoundingClientRect()
+  const rootRect = document.documentElement.getBoundingClientRect()
+  const width = Math.ceil(Math.max(el.scrollWidth, rect.width))
+  const height = Math.ceil(Math.max(el.scrollHeight, rect.height))
+  if (!(width > 0) || !(height > 0)) return undefined
+  return { x: rect.left - rootRect.left, y: rect.top - rootRect.top, width, height }
+}
+
+/**
+ * Expand `el` for the duration of a native capture so clipped scroll content
+ * (max-height containers, overflow scrolling) is actually rendered for the
+ * compositor to pick up — the real-DOM equivalent of the style override the
+ * html-to-image clone applies. Restores inline styles and the scroll offset.
+ */
+async function withExpandedForCapture<T>(el: HTMLElement, fn: () => Promise<T>): Promise<T> {
+  const inline = { overflow: el.style.overflow, height: el.style.height, maxHeight: el.style.maxHeight }
+  const scrollTop = el.scrollTop
+  el.style.overflow = 'visible'
+  el.style.height = 'auto'
+  el.style.maxHeight = 'none'
+  try {
+    // Two rAFs: the first commits the expanded layout, the second lets the
+    // compositor produce a frame from it.
+    await nextFrame()
+    await nextFrame()
+    return await fn()
+  } finally {
+    el.style.overflow = inline.overflow
+    el.style.height = inline.height
+    el.style.maxHeight = inline.maxHeight
+    el.scrollTop = scrollTop
+  }
+}
+
+/**
+ * Interactive HTML artifacts are intentionally omitted from image exports (the
+ * clone path's `filter` drops them). The compositor rasterizes the live DOM, so
+ * there is no clone to filter — hide them for the duration of the shot instead.
+ */
+function hideHtmlArtifactsForCapture(el: HTMLElement): () => void {
+  const restored: Array<[HTMLElement, string]> = []
+  el.querySelectorAll<HTMLElement>(`[${HTML_ARTIFACT_ATTRIBUTE}]`).forEach((node) => {
+    restored.push([node, node.style.display])
+    node.style.display = 'none'
+  })
+  return () => restored.forEach(([node, display]) => (node.style.display = display))
+}
+
+/**
+ * Offscreen-parked capture roots (the topic export surface sits at `fixed`
+ * left:-10000px to stay invisible) cannot be shot in place: the composited
+ * surface only covers the document, and a negative-origin clip comes back
+ * clamped to the document origin — wrong pixels, not an error. Park the
+ * element at the end of the document for the capture instead. The rendered
+ * width is pinned in px first so re-anchoring to a different containing block
+ * cannot reflow the content. Returns a restore thunk, or null when the element
+ * already sits at non-negative page coordinates.
+ */
+function parkOffscreenElementForCapture(el: HTMLElement): (() => void) | null {
+  const rootRect = document.documentElement.getBoundingClientRect()
+  const rect = el.getBoundingClientRect()
+  if (rect.left - rootRect.left >= 0 && rect.top - rootRect.top >= 0) return null
+
+  const parked = { position: el.style.position, left: el.style.left, top: el.style.top, width: el.style.width }
+  el.style.position = 'absolute'
+  el.style.left = '0px'
+  el.style.top = `${document.documentElement.scrollHeight}px`
+  el.style.width = `${rect.width}px`
+  return () => Object.assign(el.style, parked)
+}
+
+/**
+ * Rasterize `el` through Chromium's own compositor (CDP Page.captureScreenshot,
+ * captureBeyondViewport). This is pixel-faithful to what the page renders —
+ * fonts, layout and effects are the live page's, not a re-serialized clone.
+ * Returns undefined (or throws) when the native path is unavailable; callers
+ * fall back to the html-to-image pipeline.
+ */
+async function captureNativeDataUrl(el: HTMLElement): Promise<string | undefined> {
+  const deviceScale = window.devicePixelRatio || 1
+  // CDP clip.scale multiplies ON TOP of the device scale factor: the output is
+  // clip × scale × DPR. scale 1 therefore yields exactly on-screen pixel
+  // density — the most faithful match to what the page renders.
+  const CAPTURE_SCALE = 1
+  // Only worth attempting when the composited surface fits Chromium's texture
+  // limits; anything larger fails at the CDP layer anyway.
+  const physical = (value: number) => value * deviceScale * CAPTURE_SCALE
+  const withinLimits = (clip: { width: number; height: number }) =>
+    physical(clip.width) <= MAX_NATIVE_CAPTURE_PHYSICAL_DIMENSION &&
+    physical(clip.height) <= MAX_NATIVE_CAPTURE_PHYSICAL_DIMENSION
+
+  const restoreCaptureMarker = markElementForCapture(el)
+  const restoreArtifacts = hideHtmlArtifactsForCapture(el)
+  const restoreParking = parkOffscreenElementForCapture(el)
+  try {
+    // Webfonts are already rendered by the live page, but capture-only CSS may
+    // reveal content that has not loaded fonts/images yet — keep the same
+    // bounded wait the clone path uses.
+    await Promise.race([
+      document.fonts?.ready ?? Promise.resolve(),
+      new Promise((resolve) => setTimeout(resolve, 1000))
+    ])
+
+    return await withExpandedForCapture(el, async () => {
+      const clip = computeCaptureClip(el)
+      // captureBeyondViewport extends the surface only to the document's scroll
+      // bounds — a clip overflowing them (or still off-document) comes back
+      // blank/clipped, so fall back rather than ship wrong pixels.
+      const rootRect = document.documentElement.getBoundingClientRect()
+      const docWidth = Math.max(document.documentElement.scrollWidth, rootRect.width)
+      const docHeight = Math.max(document.documentElement.scrollHeight, rootRect.height)
+      if (
+        !clip ||
+        clip.x < 0 ||
+        clip.y < 0 ||
+        clip.x + clip.width > docWidth + 1 ||
+        clip.y + clip.height > docHeight + 1 ||
+        !withinLimits(clip)
+      ) {
+        return undefined
+      }
+      const { dataUrl } = await ipcApi.request('window.capture_screenshot', { clip, scale: CAPTURE_SCALE })
+      return dataUrl
+    })
+  } finally {
+    restoreParking?.()
+    restoreArtifacts()
+    restoreCaptureMarker()
+  }
+}
+
+/**
+ * 捕获可滚动元素的完整内容图像（PNG data URL）。
+ * 优先走原生合成器截图（CDP，与页面渲染逐像素一致）；不可用时回退
+ * html-to-image 克隆管线。
+ * @param elRef 可滚动元素的引用
+ * @returns Promise<string | undefined> PNG data URL，失败返回 undefined
+ */
+export const captureScrollableImage = async (
+  elRef: React.RefObject<HTMLElement | null>
+): Promise<string | undefined> => {
+  const el = elRef.current
+  if (!el) return undefined
+
+  try {
+    const native = await captureNativeDataUrl(el)
+    if (native) return native
+  } catch (error) {
+    logger.warn('Native compositor capture unavailable, falling back to html-to-image', error as Error)
+  }
+
+  const canvas = await captureScrollableElement(el)
+  return canvas?.toDataURL('image/png')
 }
 
 /**
@@ -271,12 +462,26 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
 export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElement | null>) => {
-  return captureScrollable(elRef).then((canvas) => {
-    if (canvas) {
-      return canvas.toDataURL('image/png')
-    }
-    return Promise.resolve(undefined)
-  })
+  return captureScrollableImage(elRef)
+}
+
+/**
+ * 把 base64 data URL 解码成 Blob。
+ * 不能用 `fetch(dataUrl)`：渲染进程 CSP 的 `connect-src` 不含 `data:`，fetch 会
+ * 直接抛 `TypeError: Failed to fetch`。
+ * @param dataUrl base64 编码的 data URL
+ * @returns 解码后的 Blob，MIME 取自 data URL
+ */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const parsed = parseDataUrl(dataUrl)
+  if (!parsed?.isBase64) {
+    throw new Error('dataUrlToBlob expects a base64 data URL')
+  }
+
+  const binary = atob(parsed.data)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: parsed.mediaType })
 }
 
 /**
@@ -286,9 +491,10 @@ export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElem
  * @returns Promise<void> 处理结果
  */
 export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement | null>, func: BlobCallback) => {
-  await captureScrollable(elRef).then((canvas) => {
-    canvas?.toBlob(func, 'image/png')
-  })
+  const dataUrl = await captureScrollableImage(elRef)
+  if (dataUrl) {
+    func(dataUrlToBlob(dataUrl))
+  }
 }
 
 /**
@@ -517,10 +723,13 @@ export const captureScrollableIframeAsBlob = async (
  */
 export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
   // 获取 SVG 尺寸信息
+  // 优先使用 viewBox；ECharts 等 SVG 渲染器可能直接设置 width/height 属性且没有 viewBox
   const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
+  const attrWidth = parseFloat(svgElement.getAttribute('width') || '')
+  const attrHeight = parseFloat(svgElement.getAttribute('height') || '')
   const rect = svgElement.getBoundingClientRect()
-  const width = viewBox[2] || svgElement.clientWidth || rect.width
-  const height = viewBox[3] || svgElement.clientHeight || rect.height
+  const width = viewBox[2] || svgElement.clientWidth || rect.width || attrWidth
+  const height = viewBox[3] || svgElement.clientHeight || rect.height || attrHeight
 
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
@@ -602,6 +811,43 @@ export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   return new Blob([svgData], { type: 'image/svg+xml' })
 }
 
+const INTRINSIC_SVG_LENGTH = /^\s*\+?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:px|pt|pc|mm|cm|in|q|em|ex)?\s*$/i
+
+const hasPositiveIntrinsicSvgLength = (value: string | null): boolean => {
+  if (value === null || !INTRINSIC_SVG_LENGTH.test(value)) return false
+  const length = Number.parseFloat(value)
+  return Number.isFinite(length) && length > 0
+}
+
+/**
+ * An SVG embedded in the conversation is responsive (`width="100%"`, usually no
+ * height), but the same node becomes a replaced image in the full-screen preview.
+ * Percentage/missing dimensions give that standalone image the browser's small
+ * default intrinsic size, so the viewer's fit and zoom geometry starts from the
+ * wrong box. Give only the preview clone an intrinsic vector size.
+ */
+const createStandaloneSvgPreview = (svgElement: SVGElement): SVGElement => {
+  const clone = svgElement.cloneNode(true) as SVGElement
+  if (
+    hasPositiveIntrinsicSvgLength(clone.getAttribute('width')) ||
+    hasPositiveIntrinsicSvgLength(clone.getAttribute('height'))
+  ) {
+    return clone
+  }
+
+  const viewBox = clone
+    .getAttribute('viewBox')
+    ?.trim()
+    .split(/[\s,]+/)
+    .map(Number)
+  if (viewBox?.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
+    clone.setAttribute('width', String(viewBox[2]))
+    clone.setAttribute('height', String(viewBox[3]))
+  }
+
+  return clone
+}
+
 export type ImageInput = SVGElement | HTMLImageElement | string | Blob
 
 export interface ImagePreviewOptions {
@@ -616,7 +862,10 @@ export interface ImagePreviewOptions {
  */
 export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePreviewOptions = {}): Promise<string> => {
   if (input instanceof SVGElement) {
-    const blob = options.format === 'svg' ? svgToSvgBlob(input) : await svgToPngBlob(input, options.scale || 3)
+    const blob =
+      options.format === 'svg'
+        ? svgToSvgBlob(createStandaloneSvgPreview(input))
+        : await svgToPngBlob(input, options.scale || 3)
     return URL.createObjectURL(blob)
   }
 
@@ -819,7 +1068,7 @@ function decodeDataUrlBytes(data: string): Uint8Array {
   const encoder = new TextEncoder()
   const bytes: number[] = []
 
-  for (let index = 0; index < data.length; ) {
+  for (let index = 0; index < data.length;) {
     const hexByte = data[index] === '%' ? data.slice(index + 1, index + 3) : ''
     if (/^[\da-fA-F]{2}$/.test(hexByte)) {
       bytes.push(Number.parseInt(hexByte, 16))
@@ -854,7 +1103,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const byteArray = parseResult.isBase64
       ? Base64.toUint8Array(parseResult.data)
       : decodeDataUrlBytes(parseResult.data)
-    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
+    return assertImageBlob(new Blob([byteArray.slice()], { type: parseResult.mediaType }), src)
   }
 
   if (src.startsWith('file://')) {
@@ -863,11 +1112,29 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
       handle: createFilePathHandle(path),
       options: { mode: 'full', encoding: 'binary' }
     })
-    return new Blob([content.slice() as unknown as BlobPart], { type: mime })
+    return assertImageBlob(new Blob([content.slice()], { type: mime }), src)
   }
 
   const response = await fetch(src)
-  return response.blob()
+  // An error page (404/500 HTML) is not an image — fail so callers can skip/report it.
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status} ${src}`)
+  }
+  const blob = await response.blob()
+  return assertImageBlob(blob, src)
+}
+
+/** A 200 response is still not an image when its content type says otherwise (proxy/login pages). */
+function assertImageBlob(blob: Blob, src: string): Blob {
+  // octet-stream is a mislabel, not a non-image verdict: extension-less local entries and
+  // remote servers that skip MIME land here, and the bytes still decode like <img> does.
+  // Trim first — header params ('text/html; charset=utf-8') and stray OWS must not bypass the check.
+  const type = blob.type.trim()
+  const unknown = type === 'application/octet-stream'
+  if (type && !unknown && !type.startsWith('image/')) {
+    throw new Error(`Source is not an image (content type ${type}): ${src}`)
+  }
+  return blob
 }
 
 export async function copyImageToClipboard(src: string): Promise<void> {

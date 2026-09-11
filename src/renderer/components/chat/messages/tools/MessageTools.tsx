@@ -1,19 +1,15 @@
+import { useMemo } from 'react'
+
 import { useToolResult } from '@renderer/hooks/useToolResult'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
 import { normalizeToolOutputResponse } from '@renderer/utils/message/toolOutput'
 import type { DeferredToolOutput } from '@shared/ai/transport'
 import { envelopeDisplayExcerpt, isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
-import { useMemo } from 'react'
 
 import { useMessagePartsScopeId } from '../blocks/MessagePartsContext'
 import { useOptionalMessageListTopicId } from '../MessageListProvider'
-import {
-  CreateAgentToolInline,
-  getCreateAgentResult,
-  isReportArtifactsToolResponse,
-  MessageChannelConfigTool
-} from './agent'
+import { agentInlineResultPresentationRegistry, isReportArtifactsToolResponse, MessageChannelConfigTool } from './agent'
 import { isChannelAuthQrToolResponse } from './channelConfigTool'
 import MessageMcpTool from './mcp/MessageMcpTool'
 import MessageTool, { canRenderMessageToolResponse } from './MessageTool'
@@ -92,8 +88,8 @@ export default function MessageTools({ toolResponse }: Props) {
     return { ...toolResponse, response: normalizeToolOutputResponse(output) }
   }, [deferredOutput, error, isLoading, output, toolResponse])
 
-  const createAgentResult = getCreateAgentResult(resolvedToolResponse)
-  if (createAgentResult) return <CreateAgentToolInline result={createAgentResult} />
+  const agentInlineResult = agentInlineResultPresentationRegistry.renderResult(resolvedToolResponse)
+  if (agentInlineResult) return agentInlineResult
   if (isReportArtifactsToolResponse(resolvedToolResponse)) return null
   if (isChannelAuthQrToolResponse(resolvedToolResponse)) {
     return <MessageChannelConfigTool toolResponse={resolvedToolResponse} />

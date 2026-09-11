@@ -1,10 +1,11 @@
+import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
+import type { ComponentType, ReactNode } from 'react'
+
 import { loggerService } from '@logger'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
-import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
-import type { ComponentType, ReactNode } from 'react'
 
 const logger = loggerService.withContext('fileTokenPresentation')
 
@@ -117,9 +118,11 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
   return getNormalizedFileExtension(file, fallbackLabel).toUpperCase()
 }
 
-function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: string, previewUrl?: string) {
+function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: string, readOnlyPreviewUrl?: string) {
   if (file?.type !== FILE_TYPE.IMAGE) return undefined
   const extension = getNormalizedFileExtension(file, fallbackLabel)
+  // A path-less attachment (the message-editing round-trip) previews from its stored `file://` URL.
+  const previewUrl = readOnlyPreviewUrl ?? file.previewUrl
 
   if (previewUrl) {
     // `fileUrlToPath` (decodeURIComponent) throws URIError on malformed percent-

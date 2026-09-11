@@ -1,4 +1,9 @@
-import { Button, Kbd } from '@cherrystudio/ui'
+import { Loader2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
+import { useTranslation } from 'react-i18next'
+
+import { Button, Kbd, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
@@ -11,10 +16,6 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { Loader2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
-import { useTranslation } from 'react-i18next'
 
 import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
@@ -45,7 +46,7 @@ function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpT
 
 function normalizeArgs(args: ToolResponseLike['arguments']): Record<string, unknown> | unknown[] | null {
   if (args === undefined || args === null) return null
-  if (typeof args === 'object') return args as Record<string, unknown> | unknown[]
+  if (typeof args === 'object') return args
   return { value: args }
 }
 
@@ -160,7 +161,11 @@ function PermissionPreviewHeader({ toolName, description }: { toolName: string; 
 export default function PermissionRequestComposer({ request, onRespond, className }: PermissionRequestComposerProps) {
   const { t } = useTranslation()
   const [submittingApprovalId, setSubmittingApprovalId] = useState<string | null>(null)
+  const [rejectionDraft, setRejectionDraft] = useState({ approvalId: request.approvalId, value: '' })
   const isSubmitting = submittingApprovalId === request.approvalId
+  const rejectionReason = rejectionDraft.approvalId === request.approvalId ? rejectionDraft.value : ''
+  // A typed reason means the user is denying — Enter must not approve behind their back.
+  const hasRejectionReason = rejectionReason.trim().length > 0
   const subtitle = getPermissionRequestSubtitle(request)
   const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
   const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
@@ -196,17 +201,23 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
 
   const deny = useCallback(async () => {
     if (isSubmitting) return
+    const reason = rejectionReason.trim() || t('agent.toolPermission.defaultDenyMessage')
     await respond(
       {
         match: request.match,
         approved: false,
-        reason: t('agent.toolPermission.defaultDenyMessage')
+        reason
       },
       'deny'
     )
-  }, [isSubmitting, request.match, respond, t])
+  }, [isSubmitting, rejectionReason, request.match, respond, t])
 
-  useHotkeys('enter', () => void approve(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [approve])
+  useHotkeys(
+    'enter',
+    () => void (hasRejectionReason ? deny() : approve()),
+    { preventDefault: true, ignoreEventWhen: isHandledElsewhere },
+    [approve, deny, hasRejectionReason]
+  )
   useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
 
   return (
@@ -241,18 +252,39 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
 
+        <label className="mt-2.5 block px-1 text-muted-foreground text-xs">
+          <span>{t('agent.toolPermission.reasonLabel')}</span>
+          <Textarea.Input
+            value={rejectionReason}
+            disabled={isSubmitting}
+            maxLength={500}
+            rows={2}
+            aria-label={t('agent.toolPermission.reasonLabel')}
+            placeholder={t('agent.toolPermission.reasonPlaceholder')}
+            className="mt-1 min-h-14 resize-none px-3 py-2 text-sm"
+            onValueChange={(value) => setRejectionDraft({ approvalId: request.approvalId, value })}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              void (hasRejectionReason ? deny() : approve())
+            }}
+          />
+        </label>
+
         <div className="mt-2.5 flex justify-end gap-2 px-1 pb-0.5">
           <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => void deny()}>
             {t('agent.toolPermission.button.deny')}
             <Kbd aria-hidden="true" className="bg-muted text-muted-foreground">
-              Esc
+              {hasRejectionReason ? 'Enter' : 'Esc'}
             </Kbd>
           </Button>
           <Button type="button" variant="emphasis" disabled={isSubmitting} onClick={() => void approve()}>
             {t('agent.toolPermission.button.allow')}
-            <Kbd aria-hidden="true" className="bg-current/10 text-current">
-              Enter
-            </Kbd>
+            {!hasRejectionReason && (
+              <Kbd aria-hidden="true" className="bg-current/10 text-current">
+                Enter
+              </Kbd>
+            )}
           </Button>
         </div>
       </div>

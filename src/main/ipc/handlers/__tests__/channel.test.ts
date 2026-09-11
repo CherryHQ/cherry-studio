@@ -11,7 +11,7 @@ vi.mock('fs', () => ({ default: { promises: { readFile: readFileMock } } }))
 
 import { channelHandlers } from '../channel'
 
-const channelManager = { getChannelLogs: vi.fn(), getAllStatuses: vi.fn() }
+const channelManager = { getChannelLogs: vi.fn() }
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
@@ -35,15 +35,11 @@ describe('channelHandlers', () => {
     expect(await channelHandlers['channel.wechat.has_credentials']('c1', ctx)).toEqual({ exists: false })
   })
 
-  it('get_logs and get_statuses delegate to ChannelManager', async () => {
+  it('get_logs delegates to ChannelManager', async () => {
     channelManager.getChannelLogs.mockReturnValue([{ timestamp: 1, level: 'info', message: 'm', channelId: 'c1' }])
-    channelManager.getAllStatuses.mockReturnValue([{ channelId: 'c1', connected: true }])
     expect(await channelHandlers['channel.get_logs']('c1', ctx)).toEqual([
       { timestamp: 1, level: 'info', message: 'm', channelId: 'c1' }
     ])
     expect(channelManager.getChannelLogs).toHaveBeenCalledWith('c1')
-    expect(await channelHandlers['channel.get_statuses'](undefined, ctx)).toEqual([
-      { channelId: 'c1', connected: true }
-    ])
   })
 })

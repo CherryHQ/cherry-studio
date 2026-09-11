@@ -1,5 +1,6 @@
-import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ImageGenerationSupport, ImageModeDef } from '@shared/data/types/model'
 
 import { computeModelFieldReset } from '../computeModelFieldReset'
 
@@ -216,6 +217,23 @@ describe('computeModelFieldReset', () => {
 
     // 25 fits the new [1, 30] window → preserved, no patch entry.
     expect(patch).toEqual({})
+  })
+
+  it('resets a decimal carried into an integer-backed catalog slider', async () => {
+    mockSupportPerModel({
+      modelA: generateSupport({ numImages: { type: 'range', min: 1, max: 10, default: 1 } }),
+      modelB: generateSupport({ numImages: { type: 'range', min: 1, max: 10, default: 1 } })
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'aihubmix',
+      oldModelId: 'modelA',
+      newModelId: 'modelB',
+      mode: 'generate',
+      currentValues: { numImages: '2.5' }
+    })
+
+    expect(patch).toEqual({ numImages: 1 })
   })
 
   it('resets a stale default-less enum value to undefined', async () => {

@@ -6,11 +6,13 @@ const binaryManager = {
   installByName: vi.fn(),
   addCustomTool: vi.fn()
 }
+const codeCliService = { installCli: vi.fn() }
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'BinaryManager') return binaryManager
+      if (name === 'CodeCliService') return codeCliService
       throw new Error(`Unexpected service: ${name}`)
     }
   }
@@ -22,9 +24,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { CherryCliTools, CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } = await import(
-  '../cherryCliTools'
-)
+const { CherryCliTools, CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } =
+  await import('../cherryCliTools')
 
 function json(result: { content: Array<{ type: string; text?: string }> }) {
   return JSON.parse(result.content[0].type === 'text' ? (result.content[0].text ?? '{}') : '{}')
@@ -37,6 +38,7 @@ describe('CherryCliTools', () => {
     binaryManager.searchRegistry.mockResolvedValue([])
     binaryManager.installByName.mockResolvedValue(undefined)
     binaryManager.addCustomTool.mockResolvedValue(undefined)
+    codeCliService.installCli.mockResolvedValue(undefined)
   })
 
   it('advertises the thin list/search/install surface', () => {
@@ -84,6 +86,22 @@ describe('CherryCliTools', () => {
     expect(json(result)).toEqual({
       tool: { name: 'fd', recipe: 'aqua:sharkdp/fd', status: 'ready', version: '10.2.0' }
     })
+  })
+
+  it('routes a canonical Code CLI install through CodeCliService', async () => {
+    binaryManager.getToolInventory
+      .mockResolvedValueOnce([{ name: 'codex', recipe: 'codex', status: 'not_installed' }])
+      .mockResolvedValueOnce([{ name: 'codex', recipe: 'codex', status: 'ready', version: '1.2.3' }])
+
+    const result = await new CherryCliTools().call(CLI_INSTALL_TOOL_NAME, {
+      name: 'codex',
+      tool: 'codex',
+      requestedVersion: '1.2.3'
+    })
+
+    expect(codeCliService.installCli).toHaveBeenCalledWith({ name: 'codex', targetVersion: '1.2.3' })
+    expect(binaryManager.installByName).not.toHaveBeenCalled()
+    expect(result.isError).toBeFalsy()
   })
 
   it('persists an arbitrary valid mise backend through BinaryManager', async () => {

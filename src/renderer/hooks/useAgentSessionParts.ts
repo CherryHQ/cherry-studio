@@ -10,13 +10,16 @@
  * messages. Row fields carry identity, role, status, and timestamps.
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { useDataChange, useInfiniteFlatItems, useMutation } from '@renderer/data/hooks/useDataApi'
+import type { MessageListSelectAllPagination } from '@renderer/types/message'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
+import { AGENT_SESSION_TURN_ORIGIN_CACHE_KEY, type AutonomousTurnOrigin } from '@shared/ai/agentSessionTurnOrigin'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { useCallback, useMemo, useRef } from 'react'
 
 import { useConversationHistoryQuery } from './useConversationHistoryQuery'
 
@@ -24,6 +27,7 @@ const PAGE_SIZE = 50
 
 interface CachedAgentSessionMessage {
   liveParts: CherryMessagePart[] | undefined
+  turnOrigin: AutonomousTurnOrigin | undefined
   message: CherryUIMessage
   modelId: AgentSessionMessageEntity['modelId']
   role: AgentSessionMessageEntity['role']
@@ -47,7 +51,7 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
     role: row.role,
     parts: row.data.parts ?? [],
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined
-  } as CherryUIMessage
+  }
 }
 
 function reservedUIMessageToAgentSessionMessage(
@@ -60,7 +64,7 @@ function reservedUIMessageToAgentSessionMessage(
     id: message.id,
     sessionId,
     role: message.role,
-    data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+    data: { parts: message.parts ?? [] },
     searchableText: '',
     status:
       metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
@@ -78,7 +82,17 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
-  const { pages, isLoading, hasNext, loadNext, mutate } = useConversationHistoryQuery(
+  // Load-all mode (multi-select "select all"): auto-paginate to the oldest
+  // page — same pattern as `useTopics({ loadAll: true })`. `loadNext` is
+  // fire-and-forget (its promise is dropped inside useDataApi), so a failed
+  // page fetch is detected via the query `error` and abandons load-all
+  // instead of retrying on every render; the user can re-trigger select-all.
+  const [loadAllRequested, setLoadAllRequested] = useState(false)
+  const stopLoadAll = useCallback(() => setLoadAllRequested(false), [])
+  useEffect(() => {
+    stopLoadAll()
+  }, [sessionId, stopLoadAll])
+  const { pages, isLoading, isRefreshing, error, hasNext, loadNext, mutate } = useConversationHistoryQuery(
     '/agent-sessions/:sessionId/messages',
     {
       params: { sessionId },
@@ -88,6 +102,9 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       enabled,
       swrOptions: {
         keepPreviousData: false,
+        // Paging to the end must not revalidate the first page on every step;
+        // restored once the load-all finishes.
+        revalidateFirstPage: !loadAllRequested,
         ...(!fetchOnMount && {
           revalidateIfStale: false,
           revalidateOnMount: false
@@ -121,6 +138,16 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [loadedMessageIds]
   )
   const flowParts = useSharedCacheSelector(flowPartsKeys, selectFlowParts)
+  const turnOriginKeys = useMemo(
+    () => loadedMessageIds.map((messageId) => AGENT_SESSION_TURN_ORIGIN_CACHE_KEY(sessionId, messageId)),
+    [loadedMessageIds, sessionId]
+  )
+  const selectTurnOrigins = useCallback(
+    (values: readonly (AutonomousTurnOrigin | null | undefined)[]) =>
+      Object.fromEntries(loadedMessageIds.map((messageId, index) => [messageId, values[index] ?? undefined])),
+    [loadedMessageIds]
+  )
+  const turnOrigins = useSharedCacheSelector(turnOriginKeys, selectTurnOrigins)
 
   const messageProjectionRef = useRef<
     | {
@@ -142,6 +169,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       const nextById = new Map<string, CachedAgentSessionMessage>()
       const nextMessages = sourceRows.map((row) => {
         const liveParts = flowParts[row.id]
+        const turnOrigin = turnOrigins[row.id]
         const cached = previousById?.get(row.id)
         if (
           cached?.sessionId === row.sessionId &&
@@ -149,16 +177,19 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
           cached.role === row.role &&
           cached.status === row.status &&
           cached.modelId === row.modelId &&
-          cached.liveParts === liveParts
+          cached.liveParts === liveParts &&
+          cached.turnOrigin === turnOrigin
         ) {
           nextById.set(row.id, cached)
           return cached.message
         }
 
         const message = toAgentSessionUIMessage(row)
-        const projectedMessage = liveParts ? { ...message, parts: liveParts } : message
+        const withOrigin = turnOrigin ? { ...message, metadata: { ...message.metadata, turnOrigin } } : message
+        const projectedMessage = liveParts ? { ...withOrigin, parts: liveParts } : withOrigin
         nextById.set(row.id, {
           liveParts,
+          turnOrigin,
           message: projectedMessage,
           modelId: row.modelId,
           role: row.role,
@@ -181,7 +212,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       }
       return stableMessages
     },
-    [flowParts, projectionOwnerToken]
+    [flowParts, turnOrigins, projectionOwnerToken]
   )
 
   const messages = useMemo<CherryUIMessage[]>(() => {
@@ -231,6 +262,29 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [mutate, sessionId]
   )
 
+  // Errors that predate the load-all are baseline; only a NEW error while paging
+  // abandons it. A retained error would otherwise deadlock a retried select-all
+  // behind the !error gate, so starting also revalidates it away.
+  const loadAllBaselineErrorRef = useRef<Error | undefined>(undefined)
+  const startLoadAll = useCallback(() => {
+    loadAllBaselineErrorRef.current = error
+    setLoadAllRequested(true)
+    if (error) void mutate()
+  }, [error, mutate])
+  useEffect(() => {
+    if (enabled && loadAllRequested && hasNext && !isLoading && !isRefreshing && !error) {
+      loadNext()
+    }
+  }, [enabled, error, hasNext, isLoading, isRefreshing, loadAllRequested, loadNext])
+  // A failed page fetch (new error vs the start baseline) abandons the load-all.
+  useEffect(() => {
+    if (error && loadAllRequested && error !== loadAllBaselineErrorRef.current) stopLoadAll()
+  }, [error, loadAllRequested, stopLoadAll])
+  // Fully loaded — reset so first-page revalidation resumes after select-all.
+  useEffect(() => {
+    if (loadAllRequested && !hasNext) stopLoadAll()
+  }, [hasNext, loadAllRequested, stopLoadAll])
+
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
       await deleteMessageTrigger({ params: { sessionId, messageId } })
@@ -238,11 +292,22 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     [deleteMessageTrigger, sessionId]
   )
 
+  const selectAllPagination = useMemo<MessageListSelectAllPagination>(
+    () => ({
+      hasOlder: hasNext,
+      isLoading: enabled && loadAllRequested && hasNext,
+      start: startLoadAll,
+      stop: stopLoadAll
+    }),
+    [enabled, hasNext, loadAllRequested, startLoadAll, stopLoadAll]
+  )
+
   return {
     messages,
     isLoading: enabled && isLoading,
     hasOlder: hasNext,
     loadOlder: loadNext,
+    selectAllPagination,
     refresh: refreshMessages,
     seedReservedMessages,
     deleteMessage

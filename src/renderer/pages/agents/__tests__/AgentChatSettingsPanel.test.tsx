@@ -1,9 +1,10 @@
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 
 import AgentChat from '../AgentChat'
 
@@ -50,6 +51,7 @@ const conversationShellPropsMock = vi.hoisted(() => ({
 }))
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
+const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 
 // Tool-approval responses now go through ipcApi.request('ai.tool.respond_approval', …).
 vi.mock('@renderer/ipc', () => ({
@@ -306,26 +308,30 @@ vi.mock('../components/AgentSessionMessages', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
-  default: ({
-    open,
-    onClose,
-    citations
-  }: {
-    open: boolean
-    onClose: () => void
-    citations: Array<{ number: number; url: string }>
-  }) => (
-    <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
-      {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
-      {open && (
-        <button type="button" onClick={onClose}>
-          close citations
-        </button>
-      )}
-    </div>
-  )
-}))
+vi.mock('@renderer/components/chat/citations/CitationsPanel', () => {
+  citationsPanelModuleLoads.value += 1
+
+  return {
+    default: ({
+      open,
+      onClose,
+      citations
+    }: {
+      open: boolean
+      onClose: () => void
+      citations: Array<{ number: number; url: string }>
+    }) => (
+      <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
+        {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
+        {open && (
+          <button type="button" onClick={onClose}>
+            close citations
+          </button>
+        )}
+      </div>
+    )
+  }
+})
 
 describe('AgentChat settings panel', () => {
   const defaultSession = { id: 'session-1', agentId: 'agent-1', accessiblePaths: [] } as any
@@ -379,16 +385,19 @@ describe('AgentChat settings panel', () => {
     })
   })
 
-  it('opens and closes the citations panel from agent messages', () => {
+  it('loads citations on first open and keeps the panel mounted while closing', async () => {
+    const user = userEvent.setup()
     renderAgentChat()
 
-    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+    expect(citationsPanelModuleLoads.value).toBe(0)
+    expect(screen.queryByTestId('citations-panel')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'open citations' }))
-    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(await screen.findByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-count', '1')
+    expect(citationsPanelModuleLoads.value).toBe(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
+    await user.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
@@ -524,7 +533,7 @@ describe('AgentChat settings panel', () => {
   })
 
   it('hides the empty-session greeting once the session has messages', () => {
-    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' } as any] }
+    partsByMessageIdMock.value = { 'message-1': [{ type: 'text', text: 'hello' }] }
 
     renderAgentChat()
 

@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type {
@@ -6,7 +8,6 @@ import type {
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('usePreference')
 const DEFAULT_PREFERENCE_OPTIONS: PreferenceUpdateOptions = { optimistic: true }

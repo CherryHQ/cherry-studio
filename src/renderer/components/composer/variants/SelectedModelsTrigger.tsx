@@ -1,10 +1,3 @@
-import { Button, Popover, PopoverAnchor, PopoverContent, Scrollbar } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { getModelDisplayTags, type ModelDisplayTag, ModelTag } from '@renderer/components/tags/Model'
-import { getProviderDisplayName } from '@renderer/hooks/useProvider'
-import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { ChevronDown, RotateCcw, X } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
@@ -18,6 +11,15 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Popover, PopoverAnchor, PopoverContent, Scrollbar } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { getModelDisplayTags, type ModelDisplayTag, ModelTag } from '@renderer/components/tags/Model'
+import { getProviderDisplayName } from '@renderer/hooks/useProvider'
+import { getProviderDisplayNameById } from '@renderer/utils/naming'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 interface SelectedModelsTriggerProps extends Omit<ComponentPropsWithoutRef<typeof Button>, 'children'> {
   models: Model[]
@@ -34,7 +36,7 @@ const MODEL_TAG_SIZE = 8
 
 function getProviderName(model: Model, providers: Provider[]) {
   const provider = providers.find((currentProvider) => currentProvider.id === model.providerId)
-  return getProviderDisplayName(provider) || model.providerId
+  return getProviderDisplayName(provider) || getProviderDisplayNameById(model.providerId)
 }
 
 function SelectedModelTags({ tags }: { tags: ModelDisplayTag[] }) {
@@ -78,7 +80,9 @@ export const SelectedModelsTrigger = ({
   const [popoverOpen, setPopoverOpen] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
   const singleModel = models.length === 1 ? models[0] : undefined
-  const singleModelLabel = singleModel ? singleModel.name : fallbackLabel
+  const singleModelLabel = singleModel
+    ? `${singleModel.name} | ${getProviderName(singleModel, providers)}`
+    : fallbackLabel
   const selectedModelsLabel = t('models.selection.selected_models')
   const hasSelectionPopover = models.length > 1
   const canShowSelectionPopover = hasSelectionPopover && !suppressSelectionPopover
@@ -285,7 +289,9 @@ export const SelectedModelsTrigger = ({
           ) : (
             <>
               {singleModel ? <ModelAvatar model={singleModel} size={20} /> : null}
-              <span className={cn('max-w-52 truncate', iconOnly && singleModel && 'sr-only')}>{singleModelLabel}</span>
+              <span className={cn('max-w-52 truncate', iconOnly && singleModel && 'sr-only')} title={singleModelLabel}>
+                {singleModelLabel}
+              </span>
             </>
           )}
           <ChevronDown

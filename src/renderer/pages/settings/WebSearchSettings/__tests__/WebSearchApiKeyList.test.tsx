@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type * as ReactI18next from 'react-i18next'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type * as ReactI18next from 'react-i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WebSearchApiKeyList } from '../components/WebSearchApiKeyList'
 import type * as WebSearchApiKeyListHook from '../hooks/useWebSearchApiKeyList'

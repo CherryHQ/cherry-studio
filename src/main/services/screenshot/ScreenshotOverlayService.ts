@@ -1,14 +1,15 @@
 import { writeFileSync } from 'node:fs'
 
+import dayjs from 'dayjs'
+import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import { isLocalModelReady } from '@main/services/localModel'
 import { MediaKind } from '@main/services/mediaProtocol'
 import { cropPng } from '@main/utils/image'
 import {
@@ -20,8 +21,6 @@ import {
 import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
-import dayjs from 'dayjs'
-import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
 
 import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'
@@ -260,7 +259,7 @@ export class ScreenshotOverlayService extends BaseService {
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
-        const ocrAvailable = isLocalModelReady('ocr')
+        const ocrAvailable = application.get('LocalModelService').isCapabilityReady('ocr')
 
         // Which overlay covers which display, for the snap-target push below.
         const snapOverlays: { windowId: WindowId; display: Display }[] = []
@@ -452,7 +451,7 @@ export class ScreenshotOverlayService extends BaseService {
 
     // Re-checked per request, never cached from initData: the user can delete the
     // model in settings while the overlay is open.
-    if (!isLocalModelReady('ocr')) return { status: 'unavailable' }
+    if (!application.get('LocalModelService').isCapabilityReady('ocr')) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }
@@ -477,9 +476,7 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const result = await application
-        .get('OcrInferenceService')
-        .recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })
+      const result = await application.get('OcrInferenceService').recognize({ kind: 'bytes', imageBytes })
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.

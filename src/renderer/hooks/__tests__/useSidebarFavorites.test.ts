@@ -26,9 +26,28 @@ describe('useSidebarFavorites', () => {
     expect(setFavorites).not.toHaveBeenCalled()
   })
 
-  describe('entity favorites (agents / assistants)', () => {
-    const REQUIRED_ASSISTANTS = { type: 'app', id: 'assistants' } as const
+  it('keeps mini app actions stable while using the latest favorites', () => {
+    const setFavorites = vi.fn().mockResolvedValue(undefined)
+    MockUsePreferenceUtils.mockPreferenceReturn('ui.sidebar.favorites', [], setFavorites)
+    const { result, rerender } = renderHook(() => useSidebarFavorites())
+    const toggleMiniApp = result.current.toggleMiniApp
 
+    MockUsePreferenceUtils.mockPreferenceReturn(
+      'ui.sidebar.favorites',
+      [{ type: 'mini_app', id: 'existing-app' }],
+      setFavorites
+    )
+    rerender()
+
+    expect(result.current.toggleMiniApp).toBe(toggleMiniApp)
+    act(() => result.current.toggleMiniApp('new-app'))
+    expect(setFavorites).toHaveBeenCalledWith([
+      { type: 'mini_app', id: 'existing-app' },
+      { type: 'mini_app', id: 'new-app' }
+    ])
+  })
+
+  describe('entity favorites (agents / assistants)', () => {
     it('toggles an agent favorite on and exposes it in agentFavoriteIds', () => {
       const setFavorites = vi.fn().mockResolvedValue(undefined)
       MockUsePreferenceUtils.mockPreferenceReturn('ui.sidebar.favorites', [], setFavorites)
@@ -39,9 +58,7 @@ describe('useSidebarFavorites', () => {
         result.current.toggleAgent('agent-1')
       })
 
-      // Mutations operate on the ordered visible list, so the required
-      // assistants app is persisted alongside the newly added entity.
-      expect(setFavorites).toHaveBeenCalledWith([REQUIRED_ASSISTANTS, { type: 'agent', id: 'agent-1' }])
+      expect(setFavorites).toHaveBeenCalledWith([{ type: 'agent', id: 'agent-1' }])
     })
 
     it('toggles an assistant favorite off and removes it from assistantFavoriteIds', () => {
@@ -59,7 +76,7 @@ describe('useSidebarFavorites', () => {
         result.current.toggleAssistant('assistant-1')
       })
 
-      expect(setFavorites).toHaveBeenCalledWith([REQUIRED_ASSISTANTS])
+      expect(setFavorites).toHaveBeenCalledWith([])
     })
 
     it('segregates agent and assistant favorite ids by type', () => {
@@ -92,7 +109,7 @@ describe('useSidebarFavorites', () => {
         result.current.removeAgent('agent-1')
       })
 
-      expect(setFavorites).toHaveBeenCalledWith([REQUIRED_ASSISTANTS, { type: 'assistant', id: 'assistant-1' }])
+      expect(setFavorites).toHaveBeenCalledWith([{ type: 'assistant', id: 'assistant-1' }])
     })
 
     it('skips removing an assistant that is not favorited', () => {

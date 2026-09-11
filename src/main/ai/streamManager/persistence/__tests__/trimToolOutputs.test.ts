@@ -1,5 +1,6 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
@@ -50,6 +51,7 @@ beforeEach(() => {
     if (key === 'chat.context_settings.max_messages') return null
     if (key === 'chat.context_settings.compress.enabled') return true
     if (key === 'chat.context_settings.compress.model_id') return null
+    if (key === 'chat.context_settings.compress.threshold_percent') return 80
     throw new Error(`unexpected pref ${key}`)
   })
   registryGetAllMock.mockReturnValue([])

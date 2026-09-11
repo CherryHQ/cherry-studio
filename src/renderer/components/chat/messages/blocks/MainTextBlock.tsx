@@ -1,3 +1,8 @@
+import { ChevronDown, Code2 } from 'lucide-react'
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { Components } from 'streamdown'
+
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
 import type { ChatInputTokenKind } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
@@ -9,6 +14,7 @@ import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import {
   type MessageCitations,
   type ResolvedCitationMarkers,
+  stripCitationMarkers,
   withToolCitationTags
 } from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
@@ -17,10 +23,6 @@ import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { ChevronDown, Code2 } from 'lucide-react'
-import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import type { Components } from 'streamdown'
 
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
@@ -34,13 +36,14 @@ interface Props {
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
-  /** Tool/source-derived citations resolved from the message's own parts (assistant messages without legacy reference metadata). */
+  /** Tool/source-derived citations resolved from the message's own parts and earlier turns (assistant messages without legacy reference metadata). */
   messageCitations?: MessageCitations
   toolCitationProjection?: ResolvedCitationMarkers
   mentions?: Model[]
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
   userContentExpanded?: boolean
   onPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onUserContentExpandedChange?: (expanded: boolean) => void
@@ -73,22 +76,26 @@ function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken
 
   return (
     <span
-      className="mx-0.5 inline-flex max-w-52 select-none items-baseline gap-1 overflow-hidden align-baseline text-primary leading-[inherit]"
+      className="mx-0.5 inline-flex max-w-52 items-baseline gap-1 overflow-hidden align-baseline leading-[inherit] text-primary select-none"
       data-composer-token-kind={token.kind}
       title={title}>
       <Icon className="size-[1em] shrink-0 translate-y-[0.08em] text-current opacity-80" />
-      <span className="whitespace-nowrap! min-w-0 truncate break-normal">{token.label}</span>
+      <span className="min-w-0 truncate break-normal whitespace-nowrap!">{token.label}</span>
     </span>
   )
 }
 
 function ComposerMessageTokenChip({
   token,
-  readOnlyFilePreviews
+  readOnlyFilePreviews,
+  hidden
 }: {
   token: ComposerMessageToken
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  hidden?: boolean
 }) {
+  if (hidden) return null
+
   if (isComposerTokenBackedMessageToken(token)) {
     const fileTokenSourceId = token.kind === 'file' ? readComposerFileTokenIdSuffix(token.id) : undefined
     const readOnlyFilePreview = fileTokenSourceId ? readOnlyFilePreviews?.get(fileTokenSourceId) : undefined
@@ -102,7 +109,8 @@ function ComposerMessageTokenChip({
 function renderComposerMessageContent(
   content: string,
   composer: ComposerMessageSnapshot,
-  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>,
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
 ) {
   const tokens = getDisplayComposerTokens(composer)
   const nodes: React.ReactNode[] = []
@@ -124,6 +132,7 @@ function renderComposerMessageContent(
         key={`${token.id}:${token.index}`}
         token={token}
         readOnlyFilePreviews={readOnlyFilePreviews}
+        hidden={hiddenComposerTokens?.has(token)}
       />
     )
 
@@ -208,7 +217,11 @@ function buildUserMessageTextPreview(content: string) {
   }
 }
 
-function buildComposerTokenPreviewProjection(content: string, composer: ComposerMessageSnapshot) {
+function buildComposerTokenPreviewProjection(
+  content: string,
+  composer: ComposerMessageSnapshot,
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
+) {
   let projectedContent = ''
   const rawOffsets = [0]
   let cursor = 0
@@ -231,14 +244,16 @@ function buildComposerTokenPreviewProjection(content: string, composer: Composer
       cursor = offset
     }
 
-    // Count a rendered token chip as one visible character. Mapping its end
-    // back to the raw prompt boundary keeps collapsed previews from slicing
-    // through hidden composer context and exposing it as plain text.
-    projectedContent += '\uFFFC'
     if (promptTextMatches) {
       cursor = Math.max(cursor, offset + promptText.length)
     }
-    rawOffsets.push(cursor)
+    if (!hiddenComposerTokens?.has(token)) {
+      // Count a rendered token chip as one visible character. Mapping its end
+      // back to the raw prompt boundary keeps collapsed previews from slicing
+      // through hidden composer context and exposing it as plain text.
+      projectedContent += '\uFFFC'
+      rawOffsets.push(cursor)
+    }
   })
 
   if (cursor < content.length) {
@@ -248,10 +263,14 @@ function buildComposerTokenPreviewProjection(content: string, composer: Composer
   return { content: projectedContent, rawOffsets }
 }
 
-export function buildUserMessagePreview(content: string, composer?: ComposerMessageSnapshot) {
+export function buildUserMessagePreview(
+  content: string,
+  composer?: ComposerMessageSnapshot,
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
+) {
   if (!composer) return buildUserMessageTextPreview(content)
 
-  const projection = buildComposerTokenPreviewProjection(content, composer)
+  const projection = buildComposerTokenPreviewProjection(content, composer, hiddenComposerTokens)
   const preview = buildUserMessageTextPreview(projection.content)
   if (!preview.isTruncated) return { content, isTruncated: false }
 
@@ -282,7 +301,7 @@ function CollapsibleUserMessageContent({
       <div
         id={contentId}
         data-user-message-collapsible-content-preview
-        className="max-w-full has-[.code-block]:w-full [&>*:last-child]:mb-0! [&_.markdown>*:last-child]:mb-0!">
+        className="max-w-full has-[.code-block]:w-full [&_.markdown>*:last-child]:mb-0! [&>*:last-child]:mb-0!">
         {children}
       </div>
       {isCollapsible && (
@@ -293,7 +312,7 @@ function CollapsibleUserMessageContent({
           data-user-message-content-toggle
           className="mt-1 flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left text-[13px] text-muted-foreground focus-visible:bg-accent/50 focus-visible:outline-none"
           onClick={() => withScrollAnchor(onToggle, { enterReadingMode: !isExpanded })}>
-          <span className="shrink-0 font-normal leading-5">
+          <span className="shrink-0 leading-5 font-normal">
             {t(isExpanded ? 'message.message.user_content.collapse' : 'message.message.user_content.expand')}
           </span>
           <ChevronDown
@@ -320,13 +339,17 @@ const MainTextBlock: React.FC<Props> = ({
   mentions = [],
   composer,
   readOnlyFilePreviews,
+  hiddenComposerTokens,
   userContentExpanded,
   onPlayoutSettledChange,
   onUserContentExpandedChange
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
-  const userMessagePreview = useMemo(() => buildUserMessagePreview(content, composer), [composer, content])
+  const userMessagePreview = useMemo(
+    () => buildUserMessagePreview(content, composer, hiddenComposerTokens),
+    [composer, content, hiddenComposerTokens]
+  )
   const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
   const [internalUserContentExpanded, setInternalUserContentExpanded] = useState(false)
   const isUserContentExpanded = userContentExpanded ?? internalUserContentExpanded
@@ -381,7 +404,7 @@ const MainTextBlock: React.FC<Props> = ({
     inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
   // Legacy reference metadata (migrated v1 messages) wins; otherwise resolve
-  // [cite:id] markers against the message's own tool/source parts.
+  // [cite:id] markers against the message's own tool/source parts and earlier turns'.
   const toolCitations = useMemo(
     () =>
       citations.length === 0 && messageCitations?.all.length && toolCitationProjection
@@ -398,9 +421,12 @@ const MainTextBlock: React.FC<Props> = ({
       if (toolCitations) {
         return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
       }
-      return rawText
+      // No citation in this message or any loaded earlier turn, so no marker can resolve — an
+      // unloaded page or an invented id (#19771). Drop them rather than printing internal ids.
+      // User text is left alone: a literal `[cite:…]` there is the author's own.
+      return role === 'assistant' ? stripCitationMarkers(rawText) : rawText
     },
-    [citationReferences, citations, toolCitations]
+    [citationReferences, citations, role, toolCitations]
   )
   const toolCitedCitations = toolCitations?.projection.cited ?? EMPTY_CITATIONS
   const footerCitations = citations.length > 0 ? citations : toolCitedCitations
@@ -418,12 +444,20 @@ const MainTextBlock: React.FC<Props> = ({
         const tokenIndex = typeof rawIndex === 'string' ? Number.parseInt(rawIndex, 10) : NaN
         const token =
           rawBlock === id && Number.isFinite(tokenIndex) ? composerMarkdownContent?.tokens[tokenIndex] : undefined
-        if (token) return <ComposerMessageTokenChip token={token} readOnlyFilePreviews={readOnlyFilePreviews} />
+        if (token) {
+          return (
+            <ComposerMessageTokenChip
+              token={token}
+              readOnlyFilePreviews={readOnlyFilePreviews}
+              hidden={hiddenComposerTokens?.has(token)}
+            />
+          )
+        }
 
         return <span {...props}>{children}</span>
       }
     }),
-    [composerMarkdownContent?.tokens, id, readOnlyFilePreviews]
+    [composerMarkdownContent?.tokens, hiddenComposerTokens, id, readOnlyFilePreviews]
   )
 
   return (
@@ -453,7 +487,7 @@ const MainTextBlock: React.FC<Props> = ({
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
             <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
               {shouldRenderComposerTokens
-                ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews)
+                ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews, hiddenComposerTokens)
                 : userDisplayContent}
             </p>
           ) : (
