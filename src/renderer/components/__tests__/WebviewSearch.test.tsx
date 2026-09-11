@@ -108,8 +108,8 @@ describe('WebviewSearch', () => {
 
     render(
       <>
-        <WebviewSearch webviewRef={ownerRef} isWebviewReady appId="app-1" hostShortcutEnabled />
-        <WebviewSearch webviewRef={otherRef} isWebviewReady appId="app-2" hostShortcutEnabled={false} />
+        <WebviewSearch webviewRef={ownerRef} isWebviewReady targetId="app-1" hostShortcutEnabled />
+        <WebviewSearch webviewRef={otherRef} isWebviewReady targetId="app-2" hostShortcutEnabled={false} />
       </>
     )
 
@@ -132,7 +132,7 @@ describe('WebviewSearch', () => {
     const { webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
 
     expect(screen.queryByPlaceholderText('Search')).not.toBeInTheDocument()
 
@@ -145,7 +145,7 @@ describe('WebviewSearch', () => {
     const { webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
 
     pressGuestKey(webview, { key: 'f', ctrlKey: true })
 
@@ -159,7 +159,7 @@ describe('WebviewSearch', () => {
     const { webview: stranger } = createWebviewMock(2)
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
 
     pressGuestKey(stranger, { key: 'f', ctrlKey: true })
 
@@ -175,13 +175,13 @@ describe('WebviewSearch', () => {
     ;(webview as any).getWebContentsId = getWebContentsIdMock
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    const { rerender, unmount } = render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    const { rerender, unmount } = render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
 
     stopFindInPageMock.mockImplementation(() => {
       throw new Error('should not be called')
     })
 
-    rerender(<WebviewSearch webviewRef={webviewRef} isWebviewReady={false} appId="app-1" />)
+    rerender(<WebviewSearch webviewRef={webviewRef} isWebviewReady={false} targetId="app-1" />)
     expect(getWebContentsIdMock).toHaveBeenCalled()
     expect(stopFindInPageMock).not.toHaveBeenCalled()
 
@@ -193,7 +193,7 @@ describe('WebviewSearch', () => {
     const { webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
 
     pressGuestKey(webview, { key: 'f', ctrlKey: true })
     await waitFor(() => {
@@ -211,7 +211,7 @@ describe('WebviewSearch', () => {
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
     const user = userEvent.setup()
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
     await openSearchOverlay()
 
     const input = screen.getByRole('textbox')
@@ -252,7 +252,7 @@ describe('WebviewSearch', () => {
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
     const user = userEvent.setup()
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
 
     pressGuestKey(webview, { key: 'f', ctrlKey: true })
     await waitFor(() => {
@@ -279,12 +279,12 @@ describe('WebviewSearch', () => {
     })
   })
 
-  it('clears search state when appId changes', async () => {
+  it('clears search state when targetId changes', async () => {
     const { findInPageMock, stopFindInPageMock, webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
     const user = userEvent.setup()
 
-    const { rerender } = render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    const { rerender } = render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
     await openSearchOverlay()
 
     const input = screen.getByRole('textbox')
@@ -294,7 +294,7 @@ describe('WebviewSearch', () => {
     })
 
     await act(async () => {
-      rerender(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-2" />)
+      rerender(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-2" />)
     })
 
     await waitFor(() => {
@@ -311,7 +311,7 @@ describe('WebviewSearch', () => {
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
     const user = userEvent.setup()
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
     await openSearchOverlay()
 
     const input = screen.getByRole('textbox')
@@ -326,7 +326,7 @@ describe('WebviewSearch', () => {
     const { stopFindInPageMock, webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    const { unmount } = render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+    const { unmount } = render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" />)
     await openSearchOverlay()
 
     stopFindInPageMock.mockClear()
@@ -339,7 +339,7 @@ describe('WebviewSearch', () => {
     const { webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" hostShortcutEnabled={false} />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" hostShortcutEnabled={false} />)
 
     await act(async () => {
       fireEvent.keyDown(window, { key: 'f', ctrlKey: true })
@@ -354,7 +354,7 @@ describe('WebviewSearch', () => {
     const { webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" hostShortcutEnabled={false} />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady targetId="app-1" hostShortcutEnabled={false} />)
 
     // A guest key is addressed by the webview it came from, so it must keep
     // working for the pane that does not own the host shortcut.
@@ -473,7 +473,7 @@ describe('WebviewSearch', () => {
     const { findInPageMock, webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
 
-    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady={false} appId="app-1" />)
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady={false} targetId="app-1" />)
 
     await act(async () => {
       fireEvent.keyDown(window, { key: 'f', ctrlKey: true })

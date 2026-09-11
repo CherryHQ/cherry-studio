@@ -16,8 +16,19 @@ import {
 import type { QuickPanelInputAdapter, QuickPanelInsertTextOptions } from '@renderer/components/QuickPanel'
 
 import { createComposerPlainTextContent } from './composerTokenMarkers'
+import { COMPOSER_TOKEN_NODE_NAME } from './ComposerTokenNode'
 import { createPromptVariableInlineContent, getNextPromptVariableIndex } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
+
+export function updateComposerToken(editor: Editor, token: ComposerDraftToken) {
+  const transaction = editor.state.tr
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name === COMPOSER_TOKEN_NODE_NAME && node.attrs.id === token.id) {
+      transaction.setNodeMarkup(position, undefined, { ...node.attrs, ...token })
+    }
+  })
+  if (transaction.docChanged) editor.view.dispatch(transaction)
+}
 
 export function insertComposerTokenAtCursor(
   editor: Editor,

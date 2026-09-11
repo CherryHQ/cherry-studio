@@ -24,6 +24,7 @@ export const COMPOSER_TOKEN_CAPABILITIES = {
   knowledge: { input: true, message: true, messageText: true, clipboard: true, clipboardPromptText: false },
   reference: { input: true, message: true, messageText: true, clipboard: true, clipboardPromptText: true },
   quote: { input: true, message: true, messageText: false, clipboard: true, clipboardPromptText: true },
+  webviewAnnotation: { input: true, message: true, messageText: true, clipboard: true, clipboardPromptText: true },
   promptVariable: { input: true, message: false, messageText: false, clipboard: true, clipboardPromptText: true }
 } as const satisfies Record<ComposerMessageTokenKind | 'promptVariable', ComposerTokenCapabilities>
 
