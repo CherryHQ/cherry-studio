@@ -317,8 +317,8 @@ export const findKeybindingConflicts = ({
     if (rule.command === command) {
       continue
     }
-    // Scope never separates bindings: main-scope shortcuts run in `before-input-event`
-    // and preventDefault the keydown, so a renderer command on the same keys is shadowed.
+    // Scope never separates bindings: main-scope shortcuts consume the keys before the renderer
+    // sees them (window-local `before-input-event` or OS-level `globalShortcut`), shadowing renderer commands.
     if (!platformsOverlap(commandRule.supportedPlatforms, rule.supportedPlatforms, platform)) {
       continue
     }
