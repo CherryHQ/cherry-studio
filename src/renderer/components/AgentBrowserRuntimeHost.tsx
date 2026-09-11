@@ -12,6 +12,7 @@ import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { getWebviewPartition } from '@shared/utils/webviewSecurity'
 
+import { BrowserCursorOverlay } from './BrowserCursorOverlay'
 import { WebviewHost } from './WebviewHost'
 import { WebviewSurface } from './WebviewSurface'
 
@@ -43,7 +44,7 @@ export function AgentBrowserRuntimeHost() {
 const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessionId: string }) {
   const resource = useSyncExternalStore(runtime.subscribe, () => runtime.get(sessionId))
   const guest = resource?.guest ?? null
-  useAgentBrowserGuest(sessionId, guest, 0)
+  const tabId = useAgentBrowserGuest(sessionId, guest, 0)
   const onWebviewChange = useCallback(
     (webview: WebviewTag | null) => runtime.update(sessionId, { guest: webview, ready: false, title: '' }),
     [sessionId]
@@ -81,6 +82,15 @@ const AgentBrowserGuest = memo(function AgentBrowserGuest({ sessionId }: { sessi
             runtime.update(sessionId, { failed: true, ready: true, loading: false })
         }}
       />
+      {tabId && guest && (
+        <BrowserCursorOverlay
+          key={tabId}
+          sessionId={sessionId}
+          tabId={tabId}
+          guest={guest}
+          active={!!anchor && resource.ready && !resource.failed}
+        />
+      )}
       <div ref={onOverlaysChange} className="contents" />
     </WebviewSurface>
   )

@@ -108,6 +108,18 @@ within the opened file's directory. Opening a different file establishes a fresh
 and directory authorization. Ordinary HTTP(S) guests cannot navigate into local files;
 the artifact policy also rejects directory escapes and symlink escapes.
 
+Agent pointer actions publish a host-rendered cursor through the binding-owned `BrowserCursor`.
+Only a presented, focused host waits for arrival, bounded by 250 ms and the action deadline.
+Owner/tab/document/sequence checks reject unrelated acknowledgements; cancellation, navigation and
+binding disposal invalidate pending input. Actions re-resolve their element after the visual wait,
+and clicks check for layout changes caused by real hover before pressing. Actual input stays on CDP;
+the overlay never intercepts user input or appears in guest screenshots. Matching runtime output
+boundaries and controller release hide the cursor without closing the borrowed page. Renderer motion
+uses a host PNG and eight response/damping springs in one requestAnimationFrame loop. Short moves
+scoot along their travel axis; long moves follow a cubic Bezier curve with distance-scaled response.
+Position convergence acknowledges arrival independently of decorative settling. A delayed, bounded
+thinking sway ends with a spring fade, then the loop stops. Reduced motion skips movement and sway;
+blur, inactive presentation, navigation and unmount cancel animation immediately. Explicit visibility tools remain deferred under [#20335](https://github.com/CherryHQ/cherry-studio/issues/20335).
 Agent guests are owned by a stable renderer runtime outside page Activity boundaries. Pane visibility
 only supplies an anchor; it does not attach or detach control. Guest creation and pane presentation
 use separate IPC events. Per-tool execution leases temporarily disable background throttling and

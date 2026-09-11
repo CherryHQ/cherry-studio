@@ -10,6 +10,7 @@ import { normalizeBrowserEntryUrl } from '@shared/utils/browserUrl'
 
 import { settleAction } from '../actions/settle'
 import type { AgentBrowserContext, AgentBrowserRegistry, AgentBrowserTarget } from '../AgentBrowserRegistry'
+import type { BrowserPointerFeedback } from '../BrowserCursor'
 import type { BrowserSessionService } from '../BrowserSessionService'
 import { BrowserSessionError } from '../session/BrowserSessionError'
 import type { GuestSession } from '../session/GuestSession'
@@ -21,6 +22,8 @@ export class AgentBrowserController extends BrowserPageController {
   private readonly abort = new AbortController()
   readonly signal = this.abort.signal
   private closing?: Promise<void>
+  private turnSubscription?: Disposable
+  private cursorTurn?: string
   private execution?: { target: AgentBrowserTarget; lease: Disposable }
   private readonly leaseMutex = new Mutex()
   private lease?: { target: AgentBrowserTarget; session: GuestSession; release: () => void }
@@ -72,6 +75,7 @@ export class AgentBrowserController extends BrowserPageController {
           if (released) return
           released = true
           target.abort.signal.removeEventListener('abort', release)
+          target.cursor.hide()
           observation.dispose()
           this.service.release(target.guest, this.owner)
           if (this.lease?.target === target) this.lease = undefined
@@ -87,9 +91,34 @@ export class AgentBrowserController extends BrowserPageController {
       return {
         tabId: target.tabId,
         session: this.lease.session,
+        pointer: this.pointerFeedback(target, this.lease.session),
         signal: AbortSignal.any([this.signal, target.abort.signal])
       }
     })
+  }
+
+  private pointerFeedback(target: AgentBrowserTarget, session: GuestSession): BrowserPointerFeedback {
+    return {
+      move: async (point, options) => {
+        options.signal?.throwIfAborted()
+        this.assertAvailable()
+        const runtime = application.get('AgentSessionRuntimeService')
+        this.cursorTurn = runtime.getLiveAssistantMessageId(this.context.sessionId)
+        this.turnSubscription ??= runtime.onTurnTerminal((event) => {
+          if (event.sessionId === this.context.sessionId && event.assistantMessageId === this.cursorTurn) {
+            this.lease?.target.cursor.hide(new BrowserSessionError('not_found'))
+            this.cursorTurn = undefined
+          }
+        })
+        const documentId = session.documentId
+        const waited = await target.cursor.move(point, documentId, options)
+        if (documentId !== session.documentId) throw new BrowserSessionError('stale_ref')
+        return waited
+      },
+      update: (point) => target.cursor.update(point),
+      pressed: () => target.cursor.pressed(),
+      hide: () => target.cursor.hide()
+    }
   }
 
   async open(
@@ -152,6 +181,8 @@ export class AgentBrowserController extends BrowserPageController {
   }
 
   dispose(): Promise<void> {
+    this.turnSubscription?.dispose()
+    this.turnSubscription = undefined
     this.finishTool()
     this.abort.abort(new BrowserSessionError('debugger_unavailable'))
     this.lease?.release()

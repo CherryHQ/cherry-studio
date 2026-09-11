@@ -10,6 +10,7 @@ import type { WindowId } from '@shared/ipc/types'
 import { normalizeBrowserUrl } from '@shared/utils/browserUrl'
 import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
+import { BrowserCursor } from './BrowserCursor'
 import { BrowserSessionError } from './session/BrowserSessionError'
 
 const logger = loggerService.withContext('AgentBrowserRegistry')
@@ -24,6 +25,7 @@ export interface AgentBrowserTarget extends AgentBrowserContext {
   guest: WebContents
   windowId: WindowId
   abort: AbortController
+  cursor: BrowserCursor
   popupBlocked?: boolean
   beginExecution: () => Disposable
   dispose: () => void
@@ -64,6 +66,36 @@ export class AgentBrowserRegistry implements Disposable {
     existing?.dispose()
     const tabId = randomUUID()
     const abort = new AbortController()
+    const cursor = new BrowserCursor(
+      { sessionId, tabId },
+      (state) => {
+        try {
+          application.get('IpcApiService').send(senderId, 'browser.cursor.state', state)
+        } catch (error) {
+          logger.debug('Cursor owner is unavailable', { error })
+        }
+      },
+      () => !window.isDestroyed() && window.isFocused() && !window.isMinimized(),
+      () => guest.getZoomFactor() / window.webContents.getZoomFactor()
+    )
+    const hideCursor = () => cursor.hide()
+    const invalidateCursor = () => cursor.hide(new BrowserSessionError('stale_ref'))
+    const onNavigation = (_event: unknown, _url: string, isInPlace: boolean, isMainFrame: boolean) => {
+      if (isMainFrame && !isInPlace) invalidateCursor()
+    }
+    window.on('blur', hideCursor)
+    guest.on('did-start-navigation', onNavigation)
+    guest.debugger.on('detach', invalidateCursor)
+    abort.signal.addEventListener(
+      'abort',
+      () => {
+        cursor.dispose()
+        guest.removeListener('did-start-navigation', onNavigation)
+        guest.debugger.removeListener('detach', invalidateCursor)
+        window.removeListener('blur', hideCursor)
+      },
+      { once: true }
+    )
     let executions = 0
     let throttling = true
     const restoreThrottling = () => {
@@ -101,12 +133,20 @@ export class AgentBrowserRegistry implements Disposable {
       guest,
       windowId: senderId,
       abort,
+      cursor,
       beginExecution,
       dispose
     })
     guest.once('destroyed', dispose)
     this.changed.fire()
     return { tabId }
+  }
+
+  getCursor(sessionId: string, tabId: string, senderId: WindowId | null): BrowserCursor | undefined {
+    const target = this.targets.get(sessionId)
+    if (!target || target.tabId !== tabId || target.abort.signal.aborted) return undefined
+    if (target.windowId !== senderId) throw new BrowserSessionError('not_allowed')
+    return target.cursor
   }
 
   handlePopup(guest: WebContents, details: Electron.HandlerDetails): boolean {

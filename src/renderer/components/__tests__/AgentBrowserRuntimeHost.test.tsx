@@ -12,6 +12,7 @@ import { AgentBrowserRuntimeHost } from '../AgentBrowserRuntimeHost'
 const bridge = vi.hoisted(() => ({
   listeners: new Map<string, (input: { sessionId: string }) => void>(),
   binding: undefined as number | undefined,
+  presented: false,
   tabs: [{ id: 'tab-a' }]
 }))
 
@@ -26,7 +27,8 @@ vi.mock('@renderer/ipc/ipcApi', () => ({
       bridge.listeners.set(event, handler)
       return () => bridge.listeners.delete(event)
     },
-    request: async (route: string, input: { webviewId?: number }) => {
+    request: async (route: string, input: { webviewId?: number; presented?: boolean }) => {
+      if (route === 'browser.cursor.present') bridge.presented = input.presented ?? false
       if (route === 'browser.pane.attach') {
         bridge.binding = input.webviewId
         return { tabId: 'binding-a' }
@@ -67,6 +69,15 @@ describe('AgentBrowserRuntimeHost', () => {
     runtime.dispose()
     bridge.tabs = [{ id: 'tab-a' }]
     bridge.binding = undefined
+    bridge.presented = false
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    )
     MockUsePreferenceUtils.setPreferenceValue('app.spell_check.enabled', true)
     Object.assign(HTMLElement.prototype, {
       getWebContentsId: () => 42,
@@ -81,20 +92,24 @@ describe('AgentBrowserRuntimeHost', () => {
     for (const key of ['getWebContentsId', 'isLoading', 'getTitle', 'getURL'])
       Reflect.deleteProperty(HTMLElement.prototype, key)
     runtime.dispose()
+    vi.unstubAllGlobals()
   })
 
   it('keeps the execution binding while Activity stops the view and releases it when the owner closes', async () => {
     runtime.ensure('session-a', 'https://example.com/')
     const view = render(<Harness visible />)
     await waitFor(() => expect(bridge.binding).toBe(42))
+    await waitFor(() => expect(bridge.presented).toBe(true))
     const guest = view.getByTestId('webview-browser-guest')
     view.rerender(<Harness visible={false} />)
     await act(async () => {})
     expect(livePresentation).toBe(0)
     expect(bridge.binding).toBe(42)
+    expect(bridge.presented).toBe(false)
     expect(view.getByTestId('webview-browser-guest')).toBe(guest)
 
     view.rerender(<Harness visible />)
+    await waitFor(() => expect(bridge.presented).toBe(true))
     expect(view.getByTestId('webview-browser-guest')).toBe(guest)
     bridge.tabs = []
     view.rerender(<Harness visible />)

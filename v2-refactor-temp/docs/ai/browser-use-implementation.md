@@ -14,11 +14,13 @@ engine are in the same PR; there is no separate documentation prerequisite PR.
 
 | Layer | Base | Status and scope |
 |---|---|---|
-| PR1 / A — `browser-use-engine` | `webview-agent-pane-browser` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
+| Stable surface — `webview-stable-surface` | `webview-agent-pane-browser` | Stable guest composition and presentation anchors outside Activity |
+| PR1 / A — `browser-use-engine` | `webview-stable-surface` | Implemented: shared session ownership, snapshot/ref engine, annotation migration |
 | PR2 / B — `browser-use-mcp` | `browser-use-engine` | Implemented on this branch: MCP migration, snapshot/action tools, dialog/download results |
 | PR3 / C1–C2 — `browser-use-inspection` | PR B | Open in [#20139](https://github.com/CherryHQ/cherry-studio/pull/20139): inspection and same-document ref recovery |
 | Existing Agent browser integration — `agent-browser-integration` | PR3 | Open in [#20166](https://github.com/CherryHQ/cherry-studio/pull/20166): visible-page control, ordinary browsing, history/import, settings and skill (§12) |
 | PR7 — `webview-shared-host` | `agent-browser-integration` | Shared renderer guest host and navigation state for MiniApp and Browser (§14) |
+| Cursor feedback — `browser-use-cursor` | `webview-shared-host` | Agent pointer feedback follows the stable guest; hidden presentation skips visual waits (§12.1) |
 | C3–C5 follow-ups | PR3 | WebMCP deferred while Electron stays at 41.8.0; retained-tab freezing and WebContentsView remain independent |
 | D work packages | Integrated browser PR | Import work (§10) now ships with its visible-page consumer and history; no independent PR D |
 
