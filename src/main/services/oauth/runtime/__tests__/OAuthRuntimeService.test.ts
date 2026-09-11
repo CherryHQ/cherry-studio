@@ -139,7 +139,7 @@ describe('OAuthRuntimeService', () => {
       listening = resolve
     })
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'token' })
-    const login = service.signIn('codex', 'ready-test')
+    const login = service.signIn('win-1', 'codex', 'ready-test')
     await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledOnce())
     expect(shell.openExternal).not.toHaveBeenCalled()
     listening()
@@ -154,7 +154,9 @@ describe('OAuthRuntimeService', () => {
       expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ accessToken: 'private-token' })
       return { apiKeys: 'provisioned-key' }
     })
-    await expect(service.signIn('codex', 'http-login', { apiHost: 'https://open.cherryin.dev' })).resolves.toEqual({
+    await expect(
+      service.signIn('win-1', 'codex', 'http-login', { apiHost: 'https://open.cherryin.dev' })
+    ).resolves.toEqual({
       accountId: null,
       apiKeys: 'provisioned-key'
     })
@@ -407,7 +409,7 @@ describe('OAuthRuntimeService', () => {
   it('signIn persists tokens, enables the provider, and closes the transport', async () => {
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
 
-    const account = await service.signIn('codex', 'sign-in-request')
+    const account = await service.signIn('win-1', 'codex', 'sign-in-request')
 
     const stored = h.providerStore.get('codex')
     expect(stored?.authConfig).toMatchObject({ accessToken: 'at' })
@@ -427,8 +429,8 @@ describe('OAuthRuntimeService', () => {
     )
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
 
-    const first = service.signIn('codex', 'sign-in-request')
-    const attached = service.joinActiveSignIn('codex', 'attach-request')
+    const first = service.signIn('win-1', 'codex', 'sign-in-request')
+    const attached = service.joinActiveSignIn('win-1', 'codex', 'attach-request')
     expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledTimes(1))
 
@@ -438,7 +440,7 @@ describe('OAuthRuntimeService', () => {
   })
 
   it('returns not-found when attaching without an active sign-in', async () => {
-    await expect(service.joinActiveSignIn('codex', 'attach-request')).resolves.toEqual({ status: 'not-found' })
+    await expect(service.joinActiveSignIn('win-1', 'codex', 'attach-request')).resolves.toEqual({ status: 'not-found' })
     expect(h.transportMock.tryAcquire).not.toHaveBeenCalled()
     expect(h.transportMock.waitForAuthorizationCode).not.toHaveBeenCalled()
   })
@@ -452,30 +454,30 @@ describe('OAuthRuntimeService', () => {
       })
     })
 
-    const first = service.signIn('codex', 'first-request')
-    const second = service.signIn('codex', 'second-request')
-    const attached = service.joinActiveSignIn('codex', 'attach-request')
+    const first = service.signIn('win-1', 'codex', 'first-request')
+    const second = service.signIn('win-1', 'codex', 'second-request')
+    const attached = service.joinActiveSignIn('win-1', 'codex', 'attach-request')
     const firstOutcome = first.catch((error: unknown) => error)
     const secondOutcome = second.catch((error: unknown) => error)
     const attachedOutcome = attached.catch((error: unknown) => error)
     await vi.waitFor(() => expect(callbackSignal).toBeInstanceOf(AbortSignal))
 
-    await service.cancelSignIn('codex', 'stale-request')
+    await service.cancelSignIn('win-1', 'codex', 'stale-request')
     expect(callbackSignal?.aborted).toBe(false)
 
-    await service.cancelSignIn('codex', 'attach-request')
+    await service.cancelSignIn('win-1', 'codex', 'attach-request')
     expect(await firstOutcome).toBeInstanceOf(OAuthSignInCancelledError)
     expect(await secondOutcome).toBeInstanceOf(OAuthSignInCancelledError)
     expect(await attachedOutcome).toBeInstanceOf(OAuthSignInCancelledError)
-    await expect(service.joinActiveSignIn('codex', 'later-attach')).resolves.toEqual({ status: 'not-found' })
+    await expect(service.joinActiveSignIn('win-1', 'codex', 'later-attach')).resolves.toEqual({ status: 'not-found' })
 
-    const retryOutcome = service.signIn('codex', 'retry-request').catch((error: unknown) => error)
+    const retryOutcome = service.signIn('win-1', 'codex', 'retry-request').catch((error: unknown) => error)
     await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledTimes(2))
 
-    await service.cancelSignIn('codex', 'first-request')
+    await service.cancelSignIn('win-1', 'codex', 'first-request')
     expect(callbackSignal?.aborted).toBe(false)
 
-    await service.cancelSignIn('codex', 'retry-request')
+    await service.cancelSignIn('win-1', 'codex', 'retry-request')
     expect(await retryOutcome).toBeInstanceOf(OAuthSignInCancelledError)
     expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(2)
     expect(h.transportMock.close).toHaveBeenCalledTimes(2)
@@ -492,7 +494,7 @@ describe('OAuthRuntimeService', () => {
       })
     })
 
-    const firstOutcome = service.signIn('codex', 'first-request').catch((error: unknown) => error)
+    const firstOutcome = service.signIn('win-1', 'codex', 'first-request').catch((error: unknown) => error)
     await vi.waitFor(() => expect(h.createClientMock).toHaveBeenCalledTimes(1))
     if (!discoverySignal) {
       rejectDiscovery(new Error('test cleanup'))
@@ -500,12 +502,12 @@ describe('OAuthRuntimeService', () => {
     }
     expect(discoverySignal).toBeInstanceOf(AbortSignal)
 
-    await service.cancelSignIn('codex', 'first-request')
+    await service.cancelSignIn('win-1', 'codex', 'first-request')
     expect(discoverySignal?.aborted).toBe(true)
     expect(await firstOutcome).toBeInstanceOf(OAuthSignInCancelledError)
 
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
-    await expect(service.signIn('codex', 'retry-request')).resolves.toEqual({ accountId: null })
+    await expect(service.signIn('win-1', 'codex', 'retry-request')).resolves.toEqual({ accountId: null })
     expect(h.createClientMock).toHaveBeenCalledTimes(2)
     expect(h.transportMock.close).toHaveBeenCalledTimes(2)
   })
@@ -519,10 +521,10 @@ describe('OAuthRuntimeService', () => {
         })
     )
 
-    const outcome = service.signIn('codex', 'sign-in-request').catch((error: unknown) => error)
+    const outcome = service.signIn('win-1', 'codex', 'sign-in-request').catch((error: unknown) => error)
     await vi.waitFor(() => expect(h.clientMock.exchangeCode).toHaveBeenCalledTimes(1))
 
-    const cancellation = service.cancelSignIn('codex', 'sign-in-request')
+    const cancellation = service.cancelSignIn('win-1', 'codex', 'sign-in-request')
     rejectExchange(new Error('token exchange failed'))
     await cancellation
 
@@ -541,7 +543,7 @@ describe('OAuthRuntimeService', () => {
         })
     )
 
-    const signInOutcome = service.signIn('codex', 'sign-in-request').catch((error: unknown) => error)
+    const signInOutcome = service.signIn('win-1', 'codex', 'sign-in-request').catch((error: unknown) => error)
     await vi.waitFor(() => expect(h.clientMock.exchangeCode).toHaveBeenCalledTimes(1))
 
     let stopSettled = false
@@ -557,10 +559,10 @@ describe('OAuthRuntimeService', () => {
     expect(h.providerStore.get('codex')?.authConfig).toBeUndefined()
     expect(h.providerServiceMock.update).not.toHaveBeenCalledWith('codex', { isEnabled: true })
 
-    await expect(service.signIn('codex', 'stopped-request')).rejects.toThrow(/stopping/)
+    await expect(service.signIn('win-1', 'codex', 'stopped-request')).rejects.toThrow(/stopping/)
     service.initializeForTest()
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt' })
-    await expect(service.signIn('codex', 'restart-request')).resolves.toEqual({ accountId: null })
+    await expect(service.signIn('win-1', 'codex', 'restart-request')).resolves.toEqual({ accountId: null })
   })
 
   it('handleDeepLinkCallback exchanges, persists, and notifies the initiator', async () => {

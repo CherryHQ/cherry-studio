@@ -22,7 +22,9 @@ async function mapSignInCancellation<T>(request: Promise<T>): Promise<T> {
 
 export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
   'oauth.sign_in': async ({ providerId, requestId, oauthServer, apiHost }, ctx) => {
-    const result = await mapSignInCancellation(runtime().signIn(providerId, requestId, { oauthServer, apiHost }))
+    const result = await mapSignInCancellation(
+      runtime().signIn(ctx.senderId, providerId, requestId, { oauthServer, apiHost })
+    )
     if (result.apiKeys && ctx.senderId) {
       const window = application.get('WindowManager').getWindow(ctx.senderId)
       if (window && !window.isDestroyed()) {
@@ -33,9 +35,10 @@ export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
     }
     return result
   },
-  'oauth.sign_in.attach': ({ providerId, requestId }) =>
-    mapSignInCancellation(runtime().joinActiveSignIn(providerId, requestId)),
-  'oauth.cancel_sign_in': ({ providerId, requestId }) => runtime().cancelSignIn(providerId, requestId),
+  'oauth.sign_in.attach': ({ providerId, requestId }, ctx) =>
+    mapSignInCancellation(runtime().joinActiveSignIn(ctx.senderId, providerId, requestId)),
+  'oauth.cancel_sign_in': ({ providerId, requestId }, ctx) =>
+    runtime().cancelSignIn(ctx.senderId, providerId, requestId),
   'oauth.has_token': ({ providerId }) => runtime().hasToken(providerId),
   'oauth.get_account': ({ providerId }) => runtime().getAccount(providerId),
   'oauth.logout': ({ providerId }) => runtime().logout(providerId),

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({
   net: {
@@ -83,6 +83,36 @@ describe('Grok OIDC discovery host-pinning', () => {
 })
 
 describe('CherryIN HTTP callback contract', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each(['headers', 'body'])('times out a stalled API-key response at the %s stage', async (stage) => {
+    const timeout = new AbortController()
+    const timeoutError = new DOMException('API-key request timed out', 'TimeoutError')
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal)
+    vi.mocked(net.fetch).mockImplementationOnce(async (_url, options) => {
+      if (stage === 'headers') {
+        return new Promise<Response>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(options.signal?.reason), { once: true })
+        })
+      }
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            options?.signal?.addEventListener('abort', () => controller.error(options.signal?.reason), { once: true })
+          }
+        })
+      )
+    })
+    let result: unknown = 'pending'
+    void cherryInOAuthProvider.afterPersistTokens({ access_token: 'private-token' }, {}).catch((error) => {
+      result = error
+    })
+    timeout.abort(timeoutError)
+
+    await vi.waitFor(() => expect(result).toBe(timeoutError), { timeout: 200 })
+    expect(timeoutSpy).toHaveBeenCalledWith(30_000)
+  })
+
   it('uses the registered loopback URI for both authorization and token exchange', async () => {
     const client = cherryInOAuthProvider.createClient({ oauthServer: 'https://open.cherryin.dev' })
     const request = client.createAuthorizationRequest()

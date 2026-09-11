@@ -33,9 +33,10 @@ type RefreshResult = { status: 'ok'; accessToken: string } | { status: 'terminal
 
 type ActiveSignIn = {
   operation: {
+    initiatorWindowId: WindowId
     controller: AbortController
     phase: 'discovery' | 'callback' | 'exchange' | 'persist'
-    requestIds: Set<string>
+    requestIdsByWindow: Map<WindowId, Set<string>>
     context?: OAuthRuntimeProviderContext
   }
   promise: Promise<OAuthSignInResult>
@@ -217,23 +218,30 @@ export class OAuthRuntimeService extends BaseService {
   }
 
   public signIn = (
+    initiatorWindowId: WindowId | null,
     providerId: string,
     requestId: string,
     context: OAuthRuntimeProviderContext = {}
   ): Promise<OAuthSignInResult> => {
+    if (!initiatorWindowId) {
+      return Promise.reject(new OAuthServiceError('OAuth flow initiator is not a managed window'))
+    }
     if (this.stopping) {
       return Promise.reject(new OAuthServiceError('OAuth runtime is stopping'))
     }
 
     const existing = this.activeSignIns.get(providerId)
     if (existing) {
+      if (existing.operation.initiatorWindowId !== initiatorWindowId) {
+        return Promise.reject(new OAuthServiceError('A sign-in from another window is already in progress'))
+      }
       if (
         existing.operation.context?.oauthServer !== context.oauthServer ||
         existing.operation.context?.apiHost !== context.apiHost
       ) {
         return Promise.reject(new OAuthServiceError('A sign-in for another server is already in progress'))
       }
-      existing.operation.requestIds.add(requestId)
+      existing.operation.requestIdsByWindow.get(initiatorWindowId)?.add(requestId)
       return existing.promise
     }
 
@@ -247,14 +255,16 @@ export class OAuthRuntimeService extends BaseService {
       }
 
       const operation: ActiveSignIn['operation'] = {
+        initiatorWindowId,
         controller: new AbortController(),
         phase: 'discovery',
-        requestIds: new Set([requestId]),
+        requestIdsByWindow: new Map([[initiatorWindowId, new Set([requestId])]]),
         context
       }
       const activeSignIn: ActiveSignIn = {
         operation,
         promise: this.runSignIn(definition, transport, operation).finally(() => {
+          operation.controller.abort()
           if (this.activeSignIns.get(providerId) !== activeSignIn) return
           this.activeSignIns.delete(providerId)
           transport.close()
@@ -268,22 +278,28 @@ export class OAuthRuntimeService extends BaseService {
   }
 
   public joinActiveSignIn = async (
+    senderId: WindowId | null,
     providerId: string,
     requestId: string
   ): Promise<{ status: 'not-found' } | { status: 'completed'; account: OAuthAccount }> => {
+    if (!senderId) throw new OAuthServiceError('OAuth flow observer is not a managed window')
     this.getDefinition(providerId)
     const activeSignIn = this.activeSignIns.get(providerId)
     if (!activeSignIn) return { status: 'not-found' }
-    activeSignIn.operation.requestIds.add(requestId)
-    return { status: 'completed', account: await activeSignIn.promise }
+    const requestIds = activeSignIn.operation.requestIdsByWindow.get(senderId) ?? new Set<string>()
+    requestIds.add(requestId)
+    activeSignIn.operation.requestIdsByWindow.set(senderId, requestIds)
+    const { accountId } = await activeSignIn.promise
+    return { status: 'completed', account: { accountId } }
   }
 
-  public cancelSignIn = async (providerId: string, requestId: string): Promise<void> => {
+  public cancelSignIn = async (senderId: WindowId | null, providerId: string, requestId: string): Promise<void> => {
+    if (!senderId) throw new OAuthServiceError('OAuth flow caller is not a managed window')
     this.getDefinition(providerId)
     const activeSignIn = this.activeSignIns.get(providerId)
     if (
       !activeSignIn ||
-      !activeSignIn.operation.requestIds.has(requestId) ||
+      !activeSignIn.operation.requestIdsByWindow.get(senderId)?.has(requestId) ||
       !this.isSignInCancellable(activeSignIn.operation.phase)
     ) {
       return
