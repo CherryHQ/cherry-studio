@@ -29,6 +29,7 @@ function result(
 function report(results: readonly DoctorCheckResult[], expiresAt = '2026-09-04T09:10:00.000Z'): DoctorReport {
   return {
     schemaVersion: 1,
+    scope: 'global',
     runId: 'run-1',
     tier: 'quick',
     startedAt: '2026-09-04T08:59:00.000Z',

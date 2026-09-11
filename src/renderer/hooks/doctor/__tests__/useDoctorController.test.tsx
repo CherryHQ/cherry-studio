@@ -70,6 +70,7 @@ function completedDoctorState(): DoctorState {
     status: 'completed',
     report: {
       schemaVersion: 1,
+      scope: 'global',
       runId: 'completed-run',
       tier: 'quick',
       startedAt: new Date(now - 1_000).toISOString(),
@@ -118,6 +119,15 @@ describe('useDoctorController', () => {
     expect(mocks.request.mock.calls.some(([, input]) => input && 'checkIds' in input)).toBe(false)
   })
 
+  it('runs a contextual diagnosis with the subject it was given', async () => {
+    const subject = { kind: 'chat', providerId: 'openai', modelId: 'gpt-4o' } as const
+    renderHook(() => useDoctorController({ initialPanel: 'checks', subject, onNavigate: vi.fn() }))
+
+    await waitFor(() =>
+      expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.run', { tier: 'quick', subject })
+    )
+  })
+
   it('waits for shared-cache hydration before deciding that no report exists', async () => {
     mocks.cacheReady = false
     mocks.doctorState = undefined
@@ -129,6 +139,7 @@ describe('useDoctorController', () => {
       status: 'completed',
       report: {
         schemaVersion: 1,
+        scope: 'global',
         runId: 'hydrated-run',
         tier: 'quick',
         startedAt: new Date().toISOString(),
@@ -286,6 +297,7 @@ describe('useDoctorController', () => {
     )
 
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
+      scope: 'global',
       runId: completed.report.runId,
       checkId: 'permission-screen-capture',
       fixId: 'request'
@@ -345,7 +357,7 @@ describe('useDoctorController', () => {
     const { result } = renderHook(() => useDoctorController({ initialPanel: 'checks', onNavigate: vi.fn() }))
     await act(async () => result.current.cancel())
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: 'run-1' })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { scope: 'global', runId: 'run-1' })
   })
 
   it('blocks closing while opening the displayed app data directory and releases it afterwards', async () => {

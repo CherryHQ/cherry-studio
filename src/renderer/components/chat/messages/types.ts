@@ -156,7 +156,7 @@ export interface MessageErrorDiagnosisResult {
 
 export interface MessageErrorDiagnosisContext {
   errorSource?: string
-  providerName?: string
+  providerId?: string
   modelId?: string
 }
 

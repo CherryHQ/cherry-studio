@@ -15,9 +15,11 @@ import {
   type DoctorFixRequest,
   type DoctorNavigateTarget,
   type DoctorRunTier,
-  type DoctorState
+  type DoctorScopeKey,
+  type DoctorState,
+  type DoctorSubjectRef
 } from '@shared/types/doctor'
-import { doctorCheckTitleKey, type DoctorPanel } from '@shared/utils/doctor'
+import { doctorCheckTitleKey, type DoctorPanel, doctorScopeKey } from '@shared/utils/doctor'
 
 import { createDoctorSession, type DoctorInteraction, doctorSessionReducer } from './doctorSessionReducer'
 
@@ -27,6 +29,8 @@ const IDLE_DOCTOR_STATE: DoctorState = { status: 'idle' }
 interface UseDoctorControllerOptions {
   readonly initialPanel: DoctorPanel
   readonly initialDescription?: string
+  /** Absent = the global doctor. Present = diagnose one chat or agent; its state lives in its own scope. */
+  readonly subject?: DoctorSubjectRef
   readonly onNavigate: (target: DoctorNavigateTarget) => void
   readonly onReportProblem?: (description: string) => void
 }
@@ -36,12 +40,14 @@ function assertNever(value: never): never {
 }
 
 function fixRequestFor(
+  scope: DoctorScopeKey,
   runId: string,
   checkId: DoctorCheckId,
   action: Extract<DoctorAction, { kind: 'fix' }>
 ): DoctorFixRequest | undefined {
   if (!DOCTOR_CHECK_CATALOG[checkId].fixes.some((candidate) => candidate.id === action.fixId)) return undefined
   return {
+    scope,
     runId,
     checkId,
     fixId: action.fixId,
@@ -52,11 +58,13 @@ function fixRequestFor(
 export function useDoctorController({
   initialPanel,
   initialDescription,
+  subject,
   onNavigate,
   onReportProblem
 }: UseDoctorControllerOptions) {
   const { t } = useTranslation()
-  const cachedDoctorState = useSharedCacheValue('doctor.state')
+  const scope = doctorScopeKey(subject)
+  const cachedDoctorState = useSharedCacheValue(`doctor.state.${scope}` as const)
   const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
   const doctorState = cachedDoctorState ?? IDLE_DOCTOR_STATE
   const { appUpdateState } = useAppUpdateState()
@@ -101,7 +109,7 @@ export function useDoctorController({
         interaction: { kind: 'run', tier }
       })
       try {
-        await ipcApi.request('diagnostics.doctor.run', { tier })
+        await ipcApi.request('diagnostics.doctor.run', subject ? { tier, subject } : { tier })
       } catch (error) {
         logger.error('Failed to run system diagnostics', error as Error)
         toast.error(t('settings.doctor.messages.run_failed'))
@@ -109,7 +117,7 @@ export function useDoctorController({
         dispatch({ type: 'finish-interaction', kind: 'run' })
       }
     },
-    [t]
+    [subject, t]
   )
 
   useEffect(() => {
@@ -131,14 +139,14 @@ export function useDoctorController({
     if (!canCancelDoctorRun(doctorState)) return
     dispatch({ type: 'start-interaction', interaction: { kind: 'cancel' } })
     try {
-      await ipcApi.request('diagnostics.doctor.cancel', { runId: doctorState.runId })
+      await ipcApi.request('diagnostics.doctor.cancel', { scope, runId: doctorState.runId })
     } catch (error) {
       logger.error('Failed to cancel system diagnostics', error as Error)
       toast.error(t('settings.doctor.messages.cancel_failed'))
     } finally {
       dispatch({ type: 'finish-interaction', kind: 'cancel' })
     }
-  }, [doctorState, t])
+  }, [doctorState, scope, t])
 
   const performAction = useCallback(
     async (
@@ -200,7 +208,7 @@ export function useDoctorController({
       switch (action.kind) {
         case 'fix': {
           if (!runId) return
-          const request = fixRequestFor(runId, checkId, action)
+          const request = fixRequestFor(scope, runId, checkId, action)
           if (!request) return
           await performFix(request)
           return
@@ -252,7 +260,7 @@ export function useDoctorController({
           return assertNever(action)
       }
     },
-    [onNavigate, onReportProblem, performAction, performFix, session.descriptionDraft, t, viewModel.isStale]
+    [onNavigate, onReportProblem, performAction, performFix, scope, session.descriptionDraft, t, viewModel.isStale]
   )
 
   const openPath = useCallback(

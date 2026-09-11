@@ -23,14 +23,19 @@ describe('doctorHandlers', () => {
 
   it('cancels by run id', async () => {
     doctor.cancel.mockReturnValue({ status: 'canceled' })
-    await expect(doctorHandlers['diagnostics.doctor.cancel']({ runId: 'r1' }, ctx)).resolves.toEqual({
+    await expect(doctorHandlers['diagnostics.doctor.cancel']({ scope: 'global', runId: 'r1' }, ctx)).resolves.toEqual({
       status: 'canceled'
     })
-    expect(doctor.cancel).toHaveBeenCalledWith('r1')
+    expect(doctor.cancel).toHaveBeenCalledWith('global', 'r1')
   })
 
   it('forwards a fix request untouched', async () => {
-    const request = { runId: 'r1', checkId: 'config-boot-config-valid' as const, fixId: 'repair' as const }
+    const request = {
+      scope: 'global' as const,
+      runId: 'r1',
+      checkId: 'config-boot-config-valid' as const,
+      fixId: 'repair' as const
+    }
     doctor.fix.mockResolvedValue({ status: 'fixed', result: { id: request.checkId, status: 'pass', durationMs: 1 } })
     await expect(doctorHandlers['diagnostics.doctor.fix'](request, ctx)).resolves.toMatchObject({ status: 'fixed' })
     expect(doctor.fix).toHaveBeenCalledWith(request)

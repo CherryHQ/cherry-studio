@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { DoctorContext } from '../../types'
+import type { DoctorContextBase } from '../../types'
 
 const network = vi.hoisted(() => ({
   isOnline: vi.fn(),
@@ -8,15 +8,17 @@ const network = vi.hoisted(() => ({
   diagnoseEndpoint: vi.fn(),
   effectiveProxy: vi.fn()
 }))
+const providers = vi.hoisted(() => ({ getByProviderId: vi.fn() }))
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({ NetworkService: network } as never)
 })
+vi.mock('@main/data/services/ProviderService', () => ({ providerService: providers }))
 
 const checks = await import('../network')
 
 /** No memo: the run-scoped sharing itself is covered by the DoctorService tests. */
-const ctx = (): DoctorContext => {
+const ctx = (): DoctorContextBase => {
   const signal = new AbortController().signal
   return { signal, share: (_key, factory) => factory(signal) }
 }
@@ -184,5 +186,36 @@ describe('network-online', () => {
   it('fails when the machine is offline', async () => {
     network.isOnline.mockReturnValue(false)
     await expect(checks.online.run(ctx())).resolves.toMatchObject({ status: 'fail', detail: { variant: 'offline' } })
+  })
+})
+
+describe('network-provider-endpoint', () => {
+  it("probes the subject provider's chat base URL and reports its HTTP verdict", async () => {
+    providers.getByProviderId.mockReturnValue({
+      id: 'openai',
+      defaultChatEndpoint: 'openai-chat',
+      endpointConfigs: { 'openai-chat': { baseUrl: 'api.openai.com/v1' } }
+    })
+    network.diagnoseEndpoint.mockImplementation(async ({ id }: { id: string }) =>
+      diagnosis(id, { http: failed('refused', 'ECONNREFUSED') })
+    )
+
+    await expect(checks.providerEndpoint.run({ ...ctx(), subject: { providerId: 'openai' } })).resolves.toMatchObject({
+      status: 'fail',
+      detail: { variant: 'unreachable', params: { code: 'ECONNREFUSED' } }
+    })
+    expect(network.diagnoseEndpoint).toHaveBeenCalledWith(
+      { id: 'provider:openai', url: 'https://api.openai.com/v1' },
+      expect.any(AbortSignal)
+    )
+  })
+
+  it('passes without probing when the provider has no base URL to reach', async () => {
+    providers.getByProviderId.mockReturnValue({ id: 'vertex', endpointConfigs: {} })
+
+    await expect(checks.providerEndpoint.run({ ...ctx(), subject: { providerId: 'vertex' } })).resolves.toEqual({
+      status: 'pass'
+    })
+    expect(network.diagnoseEndpoint).not.toHaveBeenCalled()
   })
 })

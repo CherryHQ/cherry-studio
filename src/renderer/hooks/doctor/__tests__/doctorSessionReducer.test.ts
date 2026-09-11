@@ -5,6 +5,7 @@ import type { DoctorFixRequest } from '@shared/types/doctor'
 import { createDoctorSession, doctorSessionReducer } from '../doctorSessionReducer'
 
 const fixRequest: DoctorFixRequest = {
+  scope: 'global',
   runId: 'run-1',
   checkId: 'permission-screen-capture',
   fixId: 'request'
