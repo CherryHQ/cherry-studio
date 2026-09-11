@@ -57,7 +57,7 @@ function setup(overrides: Partial<ServeUtilityProcessOptions<TestContract, unkno
   handle.onMessage((data) => frames.push(data as ChildFrame))
   const connect = (frame: Partial<ConnectFrame> = {}) =>
     handle.connect({ ...identity, kind: 'connect', initData: undefined, ...frame })
-  const send = (frame: Unstamped<MainFrame>) => handle.send({ ...identity, ...frame } as MainFrame)
+  const send = (frame: Unstamped<MainFrame>) => handle.send({ ...identity, ...frame })
   const kinds = () => frames.map((frame) => frame.kind)
   const ready = async () => {
     connect()

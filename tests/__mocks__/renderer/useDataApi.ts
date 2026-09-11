@@ -1,3 +1,8 @@
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import type { KeyedMutator } from 'swr'
+import { unstable_serialize as serializeInfiniteKey } from 'swr/infinite'
+import { type Mock, vi } from 'vitest'
+
 import type {
   ApiPath,
   BodyForPath,
@@ -13,10 +18,6 @@ import type {
   GetMethodApiPaths,
   PaginationResponse
 } from '@shared/data/api/types'
-import { useCallback, useMemo, useSyncExternalStore } from 'react'
-import type { KeyedMutator } from 'swr'
-import { unstable_serialize as serializeInfiniteKey } from 'swr/infinite'
-import { vi } from 'vitest'
 
 import { resolveTemplate } from '../../../src/renderer/data/utils/dataApiPath'
 import { mockDataApiService } from './DataApiService'
@@ -268,12 +269,8 @@ type MockInfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'GET'
 }
 
 type MockInfinitePages<T> = CursorPaginationResponse<T>[]
-type MockInfinitePagesForPath<TPath extends ApiPath> = ResponseForPath<
-  TPath,
-  'GET'
-> extends CursorPaginationResponse<unknown>
-  ? ResponseForPath<TPath, 'GET'>[]
-  : never
+type MockInfinitePagesForPath<TPath extends ApiPath> =
+  ResponseForPath<TPath, 'GET'> extends CursorPaginationResponse<unknown> ? ResponseForPath<TPath, 'GET'>[] : never
 
 const emptyInfinitePages: MockInfinitePages<never> = []
 const mockInfiniteQueryStore = new Map<string, MockInfinitePages<unknown>>()
@@ -380,14 +377,18 @@ function defaultMockUseInfiniteQuery<TPath extends ApiPath>(_path: TPath, _optio
  * Default returns an empty page list. Use `seedInfiniteQuery` when a test
  * needs shared cache mutation and rerender behavior.
  */
-export const mockUseInfiniteQuery = vi.fn(defaultMockUseInfiniteQuery)
+export const mockUseInfiniteQuery = vi.fn(defaultMockUseInfiniteQuery) as Mock & typeof defaultMockUseInfiniteQuery
 
-export const mockUseWriteInfiniteCache = vi.fn(
-  <TPath extends ApiPath>(path: TPath, options?: Omit<MockInfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>) => {
-    const key = buildMockInfiniteQueryKey(path, options as MockInfiniteQueryOptions<TPath>)
-    return useMemo(() => vi.fn((value: unknown) => applyMockInfiniteQueryMutation(key, value)), [key])
-  }
-)
+function defaultMockUseWriteInfiniteCache<TPath extends ApiPath>(
+  path: TPath,
+  options?: Omit<MockInfiniteQueryOptions<TPath>, 'enabled' | 'swrOptions'>
+) {
+  const key = buildMockInfiniteQueryKey(path, options as MockInfiniteQueryOptions<TPath>)
+  return useMemo(() => vi.fn((value: unknown) => applyMockInfiniteQueryMutation(key, value)), [key])
+}
+
+export const mockUseWriteInfiniteCache = vi.fn(defaultMockUseWriteInfiniteCache) as Mock &
+  typeof defaultMockUseWriteInfiniteCache
 
 /**
  * Mock useInfiniteFlatItems helper.
@@ -845,7 +846,7 @@ export const MockUseDataApiUtils = {
   mockMutationWithTrigger: <TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
     method: TMethod,
     path: TPath,
-    trigger: ReturnType<typeof vi.fn>,
+    trigger: ReturnType<typeof vi.fn<(...args: any[]) => any>>,
     options?: { isLoading?: boolean; error?: Error }
   ) => {
     mockUseMutation.mockImplementation((mutationMethod, mutationPath, _options) => {

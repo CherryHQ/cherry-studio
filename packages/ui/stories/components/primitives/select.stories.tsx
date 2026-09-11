@@ -1,3 +1,7 @@
+import type { Meta, StoryObj } from '@storybook/react'
+import { Globe, Palette, User } from 'lucide-react'
+import { useState } from 'react'
+
 import {
   Select,
   SelectContent,
@@ -8,9 +12,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
-import { Globe, Palette, User } from 'lucide-react'
-import { useState } from 'react'
 
 const meta: Meta<typeof Select> = {
   title: 'Components/Primitives/Select',

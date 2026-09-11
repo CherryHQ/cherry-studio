@@ -1,7 +1,8 @@
+import { useMemo } from 'react'
+
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import type { WebSearchProviderFeatureSection } from '@renderer/utils/webSearchProviderMeta'
 import { getWebSearchFeatureSections } from '@renderer/utils/webSearchProviderMeta'
-import { useMemo } from 'react'
 
 export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProviders> & {
   featureSections: WebSearchProviderFeatureSection[]

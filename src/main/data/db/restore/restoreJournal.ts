@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { application } from '@application'
 import * as z from 'zod'
+
+import { application } from '@application'
 
 /**
  * Restore promotion journal — the crash-safe contract between the backup

@@ -1,3 +1,8 @@
+import { isEmpty } from 'es-toolkit/compat'
+import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
+import { type ChangeEvent, type ReactNode, type Ref, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Accordion,
   AccordionContent,
@@ -34,10 +39,6 @@ import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/s
 import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
-import { isEmpty } from 'es-toolkit/compat'
-import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
-import { type ChangeEvent, type ReactNode, type Ref, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import {
@@ -197,8 +198,8 @@ export default function ProviderEditorDrawer({
   })()
   const duplicateUsesEndpointFields = Boolean(
     duplicateSource &&
-      urlForm &&
-      (duplicateSource.presetProviderId === 'new-api' || isCustomProviderTextEndpoint(urlForm.primary))
+    urlForm &&
+    (duplicateSource.presetProviderId === 'new-api' || isCustomProviderTextEndpoint(urlForm.primary))
   )
   const duplicateDefaultTextEndpoint =
     urlForm && isCustomProviderTextEndpoint(urlForm.primary) ? urlForm.primary : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
@@ -642,7 +643,7 @@ export default function ProviderEditorDrawer({
       )}
 
       {duplicateSource && !duplicateNeedsBaseUrl(duplicateSource.authType) && (
-        <p className="text-muted-foreground text-xs leading-[1.4]">
+        <p className="text-xs leading-[1.4] text-muted-foreground">
           {t('settings.provider.duplicate.fill_after_create')}
         </p>
       )}
@@ -678,7 +679,7 @@ export default function ProviderEditorDrawer({
         <Scrollbar data-testid="provider-editor-scrollbar" className="min-h-0 px-6 py-2">
           {formContent}
         </Scrollbar>
-        <DialogFooter className="mt-4 border-border border-t px-6 py-4">{footerActions}</DialogFooter>
+        <DialogFooter className="mt-4 border-t border-border px-6 py-4">{footerActions}</DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -770,7 +771,7 @@ function CustomProviderEndpointFields({
     const isPreferredEndpoint = preferredChatEndpoint === endpointType
     const labelAccessory =
       isTextEndpoint && isPreferredEndpoint && (isConfiguredTextEndpoint || showPreferredEndpointAsDefault) ? (
-        <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-tertiary text-xs">
+        <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 text-xs font-normal text-foreground-tertiary">
           {t('settings.provider.create_custom.endpoint_fields.default_chat')}
         </Badge>
       ) : isConfiguredTextEndpoint && onPreferredChatEndpointChange ? (
@@ -778,7 +779,7 @@ function CustomProviderEndpointFields({
           type="button"
           variant="outline"
           size="sm"
-          className="before:-top-5 relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:bottom-0 before:content-[''] active:scale-[0.96]"
+          className="relative h-5 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:-top-5 before:bottom-0 before:content-[''] active:scale-[0.96]"
           onClick={() => onPreferredChatEndpointChange(endpointType as CustomProviderTextEndpoint)}>
           {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
         </Button>
@@ -789,7 +790,7 @@ function CustomProviderEndpointFields({
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby="custom-provider-endpoints-title">
-      <h3 id="custom-provider-endpoints-title" className="font-medium text-[13px] text-foreground">
+      <h3 id="custom-provider-endpoints-title" className="text-[13px] font-medium text-foreground">
         {t('settings.provider.create_custom.endpoint_fields.label')}
       </h3>
 
@@ -801,7 +802,7 @@ function CustomProviderEndpointFields({
         value={moreOpen ? 'more-settings' : ''}
         onValueChange={(value) => onMoreOpenChange(value === 'more-settings')}>
         <AccordionItem value="more-settings" className="border-0">
-          <AccordionTrigger className="min-h-10 cursor-pointer py-0 font-normal text-muted-foreground text-xs hover:text-foreground disabled:cursor-not-allowed">
+          <AccordionTrigger className="min-h-10 cursor-pointer py-0 text-xs font-normal text-muted-foreground hover:text-foreground disabled:cursor-not-allowed">
             <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <span>{t('settings.provider.create_custom.endpoint_fields.more')}</span>
               {additionalConfiguredCount > 0 && (
@@ -861,7 +862,7 @@ function PresetInstancePicker({
         <span className="text-[13px] text-foreground">
           {t('settings.provider.create_custom.preset_instance.title')}
         </span>
-        <span className="text-foreground-tertiary text-xs">
+        <span className="text-xs text-foreground-tertiary">
           {t('settings.provider.create_custom.preset_instance.description')}
         </span>
       </div>
@@ -897,7 +898,7 @@ function DuplicateHeader({ source }: { source: Provider }) {
   return (
     <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
-      <span className="truncate text-foreground text-sm">{label}</span>
+      <span className="truncate text-sm text-foreground">{label}</span>
     </div>
   )
 }
@@ -1115,7 +1116,7 @@ function BaseUrlField({
         onBlur={onBlur}
       />
       {description && (
-        <p id={descriptionId} aria-live="polite" className="break-all text-muted-foreground text-xs">
+        <p id={descriptionId} aria-live="polite" className="text-xs break-all text-muted-foreground">
           {description}
         </p>
       )}
@@ -1163,7 +1164,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           size="icon-lg"
           aria-label={t(visible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}
           onClick={() => setVisible((v) => !v)}
-          className="-translate-y-1/2 absolute top-1/2 right-0 text-muted-foreground hover:text-foreground">
+          className="absolute top-1/2 right-0 -translate-y-1/2 text-muted-foreground hover:text-foreground">
           {visible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
         </Button>
       </div>

@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type { RetryPolicy } from '../retryPolicy'

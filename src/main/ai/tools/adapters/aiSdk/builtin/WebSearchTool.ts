@@ -7,6 +7,9 @@
  * exact same logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
+import { type InferToolInput, type InferToolOutput, tool } from 'ai'
+import * as z from 'zod'
+
 import { markTrustedLocalToolTerminalFailure } from '@main/ai/runtime/aiSdk'
 import {
   WEB_FETCH_TOOL_NAME,
@@ -14,8 +17,6 @@ import {
   webSearchInputSchema,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
-import { type InferToolInput, type InferToolOutput, tool } from 'ai'
-import * as z from 'zod'
 
 import { makeEntitiesCodec } from '../../../outputCodec'
 import { searchWeb, WEB_SEARCH_DESCRIPTION, webLookupErrorSchema, webLookupModelOutput } from '../../../webLookup'

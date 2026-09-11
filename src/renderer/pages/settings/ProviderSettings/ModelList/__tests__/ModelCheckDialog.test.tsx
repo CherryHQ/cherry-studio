@@ -1,9 +1,10 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import type { Model } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import type { Model } from '@shared/data/types/model'
 
 import ModelCheckDialog from '../ModelCheckDialog'
 

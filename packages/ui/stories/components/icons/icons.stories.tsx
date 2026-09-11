@@ -25,7 +25,7 @@ const IconsShowcase = ({ fontSize = 32 }: IconsShowcaseProps) => {
             style={{ fontSize }}>
             <Component />
           </div>
-          <p className="text-sm text-center mt-2">{name}</p>
+          <p className="mt-2 text-center text-sm">{name}</p>
         </div>
       ))}
     </div>
