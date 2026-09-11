@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { ActionTool } from '@renderer/components/ActionTools'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { ActionTool } from '@renderer/components/ActionTools'
 
 import CodeToolButton from '../CodeToolButton'
 

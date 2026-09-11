@@ -1,6 +1,7 @@
-import { Slider } from '@cherrystudio/ui/components/primitives/slider'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
+
+import { Slider } from '@cherrystudio/ui/components/primitives/slider'
 
 const meta: Meta<typeof Slider> = {
   title: 'Components/Primitives/Slider',
@@ -115,7 +116,7 @@ export const Large: Story = {
 
 export const AllSizes: Story = {
   render: () => (
-    <div className="flex flex-col gap-8 w-96">
+    <div className="flex w-96 flex-col gap-8">
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Small</p>
         <Slider size="sm" defaultValue={[25]} />
@@ -135,7 +136,7 @@ export const AllSizes: Story = {
 // Values
 export const DifferentValues: Story = {
   render: () => (
-    <div className="flex flex-col gap-8 w-96">
+    <div className="flex w-96 flex-col gap-8">
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">0%</p>
         <Slider defaultValue={[0]} />
@@ -168,7 +169,7 @@ export const RangeSlider: Story = {
 
 export const RangeSizes: Story = {
   render: () => (
-    <div className="flex flex-col gap-8 w-96">
+    <div className="flex w-96 flex-col gap-8">
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Small Range</p>
         <Slider size="sm" defaultValue={[20, 80]} />
@@ -241,7 +242,7 @@ export const Vertical: Story = {
 
 export const VerticalSizes: Story = {
   render: () => (
-    <div className="flex gap-12 h-64">
+    <div className="flex h-64 gap-12">
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Small</p>
         <Slider size="sm" defaultValue={[25]} orientation="vertical" />
@@ -300,7 +301,7 @@ export const RealWorldExamples: Story = {
     const [temperature, setTemperature] = useState([22])
 
     return (
-      <div className="flex flex-col gap-8 w-96">
+      <div className="flex w-96 flex-col gap-8">
         {/* Volume Control */}
         <div>
           <h3 className="mb-4 text-sm font-semibold">Volume Control</h3>
@@ -379,7 +380,7 @@ export const WithMarks: Story = {
 
 export const MarksWithSizes: Story = {
   render: () => (
-    <div className="flex flex-col gap-8 w-96">
+    <div className="flex w-96 flex-col gap-8">
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Small</p>
         <Slider
@@ -498,7 +499,7 @@ export const ValueLabelWithFormat: Story = {
 
 export const ValueLabelSizes: Story = {
   render: () => (
-    <div className="flex flex-col gap-8 w-96 pt-8">
+    <div className="flex w-96 flex-col gap-8 pt-8">
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">Small</p>
         <Slider size="sm" defaultValue={[25]} showValueLabel formatValueLabel={(v) => `${v}%`} />
@@ -562,59 +563,59 @@ export const ValueLabelWithMarks: Story = {
 // All Variants Display (like Figma)
 export const ShowcaseAllVariants: Story = {
   render: () => (
-    <div className="flex flex-col gap-12 p-8 min-w-[800px]">
+    <div className="flex min-w-[800px] flex-col gap-12 p-8">
       {/* Light Background */}
-      <div className="bg-white rounded-lg border p-8">
+      <div className="rounded-lg border bg-white p-8">
         <h3 className="mb-6 text-lg font-semibold">All Sizes & Progress States</h3>
         <div className="flex gap-8">
-          <div className="flex flex-col gap-1 text-sm text-muted-foreground w-20 shrink-0">
-            <div className="h-8 flex items-center">Large</div>
+          <div className="flex w-20 shrink-0 flex-col gap-1 text-sm text-muted-foreground">
+            <div className="flex h-8 items-center">Large</div>
             <div className="h-8" />
             <div className="h-8" />
-            <div className="h-8 flex items-center">Medium</div>
+            <div className="flex h-8 items-center">Medium</div>
             <div className="h-8" />
             <div className="h-8" />
-            <div className="h-8 flex items-center">Small</div>
+            <div className="flex h-8 items-center">Small</div>
             <div className="h-8" />
             <div className="h-8" />
           </div>
-          <div className="flex flex-col gap-1 text-sm text-muted-foreground w-16 shrink-0">
-            <div className="h-8 flex items-center">0%</div>
-            <div className="h-8 flex items-center">50%</div>
-            <div className="h-8 flex items-center">100%</div>
-            <div className="h-8 flex items-center">0%</div>
-            <div className="h-8 flex items-center">50%</div>
-            <div className="h-8 flex items-center">100%</div>
-            <div className="h-8 flex items-center">0%</div>
-            <div className="h-8 flex items-center">50%</div>
-            <div className="h-8 flex items-center">100%</div>
+          <div className="flex w-16 shrink-0 flex-col gap-1 text-sm text-muted-foreground">
+            <div className="flex h-8 items-center">0%</div>
+            <div className="flex h-8 items-center">50%</div>
+            <div className="flex h-8 items-center">100%</div>
+            <div className="flex h-8 items-center">0%</div>
+            <div className="flex h-8 items-center">50%</div>
+            <div className="flex h-8 items-center">100%</div>
+            <div className="flex h-8 items-center">0%</div>
+            <div className="flex h-8 items-center">50%</div>
+            <div className="flex h-8 items-center">100%</div>
           </div>
-          <div className="flex-1 flex flex-col gap-1 min-w-[400px]">
-            <div className="h-8 flex items-center">
+          <div className="flex min-w-[400px] flex-1 flex-col gap-1">
+            <div className="flex h-8 items-center">
               <Slider size="lg" defaultValue={[0]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="lg" defaultValue={[50]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="lg" defaultValue={[100]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="md" defaultValue={[0]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="md" defaultValue={[50]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="md" defaultValue={[100]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="sm" defaultValue={[0]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="sm" defaultValue={[50]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="sm" defaultValue={[100]} className="w-full" />
             </div>
           </div>
@@ -622,57 +623,57 @@ export const ShowcaseAllVariants: Story = {
       </div>
 
       {/* Dark Background */}
-      <div className="bg-slate-900 rounded-lg border border-slate-700 p-8">
+      <div className="rounded-lg border border-slate-700 bg-slate-900 p-8">
         <h3 className="mb-6 text-lg font-semibold text-white">Dark Mode</h3>
         <div className="flex gap-8">
-          <div className="flex flex-col gap-1 text-sm text-slate-400 w-20 shrink-0">
-            <div className="h-8 flex items-center">Large</div>
+          <div className="flex w-20 shrink-0 flex-col gap-1 text-sm text-slate-400">
+            <div className="flex h-8 items-center">Large</div>
             <div className="h-8" />
             <div className="h-8" />
-            <div className="h-8 flex items-center">Medium</div>
+            <div className="flex h-8 items-center">Medium</div>
             <div className="h-8" />
             <div className="h-8" />
-            <div className="h-8 flex items-center">Small</div>
+            <div className="flex h-8 items-center">Small</div>
             <div className="h-8" />
             <div className="h-8" />
           </div>
-          <div className="flex flex-col gap-1 text-sm text-slate-400 w-16 shrink-0">
-            <div className="h-8 flex items-center">0%</div>
-            <div className="h-8 flex items-center">50%</div>
-            <div className="h-8 flex items-center">100%</div>
-            <div className="h-8 flex items-center">0%</div>
-            <div className="h-8 flex items-center">50%</div>
-            <div className="h-8 flex items-center">100%</div>
-            <div className="h-8 flex items-center">0%</div>
-            <div className="h-8 flex items-center">50%</div>
-            <div className="h-8 flex items-center">100%</div>
+          <div className="flex w-16 shrink-0 flex-col gap-1 text-sm text-slate-400">
+            <div className="flex h-8 items-center">0%</div>
+            <div className="flex h-8 items-center">50%</div>
+            <div className="flex h-8 items-center">100%</div>
+            <div className="flex h-8 items-center">0%</div>
+            <div className="flex h-8 items-center">50%</div>
+            <div className="flex h-8 items-center">100%</div>
+            <div className="flex h-8 items-center">0%</div>
+            <div className="flex h-8 items-center">50%</div>
+            <div className="flex h-8 items-center">100%</div>
           </div>
-          <div className="flex-1 flex flex-col gap-1 min-w-[400px]">
-            <div className="h-8 flex items-center">
+          <div className="flex min-w-[400px] flex-1 flex-col gap-1">
+            <div className="flex h-8 items-center">
               <Slider size="lg" defaultValue={[0]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="lg" defaultValue={[50]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="lg" defaultValue={[100]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="md" defaultValue={[0]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="md" defaultValue={[50]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="md" defaultValue={[100]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="sm" defaultValue={[0]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="sm" defaultValue={[50]} className="w-full" />
             </div>
-            <div className="h-8 flex items-center">
+            <div className="flex h-8 items-center">
               <Slider size="sm" defaultValue={[100]} className="w-full" />
             </div>
           </div>

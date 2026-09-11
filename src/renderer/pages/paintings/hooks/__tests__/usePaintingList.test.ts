@@ -2,8 +2,14 @@ import { mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { useMutation } from '@data/hooks/useDataApi'
+
 import type { PaintingData } from '../../model/types/paintingData'
 import { usePaintingList } from '../usePaintingList'
+
+type PaintingMutationArgs =
+  | Partial<NonNullable<Parameters<ReturnType<typeof useMutation<'/paintings/:id', 'PATCH'>>['trigger']>[0]>>
+  | undefined
 
 const { createPainting, updatePainting, deletePainting, refresh } = vi.hoisted(() => ({
   createPainting: vi.fn(),
@@ -49,9 +55,9 @@ describe('usePaintingList', () => {
     mockUseMutation.mockImplementation((method) => ({
       trigger:
         method === 'PATCH'
-          ? (data) => updatePainting((data?.params as { id: string })?.id, data?.body)
+          ? (data: PaintingMutationArgs) => updatePainting(data?.params?.id, data?.body)
           : method === 'DELETE'
-            ? (data) => deletePainting((data?.params as { id: string })?.id)
+            ? (data: PaintingMutationArgs) => deletePainting(data?.params?.id)
             : createPainting,
       isLoading: false,
       error: undefined

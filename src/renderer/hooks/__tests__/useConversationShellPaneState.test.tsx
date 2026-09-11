@@ -16,7 +16,7 @@ function renderPaneState({
   windowFrame
 }: {
   initialProps?: HarnessProps
-  setPersistedPaneOpen?: ReturnType<typeof vi.fn>
+  setPersistedPaneOpen?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   onManualPaneOpen?: () => void
   windowFrame?: 'window'
 } = {}) {

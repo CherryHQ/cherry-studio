@@ -1,7 +1,8 @@
-import { loggerService } from '@logger'
-import { usePaintings } from '@renderer/hooks/usePaintings'
 import { omit } from 'es-toolkit'
 import { useCallback, useRef, useState } from 'react'
+
+import { loggerService } from '@logger'
+import { usePaintings } from '@renderer/hooks/usePaintings'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'

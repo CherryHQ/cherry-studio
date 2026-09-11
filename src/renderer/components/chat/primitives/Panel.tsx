@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentProps, ReactNode } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type PanelVariant = 'plain' | 'surface' | 'bordered'
 type PanelPadding = 'none' | 'sm' | 'md'
@@ -53,12 +54,12 @@ export function Panel({
         <div
           data-slot="chat-panel-header"
           className={cn(
-            'flex min-w-0 items-start justify-between gap-3 border-border-subtle border-b p-3',
+            'flex min-w-0 items-start justify-between gap-3 border-b border-border-subtle p-3',
             headerClassName
           )}>
           <div className="min-w-0">
-            {title && <div className="truncate font-medium text-foreground text-sm leading-5">{title}</div>}
-            {description && <div className="mt-0.5 text-muted-foreground text-xs leading-5">{description}</div>}
+            {title && <div className="truncate text-sm leading-5 font-medium text-foreground">{title}</div>}
+            {description && <div className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</div>}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
         </div>
@@ -67,7 +68,7 @@ export function Panel({
         {children}
       </div>
       {footer && (
-        <div data-slot="chat-panel-footer" className={cn('border-border-subtle border-t p-3', footerClassName)}>
+        <div data-slot="chat-panel-footer" className={cn('border-t border-border-subtle p-3', footerClassName)}>
           {footer}
         </div>
       )}

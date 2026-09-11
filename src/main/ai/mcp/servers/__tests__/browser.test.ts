@@ -142,10 +142,11 @@ vi.mock('electron', () => {
   }
 })
 
-import { application } from '@application'
 import { BrowserWindow, nativeTheme } from 'electron'
 import { JSDOM } from 'jsdom'
 import { beforeEach } from 'vitest'
+
+import { application } from '@application'
 
 import { CdpBrowserController } from '../browser'
 import { TAB_BAR_HTML } from '../browser/tabbarHtml'
