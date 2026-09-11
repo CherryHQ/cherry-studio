@@ -1,6 +1,7 @@
-import { ToastViewport } from '@cherrystudio/ui'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ToastViewport } from '@cherrystudio/ui'
 
 /**
  * ToastHost — a leaf, not a wrapper. Mount it as a sibling of the window content,

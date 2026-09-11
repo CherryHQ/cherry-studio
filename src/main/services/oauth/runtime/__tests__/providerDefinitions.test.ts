@@ -6,9 +6,10 @@ vi.mock('electron', () => ({
   }
 }))
 
+import { net } from 'electron'
+
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
-import { net } from 'electron'
 
 import { oauthProviderDefinitions } from '../providerDefinitions'
 

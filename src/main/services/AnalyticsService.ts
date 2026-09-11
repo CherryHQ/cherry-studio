@@ -1,3 +1,5 @@
+import { app } from 'electron'
+
 import { application } from '@application'
 import type { AnalyticsClient, TokenUsageData } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
@@ -5,7 +7,6 @@ import { createLatestReconciler, type LatestReconciler } from '@main/core/concur
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
-import { app } from 'electron'
 
 const logger = loggerService.withContext('AnalyticsService')
 

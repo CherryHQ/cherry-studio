@@ -1,15 +1,14 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
-import type { AppEdition } from '@shared/types/appEdition'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
 const { applicationEdition, migrationOrigin } = vi.hoisted(() => ({
-  applicationEdition: { current: 'cn' as AppEdition },
+  applicationEdition: { current: 'cn' },
   migrationOrigin: { current: false }
 }))
 

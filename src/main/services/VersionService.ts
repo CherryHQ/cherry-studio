@@ -1,7 +1,9 @@
+import fs from 'fs'
+
+import { app } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { app } from 'electron'
-import fs from 'fs'
 
 const logger = loggerService.withContext('VersionService')
 

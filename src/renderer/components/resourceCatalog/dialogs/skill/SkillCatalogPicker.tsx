@@ -1,3 +1,8 @@
+import { ChevronDown, FolderSearch, Import, Plus, Search, Sparkles } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   DropdownMenu,
@@ -8,10 +13,6 @@ import {
 } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { ChevronDown, FolderSearch, Import, Plus, Search, Sparkles } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import { ImportSkillDialog } from './ImportSkillDialog'
@@ -131,7 +132,7 @@ export function SkillCatalogPicker({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <span className="font-medium text-foreground text-sm">
+        <span className="text-sm font-medium text-foreground">
           {t('library.config.agent.section.tools.skills_enable_all')}
         </span>
         <Switch

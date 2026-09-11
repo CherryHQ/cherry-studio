@@ -1,7 +1,8 @@
+import { createContext, use } from 'react'
+
 import type { ConversationAppId } from '@renderer/types/conversation'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { createContext, use } from 'react'
 
 export type CloseConversationTabs = (appId: ConversationAppId, keys: readonly string[]) => void
 

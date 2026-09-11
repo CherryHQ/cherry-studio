@@ -1,3 +1,9 @@
+import { getRouteApi, useNavigate } from '@tanstack/react-router'
+import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   EmptyState,
@@ -22,11 +28,6 @@ import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { ProtocolMcpInstallRequest } from '@shared/data/types/mcpProtocolInstall'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { Check, ChevronDown, Filter, Plus } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import AddMcpServerModal from './AddMcpServerModal'
 import McpProtocolInstallDialog from './McpProtocolInstallDialog'

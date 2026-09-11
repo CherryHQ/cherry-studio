@@ -1,5 +1,6 @@
-import { useGlobalSearchSessionContext, useGlobalSearchTopicContext } from '@renderer/hooks/useGlobalSearchEntryContext'
 import { memo } from 'react'
+
+import { useGlobalSearchSessionContext, useGlobalSearchTopicContext } from '@renderer/hooks/useGlobalSearchEntryContext'
 
 function EntryContext({ name, workspaceName, path }: { name?: string; workspaceName?: string; path?: string }) {
   const label = [name, workspaceName].filter(Boolean).join(' | ')
