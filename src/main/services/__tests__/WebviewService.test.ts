@@ -1,7 +1,9 @@
-import { BaseService } from '@main/core/lifecycle'
-import { app, session, shell, webContents } from 'electron'
 import type * as FsModule from 'fs'
+
+import { app, session, shell, webContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 import { setOpenLinkExternal, WebviewService } from '../WebviewService'
 
@@ -87,7 +89,7 @@ describe('setOpenLinkExternal', () => {
   })
 
   it('is a no-op when the webview id is unknown', () => {
-    vi.mocked(webContents.fromId).mockReturnValue(undefined as never)
+    vi.mocked(webContents.fromId).mockReturnValue(undefined)
     expect(() => setOpenLinkExternal(404, false)).not.toThrow()
   })
 })

@@ -1,6 +1,4 @@
 import '@renderer/assets/styles/vendor/xyflow.css'
-
-import { cn } from '@renderer/utils/style'
 import {
   Controls,
   MiniMap,
@@ -14,6 +12,8 @@ import {
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { cn } from '@renderer/utils/style'
 
 import {
   layoutTopicMessageFlowGraph,

@@ -1,7 +1,8 @@
-import type { MarkdownSource } from '@cherrystudio/ui'
-import type { Citation } from '@renderer/types/message'
 import { type FC, lazy, Suspense, useMemo } from 'react'
 import type { Components } from 'streamdown'
+
+import type { MarkdownSource } from '@cherrystudio/ui'
+import type { Citation } from '@renderer/types/message'
 
 import { scanStandaloneHtmlArtifact } from './standaloneHtmlArtifact'
 

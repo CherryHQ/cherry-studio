@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -33,7 +34,7 @@ class MockWebSocket extends EventEmitter {
 let mockWsInstance: MockWebSocket | null = null
 
 vi.mock('ws', () => {
-  const Ctor = vi.fn().mockImplementation(() => {
+  const Ctor = vi.fn().mockImplementation(function MockWebSocketConstructor() {
     mockWsInstance = new MockWebSocket()
     return mockWsInstance
   })
@@ -42,7 +43,6 @@ vi.mock('ws', () => {
 })
 
 import '../slack/SlackAdapter'
-
 import { registerAdapterFactory } from '../../ChannelManager'
 
 function getFactory() {

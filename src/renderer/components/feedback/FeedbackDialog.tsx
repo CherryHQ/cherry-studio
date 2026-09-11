@@ -1,3 +1,7 @@
+import { Bot, ChevronRight, FileArchive, Github } from 'lucide-react'
+import { lazy, type ReactNode, Suspense, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Badge,
   Dialog,
@@ -17,9 +21,6 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
-import { Bot, ChevronRight, FileArchive, Github } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const DiagnosticUploadDialog = lazy(() => import('./DiagnosticUploadDialog'))
 

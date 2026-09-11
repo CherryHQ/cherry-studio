@@ -2,9 +2,6 @@
  * Streaming agent loop. See `docs/references/ai/agent-loop.md`.
  */
 
-import { createAgent } from '@cherrystudio/ai-core'
-import type { StringKeys } from '@cherrystudio/ai-core/provider'
-import { isAbortError } from '@main/utils/error'
 import {
   InvalidResponseDataError,
   type LanguageModelUsage,
@@ -13,6 +10,10 @@ import {
   type UIMessage,
   type UIMessageChunk
 } from 'ai'
+
+import { createAgent } from '@cherrystudio/ai-core'
+import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { isAbortError } from '@main/utils/error'
 
 import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
@@ -56,7 +57,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
   private currentWriter?: WritableStreamDefaultWriter<UIMessageChunk>
 
   constructor(public readonly params: AgentLoopParams<T>) {
-    attachUsageObserver(this as Agent)
+    attachUsageObserver(this)
   }
 
   /** Internal observer — composes ahead of caller hookParts via `composeHooks`. */
@@ -82,7 +83,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const list = this.observers[key]
       if (!list) continue
       for (const fn of list) {
-        parts.push({ [key]: fn } as Partial<AgentLoopHooks>)
+        parts.push({ [key]: fn })
       }
     }
     if (this.params.hookParts) parts.push(...this.params.hookParts)
@@ -120,9 +121,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       wrapModel: params.wrapModel,
       agentSettings: {
         // Tools
-        tools: toolsWithHooks as ToolSet,
+        tools: toolsWithHooks,
         toolChoice: opts.toolChoice,
-        activeTools: opts.activeTools as Array<keyof ToolSet>,
+        activeTools: opts.activeTools,
         // System
         instructions: params.system,
         // CallSettings (model parameters)

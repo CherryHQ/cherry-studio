@@ -1,3 +1,20 @@
+import { Activity, GitBranch } from 'lucide-react'
+import type { Dispatch, PropsWithChildren, ReactNode, SetStateAction } from 'react'
+import {
+  Activity as ReactActivity,
+  createContext,
+  lazy,
+  Suspense,
+  use,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from 'react'
+import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
+
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
   createResourcePaneCapability,
@@ -15,22 +32,6 @@ import {
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { Activity, GitBranch } from 'lucide-react'
-import type { Dispatch, PropsWithChildren, ReactNode, SetStateAction } from 'react'
-import {
-  Activity as ReactActivity,
-  createContext,
-  lazy,
-  Suspense,
-  use,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore
-} from 'react'
-import { createPortal } from 'react-dom'
-import { useTranslation } from 'react-i18next'
 
 const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 

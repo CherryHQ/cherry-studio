@@ -1,3 +1,10 @@
+import { Handle, type NodeProps, Position } from '@xyflow/react'
+import dayjs from 'dayjs'
+import { Plus, UserRound } from 'lucide-react'
+import type { RefObject } from 'react'
+import { memo, useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { useDataChange, useQuery } from '@data/hooks/useDataApi'
 import { MessagePartsScopeProvider, usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
@@ -23,12 +30,6 @@ import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProject
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
-import { Handle, type NodeProps, Position } from '@xyflow/react'
-import dayjs from 'dayjs'
-import { Plus, UserRound } from 'lucide-react'
-import type { RefObject } from 'react'
-import { memo, useCallback, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import type { TopicMessageFlowNodeData, TopicMessageFlowNodeModel } from './types'
 

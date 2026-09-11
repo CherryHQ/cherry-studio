@@ -1,7 +1,8 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { List } from 'lucide-react'
 import { useCallback } from 'react'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import { RESOURCE_PANE_TAB } from './resourcePane'
 import { useRightPanelActions, useRightPanelState } from './RightPanel'
@@ -35,10 +36,10 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
         variant="ghost"
         aria-label={title}
         className={cn(
-          'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 font-medium text-muted-foreground text-xs shadow-none',
+          'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 text-xs font-medium text-muted-foreground shadow-none',
           'hover:bg-accent hover:text-foreground',
           active && 'bg-secondary text-secondary-foreground hover:bg-secondary-hover hover:text-secondary-foreground',
-          '[&_svg]:!size-3.5 [-webkit-app-region:none]',
+          '[-webkit-app-region:none] [&_svg]:!size-3.5',
           className
         )}
         aria-pressed={active}

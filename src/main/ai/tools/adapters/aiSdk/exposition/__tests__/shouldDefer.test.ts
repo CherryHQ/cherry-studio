@@ -78,7 +78,7 @@ describe('shouldDefer', () => {
       makeEntry({
         name: `mcp__s${i}__t`,
         defer: 'auto',
-        tool: { description: '', inputSchema: bigSchema } as unknown as Tool
+        tool: { description: '', inputSchema: bigSchema }
       })
     )
     const result = await shouldDefer(entries, 32_000)

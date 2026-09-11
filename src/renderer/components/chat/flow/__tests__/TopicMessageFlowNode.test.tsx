@@ -1,13 +1,14 @@
-import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
-import type { MessageListActions, MessageListItem } from '@renderer/components/chat/messages/types'
-import type { Topic } from '@renderer/types/topic'
-import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
+import type { MessageListActions, MessageListItem } from '@renderer/components/chat/messages/types'
+import type { Topic } from '@renderer/types/topic'
+import type { CherryMessagePart, Message } from '@shared/data/types/message'
 
 import TopicMessageFlowNode from '../TopicMessageFlowNode'
 import type { TopicMessageFlowNodeData } from '../types'

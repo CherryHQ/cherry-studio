@@ -1,9 +1,10 @@
-import HighlightText from '@renderer/components/HighlightText'
-import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
-import { cn } from '@renderer/utils/style'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import HighlightText from '@renderer/components/HighlightText'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { cn } from '@renderer/utils/style'
 
 import { settingsSearchSections } from './aggregate'
 import { rankEntries } from './searchEngine'

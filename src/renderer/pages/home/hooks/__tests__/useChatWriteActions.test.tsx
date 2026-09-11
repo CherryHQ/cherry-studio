@@ -1,6 +1,7 @@
-import { dataApiService } from '@data/DataApiService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
 
 const { invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
   invalidateMessages: vi.fn(),
@@ -350,7 +351,7 @@ describe('useChatWriteActions — clear context', () => {
     vi.mocked(cache.createMessageTrigger).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          resolveCreate = resolve as typeof resolveCreate
+          resolveCreate = resolve
         }) as never
     )
     const { actions, result } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
@@ -786,6 +787,7 @@ describe('useChatWriteActions — fork and resend', () => {
     await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
   })
 })
-import type { Message } from '@shared/data/types/message'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+
+import type { Message } from '@shared/data/types/message'

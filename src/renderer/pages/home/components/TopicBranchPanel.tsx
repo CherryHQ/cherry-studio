@@ -1,3 +1,8 @@
+import { CopyPlus, CornerDownRight, GitBranch } from 'lucide-react'
+import type { FC, MouseEvent } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
@@ -16,10 +21,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { TreeResponse } from '@shared/data/types/message'
-import { CopyPlus, CornerDownRight, GitBranch } from 'lucide-react'
-import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
 

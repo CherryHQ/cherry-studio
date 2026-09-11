@@ -1,13 +1,14 @@
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { dataApiService } from '@data/DataApiService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import type { BranchMessagesResponse, CherryMessagePart, CherryUIMessage, Message } from '@shared/data/types/message'
-import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger

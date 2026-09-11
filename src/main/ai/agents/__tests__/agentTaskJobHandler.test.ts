@@ -1,6 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { JobContext, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
@@ -79,7 +80,7 @@ function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSe
     attempt: 0,
     metadata: {},
     ...overrides
-  } as JobSettledEvent<AgentTaskInput>
+  }
 }
 
 describe('AgentTaskJobHandler', () => {

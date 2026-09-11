@@ -1,10 +1,11 @@
-import { dataApiService } from '@data/DataApiService'
-import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
-import type { Topic } from '@renderer/types/topic'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, expect, it, vi } from 'vitest'
+
+import { dataApiService } from '@data/DataApiService'
+import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
+import type { Topic } from '@renderer/types/topic'
 
 vi.unmock('@data/hooks/useDataApi')
 vi.mock('@xyflow/react', () => ({ Handle: () => null, Position: { Left: 'left', Right: 'right' } }))

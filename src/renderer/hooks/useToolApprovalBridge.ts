@@ -1,7 +1,8 @@
+import { useCallback } from 'react'
+
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { ipcApi } from '@renderer/ipc'
-import { useCallback } from 'react'
 
 const logger = loggerService.withContext('useToolApprovalBridge')
 
