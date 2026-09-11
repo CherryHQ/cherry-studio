@@ -17,17 +17,25 @@ interface ClickableFilePathProps {
   path: string
   displayName?: string
   interactive?: boolean
+  preserveWrappingPunctuation?: boolean
 }
 
 export const ClickableFilePath = memo(function ClickableFilePath({
   path,
   displayName,
-  interactive = true
+  interactive = true,
+  preserveWrappingPunctuation = false
 }: ClickableFilePathProps) {
   const { t } = useTranslation()
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
-  const displayPath = useMemo(() => normalizeInlineFilePath(path), [path])
-  const unresolvedTargetPath = useMemo(() => resolveInlineFilePath(path), [path])
+  const displayPath = useMemo(
+    () => (preserveWrappingPunctuation ? path : normalizeInlineFilePath(path)),
+    [path, preserveWrappingPunctuation]
+  )
+  const unresolvedTargetPath = useMemo(
+    () => resolveInlineFilePath(path, { preserveWrappingPunctuation }),
+    [path, preserveWrappingPunctuation]
+  )
   const iconName = useMemo(() => getFileIconName(displayPath), [displayPath])
   const actions = useOptionalMessageListActions()
   const resolvePath = actions?.resolvePath
