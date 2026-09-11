@@ -1,10 +1,11 @@
 import { Writable } from 'node:stream'
 
-import { IpcChannel } from '@shared/IpcChannel'
-import type { LogSourceWithContext } from '@shared/types/logger'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
+
+import { IpcChannel } from '@shared/IpcChannel'
+import type { LogSourceWithContext } from '@shared/types/logger'
 
 const tmpLogsDir = vi.hoisted(() => {
   const { mkdtempSync } = require('node:fs')

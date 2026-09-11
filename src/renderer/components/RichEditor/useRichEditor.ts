@@ -1,14 +1,14 @@
 import '@renderer/assets/styles/vendor/katex.css'
-
-import { loggerService } from '@logger'
-import type { FormattingState } from '@renderer/components/RichEditor/types'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import type { Editor } from '@tiptap/core'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
 import type { TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
 import { useEditor, useEditorState } from '@tiptap/react'
 import { t } from 'i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+
+import { loggerService } from '@logger'
+import type { FormattingState } from '@renderer/components/RichEditor/types'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'

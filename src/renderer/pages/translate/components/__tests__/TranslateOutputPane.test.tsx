@@ -1,6 +1,7 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
 
 import TranslateOutputPane from '../TranslateOutputPane'
 

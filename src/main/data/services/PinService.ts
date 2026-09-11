@@ -20,6 +20,8 @@
  *   variant emits a single aggregated log line and a single SQL round trip.
  */
 
+import { and, asc, eq, inArray } from 'drizzle-orm'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { type PinRow, pinTable } from '@data/db/schemas/pin'
@@ -32,7 +34,6 @@ import type { CreatePinDto } from '@shared/data/api/schemas/pins'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Pin } from '@shared/data/types/pin'
-import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'

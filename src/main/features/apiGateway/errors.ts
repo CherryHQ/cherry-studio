@@ -1,8 +1,9 @@
+import { ErrorCode, JSONRPC_VERSION } from '@modelcontextprotocol/sdk/types.js'
+import type { ErrorHandler } from 'elysia'
+
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { ErrorCode, JSONRPC_VERSION } from '@modelcontextprotocol/sdk/types.js'
 import { DataApiError } from '@shared/data/api/errors'
-import type { ErrorHandler } from 'elysia'
 
 import type { OutputFormat } from './adapters'
 

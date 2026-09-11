@@ -1,5 +1,6 @@
-import type { NotesTreeNode } from '@renderer/types/note'
 import { useMemo } from 'react'
+
+import type { NotesTreeNode } from '@renderer/types/note'
 
 // 查找节点的工具函数
 export const findNodeByPath = (tree: NotesTreeNode[], targetPath: string): NotesTreeNode | null => {

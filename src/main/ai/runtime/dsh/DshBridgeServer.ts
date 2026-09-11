@@ -11,6 +11,9 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
+import type { JsonRpcLineTransport, SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
+
 import type {
   BridgeCommandResult,
   BridgeContextUsage,
@@ -19,8 +22,6 @@ import type {
   BridgePluginRequestMap,
   BridgeToolCallResult
 } from '@cherrystudio/dsh-bridge'
-import type { JsonRpcLineTransport, SessionEventNotification } from '@deepseek-ai/dsh-sdk-protocol'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'

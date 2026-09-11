@@ -1,6 +1,7 @@
-import type { MiniApp } from '@shared/data/types/miniApp'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type { MiniApp } from '@shared/data/types/miniApp'
 
 import MiniAppPane from '../MiniAppPane'
 

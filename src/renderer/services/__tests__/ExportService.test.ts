@@ -1,3 +1,6 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { preferenceService } from '@data/PreferenceService'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
@@ -6,8 +9,6 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import type * as MessageFind from '@renderer/utils/message/find'
-import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 
@@ -64,6 +65,12 @@ vi.mock('@renderer/i18n/resolver', () => ({
 // Mock getProviderLabelKey
 vi.mock('@renderer/i18n/label', () => ({
   getProviderLabelKey: vi.fn((providerId: string) => providerId || 'Unknown Provider')
+}))
+
+vi.mock('i18next', () => ({
+  default: {
+    t: vi.fn((key: string) => key)
+  }
 }))
 
 // Mock the find utility functions - crucial for the test
@@ -288,13 +295,6 @@ beforeEach(() => {
   // Reset mocks and modules before each test suite (describe block)
   vi.resetModules()
   vi.clearAllMocks()
-
-  // Mock i18next translation function
-  vi.mock('i18next', () => ({
-    default: {
-      t: vi.fn((key) => key)
-    }
-  }))
 
   mockedMessages = [] // Clear messages for the next describe block
 })
@@ -890,7 +890,7 @@ describe('ExportService', () => {
         id: 'topic1_plain',
         name: '# Topic One',
         assistantId: 'asst_test',
-        messages: [msg1, msg2] as any
+        messages: [msg1, msg2]
       })
       // Mock getTopicMessages to return the expected messages
       ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])

@@ -1,9 +1,10 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { SkillFileNode } from '@shared/types/skill'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { SkillFileNode } from '@shared/types/skill'
 
 const { cancelMock, listFilesMock, readSkillFileMock, toastErrorMock, translateMock } = vi.hoisted(() => ({
   cancelMock: vi.fn(),

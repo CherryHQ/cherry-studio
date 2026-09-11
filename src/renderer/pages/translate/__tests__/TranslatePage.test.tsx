@@ -1,9 +1,3 @@
-import type * as TranslateHooks from '@renderer/hooks/translate'
-import { toast } from '@renderer/services/toast'
-import type * as TranslateUtils from '@renderer/utils/translate'
-import type { PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
-import type { BinaryToolSnapshot } from '@shared/types/binary'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -11,6 +5,12 @@ import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as TranslateHooks from '@renderer/hooks/translate'
+import { toast } from '@renderer/services/toast'
+import type * as TranslateUtils from '@renderer/utils/translate'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type TranslateLanguageBarComponent from '../components/TranslateLanguageBar'
 import type { TranslationFiles } from '../translationFiles'
@@ -1173,10 +1173,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -1236,10 +1233,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -1290,10 +1284,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -1352,10 +1343,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -1391,10 +1379,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, vi.fn().mockRejectedValue(error)] as never
       },
@@ -2098,10 +2083,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -2144,10 +2126,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -2179,10 +2158,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -2214,10 +2190,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -2272,10 +2245,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },
@@ -2421,10 +2391,7 @@ describe('TranslatePage', () => {
     await MockUsePreference.useMultiplePreferences.withImplementation(
       (keys) => {
         const values = Object.fromEntries(
-          Object.entries(keys).map(([alias, key]) => [
-            alias,
-            MockUsePreferenceUtils.getPreferenceValue(key as PreferenceKeyType)
-          ])
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
         )
         return [values, persistLanguages] as never
       },

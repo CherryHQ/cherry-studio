@@ -1,3 +1,8 @@
+import { Check, ChevronsLeft, Copy } from 'lucide-react'
+import type { FC } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   Field,
@@ -17,10 +22,6 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { toast } from '@renderer/services/toast'
 import { download } from '@renderer/utils/download'
 import { formatFileSize } from '@renderer/utils/file'
-import { Check, ChevronsLeft, Copy } from 'lucide-react'
-import type { FC } from 'react'
-import { useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { buildSpanView, type SpanDetailRow, type SpanTab } from './spanPresenters'
 import type { TraceNode } from './traceNode'
