@@ -1,8 +1,9 @@
-import type { InstalledSkill } from '@shared/types/skill'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm } from 'react-hook-form'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { InstalledSkill } from '@shared/types/skill'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
 import { CapabilityStep } from '../CapabilityStep'

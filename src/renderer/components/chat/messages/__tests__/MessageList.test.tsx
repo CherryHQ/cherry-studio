@@ -1,9 +1,10 @@
-import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18n from 'i18next'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 
 import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
@@ -537,7 +538,7 @@ describe('MessageList', () => {
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text }]
-          } as MessageListProviderValue['state']['partsByMessageId']
+          }
         },
         actions
       )
@@ -581,11 +582,11 @@ describe('MessageList', () => {
           streamingLayers: {
             historyPartsByMessageId: historyParts,
             liveMessageIds: ['assistant-live']
-          } as NonNullable<MessageListProviderValue['state']['streamingLayers']>,
+          },
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text: 'streaming' }]
-          } as MessageListProviderValue['state']['partsByMessageId']
+          }
         },
         actions
       )

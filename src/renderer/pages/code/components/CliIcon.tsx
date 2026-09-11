@@ -1,6 +1,7 @@
+import type { ComponentType, FC, SVGProps } from 'react'
+
 import { cn } from '@renderer/utils/style'
 import { CodeCli } from '@shared/types/codeCli'
-import type { ComponentType, FC, SVGProps } from 'react'
 
 import { CLI_TOOLS } from '../constants/cliTools'
 

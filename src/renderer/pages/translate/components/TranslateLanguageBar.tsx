@@ -1,3 +1,9 @@
+import { ArrowLeftRight } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import stringWidth from 'string-width'
+
 import { Button, Combobox, type ComboboxOption, Tooltip } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
@@ -7,11 +13,6 @@ import type {
   TranslateLangCode,
   TranslateSourceLanguage
 } from '@shared/data/preference/preferenceTypes'
-import { ArrowLeftRight } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
-import stringWidth from 'string-width'
 
 type Props = {
   className?: string
@@ -194,7 +195,7 @@ const TranslateLanguageBar: FC<Props> = ({
           type="button"
           disabled
           aria-label={`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}
-          className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-foreground text-sm shadow-none disabled:opacity-100">
+          className="h-8 max-w-70 justify-start gap-2 bg-background-subtle px-3 text-sm text-foreground shadow-none disabled:opacity-100">
           <span className="sr-only">{`${bidirectionalSource.label} ⇆ ${bidirectionalTarget.label}`}</span>
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="text-sm leading-none">{bidirectionalSource.emoji}</span>

@@ -62,12 +62,7 @@ export type { VersionCache } from './versionCache'
 
 // Watcher primitive — business modules (future NoteService, KB watcher, etc.)
 // call `createDirectoryWatcher` directly. Not a lifecycle service.
-export type {
-  CreateDirectoryWatcherOptions,
-  DirectoryWatcher,
-  WatcherEvent,
-  WatcherListener
-} from './watcher'
+export type { CreateDirectoryWatcherOptions, DirectoryWatcher, WatcherEvent, WatcherListener } from './watcher'
 export { createDirectoryWatcher } from './watcher'
 
 // Projection helper: managed FileEntry → live on-disk FileInfo descriptor.

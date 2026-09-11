@@ -6,6 +6,7 @@ import type { DocumentToMarkdownHandlerOutput, ImageToTextHandlerOutput } from '
 import {
   type MistralDocumentUrlDocument,
   type MistralImageDocument,
+  type MistralOcrPage,
   type MistralOcrResponse,
   MistralOcrResponseSchema,
   type PreparedMistralContext
@@ -55,7 +56,7 @@ export function parseMistralOcrResponse(response: MistralOcrResponse) {
 export function buildTextExtractionResult(response: MistralOcrResponse): ImageToTextHandlerOutput {
   const parsedResponse = parseMistralOcrResponse(response)
   const markdown = parsedResponse.pages
-    .map((page) => page.markdown.trim())
+    .map((page) => inlinePageTables(page).trim())
     .filter(Boolean)
     .join('\n\n')
     .trim()
@@ -73,7 +74,7 @@ export function buildTextExtractionResult(response: MistralOcrResponse): ImageTo
 export function buildMarkdownConversionResult(response: MistralOcrResponse): DocumentToMarkdownHandlerOutput {
   const parsedResponse = parseMistralOcrResponse(response)
   const markdownContent = parsedResponse.pages
-    .map((page) => page.markdown.trim())
+    .map((page) => inlinePageTables(page).trim())
     .filter(Boolean)
     .join('\n\n')
     .trim()
@@ -86,6 +87,17 @@ export function buildMarkdownConversionResult(response: MistralOcrResponse): Doc
     kind: 'markdown',
     markdownContent
   }
+}
+
+function inlinePageTables(page: MistralOcrPage): string {
+  return (page.tables ?? []).reduce((markdown, table) => {
+    const placeholder = `[${table.id}](${table.id})`
+    if (!markdown.includes(placeholder)) {
+      return `${markdown}\n\n${table.content}`
+    }
+    // Replacer function: a plain string replacement would expand `$&` / `$'` inside table content.
+    return markdown.replace(placeholder, () => table.content)
+  }, page.markdown)
 }
 
 export async function uploadDocument(context: PreparedMistralContext): Promise<string> {

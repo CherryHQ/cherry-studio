@@ -1,6 +1,7 @@
+import { useCallback, useRef } from 'react'
+
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useCallback, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'

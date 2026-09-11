@@ -1,6 +1,7 @@
-import { Button } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { ChevronRight, Loader2, Mail } from 'lucide-react'
+
+import { Button } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Button> = {
   title: 'Components/Primitives/Button',

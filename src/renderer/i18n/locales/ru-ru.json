@@ -252,6 +252,8 @@
   "agent.session_delivery.status.consumed": "Обработано",
   "agent.session_delivery.status.delivering": "Доставляется",
   "agent.session_delivery.status.failed": "Ошибка",
+  "agent.session_turn_origin.background_work": "Продолжено после фоновой работы",
+  "agent.session_turn_origin.goal_round": "Раунд цели {{round}}",
   "agent.settings.permissionMode.title": "Режим разрешений",
   "agent.settings.skills.addMore": "Управление навыками",
   "agent.settings.tooling.mcp.toggle": "Переключить {{name}}",

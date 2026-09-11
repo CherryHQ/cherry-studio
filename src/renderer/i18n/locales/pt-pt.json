@@ -252,6 +252,8 @@
   "agent.session_delivery.status.consumed": "Processado",
   "agent.session_delivery.status.delivering": "A entregar",
   "agent.session_delivery.status.failed": "Falhou",
+  "agent.session_turn_origin.background_work": "Continuado após trabalho em segundo plano",
+  "agent.session_turn_origin.goal_round": "Ronda de objetivo {{round}}",
   "agent.settings.permissionMode.title": "Modo de Permissão",
   "agent.settings.skills.addMore": "Gerir Skills",
   "agent.settings.tooling.mcp.toggle": "Alternar {{name}}",

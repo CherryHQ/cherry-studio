@@ -1,9 +1,10 @@
-import { Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { ChevronsDownUp, ChevronsUpDown, FileText, Filter, Search, X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Tooltip } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
