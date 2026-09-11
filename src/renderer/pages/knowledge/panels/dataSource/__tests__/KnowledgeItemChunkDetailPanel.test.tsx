@@ -94,9 +94,14 @@ vi.mock('@cherrystudio/ui', () => ({
       {description}
     </div>
   ),
-  Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <div {...props}>{children}</div>
-  )
+  Scrollbar: ({
+    children,
+    autoHideScrollbar: _autoHideScrollbar,
+    ...props
+  }: {
+    children: ReactNode
+    [key: string]: unknown
+  }) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
