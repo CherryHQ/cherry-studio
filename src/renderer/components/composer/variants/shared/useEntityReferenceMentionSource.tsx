@@ -9,7 +9,13 @@ import { useTranslation } from 'react-i18next'
 import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../quickPanel'
-import { fetchEntityReferencePromptText } from './entityReferenceContext'
+import {
+  AGENT_REFERENCE_PREVIEW_MAX_CHARS,
+  buildAgentSessionReferencePointer,
+  type EntityReferenceTarget,
+  fetchEntityReferencePromptText,
+  fitEntityReferencePromptText
+} from './entityReferenceContext'
 
 const REFERENCE_RESULT_LIMIT = 50
 // List endpoints page pinned-first in manual order, so recency sorting happens client-side
@@ -70,7 +76,14 @@ async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): P
  * sent, the draft was cleared, or the user deleted the chip — so a late transcript can never
  * land in an unrelated draft.
  */
-function settlePendingReferenceToken(editor: Editor, tokenId: string, promptText: string | null) {
+function settlePendingReferenceToken(
+  editor: Editor,
+  tokenId: string,
+  promptText: string | null,
+  fitPromptText?: (maxTotalChars: number) => string,
+  expectedTarget?: EntityReferenceTarget,
+  expectedReferenceId?: string
+) {
   if (editor.isDestroyed) return
 
   const matches: Array<{ position: number; node: ProseMirrorNode }> = []
@@ -82,11 +95,39 @@ function settlePendingReferenceToken(editor: Editor, tokenId: string, promptText
   const match = matches[0]
   if (!match) return
 
+  // A reference is settled asynchronously. The user may have edited, replaced, or restored the
+  // token while its transcript was loading. Only mutate the still-pending node that initiated this
+  // request; otherwise a late response could write a pointer for one Session into another token.
+  if (match.node.attrs.kind !== 'reference' || match.node.attrs.promptText) return
+  if (expectedTarget) {
+    const payload = match.node.attrs.payload
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      (payload as Record<string, unknown>).entityType !== expectedTarget.entityType ||
+      (payload as Record<string, unknown>).id !== expectedTarget.id
+    ) {
+      return
+    }
+    if (expectedReferenceId && (payload as Record<string, unknown>).referenceRequestId !== expectedReferenceId) {
+      return
+    }
+  }
+
   const transaction = editor.state.tr
   if (promptText === null) {
     transaction.delete(match.position, match.position + match.node.nodeSize)
   } else {
-    transaction.setNodeMarkup(match.position, undefined, { ...match.node.attrs, promptText })
+    // The user can keep editing while the reference loads. Recompute the live room here instead
+    // of trusting the insertion-time budget, otherwise those edits plus the settled transcript can
+    // exceed the composer's hard limit.
+    const remainingChars = Math.max(0, COMPOSER_INPUT_MAX_LENGTH - serializeComposerDocument(editor).text.length)
+    const boundedPromptText = fitPromptText ? fitPromptText(remainingChars) : promptText.slice(0, remainingChars)
+    if (!boundedPromptText) {
+      transaction.delete(match.position, match.position + match.node.nodeSize)
+    } else {
+      transaction.setNodeMarkup(match.position, undefined, { ...match.node.attrs, promptText: boundedPromptText })
+    }
   }
   editor.view.dispatch(transaction)
 }
@@ -148,7 +189,9 @@ export function useEntityReferenceMentionItems({
 
               // Token insertion bypasses the composer's input-length guards (they sit on the
               // typing and paste paths), so the block is budgeted against what the draft has left.
-              const remainingChars = COMPOSER_INPUT_MAX_LENGTH - draft.text.length
+              // The token command also inserts one literal separator after the chip. Reserve it
+              // before budgeting the asynchronous prompt text so serialized text stays bounded.
+              const remainingChars = COMPOSER_INPUT_MAX_LENGTH - draft.text.length - 1
               if (remainingChars < REFERENCE_MIN_ROOM_CHARS) {
                 toast.error(t('chat.input.reference_panel.no_room'))
                 return
@@ -157,6 +200,7 @@ export function useEntityReferenceMentionItems({
               // Insert synchronously so the chip is bound to this draft and position; the
               // transcript fills it in place later. Sending stays blocked until then, so a
               // message can never go out holding an empty reference.
+              const referenceRequestId = crypto.randomUUID()
               editor
                 .chain()
                 .focus()
@@ -166,23 +210,47 @@ export function useEntityReferenceMentionItems({
                   label: title,
                   description: hit.subtitle ? `${title} · ${hit.subtitle}` : title,
                   promptText: '',
-                  payload: { entityType, id: hit.id, name: title }
+                  payload: { entityType, id: hit.id, name: title, referenceRequestId }
                 })
                 .insertContent(' ')
                 .run()
               setPendingCount((count) => count + 1)
 
               void (async () => {
+                const target =
+                  entityType === 'topic'
+                    ? ({ entityType, id: hit.id, name: title } as const)
+                    : ({ entityType, id: hit.id, name: title, agentId: hit.agentId } as const)
                 try {
-                  const promptText = await fetchEntityReferencePromptText(
-                    entityType === 'topic'
-                      ? { entityType, id: hit.id, name: title }
-                      : { entityType, id: hit.id, name: title, agentId: hit.agentId },
-                    { maxTotalChars: remainingChars }
-                  )
-                  settlePendingReferenceToken(editor, tokenId, promptText)
+                  if (target.entityType === 'session') {
+                    const preview = await fetchEntityReferencePromptText(target, {
+                      maxTotalChars: Math.min(remainingChars, AGENT_REFERENCE_PREVIEW_MAX_CHARS)
+                    })
+                    const fitPromptText = (maxTotalChars: number) =>
+                      buildAgentSessionReferencePointer(target, preview || null, maxTotalChars)
+                    settlePendingReferenceToken(
+                      editor,
+                      tokenId,
+                      fitPromptText(remainingChars),
+                      fitPromptText,
+                      target,
+                      referenceRequestId
+                    )
+                  } else {
+                    const promptText = await fetchEntityReferencePromptText(target, { maxTotalChars: remainingChars })
+                    const fitPromptText = (maxTotalChars: number) =>
+                      fitEntityReferencePromptText(promptText, maxTotalChars)
+                    settlePendingReferenceToken(
+                      editor,
+                      tokenId,
+                      fitPromptText(remainingChars),
+                      fitPromptText,
+                      target,
+                      referenceRequestId
+                    )
+                  }
                 } catch {
-                  settlePendingReferenceToken(editor, tokenId, null)
+                  settlePendingReferenceToken(editor, tokenId, null, undefined, target, referenceRequestId)
                   toast.error(t('chat.input.reference_panel.load_failed'))
                 } finally {
                   setPendingCount((count) => count - 1)

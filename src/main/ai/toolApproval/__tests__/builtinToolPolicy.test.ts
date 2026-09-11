@@ -1,5 +1,5 @@
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
-import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+import { SESSION_READ_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { describe, expect, it } from 'vitest'
 
@@ -28,6 +28,12 @@ describe('builtinToolPolicy', () => {
     )
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(CLI_LIST_TOOL_NAME), WITHOUT_HOST_TOOLS)?.approval).toBe(
       'auto'
+    )
+    expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_READ_TOOL_NAME), WITHOUT_HOST_TOOLS)).toMatchObject(
+      {
+        approval: 'required',
+        bypassApproval: 'enforce'
+      }
     )
     expect(findBuiltinToolPolicy('mcp__skills__install_skill', WITHOUT_HOST_TOOLS)?.approval).toBe('runtime')
     expect(findBuiltinToolPolicy(toCherryBuiltinRuntimeName(SESSION_SEND_TOOL_NAME), WITHOUT_HOST_TOOLS)).toMatchObject(
