@@ -896,6 +896,63 @@ describe('ChannelMessageHandler', () => {
     expect(mockStartAgentSessionRun.mock.calls[0][0].userParts[0].text).toBe('first\nsecond')
   })
 
+  it('admits a follow-up queued behind a running turn once the runtime marks it idle', async () => {
+    const adapter = createMockAdapter()
+    // Delivery awaits the platform send; the runtime's idle marker lands inside that window.
+    adapter.sendMessage.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 200)))
+    let runtimeBusy = false
+    const admissions: string[] = []
+    mockStartAgentSessionRun.mockImplementation(async ({ listeners, requireIdle }: any) => {
+      if (requireIdle && runtimeBusy) {
+        admissions.push('busy')
+        return { mode: 'not-started', reason: 'busy' }
+      }
+      runtimeBusy = true
+      admissions.push('started')
+      const runtimeTerminal = {
+        onChunk() {},
+        onDone() {
+          runtimeBusy = false
+        }
+      }
+      // Mirror AiStreamManager: persistence, then unphased (delivery + runtime terminal), then cleanup.
+      const byPhase = (phase?: 'persistence' | 'cleanup') => listeners.filter((l: any) => l.terminalPhase === phase)
+      const ordered = [...byPhase('persistence'), ...byPhase(undefined), runtimeTerminal, ...byPhase('cleanup')]
+      // Like the real call, return once the stream is started; the turn runs on its own.
+      void (async () => {
+        // The model thinks long enough for the follow-up to queue behind this turn.
+        await new Promise((resolve) => setTimeout(resolve, 5000))
+        for (const listener of ordered) {
+          listener.onChunk({ type: 'text-delta', delta: 'reply' })
+          await listener.onDone({ status: 'success' })
+        }
+      })()
+      return { mode: 'started' }
+    })
+
+    try {
+      const first = channelMessageHandler.handleIncoming(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'first'
+      })
+      await vi.advanceTimersByTimeAsync(1000)
+      const second = channelMessageHandler.handleIncoming(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'second'
+      })
+      await vi.advanceTimersByTimeAsync(15_000)
+      await Promise.all([first, second])
+
+      expect(admissions).toEqual(['started', 'started'])
+    } finally {
+      mockStartAgentSessionRun.mockReset()
+    }
+  })
+
   it('flushes a sustained message burst at the original sixteen-second deadline', async () => {
     const adapter = createMockAdapter()
     simulateStream([{ type: 'text-delta', delta: 'reply' }])

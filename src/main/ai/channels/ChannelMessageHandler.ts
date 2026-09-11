@@ -920,6 +920,9 @@ export class ChannelMessageHandler {
     let accumulatedText = ''
     const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,
+      // Cleanup phase: settle after the runtime terminal listener flips the session idle, or the
+      // per-chat queue re-enters `requireIdle` while delivery is still awaiting the platform send.
+      terminalPhase: 'cleanup',
       onChunk(chunk) {
         // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
         if (chunk.type === 'text-delta') accumulatedText += chunk.delta
