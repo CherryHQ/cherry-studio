@@ -198,7 +198,8 @@ function mapResponse(response: WebSearchResponse): WebSearchOutput {
     id: citeId(prefix, index),
     title: result.title,
     url: result.url,
-    content: result.content
+    content: result.content,
+    ...(result.budget ? { budget: result.budget } : {})
   }))
 }
 

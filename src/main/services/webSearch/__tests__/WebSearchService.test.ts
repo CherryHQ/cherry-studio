@@ -3,6 +3,8 @@ import type * as RemoteUrlSafetyModule from '@main/utils/remoteUrlSafety'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { WebSearchExecutionConfig, WebSearchResponse } from '@shared/data/types/webSearch'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { countTokens as countCl100kTokens } from 'gpt-tokenizer/encoding/cl100k_base'
+import { countTokens as countO200kTokens } from 'gpt-tokenizer/encoding/o200k_base'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as WebSearchProviderFactoryModule from '../providers/factory'
@@ -502,7 +504,7 @@ describe('WebSearchService', () => {
       searchKeywords: vi.fn().mockResolvedValue(
         response('tavily', 'searchKeywords', 'hello', [
           { title: 'Blocked', content: 'blocked', url: 'https://blocked.example/post' },
-          { title: 'Allowed', content: '1234567890', url: 'https://allowed.example/post' }
+          { title: 'Allowed', content: '一二三四五六七八九十', url: 'https://allowed.example/post' }
         ])
       )
     })
@@ -512,14 +514,97 @@ describe('WebSearchService', () => {
     expect(result.results).toEqual([
       {
         title: 'Allowed',
-        content: '1234567890',
+        content: '一二三四五',
         url: 'https://allowed.example/post',
-        sourceInput: 'hello'
+        sourceInput: 'hello',
+        budget: {
+          status: 'truncated',
+          reason: 'configured_cutoff',
+          originalTokens: Math.max(countO200kTokens('一二三四五六七八九十'), countCl100kTokens('一二三四五六七八九十')),
+          retainedTokens: 5,
+          originalBytes: 30,
+          retainedBytes: 15
+        }
       }
     ])
+    expect(result.budget).toMatchObject({ tokenLimit: 5, retainedTokens: 5 })
+    expect(loggerWarnMock).not.toHaveBeenCalled()
+  })
+
+  it('applies the final hard budget when compression is disabled', async () => {
+    setWebSearchPreferences({
+      runtimeConfig: {
+        compression: {
+          method: 'none',
+          cutoffLimit: 2
+        }
+      }
+    })
+    createWebSearchProviderMock.mockReturnValue({
+      searchKeywords: vi
+        .fn()
+        .mockResolvedValue(
+          response('tavily', 'searchKeywords', 'hello', [
+            { title: 'Large', content: 'one two three four', url: 'https://allowed.example/post' }
+          ])
+        )
+    })
+
+    const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['hello'] })
+
+    expect(result.results[0]).toMatchObject({
+      content: 'one two',
+      budget: {
+        status: 'truncated',
+        reason: 'hard_limit',
+        originalTokens: 4,
+        retainedTokens: 2
+      }
+    })
+    expect(result.budget).toMatchObject({ reason: 'hard_limit', tokenLimit: 2, retainedTokens: 2 })
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      'Web search content budget degraded results',
+      expect.objectContaining({
+        providerId: 'tavily',
+        capability: 'searchKeywords',
+        reason: 'hard_limit',
+        retainedTokens: 2
+      })
+    )
+  })
+
+  it('bounds low-delimiter content across multiple results before it reaches the model', async () => {
+    setWebSearchPreferences({
+      runtimeConfig: {
+        compression: {
+          method: 'none',
+          cutoffLimit: 2
+        }
+      }
+    })
+    createWebSearchProviderMock.mockReturnValue({
+      searchKeywords: vi.fn().mockResolvedValue(
+        response('tavily', 'searchKeywords', 'hello', [
+          { title: 'First', content: '1'.repeat(1_000), url: 'https://allowed.example/one' },
+          { title: 'Second', content: '2'.repeat(1_000), url: 'https://allowed.example/two' }
+        ])
+      )
+    })
+
+    const result = await webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['hello'] })
+
+    expect(result.results.every((item) => countO200kTokens(item.content) <= 1)).toBe(true)
+    expect(result.budget).toMatchObject({
+      reason: 'hard_limit',
+      byteLimit: 16,
+      originalBytes: 2_000,
+      retainedBytes: expect.any(Number)
+    })
+    expect(result.budget?.retainedTokens).toBeLessThanOrEqual(2)
   })
 
   it('returns unprocessed fetch results without blacklist filtering or cutoff', async () => {
+    const completeContent = '1'.repeat(1_000)
     setWebSearchPreferences({
       runtimeConfig: {
         excludeDomains: ['https://blocked.example/*'],
@@ -534,7 +619,7 @@ describe('WebSearchService', () => {
         response('jina', 'fetchUrls', 'https://blocked.example/post', [
           {
             title: 'Blocked',
-            content: 'complete knowledge content',
+            content: completeContent,
             url: 'https://blocked.example/post'
           }
         ])
@@ -549,11 +634,12 @@ describe('WebSearchService', () => {
     expect(result.results).toEqual([
       {
         title: 'Blocked',
-        content: 'complete knowledge content',
+        content: completeContent,
         url: 'https://blocked.example/post',
         sourceInput: 'https://blocked.example/post'
       }
     ])
+    expect(result.budget).toBeUndefined()
   })
 
   it('uses the fetch URL default provider and validates URL inputs', async () => {

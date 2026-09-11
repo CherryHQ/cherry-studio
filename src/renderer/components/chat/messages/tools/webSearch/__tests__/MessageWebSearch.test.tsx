@@ -16,6 +16,12 @@ vi.mock('react-i18next', async (importOriginal) => {
         if (key === 'message.websearch.fetch_opaque') return 'Searched by the model'
         if (key === 'message.tools.error') return 'Failed'
         if (key === 'message.websearch.fetch_complete') return `${params?.count} search results`
+        if (key === 'message.websearch.budget.truncated.configured_cutoff') {
+          return 'Truncated · configured cutoff'
+        }
+        if (key === 'message.websearch.budget.truncated.hard_limit') return 'Truncated · safety limit'
+        if (key === 'message.websearch.budget.omitted.configured_cutoff') return 'Omitted · configured cutoff'
+        if (key === 'message.websearch.budget.omitted.hard_limit') return 'Omitted · safety limit'
         return key
       }
     })
@@ -80,6 +86,54 @@ describe('MessageWebSearchToolTitle', () => {
     expect(link).toHaveAttribute('href', 'https://www.cherry-ai.com/blog')
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.cherry-ai.com')
     expect(screen.getByText('cherry-ai.com')).toBeInTheDocument()
+  })
+
+  it('shows why search result content was truncated or omitted', async () => {
+    const budgetedResult = (
+      id: number,
+      status: 'truncated' | 'omitted',
+      reason: 'configured_cutoff' | 'hard_limit'
+    ) => ({
+      id,
+      title: `Result ${id}`,
+      url: `https://example.com/${id}`,
+      content: status === 'omitted' ? '' : 'retained excerpt',
+      budget: {
+        status,
+        reason,
+        originalTokens: 100,
+        retainedTokens: status === 'omitted' ? 0 : 50,
+        originalBytes: 400,
+        retainedBytes: status === 'omitted' ? 0 : 200
+      }
+    })
+
+    render(
+      <MessageWebSearchToolTitle
+        toolResponse={
+          {
+            id: 'tool-call-budgeted',
+            toolCallId: 'tool-call-budgeted',
+            tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
+            status: 'done',
+            arguments: { query: 'large pages' },
+            response: [
+              budgetedResult(1, 'truncated', 'configured_cutoff'),
+              budgetedResult(2, 'truncated', 'hard_limit'),
+              budgetedResult(3, 'omitted', 'configured_cutoff'),
+              budgetedResult(4, 'omitted', 'hard_limit')
+            ]
+          } as NormalToolResponse
+        }
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button'))
+
+    expect(await screen.findByText('Truncated · configured cutoff')).toBeInTheDocument()
+    expect(screen.getByText('Truncated · safety limit')).toBeInTheDocument()
+    expect(screen.getByText('Omitted · configured cutoff')).toBeInTheDocument()
+    expect(screen.getByText('Omitted · safety limit')).toBeInTheDocument()
   })
 })
 

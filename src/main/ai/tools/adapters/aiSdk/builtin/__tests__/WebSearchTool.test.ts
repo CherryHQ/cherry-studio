@@ -1,6 +1,7 @@
 import { asSchema, safeValidateTypes, type ToolExecutionOptions } from '@ai-sdk/provider-utils'
 import { getLastTerminalToolFailure, stopOnTerminalToolFailure } from '@main/ai/runtime/aiSdk/loop/toolLoopTermination'
 import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
+import { webSearchOutputSchema } from '@shared/ai/builtinTools'
 import type { StepResult, ToolSet } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -115,6 +116,48 @@ describe('web_search', () => {
     ])
     // All ids within one call share the same random prefix
     expect(new Set(result.map((r) => r.id.split('-')[0])).size).toBe(1)
+  })
+
+  it('keeps model-visible budget reasons on degraded results', async () => {
+    searchKeywords.mockResolvedValue({
+      ...response(),
+      results: [
+        {
+          title: 'A',
+          url: 'https://a.com',
+          content: '',
+          sourceInput: 'q',
+          budget: {
+            status: 'omitted',
+            reason: 'hard_limit',
+            originalTokens: 20,
+            retainedTokens: 0,
+            originalBytes: 80,
+            retainedBytes: 0
+          }
+        }
+      ]
+    })
+
+    const result = await callSearchExecute({ query: 'q' })
+
+    expect(result).toEqual([
+      {
+        id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
+        title: 'A',
+        url: 'https://a.com',
+        content: '',
+        budget: {
+          status: 'omitted',
+          reason: 'hard_limit',
+          originalTokens: 20,
+          retainedTokens: 0,
+          originalBytes: 80,
+          retainedBytes: 0
+        }
+      }
+    ])
+    expect(webSearchOutputSchema.safeParse(result).success).toBe(true)
   })
 
   it('returns an error discriminant (not []) when webSearchService throws', async () => {
