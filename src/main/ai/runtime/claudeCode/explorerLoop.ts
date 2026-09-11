@@ -118,11 +118,7 @@ export function evaluateIncomingExplorerCall(
   }
 
   const rawPath =
-    typeof input?.file_path === 'string'
-      ? input.file_path
-      : typeof input?.path === 'string'
-        ? input.path
-        : undefined
+    typeof input?.file_path === 'string' ? input.file_path : typeof input?.path === 'string' ? input.path : undefined
   const normPath = normalizePath(rawPath)
 
   if (toolName === 'Read' && normPath) {
@@ -157,11 +153,7 @@ export function recordExplorerCallState(
   }
 
   const rawPath =
-    typeof input?.file_path === 'string'
-      ? input.file_path
-      : typeof input?.path === 'string'
-        ? input.path
-        : undefined
+    typeof input?.file_path === 'string' ? input.file_path : typeof input?.path === 'string' ? input.path : undefined
   const normPath = normalizePath(rawPath)
 
   if (toolName === 'Read' && normPath) {
