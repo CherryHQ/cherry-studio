@@ -664,13 +664,13 @@ describe('cherryBuiltinTools', () => {
 
     expect(schema.properties.size.enum).toEqual(['1024x1024', '1792x1024'])
     expect(schema.properties.numImages.maximum).toBe(3)
-    expect(schema.properties.image_ids).toBeUndefined()
+    expect(schema.properties.image_ids).toBeDefined()
   })
 
-  it('resolves image ids and calls the edit mode with edit-specific params', async () => {
+  it('resolves references independently of the ordinary generation operation', async () => {
     const support = {
       modes: {
-        generate: { supports: { size: { type: 'enum', options: ['1024x1024'] } } },
+        generate: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } },
         edit: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } }
       }
     } satisfies ImageGenerationSupport
@@ -689,7 +689,7 @@ describe('cherryBuiltinTools', () => {
     expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({
-        mode: 'edit',
+        operation: 'generate',
         inputImages: ['data:image/png;base64,AAAA'],
         paramValues: { quality: 'high' }
       })

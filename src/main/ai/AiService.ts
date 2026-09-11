@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { type AiPlugin, embedMany as aiCoreEmbedMany, rerank as aiCoreRerank } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
+import type { ImageOperation } from '@cherrystudio/provider-registry'
 import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import { assistantDataService } from '@data/services/AssistantService'
@@ -15,7 +16,6 @@ import type { CompactionSink } from '@shared/ai/compaction'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
@@ -196,13 +196,12 @@ export interface AiGenerateResult {
 /** Image generation request. */
 export interface AiImageRequest extends AiBaseRequest {
   prompt: string
-  /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
+  /** Input images, independent of the business operation. */
   inputImages?: string[]
   /** Mask for inpainting (only with inputImages). */
   mask?: string
-  /** Image-generation mode (which tab). main derives per-model transport routing
-   *  (`vendorTransport` → descriptor) from the registry using this. */
-  mode?: ImageGenerationMode
+  /** Omitted means ordinary generation, with or without reference images. */
+  operation?: ImageOperation
   /**
    * Canonical param bag — already a strict, coerced `ParamValues` (the
    * `ai.image.generate` IPC validated it via the catalog `imageParamsSchema`).

@@ -5,9 +5,49 @@ import aihubmix from '../providers/aihubmix'
 import tokenhub from '../providers/tokenhub'
 import { ImageGenerationSupportSchema } from '../schemas/model'
 import { buildParamsSchema } from '../utils/buildParamsSchema'
-import { resolveImageGenerationSupport, resolveLegacyImageCapability } from '../utils/imageCapabilities'
+import {
+  resolveImageCapability,
+  resolveImageGenerationSupport,
+  resolveLegacyImageCapability
+} from '../utils/imageCapabilities'
 
 describe('image capability selection', () => {
+  it('treats edit-only input requirements as ordinary generation, without inventing another operation', () => {
+    const row = aihubmix.overrides?.find((entry) => entry.modelId === 'qwen-image-edit')
+    const support = ImageGenerationSupportSchema.parse(row?.imageGeneration)
+    expect(resolveImageCapability(support, 'generate', false)).toMatchObject({
+      kind: 'supported',
+      mode: 'edit',
+      capability: { inputs: { images: { min: 1 } } }
+    })
+    expect(resolveImageCapability(support, 'upscale', true)).toEqual({ kind: 'unsupported' })
+  })
+
+  it('selects input-specific parameters without unioning incompatible constraints', () => {
+    const support = ImageGenerationSupportSchema.parse({
+      modes: {
+        generate: { supports: { seed: { type: 'range', min: 0, max: 10 } } },
+        edit: { maxInputImages: 2, supports: { strength: { type: 'range', min: 0, max: 1 } } }
+      }
+    })
+    expect(resolveImageCapability(support, 'generate', false)).toMatchObject({
+      mode: 'generate',
+      capability: { supports: { seed: { max: 10 } }, inputs: { images: { min: 0, max: { value: 2 } } } }
+    })
+    const withImages = resolveImageCapability(support, 'generate', true)
+    expect(withImages).toMatchObject({ mode: 'edit', capability: { supports: { strength: { max: 1 } } } })
+    if (withImages.kind !== 'supported') throw new Error('Image generation must be supported')
+    expect(withImages.capability.supports).not.toHaveProperty('seed')
+  })
+
+  it('never turns an ordinary request into a different standalone operation', () => {
+    const support = ImageGenerationSupportSchema.parse({ modes: { upscale: { supports: {}, requirePrompt: false } } })
+    expect(resolveImageCapability(support, 'generate', true)).toEqual({ kind: 'unsupported' })
+    expect(resolveImageCapability(support, 'upscale', true)).toMatchObject({
+      kind: 'supported',
+      capability: { inputs: { images: { min: 1 }, prompt: 'optional' } }
+    })
+  })
   it('rejects an undeclared operation instead of validating against the first declaration', () => {
     const support = ImageGenerationSupportSchema.parse({
       modes: { edit: { supports: { seed: { type: 'text' } } } }
@@ -38,6 +78,11 @@ describe('image capability selection', () => {
       capability: { inputs: { images: { min: 0, max: { kind: 'known', value: max } }, prompt: 'required' } }
     })
     expect(resolveLegacyImageCapability(support, 'edit')).toEqual({ kind: 'unsupported' })
+    expect(resolveImageCapability(support, 'generate', true)).toMatchObject({
+      kind: 'supported',
+      mode: 'generate',
+      capability: { inputs: { images: { min: 0, max: { kind: 'known', value: max } } } }
+    })
   })
 
   it('does not invent a maximum for the legacy Qwen edit declaration', () => {

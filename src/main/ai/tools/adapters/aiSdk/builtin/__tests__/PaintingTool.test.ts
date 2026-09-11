@@ -45,11 +45,12 @@ vi.mock('@logger', () => ({
 
 import {
   generateImageFromPrompt,
-  PAINTING_EDIT_NOT_SUPPORTED_NOTE,
   PAINTING_ERROR_NOTE,
+  PAINTING_GENERATE_NOT_SUPPORTED_NOTE,
+  PAINTING_INVALID_REQUEST_NOTE,
   PAINTING_MODEL_NOT_CONFIGURED_NOTE
 } from '../../../../painting'
-import { createGenerateImageToolEntry, GENERATE_IMAGE_TOOL_NAME } from '../PaintingTool'
+import { createGenerateImageToolEntry } from '../PaintingTool'
 
 const entry = createGenerateImageToolEntry()
 
@@ -86,7 +87,7 @@ const generateSupport = {
 
 const editableSupport = {
   modes: {
-    generate: { supports: { size: { type: 'enum', options: ['1024x1024'] } } },
+    generate: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } },
     edit: { supports: { quality: { type: 'enum', options: ['low', 'high'] } } }
   }
 } satisfies ImageGenerationSupport
@@ -98,14 +99,14 @@ function buildTool(support: ImageGenerationSupport): Tool {
   })
 }
 
-function getZhipuCogViewSupport(): ImageGenerationSupport {
+function getRegistrySupport(providerId: string, modelId: string): ImageGenerationSupport {
   const registry = readProviderModelRegistry(
     resolve(process.cwd(), 'packages/provider-registry/data/provider-models.json')
   )
   const support = registry.overrides.find(
-    ({ providerId, modelId }) => providerId === 'zhipu' && modelId === 'cogview-4'
+    (entry) => entry.providerId === providerId && entry.modelId === modelId
   )?.imageGeneration
-  if (!support) throw new Error('Missing zhipu/cogview-4 imageGeneration registry fixture')
+  if (!support) throw new Error('Missing imageGeneration registry fixture')
   return support
 }
 
@@ -118,20 +119,6 @@ describe('generate_image', () => {
     fileRead.mockReset()
     getModelByKey.mockReturnValue({})
     getImageGenerationSupport.mockReturnValue(null)
-  })
-
-  it('builds an entry with the agreed namespace + defer policy', () => {
-    expect(entry.name).toBe(GENERATE_IMAGE_TOOL_NAME)
-    expect(entry.namespace).toBe('media')
-    expect(entry.defer).toBe('auto')
-    expect(entry.tool.type).toBe('dynamic')
-  })
-
-  it('materializes the configured schema as an AI SDK dynamic tool', () => {
-    const selectedTool = buildTool(generateSupport)
-
-    expect(selectedTool.type).toBe('dynamic')
-    expect(selectedTool.inputSchema).toBeDefined()
   })
 
   describe('applies', () => {
@@ -183,13 +170,13 @@ describe('generate_image', () => {
     await callExecute(
       { prompt: 'a wide landscape', size: '1024x1024', customSize: '1536x1024' },
       undefined,
-      buildTool(getZhipuCogViewSupport())
+      buildTool(getRegistrySupport('zhipu', 'cogview-4'))
     )
 
     expect(generateImage).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { size: '1536x1024' } }))
   })
 
-  it('resolves edit image ids to base64 data URLs and selects edit mode', async () => {
+  it('resolves edit image ids to base64 data URLs and keeps ordinary generation', async () => {
     fileRead.mockResolvedValue({ content: 'AAAA', mime: 'image/png' })
     generateImage.mockResolvedValue({ files: [] })
 
@@ -202,20 +189,52 @@ describe('generate_image', () => {
     expect(fileRead).toHaveBeenCalledWith('f1', { encoding: 'base64' })
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({
-        mode: 'edit',
+        operation: 'generate',
         inputImages: ['data:image/png;base64,AAAA'],
         paramValues: { quality: 'high' }
       })
     )
   })
 
-  it('returns a permanent note when the configured model cannot edit images', async () => {
+  it('preserves all TokenHub references without requiring an edit declaration', async () => {
+    const support = getRegistrySupport('tokenhub', 'hy-image-v3-0')
+    const selectedTool = entry.buildTool!({
+      mcpToolIds: new Set(),
+      paintingModel: { uniqueModelId: 'tokenhub::hy-image-v3', support }
+    })
+    fileRead.mockImplementation(async (id: string) => ({
+      content: Buffer.from(id).toString('base64'),
+      mime: 'image/png'
+    }))
+    generateImage.mockResolvedValue({ files: [{ id: 'result', name: 'fox.png' }] })
+    const result = await callExecute({ prompt: 'a fox', image_ids: ['a', 'b', 'c'] }, undefined, selectedTool)
+    expect(result).toEqual([{ id: 'result', name: 'fox.png' }])
+    expect(generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'generate',
+        inputImages: ['data:image/png;base64,YQ==', 'data:image/png;base64,Yg==', 'data:image/png;base64,Yw==']
+      })
+    )
+  })
+
+  it('rejects invalid explicit parameters before reading references or generating', async () => {
+    const result = await generateImageFromPrompt(
+      { prompt: 'a fox', image_ids: ['a'], quality: 'unsupported' },
+      undefined,
+      { uniqueModelId: 'openai::gpt-image-1', support: editableSupport }
+    )
+    expect(result).toEqual({ error: PAINTING_INVALID_REQUEST_NOTE })
+    expect(fileRead).not.toHaveBeenCalled()
+    expect(generateImage).not.toHaveBeenCalled()
+  })
+
+  it('returns a permanent note when the configured model does not support ordinary generation', async () => {
     getPreference.mockReturnValue('openai::dall-e-3')
-    getImageGenerationSupport.mockReturnValue(generateSupport)
+    getImageGenerationSupport.mockReturnValue({ modes: { upscale: { supports: {} } } })
 
     const result = await generateImageFromPrompt({ prompt: 'edit it', image_ids: ['f1'] })
 
-    expect(result).toEqual({ error: PAINTING_EDIT_NOT_SUPPORTED_NOTE })
+    expect(result).toEqual({ error: PAINTING_GENERATE_NOT_SUPPORTED_NOTE })
     expect(fileRead).not.toHaveBeenCalled()
     expect(generateImage).not.toHaveBeenCalled()
   })

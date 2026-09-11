@@ -2,9 +2,9 @@ import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types/file'
 import { uuid } from '@renderer/utils/uuid'
-import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
+import type { ImageGenerationSupport } from '@shared/data/types/model'
 
-import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import { paintingOperation } from '../utils/paintingProviderMode'
 import { canonicalGenerate } from './canonicalGenerate'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
@@ -34,57 +34,20 @@ export function createDefaultPainting({ providerId, modelId }: PaintingDraftDefa
   }
 }
 
-/**
- * Generic painting generate dispatch — the same flow for every provider:
- *
- *   1. Look up the model's `imageGeneration` block (support + effective mode +
- *      `requirePrompt`) via DataApi.
- *   2. Hand off to `canonicalGenerate`, which validates/coerces `painting.params`
- *      against that support + the central catalog. Backend routing data
- *      (`modelDescriptor` — per-model transport endpoint/isSync) is derived in
- *      main from the registry, not here; see `AiService.generateImage`.
- *
- * Vendor wire-format quirks live in the aiCore image-model adapters
- * (`aihubmix/aihubmixImageModel.ts`, `{ppio,dmxapi,ovms,modelscope}/<vendor>Transport.ts`),
- * not here.
- */
+/** Resolve model capabilities before materializing inputs or submitting generation. */
 export async function paintingGenerate(input: GenerateInput): Promise<FileMetadata[]> {
   const modelId = input.painting.model
-  const canonicalMode = tabToImageGenerationMode(input.painting.mode)
-  let requirePrompt: boolean | undefined
-  // Threaded into canonicalGenerate so it can validate/coerce params against
-  // the model's registry support + central catalog (already prefetched here).
   let support: ImageGenerationSupport | undefined
-  let effectiveMode: ImageGenerationMode | undefined
-
   if (modelId) {
     try {
       support =
         (await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
           params: { providerId: input.provider.id, modelId }
         })) ?? undefined
-      const modes = support?.modes
-      effectiveMode =
-        canonicalMode && modes?.[canonicalMode]
-          ? canonicalMode
-          : modes
-            ? (Object.keys(modes)[0] as ImageGenerationMode)
-            : undefined
-      requirePrompt = effectiveMode && modes ? modes[effectiveMode]?.requirePrompt : undefined
     } catch (error) {
-      logger.warn('Failed to prefetch image-generation support', {
-        providerId: input.provider.id,
-        modelId,
-        mode: canonicalMode,
-        error
-      })
+      logger.warn('Failed to prefetch image-generation support', { providerId: input.provider.id, modelId, error })
+      throw error
     }
   }
-
-  const options = {
-    ...(requirePrompt !== undefined && { requirePrompt }),
-    ...(support !== undefined && { support }),
-    ...(effectiveMode !== undefined && { mode: effectiveMode })
-  }
-  return canonicalGenerate(input, Object.keys(options).length > 0 ? options : undefined)
+  return canonicalGenerate(input, { support, operation: paintingOperation(input.painting.mode) })
 }

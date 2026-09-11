@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { resolveRatio, resolveSizeLabel } from '../form/paintingSize'
 import type { PaintingData } from '../model/types/paintingData'
-import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import { paintingOperation } from '../utils/paintingProviderMode'
 import { useImageGenerationSupport } from './useImageGenerationSupport'
 
 export interface PaintingSizeInfo {
@@ -25,8 +25,12 @@ export function usePaintingSizeInfo(painting: PaintingData): PaintingSizeInfo {
   const { t } = useTranslation()
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
-    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
-    [registrySupport, painting.mode]
+    () =>
+      imageGenerationToFields(registrySupport, {
+        operation: paintingOperation(painting.mode),
+        hasImages: Boolean(painting.inputFiles?.length)
+      }),
+    [registrySupport, painting.mode, painting.inputFiles]
   )
   const ratio = useMemo(() => resolveRatio(painting.params, configItems), [painting.params, configItems])
   const sizeLabel = useMemo(() => resolveSizeLabel(painting.params, configItems, t), [painting.params, configItems, t])

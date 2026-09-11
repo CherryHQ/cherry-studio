@@ -1,8 +1,9 @@
 import {
   buildImageRequestParamsSchema,
+  ImageOperationSchema,
   imageParamsSchema,
   type ParamValues,
-  resolveLegacyImageCapability
+  resolveImageCapability
 } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
@@ -29,8 +30,9 @@ function bindImageRequest(
   model: Model,
   support: ImageGenerationSupport | null | undefined
 ) {
-  const preparedRequest = { ...request, ...prepareImageRequest(request, support ?? undefined) }
-  const target = resolveImageExecutionTarget(provider, model, request.mode ?? 'generate', support)
+  const { legacyMode, ...normalized } = prepareImageRequest(request, support ?? undefined)
+  const preparedRequest = { ...request, ...normalized }
+  const target = resolveImageExecutionTarget(provider, model, legacyMode, support)
   if (target.kind === 'unavailable') throw new Error(target.message)
   return { request: preparedRequest, provider, model, target }
 }
@@ -38,12 +40,14 @@ function bindImageRequest(
 /** Health checks are callers too: materialize catalog defaults and required inputs before normal preparation. */
 export function prepareImageProbe(request: AsInProcess<AiBaseRequest>, provider: Provider, model: Model) {
   const support = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
-  const mode =
+  const operation =
     support == null
       ? 'generate'
-      : (['generate', 'edit', 'remix', 'upscale', 'merge'] as const).find((mode) => mode in support.modes)
-  if (!mode) throw createPaintingGenerateError('OPERATION_FAILED')
-  const resolution = resolveLegacyImageCapability(support ?? undefined, mode)
+      : ImageOperationSchema.options.find(
+          (operation) => resolveImageCapability(support, operation, false).kind === 'supported'
+        )
+  if (!operation) throw createPaintingGenerateError('OPERATION_FAILED')
+  const resolution = resolveImageCapability(support ?? undefined, operation, false)
   const paramValues: ParamValues = {}
   if (resolution.kind === 'supported') {
     for (const [key, spec] of Object.entries(resolution.capability.supports)) {
@@ -56,7 +60,7 @@ export function prepareImageProbe(request: AsInProcess<AiBaseRequest>, provider:
     {
       ...request,
       prompt: 'a red circle',
-      mode,
+      operation,
       paramValues,
       inputImages: inputCount > 0 ? Array.from({ length: inputCount }, () => PROBE_IMAGE) : undefined,
       cleanupPolicy: 'delete_when_unreferenced'
@@ -72,13 +76,15 @@ const PROBE_IMAGE = 'https://help-static-aliyun-doc.aliyuncs.com/file-manage-fil
 
 /** Main owns validation for both renderer and in-process tool calls. */
 export function prepareImageRequest(
-  request: Pick<AiImageRequest, 'mode' | 'prompt' | 'paramValues' | 'inputImages' | 'mask'>,
+  request: Pick<AiImageRequest, 'operation' | 'prompt' | 'paramValues' | 'inputImages' | 'mask'>,
   support: ImageGenerationSupport | undefined
 ) {
-  const mode = request.mode ?? 'generate'
-  const resolution = resolveLegacyImageCapability(support, mode)
+  const parsedOperation = ImageOperationSchema.default('generate').safeParse(request.operation)
+  if (!parsedOperation.success) throw createPaintingGenerateError('OPERATION_FAILED')
+  const operation = parsedOperation.data
+  const resolution = resolveImageCapability(support, operation, Boolean(request.inputImages?.length))
   if (resolution.kind === 'unsupported') {
-    logger.warn('Image operation is not declared', { mode })
+    logger.warn('Image operation is not declared', { operation })
     throw createPaintingGenerateError('OPERATION_FAILED')
   }
 
@@ -97,11 +103,11 @@ export function prepareImageRequest(
       throw createPaintingGenerateError('INPUT_IMAGE_LIMIT_EXCEEDED')
     }
     if (imageCount > 0 && images.max.kind === 'unknown') {
-      logger.warn('Legacy image declaration has no input count limit', { mode })
+      logger.warn('Legacy image declaration has no input count limit', { operation })
     }
   } else {
     logger.warn('Image capability is unconfigured; only the canonical input contract can be validated')
-    if (mode !== 'generate' && imageCount === 0) throw createPaintingGenerateError('EDIT_IMAGE_REQUIRED')
+    if (operation !== 'generate' && imageCount === 0) throw createPaintingGenerateError('EDIT_IMAGE_REQUIRED')
   }
 
   for (const image of [...(inputImages ?? []), ...(request.mask === undefined ? [] : [request.mask])]) {
@@ -118,5 +124,11 @@ export function prepareImageRequest(
     throw error
   }
 
-  return { prompt, paramValues: params.data, inputImages, mask: request.mask }
+  return {
+    prompt,
+    paramValues: params.data,
+    inputImages,
+    mask: request.mask,
+    legacyMode: resolution.kind === 'supported' ? resolution.mode : operation
+  }
 }

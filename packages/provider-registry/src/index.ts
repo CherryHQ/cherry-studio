@@ -31,8 +31,13 @@ export {
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
 export { buildImageRequestParamsSchema } from './utils/buildImageRequestParamsSchema'
 export { buildParamsSchema } from './utils/buildParamsSchema'
-export type { EffectiveImageCapability, ImageCapabilityResolution } from './utils/imageCapabilities'
-export { resolveImageGenerationSupport, resolveLegacyImageCapability } from './utils/imageCapabilities'
+export type { EffectiveImageCapability, ImageCapabilityResolution, ImageOperation } from './utils/imageCapabilities'
+export {
+  ImageOperationSchema,
+  resolveImageCapability,
+  resolveImageGenerationSupport,
+  resolveLegacyImageCapability
+} from './utils/imageCapabilities'
 
 // Enum types (PascalCase, derived from const objects)
 export type {

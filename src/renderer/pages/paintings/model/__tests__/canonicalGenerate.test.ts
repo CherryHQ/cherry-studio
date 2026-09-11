@@ -80,23 +80,17 @@ describe('canonicalGenerate', () => {
       }
     }
 
-    await canonicalGenerate(makeInput({ strength: '4.5' }), { support, mode: 'generate' })
+    await canonicalGenerate(makeInput({ strength: '4.5' }), { support, operation: 'generate' })
 
     expect(lastGenerateCall().paramValues.strength).toBe(4.5)
   })
 
-  it.each([true, false, [], ['4.5']])('drops invalid numeric input %# instead of coercing it', async (value) => {
-    const support = {
-      modes: {
-        generate: {
-          supports: { strength: { type: 'range' as const, min: 0, max: 10, default: 4 } }
-        }
-      }
-    }
-
-    await canonicalGenerate(makeInput({ strength: value }), { support, mode: 'generate' })
-
-    expect(lastGenerateCall().paramValues.strength).toBeUndefined()
+  it.each([true, false, [], ['4.5']])('rejects invalid numeric input %# before submitting', async (value) => {
+    const support = { modes: { generate: { supports: { strength: { type: 'range' as const, min: 0, max: 10 } } } } }
+    await expect(canonicalGenerate(makeInput({ strength: value }), { support })).rejects.toMatchObject({
+      code: 'OPERATION_FAILED'
+    })
+    expect(generatePaintingMock).not.toHaveBeenCalled()
   })
 
   it('composes the customSize widget trio into size and drops the companions', async () => {
@@ -113,9 +107,39 @@ describe('canonicalGenerate', () => {
     expect(lastGenerateCall().paramValues.size).toBe('auto')
   })
 
-  it('drops size when the custom width/height pair is incomplete', async () => {
-    await canonicalGenerate(makeInput({ size: 'custom', customSize_width: 512 }))
-    expect(lastGenerateCall().paramValues).not.toHaveProperty('size')
+  it('rejects an incomplete custom size rather than submitting an unintended size', async () => {
+    await expect(canonicalGenerate(makeInput({ size: 'custom', customSize_width: 512 }))).rejects.toMatchObject({
+      code: 'OPERATION_FAILED'
+    })
+    expect(generatePaintingMock).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false, [], ['512'], 'NaN', -1, 0, 1.5])(
+    'rejects a malformed custom-size dimension %# before submission',
+    async (width) => {
+      await expect(
+        canonicalGenerate(makeInput({ size: 'custom', customSize_width: width, customSize_height: 768 }))
+      ).rejects.toMatchObject({ code: 'OPERATION_FAILED' })
+      expect(generatePaintingMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('removes input-inapplicable parameters while retaining explicit zero and false', async () => {
+    const support = {
+      modes: {
+        generate: { supports: { quality: { type: 'enum' as const, options: ['high'] } } },
+        edit: { supports: { seed: { type: 'text' as const }, addWatermark: { type: 'switch' as const } } }
+      }
+    }
+    window.api.file.binaryImage = vi.fn().mockResolvedValue({ data: [1], mime: 'image/png' })
+    await canonicalGenerate(
+      makeInput(
+        { quality: 'high', seed: 0, addWatermark: false },
+        { inputFiles: [{ id: 'reference', ext: 'png' }] as FileEntry[] }
+      ),
+      { support }
+    )
+    expect(lastGenerateCall().paramValues).toEqual({ seed: 0, addWatermark: false })
   })
 
   it('omits empty / undefined / empty-string params from the bag', async () => {
@@ -147,7 +171,7 @@ describe('canonicalGenerate', () => {
 
     await expect(
       canonicalGenerate(makeInput({}, { inputFiles }), {
-        mode: 'edit',
+        operation: 'generate',
         support: { modes: { edit: { supports: {}, maxInputImages: 1 } } }
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
@@ -173,19 +197,26 @@ describe('canonicalGenerate', () => {
   })
 
   it('throws EDIT_IMAGE_REQUIRED for an image-requiring mode with no image input', async () => {
-    await expect(canonicalGenerate(makeInput({}), { mode: 'edit' })).rejects.toMatchObject({
+    await expect(
+      canonicalGenerate(makeInput({}), { operation: 'generate', support: { modes: { edit: { supports: {} } } } })
+    ).rejects.toMatchObject({
       code: 'EDIT_IMAGE_REQUIRED'
     })
   })
 
   it('throws EDIT_IMAGE_REQUIRED when the only input for an edit mode is a non-image file', async () => {
     const inputFiles = [{ id: 'note', ext: 'txt' }] as unknown as FileEntry[]
-    await expect(canonicalGenerate(makeInput({}, { inputFiles }), { mode: 'edit' })).rejects.toMatchObject({
+    await expect(
+      canonicalGenerate(makeInput({}, { inputFiles }), {
+        operation: 'generate',
+        support: { modes: { edit: { supports: {} } } }
+      })
+    ).rejects.toMatchObject({
       code: 'EDIT_IMAGE_REQUIRED'
     })
   })
 
   it('allows the generate mode without any input image', async () => {
-    await expect(canonicalGenerate(makeInput({}), { mode: 'generate' })).resolves.toEqual([])
+    await expect(canonicalGenerate(makeInput({}), { operation: 'generate' })).resolves.toEqual([])
   })
 })

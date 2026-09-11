@@ -199,7 +199,7 @@ describe('imageGenerationToFields', () => {
         edit: { supports: { seed: { type: 'text' }, addWatermark: { type: 'switch' } } }
       }
     }
-    const items = imageGenerationToFields(support, { mode: 'generate' })
+    const items = imageGenerationToFields(support, { operation: 'generate' })
     const keys = items.map((i) => i.key)
     expect(keys).toEqual(['seed', 'addWatermark'])
   })
@@ -295,18 +295,18 @@ describe('imageGenerationToFields', () => {
       }
     }
 
-    const generateKeys = imageGenerationToFields(support, { mode: 'generate' }).map((i) => i.key)
+    const generateKeys = imageGenerationToFields(support, { operation: 'generate' }).map((i) => i.key)
     expect(generateKeys).toContain('negativePrompt')
     expect(generateKeys).toContain('styleType')
     expect(generateKeys).not.toContain('imageWeight')
     expect(generateKeys).not.toContain('resemblance')
 
-    const remixKeys = imageGenerationToFields(support, { mode: 'remix' }).map((i) => i.key)
+    const remixKeys = imageGenerationToFields(support, { operation: 'remix' }).map((i) => i.key)
     expect(remixKeys).toContain('imageWeight')
     expect(remixKeys).toContain('styleType')
     expect(remixKeys).not.toContain('resemblance')
 
-    const upscaleKeys = imageGenerationToFields(support, { mode: 'upscale' }).map((i) => i.key)
+    const upscaleKeys = imageGenerationToFields(support, { operation: 'upscale' }).map((i) => i.key)
     expect(upscaleKeys).toContain('resemblance')
     expect(upscaleKeys).toContain('detail')
     expect(upscaleKeys).not.toContain('imageWeight')

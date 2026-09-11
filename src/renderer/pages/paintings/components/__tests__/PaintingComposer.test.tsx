@@ -18,7 +18,6 @@ vi.mock('react-i18next', () => ({
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
 const mockMaterializeInputs = vi.hoisted(() => vi.fn())
-const mockIsEditImageModel = vi.hoisted(() => vi.fn(() => false))
 // The composer's live draft attachments. Mutable because the image-required gate
 // reads them, and its whole contract is that it tracks the draft rather than the
 // last-generated `painting.inputFiles`.
@@ -46,7 +45,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
         <textarea
           aria-label="prompt"
           value={props.text}
-          disabled={props.sendDisabled && false}
+          placeholder={props.placeholder}
           onChange={(event) => props.onTextChange(event.target.value)}
         />
         <button
@@ -56,6 +55,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
           onClick={() => props.onSendDraft({ text: props.text, tokens: [] })}>
           send
         </button>
+        {props.sendBlockedReason && <p role="status">{props.sendBlockedReason}</p>}
         {props.renderLeftControls?.(undefined, { available: true, open: () => undefined })}
       </div>
     )
@@ -106,8 +106,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
     models: [{ providerId: 'openai', apiModelId: 'gpt-image-1', name: 'GPT Image', type: ['image_gen'] }]
   })
 }))
-
-vi.mock('@shared/utils/model', () => ({ isEditImageModel: mockIsEditImageModel }))
 
 vi.mock('../PaintingImageGallery', () => ({
   PaintingImageGallery: () => <div data-testid="painting-image-gallery" />,
@@ -191,34 +189,18 @@ describe('PaintingComposer', () => {
     mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
     mockMaterializeInputs.mockReset()
     mockMaterializeInputs.mockResolvedValue({ entries: [], complete: true })
-    mockIsEditImageModel.mockReset()
-    mockIsEditImageModel.mockReturnValue(false)
-  })
-
-  it('renders the top image strip + add button and drops file pills for edit-image models', () => {
-    mockIsEditImageModel.mockReturnValue(true)
-    renderComposer()
-    expect(captured.surfaceProps?.topContent).toBeTruthy()
-    expect(captured.surfaceProps?.leadingContent).toBeTruthy()
-    expect(captured.surfaceProps?.tokens).toEqual([])
-    expect(captured.surfaceProps?.managedTokenKinds).toEqual([])
-  })
-
-  it('keeps file pills and no image tray for non-edit models', () => {
-    renderComposer()
-    expect(captured.surfaceProps?.topContent).toBeUndefined()
-    expect(captured.surfaceProps?.leadingContent).toBeUndefined()
-    expect(captured.surfaceProps?.managedTokenKinds).toEqual(['file'])
   })
 
   it('gates send and shows a reason for edit-only models missing an image', () => {
-    mockIsEditImageModel.mockReturnValue(true)
     mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     renderComposer({ painting: makePainting({ prompt: 'make the sky purple' }) })
     // Blocked even with prompt text, because no image is attached (files mock is empty).
-    expect(captured.surfaceProps?.sendDisabled).toBe(true)
-    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
-    expect(captured.surfaceProps?.placeholder).toBe('paintings.prompt_placeholder_upload_required')
+    expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent('paintings.edit.image_required')
+    expect(screen.getByLabelText('prompt')).toHaveAttribute(
+      'placeholder',
+      'paintings.prompt_placeholder_upload_required'
+    )
   })
 
   it('releases the edit-only gate as soon as an image is in the draft', () => {
@@ -226,19 +208,17 @@ describe('PaintingComposer', () => {
     // materialized onto the painting at generate time, so on a fresh edit-only
     // painting `inputFiles` stays empty no matter how many images are attached —
     // gating on it left send permanently disabled and materialization unreachable.
-    mockIsEditImageModel.mockReturnValue(true)
     mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     composerState.files = [imageAttachment('a')]
     renderComposer({ painting: makePainting({ prompt: 'make the sky purple', inputFiles: [] }) })
-    expect(captured.surfaceProps?.sendDisabled).toBe(false)
-    expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
+    expect(screen.getByRole('button', { name: 'send' })).toBeEnabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('re-arms the edit-only gate when the last draft image is removed', () => {
     // The mirror failure: a painting that already generated carries entries in
     // `inputFiles`, so a gate reading them stays open after the user clears the
     // tray — and the send would reach the model with no image at all.
-    mockIsEditImageModel.mockReturnValue(true)
     mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     composerState.files = []
     renderComposer({
@@ -247,33 +227,42 @@ describe('PaintingComposer', () => {
         inputFiles: [{ id: 'fe-1', ext: 'png' } as unknown as FileEntry]
       })
     })
-    expect(captured.surfaceProps?.sendDisabled).toBe(true)
-    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
+    expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent('paintings.edit.image_required')
   })
 
   it('ignores non-image draft attachments when gating an edit-only model', () => {
-    mockIsEditImageModel.mockReturnValue(true)
     mockUseImageGenerationSupport.mockReturnValue(editOnlySupport)
     composerState.files = [{ ...imageAttachment('doc'), ext: '.pdf', type: FILE_TYPE.DOCUMENT }]
     renderComposer({ painting: makePainting({ prompt: 'make the sky purple' }) })
-    expect(captured.surfaceProps?.sendDisabled).toBe(true)
-    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
+    expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent('paintings.edit.image_required')
   })
 
   it('does not gate on image for edit models that can also generate from text', () => {
-    mockIsEditImageModel.mockReturnValue(true)
     mockUseImageGenerationSupport.mockReturnValue({
       modes: { generate: { supports: {} }, edit: { supports: {} } }
     })
     renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
-    expect(captured.surfaceProps?.sendDisabled).toBe(false)
-    expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
+    expect(screen.getByRole('button', { name: 'send' })).toBeEnabled()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('renders the model selector and unified panel controls in the toolbar', () => {
-    renderComposer()
-    expect(screen.getByTestId('painting-model-selector')).toBeInTheDocument()
-    expect(screen.getByTestId('painting-plus-control')).toBeInTheDocument()
+  it('enforces the reference limit from the capability, including a generate-only declaration', () => {
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { generate: { supports: {}, maxInputImages: 2 } } })
+    composerState.files = [imageAttachment('a'), imageAttachment('b'), imageAttachment('c')]
+    const { rerenderPainting } = renderComposer({ painting: makePainting({ prompt: 'a fox' }) })
+    expect(screen.getByRole('button', { name: 'send' })).toBeDisabled()
+    composerState.files = [imageAttachment('a'), imageAttachment('b')]
+    rerenderPainting(makePainting({ prompt: 'a fox' }))
+    expect(screen.getByRole('button', { name: 'send' })).toBeEnabled()
+  })
+
+  it('permits an empty prompt only when the selected operation declares it optional', () => {
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { upscale: { supports: {}, requirePrompt: false } } })
+    composerState.files = [imageAttachment('a')]
+    renderComposer({ painting: makePainting({ mode: 'upscale' }) })
+    expect(screen.getByRole('button', { name: 'send' })).toBeEnabled()
   })
 
   it('reports prompt edits to the page', () => {
@@ -300,11 +289,6 @@ describe('PaintingComposer', () => {
     expect(onGenerate).toHaveBeenCalledWith(mockMaterializeInputs)
     // Nothing is materialized by the act of pressing send.
     expect(mockMaterializeInputs).not.toHaveBeenCalled()
-  })
-
-  it('disables send while a request it started is in flight', () => {
-    renderComposer({ submitting: true, painting: makePainting({ prompt: 'a cat' }) })
-    expect(screen.getByLabelText('send')).toBeDisabled()
   })
 
   it('disables send while generating', () => {

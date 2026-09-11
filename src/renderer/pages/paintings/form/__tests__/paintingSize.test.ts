@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { tabToImageGenerationMode } from '../../utils/paintingProviderMode'
+import { paintingOperation } from '../../utils/paintingProviderMode'
 import { imageGenerationToFields } from '../imageGenerationToFields'
 import { resolveRatio, resolveSizeLabel } from '../paintingSize'
 
@@ -12,7 +12,7 @@ const supportWith = (key: string, options: string[], def: string) => ({
 // The same config items the components derive internally, so the resolvers see
 // the fields (including registry defaults) they would at runtime.
 const fieldsFor = (support: unknown) =>
-  imageGenerationToFields(support as never, { mode: tabToImageGenerationMode('generate') })
+  imageGenerationToFields(support as never, { operation: paintingOperation('generate') })
 
 describe('resolveRatio', () => {
   it('derives the aspect ratio from a stored size', () => {

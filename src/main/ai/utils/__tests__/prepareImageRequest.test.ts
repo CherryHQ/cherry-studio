@@ -7,7 +7,7 @@ const inputImage = 'data:image/png;base64,AQI='
 const declaration = ImageGenerationSupportSchema.parse({
   modes: {
     generate: { maxInputImages: 2, supports: { seed: { type: 'text' }, addWatermark: { type: 'switch' } } },
-    edit: { maxInputImages: 1, supports: { seed: { type: 'text' } } },
+    edit: { maxInputImages: 2, supports: { seed: { type: 'text' }, addWatermark: { type: 'switch' } } },
     upscale: { requirePrompt: false, maxInputImages: 1, supports: {} }
   }
 })
@@ -19,7 +19,12 @@ describe('prepareImageRequest', () => {
       paramValues: { seed: 0, addWatermark: false },
       inputImages: [inputImage, 'https://example.com/reference.png']
     }
-    expect(prepareImageRequest(input, declaration)).toEqual({ ...input, prompt: 'a fox', mask: undefined })
+    expect(prepareImageRequest(input, declaration)).toEqual({
+      ...input,
+      prompt: 'a fox',
+      mask: undefined,
+      legacyMode: 'edit'
+    })
     expect(input.prompt).toBe('  a fox  ')
   })
 
@@ -28,14 +33,15 @@ describe('prepareImageRequest', () => {
       prompt: 'a fox',
       paramValues: {},
       inputImages: undefined,
-      mask: undefined
+      mask: undefined,
+      legacyMode: 'generate'
     })
   })
 
   it('enforces image minimum and maximum before execution', () => {
-    expect(() => prepareImageRequest({ prompt: 'a fox', paramValues: {}, mode: 'edit' }, declaration)).toThrowError(
-      expect.objectContaining({ code: 'EDIT_IMAGE_REQUIRED' })
-    )
+    expect(() =>
+      prepareImageRequest({ prompt: 'a fox', paramValues: {} }, { modes: { edit: declaration.modes.edit } })
+    ).toThrowError(expect.objectContaining({ code: 'EDIT_IMAGE_REQUIRED' }))
     expect(() =>
       prepareImageRequest(
         { prompt: 'a fox', paramValues: {}, inputImages: [inputImage, inputImage, inputImage] },
@@ -55,7 +61,7 @@ describe('prepareImageRequest', () => {
       expect.objectContaining({ code: 'PROMPT_REQUIRED' })
     )
     expect(
-      prepareImageRequest({ prompt: '', mode: 'upscale', paramValues: {}, inputImages: [inputImage] }, declaration)
+      prepareImageRequest({ prompt: '', operation: 'upscale', paramValues: {}, inputImages: [inputImage] }, declaration)
         .prompt
     ).toBe('')
   })
@@ -72,9 +78,29 @@ describe('prepareImageRequest', () => {
     ).toThrowError(expect.objectContaining({ code: 'IMAGE_HANDLE_REQUIRED' }))
   })
 
+  it.each(['edit', 'merge', 'invalid', null])(
+    'rejects non-business operation %s at the in-process boundary',
+    (operation) => {
+      expect(() =>
+        prepareImageRequest(
+          {
+            prompt: 'a fox',
+            paramValues: {},
+            // @ts-expect-error Runtime validation must also reject untyped in-process callers.
+            operation
+          },
+          declaration
+        )
+      ).toThrowError(expect.objectContaining({ code: 'OPERATION_FAILED' }))
+    }
+  )
+
   it('rejects undeclared operations and explicit unsupported parameters', () => {
     expect(() =>
-      prepareImageRequest({ prompt: 'a fox', mode: 'remix', paramValues: {}, inputImages: [inputImage] }, declaration)
+      prepareImageRequest(
+        { prompt: 'a fox', operation: 'remix', paramValues: {}, inputImages: [inputImage] },
+        declaration
+      )
     ).toThrowError(expect.objectContaining({ code: 'OPERATION_FAILED' }))
     expect(() => prepareImageRequest({ prompt: 'a fox', paramValues: { numImages: 2 } }, declaration)).toThrowError(
       expect.objectContaining({ code: 'OPERATION_FAILED' })

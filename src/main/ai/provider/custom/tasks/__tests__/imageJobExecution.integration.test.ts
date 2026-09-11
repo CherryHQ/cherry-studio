@@ -161,7 +161,7 @@ describe('prepared image Job execution', () => {
               ? { function: 'stylization_all' }
               : {},
         inputImages: images,
-        mode: modelId === 'wanx2-1-imageedit' || modelId === 'qwen-mt-image' ? 'edit' : 'generate',
+        operation: 'generate',
         cleanupPolicy: 'delete_when_unreferenced'
       },
       provider,

@@ -1,4 +1,4 @@
-import { imageParamsSchema } from '@cherrystudio/provider-registry'
+import { ImageOperationSchema, imageParamsSchema } from '@cherrystudio/provider-registry'
 import { imageInputSchema } from '@shared/ai/imageInput'
 import type {
   AiStreamAttachResponse,
@@ -25,12 +25,7 @@ import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agen
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import {
-  ImageGenerationModeSchema,
-  ModelSchema,
-  ServiceTierSelectionSchema,
-  UniqueModelIdSchema
-} from '@shared/data/types/model'
+import { ModelSchema, ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
@@ -131,12 +126,8 @@ const aiImagePayloadSchema = z.strictObject({
    */
   uniqueModelId: UniqueModelIdSchema,
   prompt: z.string(),
-  /**
-   * The image-generation mode (which tab). A request property — NOT a param — so
-   * main can derive per-model transport routing (`vendorTransport` → descriptor)
-   * from the registry itself. Defaults to `generate` when absent.
-   */
-  mode: ImageGenerationModeSchema.optional(),
+  /** Ordinary generation accepts independent reference images; other operations are explicit. */
+  operation: ImageOperationSchema.optional(),
   /**
    * The canonical param bag, validated + coerced at the IPC boundary by the
    * catalog value schema — the router's `safeParse` yields a typed `ParamValues`

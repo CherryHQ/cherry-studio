@@ -35,6 +35,9 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
   })
 
   it.each([
+    { mode: 'edit' },
+    { operation: 'edit' },
+    { operation: 'merge' },
     { paramValues: { unsupportedWireName: 3 } },
     { inputImages: ['/tmp/reference.png'] },
     { inputImages: ['file:///tmp/reference.png'] },

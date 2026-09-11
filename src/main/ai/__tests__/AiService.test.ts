@@ -2090,7 +2090,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       uniqueModelId: 'ppio::qwen-image-edit',
       cleanupPolicy: 'delete_when_unreferenced',
       prompt: 'a cat',
-      mode: 'edit',
+      operation: 'generate',
       inputImages: ['data:image/png;base64,AQI='],
       paramValues: {},
       requestOptions: { signal: new AbortController().signal }

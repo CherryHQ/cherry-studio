@@ -53,13 +53,14 @@ async function execute(modelId: string, mode: ImageGenerationMode, paramValues: 
   })
   const request: AiImageRequest = {
     prompt: 'a red circle',
-    mode,
+    operation: mode === 'edit' || mode === 'merge' ? 'generate' : mode,
     paramValues,
     inputImages,
     cleanupPolicy: 'delete_when_unreferenced'
   }
-  const prepared = { ...request, ...prepareImageRequest(request, support) }
-  const target = resolveImageExecutionTarget(provider, model, mode, support)
+  const { legacyMode, ...normalized } = prepareImageRequest(request, support)
+  const prepared = { ...request, ...normalized }
+  const target = resolveImageExecutionTarget(provider, model, legacyMode, support)
   if (target.kind === 'unavailable') throw new Error(target.message)
   if (target.scheduling !== 'direct') throw new Error('AiHubMix must preserve direct scheduling')
   const { sdkConfig } = await resolveSdkImageConfig(provider, model, target, undefined)
