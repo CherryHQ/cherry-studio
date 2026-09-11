@@ -461,6 +461,40 @@ describe('SpreadsheetFilePreview', () => {
     )
   })
 
+  it('does not report a range that was selected before capture was enabled', () => {
+    setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
+    const onSelectionReference = vi.fn()
+    // The grid selects on click whether or not capture is on, so a range picked while browsing is already
+    // there when the picker goes on. Enabling capture must not publish it as a pick the user never made.
+    const panel = (capture?: (reference: SelectionReference | null) => void) => (
+      <SpreadsheetFilePreview
+        filePath={'/tmp/workspace/book.xlsx' as AbsoluteFilePath}
+        fileName="book.xlsx"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={0}
+        onSelectionReference={capture}
+      />
+    )
+
+    const { rerender } = render(panel())
+    fireEvent.click(screen.getByTestId('grid-select-a3'))
+
+    rerender(panel(onSelectionReference))
+    expect(onSelectionReference).not.toHaveBeenCalled()
+
+    // A selection made after capture is on reports as usual.
+    fireEvent.click(screen.getByTestId('grid-select-range'))
+    expect(onSelectionReference).toHaveBeenLastCalledWith(
+      expect.objectContaining({ anchor: { format: 'xlsx', sheet: 'Sales', range: 'A2:D4' } })
+    )
+
+    // Switching capture off and on again re-arms: the range picked while it was on is not republished.
+    const callsWhileCapturing = onSelectionReference.mock.calls.length
+    rerender(panel())
+    rerender(panel(onSelectionReference))
+    expect(onSelectionReference).toHaveBeenCalledTimes(callsWhileCapturing)
+  })
+
   it('reports null when the selection is cleared and when the sheet changes', () => {
     setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
     const onSelectionReference = vi.fn()
