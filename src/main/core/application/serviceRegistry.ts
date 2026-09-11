@@ -49,6 +49,7 @@ import { LanTransferService } from '@main/services/lanTransfer'
 import { MainNetworkDevtoolsService } from '@main/services/mainNetworkDevtools'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { MediaProtocolService } from '@main/services/mediaProtocol'
+import { NotesSearchService } from '@main/services/NotesSearchService'
 import { NotificationService } from '@main/services/NotificationService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -137,6 +138,7 @@ export const services = {
   OAuthRuntimeService,
   MainWindowService,
   NotificationService,
+  NotesSearchService,
   QuickAssistantService,
   McpPackageService,
   McpRuntimeService,

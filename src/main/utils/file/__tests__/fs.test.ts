@@ -5,8 +5,10 @@ import {
   open,
   readdir,
   readFile,
+  realpath as fsRealpath,
   rm,
   stat as fsStatPromise,
+  symlink,
   utimes,
   writeFile
 } from 'node:fs/promises'
@@ -38,6 +40,7 @@ import {
   probeReadable,
   read,
   readChunk,
+  readTextFileWithinRoots,
   remove as fsRemove,
   removeDir,
   shouldSilenceFsyncDirError,
@@ -60,6 +63,7 @@ describe('stat', () => {
     const s = await stat(f as AbsoluteFilePath)
     expect(s.size).toBe('hello world'.length)
     expect(s.isDirectory).toBe(false)
+    expect(s.isFile).toBe(true)
     expect(s.modifiedAt).toBeGreaterThan(0)
     expect(s.createdAt).toBeGreaterThan(0)
   })
@@ -69,6 +73,7 @@ describe('stat', () => {
     await mkdir(d)
     const s = await stat(d as AbsoluteFilePath)
     expect(s.isDirectory).toBe(true)
+    expect(s.isFile).toBe(false)
   })
 
   it('throws ENOENT for missing path', async () => {
@@ -226,9 +231,64 @@ describe('read (text)', () => {
     expect(out).toBe('plain')
   })
 
+  it('bounds text allocation when maxBytes is set', async () => {
+    const f = path.join(tmp, 'bounded.txt')
+    await writeFile(f, '123456', 'utf-8')
+
+    await expect(read(f as AbsoluteFilePath, { encoding: 'text', maxBytes: 5 })).rejects.toThrow(
+      'File exceeds read limit of 5 bytes'
+    )
+    await expect(read(f as AbsoluteFilePath, { encoding: 'text', maxBytes: 6 })).resolves.toBe('123456')
+  })
+
   it('throws ENOENT on missing path', async () => {
     await expect(read(path.join(tmp, 'missing') as AbsoluteFilePath)).rejects.toThrow(/ENOENT/)
   })
+
+  it('forwards an abort signal to the underlying file read', async () => {
+    const f = path.join(tmp, 'cancelled.txt')
+    await writeFile(f, 'content that should not be returned', 'utf-8')
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(read(f as AbsoluteFilePath, { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'reads an in-root symlink target through a fixed opened snapshot',
+    async () => {
+      const root = path.join(tmp, 'root')
+      await mkdir(root)
+      const note = path.join(root, 'note.md')
+      const link = path.join(root, 'linked.md')
+      await writeFile(note, 'trusted note')
+      await symlink(note, link)
+      const canonicalRoot = await fsRealpath(root)
+
+      await expect(
+        readTextFileWithinRoots(link as AbsoluteFilePath, [canonicalRoot as AbsoluteFilePath], { maxBytes: 1_000 })
+      ).resolves.toBe('trusted note')
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a symlink whose opened target is outside every trusted root',
+    async () => {
+      const root = path.join(tmp, 'root')
+      await mkdir(root)
+      const outside = path.join(tmp, 'outside.md')
+      const link = path.join(root, 'linked.md')
+      await writeFile(outside, 'secret outside note')
+      await symlink(outside, link)
+      const canonicalRoot = await fsRealpath(root)
+
+      await expect(
+        readTextFileWithinRoots(link as AbsoluteFilePath, [canonicalRoot as AbsoluteFilePath], { maxBytes: 1_000 })
+      ).resolves.toBeNull()
+    }
+  )
 })
 
 describe('read (base64)', () => {
