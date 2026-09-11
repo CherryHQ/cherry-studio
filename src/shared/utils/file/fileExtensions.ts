@@ -200,3 +200,13 @@ export const textExts = [...new Set([...Array.from(customTextExts.values()).flat
 export const knowledgeSupportedFileExts = [
   ...new Set([...knowledgeDocumentFileExts, ...textExts].map((ext) => ext.toLowerCase()))
 ]
+
+const knowledgeSupportedFileExtSet = new Set(knowledgeSupportedFileExts)
+
+export function isKnowledgeSupportedFileName(fileName: string): boolean {
+  const baseName = fileName.split(/[\\/]/).at(-1)?.toLowerCase() ?? ''
+  for (let dotIndex = baseName.indexOf('.'); dotIndex >= 0; dotIndex = baseName.indexOf('.', dotIndex + 1)) {
+    if (knowledgeSupportedFileExtSet.has(baseName.slice(dotIndex))) return true
+  }
+  return false
+}

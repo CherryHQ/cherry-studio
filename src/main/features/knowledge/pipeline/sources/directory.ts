@@ -3,11 +3,10 @@ import path from 'node:path'
 
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
+import { isSupportedKnowledgeFilePath } from '../../items'
 import { assertSafeKnowledgeRelativePath, copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
-
-const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
 /** A scanned filesystem entry under a directory owner — only the fields this module reads. */
 interface DirectoryEntryNode {
@@ -61,7 +60,7 @@ async function readDirectoryTree(
       continue
     }
 
-    if (entry.isFile()) {
+    if (entry.isFile() && (await isSupportedKnowledgeFilePath(AbsoluteFilePathSchema.parse(entryPath)))) {
       nodes.push({
         type: 'file',
         treePath,
@@ -81,10 +80,6 @@ async function expandDirectoryNode(
   onFileCopied: () => void
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
-    if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
-      return null
-    }
-
     // Namespace each file under the owner directory's (deduped) basename and keep
     // its subtree path (from `treePath`, already POSIX) so siblings sharing a
     // basename across subdirectories don't collide and the hierarchy survives.
@@ -211,9 +206,7 @@ function countSupportedFiles(nodes: DirectoryEntryNode[]): number {
   let count = 0
   for (const node of nodes) {
     if (node.type === 'file') {
-      if (KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(path.extname(node.externalPath).toLowerCase())) {
-        count += 1
-      }
+      count += 1
     } else {
       count += countSupportedFiles(node.children ?? [])
     }

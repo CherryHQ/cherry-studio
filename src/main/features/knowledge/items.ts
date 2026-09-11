@@ -1,6 +1,7 @@
-import type { PathReadability } from '@main/utils/file'
+import { getFileType, type PathReadability } from '@main/utils/file'
 import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, FILE_TYPE } from '@shared/types/file'
+import { isKnowledgeSupportedFileName } from '@shared/utils/file'
 
 import { probeKnowledgeFile, probeKnowledgeSourcePath } from './pathStorage'
 
@@ -14,6 +15,10 @@ export function isIndexableKnowledgeItem(item: KnowledgeItem): item is Indexable
 
 export function isContainerKnowledgeItem(item: KnowledgeItem): item is ContainerKnowledgeItem {
   return item.type === 'directory'
+}
+
+export async function isSupportedKnowledgeFilePath(filePath: AbsoluteFilePath): Promise<boolean> {
+  return isKnowledgeSupportedFileName(filePath) || (await getFileType(filePath)) === FILE_TYPE.TEXT
 }
 
 /**

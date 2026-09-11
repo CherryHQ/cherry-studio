@@ -233,8 +233,10 @@ describe('expandDirectoryOwnerToTree', () => {
     tempRoot = createTempRoot()
     const rootDir = path.join(tempRoot, 'workspace')
     realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'README'), 'extensionless text')
+    realFs.writeFileSync(path.join(rootDir, 'build.zig.zon'), 'compound-extension text')
     realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
-    realFs.writeFileSync(path.join(rootDir, 'app.exe'), 'binary')
+    realFs.writeFileSync(path.join(rootDir, 'app.exe'), Buffer.from([0, 1, 2, 3, 0, 255]))
     // OpenDocument formats are app-wide "documents" but intentionally unsupported by the
     // knowledge base, so a rebuild/restore that walks a directory must skip them too.
     realFs.writeFileSync(path.join(rootDir, 'legacy.odt'), 'odt')
@@ -251,16 +253,10 @@ describe('expandDirectoryOwnerToTree', () => {
       ignoreCopyProgress
     )
 
-    expect(children).toEqual([
-      {
-        type: 'file',
-        data: {
-          source: path.join(rootDir, 'readme.md'),
-          relativePath: 'workspace/readme.md'
-        }
-      }
-    ])
-    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledTimes(1)
+    expect(children.map((child) => child.data.source).sort()).toEqual(
+      [path.join(rootDir, 'README'), path.join(rootDir, 'build.zig.zon'), path.join(rootDir, 'readme.md')].sort()
+    )
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledTimes(3)
     // The expansion copy threads the abort signal (so a hung file can be interrupted)
     // and sets overwrite so a retry re-copies over its own orphans from a prior attempt.
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
@@ -278,7 +274,7 @@ describe('expandDirectoryOwnerToTree', () => {
     realFs.mkdirSync(nestedDir, { recursive: true })
     realFs.writeFileSync(path.join(rootDir, 'readme.md'), '# readme')
     realFs.writeFileSync(path.join(nestedDir, 'guide.txt'), 'guide')
-    realFs.writeFileSync(path.join(rootDir, 'app.exe'), 'binary')
+    realFs.writeFileSync(path.join(rootDir, 'app.exe'), Buffer.from([0, 1, 2, 3, 0, 255]))
     const onCopyProgress = vi.fn()
     const owner = createDirectoryOwner(rootDir)
     const pathPrefix = chooseDirectoryPathPrefix(owner, new Set())

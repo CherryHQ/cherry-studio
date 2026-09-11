@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { documentExts, knowledgeFileProcessingExts, knowledgeSupportedFileExts, textExts } from '../fileExtensions'
+import {
+  documentExts,
+  isKnowledgeSupportedFileName,
+  knowledgeFileProcessingExts,
+  knowledgeSupportedFileExts,
+  textExts
+} from '../fileExtensions'
 
 // These three lists are easy to let drift apart (the original bug: artifact reservation keyed
 // off a different list than routing did, so `.xls`'s processed `.md` artifact was never
@@ -27,6 +33,14 @@ describe('knowledge file-extension source-of-truth invariants', () => {
       expect(supported.has(normalizedExt)).toBe(true)
       expect(processing.has(normalizedExt)).toBe(false)
     }
+  })
+
+  it('matches compound and dotfile extensions without widening their final suffix', () => {
+    expect(isKnowledgeSupportedFileName('/workspace/build.zig.zon')).toBe(true)
+    expect(isKnowledgeSupportedFileName('C:\\workspace\\CONFIG.JSON.EXAMPLE')).toBe(true)
+    expect(isKnowledgeSupportedFileName('/home/me/.bashrc')).toBe(true)
+    expect(isKnowledgeSupportedFileName('/workspace/arbitrary.example')).toBe(false)
+    expect(isKnowledgeSupportedFileName('/workspace/generated.in')).toBe(false)
   })
 
   it('keeps legacy .xls accepted and document-classified even though it is no longer processed', () => {

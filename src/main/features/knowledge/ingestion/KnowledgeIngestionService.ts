@@ -4,7 +4,6 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
@@ -19,10 +18,10 @@ import {
   type KnowledgeItem,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
-import { classifyKnowledgeItemReacquireSource } from '../items'
+import { classifyKnowledgeItemReacquireSource, isSupportedKnowledgeFilePath } from '../items'
 import {
   assertKnowledgeFileTargetAvailable,
   collectKnowledgeReservedRelativePaths,
@@ -56,7 +55,6 @@ import { purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 const logger = loggerService.withContext('Knowledge:IngestionService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
 const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
-const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
@@ -610,7 +608,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       return input
     }
 
-    assertSupportedKnowledgeFilePath(input.data.path)
+    await assertSupportedKnowledgeFilePath(input.data.path)
     const fileName = getKnowledgeSourceRelativePath(input.data.path)
     // A restore that carries a processed artifact reserves the artifact slot too, even if
     // the destination base has no processor configured, so the copied `.md` cannot collide.
@@ -678,10 +676,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   }
 }
 
-function assertSupportedKnowledgeFilePath(filePath: string): void {
-  const fileName = filePath.split(/[\\/]/).pop() ?? ''
-  const extension = getFileExt(filePath).toLowerCase() || (fileName.startsWith('.') ? fileName.toLowerCase() : '')
-  if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(extension)) {
+async function assertSupportedKnowledgeFilePath(filePath: AbsoluteFilePath): Promise<void> {
+  if (!(await isSupportedKnowledgeFilePath(filePath))) {
     throw new Error(`Unsupported knowledge file type: ${filePath}`)
   }
 }
