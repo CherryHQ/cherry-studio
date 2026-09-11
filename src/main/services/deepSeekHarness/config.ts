@@ -9,6 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { DeepSeekHarnessAgentPreset } from '@shared/types/codeCli'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { resolveCanonicalEndpoint, resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { Document, isMap, isSeq, parseDocument, type YAMLError } from 'yaml'
 
 export type DeepSeekHarnessMode = 'direct' | 'gateway'
@@ -345,18 +346,33 @@ export function resolveDeepSeekHarnessEndpoint(
   provider: Provider,
   model: Model
 ): { endpoint: EndpointType; protocol: DeepSeekHarnessProtocol; baseUrl: string } {
-  const isSupported = (endpoint: EndpointType | undefined): endpoint is (typeof DIRECT_ENDPOINTS)[number] =>
-    Boolean(endpoint && DIRECT_ENDPOINTS.includes(endpoint as (typeof DIRECT_ENDPOINTS)[number]))
-  const hasBaseUrl = (endpoint: EndpointType): boolean => Boolean(provider.endpointConfigs?.[endpoint]?.baseUrl)
-  const declaredModelEndpoints = model.endpointTypes?.length ? model.endpointTypes.filter(isSupported) : undefined
-  const endpoint = declaredModelEndpoints
-    ? declaredModelEndpoints.find(hasBaseUrl)
-    : isSupported(provider.defaultChatEndpoint) && hasBaseUrl(provider.defaultChatEndpoint)
-      ? provider.defaultChatEndpoint
-      : DIRECT_ENDPOINTS.find(hasBaseUrl)
+  // DSH's direct adapter needs a concrete host, so only expose endpoint
+  // configurations that can actually be serialized into its route. Feeding
+  // those to the shared resolver keeps provider-default/model declarations in
+  // lockstep with normal AI requests while retaining the direct-host guard.
+  const endpointConfigs = Object.fromEntries(
+    Object.entries(provider.endpointConfigs ?? {}).filter(([, config]) => Boolean(config?.baseUrl))
+  ) as Provider['endpointConfigs']
+  const resolvedEndpoint = resolveCanonicalEndpoint(
+    { ...provider, endpointConfigs },
+    model,
+    undefined,
+    DIRECT_ENDPOINTS
+  ).endpointType as (typeof DIRECT_ENDPOINTS)[number] | undefined
+  // Legacy/custom provider rows may omit both endpoint metadata and a default. DSH still
+  // needs a concrete direct route, so use the first configured compatible endpoint rather
+  // than rejecting a provider whose host is otherwise usable.
+  const endpoint =
+    resolvedEndpoint ??
+    // Legacy/custom rows may carry a stale or unsupported default endpoint. When
+    // the model has no endpoint contract, prefer any configured DSH-compatible
+    // direct route instead of rejecting a provider whose host is usable.
+    (!model.endpointTypes?.length
+      ? DIRECT_ENDPOINTS.find((endpointType) => Boolean(endpointConfigs?.[endpointType]?.baseUrl))
+      : undefined)
 
   if (!endpoint) throw new Error(`Provider ${provider.id} has no DeepSeek Harness compatible endpoint`)
-  const rawBaseUrl = provider.endpointConfigs?.[endpoint]?.baseUrl
+  const rawBaseUrl = resolveEndpointBaseUrl(provider, endpoint)
   if (!rawBaseUrl) throw new Error(`Provider ${provider.id} has no API host configured for ${endpoint}`)
   const baseUrl =
     endpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES

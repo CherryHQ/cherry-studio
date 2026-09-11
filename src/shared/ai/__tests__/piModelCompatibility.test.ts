@@ -56,7 +56,7 @@ describe('mapEndpointToPiApi', () => {
 })
 
 describe('resolvePiApi', () => {
-  it('uses the model endpoint first, then the provider default', () => {
+  it('uses a supported provider default before registry endpoint order', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: {
@@ -65,7 +65,7 @@ describe('resolvePiApi', () => {
     })
     // No model endpoint → falls back to provider default.
     expect(resolvePiApi(provider, makeModel({}))).toBe('anthropic-messages')
-    // Model endpoint wins over provider default.
+    // An unsupported provider default does not override the model endpoint.
     const openaiProvider = makeProvider({
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: {
@@ -74,6 +74,31 @@ describe('resolvePiApi', () => {
       }
     })
     expect(resolvePiApi(openaiProvider, makeModel({ endpointTypes: ['openai-chat-completions'] }))).toBe(
+      'openai-completions'
+    )
+
+    const multiEndpointProvider = makeProvider({
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-responses': { adapterFamily: 'openai' },
+        'openai-chat-completions': { adapterFamily: 'openai-compatible' }
+      }
+    })
+    expect(
+      resolvePiApi(multiEndpointProvider, makeModel({ endpointTypes: ['openai-responses', 'openai-chat-completions'] }))
+    ).toBe('openai-completions')
+  })
+
+  it('ignores an unsupported provider default when a Pi endpoint is available', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: 'ollama-chat',
+      endpointConfigs: {
+        'ollama-chat': { adapterFamily: 'ollama' },
+        'openai-chat-completions': { adapterFamily: 'openai-compatible' }
+      }
+    })
+
+    expect(resolvePiApi(provider, makeModel({ endpointTypes: ['ollama-chat', 'openai-chat-completions'] }))).toBe(
       'openai-completions'
     )
   })

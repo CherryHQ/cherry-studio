@@ -185,6 +185,72 @@ describe('DeepSeek Harness config transaction', () => {
     })
   })
 
+  it('materializes a shared chat host for an inferred Responses endpoint', () => {
+    const sharedHostProvider = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' }
+      }
+    })
+
+    expect(
+      resolveDeepSeekHarnessEndpoint(sharedHostProvider, model({ endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] }))
+    ).toEqual({
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
+    })
+  })
+
+  it('uses the provider default when it is one of the model declared endpoints', () => {
+    const providerDefault = provider({
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://proxy.example/anthropic' }
+      }
+    })
+    const modelWithMultipleEndpoints = model({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+
+    expect(resolveDeepSeekHarnessEndpoint(providerDefault, modelWithMultipleEndpoints)).toEqual({
+      endpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      protocol: 'anthropic-messages',
+      baseUrl: 'https://proxy.example/anthropic'
+    })
+  })
+
+  it('falls back to the first configured direct endpoint for legacy rows without metadata', () => {
+    const legacyProvider = provider({
+      defaultChatEndpoint: undefined,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/v1' }
+      }
+    })
+
+    expect(resolveDeepSeekHarnessEndpoint(legacyProvider, model({ endpointTypes: undefined }))).toEqual({
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
+    })
+  })
+
+  it('falls back to a configured direct endpoint when a legacy default is unsupported', () => {
+    const legacyProvider = provider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://proxy.example/embeddings' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://proxy.example/v1' }
+      }
+    })
+
+    expect(resolveDeepSeekHarnessEndpoint(legacyProvider, model({ endpointTypes: undefined }))).toEqual({
+      endpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      protocol: 'openai-responses',
+      baseUrl: 'https://proxy.example/v1'
+    })
+  })
+
   it('preserves comments, unrelated routes, and old managed models while selecting the new default', async () => {
     const identity = createDeepSeekHarnessDirectIdentity('anthropic', 'anthropic-messages')
     await writeFile(path.join(dir, '.credentials.yaml'), '# credentials note\nOTHER_KEY: keep\n', { mode: 0o600 })

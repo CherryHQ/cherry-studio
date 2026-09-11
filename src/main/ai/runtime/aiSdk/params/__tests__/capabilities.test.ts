@@ -60,4 +60,32 @@ describe('resolveCapabilities — provider-builtin web search config key', () =>
 
     expect(capabilities.webSearchPluginConfig).toBeUndefined()
   })
+
+  it('projects CherryIN Chat search config onto its effective endpoint namespace', () => {
+    const cherryModel = {
+      id: 'cherryin::gpt-5',
+      providerId: 'cherryin',
+      apiModelId: 'gpt-5',
+      capabilities: [],
+      endpointTypes: ['openai-chat-completions']
+    } as unknown as Model
+    const cherryProvider = {
+      id: 'cherryin',
+      presetProviderId: 'cherryin',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://open.cherryin.net/v1' }
+      },
+      serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }]
+    } as unknown as Provider
+
+    const capabilities = resolveCapabilities(cherryModel, cherryProvider, assistant, {
+      webToolRoutes: { webSearch: 'server', webFetch: 'none' },
+      runtimeProviderId: 'cherryin-chat'
+    })
+
+    expect(capabilities.webSearchPluginConfig).toEqual({
+      'openai-chat': { searchContextSize: 'low' }
+    })
+  })
 })

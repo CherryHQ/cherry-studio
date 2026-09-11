@@ -17,11 +17,10 @@ import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
 import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
+import { mapEndpointToPiApi, PI_ENDPOINT_TYPES, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import {
-  ENDPOINT_TYPE,
   type EndpointType,
   MODALITY,
   type Model,
@@ -129,12 +128,11 @@ export async function materializePiProviderStream(injection: PiProviderInjection
 }
 
 function resolvePiEndpoint(provider: Provider, model: Model) {
-  const preferredEndpoint =
-    model.endpointTypes?.includes(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) &&
-    model.endpointTypes.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-      ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES
-      : undefined
-  return resolveEffectiveEndpoint(provider, model, preferredEndpoint)
+  // Keep injection on the exact same endpoint-selection path as renderer
+  // compatibility filtering. In particular, a dual OpenAI Chat + Anthropic
+  // model must honor the provider's supported default instead of silently
+  // switching protocols only when the connection is materialized.
+  return resolveEffectiveEndpoint(provider, model, undefined, PI_ENDPOINT_TYPES)
 }
 
 /**

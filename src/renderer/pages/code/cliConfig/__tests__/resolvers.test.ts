@@ -1,8 +1,14 @@
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { resolveGeminiBaseUrl, resolveHermesProviderInfo, resolvePiProviderInfo } from '../resolvers'
+import {
+  resolveGeminiBaseUrl,
+  resolveHermesProviderInfo,
+  resolveOpenCodeNpmInfo,
+  resolvePiProviderInfo
+} from '../resolvers'
 
 const provider = (partial: Record<string, unknown>): Provider => partial as unknown as Provider
 
@@ -99,6 +105,26 @@ describe('resolveGeminiBaseUrl', () => {
 })
 
 describe('resolveHermesProviderInfo', () => {
+  it('uses a gateway model id to select Responses when endpoint metadata is absent', () => {
+    const gateway = provider({
+      id: 'aihubmix',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://aihubmix.example/v1' },
+        'openai-responses': { baseUrl: 'https://aihubmix.example/v1' }
+      }
+    })
+    const model = { id: 'gpt-4o', apiModelId: 'gpt-4o' } as unknown as Model
+
+    expect(resolveOpenCodeNpmInfo(gateway, undefined, model)).toEqual({
+      npm: '@ai-sdk/openai',
+      providerType: 'openai',
+      endpointType: 'openai-responses'
+    })
+    expect(resolveHermesProviderInfo(gateway, undefined, model).endpointType).toBe('openai-responses')
+    expect(resolvePiProviderInfo(gateway, undefined, model).endpointType).toBe('openai-responses')
+  })
+
   // anthropic-messages is configured AND first in HERMES_ENDPOINTS, so a catalog-order
   // fallback would pick it; the model supports only openai-responses (a later catalog
   // entry), so selecting it proves model preference beats catalog order rather than
@@ -146,9 +172,41 @@ describe('resolveHermesProviderInfo', () => {
       endpointType: 'openai-responses'
     })
   })
+
+  it('reuses a shared Chat host when the model selects OpenAI Responses', () => {
+    expect(
+      resolveHermesProviderInfo(
+        provider({ endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://shared.example/v1' } } }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      apiMode: 'codex_responses',
+      baseUrl: 'https://shared.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
 })
 
 describe('resolvePiProviderInfo', () => {
+  it('prefers the provider default when the model advertises that endpoint capability', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({
+          defaultChatEndpoint: 'openai-responses',
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'https://chat.example' },
+            'openai-responses': { baseUrl: 'https://responses.example' }
+          }
+        }),
+        ['openai-chat-completions', 'openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: 'https://responses.example/v1',
+      endpointType: 'openai-responses'
+    })
+  })
+
   it('prefers a model-supported endpoint and maps it to Pi API names', () => {
     expect(
       resolvePiProviderInfo(
@@ -166,6 +224,28 @@ describe('resolvePiProviderInfo', () => {
       baseUrl: 'https://openai.example/v1',
       endpointType: 'openai-responses'
     })
+  })
+
+  it('keeps the model-advertised protocol when no configured CLI endpoint intersects it', () => {
+    expect(
+      resolvePiProviderInfo(
+        provider({ endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example' } } }),
+        ['openai-responses']
+      )
+    ).toEqual({
+      api: 'openai-responses',
+      baseUrl: '',
+      endpointType: 'openai-responses'
+    })
+  })
+
+  it('fails closed when the model advertises no endpoint supported by the CLI', () => {
+    expect(() =>
+      resolveOpenCodeNpmInfo(
+        provider({ endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://chat.example' } } }),
+        ['openai-embeddings']
+      )
+    ).toThrow('does not advertise a google-generate-content or anthropic-messages or openai-responses or')
   })
 
   it('normalizes the Google endpoint to the v1beta API required by Pi', () => {

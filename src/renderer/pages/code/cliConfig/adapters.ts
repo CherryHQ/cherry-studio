@@ -3,6 +3,7 @@ import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } fro
 import { formatApiHost } from '@shared/utils/api'
 import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
 import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
+import { resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { stringify as stringifyToml } from 'smol-toml'
 import { type Document, isMap, isScalar } from 'yaml'
 
@@ -430,18 +431,18 @@ const openCodeAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.OPEN_CODE),
   providerBaseUrls: (provider) =>
     OPEN_CODE_ENDPOINTS.flatMap((endpoint) => {
-      const baseUrl = normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))
+      const baseUrl = normalizeUrl(formatApiHost(resolveEndpointBaseUrl(provider, endpoint)))
       return baseUrl ? [baseUrl] : []
     }),
   sanitize: sanitizeOpenCodeConfigBlob,
   async buildDraft(args, context) {
     const { provider, apiKey, model, modelLabel, modelRecord, configBlob } = context
-    const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
+    const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes, modelRecord ?? undefined)
     // formatApiHost appends /v1 even for anthropic-messages — unlike Claude Code's
     // bare ANTHROPIC_BASE_URL (the Claude binary adds /v1/messages itself), the
     // @ai-sdk/anthropic package OpenCode loads expects the /v1 in baseURL and only
     // appends /messages.
-    const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
+    const baseUrl = formatApiHost(resolveEndpointBaseUrl(provider, npmInfo.endpointType) ?? '')
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const existing = readAndParseDraftFile('opencode-config', parseJsonOrThrow, args.files, read)
     const env = asRecord(configBlob.env)
@@ -470,8 +471,12 @@ const openCodeAdapter: CliConfigAdapter = {
     ]
   },
   assertCredentials(context) {
-    const npmInfo = resolveOpenCodeNpmInfo(context.provider, context.modelRecord?.endpointTypes)
-    const baseUrl = formatApiHost(context.provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
+    const npmInfo = resolveOpenCodeNpmInfo(
+      context.provider,
+      context.modelRecord?.endpointTypes,
+      context.modelRecord ?? undefined
+    )
+    const baseUrl = formatApiHost(resolveEndpointBaseUrl(context.provider, npmInfo.endpointType) ?? '')
     if (!context.apiKey || !baseUrl) throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection, configBlob) {
@@ -843,14 +848,13 @@ const hermesAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.HERMES),
   providerBaseUrls: (provider) =>
     HERMES_ENDPOINTS.flatMap((endpoint) => {
-      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
       const baseUrl = normalizeUrl(resolveHermesProviderInfo(provider, [endpoint]).baseUrl)
       return baseUrl ? [baseUrl] : []
     }),
   sanitize: () => ({}),
   async buildDraft(args, context) {
     const { apiKey, model, modelRecord, provider } = context
-    const providerInfo = resolveHermesProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerInfo = resolveHermesProviderInfo(provider, modelRecord?.endpointTypes, modelRecord ?? undefined)
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const document = readAndParseDraftFile('hermes-config', parseYamlDocumentOrThrow, args.files, read)
     const envText = readDraftFileText('hermes-env', args.files, read)
@@ -869,7 +873,11 @@ const hermesAdapter: CliConfigAdapter = {
     ]
   },
   assertCredentials(context) {
-    const { baseUrl } = resolveHermesProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    const { baseUrl } = resolveHermesProviderInfo(
+      context.provider,
+      context.modelRecord?.endpointTypes,
+      context.modelRecord ?? undefined
+    )
     if (!context.apiKey || !baseUrl) throw new Error('Hermes config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files, connection) {
@@ -936,14 +944,13 @@ const piAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.PI),
   providerBaseUrls: (provider) =>
     PI_ENDPOINTS.flatMap((endpoint) => {
-      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
       const baseUrl = normalizeUrl(resolvePiProviderInfo(provider, [endpoint]).baseUrl)
       return baseUrl ? [baseUrl] : []
     }),
   sanitize: () => ({}),
   async buildDraft(args, context) {
     const { provider, apiKey, model, modelLabel, modelRecord } = context
-    const providerInfo = resolvePiProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerInfo = resolvePiProviderInfo(provider, modelRecord?.endpointTypes, modelRecord ?? undefined)
     const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
     const read = await readConfigFilesForDraft(this.targets, args.files)
     const models = readAndParseDraftFile('pi-models', parseJsonOrThrow, args.files, read)
@@ -975,7 +982,11 @@ const piAdapter: CliConfigAdapter = {
     ]
   },
   assertCredentials(context) {
-    const { baseUrl } = resolvePiProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    const { baseUrl } = resolvePiProviderInfo(
+      context.provider,
+      context.modelRecord?.endpointTypes,
+      context.modelRecord ?? undefined
+    )
     if (!context.apiKey || !baseUrl) throw new Error('Pi config is missing required fields (apiKey/baseUrl)')
   },
   updateDraftConfig(files) {

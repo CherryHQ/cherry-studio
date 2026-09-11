@@ -1,6 +1,8 @@
+import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { resolveEndpointBaseUrl } from '@shared/utils/endpoint'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
 import {
@@ -42,6 +44,9 @@ export function resolveClaudeBaseUrl(provider: Provider): string {
 }
 
 export function resolveCodexBaseUrl(provider: Provider): string {
+  // Codex only speaks the Responses wire protocol. Keep Chat-only providers
+  // ineligible here; the shared-host compatibility fallback is for the
+  // multi-protocol CLI adapters below.
   return formatApiHost(provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl)
 }
 
@@ -75,20 +80,49 @@ function resolveSupportedEndpointType(
   provider: Provider,
   modelEndpointTypes: EndpointType[] | undefined,
   supportedEndpoints: readonly EndpointType[],
-  fallbackEndpoint: EndpointType
+  fallbackEndpoint: EndpointType,
+  model?: Model
 ): EndpointType {
-  const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
+  const hasEndpoint = (type: EndpointType) => Boolean(resolveEndpointBaseUrl(provider, type))
   const isSupported = (type: EndpointType | undefined): type is EndpointType =>
     Boolean(type && supportedEndpoints.includes(type))
+  const isModelCapable = (type: EndpointType) => !modelEndpointTypes?.length || modelEndpointTypes.includes(type)
 
-  return (
-    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
-    (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
+  const gatewayEndpoint =
+    !modelEndpointTypes?.length && model ? resolveGatewayChatRoute(provider, model)?.endpointType : undefined
+  const configuredGatewayEndpoint =
+    isSupported(gatewayEndpoint) && hasEndpoint(gatewayEndpoint) ? gatewayEndpoint : undefined
+
+  if (configuredGatewayEndpoint) return configuredGatewayEndpoint
+
+  const providerDefault =
+    isSupported(provider.defaultChatEndpoint) &&
+    isModelCapable(provider.defaultChatEndpoint) &&
+    hasEndpoint(provider.defaultChatEndpoint)
       ? provider.defaultChatEndpoint
-      : undefined) ??
-    supportedEndpoints.find(hasEndpoint) ??
-    fallbackEndpoint
+      : undefined
+  const configuredModelEndpoint = modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type))
+
+  if (providerDefault) return providerDefault
+  if (configuredModelEndpoint) return configuredModelEndpoint
+
+  if (modelEndpointTypes?.length) {
+    // endpointTypes is a capability constraint, not merely a preference. Keep
+    // an unconfigured but CLI-supported declaration so the caller can report
+    // the missing credential/host, but never fall back to a protocol the model
+    // does not advertise. If the model exposes no protocol this CLI supports,
+    // fail explicitly instead of generating a misleading config.
+    const declaredSupportedEndpoint = modelEndpointTypes.find(isSupported)
+    if (declaredSupportedEndpoint) return declaredSupportedEndpoint
+    throw new Error(`Model does not advertise a ${supportedEndpoints.join(' or ')} endpoint for this CLI`)
+  }
+
+  // With no model capability metadata, prefer an endpoint that is explicitly
+  // configured before considering the Responses-over-Chat compatibility host.
+  const directlyConfiguredEndpoint = supportedEndpoints.find((type) =>
+    Boolean(provider.endpointConfigs?.[type]?.baseUrl)
   )
+  return directlyConfiguredEndpoint ?? supportedEndpoints.find(hasEndpoint) ?? fallbackEndpoint
 }
 
 /** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */
@@ -101,20 +135,29 @@ export function openCodeNpmInfoFromNpmPackage(npm: string): OpenCodeNpmInfo {
   }
 }
 
-export function resolveOpenCodeNpmInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): OpenCodeNpmInfo {
+export function resolveOpenCodeNpmInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[],
+  model?: Model
+): OpenCodeNpmInfo {
   return toOpenCodeNpmInfo(
-    resolveSupportedEndpointType(provider, modelEndpointTypes, OPEN_CODE_ENDPOINTS, 'openai-chat-completions')
+    resolveSupportedEndpointType(provider, modelEndpointTypes, OPEN_CODE_ENDPOINTS, 'openai-chat-completions', model)
   )
 }
 
-export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): PiProviderInfo {
+export function resolvePiProviderInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[],
+  model?: Model
+): PiProviderInfo {
   const endpointType = resolveSupportedEndpointType(
     provider,
     modelEndpointTypes,
     PI_ENDPOINTS,
-    'openai-chat-completions'
+    'openai-chat-completions',
+    model
   )
-  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const rawBaseUrl = resolveEndpointBaseUrl(provider, endpointType)
   const apiByEndpoint: Partial<Record<EndpointType, PiApi>> = {
     'anthropic-messages': 'anthropic-messages',
     'google-generate-content': 'google-generative-ai',
@@ -131,14 +174,19 @@ export function resolvePiProviderInfo(provider: Provider, modelEndpointTypes?: E
   return { api: apiByEndpoint[endpointType]!, baseUrl, endpointType }
 }
 
-export function resolveHermesProviderInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): HermesProviderInfo {
+export function resolveHermesProviderInfo(
+  provider: Provider,
+  modelEndpointTypes?: EndpointType[],
+  model?: Model
+): HermesProviderInfo {
   const endpointType = resolveSupportedEndpointType(
     provider,
     modelEndpointTypes,
     HERMES_ENDPOINTS,
-    'openai-chat-completions'
+    'openai-chat-completions',
+    model
   )
-  const rawBaseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl
+  const rawBaseUrl = resolveEndpointBaseUrl(provider, endpointType)
   const apiMode: HermesApiMode =
     endpointType === 'anthropic-messages'
       ? 'anthropic_messages'
