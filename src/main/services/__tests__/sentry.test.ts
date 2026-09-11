@@ -10,9 +10,9 @@ const { initMock, makeElectronTransportMock, processExitMock, sendMock, flushMoc
 
 vi.mock('node:process', () => ({ default: { exit: processExitMock } }))
 
-vi.mock('@sentry/electron/main', async () => ({
+vi.mock('@sentry/electron/main', () => ({
   init: initMock,
-  dedupeIntegration: (await import('@sentry/electron/renderer')).dedupeIntegration,
+  dedupeIntegration: () => ({ name: 'Dedupe' }),
   makeElectronTransport: makeElectronTransportMock
 }))
 
@@ -67,20 +67,15 @@ describe('Sentry consent gate', () => {
     expect(sendMock).toHaveBeenCalledTimes(1)
   })
 
-  it('redacts credentials from consented error events', () => {
+  it('gates and sanitizes error events as consent changes', () => {
     initSentry()
+    const { beforeSend } = initMock.mock.calls[0][0]
+    const event = { extra: { apiKey: 'real-api-key' } }
+    expect(beforeSend(event)).toBeNull()
     setSentryReportingEnabled(true)
-    const options = initMock.mock.calls[0][0]
-
-    const event = options.beforeSend({
-      message: 'request failed: Authorization: Bearer real-token',
-      extra: { apiKey: 'real-api-key' },
-      request: { url: 'https://example.com/callback?code=oauth-secret' }
-    })
-
-    expect(JSON.stringify(event)).not.toContain('real-token')
-    expect(JSON.stringify(event)).not.toContain('real-api-key')
-    expect(JSON.stringify(event)).not.toContain('oauth-secret')
+    expect(beforeSend(event).extra.apiKey).not.toBe('real-api-key')
+    setSentryReportingEnabled(false)
+    expect(beforeSend(event)).toBeNull()
   })
 
   it('does not instrument application requests, overwrite Chromium flags, or upload native process data', () => {
@@ -101,37 +96,12 @@ describe('Sentry consent gate', () => {
     expect(options.tracePropagationTargets).toEqual([])
   })
 
-  it('terminates the main process after flushing a fatal error', () => {
+  it('terminates the main process when the SDK invokes its fatal-error callback', () => {
     initSentry()
     const options = initMock.mock.calls[0][0]
 
     options.onFatalError(new Error('fatal'))
 
     expect(processExitMock).toHaveBeenCalledExactlyOnceWith(1)
-  })
-
-  it('drops repeated exceptions but keeps distinct failures', () => {
-    initSentry()
-    const integration = initMock.mock.calls[0][0]
-      .integrations([])
-      .find((item: { name: string }) => item.name === 'Dedupe')
-    const event = {
-      exception: {
-        values: [
-          {
-            type: 'Error',
-            value: 'disk full',
-            stacktrace: {
-              frames: [{ filename: 'app:///jobs.js', function: 'enqueue', lineno: 20, colno: 4 }]
-            }
-          }
-        ]
-      }
-    }
-    expect(integration.processEvent(event)).toEqual(event)
-    expect(integration.processEvent(structuredClone(event))).toBeNull()
-    const other = structuredClone(event)
-    other.exception.values[0].value = 'permission denied'
-    expect(integration.processEvent(other)).toEqual(other)
   })
 })

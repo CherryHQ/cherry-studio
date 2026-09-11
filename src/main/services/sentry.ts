@@ -5,8 +5,7 @@ import * as Sentry from '@sentry/electron/main'
 import winston from 'winston'
 
 import { loggerService } from '@logger'
-import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
-import { getSentryBuildContext, getSentryLogError } from '@shared/utils/sentry'
+import { getSentryBuildContext, getSentryLogContext, sanitizeSentryEvent } from '@shared/utils/sentry'
 
 import { name, version } from '../../../package.json'
 
@@ -14,15 +13,6 @@ const logger = loggerService.withContext('Sentry')
 const SENTRY_DSN = 'https://194ceab3bd44e686bd3ebda9de3c20fd@o4509184559218688.ingest.us.sentry.io/4509184569442304'
 
 let reportingEnabled = false
-
-function sanitizeEvent(event: Sentry.ErrorEvent): Sentry.ErrorEvent {
-  return JSON.parse(
-    JSON.stringify(event, (key, value) => {
-      if (isSensitiveKey(key)) return REDACTED
-      return typeof value === 'string' ? redactSecretText(value, ['code']) : value
-    })
-  ) as Sentry.ErrorEvent
-}
 
 export function initSentry(): void {
   if (import.meta.env.DEV) return
@@ -41,7 +31,7 @@ export function initSentry(): void {
       logger.error('Fatal main-process error; exiting after Sentry flush', error)
       process.exit(1)
     },
-    beforeSend: (event) => (reportingEnabled ? sanitizeEvent(event) : null),
+    beforeSend: (event) => (reportingEnabled ? sanitizeSentryEvent(event) : null),
     integrations: (integrations) => [
       ...integrations.filter(
         (integration) =>
@@ -75,8 +65,13 @@ export function attachSentryLogTransport(): () => void {
     write(info: Record<string, unknown>, _encoding, callback) {
       try {
         if (reportingEnabled && !import.meta.env.DEV && info.process !== 'renderer') {
-          const report = getSentryLogError(info)
-          if (report) Sentry.captureException(report.error, report.context)
+          const context = getSentryLogContext(info)
+          if (context) {
+            const error = new Error(typeof info.errorMessage === 'string' ? info.errorMessage : 'Operation failed')
+            error.name = typeof info.name === 'string' ? info.name : 'Error'
+            error.stack = info.stack as string
+            Sentry.captureException(error, context)
+          }
         }
       } catch (error) {
         logger.warn('Failed to report logged error', error instanceof Error ? error : { error })

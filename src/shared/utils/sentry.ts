@@ -1,6 +1,7 @@
 import { prerelease } from 'semver'
 
 import type { AppEdition } from '../types/appEdition'
+import { isSensitiveKey, REDACTED, redactSecretText } from './redaction'
 
 export function getSentryBuildContext(name: string, version: string, edition: AppEdition) {
   return {
@@ -13,7 +14,7 @@ export function getSentryBuildContext(name: string, version: string, edition: Ap
   }
 }
 
-export function getSentryLogError(info: Record<string, unknown>) {
+export function getSentryLogContext(info: Record<string, unknown>) {
   if (info.level !== 'error' || typeof info.stack !== 'string') return
   if (info.module === 'Sentry' || info.module === 'CrashTelemetry') return
   if (
@@ -25,9 +26,6 @@ export function getSentryLogError(info: Record<string, unknown>) {
     return
   }
 
-  const error = new Error(typeof info.errorMessage === 'string' ? info.errorMessage : 'Operation failed')
-  error.name = typeof info.name === 'string' ? info.name : 'Error'
-  error.stack = info.stack
   const tags: Record<string, string> = {}
   for (const key of ['module', 'window', 'code'] as const) {
     if (typeof info[key] === 'string') tags[key] = info[key]
@@ -43,5 +41,14 @@ export function getSentryLogError(info: Record<string, unknown>) {
     ? info.data.find((item) => item && typeof item.componentStack === 'string')?.componentStack
     : undefined
 
-  return { error, context: { tags, extra: componentStack ? { componentStack } : undefined } }
+  return { tags, extra: componentStack ? { componentStack } : undefined }
+}
+
+export function sanitizeSentryEvent<T>(event: T): T {
+  return JSON.parse(
+    JSON.stringify(event, (key, value) => {
+      if (isSensitiveKey(key)) return REDACTED
+      return typeof value === 'string' ? redactSecretText(value, ['code']) : value
+    })
+  ) as T
 }

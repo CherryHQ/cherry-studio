@@ -17,33 +17,25 @@ CherryStudio uses a unified logging service to print and record logs. **Unless t
 
 ## Error reporting
 
-In production, `AnalyticsService` connects the main-process Winston logger to Sentry.
-Reporting requires the existing data-collection preference and acceptance of the current
-privacy policy; disabling collection immediately blocks capture and outbound reporting.
-The connection is removed when the service stops.
+Production Sentry uploads require data collection to be enabled and the current
+privacy policy to be accepted. Disabling collection blocks outbound reporting;
+local logging continues.
 
-Only `error` entries with a stack are eligible. Pass the original `Error` as the first
-data argument (`logger.error('Operation failed', error)`) to preserve its name, message,
-and stack. Renderer errors are captured by the renderer SDK so their source-map
-Debug IDs survive; local logs still follow the existing log IPC path, with cancellation
-names and string error codes serialized explicitly. Abort/cancellation errors and Sentry's
-own diagnostic errors are excluded. Uncaught exceptions remain owned by the SDK.
+Pass the original `Error` as the first data argument and use a fixed operation identifier:
 
-Reports include exception details, module/window/process, operation, string error code, and the
-React component stack when available. Arbitrary log context and additional business
-data are not forwarded. The existing Sentry redaction applies before sending, and the
-SDK deduplicates consecutive identical exceptions. Local file logging is retained.
+```typescript
+logger.error('Save failed', error, { operation: 'translate.history.save' })
+```
 
-Use a fixed operation identifier in error metadata, for example
-`logger.error('Save failed', error, { operation: 'translate.history.save' })`.
-Operation identifiers allow letters, digits, dots, underscores and hyphens, start
-with a letter, and are at most 80 characters. Never derive them from user input.
-ErrorBoundary uses `react.render`; translate mutations reuse their fixed error
-translation keys. Unhandled renderer errors also carry the HTML-declared window name.
+For logged errors, only `error` entries with stacks are reported; cancellation and
+telemetry diagnostic errors are excluded. Reports include module/window/process, operation, string error code,
+and React component stack when available. Arbitrary log context is excluded and
+credentials are redacted. Never derive operation identifiers from user input;
+use letters, digits, dots, underscores or hyphens, starting with a letter (max 80 characters).
 
-Both processes use the same package-based `release` as source-map uploads, plus
-`app.version`, `app.edition` (`global` / `cn`), and `app.channel` (the prerelease
-identifier, or `stable`). These describe the running build, not the selected update feed.
+Renderer errors are captured in their originating process to retain causes and source-map
+Debug IDs. Both processes share the package-based release and `app.version`,
+`app.edition` (`global` / `cn`), and `app.channel` (prerelease identifier or `stable`).
 
 The following are detailed instructions.
 

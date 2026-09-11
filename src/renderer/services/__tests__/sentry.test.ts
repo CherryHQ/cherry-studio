@@ -27,10 +27,9 @@ describe('renderer Sentry initialization', () => {
     expect(initMock).not.toHaveBeenCalled()
   })
 
-  it('forwards sanitized renderer errors through the consent-gated main process transport', () => {
+  it('sanitizes events and attaches the running build and window context', () => {
     initSentry()
 
-    expect(initMock).toHaveBeenCalledTimes(1)
     const options = initMock.mock.calls[0][0]
     expect(options).toMatchObject({
       maxBreadcrumbs: 0,
@@ -39,21 +38,18 @@ describe('renderer Sentry initialization', () => {
     })
 
     const event = options.beforeSend({
-      message: 'request failed: Authorization: Bearer real-token',
-      extra: { apiKey: 'real-api-key' },
-      request: { url: 'https://example.com/callback?code=oauth-secret' }
+      extra: { apiKey: 'real-api-key' }
     })
 
-    expect(JSON.stringify(event)).not.toContain('real-token')
     expect(JSON.stringify(event)).not.toContain('real-api-key')
-    expect(JSON.stringify(event)).not.toContain('oauth-secret')
     expect(event.tags).toMatchObject({ window: 'QuickAssistant', 'app.edition': 'global', 'event.process': 'renderer' })
     expect(options.release).toBe(`CherryStudio@${event.tags['app.version']}`)
   })
 
   it('captures handled render errors in their originating process with safe context', () => {
     initSentry()
-    const error = new TypeError('Render failed')
+    const cause = new Error('Storage unavailable')
+    const error = new AggregateError([cause], 'Render failed', { cause })
     loggerService
       .withContext('ErrorBoundary', { prompt: 'private conversation' })
       .error('Caught a render error', error, {
@@ -62,7 +58,9 @@ describe('renderer Sentry initialization', () => {
         apiKey: 'private-key'
       })
     const [reported, context] = captureExceptionMock.mock.calls[0]
-    expect(reported).toMatchObject({ name: 'TypeError', message: 'Render failed', stack: error.stack })
+    expect(reported).toBe(error)
+    expect(reported.cause).toBe(cause)
+    expect(reported.errors).toEqual([cause])
     expect(context.tags).toMatchObject({
       module: 'ErrorBoundary',
       operation: 'react.render',

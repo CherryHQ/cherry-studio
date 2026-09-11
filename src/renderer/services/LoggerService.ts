@@ -56,7 +56,7 @@ export class LoggerService {
   private derivedWindow: string = ''
   private module: string = ''
   private context: Record<string, any> = {}
-  private errorReporter?: (entry: Record<string, unknown>) => void
+  private errorReporter?: (error: Error, entry: Record<string, unknown>) => void
 
   constructor() {
     this.derivedWindow = resolveWindowSourceFromMeta(typeof document === 'undefined' ? undefined : document)
@@ -128,7 +128,7 @@ export class LoggerService {
     return newLogger
   }
 
-  public setErrorReporter(reporter: (entry: Record<string, unknown>) => void): void {
+  public setErrorReporter(reporter: (error: Error, entry: Record<string, unknown>) => void): void {
     this.errorReporter = reporter
   }
 
@@ -221,7 +221,7 @@ export class LoggerService {
         void window.electron.ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, serializedData)
         if (level === LEVEL.ERROR && data[0] instanceof Error) {
           try {
-            this.errorReporter?.({ ...serializedData[0], ...source, level, data: serializedData.slice(1) })
+            this.errorReporter?.(data[0], { ...serializedData[0], ...source, level, data: serializedData.slice(1) })
           } catch (error) {
             this.warn('Failed to report logged error', error instanceof Error ? error : { error })
           }
