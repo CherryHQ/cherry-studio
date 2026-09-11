@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next'
 import { agentBrowserRuntimeService as browserRuntime } from '@renderer/services/AgentBrowserRuntimeService'
 import { getGuestAuthorizationKey } from '@renderer/utils/webviewGuest'
 import type { WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
-import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 
 import type { WebviewAnnotationSavedPayload } from './WebviewAnnotationControls'
 import { WebviewHost } from './WebviewHost'
@@ -234,7 +234,7 @@ export function WebviewBrowser({
             key={`${agentSessionId ?? ''}:${guestAuthorizationKey}`}
             id={target.id}
             src={initialUrl}
-            securityProfile={securityProfile}
+            partition={getWebviewPartition(securityProfile)}
             allowPopups={!!agentSessionId || securityProfile === WebviewSecurityProfile.AgentBrowser}
             reloadKey={reloadKey}
             ariaLabel={target.label}

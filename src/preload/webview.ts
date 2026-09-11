@@ -8,8 +8,8 @@ import {
 import {
   isForwardableGuestKey,
   isHostOwnedGuestKey,
-  MINI_APP_KEYDOWN_CHANNEL,
-  toMiniAppKeyPayload
+  toWebviewKeyPayload,
+  WEBVIEW_KEYDOWN_CHANNEL
 } from '@shared/utils/webviewKey'
 
 import { WebviewAnnotationController } from './WebviewAnnotationController'
@@ -19,7 +19,7 @@ const controller = new WebviewAnnotationController(
   (event) => {
     if (event.isComposing || !isForwardableGuestKey(event)) return
     if (isHostOwnedGuestKey(event)) event.preventDefault()
-    ipcRenderer.sendToHost(MINI_APP_KEYDOWN_CHANNEL, toMiniAppKeyPayload(event))
+    ipcRenderer.sendToHost(WEBVIEW_KEYDOWN_CHANNEL, toWebviewKeyPayload(event))
   }
 )
 

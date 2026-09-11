@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotationHostCommand } from '@shared/types/webviewAnnotation'
-import { MINI_APP_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
+import { WEBVIEW_KEYDOWN_CHANNEL } from '@shared/utils/webviewKey'
 
 const sendToHost = vi.fn()
 const ipcListeners = new Map<string, (event: unknown, value: unknown) => void>()
@@ -83,7 +83,7 @@ describe('combined webview preload keyboard relay', () => {
     keydown(event)
 
     expect(sendToHost).toHaveBeenCalledWith(
-      MINI_APP_KEYDOWN_CHANNEL,
+      WEBVIEW_KEYDOWN_CHANNEL,
       expect.objectContaining({ key: 'Escape', isTrusted: true })
     )
   })
@@ -96,7 +96,7 @@ describe('combined webview preload keyboard relay', () => {
 
     expect(event.preventDefault).toHaveBeenCalledOnce()
     expect(event.stopImmediatePropagation).toHaveBeenCalledOnce()
-    expect(sendToHost).not.toHaveBeenCalledWith(MINI_APP_KEYDOWN_CHANNEL, expect.anything())
+    expect(sendToHost).not.toHaveBeenCalledWith(WEBVIEW_KEYDOWN_CHANNEL, expect.anything())
   })
 
   it('still relays non-Escape host shortcuts while annotations are active', () => {
@@ -107,7 +107,7 @@ describe('combined webview preload keyboard relay', () => {
 
     expect(event.preventDefault).toHaveBeenCalledOnce()
     expect(sendToHost).toHaveBeenCalledWith(
-      MINI_APP_KEYDOWN_CHANNEL,
+      WEBVIEW_KEYDOWN_CHANNEL,
       expect.objectContaining({ key: 'f', ctrlKey: true })
     )
   })
@@ -132,7 +132,7 @@ describe('combined webview preload keyboard relay', () => {
       WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
       expect.objectContaining({ type: 'editor_closed' })
     )
-    expect(sendToHost).not.toHaveBeenCalledWith(MINI_APP_KEYDOWN_CHANNEL, expect.anything())
+    expect(sendToHost).not.toHaveBeenCalledWith(WEBVIEW_KEYDOWN_CHANNEL, expect.anything())
 
     sendToHost.mockClear()
     keydown(trustedKey('Escape'))
@@ -168,7 +168,7 @@ describe('combined webview preload keyboard relay', () => {
 
     keydown(trustedKey('Escape'))
 
-    expect(sendToHost).not.toHaveBeenCalledWith(MINI_APP_KEYDOWN_CHANNEL, expect.anything())
+    expect(sendToHost).not.toHaveBeenCalledWith(WEBVIEW_KEYDOWN_CHANNEL, expect.anything())
     sendToHost.mockClear()
     keydown(trustedKey('Escape'))
     expect(sendToHost).toHaveBeenCalledWith(
