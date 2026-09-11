@@ -145,7 +145,7 @@ beforeEach(async () => {
   windows.clear()
   vi.mocked(app.isReady).mockReturnValue(true)
   vi.mocked(application.get).mockImplementation((name) => {
-    if (name === 'BrowserSessionService') return service as never
+    if (name === 'BrowserSessionService') return service
     if (name === 'WindowManager')
       return {
         open: () => {
