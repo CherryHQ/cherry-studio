@@ -31,6 +31,7 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -774,7 +775,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         logger.error('Claude Code query loop failed', {
           sessionId: this.input.sessionId,
           modelId: this.adapterModelId ?? this.input.modelId,
-          error: surfacedError,
+          err: chatErrorContext(surfacedError),
           ...(isProcessFailure && this.processDiagnostics
             ? { diagnosticReference: this.processDiagnostics.reference }
             : {})

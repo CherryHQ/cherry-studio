@@ -7,6 +7,7 @@ import { application } from '@application'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
@@ -1908,7 +1909,9 @@ export class AiStreamManager extends BaseService {
         }
       })
     } catch (err) {
-      if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
+      if (!signal.aborted) {
+        logger.error('streamText failed before stream start', { topicId, modelId, err: chatErrorContext(err) })
+      }
       await this.onExecutionError(topicId, modelId, serializeError(err), exec)
       return
     }
@@ -1951,7 +1954,7 @@ export class AiStreamManager extends BaseService {
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', { topicId, modelId, err: result.threw.error })
+        logger.error('Execution loop error', { topicId, modelId, err: chatErrorContext(result.threw.error) })
       }
       const fromThrow = serializeError(result.threw.error)
       const serialized =

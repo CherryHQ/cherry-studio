@@ -24,6 +24,7 @@ import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
+import { chatErrorContext } from '@main/ai/utils/chatErrorContext'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
@@ -466,7 +467,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.turnActive = false
       this.adapter.abortTurn()
       if (this.closed) return
-      logger.error('dsh prompt failed', error as Error)
+      logger.error('dsh prompt failed', chatErrorContext(error))
       this.eventQueue.push({ type: 'error', error })
     }
   }

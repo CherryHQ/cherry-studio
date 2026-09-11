@@ -9,6 +9,7 @@ import {
   redactRecord,
   redactSecretText,
   redactServerKey,
+  redactToShape,
   redactUrlParams,
   redactUrlToOrigin
 } from '../redaction'
@@ -106,6 +107,61 @@ describe('redactDeep', () => {
   it('leaves plain "code" keys intact (devtools body fidelity)', () => {
     const out = redactDeep({ code: 'print("hi")' }) as Record<string, string>
     expect(out.code).toBe('print("hi")')
+  })
+})
+
+describe('redactToShape', () => {
+  it('keeps the structure of an LLM request body without its conversation text', () => {
+    const out = redactToShape({
+      model: 'gpt-5',
+      temperature: 0.7,
+      stream: true,
+      messages: [{ role: 'user', content: 'my private question '.repeat(20) }],
+      tools: [{ type: 'function', function: { name: 'search_web' } }]
+    }) as Record<string, any>
+
+    expect(out.model).toBe('gpt-5')
+    expect(out.temperature).toBe(0.7)
+    expect(out.stream).toBe(true)
+    expect(out.messages[0].role).toBe('user')
+    expect(out.messages[0].content).toBe('<string:400>')
+    expect(out.tools[0].function.name).toBe('search_web')
+    expect(JSON.stringify(out)).not.toContain('my private question')
+  })
+
+  it('redacts sensitive keys at any depth', () => {
+    const out = redactToShape({ headers: { authorization: 'Bearer abc' }, api_key: 'sk-1' }) as Record<string, any>
+    expect(out.headers.authorization).toBe(REDACTED)
+    expect(out.api_key).toBe(REDACTED)
+  })
+
+  it('keeps numeric values under sensitive-looking keys (max_tokens is not a secret)', () => {
+    const out = redactToShape({ max_tokens: 4096, budget_tokens: 1024, api_key: 'sk-1' }) as Record<string, any>
+    expect(out.max_tokens).toBe(4096)
+    expect(out.budget_tokens).toBe(1024)
+    expect(out.api_key).toBe(REDACTED)
+  })
+
+  it('caps long arrays but keeps the tail — the newest message is the one that failed', () => {
+    const out = redactToShape(Array.from({ length: 30 }, (_, index) => index)) as unknown[]
+    expect(out).toEqual([0, 1, 2, 3, '<22 more items>', 26, 27, 28, 29])
+  })
+
+  it('summarizes beyond the depth cap instead of recursing forever', () => {
+    const cyclic: Record<string, unknown> = { name: 'root' }
+    cyclic.self = cyclic
+    let node = redactToShape(cyclic) as any
+    let depth = 0
+    while (typeof node === 'object' && depth < 20) {
+      node = node.self
+      depth += 1
+    }
+    expect(node).toBe('<object>')
+  })
+
+  it('redacts secrets embedded in short strings', () => {
+    const out = redactToShape({ note: 'token=abc123' }) as Record<string, string>
+    expect(out.note).not.toContain('abc123')
   })
 })
 
