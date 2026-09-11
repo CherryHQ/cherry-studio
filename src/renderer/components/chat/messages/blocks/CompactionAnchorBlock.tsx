@@ -1,3 +1,4 @@
+import { Alert } from '@cherrystudio/ui'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { Loader2 } from 'lucide-react'
 import React from 'react'
@@ -26,6 +27,10 @@ const CompactionAnchorBlock: React.FC<Props> = ({ data }) => {
   // A fold that changed nothing settles as `skipped`: clear the spinner, but draw no
   // marker — an untouched history must not read as a completed compaction (#17837).
   if (data?.status === 'skipped') return null
+
+  if (data?.status === 'failed') {
+    return <Alert type="warning" role="alert" showIcon message={t('chat.compaction.failed')} />
+  }
 
   /** Tokens the fold reclaimed, when the path could measure both ends. */
   const saved =

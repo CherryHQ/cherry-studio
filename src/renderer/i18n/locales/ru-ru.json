@@ -582,6 +582,7 @@
   "chat.compaction.compacted": "Контекст сжат, сохранено ~{{count}} токенов",
   "chat.compaction.compacted_plain": "Контекст сжат",
   "chat.compaction.compacting": "Уплотнение контекста…",
+  "chat.compaction.failed": "Не удалось сжать контекст. Проверьте модель сжатия и настройки её провайдера в настройках управления контекстом и выберите модель для чата. Разговор продолжится без сжатия.",
   "chat.conversation.new": "Новый чат",
   "chat.default.name": "Ассистент Cherry",
   "chat.default.topic.name": "Топик по умолчанию",

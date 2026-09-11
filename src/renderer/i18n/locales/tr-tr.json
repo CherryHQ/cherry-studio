@@ -582,6 +582,7 @@
   "chat.compaction.compacted": "Bağlam sıkıştırıldı, ~{{count}} token tasarrufu sağlandı",
   "chat.compaction.compacted_plain": "Bağlam sıkıştırıldı",
   "chat.compaction.compacting": "Bağlam sıkıştırılıyor…",
+  "chat.compaction.failed": "Bağlam sıkıştırma başarısız oldu. Bağlam yönetimi ayarlarında sıkıştırma modelini ve sağlayıcı yapılandırmasını kontrol edip bir sohbet modeli seçin. Görüşme sıkıştırma olmadan devam edecek.",
   "chat.conversation.new": "Yeni Sohbet",
   "chat.default.name": "Cherry Asistanı",
   "chat.default.topic.name": "Varsayılan Konuşma",

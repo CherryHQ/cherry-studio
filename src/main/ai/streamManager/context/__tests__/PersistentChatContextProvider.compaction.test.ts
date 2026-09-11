@@ -748,14 +748,17 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'skipped'])
   })
 
-  it('2i2. settles the anchor as skipped when the summarizer throws', async () => {
+  it('2i2. settles the anchor as failed when the summarizer throws', async () => {
     fiveBigTurns()
     compressionOn()
     mockSummarizeModelMessages.mockRejectedValueOnce(new Error('summarizer failed'))
 
-    await makeHistory('u3')
+    const { messages } = await makeHistory('u3')
     const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
-    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'skipped'])
+    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'failed'])
+    expect(anchors[0].id).toBe(anchors[1].id)
+    expect(messages.map((message) => message.id)).toEqual(['u1', 'a1', 'u2', 'a2', 'u3'])
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
   })
 
   it('2d. blobs of compacted-away tool outputs stay on the request allow-list', async () => {

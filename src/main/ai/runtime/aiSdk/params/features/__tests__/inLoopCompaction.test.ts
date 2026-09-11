@@ -317,9 +317,10 @@ describe('inLoopCompactionFeature', () => {
       compactModelMessages.mockClear()
       compactModelMessages.mockRejectedValue(new Error('429 rate limited'))
       const { events, prepareStep } = withSink()
-      await prepareStep({ messages: [userMessage(90_000)] } as any)
-      // Nothing was folded, so the spinner clears as `skipped` rather than claiming a compaction.
-      expect(events.map((e) => e.status)).toEqual(['compacting', 'skipped'])
+      const messages = [userMessage(90_000)]
+      await expect(prepareStep({ messages } as any)).resolves.toBeUndefined()
+      expect(events.map((e) => e.status)).toEqual(['compacting', 'failed'])
+      expect(events[0].id).toBe(events[1].id)
     })
 
     // #17837's second half: the `done` anchor was emitted BEFORE the `compacted === candidate`

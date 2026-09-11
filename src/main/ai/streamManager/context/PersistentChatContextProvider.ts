@@ -943,7 +943,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
       models[0],
       { id: topicId, topicId },
-      assistantContextOverride
+      assistantContextOverride,
+      compactionSink
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
@@ -1067,9 +1068,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
-      // Un-compacted history served → settle `skipped`, not `done` (no false marker).
       compactionSink?.(anchorId, {
-        status: 'skipped',
+        status: 'failed',
         phase: 'turn-start',
         startedAt,
         completedAt: new Date().toISOString()

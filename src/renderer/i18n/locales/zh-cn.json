@@ -582,6 +582,7 @@
   "chat.compaction.compacted": "已压缩上下文，节省约 {{count}} tokens",
   "chat.compaction.compacted_plain": "已压缩上下文",
   "chat.compaction.compacting": "正在压缩上下文…",
+  "chat.compaction.failed": "上下文压缩失败。请在上下文管理设置中检查压缩模型及其提供商配置，并选择聊天模型。对话将继续，但不会压缩上下文。",
   "chat.conversation.new": "新对话",
   "chat.default.name": "Cherry 助手",
   "chat.default.topic.name": "默认对话",

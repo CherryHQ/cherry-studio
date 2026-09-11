@@ -251,11 +251,8 @@ export const inLoopCompactionFeature: RequestFeature = {
           logger.warn('in-loop compaction failed; continuing without it for this request', {
             error: error instanceof Error ? error.message : String(error)
           })
-          // Clear the spinner: the turn continues (un-compacted), so leaving a
-          // permanent "compacting…" on screen would misreport the state. Nothing was
-          // folded, so this settles as `skipped` rather than claiming a compaction.
           scope.compactionSink?.(anchorId, {
-            status: 'skipped',
+            status: 'failed',
             phase: 'in-loop',
             startedAt,
             completedAt: new Date().toISOString()

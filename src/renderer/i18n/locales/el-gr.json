@@ -582,6 +582,7 @@
   "chat.compaction.compacted": "Περιεχόμενο συμπυκνωμένο, ~{{count}} tokens εξοικονομήθηκαν",
   "chat.compaction.compacted_plain": "Συμπιεσμένο πλαίσιο",
   "chat.compaction.compacting": "Συμπίεση περιεχομένου…",
+  "chat.compaction.failed": "Η συμπίεση περιβάλλοντος απέτυχε. Ελέγξτε το μοντέλο συμπίεσης και τη διαμόρφωση του παρόχου του στις ρυθμίσεις διαχείρισης περιβάλλοντος και επιλέξτε ένα μοντέλο συνομιλίας. Η συνομιλία θα συνεχιστεί χωρίς συμπίεση.",
   "chat.conversation.new": "Νέα Συνομιλία",
   "chat.default.name": "Βοηθός Cherry",
   "chat.default.topic.name": "Προεπιλεγμένη συνομιλία",

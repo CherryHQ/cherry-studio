@@ -582,6 +582,7 @@
   "chat.compaction.compacted": "コンテキストを圧縮しました、約{{count}}トークン節約",
   "chat.compaction.compacted_plain": "コンテキストが圧縮されました",
   "chat.compaction.compacting": "コンテキストを圧縮中…",
+  "chat.compaction.failed": "コンテキストの圧縮に失敗しました。コンテキスト管理設定で圧縮モデルとプロバイダーの設定を確認し、チャットモデルを選択してください。会話は圧縮せずに続行されます。",
   "chat.conversation.new": "新しいチャット",
   "chat.default.name": "Cherry アシスタント",
   "chat.default.topic.name": "デフォルトトピック",

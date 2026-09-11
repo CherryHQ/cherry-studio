@@ -1,16 +1,22 @@
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { MockLanguageModelV3 } from 'ai/test'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { CompressionModelDescriptor } from '../resolveCompressionModel'
+
 const mockPrefGet = vi.fn()
-vi.mock('@application', () => ({
-  application: { get: () => ({ get: mockPrefGet }) }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ PreferenceService: { get: (key: string) => mockPrefGet(key) } })
+})
 
 const CONVERSATION = { id: 'conversation-1' }
-const mockResolveCompressionModel = vi.fn(async (id: string) => ({
-  languageModel: new MockLanguageModelV3({ modelId: id }),
-  contextWindow: null
-}))
+const mockResolveCompressionModel = vi.fn(
+  async (id: string): Promise<CompressionModelDescriptor | null> => ({
+    languageModel: new MockLanguageModelV3({ modelId: id }),
+    contextWindow: null
+  })
+)
 // Lazy wrapper so the hoisted vi.mock factory doesn't read the const before it initializes.
 vi.mock('../resolveCompressionModel', () => ({
   resolveCompressionModel: (id: string) => mockResolveCompressionModel(id)
@@ -52,6 +58,15 @@ describe('resolveRequestContextSettings — compression-model assembly', () => {
     setPrefs({ modelId: null })
     const { compressionModel } = await resolveRequestContextSettings(model, CONVERSATION)
     expect(compressionModel?.languageModel.modelId).toBe('openai::gpt-4o')
+  })
+
+  it('reports an unavailable compressor without failing the chat request', async () => {
+    setPrefs({ modelId: 'ollama::qwen3-embedding-0.6b' })
+    mockResolveCompressionModel.mockResolvedValueOnce(null)
+    const events: CompactionAnchorData[] = []
+    const result = await resolveRequestContextSettings(model, CONVERSATION, undefined, (_id, data) => events.push(data))
+    expect(result.compressionModel).toBeNull()
+    expect(events).toEqual([{ status: 'failed', phase: 'turn-start' }])
   })
 
   it('uses an explicit compress.model_id when set', async () => {

@@ -15,6 +15,7 @@ import { resolveSdkConfig } from '@main/ai/provider/sdkConfig'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { defaultSettingsMiddleware, wrapLanguageModel } from 'ai'
 
 import type { ConversationRef } from '../types'
@@ -61,6 +62,11 @@ export async function resolveCompressionModel(
       modelId,
       error: (error as Error).message
     })
+    return null
+  }
+
+  if (isNonChatModel(model)) {
+    logger.warn('compression requires a chat model', { providerId, modelId })
     return null
   }
 

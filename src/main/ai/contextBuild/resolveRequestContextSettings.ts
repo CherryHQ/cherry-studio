@@ -1,4 +1,5 @@
 import { application } from '@application'
+import type { CompactionSink } from '@shared/ai/compaction'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import { clampThresholdPercent } from '@shared/utils/contextSettings'
@@ -34,7 +35,8 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
 export async function resolveRequestContextSettings(
   model: Model,
   conversation: ConversationRef,
-  assistantOverride?: ContextSettingsOverride | null
+  assistantOverride?: ContextSettingsOverride | null,
+  compactionSink?: CompactionSink
 ): Promise<{ contextSettings: EffectiveContextSettings; compressionModel: CompressionModelDescriptor | null }> {
   const contextSettings = resolveContextSettings({
     globals: resolveGlobalContextSettings(),
@@ -55,6 +57,10 @@ export async function resolveRequestContextSettings(
     // and compression silently switched off instead of using the current model.
     const compressId = contextSettings.compress.modelId?.trim() || model.id
     compressionModel = await resolveCompressionModel(compressId, conversation)
+    if (!compressionModel) {
+      // Both request builders can resolve the same compressor; update one warning per turn.
+      compactionSink?.(`compression-model:${conversation.id}`, { status: 'failed', phase: 'turn-start' })
+    }
   }
 
   return { contextSettings, compressionModel }

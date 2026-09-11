@@ -582,6 +582,7 @@
   "chat.compaction.compacted": "Contexto compactado, ~{{count}} tokens economizados",
   "chat.compaction.compacted_plain": "Contexto compactado",
   "chat.compaction.compacting": "A compactar contexto…",
+  "chat.compaction.failed": "A compressão do contexto falhou. Verifique o modelo de compressão e a configuração do respetivo fornecedor nas definições de gestão do contexto e selecione um modelo de chat. A conversa continuará sem compressão.",
   "chat.conversation.new": "Novo Chat",
   "chat.default.name": "Assistente Cherry",
   "chat.default.topic.name": "Tópico Padrão",
