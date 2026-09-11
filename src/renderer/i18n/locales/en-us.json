@@ -3667,7 +3667,6 @@
   "settings.data.nutstore.checkConnection.success": "Connected to Nutstore",
   "settings.data.nutstore.isLogin": "Logged in",
   "settings.data.nutstore.login.button": "Login",
-  "settings.data.nutstore.login.failed": "Nutstore login did not complete. Please try again.",
   "settings.data.nutstore.login.invalidCallback": "Nutstore returned an invalid authorization response. Please log in again.",
   "settings.data.nutstore.login.launchFailed": "Could not open the Nutstore authorization page. Check your default browser and try again.",
   "settings.data.nutstore.login.listenFailed": "Cherry Studio could not listen for the Nutstore authorization callback. Restart Cherry Studio and try again.",

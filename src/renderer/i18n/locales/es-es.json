@@ -3667,7 +3667,6 @@
   "settings.data.nutstore.checkConnection.success": "Conexión con Nutstore establecida",
   "settings.data.nutstore.isLogin": "Iniciado sesión",
   "settings.data.nutstore.login.button": "Iniciar Sesión",
-  "settings.data.nutstore.login.failed": "El inicio de sesión en Nutstore no se completó. Inténtalo de nuevo.",
   "settings.data.nutstore.login.invalidCallback": "Nutstore devolvió una respuesta de autorización no válida. Vuelve a iniciar sesión.",
   "settings.data.nutstore.login.launchFailed": "No se pudo abrir la página de autorización de Nutstore. Comprueba tu navegador predeterminado y vuelve a intentarlo.",
   "settings.data.nutstore.login.listenFailed": "Cherry Studio no pudo escuchar la devolución de llamada de autorización de Nutstore. Reinicia Cherry Studio y vuelve a intentarlo.",

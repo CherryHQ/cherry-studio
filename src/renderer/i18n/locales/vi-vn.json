@@ -3667,7 +3667,6 @@
   "settings.data.nutstore.checkConnection.success": "Đã kết nối với Nutstore",
   "settings.data.nutstore.isLogin": "Đã đăng nhập",
   "settings.data.nutstore.login.button": "Đăng nhập",
-  "settings.data.nutstore.login.failed": "Đăng nhập Nutstore chưa hoàn tất. Vui lòng thử lại.",
   "settings.data.nutstore.login.invalidCallback": "Nutstore trả về phản hồi ủy quyền không hợp lệ. Vui lòng đăng nhập lại.",
   "settings.data.nutstore.login.launchFailed": "Không thể mở trang ủy quyền Nutstore. Hãy kiểm tra trình duyệt mặc định và thử lại.",
   "settings.data.nutstore.login.listenFailed": "Cherry Studio không thể lắng nghe lệnh gọi lại ủy quyền Nutstore. Hãy khởi động lại Cherry Studio và thử lại.",

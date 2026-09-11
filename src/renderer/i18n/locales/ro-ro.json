@@ -3667,7 +3667,6 @@
   "settings.data.nutstore.checkConnection.success": "Conectat la Nutstore",
   "settings.data.nutstore.isLogin": "Conectat",
   "settings.data.nutstore.login.button": "Conectare",
-  "settings.data.nutstore.login.failed": "Autentificarea Nutstore nu a fost finalizată. Încercați din nou.",
   "settings.data.nutstore.login.invalidCallback": "Nutstore a returnat un răspuns de autorizare nevalid. Autentificați-vă din nou.",
   "settings.data.nutstore.login.launchFailed": "Pagina de autorizare Nutstore nu a putut fi deschisă. Verificați browserul implicit și încercați din nou.",
   "settings.data.nutstore.login.listenFailed": "Cherry Studio nu a putut asculta callbackul de autorizare Nutstore. Reporniți Cherry Studio și încercați din nou.",

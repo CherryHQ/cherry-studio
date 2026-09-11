@@ -3667,7 +3667,6 @@
   "settings.data.nutstore.checkConnection.success": "Nutstore'a bağlanıldı",
   "settings.data.nutstore.isLogin": "Oturum açıldı",
   "settings.data.nutstore.login.button": "Oturum Aç",
-  "settings.data.nutstore.login.failed": "Nutstore oturum açma işlemi tamamlanamadı. Lütfen tekrar deneyin.",
   "settings.data.nutstore.login.invalidCallback": "Nutstore geçersiz bir yetkilendirme yanıtı döndürdü. Lütfen tekrar oturum açın.",
   "settings.data.nutstore.login.launchFailed": "Nutstore yetkilendirme sayfası açılamadı. Varsayılan tarayıcınızı kontrol edip tekrar deneyin.",
   "settings.data.nutstore.login.listenFailed": "Cherry Studio, Nutstore yetkilendirme geri çağrısını dinleyemedi. Cherry Studio'yu yeniden başlatıp tekrar deneyin.",

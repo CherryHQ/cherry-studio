@@ -3667,7 +3667,6 @@
   "settings.data.nutstore.checkConnection.success": "已连接坚果云",
   "settings.data.nutstore.isLogin": "已登录",
   "settings.data.nutstore.login.button": "登录",
-  "settings.data.nutstore.login.failed": "坚果云登录未完成，请重试。",
   "settings.data.nutstore.login.invalidCallback": "坚果云返回了无效的授权响应。请重新登录。",
   "settings.data.nutstore.login.launchFailed": "无法打开坚果云授权页面。请检查默认浏览器后重试。",
   "settings.data.nutstore.login.listenFailed": "Cherry Studio 无法监听坚果云授权回调。请重启 Cherry Studio 后重试。",
