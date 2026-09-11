@@ -77,12 +77,14 @@ number or boolean is expected). better-sqlite3 binds an array as a positional pa
 named parameters, so one such row made the whole batched `INSERT` fail with "Too few/Too many parameter values
 were provided" (#20301). `McpServerMappings` therefore coerces scalar columns before the insert:
 
-| Column kind | Rule |
+| Column | Rule (`McpServerMappings.ts`) |
 |---|---|
-| Nullable strings (`type`, `description`, `baseUrl`, `command`, `registryUrl`, `logoUrl`, `provider`, `providerUrl`, `reference`, `timeout` text fields) | Strings pass through; anything else becomes `null` |
-| Nullable integers (`timeout`, `longRunning` durations) | Finite numbers and numeric strings are accepted, everything else becomes `null` |
-| Booleans (`isActive`, `disabledAutoApproveTools`, …) | Booleans pass through; `"true"`/`"false"` strings and `0`/`1` are accepted; `isActive` falls back to `false` |
-| `installSource` | Must be one of `builtin`, `manual`, `ai_assisted`, `protocol`, `unknown`; anything else becomes `unknown` |
+| `type` | `toMcpServerType`: one of `stdio`, `sse`, `streamableHttp`, `inMemory` passes through; any other string containing `http` becomes `streamableHttp`; anything else becomes `null` |
+| Nullable strings (`description`, `baseUrl`, `command`, `registryUrl`, `provider`, `providerUrl`, `logoUrl`, `dxtVersion`, `dxtPath`, `reference`, `searchKey`) | `toNullableString`: strings pass through; numbers and booleans are stringified; anything else (objects, arrays, `null`, `undefined`) becomes `null` |
+| Nullable integers (`timeout`, `trustedAt`, `installedAt`) | `toNullableInteger`: finite numbers are truncated to integers; numeric strings are parsed; a `Date` becomes its timestamp; anything else becomes `null` |
+| Nullable booleans (`longRunning`, `shouldConfig`, `isTrusted`, `isActive`) | `toNullableBoolean`: booleans pass through; numbers become `value !== 0`; the strings `"true"` / `"false"` are accepted; anything else becomes `null`. `isActive` additionally falls back to `false` |
+| JSON columns (`args`, `env`, `headers`, `tags`, `configSample`, `disabledTools`, `disabledAutoApproveTools`) | `toNullable`: the value is stored as is; `undefined` becomes `null` |
+| `installSource` | `toInstallSource`: one of `builtin`, `manual`, `ai_assisted`, `protocol`, `unknown` passes through; anything else becomes `null` |
 
 `execute` inserts in batches of 100. If a batch insert throws, the batch is retried row by row: a row that still
 fails is skipped with a warning, excluded from `mcpServerIdMapping` (so assistants lose that reference) and
