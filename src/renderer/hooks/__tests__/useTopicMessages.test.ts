@@ -110,7 +110,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate
-    } as never)
+    })
 
     renderHook(() => useTopicMessages('topic-1'))
 
@@ -162,7 +162,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate
-    } as never)
+    })
 
     renderHook(() => useTopicMessages('topic-1'))
 
@@ -253,7 +253,7 @@ describe('useTopicMessages', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
       mutate: vi.fn().mockResolvedValue(undefined)
-    } as never)
+    })
 
     const { result } = renderHook(() => useTopicMessages('topic-1'))
 
