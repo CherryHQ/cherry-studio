@@ -22,6 +22,8 @@ export type EchoContract = {
     crash: UtilityProcessMethod<void, never>
     /** Logs its input through the per-request child logger. */
     log: UtilityProcessMethod<string, 'logged'>
+    /** Resolves with no value — the shape every `void` method has on the wire. */
+    noop: UtilityProcessMethod<void, void>
   }
 }
 
@@ -73,7 +75,8 @@ export function echoServeOptions(
       log: (message, { logger }) => {
         logger.info(message, { extra: 1 })
         return 'logged'
-      }
+      },
+      noop: () => undefined
     },
     dispose: () => {
       state.disposeCalls += 1

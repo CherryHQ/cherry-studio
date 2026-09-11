@@ -1,7 +1,8 @@
-import { Button } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import { ChevronDown, X } from 'lucide-react'
 import { type ComponentProps, type ReactElement, type ReactNode } from 'react'
+
+import { Button } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
 
 interface HistorySourceFilterFieldProps {
   label: string
@@ -28,8 +29,8 @@ const SourceFilterTrigger = ({
     ref={ref}
     type="button"
     className={cn(
-      'inline-flex h-8 w-fit min-w-[128px] max-w-[220px] items-center justify-between gap-2 whitespace-nowrap',
-      'rounded-md border border-border bg-transparent px-3 font-normal text-foreground text-xs outline-none transition-colors',
+      'inline-flex h-8 w-fit max-w-[220px] min-w-[128px] items-center justify-between gap-2 whitespace-nowrap',
+      'rounded-md border border-border bg-transparent px-3 text-xs font-normal text-foreground transition-colors outline-none',
       'hover:bg-accent/40 focus-visible:bg-accent/40',
       'data-[state=open]:bg-accent/40',
       className
@@ -72,7 +73,7 @@ export const HistorySourceFilterField = ({
           event.stopPropagation()
           onClear()
         }}
-        className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-focus-within/source-select:pointer-events-auto group-focus-within/source-select:opacity-100 group-hover/source-select:pointer-events-auto group-hover/source-select:opacity-100">
+        className="pointer-events-none absolute top-1/2 right-2 flex size-5 min-h-0 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground opacity-0 shadow-none transition-[background-color,color,opacity] group-focus-within/source-select:pointer-events-auto group-focus-within/source-select:opacity-100 group-hover/source-select:pointer-events-auto group-hover/source-select:opacity-100 hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100">
         <X size={12} />
       </Button>
     ) : null}

@@ -840,4 +840,202 @@ describe('utils/image', () => {
       await expect(getImageBlobFromSource('data:;base64,aGVsbG8=')).rejects.toThrow('Invalid image data URL')
     })
   })
+
+  describe('captureScrollableImage (native compositor capture)', () => {
+    const rect = (left: number, top: number, width: number, height: number) =>
+      ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top }) as DOMRect
+
+    const stubGeometry = (el: HTMLElement, width: number, height: number) => {
+      Object.defineProperty(el, 'scrollWidth', { value: width, configurable: true })
+      Object.defineProperty(el, 'scrollHeight', { value: height, configurable: true })
+      el.getBoundingClientRect = () => rect(10, 20, width, height)
+    }
+
+    const originalDocumentElementRect = document.documentElement.getBoundingClientRect.bind(document.documentElement)
+
+    afterEach(() => {
+      document.documentElement.getBoundingClientRect = originalDocumentElementRect
+    })
+
+    it('returns the native capture result without touching the html-to-image pipeline', async () => {
+      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
+      const div = document.createElement('div')
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      const result = await captureScrollableAsDataUrl({ current: div })
+
+      expect(result).toBe('data:image/png;base64,bmF0aXZl')
+      expect(ipcMocks.request).toHaveBeenCalledWith('window.capture_screenshot', {
+        clip: { x: 10, y: 20, width: 800, height: 600 },
+        scale: 1
+      })
+      expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+    })
+
+    it('restores inline styles and the capture marker after a native capture', async () => {
+      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
+      const div = document.createElement('div')
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      await captureScrollableAsDataUrl({ current: div })
+
+      expect(div.style.overflow).toBe('')
+      expect(div.style.height).toBe('')
+      expect(div.style.maxHeight).toBe('')
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
+    })
+
+    it('falls back to the html-to-image pipeline when the native path rejects', async () => {
+      ipcMocks.request.mockRejectedValueOnce(new Error('CDP attach failed'))
+      const div = document.createElement('div')
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      const result = await captureScrollableAsDataUrl({ current: div })
+
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(htmlToImage.toCanvas).toHaveBeenCalled()
+    })
+
+    it('parks an offscreen capture root at positive page coordinates before the native shot', async () => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 300, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 150, configurable: true })
+      // First measure decides the parking (negative origin), second measures
+      // the clip after the element has been repositioned into the document.
+      // In a real browser an absolute child extends the document's scrollHeight
+      // to cover it (CDP-verified), so the mock document is 6150 tall — the
+      // parked element's bottom edge at 6150 stays inside the surface.
+      const rects = [rect(-10000, 0, 300, 150), rect(0, 6000, 300, 150)]
+      div.getBoundingClientRect = vi.fn(() => rects.shift() ?? rect(0, 6000, 300, 150))
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 6150)
+      Object.defineProperty(document.documentElement, 'scrollWidth', { value: 4000, configurable: true })
+      Object.defineProperty(document.documentElement, 'scrollHeight', { value: 6150, configurable: true })
+      ipcMocks.request.mockImplementation(async (_route: string, payload: { clip: { x: number; y: number } }) => {
+        // The compositor answers negative-origin clips with the document
+        // origin region (wrong pixels), so the shot must only fire parked.
+        expect(payload.clip).toMatchObject({ x: 0, y: 6000 })
+        expect(div.style.position).toBe('absolute')
+        expect(div.style.width).toBe('300px')
+        return { dataUrl: 'data:image/png;base64,bmF0aXZl' }
+      })
+
+      try {
+        const result = await captureScrollableAsDataUrl({ current: div })
+
+        expect(result).toBe('data:image/png;base64,bmF0aXZl')
+        expect(htmlToImage.toCanvas).not.toHaveBeenCalled()
+        expect(div.style.position).toBe('')
+        expect(div.style.left).toBe('')
+        expect(div.style.top).toBe('')
+        expect(div.style.width).toBe('')
+      } finally {
+        Reflect.deleteProperty(document.documentElement, 'scrollWidth')
+        Reflect.deleteProperty(document.documentElement, 'scrollHeight')
+      }
+    })
+
+    it('falls back to html-to-image when a parked element still measures off-document', async () => {
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 300, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 150, configurable: true })
+      div.getBoundingClientRect = () => rect(-10000, 0, 300, 150)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      const result = await captureScrollableAsDataUrl({ current: div })
+
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+      expect(htmlToImage.toCanvas).toHaveBeenCalled()
+      expect(div.style.position).toBe('')
+      expect(div.style.width).toBe('')
+    })
+
+    it('falls back when the parked clip extends past the document surface', async () => {
+      // A capture root that stays under a positioned/overflow ancestor after
+      // parking measures inside the document but its bottom edge overflows the
+      // composited surface — captureBeyondViewport would return it blank or
+      // clipped, so the native path must fall back instead of shipping a bad shot.
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 300, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 900, configurable: true })
+      // Parked at y=5900 but the document surface only reaches 6000 — the clip
+      // bottom (5900+900=6800) overflows it.
+      div.getBoundingClientRect = () => rect(0, 5900, 300, 900)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 6000)
+      Object.defineProperty(document.documentElement, 'scrollWidth', { value: 4000, configurable: true })
+      Object.defineProperty(document.documentElement, 'scrollHeight', { value: 6000, configurable: true })
+
+      try {
+        const result = await captureScrollableAsDataUrl({ current: div })
+
+        expect(ipcMocks.request).not.toHaveBeenCalled()
+        expect(result).toBe('data:image/png;base64,xxx')
+        expect(htmlToImage.toCanvas).toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(document.documentElement, 'scrollWidth')
+        Reflect.deleteProperty(document.documentElement, 'scrollHeight')
+      }
+    })
+
+    it('hides interactive HTML artifacts during the native capture and restores them afterwards', async () => {
+      const div = document.createElement('div')
+      const artifact = document.createElement('div')
+      artifact.setAttribute('data-html-artifact', '')
+      div.appendChild(artifact)
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+      ipcMocks.request.mockImplementation(async () => {
+        expect(artifact.style.display).toBe('none')
+        return { dataUrl: 'data:image/png;base64,bmF0aXZl' }
+      })
+
+      const result = await captureScrollableAsDataUrl({ current: div })
+
+      expect(result).toBe('data:image/png;base64,bmF0aXZl')
+      expect(artifact.style.display).toBe('')
+    })
+
+    it('skips the native path for an element with no measurable size', async () => {
+      const div = document.createElement('div')
+
+      const result = await captureScrollableAsDataUrl({ current: div })
+
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(result).toBe('data:image/png;base64,xxx')
+    })
+
+    it('skips the native path when the clip would exceed composited-surface limits', async () => {
+      const div = document.createElement('div')
+      stubGeometry(div, 20000, 100)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 40000, 3000)
+
+      await captureScrollableAsDataUrl({ current: div })
+
+      expect(ipcMocks.request).not.toHaveBeenCalled()
+      expect(htmlToImage.toCanvas).toHaveBeenCalled()
+    })
+
+    it('feeds the native data URL to the blob callback via fetch', async () => {
+      ipcMocks.request.mockResolvedValueOnce({ dataUrl: 'data:image/png;base64,bmF0aXZl' })
+      const div = document.createElement('div')
+      stubGeometry(div, 800, 600)
+      document.documentElement.getBoundingClientRect = () => rect(0, 0, 4000, 3000)
+
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce({ blob: async () => new Blob(['native'], { type: 'image/png' }) } as Response)
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        captureScrollableAsBlob({ current: div }, (result) => resolve(result))
+      )
+
+      expect(fetchSpy).toHaveBeenCalledWith('data:image/png;base64,bmF0aXZl')
+      expect(blob).toBeInstanceOf(Blob)
+      expect(blob?.type).toBe('image/png')
+      fetchSpy.mockRestore()
+    })
+  })
 })

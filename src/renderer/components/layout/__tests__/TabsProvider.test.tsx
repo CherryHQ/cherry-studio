@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
-import { TAB_LIMITS } from '@renderer/services/TabLruManager'
-import type * as RouteTitle from '@renderer/utils/routeTitle'
-import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { TAB_LIMITS } from '@renderer/services/TabLruManager'
+import type * as RouteTitle from '@renderer/utils/routeTitle'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 let currentLanguage = 'en'
 

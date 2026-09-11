@@ -1,10 +1,11 @@
 import { toOpenAPISchema } from '@elysia/openapi'
 import { ScalarRender } from '@elysia/openapi/scalar'
+import type { AnyElysia } from 'elysia'
+import * as z from 'zod'
+
 import { getAppLanguage, SUPPORTED_LANGUAGES, t } from '@main/i18n'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { languageNativeNameMap } from '@shared/utils/languages'
-import type { AnyElysia } from 'elysia'
-import * as z from 'zod'
 
 /** Path under which OpenAPI docs (UI) and the JSON spec (`${OPENAPI_PATH}/json`) are served. */
 export const OPENAPI_PATH = '/openapi' as const

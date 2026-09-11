@@ -1,4 +1,19 @@
 import {
+  Camera,
+  Check,
+  Code,
+  Eye,
+  Maximize2,
+  Minimize2,
+  SaveIcon,
+  ShieldAlert,
+  SquareSplitHorizontal,
+  X
+} from 'lucide-react'
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import {
   Button,
   CodeEditor,
   type CodeEditorHandles,
@@ -28,20 +43,6 @@ import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
 import { isMac } from '@renderer/utils/platform'
-import {
-  Camera,
-  Check,
-  Code,
-  Eye,
-  Maximize2,
-  Minimize2,
-  SaveIcon,
-  ShieldAlert,
-  SquareSplitHorizontal,
-  X
-} from 'lucide-react'
-import { memo, type ReactNode, type RefObject, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import HtmlArtifactPreviewSurface, { htmlArtifactPreviewRequiresInteractive } from './HtmlArtifactPreviewSurface'
 

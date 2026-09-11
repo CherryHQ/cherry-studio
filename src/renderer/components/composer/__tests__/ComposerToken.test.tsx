@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
@@ -10,6 +10,8 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import postcss from 'postcss'
 import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 
 import { serializeComposerDocument } from '../composerDraft'
 import { createComposerEditorPreset } from '../composerPreset'
@@ -146,7 +148,7 @@ vi.mock('@cherrystudio/ui', async () => {
           preventDefault: () => {
             defaultPrevented = true
           }
-        } as Event)
+        })
 
         if (!defaultPrevented) {
           contentRef.current
@@ -162,7 +164,7 @@ vi.mock('@cherrystudio/ui', async () => {
             preventDefault: () => {
               defaultPrevented = true
             }
-          } as Event)
+          })
 
           if (!defaultPrevented) {
             triggerRef.current?.focus()
@@ -218,6 +220,7 @@ vi.mock('react-i18next', () => ({
 const readPastedTextMock = vi.fn()
 
 beforeEach(() => {
+  MockCacheUtils.resetMocks()
   ipcRequestMock.mockReset()
   ipcRequestMock.mockResolvedValue(undefined)
   imagePreviewShowMock.mockReset()
