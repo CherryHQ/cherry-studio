@@ -34,6 +34,15 @@ export function redactUrlCredentials(text: string): string {
 }
 
 /**
+ * Redact the userinfo of a string that already failed URL parsing. Its credential
+ * boundary is unknowable, so everything up to the last `@` counts as userinfo:
+ * over-redaction is the safe direction for an invalid URL.
+ */
+export function redactInvalidUrlCredentials(text: string): string {
+  return text.replace(/\/\/.*@/, `//${REDACTED}:${REDACTED}@`)
+}
+
+/**
  * Deep redaction of nested objects for logging/diagnostics: sensitive keys by
  * name, long strings truncated, circular graphs short-circuited.
  */

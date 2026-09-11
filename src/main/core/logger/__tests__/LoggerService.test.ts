@@ -53,6 +53,15 @@ async function loadLogger() {
   return { loggerService, lines, readLine }
 }
 
+function invalidUrlError(url: string, base?: string): Error {
+  try {
+    new URL(url, base)
+  } catch (error) {
+    if (error instanceof Error) return error
+  }
+  throw new Error(`Expected URL parsing to fail for ${url}`)
+}
+
 describe('LoggerService file output', () => {
   beforeEach(() => {
     flags.dev = false
@@ -81,14 +90,7 @@ describe('LoggerService file output', () => {
       const url = 'http://u:hunter2@host:abc'
       const redacted = 'http://<redacted>:<redacted>@host:abc'
       const lastFrame = `    at ${'x'.repeat(350)} (worker.ts:42:7)`
-      let error: unknown
-      try {
-        new URL(url)
-      } catch (caught) {
-        error = caught
-      }
-      expect(error).toBeInstanceOf(Error)
-      if (!(error instanceof Error)) throw new Error('Expected URL parsing to fail')
+      const error = invalidUrlError(url)
       error.stack = `Error: Failed ${url}\n${lastFrame}`
 
       switch (position) {
@@ -106,7 +108,7 @@ describe('LoggerService file output', () => {
           loggerService.error('Invalid proxy', { urls: [url] })
           break
         case 'tail':
-          loggerService.error('Invalid proxy', { requestId: 'r1' }, url, error)
+          loggerService.error('Invalid proxy', { requestId: 'r1' }, { url }, error)
           break
       }
 
@@ -124,7 +126,7 @@ describe('LoggerService file output', () => {
       if (position === 'array') expect(line.urls).toEqual([redacted])
       if (position === 'tail') {
         expect(line.data).toEqual([
-          redacted,
+          { url: redacted },
           { name: 'TypeError', message: 'Invalid URL', stack: `Error: Failed ${redacted}\n${lastFrame}` }
         ])
       }
@@ -154,6 +156,33 @@ describe('LoggerService file output', () => {
     expect(circular.url).toBe(url)
     expect(circular.self).toBe(circular)
     expect(data.custom.toJSON()).toBe(url)
+  })
+
+  it.each(['input', 'base', 'nested error'])(
+    'redacts a password containing a path character in ERR_INVALID_URL %s',
+    async (position) => {
+      const { loggerService, lines, readLine } = await loadLogger()
+      const url = 'http://user:ab/cd@proxy:8080'
+      const error = position === 'base' ? invalidUrlError('/path', url) : invalidUrlError(url)
+
+      if (position === 'nested error') loggerService.error('Invalid proxy', { error })
+      else loggerService.error('Invalid proxy', error)
+
+      const line = await readLine()
+      const holder = position === 'nested error' ? (line.error as Record<string, unknown>) : line
+      expect(lines[0]).not.toContain('ab/cd')
+      expect(holder.code).toBe('ERR_INVALID_URL')
+      expect(holder[position === 'base' ? 'base' : 'input']).toBe('http://<redacted>:<redacted>@proxy:8080')
+    }
+  )
+
+  it('leaves input fields outside ERR_INVALID_URL untouched', async () => {
+    const { loggerService, readLine } = await loadLogger()
+    const input = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.0.0/dist/standalone.js'
+
+    loggerService.info('Tool call', { input })
+
+    expect((await readLine()).input).toBe(input)
   })
 
   it('adds sys/appver on warn and error but not on info', async () => {

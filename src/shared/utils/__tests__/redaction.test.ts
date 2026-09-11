@@ -5,6 +5,7 @@ import {
   isSensitiveKey,
   redactDeep,
   REDACTED,
+  redactInvalidUrlCredentials,
   redactLiteral,
   redactRecord,
   redactSecretText,
@@ -213,6 +214,23 @@ describe('redactUrlCredentials', () => {
   it('is idempotent so callers can safely compose redaction', () => {
     const redacted = 'http://<redacted>:<redacted>@host/path socks5://<redacted>:<redacted>@[::1]:1080'
     expect(redactUrlCredentials(redacted)).toBe(redacted)
+  })
+})
+
+describe('redactInvalidUrlCredentials', () => {
+  it.each([
+    ['http://user:ab/cd@proxy:8080', 'http://<redacted>:<redacted>@proxy:8080'],
+    ['http://user:ab?cd@proxy:8080', 'http://<redacted>:<redacted>@proxy:8080'],
+    ['http://u:sec@ret@host:abc', 'http://<redacted>:<redacted>@host:abc'],
+    ['http://host:abc', 'http://host:abc'],
+    ['not a url', 'not a url']
+  ])('treats everything up to the last @ as userinfo: %s', (input, expected) => {
+    expect(redactInvalidUrlCredentials(input)).toBe(expected)
+  })
+
+  it('is idempotent', () => {
+    const redacted = 'http://<redacted>:<redacted>@proxy:8080'
+    expect(redactInvalidUrlCredentials(redacted)).toBe(redacted)
   })
 })
 

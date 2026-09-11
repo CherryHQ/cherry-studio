@@ -5,7 +5,7 @@ import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/types/logger'
-import { redactUrlCredentials } from '@shared/utils/redaction'
+import { redactInvalidUrlCredentials, redactUrlCredentials } from '@shared/utils/redaction'
 import { app, ipcMain } from 'electron'
 import os from 'os'
 import path from 'path'
@@ -50,6 +50,9 @@ const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
 const DEV_LOGGING = isDev || DIAGNOSTICS_ENABLED
 
 const DEFAULT_LEVEL = DEV_LOGGING ? LEVEL.SILLY : LEVEL.INFO
+
+const isInvalidUrlError = (value: unknown): boolean =>
+  typeof value === 'object' && value !== null && 'code' in value && value.code === 'ERR_INVALID_URL'
 
 /**
  * IMPORTANT: How to use LoggerService
@@ -141,9 +144,15 @@ export class LoggerService {
         }),
         winston.format.errors({ stack: true }),
         winston.format.json({
-          replacer: (_key, value: unknown) => {
+          replacer(key, value: unknown) {
             if (typeof value === 'bigint') return value.toString()
-            return typeof value === 'string' ? redactUrlCredentials(value) : value
+            if (typeof value !== 'string') return value
+            // Node attaches the raw input and base to ERR_INVALID_URL; the scheme-bounded
+            // scrubber cannot trust the userinfo boundary of a URL that failed to parse.
+            if ((key === 'input' || key === 'base') && isInvalidUrlError(this)) {
+              return redactInvalidUrlCredentials(value)
+            }
+            return redactUrlCredentials(value)
           }
         })
       ),
