@@ -115,4 +115,16 @@ describe('withTerminalErrorFallback', () => {
 
     expect(next).toBe(partsByMessageId)
   })
+
+  it('skips empty-success fallback when includeEmptySuccess is false but keeps error fallback', () => {
+    const messages = [makeMessage('m1', 'success', [stepStart]), makeMessage('m2', 'error', [stepStart])]
+    const partsByMessageId = { m1: [stepStart], m2: [stepStart] }
+
+    const next = withTerminalErrorFallback(messages, partsByMessageId, 'No response', {
+      includeEmptySuccess: false
+    })
+
+    expect(next.m1).toBe(partsByMessageId.m1)
+    expect(next.m2.some((part) => part.type === 'data-error')).toBe(true)
+  })
 })

@@ -277,7 +277,7 @@ export function useHomeMessageListProviderValue({
     topicId,
     topicName: topic.name,
     messages: messageItems,
-    partsByMessageId: displayPartsByMessageId,
+    partsByMessageId,
     streamingLayers: displayStreamingLayers,
     deleteMessage: normalInteractionsEnabled ? deleteMessage : undefined,
     diagnosticReport,

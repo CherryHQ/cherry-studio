@@ -12,13 +12,16 @@ import { hasDismissedNoResponsePart } from '@shared/data/types/uiParts'
  * block. Shared by the agents and home message list adapters. Returns the input
  * map by reference when nothing changes. This is a display fallback for
  * historical / abnormal chains; the authoritative empty-success → error
- * transition is owned by `AiStreamManager`.
+ * transition is owned by `AiStreamManager`. Agent Sessions pass
+ * `includeEmptySuccess: false` since an empty turn is legitimate there.
  */
 export function withTerminalErrorFallback(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
-  noResponseMessage: string
+  noResponseMessage: string,
+  options?: { includeEmptySuccess?: boolean }
 ): Record<string, CherryMessagePart[]> {
+  const includeEmptySuccess = options?.includeEmptySuccess ?? true
   let next = partsByMessageId
 
   for (const message of messages) {
@@ -29,7 +32,7 @@ export function withTerminalErrorFallback(
     const hasVisiblePart = hasRenderableContent(parts)
     const needsFallback =
       (status === 'error' && !parts.some((part) => part.type === 'data-error') && !hasVisiblePart) ||
-      (status === 'success' && !hasVisiblePart)
+      (includeEmptySuccess && status === 'success' && !hasVisiblePart)
     if (!needsFallback) continue
 
     if (next === partsByMessageId) next = { ...partsByMessageId }
