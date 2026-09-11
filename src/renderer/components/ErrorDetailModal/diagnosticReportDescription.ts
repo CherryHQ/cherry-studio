@@ -70,7 +70,7 @@ export function diagnosticReportFields({
 
   return [
     diagnosticReportField('location', location),
-    diagnosticReportField('provider', diagnosisContext?.providerName),
+    diagnosticReportField('provider', diagnosisContext?.providerId),
     diagnosticReportField('model', diagnosisContext?.modelId),
     diagnosticReportField('errorName', error?.name),
     diagnosticReportField('statusCode', errorRecord?.status ?? errorRecord?.statusCode),

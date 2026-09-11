@@ -147,7 +147,7 @@ const MessageErrorInfo: React.FC<{
   const diagnosisContext = useMemo(
     () => ({
       errorSource: 'chat' as const,
-      providerName: errorProviderId,
+      providerId: errorProviderId,
       modelId: errorModelId
     }),
     [errorProviderId, errorModelId]

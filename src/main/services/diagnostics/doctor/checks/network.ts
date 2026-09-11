@@ -1,16 +1,19 @@
 import { application } from '@application'
+import { providerService } from '@main/data/services/ProviderService'
 import type {
   EndpointDiagnosis,
   NetworkEndpointId,
   NetworkFailureKind,
   NetworkLayerResult
 } from '@main/services/network'
+import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
 import type { DoctorCheckId, DoctorEvidenceItem } from '@shared/types/doctor'
 
-import { defineDoctorCheck, type DoctorContext, type DoctorProbeOutcome } from '../types'
+import { defaultChatModel } from '../subjectDefaults'
+import { defineDoctorCheck, type DoctorContextBase, type DoctorProbeOutcome } from '../types'
 
 /** One diagnosis pass per run: every network check reads it instead of resolving the same hosts again. */
-function diagnoseAll(ctx: DoctorContext): Promise<readonly EndpointDiagnosis[]> {
+function diagnoseAll(ctx: DoctorContextBase): Promise<readonly EndpointDiagnosis[]> {
   return ctx.share('network:diagnoses', (signal) => {
     const network = application.get('NetworkService')
     return Promise.all(network.builtinEndpoints().map((endpoint) => network.diagnoseEndpoint(endpoint, signal)))
@@ -125,6 +128,30 @@ const HTTP_VARIANT: Partial<Record<NetworkFailureKind, 'proxy_auth' | 'server_er
   timeout: 'timeout'
 }
 
+type EndpointCheckId = Extract<DoctorCheckId, `network-endpoint-${string}` | 'network-provider-endpoint'>
+
+/** The HTTP layer is the verdict; the other layers already reported through their own checks. */
+function endpointOutcome<Id extends EndpointCheckId>(diagnosis: EndpointDiagnosis): DoctorProbeOutcome<Id> {
+  const evidence = layerEvidence([diagnosis], 'http')
+  if (diagnosis.http.status === 'ok') {
+    return {
+      status: 'pass',
+      detail: { variant: diagnosis.verdict === 'reachable_untrusted_tls' ? 'untrusted_tls' : 'reachable' },
+      evidence
+    }
+  }
+  const failure = diagnosis.http.status === 'failed' ? diagnosis.http : undefined
+  const variant = (failure && HTTP_VARIANT[failure.kind]) ?? 'unreachable'
+  return {
+    status: variant === 'server_error' ? 'warn' : 'fail',
+    attribution: variant === 'server_error' ? 'transient' : 'user-fixable',
+    detail: { variant, params: { code: failure?.code ?? '' } },
+    actions: [NAVIGATE_PROXY],
+    devMessage: `${diagnosis.endpointId} (${diagnosis.host}) ${failure?.kind ?? 'skipped'}: ${failure?.code}`,
+    evidence
+  }
+}
+
 function endpointCheck<Id extends Extract<DoctorCheckId, `network-endpoint-${string}`>>(
   id: Id,
   endpointId: NetworkEndpointId
@@ -134,24 +161,7 @@ function endpointCheck<Id extends Extract<DoctorCheckId, `network-endpoint-${str
     async run(ctx): Promise<DoctorProbeOutcome<Id>> {
       const diagnosis = (await diagnoseAll(ctx)).find((d) => d.endpointId === endpointId)
       if (!diagnosis) throw new Error(`Endpoint "${endpointId}" was not probed`)
-      const evidence = layerEvidence([diagnosis], 'http')
-      if (diagnosis.http.status === 'ok') {
-        return {
-          status: 'pass',
-          detail: { variant: diagnosis.verdict === 'reachable_untrusted_tls' ? 'untrusted_tls' : 'reachable' },
-          evidence
-        }
-      }
-      const failure = diagnosis.http.status === 'failed' ? diagnosis.http : undefined
-      const variant = (failure && HTTP_VARIANT[failure.kind]) ?? 'unreachable'
-      return {
-        status: variant === 'server_error' ? 'warn' : 'fail',
-        attribution: variant === 'server_error' ? 'transient' : 'user-fixable',
-        detail: { variant, params: { code: failure?.code ?? '' } },
-        actions: [NAVIGATE_PROXY],
-        devMessage: `${endpointId} (${diagnosis.host}) ${failure?.kind ?? 'skipped'}: ${failure?.code}`,
-        evidence
-      }
+      return endpointOutcome(diagnosis)
     },
     fixes: {}
   })
@@ -161,3 +171,21 @@ export const endpointUpdate = endpointCheck('network-endpoint-update', 'update')
 export const endpointRegistry = endpointCheck('network-endpoint-registry', 'registry')
 export const endpointCloud = endpointCheck('network-endpoint-cloud', 'cloud')
 export const endpointDiagnostics = endpointCheck('network-endpoint-diagnostics', 'diagnostics')
+
+/** The one endpoint a failing chat actually talks to: its provider's chat base URL. */
+export const providerEndpoint = defineDoctorCheck({
+  id: 'network-provider-endpoint',
+  async run(ctx): Promise<DoctorProbeOutcome<'network-provider-endpoint'>> {
+    const providerId = ctx.subject?.providerId ?? defaultChatModel()?.providerId
+    if (!providerId) throw new Error('Default model configuration changed; rerun the provider-model check')
+    const diagnosis = await ctx.share(`network:provider:${providerId}`, (signal) => {
+      const url = providerChatBaseUrl(providerService.getByProviderId(providerId))
+      if (!url) return Promise.resolve(null)
+      return application.get('NetworkService').diagnoseEndpoint({ id: `provider:${providerId}`, url }, signal)
+    })
+    // A provider without a configured base URL (login-based, cloud SDKs) has nothing to reach.
+    if (!diagnosis) return { status: 'pass' }
+    return endpointOutcome(diagnosis)
+  },
+  fixes: {}
+})

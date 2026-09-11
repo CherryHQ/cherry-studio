@@ -9,7 +9,7 @@ vi.mock('@main/services/diagnostics/scan', async (importOriginal) => ({
 
 import { hardwareAcceleration } from '../checks/config'
 import { recentLogFindings } from '../checks/logs'
-import type { DoctorContext } from '../types'
+import type { DoctorContextBase } from '../types'
 
 it('shares one complete log read between hardware and recent-findings checks', async () => {
   collect
@@ -17,7 +17,7 @@ it('shares one complete log read between hardware and recent-findings checks', a
     .mockRejectedValue(new Error('second read must not run'))
   const memo = new Map<string, Promise<unknown>>()
   const signal = new AbortController().signal
-  const ctx: DoctorContext = {
+  const ctx: DoctorContextBase = {
     signal,
     share: <T>(key: string, factory: (signal: AbortSignal) => Promise<T>): Promise<T> => {
       if (!memo.has(key)) memo.set(key, factory(signal))

@@ -31,7 +31,7 @@ describe('buildDiagnosticReportDescription', () => {
 
     expect(
       diagnosticReportFields({
-        diagnosisContext: { modelId: ' gpt-5 ', providerName: ' OpenAI ' },
+        diagnosisContext: { modelId: ' gpt-5 ', providerId: ' OpenAI ' },
         error,
         location: ' Home conversation '
       })
@@ -59,7 +59,7 @@ describe('buildDiagnosticReportDescription', () => {
     } as SerializedError
 
     const description = buildDiagnosticReportDescription({
-      diagnosisContext: { modelId: 'gpt-5', providerName: 'OpenAI' },
+      diagnosisContext: { modelId: 'gpt-5', providerId: 'OpenAI' },
       error,
       labels,
       location: 'Home conversation'

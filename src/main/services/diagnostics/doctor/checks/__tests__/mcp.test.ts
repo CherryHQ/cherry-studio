@@ -16,7 +16,11 @@ vi.mock('@logger', () => ({
 
 const { mcpLaunchCommands, mcpServersConnected } = await import('../mcp')
 const signal = new AbortController().signal
-const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal) }
+const ctx = {
+  signal,
+  share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal),
+  subject: null
+}
 
 function server(id: string, overrides: Partial<McpServer> = {}): McpServer {
   return { id, name: id, type: 'stdio', command: 'npx', isActive: true, ...overrides }
@@ -34,6 +38,17 @@ beforeEach(() => {
 })
 
 describe('mcp-servers-connected', () => {
+  it("narrows to the subject's servers in a contextual run", async () => {
+    mcpServers.list.mockReturnValue({ items: [server('mine'), server('theirs')] })
+    cache.getShared.mockReturnValue({ state: 'error', lastError: 'boom' })
+
+    await expect(mcpServersConnected.run({ ...ctx, subject: { mcpServerIds: ['mine'] } })).resolves.toMatchObject({
+      status: 'warn',
+      detail: { variant: 'server_errors', params: { count: 1 } },
+      actions: [{ kind: 'fix', fixId: 'restart', target: 'mine' }]
+    })
+  })
+
   it('does not pass when an enabled server has no runtime status', async () => {
     mcpServers.list.mockReturnValue({ items: [server('starting')] })
     cache.getShared.mockReturnValue(undefined)

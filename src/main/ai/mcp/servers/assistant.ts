@@ -14,6 +14,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
+import { providerChatBaseUrl } from '@main/utils/providerEndpoint'
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -710,11 +711,7 @@ class AssistantServer {
         }
       }
 
-      const endpointConfigs = provider.endpointConfigs ?? {}
-      const apiHost =
-        (provider.defaultChatEndpoint && endpointConfigs[provider.defaultChatEndpoint]?.baseUrl) ||
-        Object.values(endpointConfigs)[0]?.baseUrl ||
-        ''
+      const apiHost = providerChatBaseUrl(provider) ?? ''
       const host = redactUrlToOrigin(apiHost)
 
       if (provider.apiKeys.length === 0) {
@@ -724,10 +721,9 @@ class AssistantServer {
       }
 
       // Same layered probe the System Doctor uses; only the origin and the layer verdicts leave here.
-      const testUrl = apiHost.startsWith('http') ? apiHost : `https://${apiHost}`
       const diagnosis = await application
         .get('NetworkService')
-        .diagnoseEndpoint({ id: `provider:${providerId}`, url: testUrl }, AbortSignal.timeout(HEALTH_TIMEOUT_MS))
+        .diagnoseEndpoint({ id: `provider:${providerId}`, url: apiHost }, AbortSignal.timeout(HEALTH_TIMEOUT_MS))
       const layer = (result: { status: string; kind?: string; code?: string; durationMs: number }) => ({
         status: result.status,
         ...(result.kind ? { kind: result.kind } : {}),

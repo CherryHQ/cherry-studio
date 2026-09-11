@@ -1,11 +1,11 @@
 import '@testing-library/jest-dom/vitest'
-
-import { popupService } from '@renderer/services/popup'
-import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS, type DoctorCheckResult, type DoctorState } from '@shared/types/doctor'
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ChangeEvent } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { popupService } from '@renderer/services/popup'
+import { DOCTOR_CHECK_CATALOG, DOCTOR_CHECK_IDS, type DoctorCheckResult, type DoctorState } from '@shared/types/doctor'
 
 vi.unmock('@cherrystudio/ui')
 
@@ -106,6 +106,7 @@ function completedDoctorState(
     report: {
       schemaVersion: 1,
       runId: 'completed-quick',
+      scope: 'global',
       tier: 'quick',
       startedAt: new Date(now - 1_000).toISOString(),
       finishedAt: new Date(now).toISOString(),
@@ -271,7 +272,10 @@ describe('DoctorPopup', () => {
 
     await user.click(await screen.findByRole('button', { name: 'settings.doctor.actions.cancel_run' }))
 
-    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', { runId: `running-${tier}` })
+    expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.cancel', {
+      scope: 'global',
+      runId: `running-${tier}`
+    })
   })
 
   it('uses the export title and keeps generic problem reporting out of the checks menu', async () => {
@@ -343,6 +347,7 @@ describe('DoctorPopup', () => {
       report: {
         schemaVersion: 1,
         runId: 'run-2',
+        scope: 'global',
         tier: 'quick',
         startedAt: new Date(Date.now() - 1_000).toISOString(),
         finishedAt: new Date().toISOString(),
@@ -498,6 +503,7 @@ describe('DoctorPopup', () => {
 
     expect(await screen.findByText('Fixed: 1')).toHaveClass('text-success')
     expect(mocks.request).toHaveBeenCalledWith('diagnostics.doctor.fix', {
+      scope: 'global',
       runId: 'completed-quick',
       checkId: 'permission-accessibility',
       fixId: 'request'

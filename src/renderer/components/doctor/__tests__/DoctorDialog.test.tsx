@@ -60,6 +60,7 @@ function createController(overrides: ControllerOverrides = {}) {
     cancelConfirmation: vi.fn<DoctorController['cancelConfirmation']>(),
     confirmEvidence: vi.fn<DoctorController['confirmEvidence']>(),
     executeAction: vi.fn<DoctorController['executeAction']>(),
+    isAutoRunPending: false,
     isInteracting: false,
     isCloseBlocked: false,
     openLogsPath: vi.fn<DoctorController['openLogsPath']>(),
@@ -69,6 +70,7 @@ function createController(overrides: ControllerOverrides = {}) {
     session: {
       activePanel: 'report',
       descriptionDraft: '',
+      fixedCheckIds: [],
       interaction: { kind: 'idle' },
       relaunchRequired: false
     },
