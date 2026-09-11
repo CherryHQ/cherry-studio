@@ -7,6 +7,8 @@ export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', 
 export const archiveExts = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz'] as const
 export const knowledgeSupportedFileExts = [
   '.txt',
+  '.py',
+  '.m',
   '.markdown',
   '.md',
   '.mdx',

@@ -21,6 +21,13 @@ describe('knowledge file-extension source-of-truth invariants', () => {
     expect(knowledgeFileProcessingExts).toEqual(['.pdf'])
   })
 
+  it('accepts Python and Objective-C source files without remote document processing', () => {
+    for (const ext of ['.py', '.m']) {
+      expect(supported.has(ext)).toBe(true)
+      expect(processing.has(ext)).toBe(false)
+    }
+  })
+
   it('keeps legacy .xls accepted and document-classified even though it is no longer processed', () => {
     expect(supported.has('.xls')).toBe(true)
     expect(document.has('.xls')).toBe(true)
