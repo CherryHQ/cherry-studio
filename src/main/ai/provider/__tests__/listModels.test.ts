@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -337,7 +336,7 @@ describe('listModels — geminiFetcher API key transport', () => {
       },
       settings: {
         extraHeaders: { 'http-referer': 'https://provider.example', 'X-Custom': 'on' }
-      } as never
+      }
     })
 
     await listModels(provider)

@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 /**
  * OpenAI Responses API Message Converter
  *
@@ -18,7 +17,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
+import { jsonSchemaToZod } from './jsonSchemaToZod'
 import type { ReasoningEffort } from './providerOptionsMapper'
 import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 
@@ -275,7 +274,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
       const funcTool = toolDef
       const rawSchema = funcTool.parameters
-      const schema = rawSchema ? jsonSchemaToZod(rawSchema as JsonSchemaLike) : jsonSchemaToZod({ type: 'object' })
+      const schema = rawSchema ? jsonSchemaToZod(rawSchema) : jsonSchemaToZod({ type: 'object' })
 
       const aiTool = tool({
         description: funcTool.description || '',

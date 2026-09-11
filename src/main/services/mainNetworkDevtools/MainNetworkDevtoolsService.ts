@@ -1,8 +1,6 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { randomUUID } from 'node:crypto'
 import http, { type ClientRequest, type IncomingMessage, type RequestOptions } from 'node:http'
 import https from 'node:https'
-import type { AddressInfo } from 'node:net'
 
 import { net } from 'electron'
 import type WebSocket from 'ws'
@@ -302,16 +300,10 @@ export class MainNetworkDevtoolsService extends BaseService {
     this.originalHttpsGet = https.get
     this.originalHttpsRequest = https.request
 
-    this.monitoredHttpGet = this.wrapHttpMethod(this.originalHttpGet as RequestLike, 'http') as typeof http.get
-    this.monitoredHttpRequest = this.wrapHttpMethod(
-      this.originalHttpRequest as RequestLike,
-      'http'
-    ) as typeof http.request
-    this.monitoredHttpsGet = this.wrapHttpMethod(this.originalHttpsGet as RequestLike, 'https') as typeof https.get
-    this.monitoredHttpsRequest = this.wrapHttpMethod(
-      this.originalHttpsRequest as RequestLike,
-      'https'
-    ) as typeof https.request
+    this.monitoredHttpGet = this.wrapHttpMethod(this.originalHttpGet as RequestLike, 'http')
+    this.monitoredHttpRequest = this.wrapHttpMethod(this.originalHttpRequest as RequestLike, 'http')
+    this.monitoredHttpsGet = this.wrapHttpMethod(this.originalHttpsGet as RequestLike, 'https')
+    this.monitoredHttpsRequest = this.wrapHttpMethod(this.originalHttpsRequest as RequestLike, 'https')
 
     http.get = this.monitoredHttpGet
     http.request = this.monitoredHttpRequest
@@ -537,7 +529,7 @@ export class MainNetworkDevtoolsService extends BaseService {
       throw new Error('Main Network DevTools websocket server did not expose a TCP port')
     }
 
-    const listeningPort = (address as AddressInfo).port
+    const listeningPort = address.port
     logger.info(`Main Network DevTools websocket server listening on 127.0.0.1:${listeningPort}`)
 
     this.registerDisposable(() => {

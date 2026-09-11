@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 /**
  * DataApi-backed session queries and mutations.
  *
@@ -36,7 +35,6 @@ import type {
   SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
-import type { ConcreteApiPaths } from '@shared/data/api/types'
 
 const DEFAULT_SESSION_PAGE_SIZE = 20
 const logger = loggerService.withContext('useSession')
@@ -366,7 +364,7 @@ export const useSessions = (
   const reorderSessions = useCallback(
     async (reorderedList: AgentSessionEntity[]) => {
       try {
-        await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
+        await applyReorderedList(reorderedList)
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
       }
@@ -451,16 +449,12 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`]
   })
   const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
     // Switching workspace creates/deletes a backing system workspace row, so
     // refresh the workspace list alongside the session caches.
-    refresh: ({ args }) => [
-      '/agent-sessions',
-      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
-      '/agent-workspaces'
-    ]
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`, '/agent-workspaces']
   })
 
   const updateSession = useCallback(

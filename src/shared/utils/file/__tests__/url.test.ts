@@ -1,9 +1,8 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl, tryFileUrlToPath } from '../url'
 
@@ -153,7 +152,7 @@ describe('fileUrlToPath', () => {
   })
 
   it('throws on malformed percent-encoding', () => {
-    expect(() => fileUrlToPath('file:///foo/%zz.pdf' as FileUrlString)).toThrow(URIError)
+    expect(() => fileUrlToPath('file:///foo/%zz.pdf')).toThrow(URIError)
   })
 
   // Cross-module contract, not a restatement of the decode cases above: the

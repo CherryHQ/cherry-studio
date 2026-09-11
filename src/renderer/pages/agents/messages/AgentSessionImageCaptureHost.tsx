@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { memo, useCallback, useMemo, useRef } from 'react'
 
 import { loggerService } from '@logger'
@@ -7,7 +6,7 @@ import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageI
 import { getAgentSessionExportTitle, getAgentSessionMessagesForExport } from '@renderer/services/agentSessionExport'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Topic } from '@renderer/types/topic'
-import { TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
+import { TopicType } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -49,7 +48,7 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
   const topic = useMemo<Topic>(
     () => ({
       id: topicId,
-      type: TopicType.Session as TopicTypeEnum,
+      type: TopicType.Session,
       assistantId: captureTarget.session.agentId ?? undefined,
       name: sessionExportTitle,
       lastActivityAt: captureTarget.session.lastActivityAt,

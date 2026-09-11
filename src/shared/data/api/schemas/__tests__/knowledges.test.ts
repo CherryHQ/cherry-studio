@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -10,7 +9,6 @@ import {
   isCompletedVectorKnowledgeBase,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KnowledgeAddItemInputSchema,
-  type KnowledgeBase,
   KnowledgeBaseSchema,
   KnowledgeItemSchema,
   RestoreKnowledgeBaseSchema
@@ -750,7 +748,7 @@ describe('isCompletedKnowledgeBase', () => {
       isCompletedKnowledgeBase({
         ...completedBase,
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
-      } as KnowledgeBase)
+      })
     ).toBe(false)
   })
 })
@@ -787,9 +785,9 @@ describe('isCompletedVectorKnowledgeBase', () => {
   })
 
   it('rejects illegal vector states the schema would never produce', () => {
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: null } as KnowledgeBase)).toBe(false)
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: 0 } as KnowledgeBase)).toBe(false)
-    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null } as KnowledgeBase)).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: null })).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: 0 })).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null })).toBe(false)
   })
 
   it('rejects a failed base', () => {

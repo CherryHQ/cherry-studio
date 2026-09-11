@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 /**
  * Provider Service - handles provider CRUD operations
  *
@@ -289,7 +288,7 @@ function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMe
   // Merge settings
   const settings: ProviderSettings = {
     ...DEFAULT_PROVIDER_SETTINGS,
-    ...(row.providerSettings as Partial<ProviderSettings> | null)
+    ...row.providerSettings
   }
 
   // An uploaded logo's file id lives in the ref table (single source of truth);

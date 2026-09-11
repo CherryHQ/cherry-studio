@@ -1,6 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
-import type { ChildProcess } from 'node:child_process'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const crossSpawnMock = vi.hoisted(() => vi.fn())
@@ -44,7 +41,7 @@ describe('removeEnvProxy', () => {
 describe('crossPlatformSpawn (Windows batch shims)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    crossSpawnMock.mockReturnValue({} as ChildProcess)
+    crossSpawnMock.mockReturnValue({})
   })
 
   it.each(['cmd', 'bat'])('delegates a .%s executable and opaque arguments without enabling a shell', (extension) => {

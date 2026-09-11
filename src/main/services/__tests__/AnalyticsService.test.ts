@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -64,7 +63,7 @@ let destroyResolvers: Array<() => void>
 
 function changePreference(key: string, value: boolean | string): void {
   captured.preferenceValues[key] = value
-  captured.prefHandlers[key]?.(value as never)
+  captured.prefHandlers[key]?.(value)
 }
 
 beforeEach(() => {

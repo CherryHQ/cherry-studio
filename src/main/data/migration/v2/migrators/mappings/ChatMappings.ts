@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 /**
  * Chat Mappings - Topic and Message transformation functions for Dexie → SQLite migration
  *
@@ -53,7 +52,6 @@ import { loggerService } from '@logger'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type {
   CherryMessagePart,
-  CitationReference,
   CitationType,
   ContentReference,
   DataUIPart,
@@ -1233,7 +1231,7 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
         results: citationBlock.response.results,
         source: citationBlock.response.source
       }
-    } as CitationReference)
+    })
   }
 
   // Knowledge base citations
@@ -1249,7 +1247,7 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
         file: k.file,
         metadata: k.metadata
       }))
-    } as CitationReference)
+    })
   }
 
   // Memory citations
@@ -1266,7 +1264,7 @@ export function extractCitationReferences(citationBlock: OldCitationBlock): Cont
         score: m.score,
         metadata: m.metadata
       }))
-    } as CitationReference)
+    })
   }
 
   return references

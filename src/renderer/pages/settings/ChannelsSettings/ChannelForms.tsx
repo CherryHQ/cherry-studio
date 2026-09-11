@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useState } from 'react'
@@ -20,7 +19,7 @@ import {
 } from '@cherrystudio/ui'
 import { PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
+import type { FeishuChannelConfig, FeishuDomain } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
 
 import type { ChannelData } from './channelTypes'
@@ -71,7 +70,7 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
         value={channel.permissionMode ?? INHERIT_PERMISSION_MODE_VALUE}
         onValueChange={(value) =>
           onConfigChange({
-            permissionMode: value === INHERIT_PERMISSION_MODE_VALUE ? null : (value as PermissionMode)
+            permissionMode: value === INHERIT_PERMISSION_MODE_VALUE ? null : value
           })
         }>
         <SelectTrigger size="sm" className="w-full">
@@ -220,7 +219,7 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
       <Label className="mb-1 block text-xs">{t('agent.channels.feishu.domain')}</Label>
       <Select
         value={(cfg.domain as FeishuDomain) ?? 'feishu'}
-        onValueChange={(value) => onConfigChange({ config: { ...cfg, domain: value as FeishuDomain } })}>
+        onValueChange={(value) => onConfigChange({ config: { ...cfg, domain: value } })}>
         <SelectTrigger size="sm" className="w-full">
           <SelectValue />
         </SelectTrigger>

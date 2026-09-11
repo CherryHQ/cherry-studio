@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 // Path-safety tests for the knowledge "store by relative path" core. The reject
 // branches of `assertSafeKnowledgeRelativePath` are the security boundary for
 // every copied source file, so they are exercised here through the exported
@@ -299,8 +298,8 @@ describe('pathStorage relative-path safety', () => {
     it('ignores items with non-string or missing path fields', () => {
       const reserved = collectKnowledgeReservedRelativePaths([
         { type: 'url', data: { source: 'https://x', url: 'https://x' } },
-        { type: 'file', data: null as unknown },
-        { type: 'file', data: { relativePath: 42 } as unknown }
+        { type: 'file', data: null },
+        { type: 'file', data: { relativePath: 42 } }
       ])
 
       expect(reserved.size).toBe(0)

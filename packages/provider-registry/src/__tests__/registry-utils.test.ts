@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 /**
  * Unit tests for lookupRegistryModel and buildPersistedEndpointConfigs.
  * Pure functions — no mocking required.
@@ -14,15 +13,14 @@ import {
 } from '../registry-utils'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '../schemas/enums'
 import type { ModelConfig } from '../schemas/model'
-import type { RegistryEndpointConfig } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 
 function makeModel(id: string, overrides: Partial<ModelConfig> = {}): ModelConfig {
-  return { id, name: id, ...overrides } as ModelConfig
+  return { id, name: id, ...overrides }
 }
 
 function makeOverride(providerId: string, modelId: string, extra: Record<string, unknown> = {}): ProviderModelOverride {
-  return { providerId, modelId, ...extra } as ProviderModelOverride
+  return { providerId, modelId, ...extra }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,7 +132,7 @@ describe('buildPersistedEndpointConfigs', () => {
   it('baseUrl only', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result).not.toBeNull()
     expect(result!['openai-chat-completions'].baseUrl).toBe('https://api.openai.com/v1')
@@ -143,7 +141,7 @@ describe('buildPersistedEndpointConfigs', () => {
   it('does not persist a reasoning profile by itself', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { reasoningFormat: { type: 'openai-chat' } }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result).toBeNull()
   })
@@ -160,7 +158,7 @@ describe('buildPersistedEndpointConfigs', () => {
           }
         }
       }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result?.['openai-responses'].dialect).toEqual({ reasoningSummary: true })
   })
@@ -177,7 +175,7 @@ describe('buildPersistedEndpointConfigs', () => {
         modelsApiUrls: urls,
         adapterFamily: 'openai'
       }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     const config = result!['openai-chat-completions']
     expect(config.baseUrl).toBe('https://api.example.com/v1')
@@ -189,7 +187,7 @@ describe('buildPersistedEndpointConfigs', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' },
       'anthropic-messages': { adapterFamily: 'anthropic' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(Object.keys(result!)).toHaveLength(2)
     expect(result!['openai-chat-completions'].baseUrl).toBe('https://api.openai.com/v1')
@@ -200,7 +198,7 @@ describe('buildPersistedEndpointConfigs', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': {},
       'anthropic-messages': { baseUrl: 'https://api.anthropic.com' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(Object.keys(result!)).toHaveLength(1)
     expect(result!['openai-chat-completions']).toBeUndefined()
@@ -211,7 +209,7 @@ describe('buildPersistedEndpointConfigs', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': {},
       'anthropic-messages': {}
-    } as Record<string, RegistryEndpointConfig>)
+    })
     expect(result).toBeNull()
   })
 
@@ -219,7 +217,7 @@ describe('buildPersistedEndpointConfigs', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { baseUrl: 'https://x', adapterFamily: 'openai-compatible' },
       'anthropic-messages': { baseUrl: 'https://y', adapterFamily: 'anthropic' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result!['openai-chat-completions'].adapterFamily).toBe('openai-compatible')
     expect(result!['anthropic-messages'].adapterFamily).toBe('anthropic')
@@ -228,7 +226,7 @@ describe('buildPersistedEndpointConfigs', () => {
   it('adapterFamily alone is enough to retain an endpoint config', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { adapterFamily: 'openai-compatible' }
-    } as Record<string, RegistryEndpointConfig>)
+    })
 
     expect(result!['openai-chat-completions'].adapterFamily).toBe('openai-compatible')
     expect(result!['openai-chat-completions'].baseUrl).toBeUndefined()

@@ -1,6 +1,5 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import type { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
-import type { SpecialLanguage, ThemedToken } from 'shiki/core'
+import type { ThemedToken } from 'shiki/core'
 import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'
 
 import { loggerService } from '@logger'
@@ -106,7 +105,7 @@ export async function loadLanguageIfNeeded(
     const shiki = await getShiki()
     try {
       if (['text', 'ansi'].includes(language)) {
-        await highlighter.loadLanguage(language as SpecialLanguage)
+        await highlighter.loadLanguage(language)
       } else {
         const languageImportFn = shiki.bundledLanguages[language]
         const langData = await languageImportFn()

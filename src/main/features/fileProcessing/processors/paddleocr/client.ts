@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import type { PaddleOCRClient as PaddleOCRClientType } from '@paddleocr/api-sdk'
 import { net } from 'electron'
 
@@ -42,7 +41,7 @@ export async function createPaddleClient(apiHost: string, apiKey: string) {
     return net.fetch(sanitizeRemoteUrl(url, apiHost), {
       ...init,
       redirect: 'error'
-    } as RequestInit)
+    })
   }
 
   return new PaddleOCRClient({

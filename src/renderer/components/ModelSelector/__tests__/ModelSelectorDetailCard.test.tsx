@@ -1,10 +1,9 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { act, render, screen } from '@testing-library/react'
 import type { ReactNode, Ref } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as I18nLabelModule from '@renderer/i18n/label'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
@@ -115,13 +114,13 @@ const provider: Provider = {
   apiKeys: [],
   authType: 'api-key',
   reportsActualCost: false,
-  settings: {} as Provider['settings'],
+  settings: {},
   isEnabled: true
 }
 
 function makeModel(overrides: Partial<Model> = {}): Model {
   return {
-    id: 'openai::gpt-4o-mini' as UniqueModelId,
+    id: 'openai::gpt-4o-mini',
     providerId: provider.id,
     apiModelId: 'gpt-4o-mini',
     name: 'GPT-4o mini',
@@ -304,7 +303,7 @@ describe('ModelSelectorDetailCard', () => {
 
   it('renders the localized Ultra effort for GPT-6 Astra', () => {
     const model = makeModel({
-      id: 'openai-codex::gpt-6-astra' as UniqueModelId,
+      id: 'openai-codex::gpt-6-astra',
       providerId: 'openai-codex',
       apiModelId: 'gpt-6-astra',
       name: 'GPT-6 Astra',

@@ -1,8 +1,5 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import type { Span } from '@opentelemetry/api'
 import { describe, expect, it } from 'vitest'
-
-import type { UniqueModelId } from '@shared/data/types/model'
 
 import {
   applyTurnInputAttributes,
@@ -25,7 +22,7 @@ describe('applyTurnInputAttributes', () => {
   it('sets gen_ai identity + the last user message as the inputs', () => {
     const { span, attributes } = fakeSpan()
     applyTurnInputAttributes(span, {
-      modelId: 'openai::gpt-4' as UniqueModelId,
+      modelId: 'openai::gpt-4',
       topicId: 'topic-1',
       operation: 'invoke_agent',
       messages: [
@@ -47,7 +44,7 @@ describe('applyTurnInputAttributes', () => {
   it('sets gen_ai.agent.name when an agent name is provided', () => {
     const { span, attributes } = fakeSpan()
     applyTurnInputAttributes(span, {
-      modelId: 'anthropic::claude' as UniqueModelId,
+      modelId: 'anthropic::claude',
       topicId: 't',
       operation: 'invoke_agent',
       agentName: 'Research Agent'
@@ -57,7 +54,7 @@ describe('applyTurnInputAttributes', () => {
 
   it('does NOT set token usage (that is message.stats job)', () => {
     const { span, attributes } = fakeSpan()
-    applyTurnInputAttributes(span, { modelId: 'openai::gpt-4' as UniqueModelId, topicId: 't', operation: 'chat' })
+    applyTurnInputAttributes(span, { modelId: 'openai::gpt-4', topicId: 't', operation: 'chat' })
     expect(Object.keys(attributes)).not.toContain('gen_ai.usage.input_tokens')
     expect(attributes.inputs).toBeUndefined() // no messages → no prompt
   })
@@ -112,7 +109,7 @@ describe('applyTurnOutputAttributes', () => {
     const { span, attributes } = fakeSpan()
     const longPrompt = 'p'.repeat(MAX_TURN_INPUT_CHARS + 100)
     applyTurnInputAttributes(span, {
-      modelId: 'openai::gpt-4' as UniqueModelId,
+      modelId: 'openai::gpt-4',
       topicId: 't',
       operation: 'chat',
       // biome-ignore lint/suspicious/noExplicitAny: minimal UIMessage fixture

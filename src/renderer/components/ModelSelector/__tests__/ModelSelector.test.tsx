@@ -1,4 +1,3 @@
-// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode, Ref } from 'react'
@@ -163,7 +162,7 @@ const provider: Provider = {
   apiKeys: [],
   authType: 'api-key',
   reportsActualCost: false,
-  settings: {} as Provider['settings'],
+  settings: {},
   isEnabled: true
 }
 
@@ -256,8 +255,8 @@ describe('ModelSelector', () => {
   })
 
   it('shows only the model identifier under a persistent provider group', () => {
-    const item = makeModelItem('openai::gpt-4-variant-a' as UniqueModelId, {
-      model: { ...makeModel('openai::gpt-4-variant-a' as UniqueModelId), name: 'GPT-4' },
+    const item = makeModelItem('openai::gpt-4-variant-a', {
+      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
       modelIdentifier: 'gpt-4-variant-a',
       showIdentifier: true
     })
@@ -289,10 +288,10 @@ describe('ModelSelector', () => {
   })
 
   it('keeps the provider in a pinned row without a provider group', () => {
-    const item = makeModelItem('openai::gpt-4-variant-a' as UniqueModelId, {
+    const item = makeModelItem('openai::gpt-4-variant-a', {
       key: 'openai::gpt-4-variant-a_pinned',
       groupKind: 'pinned',
-      model: { ...makeModel('openai::gpt-4-variant-a' as UniqueModelId), name: 'GPT-4' },
+      model: { ...makeModel('openai::gpt-4-variant-a'), name: 'GPT-4' },
       modelIdentifier: 'gpt-4-variant-a',
       isPinned: true,
       showIdentifier: true
@@ -429,7 +428,7 @@ describe('ModelSelector', () => {
       <ModelSelector
         open
         multiple={false}
-        value={makeModel('openai::gpt-4' as UniqueModelId)}
+        value={makeModel('openai::gpt-4')}
         noneOptionLabel="No model"
         trigger={<button type="button">open</button>}
         onOpenChange={onOpenChange}
