@@ -107,7 +107,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id),
       explorerLoopStatus: (name, toolIn) =>
-        sessionState().getExplorerLoopStatus(sessionId, name, toolIn, input.agent_id)
+        sessionState().getExplorerLoopStatus(sessionId, name, toolIn, input.agent_id, cwd)
     })
     if (!decision) {
       // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
@@ -127,7 +127,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
       // Ladder warnings for explorer tools (Identical 3/4, File read 7/8/9, Exploration 10/15/20/25/28/29).
       if (EXPLORER_TOOLS.has(toolName)) {
-        const status = sessionState().getExplorerLoopStatus(sessionId, toolName, toolInput, input.agent_id)
+        const status = sessionState().getExplorerLoopStatus(sessionId, toolName, toolInput, input.agent_id, cwd)
         if (status) {
           // Identical call ladder warnings (3, 4)
           if (status.identicalRun === 3) {
@@ -350,7 +350,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
               ((input.tool_input as Record<string, unknown>).output_path as string | undefined) ??
               ((input.tool_input as Record<string, unknown>).notebook_path as string | undefined))
             : undefined
-        sessionState().recordExplorerRunBreak(sessionId, mutatedPath, agentId)
+        sessionState().recordExplorerRunBreak(sessionId, mutatedPath, agentId, cwd)
       } else if (
         (input.hook_event_name === 'PostToolUse' || input.hook_event_name === 'PostToolUseFailure') &&
         EXPLORER_TOOLS.has(input.tool_name)
@@ -359,7 +359,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
           sessionId,
           input.tool_name,
           input.tool_input as Record<string, unknown> | undefined,
-          agentId
+          agentId,
+          cwd
         )
       }
       return {}

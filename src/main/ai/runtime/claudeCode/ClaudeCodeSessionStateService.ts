@@ -183,11 +183,12 @@ export class ClaudeCodeSessionStateService extends BaseService {
     sessionId: string,
     toolName: string,
     input: Readonly<Record<string, unknown>> | undefined,
-    agentId?: string
+    agentId?: string,
+    cwd?: string
   ): void {
     const key = this.explorerScopeKey(sessionId, agentId)
     const state = this.explorerLoopStates.get(key) ?? createInitialExplorerState()
-    recordExplorerCallState(state, toolName, input)
+    recordExplorerCallState(state, toolName, input, cwd)
     this.explorerLoopStates.set(key, state)
   }
 
@@ -195,12 +196,13 @@ export class ClaudeCodeSessionStateService extends BaseService {
     sessionId: string,
     toolName: string,
     input: Readonly<Record<string, unknown>> | undefined,
-    agentId?: string
+    agentId?: string,
+    cwd?: string
   ): ExplorerLoopEvaluation | undefined {
     const key = this.explorerScopeKey(sessionId, agentId)
     const state = this.explorerLoopStates.get(key)
     if (!state) return undefined
-    return evaluateIncomingExplorerCall(state, toolName, input)
+    return evaluateIncomingExplorerCall(state, toolName, input, cwd)
   }
 
   /**
@@ -208,11 +210,11 @@ export class ClaudeCodeSessionStateService extends BaseService {
    * If `mutatedFilePath` is provided, ONLY that file's readCount is cleared (per-file scoped reset);
    * unmutated files retain their slice constraints to prevent dummy-edit resets.
    */
-  recordExplorerRunBreak(sessionId: string, mutatedFilePath?: string, agentId?: string): void {
+  recordExplorerRunBreak(sessionId: string, mutatedFilePath?: string, agentId?: string, cwd?: string): void {
     const key = this.explorerScopeKey(sessionId, agentId)
     const state = this.explorerLoopStates.get(key)
     if (state) {
-      recordExplorerMutationState(state, mutatedFilePath)
+      recordExplorerMutationState(state, mutatedFilePath, cwd)
     }
   }
 

@@ -90,7 +90,8 @@ export function normalizePath(
 /** Canonicalizes tool name and its arguments so key order and formatting differences do not drift. */
 export function normalizeExplorerSignature(
   toolName: string,
-  input: Readonly<Record<string, unknown>> | undefined
+  input: Readonly<Record<string, unknown>> | undefined,
+  cwd?: string
 ): string {
   if (!input) return `${toolName}:{}`
 
@@ -99,7 +100,7 @@ export function normalizeExplorerSignature(
   for (const k of sortedKeys) {
     const val = input[k]
     if ((k === 'file_path' || k === 'path') && typeof val === 'string') {
-      sortedObj[k] = normalizePath(val)
+      sortedObj[k] = normalizePath(val, undefined, cwd)
     } else {
       sortedObj[k] = val
     }
@@ -120,9 +121,10 @@ export function createInitialExplorerState(): ExplorerState {
 export function evaluateIncomingExplorerCall(
   state: ExplorerState,
   toolName: string,
-  input: Readonly<Record<string, unknown>> | undefined
+  input: Readonly<Record<string, unknown>> | undefined,
+  cwd?: string
 ): ExplorerLoopEvaluation {
-  const signature = normalizeExplorerSignature(toolName, input)
+  const signature = normalizeExplorerSignature(toolName, input, cwd)
   const nextIdenticalRun = signature === state.lastSignature ? state.identicalSignatureRun + 1 : 1
   const nextConsecutiveReads = state.consecutiveReads + 1
 
@@ -133,7 +135,7 @@ export function evaluateIncomingExplorerCall(
 
   const rawPath =
     typeof input?.file_path === 'string' ? input.file_path : typeof input?.path === 'string' ? input.path : undefined
-  const normPath = normalizePath(rawPath)
+  const normPath = normalizePath(rawPath, undefined, cwd)
 
   if (toolName === 'Read' && normPath) {
     evalResult.filePath = rawPath
@@ -155,9 +157,10 @@ export function evaluateIncomingExplorerCall(
 export function recordExplorerCallState(
   state: ExplorerState,
   toolName: string,
-  input: Readonly<Record<string, unknown>> | undefined
+  input: Readonly<Record<string, unknown>> | undefined,
+  cwd?: string
 ): void {
-  const signature = normalizeExplorerSignature(toolName, input)
+  const signature = normalizeExplorerSignature(toolName, input, cwd)
   state.consecutiveReads++
   if (signature === state.lastSignature) {
     state.identicalSignatureRun++
@@ -168,7 +171,7 @@ export function recordExplorerCallState(
 
   const rawPath =
     typeof input?.file_path === 'string' ? input.file_path : typeof input?.path === 'string' ? input.path : undefined
-  const normPath = normalizePath(rawPath)
+  const normPath = normalizePath(rawPath, undefined, cwd)
 
   if (toolName === 'Read' && normPath) {
     const fileRecord = state.files.get(normPath)
@@ -185,8 +188,8 @@ export function recordExplorerCallState(
  * If a mutated file path is provided, ONLY that file's readCount is reset to 0.
  * The consecutive unmutated exploration count is always reset to 0.
  */
-export function recordExplorerMutationState(state: ExplorerState, mutatedFilePath?: string): void {
-  const normPath = normalizePath(mutatedFilePath)
+export function recordExplorerMutationState(state: ExplorerState, mutatedFilePath?: string, cwd?: string): void {
+  const normPath = normalizePath(mutatedFilePath, undefined, cwd)
   if (normPath && state.files.has(normPath)) {
     const fileRecord = state.files.get(normPath)
     if (fileRecord) {
