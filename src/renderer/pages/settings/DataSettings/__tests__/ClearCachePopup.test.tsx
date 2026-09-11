@@ -1,7 +1,8 @@
-import type * as PopupService from '@renderer/services/popup'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as PopupService from '@renderer/services/popup'
 
 const inspectMock = vi.hoisted(() => vi.fn())
 const inspectBrowserMock = vi.hoisted(() => vi.fn())

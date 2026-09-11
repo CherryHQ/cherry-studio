@@ -1,3 +1,8 @@
+import { Activity, GitBranch } from 'lucide-react'
+import type { PropsWithChildren } from 'react'
+import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
   createResourcePaneCapability,
@@ -14,10 +19,6 @@ import {
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { Activity, GitBranch } from 'lucide-react'
-import type { PropsWithChildren } from 'react'
-import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 

@@ -1,3 +1,8 @@
+import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import type React from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   RowFlex,
@@ -28,10 +33,6 @@ import { cn } from '@renderer/utils/style'
 import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanupIpc'
 import { LOG_RETENTION_DAYS } from '@shared/types/logger'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
-import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
-import type React from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'

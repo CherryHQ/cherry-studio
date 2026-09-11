@@ -1,7 +1,8 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import { Elysia } from 'elysia'
+
 import { application } from '@application'
 import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
-import { Elysia } from 'elysia'
 
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'

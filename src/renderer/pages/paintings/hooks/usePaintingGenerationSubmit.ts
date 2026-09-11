@@ -1,5 +1,6 @@
-import type { FileEntry } from '@shared/data/types/file'
 import { useCallback, useRef, useState } from 'react'
+
+import type { FileEntry } from '@shared/data/types/file'
 
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'

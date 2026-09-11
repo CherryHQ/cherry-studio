@@ -1,3 +1,9 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { eq, getTableName } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
   chatMessageFileRefTable,
@@ -15,13 +21,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { eq, getTableName } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `@logger` is mocked globally by tests/main.setup.ts with the unified
 // MockMainLoggerService singleton — assert on `mockMainLoggerService.warn`.
@@ -65,7 +65,7 @@ describe('FileEntryService', () => {
     })
 
     it('returns null for missing id', async () => {
-      const result = fileEntryService.findById('019606a0-0000-7000-8000-9999ffffffff' as FileEntryId)
+      const result = fileEntryService.findById('019606a0-0000-7000-8000-9999ffffffff')
       expect(result).toBeNull()
     })
 
@@ -1641,7 +1641,7 @@ describe('FileEntryService', () => {
     })
 
     it('is idempotent on missing id', async () => {
-      expect(fileEntryService.delete('019606a0-0000-7000-8000-000000000cff' as FileEntryId)).toBeUndefined()
+      expect(fileEntryService.delete('019606a0-0000-7000-8000-000000000cff')).toBeUndefined()
     })
   })
 
@@ -1913,7 +1913,7 @@ describe('FileEntryService', () => {
         cleanupPolicy: 'manual',
         name: 'e',
         ext: 'txt',
-        externalPath: '/abs/orphan.txt' as AbsoluteFilePath
+        externalPath: '/abs/orphan.txt'
       })
 
       const externalsOnly = fileEntryService.findManualUnreferenced({ origin: 'external' })

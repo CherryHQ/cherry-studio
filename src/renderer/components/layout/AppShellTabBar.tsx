@@ -1,11 +1,3 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
-import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
-import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
-import { isMac } from '@renderer/utils/platform'
-import { cn } from '@renderer/utils/style'
 import { ArrowLeft, Plus, X } from 'lucide-react'
 import {
   cloneElement,
@@ -18,6 +10,15 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
+import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 
 import { WindowControls } from '../WindowControls'
 import { ShellTabBarActions } from './ShellTabBarActions'
@@ -258,7 +259,7 @@ const NormalTabButton = ({
       onClose()
       return
     }
-    const tabButton = (e.currentTarget as HTMLElement).closest('[data-tab-id]') as HTMLElement | null
+    const tabButton = e.currentTarget.closest('[data-tab-id]') as HTMLElement | null
     // Fractional width: freezing to a rounded offsetWidth would shift every tab
     // boundary at the freeze snap (flexbox resolves fractional widths).
     onClose(tabButton?.getBoundingClientRect().width || undefined)

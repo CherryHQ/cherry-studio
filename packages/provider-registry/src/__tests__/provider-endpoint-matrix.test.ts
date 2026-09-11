@@ -24,7 +24,7 @@ const endpointsOf = (providerId: string, modelId: string): string[] | undefined 
     .overrides?.map((o) => splitOverrideWireId(o))
     .find((o) => o.modelId === modelId)
   if (!entry) throw new Error(`Missing override: ${providerId}/${modelId}`)
-  return entry.endpointTypes as string[] | undefined
+  return entry.endpointTypes
 }
 
 describe('dashscope (Bailian) endpoint matrix', () => {
