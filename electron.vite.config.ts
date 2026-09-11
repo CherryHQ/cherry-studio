@@ -1,3 +1,4 @@
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
@@ -43,6 +44,20 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
 
+const SENTRY_UPLOAD_ENV_KEYS = ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT'] as const
+
+export function resolveSentryBuildSettings(env: NodeJS.ProcessEnv) {
+  const enabled = Boolean(env.MAIN_VITE_SENTRY_DSN?.trim())
+  const sourceMapUploadEnabled = env.NODE_ENV === 'production' && env.SENTRY_SOURCE_MAP_UPLOAD === 'true' && enabled
+  const missingUploadEnv = sourceMapUploadEnabled ? SENTRY_UPLOAD_ENV_KEYS.filter((key) => !env[key]?.trim()) : []
+
+  if (missingUploadEnv.length > 0) {
+    throw new Error(`Sentry production builds require: ${missingUploadEnv.join(', ')}`)
+  }
+
+  return { enabled, sourceMapUploadEnabled }
+}
+
 export function resolveRendererEdition(value: string | undefined): AppEdition {
   const edition = value?.trim().toLowerCase() || 'global'
   if (APP_EDITIONS.includes(edition as AppEdition)) return edition as AppEdition
@@ -50,6 +65,26 @@ export function resolveRendererEdition(value: string | undefined): AppEdition {
 }
 
 const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
+const { enabled: sentryEnabled, sourceMapUploadEnabled } = resolveSentryBuildSettings(process.env)
+const sentrySourceMap = sourceMapUploadEnabled ? ('hidden' as const) : isDev
+const sentrySourceMapPlugins = (outputDirectory: 'main' | 'preload' | 'renderer') =>
+  sourceMapUploadEnabled
+    ? sentryVitePlugin({
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+        org: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+        telemetry: false,
+        release: {
+          name: `${pkg.name}@${pkg.version}`,
+          create: false,
+          finalize: false,
+          setCommits: false
+        },
+        sourcemaps: {
+          filesToDeleteAfterUpload: `./out/${outputDirectory}/**/*.map`
+        }
+      })
+    : []
 
 // Bundle/externalize split for the main process: everything in `dependencies` is
 // marked `external` below (kept in node_modules of the packaged app), and everything
@@ -114,7 +149,12 @@ export const mainResolveAlias = {
 
 export default defineConfig({
   main: {
-    plugins: [chunkExportGuardPlugin(), miniAppThemeAssetPlugin(), ...visualizerPlugin('main')],
+    plugins: [
+      chunkExportGuardPlugin(),
+      miniAppThemeAssetPlugin(),
+      ...visualizerPlugin('main'),
+      ...sentrySourceMapPlugins('main')
+    ],
     resolve: { alias: mainResolveAlias },
     build: {
       lib: { entry: resolve(__dirname, 'src/main/main.ts') },
@@ -135,7 +175,7 @@ export default defineConfig({
           warn(warning)
         }
       },
-      sourcemap: isDev
+      sourcemap: sentrySourceMap
     },
     esbuild: isProd ? { legalComments: 'none' } : {},
     optimizeDeps: {
@@ -146,7 +186,8 @@ export default defineConfig({
     plugins: [
       react({
         tsDecorators: true
-      })
+      }),
+      ...sentrySourceMapPlugins('preload')
     ],
     resolve: {
       alias: {
@@ -154,7 +195,7 @@ export default defineConfig({
       }
     },
     build: {
-      sourcemap: isDev,
+      sourcemap: sentrySourceMap,
       rollupOptions: {
         // Unlike renderer which auto-discovers entries from HTML files,
         // preload requires explicit entry point configuration for multiple scripts
@@ -177,7 +218,8 @@ export default defineConfig({
       __APP_EDITION__: JSON.stringify(rendererEdition),
       __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
       __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
-      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
+      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version),
+      __SENTRY_ENABLED__: JSON.stringify(sentryEnabled)
     },
     plugins: [
       uiContractPlugin(),
@@ -192,7 +234,8 @@ export default defineConfig({
         tsDecorators: true
       }),
       ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
-      ...visualizerPlugin('renderer')
+      ...visualizerPlugin('renderer'),
+      ...sentrySourceMapPlugins('renderer')
     ],
     resolve: {
       alias: {
@@ -223,6 +266,7 @@ export default defineConfig({
       format: 'es'
     },
     build: {
+      sourcemap: sentrySourceMap,
       target: 'esnext', // for build
       rollupOptions: {
         input: {

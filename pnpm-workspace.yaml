@@ -109,6 +109,7 @@ allowBuilds:
   '@j178/prek': true
   '@paymoapp/electron-shutdown-handler': true
   '@scarf/scarf': true
+  '@sentry/cli': true
   '@swc/core': true
   better-sqlite3: true
   canvas: false

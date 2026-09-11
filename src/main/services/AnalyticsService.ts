@@ -7,6 +7,8 @@ import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { app } from 'electron'
 
+import { setSentryReportingEnabled } from './sentry'
+
 const logger = loggerService.withContext('AnalyticsService')
 
 @Injectable('AnalyticsService')
@@ -41,6 +43,7 @@ export class AnalyticsService extends BaseService implements Activatable {
     this.desiredEnabled =
       preferenceService.get('app.privacy.data_collection.enabled') &&
       preferenceService.get('app.privacy.policy_version') === LATEST_PRIVACY_POLICY_VERSION
+    setSentryReportingEnabled(this.desiredEnabled)
     this.reconciler.request()
   }
 
