@@ -51,6 +51,7 @@ import {
   AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
+  LMStudioModelsResponseSchema,
   NewApiModelsResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
@@ -806,6 +807,52 @@ const openAICompatibleFetcher: ModelFetcher = {
   }
 }
 
+const lmStudioFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.lmstudio),
+  fetch: async (provider, signal) => {
+    const root = withoutTrailingApiVersion(formatApiHost(getBaseUrl(provider), false).replace(/\/api\/v0$/, ''))
+    let response: z.infer<typeof LMStudioModelsResponseSchema>
+    try {
+      response = await getFromApi({
+        url: `${root}/api/v0/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: LMStudioModelsResponseSchema,
+        abortSignal: signal
+      })
+    } catch (error) {
+      logger.warn('LM Studio /api/v0/models failed; falling back to /v1/models', {
+        providerId: provider.id,
+        errorType: getErrorType(error)
+      })
+      const baseUrl = formatApiHost(root)
+      const fallback = await getFromApi({
+        url: `${baseUrl}/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      })
+      return dedup(fallback.data, (m) => m.id).map((m) =>
+        toModel(m.id, provider, { name: m.name || m.id, ownedBy: m.owned_by })
+      )
+    }
+
+    return dedup(response.data, (m) => m.id).map((m) => {
+      const type = m.type?.toLowerCase()
+      const endpointTypes = type?.startsWith('embedding') ? [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] : undefined
+      const capability =
+        endpointImpliedCapability(endpointTypes?.[0]) ??
+        (type === 'vlm' ? MODEL_CAPABILITY.IMAGE_RECOGNITION : undefined)
+
+      return toModel(m.id, provider, {
+        ownedBy: m.publisher,
+        ...(endpointTypes ? { endpointTypes } : {}),
+        ...(capability ? { capabilities: [capability] } : {}),
+        ...(m.max_context_length ? { contextWindow: m.max_context_length } : {})
+      })
+    })
+  }
+}
+
 // ── Ollama probe ──
 
 /** Lightweight model-existence check for Ollama — avoids loading the model into memory. */
@@ -840,6 +887,7 @@ export async function probeOllamaModel(
 const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
+  lmStudioFetcher,
   geminiFetcher,
   vertexFetcher,
   copilotFetcher,
