@@ -3,6 +3,8 @@ import { EventEmitter } from 'node:events'
 import { vi } from 'vitest'
 
 export function createGuest(id = 1) {
+  let backgroundThrottling = true
+  let capturing = false
   let attached = false
   let destroyed = false
   const debuggerEvents = new EventEmitter()
@@ -23,8 +25,21 @@ export function createGuest(id = 1) {
   const events = new EventEmitter()
   const mock = Object.assign(events, {
     id,
+    session: new EventEmitter(),
     debugger: debuggerSession,
     isDestroyed: vi.fn(() => destroyed),
+    getType: vi.fn(() => 'window'),
+    getBackgroundThrottling: vi.fn(() => backgroundThrottling),
+    setBackgroundThrottling: vi.fn((allowed: boolean) => {
+      backgroundThrottling = allowed
+    }),
+    isCapturing: () => capturing,
+    beginFrameSubscription: vi.fn(() => {
+      capturing = true
+    }),
+    endFrameSubscription: vi.fn(() => {
+      capturing = false
+    }),
     isDevToolsOpened: vi.fn(() => false),
     getTitle: vi.fn(() => 'Test page'),
     getURL: vi.fn(() => 'https://example.com'),

@@ -13,15 +13,7 @@ export const ListTabsSchema = z.object({
 export const listTabsToolDefinition = {
   name: 'list_tabs',
   description: 'List all open tabs with their IDs, URLs, and titles. Use to see what pages are currently open.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      privateMode: {
-        type: 'boolean',
-        description: 'List tabs from private window (default: false)'
-      }
-    }
-  }
+  inputSchema: ListTabsSchema
 }
 
 export async function handleListTabs(controller: CdpBrowserController, args: unknown) {
@@ -45,20 +37,7 @@ export const SwitchTabSchema = z.object({
 export const switchTabToolDefinition = {
   name: 'switch_tab',
   description: 'Switch to a specific tab by its ID. Use after list_tabs to activate a different tab.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      tabId: {
-        type: 'string',
-        description: 'Tab ID to switch to (from list_tabs or open response)'
-      },
-      privateMode: {
-        type: 'boolean',
-        description: 'Target private window (default: false)'
-      }
-    },
-    required: ['tabId']
-  }
+  inputSchema: SwitchTabSchema
 }
 
 export async function handleSwitchTab(controller: CdpBrowserController, args: unknown) {
@@ -82,20 +61,7 @@ export const CloseTabSchema = z.object({
 export const closeTabToolDefinition = {
   name: 'close_tab',
   description: 'Close a specific tab by its ID. Use to free resources when done with a page.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      tabId: {
-        type: 'string',
-        description: 'Tab ID to close (from list_tabs or open response)'
-      },
-      privateMode: {
-        type: 'boolean',
-        description: 'Target private window (default: false)'
-      }
-    },
-    required: ['tabId']
-  }
+  inputSchema: CloseTabSchema
 }
 
 export async function handleCloseTab(controller: CdpBrowserController, args: unknown) {

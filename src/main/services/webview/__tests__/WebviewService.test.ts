@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events'
 import { shell } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as LifecycleModule from '@main/core/lifecycle'
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 const {
@@ -44,7 +45,8 @@ vi.mock('@application', () => ({
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
-vi.mock('@main/core/lifecycle', () => ({
+vi.mock('@main/core/lifecycle', async (importOriginal) => ({
+  ...(await importOriginal<typeof LifecycleModule>()),
   BaseService: class {
     private readonly disposables: Array<() => void> = []
     registerDisposable<T>(disposable: T) {
@@ -95,8 +97,8 @@ beforeEach(() => {
   browserService = new BrowserSessionService()
   getBrowserService.mockReturnValue(browserService)
 })
-afterEach(() => {
-  ;(browserService as unknown as { onStop(): void }).onStop()
+afterEach(async () => {
+  await (browserService as unknown as { onStop(): Promise<void> }).onStop()
 })
 
 interface MockContents extends EventEmitter {

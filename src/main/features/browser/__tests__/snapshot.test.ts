@@ -185,7 +185,7 @@ describe('browser snapshots', () => {
     const raw = fixture()
     const key = raw.dom!.strings.push('href') - 1
     const value = raw.dom!.strings.push(href) - 1
-    raw.dom!.documents[0].nodes.attributes[2] = [key, value]
+    raw.dom!.documents[0].nodes.attributes![2] = [key, value]
     const tree = buildSnapshotTree(raw, (id) => `e${id}`)
     expect(tree.nodes.find((node) => node.backendNodeId === 3)?.props).toContain(`href=${safeHref}`)
     expect(JSON.stringify(tree)).not.toContain('SECRET')
@@ -196,7 +196,7 @@ describe('browser snapshots', () => {
     if (href !== undefined) {
       const key = raw.dom!.strings.push('href') - 1
       const value = href === '' ? -1 : raw.dom!.strings.push(href) - 1
-      raw.dom!.documents[0].nodes.attributes[2] = [key, value]
+      raw.dom!.documents[0].nodes.attributes![2] = [key, value]
     }
     const result = await session.snapshot({ full: true, maxChars: 6000 })
     const button = result.snapshot.nodes.find((node) => node.backendNodeId === 3)!
@@ -225,6 +225,12 @@ describe('browser snapshots', () => {
     expect(previous.snapshot.documentId).toBe('document-1')
     expect(next.snapshot.documentId).toBe('document-1')
     expect(session.resolveRef('e1')).toBe(2)
+  })
+
+  it('rejects incomplete DOM attributes instead of losing password identification', () => {
+    const raw = fixture()
+    raw.dom!.documents[0].nodes.attributes = undefined
+    expect(() => buildSnapshotTree(raw, (id) => `e${id}`)).toThrow('DOM snapshot is incomplete')
   })
 
   it('validates refs and enforces a bounded output request', () => {

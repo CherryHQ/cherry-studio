@@ -1,4 +1,4 @@
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import type { McpServer as SdkMcpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -8,7 +8,9 @@ import { redactRecord } from '@shared/utils/redaction'
 
 const logger = loggerService.withContext('McpFactory')
 
-type InMemoryServerLoader = (args: string[], envs: Record<string, string>) => Promise<Server>
+type InMemoryServer = Pick<SdkMcpServer, 'connect'>
+
+type InMemoryServerLoader = (args: string[], envs: Record<string, string>) => Promise<InMemoryServer>
 
 const inMemoryServers: Partial<Record<BuiltinMcpServerName, InMemoryServerLoader>> = {
   [BuiltinMcpServerNames.memory]: async (_args, envs) => {
@@ -44,8 +46,7 @@ const inMemoryServers: Partial<Record<BuiltinMcpServerName, InMemoryServerLoader
     return new DiDiMcpServer(envs.DIDI_API_KEY).server
   },
   [BuiltinMcpServerNames.browser]: async () => {
-    const { BrowserServer } = await import('./browser')
-    return new BrowserServer().server
+    return application.get('BrowserSessionService').createMcpServer()
   }
 }
 
@@ -58,7 +59,7 @@ export async function createInMemoryMcpServer(
   name: string,
   args: string[] = [],
   envs: Record<string, string> = {}
-): Promise<Server> {
+): Promise<InMemoryServer> {
   logger.debug(
     `[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(redactRecord(envs))}`
   )
