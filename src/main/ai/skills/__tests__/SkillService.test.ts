@@ -1784,6 +1784,31 @@ describe('SkillService', () => {
       await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
     })
 
+    it('syncBuiltinSkill honors a persisted mirror opt-out', async () => {
+      vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-creator'))
+      const builtinDir = await writeLibrarySkill('skill-creator', '# trusted')
+      const trustedHash = await skillService['computeBuiltinDirectoryHash'](builtinDir)
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_BUILTIN,
+        name: 'skill-creator',
+        folderName: 'skill-creator',
+        source: 'builtin',
+        contentHash: trustedHash,
+        isEnabled: false,
+        mirrorEnabled: false
+      })
+
+      // a mirror left behind by the default-on first install
+      await skillService.linkMirror('skill-creator')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-creator'))).resolves.toBeUndefined()
+
+      // returns filesUpdated (library copy refreshed), independent of the mirror state
+      expect(await skillService.syncBuiltinSkill('skill-creator', builtinDir, '1.0.0', null)).toBe(true)
+      expect(agentGlobalSkillService.getByFolderName('skill-creator')?.mirrorEnabled).toBe(false)
+      await expect(fs.promises.access(path.join(mirrorRoot, 'skill-creator'))).rejects.toThrow()
+    })
+
     it('reconcileSkills drops mirrors for skills opted out of the mirror', async () => {
       vi.mocked(parseSkillMetadata).mockReset()
       await writeLibrarySkill('skill-one')

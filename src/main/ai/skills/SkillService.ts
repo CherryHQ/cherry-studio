@@ -1242,7 +1242,13 @@ export class SkillService {
         })
       }
 
-      await this.linkMirror(destFolderName)
+      if (existing?.mirrorEnabled === false) {
+        // A persisted opt-out survives builtin refreshes: keep the library copy
+        // current but leave the ~/.agents/skills projection removed.
+        await this.unlinkMirror(destFolderName)
+      } else {
+        await this.linkMirror(destFolderName)
+      }
       logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
       return filesUpdated
     })
