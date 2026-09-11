@@ -36,8 +36,6 @@ export const isAllowedRoute = (path: string): boolean => {
   return ALLOWED_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 }
 
-let nextNavigationRequestId = 0
-
 /** Id of the live (non-destroyed) main window, or undefined when it is missing/destroyed. */
 function resolveLiveMainWindowId(): string | undefined {
   const windowManager = application.get('WindowManager')
@@ -45,61 +43,115 @@ function resolveLiveMainWindowId(): string | undefined {
   return mainWindow && !mainWindow.isDestroyed() ? windowManager.getWindowId(mainWindow) : undefined
 }
 
-/**
- * Tabs awaiting delivery to a main renderer that has not yet mounted its
- * `tab.attached` listener (cold boot, reload, or crash recovery). A directed
- * IpcApi send to a listener-less webContents is dropped silently — Electron
- * does not buffer it — so tabs are queued here and flushed once the renderer
- * reports ready via `navigation.protocol_dispatch_ready`.
- */
-const pendingTabAttachQueue: Tab[] = []
-let isMainRendererReadyForTabAttach = false
+type PendingMainWindowDelivery = { kind: 'route'; path: string } | { kind: 'tab-attach'; tab: Tab }
 
 /**
- * Mark the main renderer ready and deliver any tabs queued while it was not.
+ * Commands awaiting a main renderer that has not mounted its listeners yet
+ * (cold boot, reload, or crash recovery). Electron does not buffer directed
+ * sends, so preserve their real order and flush after
+ * `navigation.protocol_dispatch_ready`. Only adjacent exact route duplicates
+ * are coalesced; repeating a route after another command is a distinct user
+ * intent and must retain its place in the sequence.
+ */
+/** Owns queued deliveries and readiness across individual main-window rebuilds. */
+class MainWindowNavigationService {
+  nextNavigationRequestId = 0
+  pendingMainWindowDeliveries: PendingMainWindowDelivery[] = []
+  isMainRendererReadyForDelivery = false
+  isActive = true
+}
+
+const mainWindowNavigationService = new MainWindowNavigationService()
+
+function enqueueRouteNavigation(path: string): void {
+  const { pendingMainWindowDeliveries } = mainWindowNavigationService
+  const previous = pendingMainWindowDeliveries.at(-1)
+  if (previous?.kind === 'route' && previous.path === path) return
+  pendingMainWindowDeliveries.push({ kind: 'route', path })
+}
+
+function enqueueTabAttach(tab: Tab): void {
+  const { pendingMainWindowDeliveries } = mainWindowNavigationService
+  const existingIndex = pendingMainWindowDeliveries.findIndex(
+    (delivery) => delivery.kind === 'tab-attach' && delivery.tab.id === tab.id
+  )
+  if (existingIndex >= 0) {
+    // Refresh the payload without moving its original request position across other delivery kinds.
+    pendingMainWindowDeliveries[existingIndex] = { kind: 'tab-attach', tab }
+    return
+  }
+  pendingMainWindowDeliveries.push({ kind: 'tab-attach', tab })
+}
+
+/**
+ * Mark the main renderer ready and deliver any routes or tabs queued while it was not.
  * Called from the `navigation.protocol_dispatch_ready` handler, alongside
  * ProtocolService.onMainRendererReady. The renderer only sends that IPC after
- * its mount effects flush, so `useIpcOn('tab.attached')` is registered by the
- * time this delivers — keep the ready signal in a mount-time effect.
+ * its mount effects flush, so navigation and `tab.attached` listeners are
+ * registered by the time this delivers — keep the ready signal in a mount-time effect.
  */
-export function markMainRendererReadyForTabAttach(senderId: string): void {
+export function markMainRendererReadyForDelivery(senderId: string): void {
+  if (!mainWindowNavigationService.isActive) return
   if (application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
-  isMainRendererReadyForTabAttach = true
-  flushPendingTabAttaches()
+  mainWindowNavigationService.isMainRendererReadyForDelivery = true
+  flushPendingMainWindowDeliveries()
 }
 
 /**
  * Invalidate renderer readiness (window destroyed, webContents reloading, or
- * renderer crashed). Queued tabs are kept — they flush into the next ready
- * renderer, with the target window resolved at flush time, not enqueue time.
+ * renderer crashed). Queued routes and tabs are kept — they flush into the
+ * next ready renderer, with the target window resolved at flush time, not enqueue time.
  */
-export function resetMainRendererTabAttachDelivery(): void {
-  isMainRendererReadyForTabAttach = false
+export function resetMainRendererDelivery(): void {
+  mainWindowNavigationService.isMainRendererReadyForDelivery = false
 }
 
-function flushPendingTabAttaches(): void {
-  if (!isMainRendererReadyForTabAttach || pendingTabAttachQueue.length === 0) return
+/** Clear readiness and discard commands when the owning service is stopped or destroyed. */
+export function clearMainWindowDeliveryState(): void {
+  resetMainRendererDelivery()
+  mainWindowNavigationService.pendingMainWindowDeliveries.splice(0)
+}
+
+/** Stop accepting deliveries after MainWindowService leaves the lifecycle. */
+export function stopMainWindowNavigation(): void {
+  mainWindowNavigationService.isActive = false
+  clearMainWindowDeliveryState()
+}
+
+/** Re-enable delivery when the owning MainWindowService is initialized. */
+export function startMainWindowNavigation(): void {
+  mainWindowNavigationService.isActive = true
+}
+
+function flushPendingMainWindowDeliveries(): void {
+  const { pendingMainWindowDeliveries } = mainWindowNavigationService
+  if (!mainWindowNavigationService.isMainRendererReadyForDelivery || pendingMainWindowDeliveries.length === 0) return
   const mainWindowId = resolveLiveMainWindowId()
   if (!mainWindowId) return
-  // splice clears in place, so a duplicate ready signal cannot replay the queue.
-  const queued = pendingTabAttachQueue.splice(0)
-  for (const tab of queued) {
-    application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)
+  const queued = pendingMainWindowDeliveries.splice(0)
+  for (const delivery of queued) {
+    if (delivery.kind === 'route') {
+      application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', {
+        to: delivery.path
+      })
+    } else {
+      application.get('IpcApiService').send(mainWindowId, 'tab.attached', delivery.tab)
+    }
   }
 }
 
 /**
  * A live window id only proves the BrowserWindow exists — the renderer may still
- * be booting, reloading, or crashed, with no `tab.attached` listener mounted.
+ * be booting, reloading, or crashed, with no navigation listeners mounted.
  * The ready flag plus a synchronous webContents check covers the reload() →
  * did-start-loading gap that event-driven resets cannot see.
  */
-function isTabDeliveryReady(windowId: string): boolean {
-  if (!isMainRendererReadyForTabAttach) return false
+function isMainRendererDeliveryReady(windowId: string): boolean {
+  if (!mainWindowNavigationService.isMainRendererReadyForDelivery) return false
   const win = application.get('WindowManager').getWindow(windowId)
   if (!win || win.isDestroyed()) return false
   if (win.webContents.isLoadingMainFrame() || win.webContents.isCrashed()) {
-    isMainRendererReadyForTabAttach = false
+    mainWindowNavigationService.isMainRendererReadyForDelivery = false
     return false
   }
   return true
@@ -132,24 +184,36 @@ export function acknowledgeMainWindowNavigation(windowId: string, requestId: num
  *
  * - Window alive → the navigation is a one-shot COMMAND: deliver it as the
  *   directed `navigation.open_route_requested` IpcApi event (ephemeral, no
- *   store write, no replay on reload), then raise the window. Unlike tab
- *   attach this does not gate on renderer readiness: a dropped navigation is
- *   re-triggerable and harmless, while a dropped tab attach is not (the
- *   source sub-window closes).
- * - Window missing/destroyed → the window is being created FOR this route, so
- *   the route is genuine init data; `showMainWindow(initData)` stores it before
- *   creation and the renderer picks it up on cold start.
+ *   store write, no replay on reload), then raise the window. If the renderer
+ *   is still booting or reloading, queue each distinct requested route and
+ *   deliver them in request order after `navigation.protocol_dispatch_ready`.
+ * - Window missing/destroyed → when this route starts a fresh rebuild, it is
+ *   genuine init data and the renderer picks it up on cold start. If another
+ *   delivery already started the rebuild, append this route to the unified
+ *   queue instead so route/tab ordering is preserved when the renderer becomes
+ *   ready.
  *
  * Do NOT push navigation through init data on a live window: init data is
  * lifecycle state, persists in the store, and replays on renderer reload.
  */
 export function openRouteInMainWindow(path: string): void {
+  if (!mainWindowNavigationService.isActive) return
   const mainWindowService = application.get('MainWindowService')
 
   const mainWindowId = resolveLiveMainWindowId()
 
   if (mainWindowId) {
-    application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', { to: path })
+    if (isMainRendererDeliveryReady(mainWindowId)) {
+      application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', { to: path })
+    } else {
+      enqueueRouteNavigation(path)
+    }
+    mainWindowService.showMainWindow()
+    return
+  }
+
+  if (mainWindowNavigationService.pendingMainWindowDeliveries.length > 0) {
+    enqueueRouteNavigation(path)
     mainWindowService.showMainWindow()
     return
   }
@@ -157,7 +221,7 @@ export function openRouteInMainWindow(path: string): void {
   mainWindowService.showMainWindow({
     kind: 'navigation',
     to: path,
-    requestId: nextNavigationRequestId++
+    requestId: mainWindowNavigationService.nextNavigationRequestId++
   } satisfies MainWindowInitData)
 }
 
@@ -168,23 +232,31 @@ export function openRouteInMainWindow(path: string): void {
  * - Window alive → deliver the tab as the directed `tab.attached` event
  *   (TabsProvider re-absorbs it), then raise the window — which also covers
  *   the close-to-tray case where the main window exists but is hidden.
- * - Window missing/destroyed → the main window is being rebuilt FOR this tab,
- *   so the tab rides along as cold-start init data (`kind: 'tab-attach'`) that
- *   the renderer attaches on boot.
+ * - Window missing/destroyed → when this tab starts a fresh rebuild, it rides
+ *   along as cold-start init data (`kind: 'tab-attach'`). If a rebuild is
+ *   already pending, append it to the unified route/tab queue instead so the
+ *   renderer observes the original request order once ready.
  */
 export function openTabInMainWindow(tab: Tab): void {
+  if (!mainWindowNavigationService.isActive) return
   const mainWindowService = application.get('MainWindowService')
 
   const mainWindowId = resolveLiveMainWindowId()
 
   if (mainWindowId) {
-    if (isTabDeliveryReady(mainWindowId)) {
+    if (isMainRendererDeliveryReady(mainWindowId)) {
       application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)
-    } else if (!pendingTabAttachQueue.some((queued) => queued.id === tab.id)) {
+    } else {
       // Renderer not ready (fresh boot/reload/crash): queue the tab instead of
       // dropping the event; flush happens when it reports ready.
-      pendingTabAttachQueue.push(tab)
+      enqueueTabAttach(tab)
     }
+    mainWindowService.showMainWindow()
+    return
+  }
+
+  if (mainWindowNavigationService.pendingMainWindowDeliveries.length > 0) {
+    enqueueTabAttach(tab)
     mainWindowService.showMainWindow()
     return
   }
@@ -192,7 +264,7 @@ export function openTabInMainWindow(tab: Tab): void {
   mainWindowService.showMainWindow({
     kind: 'tab-attach',
     tab,
-    requestId: nextNavigationRequestId++
+    requestId: mainWindowNavigationService.nextNavigationRequestId++
   } satisfies MainWindowInitData)
 }
 

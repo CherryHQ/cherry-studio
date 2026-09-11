@@ -187,6 +187,25 @@ describe('ShortcutService', () => {
     expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+numadd', expect.any(Function))
   })
 
+  it('registers and executes an opt-in workspace navigation shortcut', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.work.open', {
+      binding: ['CommandOrControl', 'Shift', 'W'],
+      enabled: true
+    })
+
+    await (service as any).onInit()
+
+    const registration = globalShortcutMock.register.mock.calls.find(
+      ([accelerator]) => accelerator === 'CommandOrControl+Shift+W'
+    )
+    expect(registration).toBeTruthy()
+
+    const handler = registration?.[1] as (() => void) | undefined
+    handler?.()
+
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.work.open', mainWindow)
+  })
+
   it.each([false, true])('handles a window-local zoom shortcut with shift=%s', async (shift) => {
     await (service as any).onInit()
 
