@@ -179,7 +179,7 @@ remain excluded for as long as v1 downgrade support exists.
 - Per-Session configuration that moved to the parent Agent.
 
 Related user-visible behavior is recorded under
-`v2-refactor-temp/docs/breaking-changes/`.
+`docs/changelog/`.
 
 ## Implementation files
 

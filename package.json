@@ -48,6 +48,7 @@
     "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:unused:check && pnpm i18n:hardcoded:strict && pnpm skills:check && pnpm docs:check",
     "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:provider-registry && pnpm test:scripts",
     "claude": "dotenv -e .env -- claude",
+    "data:generate": "node scripts/data-classify/scripts/generate-all.js",
     "db:migrations:check": "drizzle-kit check --config ./migrations/sqlite-drizzle.config.ts",
     "db:migrations:generate": "drizzle-kit generate --config ./migrations/sqlite-drizzle.config.ts",
     "debug": "pnpm rebuild:electron && pnpm run build:utility-process && dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
