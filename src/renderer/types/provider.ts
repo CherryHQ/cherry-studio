@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import type OpenAI from '@cherrystudio/openai'
 import type { Model } from '@renderer/types/model'
 import type { OpenAIVerbosity } from '@shared/types/aiSdk'
@@ -7,7 +9,6 @@ import {
   SystemProviderIds,
   SystemProviderIdSchema
 } from '@shared/utils/systemProviderId'
-import * as z from 'zod'
 
 export const ProviderTypeSchema = z.enum([
   'openai',

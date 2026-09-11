@@ -1,6 +1,7 @@
-import type { FileProcessorOverrides } from '@shared/data/preference/preferenceTypes'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { FileProcessorOverrides } from '@shared/data/preference/preferenceTypes'
 
 import { useFileProcessingPreferences } from '../hooks/useFileProcessingPreferences'
 
