@@ -206,7 +206,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   /**
    * Resets the explorer loop state when a mutating tool modifies the workspace.
    * If `mutatedFilePath` is provided, ONLY that file's readCount is cleared (per-file scoped reset);
-   * previously covered intervals are preserved to prevent dummy-edit cycle re-reading.
+   * unmutated files retain their slice constraints to prevent dummy-edit resets.
    */
   recordExplorerRunBreak(sessionId: string, mutatedFilePath?: string, agentId?: string): void {
     const key = this.explorerScopeKey(sessionId, agentId)

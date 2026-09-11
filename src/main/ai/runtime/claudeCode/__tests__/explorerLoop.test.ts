@@ -26,6 +26,11 @@ describe('normalizePath', () => {
     expect(normalizePath('src/sub/../main.ts', true)).toBe('src/main.ts')
     expect(normalizePath('src/main.ts/', true)).toBe('src/main.ts')
   })
+
+  it('normalizes absolute workspace paths to relative paths to align with relative aliases', () => {
+    expect(normalizePath('/workspace/src/main.ts', false, '/workspace')).toBe('src/main.ts')
+    expect(normalizePath('src/main.ts', false, '/workspace')).toBe('src/main.ts')
+  })
 })
 
 describe('normalizeExplorerSignature', () => {

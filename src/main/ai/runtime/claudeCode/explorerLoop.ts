@@ -59,14 +59,28 @@ export interface ExplorerLoopEvaluation {
 /**
  * Normalizes file paths for comparison and deduplication.
  * Canonicalizes path separators, resolves redundant relative segments (./, ../, //),
- * strips trailing slashes, and conforms to host filesystem case-sensitivity semantics
+ * strips trailing slashes, converts workspace-contained absolute paths to relative paths,
+ * and conforms to host filesystem case-sensitivity semantics
  * (case-insensitive on Windows and macOS default, case-preserving on Linux).
  */
-export function normalizePath(p: string | undefined, caseInsensitive: boolean = isMac || isWin): string {
+export function normalizePath(
+  p: string | undefined,
+  caseInsensitive: boolean = isMac || isWin,
+  cwd: string = process.cwd()
+): string {
   if (!p || typeof p !== 'string') return ''
-  const trimmed = p.trim().replace(/\\/g, '/')
+  const trimmed = p.trim()
   if (!trimmed) return ''
-  let normalized = path.posix.normalize(trimmed)
+
+  let normalized = trimmed.replace(/\\/g, '/')
+  if (path.isAbsolute(trimmed)) {
+    const rel = path.relative(cwd, trimmed).replace(/\\/g, '/')
+    if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+      normalized = rel || '.'
+    }
+  }
+
+  normalized = path.posix.normalize(normalized)
   if (normalized.length > 1 && normalized.endsWith('/')) {
     normalized = normalized.slice(0, -1)
   }
