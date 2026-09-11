@@ -34,6 +34,7 @@ export const DSH_RUNTIME_ENTRY_NAMES = {
   '@deepseek-ai/dsh-tool-todo': 'tool-todo',
   '@deepseek-ai/dsh-token-meter': 'token-meter',
   '@deepseek-ai/dsh-session-projection': 'session-projection',
+  '@deepseek-ai/dsh-session-query': 'session-query',
   '@deepseek-ai/dsh-compaction-tool-result-pruner': 'compaction-tool-result-pruner',
   '@deepseek-ai/dsh-compaction-basic': 'compaction-basic',
   '@deepseek-ai/dsh-commands': 'commands',

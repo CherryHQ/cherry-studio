@@ -83,6 +83,7 @@
     "@deepseek-ai/dsh-session-persistence": "0.1.2-rc.1",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.2-rc.1",
     "@deepseek-ai/dsh-session-projection": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-session-query": "0.1.2-rc.1",
     "@deepseek-ai/dsh-session-title": "0.1.2-rc.1",
     "@deepseek-ai/dsh-settings": "0.1.2-rc.1",
     "@deepseek-ai/dsh-shell": "0.1.2-rc.1",
