@@ -8,12 +8,13 @@
  * just at the call-graph level.
  */
 
-import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
-import { jobScheduleTable } from '@data/db/schemas/job'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { jobScheduleTable } from '@data/db/schemas/job'
 
 const { syncChannelMock, disconnectChannelMock } = vi.hoisted(() => ({
   syncChannelMock: vi.fn(),

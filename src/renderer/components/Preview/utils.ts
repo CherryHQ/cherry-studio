@@ -1,5 +1,6 @@
-import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import DOMPurify from 'dompurify'
+
+import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 
 /**
  * Renders an SVG string inside a host element's Shadow DOM to ensure style encapsulation.

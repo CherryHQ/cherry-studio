@@ -1,11 +1,12 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
-import { loggerService } from '@logger'
-import { type Disposable, Emitter } from '@main/core/lifecycle'
-import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 import { Mutex } from 'async-mutex'
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping'
 import type { DownloadItem } from 'electron'
+
+import { loggerService } from '@logger'
+import { type Disposable, Emitter } from '@main/core/lifecycle'
+import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 import {
   type BrowserDialog,

@@ -1,12 +1,13 @@
+import type { Editor } from '@tiptap/core'
+import { File, Folder } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema, type DirectoryEntry } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
-import type { Editor } from '@tiptap/core'
-import { File, Folder } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { serializeComposerDocument } from '../../composerDraft'
 import { createComposerFolderToken } from '../../folderToken'

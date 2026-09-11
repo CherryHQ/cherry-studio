@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import type { PosixRelativeFilePath } from '@shared/utils/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   chooseDirectoryPathPrefixMock,

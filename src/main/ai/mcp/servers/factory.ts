@@ -1,6 +1,7 @@
+import type { McpServer as SdkMcpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { McpServer as SdkMcpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { redactRecord } from '@shared/utils/redaction'

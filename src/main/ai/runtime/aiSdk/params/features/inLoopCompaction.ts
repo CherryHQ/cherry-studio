@@ -1,3 +1,5 @@
+import type { LanguageModelUsage, ModelMessage } from 'ai'
+
 /**
  * In-loop compaction feature: a `prepareStep` hook that rewrites the
  * about-to-send prompt in place when it crosses `compress.thresholdPercent` of
@@ -37,7 +39,6 @@ import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { isAbortError } from '@main/utils/error'
 import { compactionAnchorChunkId } from '@shared/ai/compaction'
-import type { LanguageModelUsage, ModelMessage } from 'ai'
 
 import type { RequestFeature } from '../feature'
 
@@ -139,7 +140,7 @@ export const inLoopCompactionFeature: RequestFeature = {
   name: 'in-loop-compaction',
   applies: (scope) => {
     if (scope.request.contextOwner === 'caller') return false
-    const topicId = scope.request.chatId
+    const topicId = scope.request.conversation.topicId
     if (!topicId) return false
     if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false

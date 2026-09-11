@@ -13,7 +13,7 @@ description: Developer environment setup covering IDE configuration, Windows sym
 
 ### Zed
 
-1. Install extensions: [Biome](https://github.com/biomejs/biome-zed), [oxc](https://github.com/oxc-project/zed-oxc)
+1. Install the [Oxc extension](https://github.com/oxc-project/zed-oxc) for Oxfmt and Oxlint.
 2. Copy the example settings file to your local Zed config:
    ```bash
    cp .zed/settings.json.example .zed/settings.json

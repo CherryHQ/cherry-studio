@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 
-import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 
 vi.mock('node:fs', async () => {
   const { createNodeFsMock } = await import('@test-helpers/mocks/nodeFsMock')

@@ -1,10 +1,11 @@
+import fs from 'fs'
+import path from 'path'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
 import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { type AgentConfiguration, sanitizeAgentConfiguration } from '@shared/data/api/schemas/agents'
-import fs from 'fs'
-import path from 'path'
 
 const logger = loggerService.withContext('BuiltinAgentDefinition')
 

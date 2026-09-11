@@ -4,7 +4,6 @@
  */
 import '@renderer/assets/styles/index.css'
 import '@renderer/assets/styles/tailwind.css'
-
 import { createRoot } from 'react-dom/client'
 
 import { initI18n } from './i18n'

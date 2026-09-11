@@ -39,7 +39,8 @@ const allowedMethods = [
 
 export type CdpMethod = (typeof allowedMethods)[number]
 type CdpParams<M extends CdpMethod> = ProtocolMapping.Commands[M]['paramsType'][0]
-export type CdpCommandArgs<M extends CdpMethod> = undefined extends CdpParams<M>
-  ? [params?: CdpParams<M>, options?: CommandOptions]
-  : [params: CdpParams<M>, options?: CommandOptions]
+export type CdpCommandArgs<M extends CdpMethod> =
+  undefined extends CdpParams<M>
+    ? [params?: CdpParams<M>, options?: CommandOptions]
+    : [params: CdpParams<M>, options?: CommandOptions]
 export const cdpAllowList: ReadonlySet<string> = new Set(allowedMethods)

@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import * as React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   EntitySearchResponse,
@@ -7,10 +11,6 @@ import type {
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import * as React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT } from '../globalSearchGroups'
 
@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
     ],
     'feature.paintings.default_provider': 'zhipu'
   } as Record<string, unknown>,
+  casualCache: new Map<string, unknown>(),
   persistCacheValues: {
     'ui.chat.last_used_topic_id': undefined,
     'ui.agent.last_used_session_id': undefined
@@ -371,7 +372,11 @@ vi.mock('@renderer/utils/routeTitle', () => ({
 }))
 
 vi.mock('@data/CacheService', () => ({
-  cacheService: { set: mocks.cacheSet }
+  cacheService: {
+    set: mocks.cacheSet,
+    hasCasual: (key: string) => mocks.casualCache.has(key),
+    setCasual: (key: string, value: unknown) => mocks.casualCache.set(key, value)
+  }
 }))
 
 vi.mock('@data/DataApiService', () => {
@@ -546,7 +551,7 @@ vi.mock('react-i18next', () => ({
 
 import { toast } from '@renderer/services/toast'
 
-import { GlobalSearchPanel, testOnlyClearRefreshHistory } from '../GlobalSearchPanel'
+import { GlobalSearchPanel } from '../GlobalSearchPanel'
 import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
 
 afterEach(() => {
@@ -556,7 +561,7 @@ afterEach(() => {
 
 describe('GlobalSearchPanel', () => {
   beforeEach(() => {
-    testOnlyClearRefreshHistory()
+    mocks.casualCache.clear()
     // Conversation tabs open on the conversation's own URL (`/app/chat?topicId=…`), so match the
     // route prefix rather than the bare path.
     mocks.openTab.mockImplementation((route: string) => {
@@ -995,7 +1000,7 @@ describe('GlobalSearchPanel', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
-    } as never)
+    })
     mocks.queryResult = {
       query: 'topic',
       groups: [
@@ -1034,7 +1039,7 @@ describe('GlobalSearchPanel', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
-    } as never)
+    })
     mocks.queryResult = {
       query: 'topic',
       groups: [
@@ -2174,7 +2179,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh name from server' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh name from server' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2228,7 +2233,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Already fresh' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Already fresh' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2258,7 +2263,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh session name from server' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh session name from server' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2450,7 +2455,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'First Refresh' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'First Refresh' })
 
     const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
     await waitFor(() => {
@@ -2476,7 +2481,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValue({ name: 'Refreshed Title' } as never)
+    mocks.dataApiGet.mockResolvedValue({ name: 'Refreshed Title' })
 
     const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
     await waitFor(() => {

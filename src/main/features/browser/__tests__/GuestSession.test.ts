@@ -1,7 +1,8 @@
-import { Signal } from '@main/core/lifecycle'
-import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 import type { Protocol } from 'devtools-protocol'
 import { afterEach, assertType, describe, expect, expectTypeOf, it, vi } from 'vitest'
+
+import { Signal } from '@main/core/lifecycle'
+import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 import { GuestSession } from '../session/GuestSession'
 import { createGuest } from './guestFixture'

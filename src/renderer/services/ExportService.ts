@@ -1,6 +1,15 @@
+import type { Client } from '@notionhq/client'
+import type { markdownToBlocks } from '@tryfabric/martian'
+import dayjs from 'dayjs'
+import DOMPurify from 'dompurify'
+import type { Blockquote } from 'mdast'
+import type { appendBlocks } from 'notion-helper'
+import remarkParse from 'remark-parse'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import type { Client } from '@notionhq/client'
 // Known same-tier soft-edge (inherited from the former utils/export):
 // `getTopicMessages` is a non-React data accessor that happens to live in the
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
@@ -30,14 +39,6 @@ import {
 import type { ContentHash } from '@shared/data/types/file'
 import { AbsoluteFilePathSchema, type FileVersion } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
-import type { markdownToBlocks } from '@tryfabric/martian'
-import dayjs from 'dayjs'
-import DOMPurify from 'dompurify'
-import type { Blockquote } from 'mdast'
-import type { appendBlocks } from 'notion-helper'
-import remarkParse from 'remark-parse'
-import { unified } from 'unified'
-import { visit } from 'unist-util-visit'
 
 import {
   collectExportableImages,
@@ -603,10 +604,8 @@ const exportImageAssets = async (
   toast.warning(i18n.t('chat.topics.export.image_mode.write_failed', { count: failed.length }))
 }
 
-const exportTopicMessagesAsMarkdown = async (
+export const exportTopicAsMarkdown = async (
   topic: Topic,
-  fileTitle: string,
-  loadMessages: () => ReturnType<typeof getTopicMessages>,
   exportReasoning?: boolean,
   excludeCitations?: boolean,
   chooseImageMode?: ImageModeChooser
@@ -621,8 +620,8 @@ const exportTopicMessagesAsMarkdown = async (
   const markdownExportPath = await preferenceService.get('data.export.markdown.path')
   if (!markdownExportPath) {
     try {
-      const fileName = removeSpecialCharactersForFileName(fileTitle) + '.md'
-      const messages = await loadMessages()
+      const fileName = removeSpecialCharactersForFileName(topic.name) + '.md'
+      const messages = await getTopicMessages(topic.id)
       const built = await buildMarkdownWithImages(
         messages ?? [],
         (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
@@ -643,8 +642,8 @@ const exportTopicMessagesAsMarkdown = async (
   } else {
     try {
       const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
-      const fileName = removeSpecialCharactersForFileName(fileTitle) + ` ${timestamp}.md`
-      const messages = await loadMessages()
+      const fileName = removeSpecialCharactersForFileName(topic.name) + ` ${timestamp}.md`
+      const messages = await getTopicMessages(topic.id)
       const built = await buildMarkdownWithImages(
         messages ?? [],
         (overrides) => topicToMarkdown(topic, exportReasoning, excludeCitations, overrides, messages ?? []),
@@ -663,36 +662,6 @@ const exportTopicMessagesAsMarkdown = async (
     }
   }
 }
-
-export const exportTopicAsMarkdown = async (
-  topic: Topic,
-  exportReasoning?: boolean,
-  excludeCitations?: boolean,
-  chooseImageMode?: ImageModeChooser
-): Promise<void> =>
-  exportTopicMessagesAsMarkdown(
-    topic,
-    topic.name,
-    () => getTopicMessages(topic.id),
-    exportReasoning,
-    excludeCitations,
-    chooseImageMode
-  )
-
-export const exportTopicBranchAsMarkdown = async (
-  topic: Topic,
-  branch: { nodeId: string; name: string },
-  exportReasoning?: boolean,
-  chooseImageMode?: ImageModeChooser
-): Promise<void> =>
-  exportTopicMessagesAsMarkdown(
-    topic,
-    `${topic.name} - ${branch.name}`,
-    () => getTopicMessages(topic.id, { nodeId: branch.nodeId, includeSiblings: false }),
-    exportReasoning,
-    undefined,
-    chooseImageMode
-  )
 
 export const exportMessageAsMarkdown = async (
   message: ExportableMessage,
@@ -984,7 +953,12 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
         }
       }
     })
-    toast.loading({ title: i18n.t('message.loading.notion.preparing'), promise: responsePromise })
+    const preparingToastKey = 'notion-export:preparing'
+    toast.loading({
+      key: preparingToastKey,
+      title: i18n.t('message.loading.notion.preparing'),
+      promise: responsePromise.finally(() => toast.closeToast(preparingToastKey)).catch(() => undefined)
+    })
     const response = await responsePromise
 
     const exportPromise = appendBlocks({
@@ -992,7 +966,20 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
       children: allBlocks,
       client: notion
     })
-    toast.loading({ title: i18n.t('message.loading.notion.exporting_progress'), promise: exportPromise })
+    const exportingToastKey = 'notion-export:exporting'
+    toast.loading({
+      key: exportingToastKey,
+      title: i18n.t('message.loading.notion.exporting_progress'),
+      promise: exportPromise.finally(() => toast.closeToast(exportingToastKey)).catch(() => undefined)
+    })
+    const result = await exportPromise
+    if ('error' in result || ('apiResponses' in result && result.apiResponses === null)) {
+      throw new Error(
+        'error' in result && typeof result.error === 'string' && result.error
+          ? result.error
+          : i18n.t('message.error.notion.export')
+      )
+    }
 
     toast.success(i18n.t('message.success.notion.export'))
     return true
@@ -1532,7 +1519,7 @@ const getScrollableElement = (): HTMLElement | null => {
     const style = window.getComputedStyle(div)
     if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
       if (div.querySelector('.ProseMirror')) {
-        return div as HTMLElement
+        return div
       }
     }
   }

@@ -152,7 +152,28 @@ export function artifactStagingDir(artifact: SharedArtifact): string {
   return application.getPath(artifact.installDirKey, '.tmp')
 }
 
+const WINDOWS_ARTIFACT_REMOVAL_RETRY_DELAYS_MS = [50, 100, 200, 400] as const
+
+function isTransientWindowsRemovalError(error: unknown): boolean {
+  if (process.platform !== 'win32' || typeof error !== 'object' || error === null) return false
+  const code = (error as NodeJS.ErrnoException).code
+  return code === 'EPERM' || code === 'EBUSY'
+}
+
 /** Deletes every installed copy of the artifact, including other platforms' leftovers. */
 export async function removeArtifact(artifact: SharedArtifact): Promise<void> {
-  await fs.promises.rm(application.getPath(artifact.installDirKey), { recursive: true, force: true })
+  const installDir = application.getPath(artifact.installDirKey)
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await fs.promises.rm(installDir, { recursive: true, force: true })
+      return
+    } catch (error) {
+      const delayMs = isTransientWindowsRemovalError(error)
+        ? WINDOWS_ARTIFACT_REMOVAL_RETRY_DELAYS_MS[attempt]
+        : undefined
+      if (delayMs === undefined) throw error
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
 }

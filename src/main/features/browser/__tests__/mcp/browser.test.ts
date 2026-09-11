@@ -1,10 +1,11 @@
-import { application } from '@application'
-import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
-import { BaseService, Signal } from '@main/core/lifecycle'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { app, BrowserWindow, nativeTheme } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
+import { BaseService, Signal } from '@main/core/lifecycle'
 
 import { BrowserSessionService } from '../../BrowserSessionService'
 import { CdpBrowserController } from '../../mcp/controller'
@@ -23,8 +24,13 @@ vi.mock('electron', async () => {
     const { mock } = createGuest(sequence++)
     let url = 'about:blank'
     let initialized = false
+    let audioMuted = false
     Object.assign(mock, {
       setUserAgent: vi.fn(),
+      setAudioMuted: vi.fn((muted: boolean) => {
+        audioMuted = muted
+      }),
+      isAudioMuted: () => audioMuted,
       getZoomFactor: () => 1,
       getURL: () => url,
       getTitle: () => new URL(url).hostname,
@@ -72,7 +78,26 @@ vi.mock('electron', async () => {
   class Window extends EventEmitter {
     webContents = contents()
     destroyed = false
-    show = vi.fn()
+    visible = false
+    minimized = false
+    isVisible = () => this.visible
+    isMinimized = () => this.minimized
+    show() {
+      this.visible = true
+      this.emit('show')
+    }
+    hide() {
+      this.visible = false
+      this.emit('hide')
+    }
+    minimize() {
+      this.minimized = true
+      this.emit('minimize')
+    }
+    restore() {
+      this.minimized = false
+      this.emit('restore')
+    }
     addBrowserView = vi.fn()
     setTopBrowserView = vi.fn()
     removeBrowserView = vi.fn()
@@ -138,6 +163,35 @@ const controller = () => {
 }
 
 describe('MCP browser on shared sessions', () => {
+  it('mutes browser audio while the window is hidden or minimized', async () => {
+    const c = controller()
+    const { view } = await c.createTab()
+    const window = [...windows.values()][0]
+    expect(view.webContents.isAudioMuted()).toBe(true)
+    window.show()
+    expect(view.webContents.isAudioMuted()).toBe(false)
+    window.minimize()
+    expect(view.webContents.isAudioMuted()).toBe(true)
+    window.restore()
+    expect(view.webContents.isAudioMuted()).toBe(false)
+    window.hide()
+    expect(view.webContents.isAudioMuted()).toBe(true)
+  })
+
+  it('plays audio only from the active tab and restores its replacement on close', async () => {
+    const c = controller()
+    const first = await c.createTab(false, true)
+    const second = await c.createTab(false, true)
+    expect(first.view.webContents.isAudioMuted()).toBe(false)
+    expect(second.view.webContents.isAudioMuted()).toBe(true)
+    await c.switchTab(false, second.tabId)
+    expect(first.view.webContents.isAudioMuted()).toBe(true)
+    expect(second.view.webContents.isAudioMuted()).toBe(false)
+    await c.closeTab(false, second.tabId)
+    expect(second.view.webContents.isDestroyed()).toBe(true)
+    expect(first.view.webContents.isAudioMuted()).toBe(false)
+  })
+
   it.each(['createTab', 'getSession'] as const)(
     'does not resurrect a window reset after %s obtained it',
     async (method) => {

@@ -1,8 +1,9 @@
-import { cn } from '@renderer/utils/style'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'motion/react'
 import type { FC, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { cn } from '@renderer/utils/style'
 
 import { AdvancedSettingsButton } from './PanelPrimitives'
 

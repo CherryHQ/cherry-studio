@@ -1,11 +1,12 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import StreamZip from 'node-stream-zip'
+
 import { loggerService } from '@logger'
 import { isOutsidePath } from '@main/utils/file'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
-import StreamZip from 'node-stream-zip'
 
 /**
  * Handling for an untrusted skill tree on disk, however it arrived — an extracted ZIP or a shallow
