@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import { FILE_TYPE } from '@shared/types/file'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   MissingKnowledgeFileError,
