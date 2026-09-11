@@ -118,6 +118,12 @@ test('[C-03] 使用划词助手处理选中文本 @selection-assistant', async (
   await expect(page.getByRole('switch').first()).toHaveAttribute('aria-checked', 'true')
   await closeSettings(page)
 
+  openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
+  selectExternalText(app.record.platform)
+  sendSystemHotkey(
+    app.record.platform,
+    app.record.platform === 'macos' ? ['Meta', 'Shift', 'k'] : ['Control', 'Shift', 'k']
+  )
   const selection = await app.window('/windows/selection/toolbar/')
   const readLabel = selection.getByRole('button', { name: 'Read validation label', exact: true })
   await expect(readLabel).toBeVisible()
@@ -131,8 +137,6 @@ test('[C-03] 使用划词助手处理选中文本 @selection-assistant', async (
     await sendIpcEventToOwnedWindow(app.paths, '/windows/selection/toolbar/', 'selection.text_selected', {
       text: 'The validation label is SELECTION_ASSISTANT_PASS.'
     })
-  } else {
-    openExternalText(app.record.platform, app.paths, join(app.paths.fixtures, 'selection.txt'))
   }
   await expect
     .poll(

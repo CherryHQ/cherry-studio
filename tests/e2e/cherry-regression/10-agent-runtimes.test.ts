@@ -18,13 +18,18 @@ test('[A-03] Claude Agent Runtime @claude-agent-runtime', async ({ app, mainWind
   const name = 'Cherry Regression Claude Agent 31415'
   await createAgent(page, { name, permission: 'Full Access', runtime: 'Claude Agent', model })
   await selectAgentWorkspace(app, page)
-  await runAgentFileTask(app, page, 'claude-agent-result.txt', false)
+  const marker = 'CLAUDE_AGENT_RUNTIME_PASS'
+  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
+  const composer = agentView.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
+  await composer.fill(`Reply with exactly ${marker} and do not use tools.`)
+  await agentView.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(agentView.getByText(marker, { exact: true }).last()).toBeVisible({ timeout: 2 * 60_000 })
 
   page = await app.restart('authenticated')
   await dismissOnboarding(page)
   await selectSidebarApp(page, 'Work')
-  const agentView = page.locator('[data-ui="agent.view"]:visible').first()
-  await expect(agentView.getByRole('button', { name, exact: true })).toBeVisible()
+  const restartedAgentView = page.locator('[data-ui="agent.view"]:visible').first()
+  await expect(restartedAgentView.getByRole('button', { name, exact: true })).toBeVisible()
 })
 
 test('[A-04] Pi Runtime @pi-runtime', async ({ app, mainWindow: page }) => {
