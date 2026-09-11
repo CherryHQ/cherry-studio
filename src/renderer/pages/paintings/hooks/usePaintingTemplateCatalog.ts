@@ -30,9 +30,9 @@ function normalizeTranslations(value: unknown): Record<string, PaintingTemplateT
       const translation = entry[1]
       return Boolean(
         translation &&
-          typeof translation === 'object' &&
-          typeof (translation as PaintingTemplateTranslation).label === 'string' &&
-          typeof (translation as PaintingTemplateTranslation).prompt === 'string'
+        typeof translation === 'object' &&
+        typeof (translation as PaintingTemplateTranslation).label === 'string' &&
+        typeof (translation as PaintingTemplateTranslation).prompt === 'string'
       )
     })
   )

@@ -88,7 +88,7 @@ export default defineProvider({
     {
       id: 'web-search',
       modelScope: 'model-dependent',
-      modelIdPrefixes: ['deepseek-v4-flash', 'deepseek-v4-pro'],
+      modelIdPrefixes: ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro'],
       endpointTypes: ['openai-responses']
     }
   ],
@@ -100,12 +100,21 @@ export default defineProvider({
       official: 'https://deepseek.com/'
     }
   },
-  // The Anthropic-compatible endpoint serves V4 Pro / V4 Flash / V4 Flash Vision Exp only, and silently maps any other
-  // model name onto v4-flash — so it is pinned on those three and withheld from chat/reasoner. It
+  // The Anthropic-compatible endpoint serves the V4 flash/pro SKUs only, and silently maps any other
+  // model name onto v4-flash — so it is pinned on those and withheld from chat/reasoner. It
   // trails Chat Completions because `endpointTypes[0]` routes in-app chat.
   overrides: [
     { modelId: 'deepseek-chat', endpointTypes: ['openai-chat-completions'] },
     { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', endpointTypes: ['openai-chat-completions'] },
+    {
+      modelId: 'deepseek-flash',
+      endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],
+      pricing: v4FlashPeakPricing,
+      reasoningContracts: {
+        'openai-chat-completions': { wire: v4ChatEffortWire },
+        'openai-responses': { wire: v4ResponsesEffortWire }
+      }
+    },
     {
       modelId: 'deepseek-v4-flash',
       endpointTypes: ['openai-responses', 'openai-chat-completions', 'anthropic-messages'],

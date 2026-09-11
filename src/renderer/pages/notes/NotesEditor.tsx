@@ -1,3 +1,8 @@
+import { SpellCheck } from 'lucide-react'
+import type { FC, RefObject } from 'react'
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { type CodeEditorHandles, EmptyState, Skeleton, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -9,10 +14,6 @@ import { useCmTheme } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
-import { SpellCheck } from 'lucide-react'
-import type { FC, RefObject } from 'react'
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesEditor')
 // Hides the toolbar button and the slash-menu entry only. Image *paste* stays enabled: notes have
@@ -174,7 +175,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 </Tooltip>
               )}
               <Selector
-                value={tmpViewMode as EditorView}
+                value={tmpViewMode}
                 onChange={(value: EditorView) => {
                   userViewModeOverrideRef.current = true
                   setTmpViewMode(value)

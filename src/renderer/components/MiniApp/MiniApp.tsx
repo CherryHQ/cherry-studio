@@ -1,3 +1,7 @@
+import type { FC, KeyboardEvent } from 'react'
+import { memo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -13,9 +17,6 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppStatus } from '@shared/data/types/miniApp'
-import type { FC, KeyboardEvent } from 'react'
-import { memo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import MiniAppDetailPanel from './MiniAppDetailPanel'
 

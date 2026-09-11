@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { getMainTextContent } from '@renderer/utils/message/find'
-import { describe, expect, it, vi } from 'vitest'
 
 import { CONTENT_TYPES, processMessageContent } from '../knowledge'
 

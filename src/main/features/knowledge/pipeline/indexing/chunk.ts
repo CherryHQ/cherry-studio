@@ -1,5 +1,6 @@
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Document as VectorStoreDocument } from '@vectorstores/core'
+
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import { splitTextWithOffsets } from './splitter'
 

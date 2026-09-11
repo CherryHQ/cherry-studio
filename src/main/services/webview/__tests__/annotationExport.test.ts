@@ -1,5 +1,6 @@
-import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }

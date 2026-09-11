@@ -1,12 +1,14 @@
+import { EventEmitter } from 'events'
+
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/agentSessionWorkspace'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { EventEmitter } from 'events'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
@@ -162,8 +164,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
  */
 async function handleIncomingAndFlush(adapter: ReturnType<typeof createMockAdapter>, message: ChannelMessageEvent) {
   const promise = channelMessageHandler.handleIncoming(adapter, { ...message })
-  // Advance past the MESSAGE_BATCH_DELAY_MS debounce (10 000 ms)
-  await vi.advanceTimersByTimeAsync(10500)
+  await vi.advanceTimersByTimeAsync(1000)
   return promise
 }
 
@@ -734,6 +735,87 @@ describe('ChannelMessageHandler', () => {
     expect(agentSessionService.createTx).toHaveBeenCalledTimes(2)
   })
 
+  it('dispatches a single message after exactly one second', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    const turn = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'hello'
+    })
+
+    await vi.advanceTimersByTimeAsync(999)
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await turn
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+  })
+
+  it('dispatches a merged batch one second after the latest rapid message', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+
+    const first = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'first'
+    })
+    await vi.advanceTimersByTimeAsync(500)
+    const second = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'second'
+    })
+
+    await vi.advanceTimersByTimeAsync(999)
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await Promise.all([first, second])
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+    expect(mockStartAgentSessionRun.mock.calls[0][0].userParts[0].text).toBe('first\nsecond')
+  })
+
+  it('flushes a sustained message burst at the original sixteen-second deadline', async () => {
+    const adapter = createMockAdapter()
+    simulateStream([{ type: 'text-delta', delta: 'reply' }])
+    const turns = [
+      channelMessageHandler.handleIncoming(adapter, {
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userName: 'User',
+        text: 'message-0'
+      })
+    ]
+
+    for (let index = 1; index <= 17; index++) {
+      await vi.advanceTimersByTimeAsync(900)
+      turns.push(
+        channelMessageHandler.handleIncoming(adapter, {
+          chatId: 'chat-1',
+          userId: 'user-1',
+          userName: 'User',
+          text: `message-${index}`
+        })
+      )
+    }
+
+    await vi.advanceTimersByTimeAsync(699)
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await Promise.all(turns)
+    expect(mockStartAgentSessionRun).toHaveBeenCalledTimes(1)
+    expect(mockStartAgentSessionRun.mock.calls[0][0].userParts[0].text).toBe(
+      Array.from({ length: 18 }, (_, index) => `message-${index}`).join('\n')
+    )
+  })
+
   it('preserves first-arrival order across senders whose debounce timers expire out of order', async () => {
     const adapter = createMockAdapter()
     simulateStream([{ type: 'text-delta', delta: 'A reply' }])
@@ -745,14 +827,14 @@ describe('ChannelMessageHandler', () => {
       userName: 'Alice',
       text: 'A1'
     })
-    await vi.advanceTimersByTimeAsync(1000)
+    await vi.advanceTimersByTimeAsync(100)
     const B = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
       userId: 'bob',
       userName: 'Bob',
       text: 'B1'
     })
-    await vi.advanceTimersByTimeAsync(6000)
+    await vi.advanceTimersByTimeAsync(100)
     const secondA = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
       userId: 'alice',
@@ -760,7 +842,7 @@ describe('ChannelMessageHandler', () => {
       text: 'A2'
     })
 
-    await vi.advanceTimersByTimeAsync(9000)
+    await vi.advanceTimersByTimeAsync(1000)
     await Promise.all([firstA, B, secondA])
 
     expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual(['A1\nA2', 'B1'])
@@ -771,38 +853,41 @@ describe('ChannelMessageHandler', () => {
     simulateStream([{ type: 'text-delta', delta: 'A reply' }])
     simulateStream([{ type: 'text-delta', delta: 'B reply' }])
 
-    const firstA = channelMessageHandler.handleIncoming(adapter, {
-      chatId: 'group-1',
-      userId: 'alice',
-      userName: 'Alice',
-      text: 'A1'
-    })
-    await vi.advanceTimersByTimeAsync(1000)
+    const turns = [
+      channelMessageHandler.handleIncoming(adapter, {
+        chatId: 'group-1',
+        userId: 'alice',
+        userName: 'Alice',
+        text: 'A0'
+      })
+    ]
+    await vi.advanceTimersByTimeAsync(100)
     const B = channelMessageHandler.handleIncoming(adapter, {
       chatId: 'group-1',
       userId: 'bob',
       userName: 'Bob',
       text: 'B1'
     })
-    await vi.advanceTimersByTimeAsync(6000)
-    const secondA = channelMessageHandler.handleIncoming(adapter, {
-      chatId: 'group-1',
-      userId: 'alice',
-      userName: 'Alice',
-      text: 'A2'
-    })
-    await vi.advanceTimersByTimeAsync(7000)
-    const thirdA = channelMessageHandler.handleIncoming(adapter, {
-      chatId: 'group-1',
-      userId: 'alice',
-      userName: 'Alice',
-      text: 'A3'
-    })
 
-    await vi.advanceTimersByTimeAsync(2000)
-    await Promise.all([firstA, B, secondA, thirdA])
+    for (let index = 1; index <= 17; index++) {
+      await vi.advanceTimersByTimeAsync(index === 1 ? 800 : 900)
+      turns.push(
+        channelMessageHandler.handleIncoming(adapter, {
+          chatId: 'group-1',
+          userId: 'alice',
+          userName: 'Alice',
+          text: `A${index}`
+        })
+      )
+    }
 
-    expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual(['A1\nA2\nA3', 'B1'])
+    await vi.advanceTimersByTimeAsync(700)
+    await Promise.all([...turns, B])
+
+    expect(mockStartAgentSessionRun.mock.calls.map(([input]) => input.userParts[0].text)).toEqual([
+      Array.from({ length: 18 }, (_, index) => `A${index}`).join('\n'),
+      'B1'
+    ])
   })
 
   it('isolates threads in the same chat and preserves their reply context', async () => {
