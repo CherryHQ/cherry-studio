@@ -309,6 +309,40 @@ describe('McpServerMigrator', () => {
       expect(validation.stats).toMatchObject({ sourceCount: 3, targetCount: 2, skippedCount: 1 })
     })
 
+    it('fails the migration when no row of a batch can be inserted, instead of skipping them all', async () => {
+      const ctx = createMockContext({
+        mcp: {
+          servers: [
+            { id: 'srv-1', name: 'One', type: 'stdio' },
+            { id: 'srv-2', name: 'Two', type: 'stdio' }
+          ]
+        }
+      })
+      ctx.insertedRows.length = 0
+      ctx.db.transaction = vi.fn((fn: (tx: any) => void) => {
+        const tx = {
+          insert: vi.fn().mockReturnValue({
+            values: vi.fn(() => ({
+              run: vi.fn(() => {
+                throw new Error('SQLITE_BUSY: database is locked')
+              })
+            }))
+          })
+        }
+        return fn(tx)
+      })
+
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('no row could be recovered')
+      expect(result.error).toContain('database is locked')
+      expect(result.processedCount).toBe(0)
+      expect(ctx.insertedRows).toHaveLength(0)
+      expect(ctx.sharedData.has('mcpServerIdMapping')).toBe(false)
+    })
+
     it('should return failure when transaction throws', async () => {
       const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
       ctx.db.transaction = vi.fn().mockImplementation(() => {

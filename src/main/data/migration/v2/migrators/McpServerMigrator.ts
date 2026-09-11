@@ -124,26 +124,37 @@ export class McpServerMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
           const batch = rows.slice(i, i + BATCH_SIZE)
+          let batchError: unknown
           try {
             tx.insert(mcpServerTable).values(batch).run()
             processed += batch.length
             continue
-          } catch (batchError) {
+          } catch (error) {
             // A single malformed legacy record aborts the whole batched INSERT
             // (#20301). Retry the batch row by row so only the offending rows
             // are skipped and every other server still migrates.
-            logger.warn('Batch insert failed, retrying rows individually', batchError as Error)
+            batchError = error
+            logger.warn('Batch insert failed, retrying rows individually', error as Error)
           }
+          let recovered = 0
           for (const row of batch) {
             try {
               tx.insert(mcpServerTable).values(row).run()
               processed += 1
+              recovered += 1
             } catch (rowError) {
               const message = rowError instanceof Error ? rowError.message : String(rowError)
               skippedIds.add(row.id!)
               warnings.push(`Skipped MCP server "${row.name}" (${row.id}): ${message}`)
               logger.warn('Skipped MCP server that could not be inserted', { id: row.id, name: row.name, message })
             }
+          }
+          if (recovered === 0) {
+            // Not one row of the batch could be written: that is a database-wide
+            // failure (locked file, missing table, closed connection), not bad
+            // data. Skipping everything would report success with no servers.
+            const message = batchError instanceof Error ? batchError.message : String(batchError)
+            throw new Error(`MCP server batch insert failed and no row could be recovered individually: ${message}`)
           }
         }
       })
