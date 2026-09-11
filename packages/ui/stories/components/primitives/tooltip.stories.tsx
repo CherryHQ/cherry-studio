@@ -1,7 +1,8 @@
-import { NormalTooltip, Tooltip, TooltipContent, TooltipProvider, TooltipRoot, TooltipTrigger } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Info } from 'lucide-react'
+
+import { NormalTooltip, Tooltip, TooltipContent, TooltipProvider, TooltipRoot, TooltipTrigger } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Tooltip> = {
   title: 'Components/Primitives/Tooltip',

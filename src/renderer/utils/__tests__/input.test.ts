@@ -1,5 +1,6 @@
-import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 
 import {
   getComposerShortcutLabel,

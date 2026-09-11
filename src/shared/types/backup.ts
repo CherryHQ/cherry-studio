@@ -55,7 +55,6 @@ export type AutoBackupEventInput =
 export type AutoBackupEvent = AutoBackupEventInput & { id: number }
 
 export type AutoBackupSnapshot = {
-  events: AutoBackupEvent[]
   pendingNotifications: AutoBackupEvent[]
 }
 

@@ -8,6 +8,11 @@
  * `CherryBuiltinToolsServer` is constructed with.
  */
 
+import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
+import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import QRCode from 'qrcode'
+import * as z from 'zod'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
@@ -23,8 +28,6 @@ import { findPersistedToolOutput } from '@main/ai/messages/persistedToolOutput'
 import { readConversation, type ReadConversationInput } from '@main/ai/messages/readConversation'
 import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import { runtimeDriverRegistry } from '@main/ai/runtime/registry'
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
-import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
@@ -38,8 +41,6 @@ import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/b
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
-import QRCode from 'qrcode'
-import * as z from 'zod'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
 
@@ -1217,8 +1218,8 @@ export class CherryAutonomyTools {
       throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const updates: Record<string, unknown> = {}
-    if (args.name !== undefined) updates.name = args.name as string
-    if (args.enabled !== undefined) updates.isActive = args.enabled as boolean
+    if (args.name !== undefined) updates.name = args.name
+    if (args.enabled !== undefined) updates.isActive = args.enabled
     if (args.config !== undefined) {
       updates.config = { ...existing.config, ...(args.config as Record<string, unknown>) }
     }

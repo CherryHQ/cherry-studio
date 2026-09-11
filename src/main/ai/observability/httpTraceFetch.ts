@@ -1,6 +1,8 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { loggerService } from '@logger'
 import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
 import { KB } from '@shared/utils/constants'
 import { redactRecord, redactUrlParams } from '@shared/utils/redaction'
 
@@ -24,6 +26,12 @@ export interface HttpTraceOptions {
   tracer?: Tracer
   /** Per-body capture cap; defaults to {@link MAX_BODY_BYTES}. */
   maxBodyBytes?: number
+}
+
+/** Enable developer HTTP tracing independently of the request modality. */
+export function applyHttpTrace(settings: { fetch?: FetchFunction }, opts: HttpTraceOptions): void {
+  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
+  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, opts)
 }
 
 /**

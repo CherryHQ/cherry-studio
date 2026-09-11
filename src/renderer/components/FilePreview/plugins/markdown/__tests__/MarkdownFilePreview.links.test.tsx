@@ -1,12 +1,12 @@
 import '@testing-library/jest-dom/vitest'
-
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import MarkdownFilePreview from '../MarkdownFilePreview'
 

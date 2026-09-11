@@ -44,6 +44,7 @@ export const oauthRequestSchemas = {
   'oauth.has_token': defineRoute({ input: providerInput, output: z.boolean() }),
   'oauth.get_account': defineRoute({ input: providerInput, output: oauthAccountSchema }),
   'oauth.logout': defineRoute({ input: providerInput, output: z.void() }),
+  'oauth.tokendance.authorize_api_key': defineRoute({ input: z.void(), output: z.string().min(1) }),
   'oauth.check_external_login': defineRoute({ input: providerInput, output: z.boolean() }),
   // Deep-link flow start: returns the auth URL the renderer opens; the outcome
   // arrives out-of-band on `oauth.deep_link_result`, keyed by `state`. The

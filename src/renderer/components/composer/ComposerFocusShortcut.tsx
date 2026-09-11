@@ -1,7 +1,8 @@
+import { useTranslation } from 'react-i18next'
+
 import { CommandShortcut } from '@renderer/components/command'
 import { useCommandHandler, useResolvedCommand } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
-import { useTranslation } from 'react-i18next'
 
 export function ComposerFocusShortcut({ focus, editable = true }: { focus: () => void; editable?: boolean }) {
   const { t } = useTranslation()

@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
 
+import { v7 as uuidv7 } from 'uuid'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -13,7 +15,6 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
 import type { CherryMessagePart, Message } from '@shared/data/types/message'
 import type { HandoffPartData } from '@shared/data/types/uiParts'
 import type { HandoffStart, HandoffStartResponse } from '@shared/ipc/schemas/ai'
-import { v7 as uuidv7 } from 'uuid'
 
 import {
   agentChatContextProvider,
@@ -64,7 +65,7 @@ function handoffPart(
       state,
       goal: input.goal
     }
-  } as CherryMessagePart
+  }
 }
 
 function findHandoffPart(message: AgentSessionMessageEntity): HandoffPartData | undefined {

@@ -50,5 +50,5 @@ export function createClaudeCodeQueryOptions({
     }
   }
 
-  return opts as Options
+  return opts
 }

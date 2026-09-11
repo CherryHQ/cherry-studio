@@ -1,7 +1,8 @@
-import type { McpPrompt } from '@shared/types/mcp'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { McpPrompt } from '@shared/types/mcp'
 
 import { McpPromptArgumentDialog } from '../mcpPromptArgumentDialog'
 
