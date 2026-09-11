@@ -1,3 +1,4 @@
+import { AgentRuntimeModeBadge } from '@renderer/components/agent/AgentRuntimeModeBadge'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ActionDescriptor, ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -69,22 +70,32 @@ export function renderAssistantEntityIcon(
  */
 export function renderAgentEntityIcon(
   iconType: AssistantIconType,
-  agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
+  agent:
+    | { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null; type?: string | null }
+    | undefined,
   fallbackModelId?: string | null,
   size: number = RESOURCE_ICON_SIZE
 ) {
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(agent?.model ?? fallbackModelId, agent?.modelName)
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={size} />
+  const avatar =
+    iconType === 'model' && modelAvatarModel ? (
+      <ModelAvatar model={modelAvatarModel} size={size} />
+    ) : (
+      <EmojiIcon
+        emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
+        size={size}
+        fontSize={Math.round(size * 0.58)}
+        className="mr-0"
+      />
+    )
 
   return (
-    <EmojiIcon
-      emoji={getAgentAvatarFromConfiguration(agent?.configuration) || DEFAULT_ASSISTANT_EMOJI}
-      size={size}
-      fontSize={Math.round(size * 0.58)}
-      className="mr-0"
-    />
+    <span className="relative flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
+      {avatar}
+      {agent && <AgentRuntimeModeBadge type={agent.type} size="compact" className="absolute -right-1 -bottom-1" />}
+    </span>
   )
 }
 
