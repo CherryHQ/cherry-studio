@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net'
 
 import { WebSocketServer } from 'ws'
 
-import { evaluateCdpExpression } from '../cdp-client'
+import { evaluateCdpExpression } from '../cdpClient'
 
 async function withCdpServer(
   response: (request: { id: number; method: string; params: Record<string, unknown> }) => unknown,

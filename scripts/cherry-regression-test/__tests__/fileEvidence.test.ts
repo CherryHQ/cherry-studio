@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import JSZip from 'jszip'
 import sharp from 'sharp'
 
-import { validateFileEvidence } from '../file-evidence'
+import { validateFileEvidence } from '../fileEvidence'
 
 describe('generated artifact evidence', () => {
   let directory: string

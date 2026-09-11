@@ -1,8 +1,9 @@
 import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { createAgent, runAgentFileTask, selectAgentWorkspace, startNewAgentTask } from './agents'
 import { expect, test } from './fixture'
-import { dismissOnboarding, selectSidebarApp } from './helpers'
-import { closeSettings, ensureCustomChatProvider, selectVisibleModel } from './models'
+import { ensureCustomChatProvider, selectVisibleModel } from './models'
+import { dismissOnboarding, selectSidebarApp } from './navigation'
+import { closeSettings } from './settings'
 
 async function ensureAgentModel(
   app: Parameters<typeof ensureCustomChatProvider>[0],

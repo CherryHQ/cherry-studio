@@ -1,12 +1,13 @@
 import { join } from 'node:path'
 
 import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
-import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/systemAutomation'
 import { startNewAgentTask } from './agents'
 import { customAssistantName, ensureCustomAssistant } from './assistants'
 import { expect, test } from './fixture'
-import { dismissOnboarding, selectSidebarApp } from './helpers'
-import { closeSettings, ensureCustomChatProvider, openSettingsSection, selectVisibleModel } from './models'
+import { ensureCustomChatProvider, selectVisibleModel } from './models'
+import { dismissOnboarding, selectSidebarApp } from './navigation'
+import { closeSettings, openSettingsSection } from './settings'
 
 async function openSkillsPanel(page: Parameters<typeof selectSidebarApp>[0]): Promise<void> {
   const direct = page.locator('[data-ui~="chat.composer"]:visible').getByRole('button', { name: 'Skills', exact: true })

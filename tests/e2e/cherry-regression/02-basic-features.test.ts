@@ -1,6 +1,6 @@
 import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { expect, test } from './fixture'
-import { dismissOnboarding, openLaunchpad, openLaunchpadApp, selectSidebarApp } from './helpers'
+import { dismissOnboarding, openLaunchpad, openLaunchpadApp, selectSidebarApp } from './navigation'
 
 test(...caseDefinition('APP-01'), async ({ mainWindow: page }) => {
   await dismissOnboarding(page)

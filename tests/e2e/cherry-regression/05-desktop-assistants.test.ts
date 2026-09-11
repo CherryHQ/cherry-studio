@@ -6,11 +6,12 @@ import {
   openExternalText,
   selectExternalText,
   sendSystemHotkey
-} from '../../../scripts/cherry-regression-test/system-automation'
+} from '../../../scripts/cherry-regression-test/systemAutomation'
 import { SelectionTriggerMode } from '../../../src/shared/data/preference/preferenceTypes'
 import { expect, test } from './fixture'
-import { dismissOnboarding } from './helpers'
-import { closeSettings, ensureCustomChatProvider, openSettingsSection } from './models'
+import { ensureCustomChatProvider } from './models'
+import { dismissOnboarding } from './navigation'
+import { closeSettings, openSettingsSection } from './settings'
 
 test.afterEach(({ app }) => closeExternalText(app.record.platform))
 

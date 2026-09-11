@@ -1,6 +1,5 @@
 import type { Page } from '@playwright/test'
-
-import { expect } from './fixture'
+import { expect } from '@playwright/test'
 
 export async function dismissOnboarding(page: Page): Promise<void> {
   const button = page.getByRole('button', { name: 'Set up later', exact: true })

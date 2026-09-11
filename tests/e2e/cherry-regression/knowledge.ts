@@ -1,12 +1,13 @@
 import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
+import { expect } from '@playwright/test'
 
-import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
-import { expect } from './fixture'
-import { selectSidebarApp } from './helpers'
-import { openSettingsSection, selectVisibleModel, skipNewProviderModelSetup } from './models'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/systemAutomation'
+import { selectVisibleModel, skipNewProviderModelSetup } from './models'
+import { selectSidebarApp } from './navigation'
 import type { RegressionApp } from './RegressionApp'
+import { openSettingsSection } from './settings'
 
 export const EMBEDDING_PROVIDER = 'Cherry Regression Embedding'
 export function knowledgeName(app: RegressionApp): string {

@@ -1,10 +1,10 @@
 import type { Page } from '@playwright/test'
+import { expect } from '@playwright/test'
 
-import { completeCherryInOauth } from '../../../scripts/cherry-regression-test/cherryin-oauth'
+import { completeCherryInOauth } from '../../../scripts/cherry-regression-test/cherryInOauth'
 import { sendProtocolUrlToOwnedApp } from '../../../scripts/cherry-regression-test/debugBridge'
-import { expect } from './fixture'
-import { openSettingsSection } from './models'
 import type { RegressionApp } from './RegressionApp'
+import { openSettingsSection } from './settings'
 
 export async function ensureCherryInSignedIn(app: RegressionApp, page: Page): Promise<void> {
   await openSettingsSection(page, 'Model Provider')

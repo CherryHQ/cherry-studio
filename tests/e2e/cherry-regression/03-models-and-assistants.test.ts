@@ -1,14 +1,10 @@
 import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
 import { customAssistantName, ensureCustomAssistant } from './assistants'
+import { selectChatModel, sendChatMarker } from './chat'
 import { expect, test } from './fixture'
-import { dismissOnboarding, selectSidebarApp } from './helpers'
-import {
-  closeSettings,
-  CUSTOM_CHAT_PROVIDER,
-  ensureCustomChatProvider,
-  selectChatModel,
-  sendChatMarker
-} from './models'
+import { CUSTOM_CHAT_PROVIDER, ensureCustomChatProvider } from './models'
+import { dismissOnboarding, selectSidebarApp } from './navigation'
+import { closeSettings } from './settings'
 
 test(...caseDefinition('M-02'), async ({ app, mainWindow }) => {
   let page = mainWindow

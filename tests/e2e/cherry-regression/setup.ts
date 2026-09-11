@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 
-import { selectSidebarApp } from './helpers'
+import { selectSidebarApp } from './navigation'
 
 export async function prepareScenario(page: Page): Promise<void> {
   await page.evaluate(async () => {

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import type { FullConfig, Suite, TestCase, TestResult } from '@playwright/test/reporter'
 import { afterEach, beforeEach, vi } from 'vitest'
 
-import CherryRegressionReporter from '../../../tests/e2e/cherry-regression/CherryRegressionReporter'
+import CherryRegressionReporter from '../CherryRegressionReporter'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 import { createRun, getRunVerdict, readRun, writeRun } from '../state'
 

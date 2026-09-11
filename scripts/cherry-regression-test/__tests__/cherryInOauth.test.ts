@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { completeCherryInOauth } from '../cherryin-oauth'
+import { completeCherryInOauth } from '../cherryInOauth'
 
 const STATE = 'state-31415'
 const AUTHORIZATION_URL = `https://open.cherryin.ai/oauth2/auth?state=${STATE}&client_id=cherry-studio`

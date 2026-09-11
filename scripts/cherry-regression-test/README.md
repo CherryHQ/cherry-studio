@@ -12,10 +12,11 @@ It controls only the application recorded in its isolated run directory; it neve
 | `installation.ts`, `artifacts.ts` | Release installation, asset selection, and hashing |
 | `lifecycle.ts` | Start, reuse, restart, and stop the owned application |
 | `process.ts` | OS process identity, ancestry, ports, and termination |
-| `debugBridge.ts`, `cdp-client.ts` | Explicit main-process debug operations and protocol callback delivery |
-| `system-automation.ts` | Native dialogs, external text selection, and keyboard input |
+| `debugBridge.ts`, `cdpClient.ts` | Explicit main-process debug operations and protocol callback delivery |
+| `systemAutomation.ts` | Native dialogs, external text selection, and keyboard input |
+| `CherryRegressionReporter.ts` | Playwright result adapter and run-state updates |
 | `state.ts`, `report.ts` | Run state, platform/aggregate verdicts, and human-readable reports |
-| `fixtures.ts`, `paths.ts`, `config.ts` | Input fixtures, run-owned paths, and configuration |
+| `fixtureFiles.ts`, `paths.ts`, `config.ts` | Input fixtures, run-owned paths, and configuration |
 
 Dependencies flow from CLI and E2E fixtures into these modules. The controller does not import E2E scenarios or production services.
 The debug bridge may inspect the owned main process; it must never manufacture a successful product result.

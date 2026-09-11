@@ -64,7 +64,7 @@ test(...caseDefinition('S-01'), async ({ mainWindow }) => {
 The workflow accepts a task ID and delegates selection to the controller.
 Prefer accessible roles, labels, placeholders, test IDs,
 and visible text. Native dialogs and cross-application interactions must use
-the repository-owned helpers in `system-automation.ts`.
+the repository-owned helpers in `systemAutomation.ts`.
 
 Record assertions in Playwright, not prose. The custom reporter writes case and phase
 status into `run.json` and feeds the Chinese Markdown/JUnit reports. The fixture

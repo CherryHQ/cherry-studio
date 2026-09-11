@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { createFixtures, FIXTURE_MARKERS } from '../fixtures'
+import { createFixtures, FIXTURE_MARKERS } from '../fixtureFiles'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 
 describe('regression fixtures', () => {

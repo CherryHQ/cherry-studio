@@ -1,8 +1,8 @@
 import type { Page } from '@playwright/test'
+import { expect } from '@playwright/test'
 
-import { expect } from './fixture'
-import { dismissOnboarding, selectSidebarApp } from './helpers'
 import type { RegressionApp } from './RegressionApp'
+import { closeOpenSettingsDrawer, openSettingsSection } from './settings'
 
 export const CUSTOM_CHAT_PROVIDER = 'Cherry Regression Provider'
 
@@ -17,35 +17,6 @@ export async function selectVisibleModel(page: Page, model: string): Promise<voi
     .first()
   await expect(option).toBeVisible()
   await option.click()
-}
-
-async function closeOpenSettingsDrawer(page: Page): Promise<void> {
-  const drawer = page.locator('[data-slot="page-side-panel"][role="dialog"]:visible').first()
-  if (!(await drawer.isVisible().catch(() => false))) return
-
-  await page.keyboard.press('Escape')
-  if (await drawer.isVisible().catch(() => false)) {
-    const closed = await drawer
-      .waitFor({ state: 'hidden', timeout: 1_000 })
-      .then(() => true)
-      .catch(() => false)
-    if (!closed) await drawer.getByRole('button', { name: 'Close', exact: true }).click()
-  }
-  await expect(drawer).toBeHidden()
-}
-
-export async function openSettingsSection(page: Page, section: string): Promise<void> {
-  await dismissOnboarding(page)
-  await page.keyboard.press('Escape')
-  await closeOpenSettingsDrawer(page)
-  const sectionButton = page
-    .locator('[data-ui="settings.navigation"] [data-slot="menu-item"]')
-    .filter({ hasText: section })
-    .first()
-  if (!(await sectionButton.isVisible().catch(() => false))) {
-    await selectSidebarApp(page, 'Settings')
-  }
-  await sectionButton.click()
 }
 
 async function addModel(page: Page, model: string): Promise<void> {
@@ -108,48 +79,4 @@ export async function ensureCustomChatProvider(app: RegressionApp, page: Page): 
     throw new Error('Custom chat provider ID is unavailable')
   }
   return providerTestId.slice(providerTestIdPrefix.length)
-}
-
-export async function closeSettings(page: Page): Promise<void> {
-  await closeOpenSettingsDrawer(page)
-  await page.getByRole('button', { name: 'Back', exact: true }).first().click()
-  await expect(page.getByRole('button', { name: 'Chat', exact: true }).first()).toBeVisible()
-}
-
-export async function selectChatModel(page: Page, model: string): Promise<void> {
-  await selectSidebarApp(page, 'Chat')
-  await page.getByRole('button', { name: 'Selected models', exact: true }).click()
-  await selectVisibleModel(page, model)
-  await expect(page.getByRole('button', { name: 'Selected models', exact: true })).toBeVisible()
-}
-
-export async function sendChatMarker(page: Page, prompt: string, marker: string, exact = true): Promise<void> {
-  const messages = page.locator('[data-ui~="chat.message"][data-message-id]:visible')
-  const previousIds = await messages.evaluateAll((elements) =>
-    elements.map((element) => element.getAttribute('data-message-id'))
-  )
-  const composer = page.locator('[data-ui~="chat.composer"] [contenteditable="true"]').first()
-  await composer.fill(prompt)
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  const excludePrevious = previousIds.map((id) => `:not([data-message-id="${id}"])`).join('')
-  const response = page
-    .locator(`[data-ui~="chat.message"][data-message-id]${excludePrevious}:visible`)
-    .filter({ has: page.locator('.message-assistant') })
-    .last()
-  await expect(response.getByText(marker, { exact })).toBeVisible({ timeout: 2 * 60_000 })
-  const id = await response.getAttribute('data-message-id')
-  await expect
-    .poll(
-      () =>
-        page.evaluate(async (id) => {
-          const response = await window.api.dataApi.request({
-            id: `regression-message-${Date.now()}`,
-            method: 'GET',
-            path: `/messages/${id}`
-          })
-          return (response.data as { status?: string } | undefined)?.status
-        }, id),
-      { timeout: 2 * 60_000 }
-    )
-    .toBe('success')
 }

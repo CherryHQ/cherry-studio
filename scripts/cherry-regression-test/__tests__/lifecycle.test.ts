@@ -16,7 +16,7 @@ vi.mock('node:child_process', async (importOriginal) => ({
   ...(await importOriginal<typeof ChildProcess>()),
   execFileSync: execFileSyncMock
 }))
-vi.mock('../cdp-client', () => ({ evaluateCdpExpression: evaluateCdpExpressionMock }))
+vi.mock('../cdpClient', () => ({ evaluateCdpExpression: evaluateCdpExpressionMock }))
 
 import { type AppRecord, ensureProfile, stopOwnedApp } from '../lifecycle'
 import { ensureRunDirectories, getRunPaths } from '../paths'

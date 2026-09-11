@@ -10,7 +10,9 @@ The separate [Playwright config](../../../cherry-regression.playwright.config.ts
 - `RegressionApp.ts` locates windows and delegates process operations. Connecting or locating a window does not change application preferences.
 - `setup.ts` explicitly establishes English locale, onboarding/telemetry settings, and disabled desktop assistants before each non-startup scenario.
 - Domain helpers such as `models.ts`, `knowledge.ts`, and `agents.ts` express reusable user workflows.
-- `CherryRegressionReporter.ts` maps native Playwright annotations/results into the controller's run state.
+- `navigation.ts` and `settings.ts` own shared navigation; `chat.ts` owns chat interactions and response assertions.
+- The controller owns `CherryRegressionReporter.ts` and its unit tests.
+- Helpers import Playwright assertions directly; only scenarios import the extended `test` from `fixture.ts`.
 
 ## State ownership
 

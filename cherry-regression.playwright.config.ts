@@ -17,7 +17,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   reporter: [
-    ['./tests/e2e/cherry-regression/CherryRegressionReporter.ts'],
+    ['./scripts/cherry-regression-test/CherryRegressionReporter.ts'],
     ['list'],
     ['html', { open: 'never', outputFolder: join(runDirectory, 'report', `playwright-${phase}`) }]
   ],

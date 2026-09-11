@@ -1,9 +1,10 @@
 import type { Page } from '@playwright/test'
+import { expect } from '@playwright/test'
 
-import { expect } from './fixture'
-import { selectSidebarApp } from './helpers'
-import { closeSettings, ensureCustomChatProvider, selectVisibleModel } from './models'
+import { ensureCustomChatProvider, selectVisibleModel } from './models'
+import { selectSidebarApp } from './navigation'
 import type { RegressionApp } from './RegressionApp'
+import { closeSettings } from './settings'
 
 export function customAssistantName(app: RegressionApp): string {
   return app.resourceName('Cherry Regression Assistant 31415')

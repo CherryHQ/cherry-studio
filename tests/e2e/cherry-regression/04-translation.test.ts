@@ -1,10 +1,11 @@
 import { join } from 'node:path'
 
 import { caseDefinition } from '../../../scripts/cherry-regression-test/cases'
-import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/systemAutomation'
 import { expect, test } from './fixture'
-import { selectSidebarApp } from './helpers'
-import { closeSettings, ensureCustomChatProvider, selectVisibleModel } from './models'
+import { ensureCustomChatProvider, selectVisibleModel } from './models'
+import { selectSidebarApp } from './navigation'
+import { closeSettings } from './settings'
 
 async function selectTranslationModel(page: Parameters<typeof selectSidebarApp>[0], model: string): Promise<void> {
   await selectSidebarApp(page, 'Translation')

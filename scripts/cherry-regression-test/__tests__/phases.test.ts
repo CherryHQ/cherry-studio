@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { createFixtures } from '../fixtures'
+import { createFixtures } from '../fixtureFiles'
 import { ensureRunDirectories, getRunPaths } from '../paths'
 import { runPhase } from '../phases'
 import { createRun, getRunVerdict, readRun, writeRun } from '../state'

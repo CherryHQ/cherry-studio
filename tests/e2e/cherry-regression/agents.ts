@@ -2,11 +2,11 @@ import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { Page } from '@playwright/test'
+import { expect } from '@playwright/test'
 
-import { chooseNativeFile } from '../../../scripts/cherry-regression-test/system-automation'
-import { expect } from './fixture'
-import { selectSidebarApp } from './helpers'
+import { chooseNativeFile } from '../../../scripts/cherry-regression-test/systemAutomation'
 import { selectVisibleModel } from './models'
+import { selectSidebarApp } from './navigation'
 import type { RegressionApp } from './RegressionApp'
 
 export async function selectAgent(page: Page, name: string): Promise<void> {
@@ -106,7 +106,7 @@ export async function runAgentFileTask(
             if (await allow.isVisible().catch(() => false)) await allow.click()
           }
           try {
-            const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
+            const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/fileEvidence')
             await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
             created = true
             return true
@@ -127,6 +127,6 @@ export async function runAgentFileTask(
     }
   }
 
-  const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
+  const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/fileEvidence')
   await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
 }

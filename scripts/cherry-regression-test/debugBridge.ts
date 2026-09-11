@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { basename, dirname, resolve, win32 } from 'node:path'
 
-import { evaluateCdpExpression } from './cdp-client'
+import { evaluateCdpExpression } from './cdpClient'
 import { type AppRecord, readCdpTargets } from './lifecycle'
 import {
   assertOwnedProcess,

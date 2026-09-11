@@ -6,7 +6,7 @@ import { normalizeRunnerArch, selectReleaseAsset, sha256File } from './artifacts
 import { probeCapabilities } from './capabilities'
 import { PHASE_IDS, TASK_SELECTIONS } from './cases'
 import { getSensitiveConfigValues, loadTestConfig, REQUIRED_CONFIG } from './config'
-import { createFixtures } from './fixtures'
+import { createFixtures } from './fixtureFiles'
 import { installReleaseArtifact } from './installation'
 import { launchApp, stopOwnedApp } from './lifecycle'
 import { ensureRunDirectories, getRunPaths } from './paths'

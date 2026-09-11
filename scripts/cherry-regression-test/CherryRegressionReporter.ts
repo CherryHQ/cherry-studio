@@ -8,17 +8,11 @@ import type {
   TestResult
 } from '@playwright/test/reporter'
 
-import { getCase, selectCases } from '../../../scripts/cherry-regression-test/cases'
-import { REQUIRED_CONFIG } from '../../../scripts/cherry-regression-test/config'
-import { getRunPaths } from '../../../scripts/cherry-regression-test/paths'
-import { createRedactor } from '../../../scripts/cherry-regression-test/redaction'
-import {
-  beginCase,
-  completeE2eCase,
-  readRun,
-  updatePhase,
-  writeRun
-} from '../../../scripts/cherry-regression-test/state'
+import { getCase, selectCases } from './cases'
+import { REQUIRED_CONFIG } from './config'
+import { getRunPaths } from './paths'
+import { createRedactor } from './redaction'
+import { beginCase, completeE2eCase, readRun, updatePhase, writeRun } from './state'
 
 function caseId(test: TestCase): string {
   const id = test.annotations.find(({ type }) => type === 'regression-case')?.description
