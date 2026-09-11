@@ -40,6 +40,10 @@ These suites cover approval and cancellation, missing-workspace denial, session 
 
 ## Example 2: Manual Model and UI Checks
 
+The packaging suite simulates macOS/Linux module loading in fresh Node processes and rejects any resolution of Windows ACL or Win32-process packages. On Windows it also checks that the ACL import graph and runner are covered by `asarUnpack`; a missing ACL package must fail startup rather than disable confinement. Platform simulation is not a native sandbox or installer test.
+
+SDK 0.1.2-rc.1 imports Windows ACL statically from its shared sandbox entry. The bridge build conditionally imports it on Windows, with an import-shape check that fails the build if the SDK changes. Remove this transform when the upstream SDK provides platform-safe loading. Keep the ACL runner and its Win32-process dependency unpacked for the external Node process.
+
 Use an isolated test profile and a disposable workspace. Start the built application with `pnpm start`, select DSH for a test agent, and configure a test model. The following examples can incur model charges; they are not part of the offline suite.
 
 | Scenario | Example input / action | Expected result |
