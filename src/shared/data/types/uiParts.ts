@@ -98,7 +98,12 @@ export interface KnowledgeScopePartData {
 }
 
 /** Context boundary marker. Hidden from both the transcript and the model. */
-export type ClearPartData = Record<string, never>
+export type ClearPartData = {
+  dismissedNoResponse?: boolean
+}
+
+/** Marker for a dismissed synthetic no-response error. Hidden from both the transcript and the model. */
+export type DismissedNoResponsePartData = Record<string, never>
 
 /** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
 export type ConversationResetPartData = Record<string, never>
@@ -146,6 +151,7 @@ export type CherryDataPartTypes = {
   'agent-task-event': AgentTaskEventPartData
   'knowledge-scope': KnowledgeScopePartData
   clear: ClearPartData
+  'no-response-dismissed': DismissedNoResponsePartData
   code: CodePartData
   retry: RetryPartData
 }
@@ -349,8 +355,11 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 
 const KNOWLEDGE_SCOPE_PART_TYPE = 'data-knowledge-scope'
 const CLEAR_CONTEXT_PART_TYPE = 'data-clear'
+const DISMISSED_NO_RESPONSE_PART_TYPE = 'data-no-response-dismissed'
 
 export type ClearContextPart = Extract<CherryMessagePart, { type: typeof CLEAR_CONTEXT_PART_TYPE }>
+
+export type DismissedNoResponsePart = Extract<CherryMessagePart, { type: typeof DISMISSED_NO_RESPONSE_PART_TYPE }>
 
 /** Create the hidden DataUIPart that marks a model-context boundary. */
 export function createClearContextPart(): ClearContextPart {
@@ -360,9 +369,35 @@ export function createClearContextPart(): ClearContextPart {
   }
 }
 
+/** Create the hidden marker for a dismissed synthetic no-response error. */
+export function createDismissedNoResponsePart(): DismissedNoResponsePart {
+  return {
+    type: DISMISSED_NO_RESPONSE_PART_TYPE,
+    data: {}
+  }
+}
+
+/** Whether parts contain a dismissed no-response marker (new type or legacy data-clear flag). */
+export function hasDismissedNoResponsePart(parts: readonly CherryMessagePart[] | undefined): boolean {
+  return (
+    parts?.some(
+      (part) =>
+        part.type === DISMISSED_NO_RESPONSE_PART_TYPE ||
+        (part.type === CLEAR_CONTEXT_PART_TYPE &&
+          (part as unknown as { data?: { dismissedNoResponse?: boolean } }).data?.dismissedNoResponse === true)
+    ) ?? false
+  )
+}
+
 /** Whether a message's persisted parts contain a model-context boundary. */
 export function hasClearContextPart(parts: readonly CherryMessagePart[] | undefined): boolean {
-  return parts?.some((part) => part.type === CLEAR_CONTEXT_PART_TYPE) ?? false
+  return (
+    parts?.some(
+      (part) =>
+        part.type === CLEAR_CONTEXT_PART_TYPE &&
+        (part as unknown as { data?: { dismissedNoResponse?: boolean } }).data?.dismissedNoResponse !== true
+    ) ?? false
+  )
 }
 
 /** Whether persisted message values describe a blank user turn, without making any tree-level claim. */

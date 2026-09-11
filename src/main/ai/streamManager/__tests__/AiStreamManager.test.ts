@@ -219,7 +219,19 @@ function error(msg: string): SerializedError {
 }
 
 function req(topicId: string): AiStreamRequest {
-  return { conversation: { id: topicId, topicId }, trigger: 'submit-message', messages: [] }
+  const request: AiStreamRequest = { conversation: { id: topicId, topicId }, trigger: 'submit-message', messages: [] }
+  // Production agent-session turns carry their runtime identity on the
+  // request (AgentSessionRuntimeService) plus the empty-success opt-in the
+  // terminal classification reads.
+  if (topicId.startsWith('agent-session:')) {
+    request.runtime = {
+      kind: 'agent-session',
+      sessionId: topicId.slice('agent-session:'.length),
+      turnId: 'turn-test'
+    }
+    request.allowEmptySuccess = true
+  }
+  return request
 }
 
 /**
@@ -573,6 +585,50 @@ describe('AiStreamManager', () => {
 
       current.close()
       await vi.waitFor(() => expect(currentListener.doneResults).toHaveLength(1))
+    })
+
+    it('converts an empty successful ordinary turn into a no-response error', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:ordinary-empty')
+      startSingle(mgr, {
+        topicId: 'ordinary-empty',
+        modelId: 'provider-a::model-a',
+        request: req('ordinary-empty'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.close()
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.doneResults).toEqual([])
+      expect(listener.errorResults[0]).toMatchObject({
+        status: 'error',
+        error: { name: 'NoResponseError' }
+      })
+      expect(mgr.inspect('ordinary-empty')?.status).toBe('error')
+    })
+
+    it('keeps an empty successful agent-session turn as success', async () => {
+      vi.useRealTimers()
+      const feed = controlledStream()
+      mockStreamText.mockResolvedValueOnce(feed.stream)
+      const listener = new FakeListener('l:agent-empty')
+      startSingle(mgr, {
+        topicId: 'agent-session:s-empty',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:s-empty'),
+        listeners: [listener]
+      })
+      await vi.waitFor(() => expect(mockStreamText).toHaveBeenCalled())
+
+      feed.close()
+      await vi.waitFor(() => expect(listener.doneResults).toHaveLength(1))
+
+      expect(listener.errorResults).toEqual([])
+      expect(mgr.inspect('agent-session:s-empty')?.status).toBe('done')
     })
   })
 

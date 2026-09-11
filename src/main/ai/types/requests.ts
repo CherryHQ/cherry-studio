@@ -129,6 +129,13 @@ export interface AiStreamRequest extends AiChatRequest {
   retainedContext?: RetainedContext
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
   /**
+   * Terminal policy for turns that complete with no renderable content.
+   * Agent-owned streams set this: their status panes consume non-message
+   * terminal parts, so an empty turn is a legitimate outcome there. Ordinary
+   * chat leaves it unset and such turns become a `NoResponseError`.
+   */
+  allowEmptySuccess?: boolean
+  /**
    * Attribution for callers with no assistant to derive it from. Neutral on purpose:
    * `usageContext` identifies a trusted agent turn; reusing it for source
    * attribution would misclassify a mini app's call as an agent turn.

@@ -277,7 +277,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
             reasoningEffort: validated.reasoningEffort,
             serviceTier: validated.serviceTier,
             fastMode: validated.fastMode,
-            runtime: { kind: 'agent-session', sessionId: validated.sessionId, turnId: runtime.turnId }
+            runtime: { kind: 'agent-session', sessionId: validated.sessionId, turnId: runtime.turnId },
+            allowEmptySuccess: true
           },
           rootSpan: turnTrace.rootSpan,
           abortController: runtime.abortController
