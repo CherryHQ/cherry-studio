@@ -1,5 +1,6 @@
 import { Writable } from 'node:stream'
 
+import { APICallError, RetryError } from 'ai'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
@@ -72,7 +73,61 @@ describe('LoggerService file output', () => {
     expect(String(line.stack)).toContain('io fail')
     // caller data must survive to disk, wherever it nests
     expect(lines[0]).toContain('r1')
-    expect(lines[0]).toContain('EFAKE')
+    // Errors serialize to name/message/stack only — custom props never reach disk (#20363)
+    expect(line).not.toHaveProperty('code')
+    expect(lines[0]).not.toContain('EFAKE')
+  })
+
+  it('strips AI SDK fat fields from file output', async () => {
+    const { loggerService, lines, readLine } = await loadLogger()
+    const error = new APICallError({
+      message: 'No available channel',
+      url: 'https://gateway.test/v1/chat',
+      requestBodyValues: { messages: [{ content: 'private prompt '.repeat(100_000) }] },
+      statusCode: 503,
+      responseHeaders: { 'set-cookie': 'session=secret' },
+      responseBody: 'private tool results '.repeat(100_000),
+      isRetryable: true
+    })
+    loggerService.withContext('AiTest').error('model call failed after retries', error)
+
+    const line = await readLine()
+    expect(line.requestBodyValues).toBeNull()
+    expect(line.responseBody).toBeNull()
+    expect(line.responseHeaders).toBeNull()
+    expect(line.data).toBeNull()
+    expect(line.url).toBe('')
+    expect(line.statusCode).toBe(503)
+    expect(JSON.stringify(line).length).toBeLessThan(10_240)
+    expect(lines[0]).not.toContain('private prompt')
+  })
+
+  it('strips nested RetryError payloads from file output', async () => {
+    const { loggerService, readLine } = await loadLogger()
+    const nested = new APICallError({
+      message: 'channel error',
+      url: 'https://gateway.test/v1/chat',
+      requestBodyValues: { messages: [{ content: 'nested private prompt' }] },
+      statusCode: 503,
+      responseBody: 'nested private results',
+      isRetryable: true
+    })
+    const error = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [nested] })
+    loggerService.withContext('AiTest').error('model call failed after retries', error)
+
+    const line = await readLine()
+    expect((line.lastError as Record<string, unknown> | null)?.requestBodyValues).toBeNull()
+    expect(((line.errors as Record<string, unknown>[]) ?? [])[0]?.responseBody).toBeNull()
+    expect(JSON.stringify(line)).not.toContain('nested private')
+  })
+
+  it('bounds file output for Errors with huge messages', async () => {
+    const { loggerService, readLine } = await loadLogger()
+    loggerService.withContext('AiTest').error('boom', new Error('huge '.repeat(20_000)))
+
+    const line = await readLine()
+    expect(String(line.message).length).toBeLessThan(2048)
+    expect(String(line.stack).length).toBeLessThanOrEqual(4000)
   })
 
   it('adds sys/appver on warn and error but not on info', async () => {

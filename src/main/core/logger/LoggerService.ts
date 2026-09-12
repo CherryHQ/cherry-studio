@@ -10,6 +10,7 @@ import DailyRotateFile from 'winston-daily-rotate-file'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'
+import { serializeNestedProviderError } from '@shared/ai/providerError'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
@@ -42,6 +43,7 @@ const SYSTEM_INFO = {
   hw: `${os.cpus()[0]?.model || 'Unknown CPU'} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
 }
 const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
+const MAX_ERROR_STACK_CHARS = 4000
 
 /**
  * CS_DIAGNOSTICS makes a packaged build behave like dev for logging: the verbose file
@@ -258,9 +260,11 @@ export class LoggerService {
 
     const [first, ...others] = meta
     if (first instanceof Error) {
-      Object.assign(entry, first)
-      entry.stack = first.stack
-      fileMessage = `${message} ${first.message}`
+      // Errors go through the shared safe serializer so unbounded fields
+      // (e.g. AI SDK requestBodyValues) never reach the log file (#20363).
+      Object.assign(entry, serializeNestedProviderError(first) as Record<string, unknown>)
+      if (typeof first.stack === 'string') entry.stack = first.stack.slice(0, MAX_ERROR_STACK_CHARS)
+      fileMessage = `${message} ${String(entry.message ?? first.message)}`
     } else if (first !== null && typeof first === 'object') {
       Object.assign(entry, first)
     } else if (first !== undefined) {
