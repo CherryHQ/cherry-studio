@@ -107,6 +107,7 @@ patchedDependencies:
   # #20329: preserve current animation targets when React Activity reconnects.
   # Remove when an upstream release includes the blocked-initial-animation remount fix.
   motion-dom@12.42.0: patches/motion-dom@12.42.0.patch
+  "@tiptap/extension-list@3.26.1": patches/@tiptap__extension-list@3.26.1.patch
 
 allowBuilds:
   "@deepseek-ai/dsh-subprocess-local": true
