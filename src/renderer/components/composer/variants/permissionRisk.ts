@@ -11,6 +11,10 @@ function getCommandText(args: unknown): string {
   return typeof command === 'string' ? command : ''
 }
 
+// This classifier parallels the activity wording in ToolHeader's
+// getCommandActivity: both pattern-match shell commands, but this one assigns
+// risk severity while that one assigns display labels. Check both when newly
+// covering a tool.
 export function getPermissionRiskEffects(toolName: string, args: unknown): PermissionRiskEffect[] {
   const effects = new Set<PermissionRiskEffect>()
   const text = getCommandText(args)
@@ -41,10 +45,11 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
     effects.add('irreversible')
   }
-  // Shell output redirection truncates or modifies the target file. The leading
-  // separator requirement keeps `=>` and `>=` in inline scripts from matching,
-  // and the lookahead skips fd-to-fd duplication such as `2>&1`.
-  if (/(^|[\s;&|])\d*>{1,2}(?!&)\s*\S/.test(text)) {
+  // Shell output redirection truncates or modifies the target file. A word
+  // character may precede `>` (as in `hi>file`), while `=` stays excluded so
+  // `=>` and `>=` in inline scripts still don't match. The lookahead skips
+  // fd-to-fd duplication such as `2>&1`.
+  if (/(^|[\s;&|\w])\d*>{1,2}(?!&)\s*\S/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
@@ -57,6 +62,17 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   // but it can be moved back, so it is not marked irreversible.
   if (/\bmv\s+\S+\s+\S+/.test(text)) {
     effects.add('destructive')
+  }
+  // Git operations that discard work. `clean` requires `-f` because bare
+  // `clean -n` is a dry run, and `branch` requires uppercase `-D` because
+  // lowercase `-d` refuses unmerged branches.
+  if (
+    /\bgit\s+clean[\s\S]*-f/.test(text) ||
+    /\bgit\s+reset[\s\S]*--hard/.test(text) ||
+    /\bgit\s+branch[\s\S]*-D/.test(text)
+  ) {
+    effects.add('destructive')
+    effects.add('irreversible')
   }
   if (/\b(?:remove|uninstall)\b/.test(lowerText) && /\b(?:npm|pnpm|yarn|bun|pip|uv|cargo|brew)\b/.test(lowerText)) {
     effects.add('destructive')

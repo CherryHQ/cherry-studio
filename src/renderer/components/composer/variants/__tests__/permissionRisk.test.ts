@@ -118,4 +118,24 @@ describe('getPermissionRiskEffects', () => {
     ).toContain('network')
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'telnet example.com 80' })).toContain('network')
   })
+
+  it('flags redirection attached directly to a word', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'echo hi>notes.txt' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+  })
+
+  it('flags git operations that discard work', () => {
+    for (const command of ['git clean -fd', 'git reset --hard HEAD~1', 'git branch -D stale']) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual(
+        expect.arrayContaining(['destructive', 'irreversible'])
+      )
+    }
+  })
+
+  it('leaves safe git operations unflagged', () => {
+    for (const command of ['git clean -n', 'git checkout main', 'git status']) {
+      expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual([])
+    }
+  })
 })
