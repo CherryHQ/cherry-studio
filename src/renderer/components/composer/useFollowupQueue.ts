@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { cacheService } from '@data/CacheService'
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { FOLLOWUP_QUEUE_LIMIT, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
 
 import type { ComposerSerializedDraft } from './tokens'
 
@@ -13,19 +16,10 @@ export interface FollowupQueueItem {
   payload: ComposerQueuedMessagePayload
 }
 
-/** Same per-window memory tier + TTL as the inputbar draft cache (`composerDraft` / ChatComposer). */
-const QUEUE_TTL = 24 * 60 * 60 * 1000
-const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
-const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
-
-/** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
-function loadQueue(scopeKey: string): FollowupQueueItem[] {
-  const cached = cacheService.getCasual<FollowupQueueItem[]>(keyFor(scopeKey))
-  return Array.isArray(cached) ? cached : []
-}
-
-function loadPaused(scopeKey: string): boolean {
-  return cacheService.getCasual<boolean>(pausedKeyFor(scopeKey)) === true
+// Main stores draft/payload as opaque JSON and never interprets them; only the
+// renderer reads tokens back, so the row is narrowed at this single boundary.
+function toControllerItem(row: FollowupQueueRow): FollowupQueueItem {
+  return { id: row.id, draft: row.draft as ComposerSerializedDraft, payload: row.payload }
 }
 
 interface UseFollowupQueueParams {
@@ -43,7 +37,7 @@ interface UseFollowupQueueParams {
 
 export interface FollowupQueueController {
   items: FollowupQueueItem[]
-  enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => void
+  enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => Promise<boolean>
   removeId: (id: string) => void
   reorder: (nextItems: FollowupQueueItem[]) => void
   paused: boolean
@@ -51,10 +45,11 @@ export interface FollowupQueueController {
 }
 
 /**
- * Per-conversation FIFO queue of follow-up drafts. While a turn streams the composer enqueues here
- * instead of sending; on the live→idle edge the head auto-drains (one per completion), and the dock
- * lets the user steer/edit/remove individual items or pause auto-drain. Persistence mirrors the
- * draft cache (per-window memory + TTL); this queue remains on the casual cache API.
+ * Per-conversation FIFO queue of follow-up drafts, durable across restarts.
+ * While a turn streams the composer enqueues here instead of sending; on the
+ * live→idle edge the head auto-drains (one per completion) through a
+ * cross-window claim — only the window whose claim wins sends — and the dock
+ * lets the user steer/edit/remove individual items or pause auto-drain.
  */
 export function useFollowupQueue({
   scopeKey,
@@ -63,11 +58,43 @@ export function useFollowupQueue({
   onDrain,
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
-  const [items, setItems] = useState<FollowupQueueItem[]>(() => loadQueue(scopeKey))
-  const [paused, setPausedState] = useState(() => loadPaused(scopeKey))
+  const { t } = useTranslation()
 
-  // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
+  const { data: rows, refetch } = useQuery('/followup-queues', { query: { scopeKey } })
+  const { data: queueState, refetch: refetchState } = useQuery('/followup-queue-states', {
+    query: { scopeKey }
+  })
+  useDataChange('/followup-queues', () => {
+    void refetch()
+  })
+  useDataChange('/followup-queue-states', () => {
+    void refetchState()
+  })
+
+  const { trigger: enqueueTrigger } = useMutation('POST', '/followup-queues', {
+    refresh: ['/followup-queues']
+  })
+  const { trigger: removeTrigger } = useMutation('DELETE', '/followup-queues/:id', {
+    refresh: ['/followup-queues']
+  })
+  const { trigger: reorderTrigger } = useMutation('PATCH', '/followup-queues/order:batch', {
+    refresh: ['/followup-queues']
+  })
+  const { trigger: claimTrigger } = useMutation('POST', '/followup-queues/:id/claim')
+  const { trigger: markFailedTrigger } = useMutation('POST', '/followup-queues/:id/fail', {
+    refresh: ['/followup-queues']
+  })
+  const { trigger: setPausedTrigger } = useMutation('PUT', '/followup-queue-states', {
+    refresh: ['/followup-queue-states']
+  })
+
+  // The query layer holds arbitrary JSON; guard non-array entries like the old cache loader did.
+  const items = useMemo(() => (Array.isArray(rows) ? rows : []).map(toControllerItem), [rows])
+  const paused = queueState?.paused ?? false
+
+  // Latest values for the async drain closure (kept off the effect deps to avoid re-running).
   const scopeKeyRef = useRef(scopeKey)
+  scopeKeyRef.current = scopeKey
   const itemsRef = useRef(items)
   itemsRef.current = items
   const onDrainRef = useRef(onDrain)
@@ -75,66 +102,86 @@ export function useFollowupQueue({
   const onDrainFailedRef = useRef(onDrainFailed)
   onDrainFailedRef.current = onDrainFailed
 
-  const persist = useCallback((next: FollowupQueueItem[]) => {
-    cacheService.setCasual(keyFor(scopeKeyRef.current), next, QUEUE_TTL)
-  }, [])
-
-  // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
-  useEffect(() => {
-    if (scopeKeyRef.current === scopeKey) return
-    scopeKeyRef.current = scopeKey
-    setItems(loadQueue(scopeKey))
-    setPausedState(loadPaused(scopeKey))
-  }, [scopeKey])
-
-  const setPaused = useCallback((nextPaused: boolean) => {
-    cacheService.setCasual(pausedKeyFor(scopeKeyRef.current), nextPaused)
-    setPausedState(nextPaused)
-  }, [])
-
   const enqueue = useCallback(
-    (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      setItems((prev) => {
-        const next = [...prev, { id: crypto.randomUUID(), draft, payload }]
-        persist(next)
-        return next
-      })
+    async (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
+      if (itemsRef.current.length >= FOLLOWUP_QUEUE_LIMIT) {
+        toast.error(t('chat.input.followup_queue.limit_reached', { count: FOLLOWUP_QUEUE_LIMIT }))
+        return false
+      }
+      try {
+        await enqueueTrigger({ body: { scopeKey: scopeKeyRef.current, draft, payload } })
+        return true
+      } catch {
+        toast.error(t('message.error.operation_unavailable'))
+        return false
+      }
     },
-    [persist]
+    [enqueueTrigger, t]
   )
 
   const removeId = useCallback(
     (id: string) => {
-      setItems((prev) => {
-        const next = prev.filter((item) => item.id !== id)
-        persist(next)
-        return next
+      void removeTrigger({ params: { id } }).catch(() => {
+        toast.error(t('message.error.operation_unavailable'))
       })
     },
-    [persist]
+    [removeTrigger, t]
   )
 
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
-      setItems(nextItems)
-      persist(nextItems)
+      const moves = nextItems.slice(1).map((item, index) => ({ id: item.id, anchor: { after: nextItems[index].id } }))
+      if (moves.length === 0) return
+      void reorderTrigger({ body: { moves } }).catch(() => {
+        toast.error(t('message.error.operation_unavailable'))
+      })
     },
-    [persist]
+    [reorderTrigger, t]
   )
 
-  // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
-  // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
+  const setPaused = useCallback(
+    (nextPaused: boolean) => {
+      void setPausedTrigger({ body: { scopeKey: scopeKeyRef.current, paused: nextPaused } }).catch(() => {
+        toast.error(t('message.error.operation_unavailable'))
+      })
+    },
+    [setPausedTrigger, t]
+  )
+
+  // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once),
+  // claim the head (only the winning window sends), and resolve the claim — dequeue on success,
+  // mark failed otherwise. A lost claim means another window is sending; our mirror converges
+  // through the change notification.
   useEffect(() => {
     if (!isFulfilled || paused) return
     const head = itemsRef.current[0]
     if (!head) return
     markSeen()
     const reportDrainFailure = () => onDrainFailedRef.current?.()
-    void onDrainRef.current(head.payload).then((sent) => {
-      if (sent) removeId(head.id)
-      else reportDrainFailure()
-    }, reportDrainFailure)
-  }, [isFulfilled, paused, markSeen, removeId])
+    void (async () => {
+      let claimed = false
+      try {
+        claimed = (await claimTrigger({ params: { id: head.id } })).claimed
+      } catch {
+        reportDrainFailure()
+        return
+      }
+      if (!claimed) return
+      let sent = false
+      try {
+        sent = await onDrainRef.current(head.payload)
+      } catch {
+        sent = false
+      }
+      try {
+        if (sent) await removeTrigger({ params: { id: head.id } })
+        else await markFailedTrigger({ params: { id: head.id } })
+      } catch {
+        // Resolution write lost; mirrors converge through change notifications.
+      }
+      if (!sent) reportDrainFailure()
+    })()
+  }, [isFulfilled, paused, markSeen, claimTrigger, removeTrigger, markFailedTrigger])
 
   return { items, enqueue, removeId, reorder, paused, setPaused }
 }
