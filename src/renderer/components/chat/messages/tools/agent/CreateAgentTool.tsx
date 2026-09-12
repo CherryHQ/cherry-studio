@@ -1,6 +1,7 @@
-import { Button } from '@cherrystudio/ui'
 import { Bot, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@cherrystudio/ui'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { CreateAgentResult } from './createAgentResult'

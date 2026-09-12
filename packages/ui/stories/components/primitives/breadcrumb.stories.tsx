@@ -1,3 +1,6 @@
+import type { Meta, StoryObj } from '@storybook/react'
+import { Slash } from 'lucide-react'
+
 import {
   Breadcrumb,
   BreadcrumbEllipsis,
@@ -7,8 +10,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator
 } from '@cherrystudio/ui'
-import type { Meta, StoryObj } from '@storybook/react'
-import { Slash } from 'lucide-react'
 
 const meta: Meta<typeof Breadcrumb> = {
   title: 'Components/Primitives/Breadcrumb',

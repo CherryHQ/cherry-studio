@@ -1,3 +1,7 @@
+import { omit } from 'es-toolkit/compat'
+import type { Element } from 'hast'
+import React, { useMemo } from 'react'
+
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { scrollToMarkdownAnchor, shouldShowMarkdownLinkFavicon } from '@renderer/components/markdown'
@@ -5,9 +9,6 @@ import type { Citation } from '@renderer/types/message'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
-import { omit } from 'es-toolkit/compat'
-import type { Element } from 'hast'
-import React, { useMemo } from 'react'
 
 import CitationTooltip from './CitationTooltip'
 import Hyperlink from './Hyperlink'

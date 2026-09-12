@@ -1,5 +1,6 @@
-import { ContentHashSchema } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
+
+import { ContentHashSchema } from '@shared/data/types/file'
 
 import { CONTENT_HASH_ALGO, createContentHasher, hashContent, parseContentHash } from '../contentHash'
 

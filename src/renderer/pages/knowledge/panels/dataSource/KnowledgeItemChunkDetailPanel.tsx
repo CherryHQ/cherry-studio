@@ -1,3 +1,8 @@
+import { ArrowLeft } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
@@ -6,10 +11,6 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { ipcApi } from '@renderer/ipc'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
-import { ArrowLeft } from 'lucide-react'
-import type { ReactNode } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
 
@@ -31,15 +32,15 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
   return (
     <div className="rounded-lg border border-border-subtle transition-all hover:border-border-strong">
       <div className="flex items-center gap-2 px-3 py-2">
-        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-tertiary text-xs leading-4">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-xs leading-4 text-foreground-tertiary">
           {chunk.metadata.chunkIndex + 1}
         </span>
-        <span className="flex-1 text-foreground-tertiary text-xs leading-4">
+        <span className="flex-1 text-xs leading-4 text-foreground-tertiary">
           {chunk.metadata.tokenCount} {t('knowledge.rag.tokens_unit')}
         </span>
       </div>
       <div className="px-3 pb-3">
-        <p className="line-clamp-2 text-muted-foreground text-sm leading-relaxed">{chunk.content}</p>
+        <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{chunk.content}</p>
       </div>
     </div>
   )
@@ -48,7 +49,7 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
 const renderChunk = (chunk: KnowledgeItemChunk) => <KnowledgeItemChunkCard chunk={chunk} />
 
 const KnowledgeItemChunkState = ({ children }: { children: ReactNode }) => (
-  <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-foreground-tertiary text-sm leading-5">
+  <div className="flex min-h-full items-center justify-center px-4 py-10 text-center text-sm leading-5 text-foreground-tertiary">
     {children}
   </div>
 )
@@ -119,7 +120,7 @@ const KnowledgeItemChunkDetailPanel = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="relative flex h-11 shrink-0 items-center gap-2 px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
+      <div className="relative flex h-11 shrink-0 items-center gap-2 px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-b after:border-border after:content-['']">
         <Button
           type="button"
           variant="ghost"
@@ -135,10 +136,10 @@ const KnowledgeItemChunkDetailPanel = ({
           </span>
         ) : null}
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-foreground text-sm leading-5">
+          <span className="block truncate text-sm leading-5 text-foreground">
             {viewModel?.title ?? t('common.loading')}
           </span>
-          <div className="flex items-center gap-2 text-foreground-tertiary text-xs leading-4">
+          <div className="flex items-center gap-2 text-xs leading-4 text-foreground-tertiary">
             <span>{chunksCountMeta}</span>
           </div>
         </div>

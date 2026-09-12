@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { buildToolResponseFromPart } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
 
 import { agentInlineResultPresentationRegistry } from '../agentInlineResultPresentationRegistry'
 
