@@ -286,7 +286,7 @@ vi.mock('@renderer/ipc', () => ({
 // useAgentSessionSlashCommands now observes the shared slash-command catalog via
 // useSharedCacheValue (globally mocked); with no catalog seeded the composer
 // falls back to the builtin list. This inline cacheService only serves the
-// remaining typed-draft, casual queue, subscribe, and followup-queue (persist) consumers.
+// remaining typed-draft, casual queue, and subscribe consumers.
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     get: vi.fn(() => undefined),
@@ -301,7 +301,6 @@ vi.mock('@data/CacheService', () => ({
       const next = typeof value === 'function' ? (value as (prev: unknown) => unknown)(prev) : value
       mocks.persistCache.set(key, next)
     }),
-    flushPersistCache: vi.fn(),
     subscribe: vi.fn(() => () => {})
   }
 }))

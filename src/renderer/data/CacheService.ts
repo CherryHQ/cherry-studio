@@ -38,8 +38,6 @@ import type {
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
 
-import { mergeFollowupQueues } from './followupQueueMerge'
-
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
 const logger = loggerService.withContext('CacheService')
@@ -1056,53 +1054,34 @@ export class CacheService {
       this.persistCache.set(key as RendererPersistCacheKey, defaultValue)
     }
 
-    let parsed: Record<string, unknown> | null = null
     try {
       const stored = localStorage.getItem(STORAGE_PERSIST_KEY)
       if (!stored) {
-        try {
-          this.savePersistCache()
-        } catch (error) {
-          logger.error('Failed to save initial persist cache:', error as Error)
-        }
+        // No stored data, save defaults to localStorage
+        this.savePersistCache()
         logger.debug('Initialized persist cache with default values')
         return
       }
 
-      parsed = JSON.parse(stored) as Record<string, unknown>
+      const data = JSON.parse(stored)
 
       // Only load keys that exist in schema, overriding defaults
       const schemaKeys = Object.keys(DefaultRendererPersistCache) as RendererPersistCacheKey[]
       for (const key of schemaKeys) {
-        if (key in parsed) {
-          this.persistCache.set(key, parsed[key] as never)
+        if (key in data) {
+          this.persistCache.set(key, data[key])
         }
       }
+
+      // Clean up localStorage (remove invalid keys and save merged data)
+      this.savePersistCache()
+      logger.debug('Loaded persist cache from localStorage with defaults')
     } catch (error) {
       logger.error('Failed to load persist cache:', error as Error)
       localStorage.removeItem(STORAGE_PERSIST_KEY)
       // Fallback to defaults only
       logger.debug('Fallback to default persist cache values')
-      return
     }
-
-    // Clean up localStorage (remove invalid keys and save merged data).
-    // Keep outside the parse try/catch so a save failure (e.g. quota)
-    // does not delete the just-loaded valid blob.
-    try {
-      this.savePersistCache()
-    } catch (error) {
-      logger.error('Failed to save persist cache after load:', error as Error)
-    }
-    logger.debug('Loaded persist cache from localStorage with defaults')
-  }
-
-  /**
-   * Flush persist cache to localStorage synchronously. Throws on quota or
-   * serialization failure so callers that require durability can roll back.
-   */
-  public flushPersistCache(): void {
-    this.savePersistCache()
   }
 
   /**
@@ -1127,12 +1106,8 @@ export class CacheService {
 
       localStorage.setItem(STORAGE_PERSIST_KEY, jsonData)
       logger.verbose(`Saved persist cache to localStorage, size: ${(size / (1024 * 1024)).toFixed(2)} MB`)
-      this.persistDirty = false
     } catch (error) {
       logger.error('Failed to save persist cache:', error as Error)
-      // Keep dirty so the next mutation or beforeunload retry persists the data.
-      this.persistDirty = true
-      throw error
     }
   }
 
@@ -1147,11 +1122,8 @@ export class CacheService {
     }
 
     this.persistSaveTimer = setTimeout(() => {
-      try {
-        this.savePersistCache()
-      } catch {
-        // Error already logged; keep dirty for retry on next mutation.
-      }
+      this.savePersistCache()
+      this.persistDirty = false
     }, this.PERSIST_SAVE_DEBOUNCE_MS)
   }
 
@@ -1208,35 +1180,8 @@ export class CacheService {
         this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
-        const persistKey = message.key as RendererPersistCacheKey
-        // Follow-up queues are a per-conversation map persisted under one key;
-        // two windows queuing to different conversations can broadcast whole-map
-        // values that are each stale for the other's entry. Merge per-conversation
-        // so concurrent writes do not clobber each other. Deletions use a null
-        // tombstone (see useFollowupQueue persistState) so the merge can
-        // propagate them without resurrecting stale entries. Same-scope
-        // concurrent enqueues union items by id to avoid losing one window's
-        // queued message.
-        if (
-          persistKey === 'ui.composer.followup_queue' &&
-          this.persistCache.has(persistKey) &&
-          message.value !== undefined &&
-          typeof message.value === 'object' &&
-          !Array.isArray(message.value)
-        ) {
-          const existing = this.persistCache.get(persistKey) as Record<string, unknown>
-          if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
-            const incoming = message.value as Record<string, unknown>
-            const merged = mergeFollowupQueues(existing, incoming)
-            this.persistCache.set(persistKey, merged as never)
-            this.notifySubscribers(message.key)
-            // The merged value is newer than anything on disk — schedule a save
-            // so a crash does not lose the reconciled queue.
-            this.schedulePersistSave()
-            return
-          }
-        }
-        this.persistCache.set(persistKey, message.value)
+        // Update persist cache (other windows only update memory, not localStorage)
+        this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
         this.notifySubscribers(message.key)
       }
     })
@@ -1248,11 +1193,7 @@ export class CacheService {
   private setupWindowUnloadHandler(): void {
     window.addEventListener('beforeunload', () => {
       if (this.persistDirty) {
-        try {
-          this.savePersistCache()
-        } catch {
-          // Already logged
-        }
+        this.savePersistCache()
       }
     })
   }
@@ -1263,11 +1204,7 @@ export class CacheService {
   public cleanup(): void {
     // Force save persist cache if dirty
     if (this.persistDirty) {
-      try {
-        this.savePersistCache()
-      } catch {
-        // Already logged
-      }
+      this.savePersistCache()
     }
 
     // Clear timers
