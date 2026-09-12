@@ -387,6 +387,26 @@ vi.mock('../components/TranslateHistory', () => ({
             )
           }
         />
+        <button
+          type="button"
+          aria-label="reuse-other-pdf-history"
+          onClick={() =>
+            onHistoryItemClick(
+              {
+                id: 'history-other-pdf',
+                kind: 'file',
+                sourceText: 'other.pdf',
+                targetText: 'other.ja-JP.pdf',
+                sourceLanguage: 'zh-cn',
+                targetLanguage: 'ja-jp'
+              },
+              {
+                source: { entryId: 'entry-other-source', path: '/tmp/other.pdf' as AbsoluteFilePath },
+                target: { entryId: 'entry-other-target', path: '/tmp/files/entry-other-target.pdf' as AbsoluteFilePath }
+              }
+            )
+          }
+        />
       </div>
     ) : null
 }))
@@ -2608,6 +2628,44 @@ describe('TranslatePage', () => {
     }
   )
 
+  it('blocks the keyboard shortcut while remounted history persistence is pending', async () => {
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'current output')
+    MockCacheUtils.setInitialState({
+      memory: [
+        ['translate.input', 'current input'],
+        ['translate.output', 'current output']
+      ]
+    })
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const firstPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        firstPage.unmount()
+
+        const secondPage = render(<TranslatePage />)
+        fireEvent.keyDown(screen.getByLabelText('translate.input.placeholder'), { key: 'Enter', ctrlKey: true })
+        expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+        await act(async () => resolvePersist())
+        secondPage.rerender(<TranslatePage />)
+
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('history input')
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('history output')
+      }
+    )
+  })
+
   it('keeps remounted history panes aligned with the last persisted language pair', async () => {
     const pending: Array<() => void> = []
     const persistLanguages = vi.fn(
@@ -3149,6 +3207,116 @@ describe('TranslatePage', () => {
         const view = await screen.findByTestId('pdf-translation-view')
         expect(view).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
         expect(view).toHaveAttribute('data-restored-output', '/tmp/files/entry-target.pdf')
+      }
+    )
+  })
+
+  it('keeps a later text restore aligned when a remounted PDF restore completes first', async () => {
+    const pending: Array<() => void> = []
+    const persistLanguages = vi.fn(
+      (values: { sourceLanguage?: string; targetLanguage?: string }) =>
+        new Promise<void>((resolve) => {
+          pending.push(() => {
+            MockUsePreferenceUtils.setMultiplePreferenceValues({
+              'feature.translate.page.source_language': values.sourceLanguage,
+              'feature.translate.page.target_language': values.targetLanguage
+            })
+            resolve()
+          })
+        })
+    )
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'current output')
+    MockCacheUtils.setInitialState({
+      memory: [
+        ['translate.input', 'current input'],
+        ['translate.output', 'current output']
+      ]
+    })
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const firstPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        firstPage.unmount()
+
+        const secondPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-other-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(2))
+
+        await act(async () => pending[0]())
+        await act(async () => pending[1]())
+        secondPage.rerender(<TranslatePage />)
+
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('ja-jp')
+        expect(screen.queryByTestId('pdf-translation-view')).toBeNull()
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('newer history input')
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('newer history output')
+      }
+    )
+  })
+
+  it('keeps the last persisted PDF preview and language pair after overlapping remount restores', async () => {
+    const pending: Array<() => void> = []
+    const persistLanguages = vi.fn(
+      (values: { sourceLanguage?: string; targetLanguage?: string }) =>
+        new Promise<void>((resolve) => {
+          pending.push(() => {
+            MockUsePreferenceUtils.setMultiplePreferenceValues({
+              'feature.translate.page.source_language': values.sourceLanguage,
+              'feature.translate.page.target_language': values.targetLanguage
+            })
+            resolve()
+          })
+        })
+    )
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'current output')
+    MockCacheUtils.setInitialState({
+      memory: [
+        ['translate.input', 'current input'],
+        ['translate.output', 'current output']
+      ]
+    })
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const firstPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        firstPage.unmount()
+
+        const secondPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-other-pdf-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(2))
+
+        await act(async () => pending[0]())
+        await act(async () => pending[1]())
+        secondPage.rerender(<TranslatePage />)
+
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('ja-jp')
+        const view = await screen.findByTestId('pdf-translation-view')
+        expect(view).toHaveAttribute('data-file-path', '/tmp/other.pdf')
+        expect(view).toHaveAttribute('data-restored-output', '/tmp/files/entry-other-target.pdf')
       }
     )
   })

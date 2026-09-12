@@ -624,7 +624,7 @@ const TranslatePage: FC = () => {
   ])
 
   const onTranslate = useCallback(async () => {
-    if (exchangePendingRef.current || historyRestorePendingRef.current) return
+    if (exchangePendingRef.current || cacheService.get('translate.history_restore_pending') != null) return
     markContentChanged()
     translationOperationRef.current = { revision: getContentOperationRevision() }
     if (pdfFile) {
@@ -779,14 +779,21 @@ const TranslatePage: FC = () => {
         if (!isMountedRef.current) {
           if (restoredFile) {
             if (
-              contentIntentRevisionBeforePersist !== currentIntentRevision ||
-              cacheService.get('translate.input') !== contentBeforePersist.input ||
-              cacheService.get('translate.output') !== contentBeforePersist.output
+              (cacheService.get('translate.input') !== contentBeforePersist.input ||
+                cacheService.get('translate.output') !== contentBeforePersist.output) &&
+              (!priorRestoreAdvancedIntent ||
+                cacheService.get('translate.input') !== lastRestore.input ||
+                cacheService.get('translate.output') !== lastRestore.output)
             )
               return
             advanceContentOperationRevision()
             markContentChanged()
             setRestoredPdfHandoff(restoredFile)
+            cacheService.set('translate.last_history_restore', {
+              revision: getContentIntentRevision(),
+              input: cacheService.get('translate.input') ?? contentBeforePersist.input,
+              output: cacheService.get('translate.output') ?? contentBeforePersist.output
+            })
             contentRestored = true
             return
           }
