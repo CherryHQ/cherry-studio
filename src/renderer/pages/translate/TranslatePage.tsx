@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -249,6 +250,10 @@ const TranslatePage: FC = () => {
   const translationOperationRef = useRef<{ revision: number } | null>(null)
   const markContentChanged = useCallback(() => {
     contentRevisionRef.current += 1
+    translationOperationRef.current = null
+  }, [])
+  const markTranslationContentChanged = useCallback(() => {
+    contentRevisionRef.current += 1
   }, [])
   const isTranslationOperationCurrent = useCallback(
     () => translationOperationRef.current?.revision === contentOperationRevisionRef.current,
@@ -257,10 +262,10 @@ const TranslatePage: FC = () => {
   const handleTranslationResponse = useCallback(
     (text: string) => {
       if (!isTranslationOperationCurrent()) return
-      markContentChanged()
+      markTranslationContentChanged()
       setTranslateOutput(text)
     },
-    [isTranslationOperationCurrent, markContentChanged, setTranslateOutput]
+    [isTranslationOperationCurrent, markTranslationContentChanged, setTranslateOutput]
   )
 
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: handleTranslationResponse })
@@ -428,7 +433,7 @@ const TranslatePage: FC = () => {
     ): Promise<TranslateHistory | undefined> => {
       if (isTranslating || !isTranslationOperationCurrent()) return
 
-      markContentChanged()
+      markTranslationContentChanged()
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated || !isTranslationOperationCurrent()) return
@@ -462,7 +467,7 @@ const TranslatePage: FC = () => {
       autoCopy,
       isTranslationOperationCurrent,
       isTranslating,
-      markContentChanged,
+      markTranslationContentChanged,
       runTranslate,
       setOutputCopied,
       setTimeoutTimer,
@@ -602,7 +607,7 @@ const TranslatePage: FC = () => {
   const onTranslate = useCallback(async () => {
     if (exchangePendingRef.current || historyRestorePendingRef.current) return
     translationOperationRef.current = { revision: contentOperationRevisionRef.current }
-    markContentChanged()
+    markTranslationContentChanged()
     if (pdfFile) {
       if (babelDoc.availability === 'checking' || babelDoc.installing || targetLanguage === UNKNOWN_LANG_CODE) return
       if (babelDoc.availability === 'available') {
@@ -630,7 +635,7 @@ const TranslatePage: FC = () => {
     babelDoc.installing,
     bidirectionalPair,
     isSelectedPdfModelRoutable,
-    markContentChanged,
+    markTranslationContentChanged,
     pdfFile,
     pdfStatus.running,
     sourceLanguage,
@@ -671,8 +676,13 @@ const TranslatePage: FC = () => {
         setTranslateLanguages({ sourceLanguage: targetLanguage, targetLanguage: sourceLanguage }),
         'translate languages'
       )
-      if (!persisted || !isMountedRef.current) return
+      if (!persisted) return
       const { input, output } = translateContentRef.current
+      if (
+        !isMountedRef.current &&
+        (cacheService.get('translate.input') !== input || cacheService.get('translate.output') !== output)
+      )
+        return
       markContentChanged()
       translateContentRef.current = { input: output, output: input, pdfFile: null }
       setTranslateInput(output)
@@ -717,6 +727,7 @@ const TranslatePage: FC = () => {
         filePaths = { source: files.source.path, target: files.target.path }
       }
 
+      contentOperationRevisionRef.current += 1
       let persisted = false
       historyRestorePendingRef.current = true
       setIsHistoryRestorePending(true)
@@ -744,7 +755,6 @@ const TranslatePage: FC = () => {
       )
         return
 
-      contentOperationRevisionRef.current += 1
       markContentChanged()
 
       if (filePaths) {
