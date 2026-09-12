@@ -171,7 +171,7 @@ export class OvmsManager extends BaseService {
 
       // Run run.bat without waiting for it to complete
       logger.info(`Starting OVMS with run.bat: ${runBatPath}`)
-      exec(`"${runBatPath}"`, { cwd: ovmsDir }, (error) => {
+      exec(`"${runBatPath}"`, { cwd: ovmsDir, env: sanitizeEnvNullBytes({ ...process.env }) }, (error) => {
         if (error) {
           logger.error(`Error running run.bat: ${error}`)
         }

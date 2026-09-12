@@ -57,21 +57,27 @@ function stripNullBytePathSegments(value: string): string {
     .join(separator)
 }
 
+/** Windows env keys are case-insensitive; on POSIX `Path` is an unrelated variable. */
+function isPathKey(key: string): boolean {
+  return isWin ? key.toLowerCase() === 'path' : key === 'PATH'
+}
+
 /**
  * Remove NUL bytes from an environment map so `spawn` cannot reject it (#20344).
  * The check is not PATH-only: Node throws for a NUL in any value. PATH keeps its
- * valid segments; every other value has no partial form, so its entry is dropped.
+ * valid segments; every other value has no partial form, so its entry is dropped,
+ * which is why the result makes no promise about which keys survive.
  */
-export function sanitizeEnvNullBytes<T extends Record<string, string | undefined>>(env: T): T {
-  const sanitized: Record<string, string | undefined> = {}
+export function sanitizeEnvNullBytes<V extends string | undefined>(env: Record<string, V>): Record<string, V> {
+  const sanitized: Record<string, V> = {}
   for (const [key, value] of Object.entries(env)) {
     if (typeof value !== 'string' || !value.includes('\0')) {
       sanitized[key] = value
-    } else if (key.toLowerCase() === 'path') {
-      sanitized[key] = stripNullBytePathSegments(value)
+    } else if (isPathKey(key)) {
+      sanitized[key] = stripNullBytePathSegments(value) as V
     }
   }
-  return sanitized as T
+  return sanitized
 }
 
 /** The mise shims dir — where installed-tool shim executables land. */

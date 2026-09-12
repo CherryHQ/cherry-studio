@@ -127,6 +127,14 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     expect(env.BROKEN).toBeUndefined()
   })
 
+  it('treats every PATH casing as PATH, unlike the posix rule', () => {
+    // Windows env keys are case-insensitive, so an upper-cased `PATH` still gets
+    // segment-level repair instead of being dropped whole (#20344 review).
+    const env = sanitizeEnvNullBytes({ PATH: 'C:\\Windows;C:\\broken\0dir' })
+
+    expect(env.PATH).toBe('C:\\Windows')
+  })
+
   it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {
     // aqua/Sigstore/TUF resolves its cache/config from %LOCALAPPDATA%/%APPDATA%;
     // the install subprocess strips the user's real values, so the isolated home
