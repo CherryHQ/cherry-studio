@@ -2883,4 +2883,32 @@ describe('ResourceList', () => {
       unmount()
     }
   })
+
+  it('keeps the pinned action rail expanded at rest without hover', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={[ITEMS[0]]}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item} data-testid="resource-row">
+                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
+                <ResourceList.ItemActions pinned>
+                  <ResourceList.ItemAction aria-label="Unpin item" aria-pressed>
+                    #
+                  </ResourceList.ItemAction>
+                </ResourceList.ItemActions>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const unpinButton = screen.getByRole('button', { name: 'Unpin item' })
+    expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
+    // The pinned rail reserves space at rest; unpinned rows keep the hover-only rail.
+    expect(unpinButton.closest('[data-resource-list-item-actions]')).toHaveAttribute('data-pinned', 'true')
+  })
 })
