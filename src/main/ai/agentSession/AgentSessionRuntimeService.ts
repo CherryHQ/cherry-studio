@@ -235,6 +235,10 @@ type BackgroundFlowAccumulator = {
   latest?: CherryUIMessage
   done: Promise<void>
   closed: boolean
+  /** Kind:id pairs already started in this stream, so orphan deltas can synthesize their start. */
+  openParts: Set<string>
+  /** Bounds poisoned-stream warnings to one per accumulator. */
+  errorLogged?: boolean
   /** Broadcast throttle for the live overlay — see {@link AgentSessionRuntimeService.publishBackgroundFlowSnapshot}. */
   lastPublishedAt?: number
   publishTimer?: ReturnType<typeof setTimeout>
@@ -2074,22 +2078,96 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private enqueueBackgroundFlowChunk(entry: AgentSessionRuntimeEntry, messageId: string, chunk: UIMessageChunk): void {
-    const accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    let accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId)
+    accumulator.openParts ??= new Set()
+    if (accumulator.closed) {
+      if (entry.backgroundFlowFlush) {
+        if (!accumulator.errorLogged) {
+          accumulator.errorLogged = true
+          logger.warn('Dropping detached subagent flow chunk during finalization', {
+            sessionId: entry.sessionId,
+            messageId,
+            chunkType: chunk.type
+          })
+        }
+        return
+      }
+      const seedParts = accumulator.latest?.parts
+        ? finalizeInterruptedParts(structuredClone(accumulator.latest.parts), 'error')
+        : undefined
+      this.evictBackgroundFlowAccumulator(entry, messageId)
+      accumulator = this.getOrCreateBackgroundFlowAccumulator(entry, messageId, seedParts)
+    }
+    // The seed carries id-less persisted parts, so a delta whose start raced
+    // persistence would poison the stream. Synthesize the start instead.
+    const queue: UIMessageChunk[] = []
+    switch (chunk.type) {
+      case 'text-start':
+      case 'reasoning-start':
+        accumulator.openParts.add(`${chunk.type === 'text-start' ? 'text' : 'reasoning'}:${chunk.id}`)
+        queue.push(chunk)
+        break
+      case 'text-delta':
+      case 'reasoning-delta': {
+        const kind = chunk.type === 'text-delta' ? 'text' : 'reasoning'
+        const key = `${kind}:${chunk.id}`
+        if (!accumulator.openParts.has(key)) {
+          accumulator.openParts.add(key)
+          queue.push(kind === 'text' ? { type: 'text-start', id: chunk.id } : { type: 'reasoning-start', id: chunk.id })
+        }
+        queue.push(chunk)
+        break
+      }
+      case 'text-end':
+      case 'reasoning-end': {
+        const kind = chunk.type === 'text-end' ? 'text' : 'reasoning'
+        const key = `${kind}:${chunk.id}`
+        if (!accumulator.openParts.has(key)) break
+        accumulator.openParts.delete(key)
+        queue.push(chunk)
+        break
+      }
+      default:
+        queue.push(chunk)
+        break
+    }
+    if (queue.length === 0) return
     try {
-      accumulator.controller.enqueue(chunk)
+      for (const item of queue) accumulator.controller.enqueue(item)
     } catch (error) {
-      logger.warn('Failed to enqueue detached subagent flow chunk', {
-        sessionId: entry.sessionId,
-        messageId,
-        chunkType: chunk.type,
-        error
-      })
+      this.evictBackgroundFlowAccumulator(entry, messageId)
+      if (!accumulator.errorLogged) {
+        accumulator.errorLogged = true
+        logger.warn('Failed to enqueue detached subagent flow chunk', {
+          sessionId: entry.sessionId,
+          messageId,
+          chunkType: chunk.type,
+          error
+        })
+      }
+    }
+  }
+
+  private evictBackgroundFlowAccumulator(entry: AgentSessionRuntimeEntry, messageId: string): void {
+    const accumulator = entry.backgroundFlowAccumulators?.get(messageId)
+    if (!accumulator) return
+    entry.backgroundFlowAccumulators?.delete(messageId)
+    accumulator.closed = true
+    if (accumulator.publishTimer) {
+      clearTimeout(accumulator.publishTimer)
+      accumulator.publishTimer = undefined
+    }
+    try {
+      accumulator.controller.close()
+    } catch {
+      // Already closed by the accumulator reader.
     }
   }
 
   private getOrCreateBackgroundFlowAccumulator(
     entry: AgentSessionRuntimeEntry,
-    messageId: string
+    messageId: string,
+    seedParts?: CherryMessagePart[]
   ): BackgroundFlowAccumulator {
     const accumulators = entry.backgroundFlowAccumulators ?? new Map<string, BackgroundFlowAccumulator>()
     entry.backgroundFlowAccumulators = accumulators
@@ -2100,7 +2178,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const seed: CherryUIMessage = {
       id: persisted.id,
       role: 'assistant',
-      parts: structuredClone(persisted.data.parts ?? [])
+      parts: seedParts ? structuredClone(seedParts) : structuredClone(persisted.data.parts ?? [])
     }
     let controller!: ReadableStreamDefaultController<UIMessageChunk>
     const stream = new ReadableStream<UIMessageChunk>({
@@ -2112,7 +2190,8 @@ export class AgentSessionRuntimeService extends BaseService {
       messageId,
       controller,
       done: Promise.resolve(),
-      closed: false
+      closed: false,
+      openParts: new Set()
     }
     accumulator.done = this.consumeBackgroundFlow(entry, accumulator, stream, seed)
     accumulators.set(messageId, accumulator)
@@ -2126,26 +2205,25 @@ export class AgentSessionRuntimeService extends BaseService {
     seed: CherryUIMessage
   ): Promise<void> {
     try {
+      // terminateOnError resolves the reader instead of wedging it, so finishBackgroundFlows unblocks.
       for await (const snapshot of readUIMessageStream<CherryUIMessage>({
         stream,
         message: seed,
-        terminateOnError: false,
-        onError: (error) =>
-          logger.warn('Detached subagent flow accumulator reported an error', {
-            sessionId: entry.sessionId,
-            messageId: accumulator.messageId,
-            error
-          })
+        terminateOnError: true
       })) {
         accumulator.latest = snapshot
         this.publishBackgroundFlowSnapshot(entry, accumulator)
       }
     } catch (error) {
-      logger.warn('Detached subagent flow accumulator failed', {
-        sessionId: entry.sessionId,
-        messageId: accumulator.messageId,
-        error
-      })
+      accumulator.closed = true
+      if (!accumulator.errorLogged) {
+        accumulator.errorLogged = true
+        logger.warn('Detached subagent flow accumulator failed', {
+          sessionId: entry.sessionId,
+          messageId: accumulator.messageId,
+          error
+        })
+      }
     } finally {
       // The reader is done — flush the trailing snapshot now so `finishBackgroundFlows` (which
       // awaits `accumulator.done`) always sees the final overlay in the cache before its TTL write.
