@@ -188,4 +188,36 @@ describe('Agent tool-boundary text', () => {
       .join('')
     expect(visibleText).toBe(`Keep this ${BOUNDARY_MARKERS}`)
   })
+
+  it('preserves text-part ordering when marker runs continue after structural chunks', async () => {
+    const sourceChunks: UIMessageChunk[] = [
+      { type: 'text-start', id: 'text-1' },
+      { type: 'text-delta', id: 'text-1', delta: 'First part' },
+      { type: 'text-delta', id: 'text-1', delta: BOUNDARY_MARKERS },
+      { type: 'text-end', id: 'text-1' },
+      { type: 'text-start', id: 'text-2' },
+      { type: 'text-delta', id: 'text-2', delta: BOUNDARY_MARKERS },
+      { type: 'text-end', id: 'text-2' },
+      { type: 'finish', finishReason: 'stop' }
+    ]
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              for (const chunk of sourceChunks) controller.enqueue(chunk)
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([])
+      })
+    })
+
+    const agent = await makeAgent()
+    const messages = [{ id: 'user-1', role: 'user' as const, parts: [{ type: 'text' as const, text: 'Continue.' }] }]
+    const chunks: UIMessageChunk[] = []
+    for await (const chunk of agent.stream(messages, new AbortController().signal)) chunks.push(chunk)
+
+    expect(chunks).toEqual(sourceChunks)
+  })
 })

@@ -365,7 +365,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
 
         if (pendingTrailingMarkers.length > 0) {
-          if (ONLY_TOOL_BOUNDARY_MARKERS.test(chunk.delta)) {
+          if (chunksAfterTrailingMarkers.length === 0 && ONLY_TOOL_BOUNDARY_MARKERS.test(chunk.delta)) {
             pendingTrailingMarkers.push(chunk)
             return
           }
