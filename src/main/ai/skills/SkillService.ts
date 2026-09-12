@@ -775,16 +775,17 @@ export class SkillService {
     return this.mutationLock.runExclusive(async () => {
       const skill = agentGlobalSkillService.getById(skillId)
       if (!skill) return null
-      const updated = agentGlobalSkillService.updateMirrorEnabled(skillId, mirrorEnabled)
-      if (!updated) return null
 
+      // Filesystem first, persist second: if the projection fails we throw with the
+      // database untouched, so the persisted state always matches what is on disk.
       const applied = mirrorEnabled
-        ? await this.linkMirror(updated.folderName)
-        : await this.unlinkMirror(updated.folderName)
+        ? await this.linkMirror(skill.folderName)
+        : await this.unlinkMirror(skill.folderName)
       if (!applied) {
-        throw new Error(`Failed to update the ~/.agents/skills mirror for skill: ${updated.folderName}`)
+        throw new Error(`Failed to update the ~/.agents/skills mirror for skill: ${skill.folderName}`)
       }
-      return updated
+
+      return agentGlobalSkillService.updateMirrorEnabled(skillId, mirrorEnabled)
     })
   }
 

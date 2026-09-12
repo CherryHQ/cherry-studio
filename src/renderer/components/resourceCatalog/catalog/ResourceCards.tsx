@@ -50,13 +50,15 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
   }
 
   return (
-    <Switch
-      size="sm"
-      checked={resource.raw.isGlobalEnabled}
-      disabled={isUpdating}
-      aria-label={t('settings.skills.globalToggle', { name: resource.name })}
-      onCheckedChange={handleCheckedChange}
-    />
+    <span title={t('settings.skills.globalToggle', { name: resource.name })}>
+      <Switch
+        size="sm"
+        checked={resource.raw.isGlobalEnabled}
+        disabled={isUpdating}
+        aria-label={t('settings.skills.globalToggle', { name: resource.name })}
+        onCheckedChange={handleCheckedChange}
+      />
+    </span>
   )
 }
 
@@ -74,13 +76,15 @@ function SkillMirrorToggle({ resource }: { resource: Extract<ResourceItem, { typ
   }
 
   return (
-    <Switch
-      size="sm"
-      checked={resource.raw.mirrorEnabled}
-      disabled={isUpdating}
-      aria-label={t('settings.skills.mirrorToggle', { name: resource.name })}
-      onCheckedChange={handleCheckedChange}
-    />
+    <span title={t('settings.skills.mirrorToggle', { name: resource.name })}>
+      <Switch
+        size="sm"
+        checked={resource.raw.mirrorEnabled}
+        disabled={isUpdating}
+        aria-label={t('settings.skills.mirrorToggle', { name: resource.name })}
+        onCheckedChange={handleCheckedChange}
+      />
+    </span>
   )
 }
 

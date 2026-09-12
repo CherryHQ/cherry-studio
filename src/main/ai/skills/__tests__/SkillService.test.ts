@@ -1784,6 +1784,25 @@ describe('SkillService', () => {
       await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
     })
 
+    it('setMirrorEnabled leaves the database untouched when the filesystem projection fails', async () => {
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'skill-one',
+        folderName: 'skill-one',
+        source: 'marketplace',
+        contentHash: 'a',
+        isEnabled: false,
+        mirrorEnabled: false
+      })
+      const linkSpy = vi.spyOn(skillService, 'linkMirror').mockResolvedValue(false)
+
+      await expect(skillService.setMirrorEnabled(SKILL_ID_1, true)).rejects.toThrow()
+
+      expect(agentGlobalSkillService.getByFolderName('skill-one')?.mirrorEnabled).toBe(false)
+      linkSpy.mockRestore()
+    })
+
     it('syncBuiltinSkill honors a persisted mirror opt-out', async () => {
       vi.mocked(findSkillMdPath).mockImplementation(async (directory) => path.join(directory, 'SKILL.md'))
       vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('skill-creator'))
