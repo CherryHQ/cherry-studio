@@ -35,11 +35,17 @@ function loadState(scopeKey: string): FollowupQueueState {
       ? (cached.items as unknown[]).filter((item) => {
           if (item == null || typeof item !== 'object' || Array.isArray(item)) return false
           const candidate = item as { id?: unknown; draft?: unknown; payload?: unknown }
+          if (typeof candidate.id !== 'string' || candidate.id.length === 0) return false
+          if (candidate.payload == null || typeof candidate.payload !== 'object') return false
+          // The dock preview + edit-restore assume the draft shape (`tokens.some`,
+          // `text.trim` throw otherwise), so entries with a misshapen draft go too.
+          const draft = candidate.draft as { text?: unknown; tokens?: unknown } | null
           return (
-            typeof candidate.id === 'string' &&
-            candidate.id.length > 0 &&
-            candidate.draft != null &&
-            candidate.payload != null
+            draft !== null &&
+            typeof draft === 'object' &&
+            !Array.isArray(draft) &&
+            typeof draft.text === 'string' &&
+            Array.isArray(draft.tokens)
           )
         })
       : []
@@ -148,6 +154,17 @@ export function useFollowupQueue({
   // Bumped whenever queue mutations invalidate an in-flight drain's resolution (clear / removing
   // the drained item / scope switch), so a settled drain cannot resurrect state for a dropped item.
   const drainEpochRef = useRef(0)
+  // Latest started send; lets a stale settlement tell "superseded by a replacement
+  // send for the same head" apart from "the queue moved on".
+  const drainSeqRef = useRef(0)
+  const lastDrainRef = useRef<{ id: string; seq: number } | null>(null)
+  // Sends with a promise still pending (cleared on settle). Same-instance guard so a
+  // scope-switch re-arm, resume, or manual steer cannot start a second send for a
+  // payload whose original send has not finished yet (rapid away-and-back switches).
+  const inflightRef = useRef(new Map<string, number>())
+  // False once unmounted: a late settle must then only touch the persisted entry,
+  // never live refs a remounted hook may have replaced.
+  const mountedRef = useRef(true)
   // Reactive mirror of drainingIdRef so composers can disable the steered row's button.
   const [drainingId, setDrainingId] = useState<string | null>(null)
   const setDraining = useCallback((id: string | null) => {
@@ -189,21 +206,57 @@ export function useFollowupQueue({
   failHeadRef.current = failHead
 
   const removeIdRef = useRef<(id: string) => void>(() => {})
+
+  // Resolution for a send whose queue moved on before it settled (scope switch /
+  // clear / removal / unmount). Never disturbs a replacement send for the same head.
+  const settleStale = useCallback(
+    (head: FollowupQueueItem, drainScope: string, seq: number, outcome: 'sent' | 'unsent') => {
+      const last = lastDrainRef.current
+      // A replacement send for the same head started after us: it owns the claim
+      // and the entry — its own settle applies the outcome, so leave both alone.
+      if (last !== null && last.id === head.id && last.seq !== seq) return
+      const liveHasHead =
+        mountedRef.current &&
+        drainScope === scopeKeyRef.current &&
+        stateRef.current.items.some((item) => item.id === head.id)
+      if (outcome === 'sent') {
+        if (liveHasHead) {
+          // Back on (or never left) the sent scope with the same head live:
+          // dequeue it so the sent payload can never be redelivered.
+          if (drainingIdRef.current === head.id) setDraining(null)
+          removeIdRef.current(head.id)
+        } else {
+          removeIdFromScope(drainScope, head.id)
+          if (drainingIdRef.current === head.id) setDraining(null)
+        }
+      } else if (liveHasHead) {
+        // Nothing was sent and the head is still live: record the honest failure.
+        if (drainingIdRef.current === head.id) setDraining(null)
+        failHeadRef.current(head.id)
+      } else if (drainingIdRef.current === head.id) {
+        setDraining(null)
+      }
+    },
+    [setDraining]
+  )
+
   const drainHead = useCallback(
     (head: FollowupQueueItem | undefined) => {
-      if (!head || drainingIdRef.current !== null) return
+      if (!head || drainingIdRef.current !== null || inflightRef.current.has(head.id)) return
       setDraining(head.id)
       const epoch = drainEpochRef.current
       const drainScope = scopeKeyRef.current
+      const seq = (drainSeqRef.current += 1)
+      lastDrainRef.current = { id: head.id, seq }
+      inflightRef.current.set(head.id, seq)
+      const settleInflight = () => {
+        if (inflightRef.current.get(head.id) === seq) inflightRef.current.delete(head.id)
+      }
       void onDrainRef.current(head.payload).then(
         (sent) => {
+          settleInflight()
           if (drainEpochRef.current !== epoch) {
-            // Stale: the queue moved on (scope switch / clear / removal / unmount)
-            // while the send was in flight. Never touch the current queue — but a
-            // success still dequeues from the scope it was sent for, and either
-            // outcome releases the send claim if this drain still holds it.
-            if (sent) removeIdFromScope(drainScope, head.id)
-            if (drainingIdRef.current === head.id) setDraining(null)
+            settleStale(head, drainScope, seq, sent ? 'sent' : 'unsent')
             return
           }
           setDraining(null)
@@ -211,8 +264,9 @@ export function useFollowupQueue({
           else failHeadRef.current(head.id)
         },
         () => {
+          settleInflight()
           if (drainEpochRef.current !== epoch) {
-            if (drainingIdRef.current === head.id) setDraining(null)
+            settleStale(head, drainScope, seq, 'unsent')
             return
           }
           setDraining(null)
@@ -220,12 +274,13 @@ export function useFollowupQueue({
         }
       )
     },
-    [setDraining]
+    [setDraining, settleStale]
   )
 
   // A late-settling send must not apply to whatever a remounted hook loads next.
   useEffect(() => {
     return () => {
+      mountedRef.current = false
       drainEpochRef.current += 1
     }
   }, [])
@@ -259,7 +314,10 @@ export function useFollowupQueue({
         if (failedItemIdRef.current || drainingIdRef.current !== null) return
         if (stateRef.current.paused) return
         const currentHead = stateRef.current.items[0]
-        if (currentHead) drainHead(currentHead)
+        // Skip a head whose original send is still pending (rapid away-and-back):
+        // its settle applies the outcome to this same live queue — starting
+        // another send now would submit the payload twice.
+        if (currentHead && !inflightRef.current.has(currentHead.id)) drainHead(currentHead)
       })
     }
   }, [scopeKey, drainHead, setDraining])
@@ -347,7 +405,7 @@ export function useFollowupQueue({
       setState(next)
       if (!nextPaused && isFulfilledRef.current && !failedItemIdRef.current && drainingIdRef.current === null) {
         const head = next.items[0]
-        if (head) {
+        if (head && !inflightRef.current.has(head.id)) {
           markSeenRef.current()
           drainHead(head)
         }
@@ -362,7 +420,7 @@ export function useFollowupQueue({
   useEffect(() => {
     if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current || drainingIdRef.current !== null) return
     const head = stateRef.current.items[0]
-    if (!head) return
+    if (!head || inflightRef.current.has(head.id)) return
     markSeen()
     drainHead(head)
   }, [isFulfilled, markSeen, drainHead])
@@ -371,7 +429,8 @@ export function useFollowupQueue({
   // send may be in flight per queue, whichever path started it.
   const tryClaimSend = useCallback(
     (id: string) => {
-      if (drainingIdRef.current !== null) return false
+      // A pending auto-drain for the same payload blocks a manual steer of it.
+      if (drainingIdRef.current !== null || inflightRef.current.has(id)) return false
       setDraining(id)
       return true
     },
