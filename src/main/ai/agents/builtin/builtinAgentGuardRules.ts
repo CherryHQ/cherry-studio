@@ -84,7 +84,7 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   {
     // The result is useful only when AgentChat can present its user-owned review dialog.
     id: 'support-diagnostic-draft',
-    appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT] },
+    appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.ASSISTANT] },
     match: { tool: 'mcp__assistant__prepare_diagnostic_report' },
     headless: {
       predicate: 'either',
