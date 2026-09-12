@@ -1,7 +1,7 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CommandContextKeyProvider } from '@renderer/components/command/CommandContextKeyProvider'
 import { CommandProvider } from '@renderer/components/command/CommandProvider'
@@ -12,6 +12,9 @@ import { ComposerFocusShortcut } from '../ComposerFocusShortcut'
 const state = vi.hoisted(() => ({ active: true }))
 
 vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => state.active }))
+
+// The announced-wording assertion below is a literal, so pin the catalog it is written against.
+beforeAll(() => i18n.changeLanguage('en-US'))
 
 function mount(editable = true) {
   render(
@@ -66,9 +69,8 @@ describe('ComposerFocusShortcut', () => {
     mount()
 
     // The keycap itself is aria-hidden, so the label beside it is the only announceable form.
-    // Read through the same i18n instance the component resolves against, so the assertion
-    // does not depend on which locale the test setup initialized.
-    expect(screen.getByText(i18n.t('settings.shortcuts.focus_input'))).toHaveClass('sr-only')
+    expect(screen.getByText('Focus Input')).toHaveClass('sr-only')
+
     expect(screen.getByText('Ctrl+I')).toHaveAttribute('aria-hidden', 'true')
   })
 

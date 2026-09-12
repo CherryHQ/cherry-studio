@@ -51,9 +51,9 @@ export function CommandHint({ command, className }: { command: CommandId; classN
 /**
  * Label paired with its keycap, for tooltip content.
  *
- * The keycap is `aria-hidden` — the tooltip's own trigger carries `aria-describedby`, so the key
- * names must not be read out separately — and rides on the tooltip's text styles instead of the
- * muted chip styling `CommandShortcut` uses on the composer surface.
+ * The keycap stays `aria-hidden` and rides on the tooltip's text styles instead of the muted chip
+ * styling `CommandShortcut` uses; the `sr-only` copy beside it keeps the shortcut announceable
+ * through the trigger's `aria-describedby` description.
  */
 export function TooltipLabelWithShortcut({
   label,
@@ -70,6 +70,7 @@ export function TooltipLabelWithShortcut({
         className="h-auto min-w-0 rounded-none bg-transparent p-0 text-inherit shadow-none [font:inherit] [[data-slot=tooltip-content]_&]:bg-transparent [[data-slot=tooltip-content]_&]:text-inherit">
         {shortcutLabel}
       </Kbd>
+      <span className="sr-only">{shortcutLabel}</span>
     </span>
   )
 }
