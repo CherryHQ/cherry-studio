@@ -14,13 +14,14 @@ import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import { oauthHandlers } from '../oauth'
 
 const runtimeService = {
-  signIn: vi.fn((providerId: string) => Promise.resolve({ accountId: `${providerId}-account` })),
+  signIn: vi.fn((_senderId: string | null, providerId: string) =>
+    Promise.resolve({ accountId: `${providerId}-account` })
+  ),
   joinActiveSignIn: vi.fn(() => Promise.resolve({ status: 'completed', account: { accountId: 'acc-1' } })),
   cancelSignIn: vi.fn(() => Promise.resolve()),
   hasToken: vi.fn(() => Promise.resolve(true)),
   getAccount: vi.fn(() => Promise.resolve({ accountId: 'acc-1' })),
-  logout: vi.fn(() => Promise.resolve()),
-  startDeepLinkFlow: vi.fn(() => Promise.resolve({ authUrl: 'https://open.cherryin.ai/auth', state: 'st' }))
+  logout: vi.fn(() => Promise.resolve())
 }
 
 const codeCliService = {
@@ -42,7 +43,10 @@ describe('oauthHandlers', () => {
       accountId: 'codex-account'
     })
     expect(appGetMock).toHaveBeenCalledWith('OAuthRuntimeService')
-    expect(runtimeService.signIn).toHaveBeenCalledWith('codex', 'request-1')
+    expect(runtimeService.signIn).toHaveBeenCalledWith('w1', 'codex', 'request-1', {
+      oauthServer: undefined,
+      apiHost: undefined
+    })
   })
 
   it('maps sign_in cancellation to a stable IPC error', async () => {
@@ -59,7 +63,7 @@ describe('oauthHandlers', () => {
       status: 'completed',
       account: { accountId: 'acc-1' }
     })
-    expect(runtimeService.joinActiveSignIn).toHaveBeenCalledWith('codex', 'request-1')
+    expect(runtimeService.joinActiveSignIn).toHaveBeenCalledWith('w1', 'codex', 'request-1')
   })
 
   it('maps sign_in.attach cancellation to a stable IPC error', async () => {
@@ -73,7 +77,7 @@ describe('oauthHandlers', () => {
 
   it('dispatches cancel_sign_in with the request id', async () => {
     await oauthHandlers['oauth.cancel_sign_in'](signInObservation, ctx)
-    expect(runtimeService.cancelSignIn).toHaveBeenCalledWith('codex', 'request-1')
+    expect(runtimeService.cancelSignIn).toHaveBeenCalledWith('w1', 'codex', 'request-1')
   })
 
   it('dispatches has_token to OAuthRuntimeService', async () => {
@@ -107,31 +111,5 @@ describe('oauthHandlers', () => {
       /Unsupported external-cli/
     )
     expect(codeCliService.checkClaudeLogin).not.toHaveBeenCalled()
-  })
-
-  it('forwards the initiator window id, provider, and hosts to startDeepLinkFlow', async () => {
-    await expect(
-      oauthHandlers['oauth.start_deep_link_flow'](
-        { providerId: 'cherryin', oauthServer: 'https://open.cherryin.ai', apiHost: 'https://api.cherryin.ai' },
-        ctx
-      )
-    ).resolves.toEqual({ authUrl: 'https://open.cherryin.ai/auth', state: 'st' })
-    expect(runtimeService.startDeepLinkFlow).toHaveBeenCalledWith('w1', 'cherryin', {
-      oauthServer: 'https://open.cherryin.ai',
-      apiHost: 'https://api.cherryin.ai'
-    })
-  })
-
-  // apiHost falls back to oauthServer; a null senderId (source-trust caller with
-  // no window) passes through so the runtime rejects it.
-  it('defaults apiHost to oauthServer and passes a null senderId through', async () => {
-    await oauthHandlers['oauth.start_deep_link_flow'](
-      { providerId: 'cherryin', oauthServer: 'https://open.cherryin.ai' },
-      { senderId: null }
-    )
-    expect(runtimeService.startDeepLinkFlow).toHaveBeenCalledWith(null, 'cherryin', {
-      oauthServer: 'https://open.cherryin.ai',
-      apiHost: 'https://open.cherryin.ai'
-    })
   })
 })

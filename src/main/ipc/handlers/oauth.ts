@@ -21,10 +21,24 @@ async function mapSignInCancellation<T>(request: Promise<T>): Promise<T> {
 }
 
 export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
-  'oauth.sign_in': ({ providerId, requestId }) => mapSignInCancellation(runtime().signIn(providerId, requestId)),
-  'oauth.sign_in.attach': ({ providerId, requestId }) =>
-    mapSignInCancellation(runtime().joinActiveSignIn(providerId, requestId)),
-  'oauth.cancel_sign_in': ({ providerId, requestId }) => runtime().cancelSignIn(providerId, requestId),
+  'oauth.sign_in': async ({ providerId, requestId, oauthServer, apiHost }, ctx) => {
+    const result = await mapSignInCancellation(
+      runtime().signIn(ctx.senderId, providerId, requestId, { oauthServer, apiHost })
+    )
+    if (result.apiKeys && ctx.senderId) {
+      const window = application.get('WindowManager').getWindow(ctx.senderId)
+      if (window && !window.isDestroyed()) {
+        if (window.isMinimized()) window.restore()
+        window.show()
+        window.focus()
+      }
+    }
+    return result
+  },
+  'oauth.sign_in.attach': ({ providerId, requestId }, ctx) =>
+    mapSignInCancellation(runtime().joinActiveSignIn(ctx.senderId, providerId, requestId)),
+  'oauth.cancel_sign_in': ({ providerId, requestId }, ctx) =>
+    runtime().cancelSignIn(ctx.senderId, providerId, requestId),
   'oauth.has_token': ({ providerId }) => runtime().hasToken(providerId),
   'oauth.get_account': ({ providerId }) => runtime().getAccount(providerId),
   'oauth.logout': ({ providerId }) => runtime().logout(providerId),
@@ -38,11 +52,5 @@ export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
       throw new Error(`Unsupported external-cli provider: ${providerId}`)
     }
     return application.get('CodeCliService').checkClaudeLogin()
-  },
-  // `ctx.senderId` is the deep-link flow's initiator: the result is later pushed
-  // point-to-point to exactly this window (carrying API keys), so a source-trust
-  // caller with no window (`senderId === null`) is rejected inside the runtime.
-  // Per-provider host validation lives in the provider definition's createClient.
-  'oauth.start_deep_link_flow': ({ providerId, oauthServer, apiHost }, ctx) =>
-    runtime().startDeepLinkFlow(ctx.senderId, providerId, { oauthServer, apiHost: apiHost ?? oauthServer })
+  }
 }

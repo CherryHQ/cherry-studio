@@ -6,8 +6,7 @@ import { defineRoute } from '../define'
  * CherryIN IPC schemas — the CherryIN-only balance/logout operations.
  *
  * The OAuth flow itself is provider-generic and lives on the `oauth.*` surface
- * (`oauth.start_deep_link_flow` + the `oauth.deep_link_result` event); only the
- * account balance/profile the loopback providers have no concept of stays here.
+ * (`oauth.sign_in`); only CherryIN-specific account operations stay here.
  */
 
 /** The CherryIN account profile, or null when the profile endpoint has nothing. */

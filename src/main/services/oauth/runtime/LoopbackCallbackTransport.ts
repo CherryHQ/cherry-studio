@@ -6,6 +6,7 @@ import type { LoopbackCallbackConfig } from './types'
 export class LoopbackCallbackTransport {
   private activeServers: Server[] = []
   private busy = false
+  ready: Promise<void> = Promise.resolve()
 
   constructor(private readonly config: LoopbackCallbackConfig) {}
 
@@ -117,7 +118,8 @@ export class LoopbackCallbackTransport {
           server.listen(this.config.port, host)
         })
 
-      void Promise.all(this.config.hosts.map(listen)).catch(settleReject)
+      this.ready = Promise.all(this.config.hosts.map(listen)).then(() => undefined)
+      void this.ready.catch(settleReject)
       signal.addEventListener('abort', () => settleReject(new OAuthServiceError('Sign-in timed out')), { once: true })
     })
   }

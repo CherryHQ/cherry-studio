@@ -196,10 +196,7 @@ export class ProtocolService extends BaseService {
           handleNavigateProtocolUrl(urlObj)
           return
         case 'oauth':
-          application
-            .get('OAuthRuntimeService')
-            .handleDeepLinkCallback(urlObj)
-            .catch((error) => logger.error('Failed to handle OAuth callback', error as Error))
+          // Retired OAuth callbacks must never fall through to the renderer broadcast.
           return
       }
 
