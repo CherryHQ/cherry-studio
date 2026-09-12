@@ -213,6 +213,13 @@ describe('createPiCodeModeTools', () => {
     )
   })
 
+  it('rejects duplicate browser facade method names', () => {
+    const first = browserTool({ name: 'mcp__browser-a__open', label: 'open' })
+    const second = browserTool({ name: 'mcp__browser-b__open', label: 'open' })
+
+    expect(() => codeModeTools([first, second])).toThrow('Duplicate browser facade method: browser.open')
+  })
+
   it('forwards images returned by browser facade methods as tool_exec image content', async () => {
     const screenshot = browserTool({
       name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__screenshot',
@@ -236,6 +243,31 @@ describe('createPiCodeModeTools', () => {
       { type: 'text', text: '"captured"' },
       { type: 'image', data: 'base64-png', mimeType: 'image/png' }
     ])
+  })
+
+  it('emits images once when code returns a raw MCP result', async () => {
+    const screenshot = browserTool({
+      name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__screenshot',
+      label: 'screenshot',
+      execute: vi.fn(async () => ({
+        content: [{ type: 'image' as const, data: 'base64-png', mimeType: 'image/png' }],
+        details: undefined
+      }))
+    })
+    const exec = codeModeTools([screenshot]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: 'return await browser.screenshot({})' },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.content).toHaveLength(2)
+    expect(result.content[0]).toMatchObject({ type: 'text', text: expect.not.stringContaining('base64-png') })
+    expect(result.content[1]).toEqual({ type: 'image', data: 'base64-png', mimeType: 'image/png' })
+    expect(result.details).toMatchObject({ result: { content: [] } })
   })
 
   it('keeps browser facade calls behind the nested approval gate', async () => {

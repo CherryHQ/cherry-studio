@@ -67,12 +67,7 @@ export function createPiCodeModeTools(
   authorizeTool: PiToolAuthorizer
 ): ToolDefinition[] {
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
-  const browserFacade = Object.fromEntries(
-    tools.flatMap((tool) => {
-      const methodName = browserMethodName(tool)
-      return methodName ? [[methodName, tool.name]] : []
-    })
-  )
+  const browserFacade = buildBrowserFacade(tools)
   const invokeTargetTool = async (
     executionToolCallId: string,
     approvalToolCallId: string,
@@ -255,6 +250,17 @@ function browserMethodName(tool: PiMcpToolDefinition): string | undefined {
   return tool.source.toolName || undefined
 }
 
+function buildBrowserFacade(tools: readonly PiMcpToolDefinition[]): Record<string, string> {
+  const methods = new Map<string, string>()
+  for (const tool of tools) {
+    const methodName = browserMethodName(tool)
+    if (!methodName) continue
+    if (methods.has(methodName)) throw new Error(`Duplicate browser facade method: browser.${methodName}`)
+    methods.set(methodName, tool.name)
+  }
+  return Object.fromEntries(methods)
+}
+
 function imageContent(result: ToolResult): ExecImage[] | undefined {
   const images = result.content.filter(
     (part): part is Extract<(typeof result.content)[number], { type: 'image' }> => part.type === 'image'
@@ -322,7 +328,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function decodeToolResult(result: ToolResult, outputSchema: unknown, toolName: string): unknown {
-  if (!outputSchema) return result
+  if (!outputSchema) return { ...result, content: result.content.filter((part) => part.type !== 'image') }
   if (result.details !== undefined) return result.details
 
   const textContent = result.content.filter((part) => part.type === 'text')
