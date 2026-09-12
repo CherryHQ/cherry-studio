@@ -40,9 +40,9 @@ import {
   GROUP_BY_LABEL_KEYS,
   METRIC_KEYS,
   METRIC_LABEL_KEYS,
+  ROLLUP_KEYS,
   ROLLUP_LABEL_KEYS,
   TOP_COUNT_KEYS,
-  TREND_ROLLUP_KEYS,
   type UsageChartType,
   type UsageTopCount,
   WINDOW_KEYS,
@@ -129,13 +129,12 @@ function UsageSettings() {
   const [groupBy, setGroupBy] = usePersistCache('settings.usage.group_by')
   const [chartMetric, setChartMetric] = usePersistCache('settings.usage.chart_metric')
   const [selectedChartType, setSelectedChartType] = usePersistCache('settings.usage.chart_type')
-  const [persistedRollup, setRollup] = usePersistCache('settings.usage.rollup')
+  const [rollup, setRollup] = usePersistCache('settings.usage.rollup')
   const [topCount, setTopCount] = usePersistCache('settings.usage.top_count')
   const [persistedCurrency, setSelectedCurrency] = usePersistCache('settings.usage.currency')
   const selectedCurrency = persistedCurrency ?? undefined
   const chartType: UsageChartType =
-    selectedChartType === 'line' || selectedChartType === 'pie' ? selectedChartType : 'bar'
-  const rollup = persistedRollup === 'total' ? 'daily' : persistedRollup
+    selectedChartType === 'pie' ? 'pie' : selectedChartType === 'line' && rollup !== 'total' ? 'line' : 'bar'
 
   const windowRange = useMemo(() => getWindowRange(windowKey), [windowKey])
   const previousWindowRange = useMemo(() => getPreviousWindowRange(windowKey), [windowKey])
@@ -149,6 +148,9 @@ function UsageSettings() {
     timelineBuckets,
     overviewBuckets,
     exploreTimelineRows,
+    exploreBuckets,
+    exploreOther,
+    exploreStatsLoading,
     overviewTotals,
     previousOverviewTotals,
     exploreTotals,
@@ -299,7 +301,7 @@ function UsageSettings() {
   )
   const rollupOptions = useMemo(
     () =>
-      TREND_ROLLUP_KEYS.map((value) => ({
+      ROLLUP_KEYS.map((value) => ({
         value,
         label: t(ROLLUP_LABEL_KEYS[value])
       })),
@@ -593,6 +595,7 @@ function UsageSettings() {
                           variant={isActive ? 'secondary' : 'ghost'}
                           size="sm"
                           aria-pressed={isActive}
+                          disabled={rollup === 'total' && option.value === 'line'}
                           onClick={() => setSelectedChartType(option.value)}>
                           <Icon className="size-3.5" />
                           {option.label}
@@ -609,6 +612,10 @@ function UsageSettings() {
                 range={windowRange}
                 timelineBuckets={timelineBuckets}
                 exploreTimelineRows={exploreTimelineRows}
+                exploreBuckets={exploreBuckets}
+                exploreOther={exploreOther}
+                exploreTotals={exploreTotals}
+                exploreStatsLoading={exploreStatsLoading}
                 rollup={rollup}
                 chartMetric={chartMetric}
                 chartType={chartType}
