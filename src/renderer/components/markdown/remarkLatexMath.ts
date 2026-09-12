@@ -305,6 +305,99 @@ const latexDirectMath: Construct = {
   } satisfies Tokenizer
 }
 
+const latexMultilineDollarMath: Construct = {
+  name: 'latexMultilineDollarMath',
+  concrete: true,
+  tokenize: function tokenizeLatexMultilineDollarMath(effects, ok, nok) {
+    let indentation = 0
+    let fenceSize = 0
+    let closingSize = 0
+    let contentSeenOnLine = false
+
+    return start
+
+    function start(code: number | null): State | undefined {
+      effects.enter('latexDirectMath')
+      return linePrefix(code)
+    }
+
+    function linePrefix(code: number | null): State | undefined {
+      if (code === SPACE && indentation < 3) {
+        indentation += 1
+        effects.consume(code)
+        return linePrefix
+      }
+      return openingFence(code)
+    }
+
+    function openingFence(code: number | null): State | undefined {
+      if (code === DOLLAR) {
+        fenceSize += 1
+        effects.consume(code)
+        return openingFence
+      }
+      if (fenceSize < 2 || code === null || code <= -3) return nok(code)
+      effects.enter('latexDirectMathData')
+      return firstLine(code)
+    }
+
+    function firstLine(code: number | null): State | undefined {
+      if (code === null) return nok(code)
+      if (code <= -3) {
+        effects.exit('latexDirectMathData')
+        return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
+      }
+      effects.consume(code)
+      return firstLine
+    }
+
+    function contentStart(code: number | null): State | undefined {
+      if (code === null) return nok(code)
+      if (code <= -3) return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
+      contentSeenOnLine = false
+      effects.enter('latexDirectMathData')
+      return content(code)
+    }
+
+    function content(code: number | null): State | undefined {
+      if (code === null) return nok(code)
+      if (code <= -3) {
+        effects.exit('latexDirectMathData')
+        return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
+      }
+      if (code === DOLLAR) {
+        closingSize = 0
+        return closingFence(code)
+      }
+      if (code !== SPACE && code !== 9) contentSeenOnLine = true
+      effects.consume(code)
+      return content
+    }
+
+    function closingFence(code: number | null): State | undefined {
+      if (code === DOLLAR) {
+        closingSize += 1
+        effects.consume(code)
+        return closingFence
+      }
+      if (closingSize !== fenceSize) return content(code)
+      if (!contentSeenOnLine) return nok(code)
+      return closingTail(code)
+    }
+
+    function closingTail(code: number | null): State | undefined {
+      if (code === SPACE || code === 9) {
+        effects.consume(code)
+        return closingTail
+      }
+      if (code !== null && code > -3) return content(code)
+      effects.exit('latexDirectMathData')
+      effects.exit('latexDirectMath')
+      return ok(code)
+    }
+  } satisfies Tokenizer
+}
+
 const latexEnvironmentMath: Construct = {
   name: 'latexEnvironmentMath',
   previous(code) {
@@ -407,8 +500,8 @@ const latexEnvironmentMath: Construct = {
 
 const latexMathSyntax: MicromarkExtension = {
   flowInitial: {
-    [DOLLAR]: latexDirectMath,
-    [SPACE]: latexDirectMath
+    [DOLLAR]: [latexDirectMath, latexMultilineDollarMath],
+    [SPACE]: [latexDirectMath, latexMultilineDollarMath]
   },
   text: {
     [BACKSLASH]: [latexDelimitedMath, latexEnvironmentMath]
