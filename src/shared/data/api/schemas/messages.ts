@@ -275,7 +275,9 @@ export type MessageSchemas = {
      * - cascade=false: an active grouped reply transfers children to the next live sibling
      *   (previous at the end); the active reply itself prefers the newest different-model sibling;
      *   otherwise children are reparented to the parent.
-     * - activeNodeStrategy='parent' (default): uses that sibling, or the parent, if the active node is deleted.
+     * - activeNodeStrategy='parent' (default): if the active node is deleted, descends from that
+     *   sibling — or from the parent — to the newest surviving leaf, so remaining replies stay on
+     *   the conversation path; null when only the virtual root is left.
      *   Surviving descendants retain their active node; grouped context deletion clears their context anchors.
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
      * - awaitingInputOnly=true: rejects unless the target is an awaiting-input user leaf
