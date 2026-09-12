@@ -306,7 +306,9 @@ describe('attention state', () => {
   const fullyConsented = ['storage.delete', 'storage.get', 'storage.keys', 'storage.set']
   const setShared = () => vi.mocked(application.get('CacheService').setShared)
 
-  beforeEach(() => setShared().mockClear())
+  beforeEach(() => {
+    setShared().mockClear()
+  })
 
   it('flags only the app whose declared wildcard grew past what the user consented to', () => {
     // Both directions: an app with a full baseline must NOT be flagged, or the badge is
