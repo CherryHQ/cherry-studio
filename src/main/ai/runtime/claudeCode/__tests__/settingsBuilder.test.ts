@@ -41,7 +41,8 @@ const mocks = vi.hoisted(() => ({
   createAssistantFileToolsServer: vi.fn(function () {
     return { mcpServer: {} }
   }),
-  listSkillsForSession: vi.fn(),
+  refreshSkillMirrorsForSession: vi.fn(),
+  listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
   checkSkillRuntimeDependencies: vi.fn(),
@@ -130,7 +131,8 @@ vi.mock('@data/services/ProviderService', () => ({
 
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
-    listForSession: mocks.listSkillsForSession,
+    refreshMirrorsForSession: mocks.refreshSkillMirrorsForSession,
+    list: mocks.listSkills,
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
     getSkillPluginDirectory: mocks.getSkillPluginDirectory
   }
@@ -264,6 +266,7 @@ vi.mock('../AgentsMdLoader', () => ({
 const {
   assertClaudeCodeWorkspaceDirectory,
   buildClaudeCodeSessionSettings,
+  buildSkillWhitelist,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
@@ -359,7 +362,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
-    mocks.listSkillsForSession.mockResolvedValue([])
+    mocks.refreshSkillMirrorsForSession.mockResolvedValue(undefined)
+    mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
@@ -437,7 +441,11 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, { fastMode: true })
 
-    expect(mocks.listSkillsForSession).toHaveBeenCalledWith('agent-1')
+    expect(mocks.refreshSkillMirrorsForSession).toHaveBeenCalledWith('agent-1')
+    expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(mocks.refreshSkillMirrorsForSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.listSkills.mock.invocationCallOrder[0]
+    )
     expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.additionalDirectories).toEqual([path.join('/app/feature.agents.data', 'agent-1')])
@@ -452,6 +460,17 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
+  })
+
+  it('rebuilds the SDK skill whitelist without refreshing managed mirrors', async () => {
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
+
+    await expect(buildSkillWhitelist({ id: 'agent-1', configuration: {} }, '/workspace/project')).resolves.toEqual([
+      'pdf'
+    ])
+
+    expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(mocks.refreshSkillMirrorsForSession).not.toHaveBeenCalled()
   })
 
   async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
@@ -786,7 +805,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
-    mocks.listSkillsForSession.mockResolvedValue([
+    mocks.listSkills.mockResolvedValue([
       // Enabled and disabled skills deliberately share a SKILL.md `name` ('pdf').
       // The whitelist must key on the unique folderName so the disabled skill
       // is not un-hidden by the enabled one's name.
@@ -2300,7 +2319,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       disabledTools: [],
       configuration: { builtin_role: 'assistant' }
     })
-    mocks.listSkillsForSession.mockResolvedValue([{ id: 'skill-1', folderName: 'system-skill', isEnabled: true }])
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'system-skill', isEnabled: true }])
     mocks.getBuiltinAgentPluginDirectory.mockReturnValue('/app/feature.agents.builtin/cherry-assistant/.claude')
     mocks.loadBuiltinAgentDefinition.mockReturnValue({
       skills: ['cherry-assistant-guide', 'faq-collector']
@@ -2350,7 +2369,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       disabledTools: [],
       configuration: { builtin_role: 'support' }
     })
-    mocks.listSkillsForSession.mockResolvedValue([{ id: 'skill-1', folderName: 'issue-reporter', isEnabled: true }])
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'issue-reporter', isEnabled: true }])
     mocks.listLocalSkillFolderNames.mockResolvedValue(['faq-collector'])
     mocks.loadBuiltinAgentDefinition.mockReturnValue({
       skills: ['cherry-assistant-guide', 'faq-collector', 'cherry-studio-feedback', 'issue-reporter']
@@ -2379,7 +2398,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
     ])
     expect(settings.settingSources).toEqual([])
-    expect(mocks.listSkillsForSession).not.toHaveBeenCalled()
+    expect(mocks.refreshSkillMirrorsForSession).not.toHaveBeenCalled()
+    expect(mocks.listSkills).not.toHaveBeenCalled()
     expect(mocks.listLocalSkillFolderNames).not.toHaveBeenCalled()
     expect(settings.mcpServers?.skills).toBeUndefined()
     expect(settings.allowedTools).not.toContain('mcp__skills__search_skills')

@@ -17,7 +17,6 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
-import { buildSkillWhitelist } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import type * as Platform from '@main/core/platform'
 import { isWin } from '@main/core/platform'
 import { skillHandlers } from '@main/ipc/handlers/skill'
@@ -1824,7 +1823,7 @@ describe('SkillService', () => {
       } as unknown as Awaited<ReturnType<typeof parseSkillMetadata>>
     }
 
-    it('refreshes a copied mirror before returning the session skill whitelist', async () => {
+    it('refreshes a copied mirror when preparing a session', async () => {
       await seedAgent()
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_1,
@@ -1847,9 +1846,7 @@ describe('SkillService', () => {
       expect((await fs.promises.lstat(path.dirname(mirrorFile))).isSymbolicLink()).toBe(false)
       await fs.promises.writeFile(path.join(dataSkillsRoot, 'pdf', 'SKILL.md'), '# Version 2')
 
-      await expect(
-        buildSkillWhitelist({ id: AGENT_ID, configuration: {} }, path.join(dataSkillsRoot, '..', 'workspace'))
-      ).resolves.toEqual(['pdf'])
+      await sessionSkillService.refreshMirrorsForSession(AGENT_ID)
       await expect(fs.promises.readFile(mirrorFile, 'utf-8')).resolves.toBe('# Version 2')
     })
 

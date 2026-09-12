@@ -45,8 +45,8 @@ const BUILTIN_VERSION_FILE = '.version'
  * Skills are stored in `{dataPath}/Skills/{folderName}/` — the app-owned canonical
  * library. They are mirrored into `CLAUDE_CONFIG_DIR/skills` (where the Claude Agent
  * SDK discovers them) at install / uninstall / startup reconcile — see `linkMirror` /
- * `reconcileSkills`. Before building a session whitelist, enabled mirror entries are
- * refreshed from the canonical library under the same mutation lock.
+ * `reconcileSkills`. Initial session preparation explicitly refreshes enabled mirror
+ * entries from the canonical library under the same mutation lock.
  *
  * Skill library metadata lives in `agent_global_skill`. Per-agent enablement
  * state lives in the `agent_skill` join table.
@@ -82,14 +82,13 @@ export class SkillService {
     return agentGlobalSkillService.list(query)
   }
 
-  /** Return an agent's catalog only after its enabled Claude mirror entries match the library. */
-  async listForSession(agentId: string): Promise<InstalledSkill[]> {
-    return this.mutationLock.runExclusive(async () => {
+  /** Refresh an agent's enabled Claude mirror entries before its session starts. */
+  async refreshMirrorsForSession(agentId: string): Promise<void> {
+    await this.mutationLock.runExclusive(async () => {
       const skills = await this.list({ agentId })
       for (const skill of skills) {
         if (skill.isEnabled) await this.linkMirror(skill.folderName)
       }
-      return skills
     })
   }
 
@@ -650,7 +649,7 @@ export class SkillService {
   // (`feature.agents.claude.skills` = <userData>/Data/Agents/.claude/skills).
   // We keep that directory as a mirror of the owned `Data/Skills` library,
   // maintained at install / uninstall / startup reconcile and refreshed for enabled
-  // entries immediately before a session receives its whitelist.
+  // entries during initial session preparation.
   // The SDK's `Options.skills` is only a name whitelist, so the files must
   // physically live here for a whitelisted name to load.
   // ===========================================================================
@@ -778,8 +777,8 @@ export class SkillService {
    *    successful library scan so a transient read error can't wipe the catalog.
    * 2. DB → mirror: heal every trusted catalog mirror entry and drop managed orphans.
    *
-   * Idempotent. Session builds use a narrower mirror refresh for enabled skills;
-   * both operations share the mutation lock with install and uninstall.
+   * Idempotent. Initial session preparation uses a narrower mirror refresh for enabled
+   * skills; both operations share the mutation lock with install and uninstall.
    */
   async reconcileSkills(): Promise<void> {
     // Single-flight: reconcile-on-open can fire from several UI entry points at once — dedupe

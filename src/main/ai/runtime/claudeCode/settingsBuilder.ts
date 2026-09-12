@@ -277,9 +277,11 @@ export async function buildClaudeCodeSessionSettings(
   // 8. Auto-approve allowlist for injected built-in MCP servers
   const finalAllowedTools = adjustAllowedToolsForMcp(mountedServers, disallowedTools)
 
-  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
-  // agent + the workspace's own .claude/skills). SkillService refreshes enabled
-  // CLAUDE_CONFIG_DIR/skills mirror entries from the canonical library first.
+  // 9. Skills — prepare managed mirrors once before initial SDK settings materialization,
+  // then build the read-only whitelist also reused by live connection reconciliation.
+  if (resolveAgentCapabilities(agent).environment !== 'sealed') {
+    await skillService.refreshMirrorsForSession(agent.id)
+  }
   const skills = await buildSkillWhitelist(agent, cwd)
 
   // 10. Build settings
@@ -379,8 +381,8 @@ export { buildMcpServers } from './mcpCatalog'
  * skills and the `.claude/skills/<dir>` name for workspace skills), preserving
  * their existing discovery behavior.
  *
- * SkillService refreshes enabled mirror entries under its mutation lock before
- * returning the catalog, so session builds cannot race installs or use stale copies.
+ * This builder is read-only because live connection reconciliation also calls it.
+ * Initial settings materialization refreshes managed mirrors before calling here.
  */
 export async function buildSkillWhitelist(
   agent: Pick<AgentEntity, 'id' | 'configuration'>,
@@ -393,7 +395,7 @@ export async function buildSkillWhitelist(
   }
 
   const [installedSkills, workspaceNames] = await Promise.all([
-    skillService.listForSession(agent.id),
+    skillService.list({ agentId: agent.id }),
     skillService.listLocalFolderNames(cwd)
   ])
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
