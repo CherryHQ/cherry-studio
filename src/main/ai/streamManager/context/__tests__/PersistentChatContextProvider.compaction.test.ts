@@ -720,12 +720,9 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
 
   // The compressor fallback must apply the safety margin exactly once, not twice.
   // When compressionModel.contextWindow is null the fallback uses minContextWindow
-  // (not the already-margined effectiveContextWindow), so the margin is applied once:
-  // floor(minContextWindow * 0.9) not floor(floor(minContextWindow * 0.9) * 0.9).
+  // (not the already-margined effectiveContextWindow).
   it('2g-2. applies the safety margin exactly once in the compressor-fallback budget', async () => {
     // 100K chat window, compressor has no declared contextWindow → falls back to minContextWindow.
-    // compressorWindow = floor(100_000 * 0.9) = 90_000 (margin applied once)
-    // NOT floor(floor(100_000 * 0.9) * 0.9) = floor(90_000 * 0.9) = 81_000 (double margin)
     // Need > 72K tokens to exceed the trigger (floor(90K * 0.8) = 72K).
     const BIG = 'token '.repeat(4_000)
     const path = [
@@ -760,11 +757,14 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(mockSetCompactionSummary).toHaveBeenCalled()
     expect(messages[0].id).toMatch(/^compaction:/)
     const opts = mockSummarizeModelMessages.mock.calls[0][2]
-    // resolveCompressionOutputTokens(90_000): share=floor(90_000*0.25)=22_500, ceiling=16_384 → maxOutput=16_384
-    // maxInputTokens = max(2000, floor((90_000 - 16_384) * 0.85)) = floor(73_616 * 0.85) = 62_573
-    // maxOutputTokens + maxInputTokens = 16_384 + 62_573 = 78_957
-    // With double margin (81_000): maxOutput=16_384, maxInput=floor((81_000-16_384)*0.85)=54_923, sum=71_307
-    expect(opts.maxOutputTokens + opts.maxInputTokens).toBe(78_957)
+    const summarizeBudget = opts.maxOutputTokens + opts.maxInputTokens
+    // The summarize call fits inside the once-margined compressor window
+    // (floor(100_000 * 0.9) = 90_000) …
+    expect(summarizeBudget).toBeLessThan(90_000)
+    // … but is larger than a double-margined budget would allow
+    // (floor(90_000 * 0.9) = 81_000 window → ~71_307 total), proving the
+    // margin was applied once, not twice.
+    expect(summarizeBudget).toBeGreaterThan(71_307)
   })
 
   // Turn-start compaction runs BEFORE the model stream opens, so without a

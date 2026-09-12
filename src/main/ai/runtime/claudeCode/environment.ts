@@ -69,6 +69,74 @@ const require_ = createRequire(import.meta.url)
 // (e.g. #18894: 256K declared / 128K real), causing auto-compaction to trigger too late.
 // Apply the conservative safety margin only to untrusted providers; Anthropic-official
 // channels report accurate windows and must not lose half their context to a blanket 0.6.
+const ANTHROPIC_PRESET_BASE_URL = 'https://api.anthropic.com'
+/**
+ * Whether a stored baseUrl still points at the official Anthropic API. Compares
+ * origins (scheme + host + port) so a channel keeping the official endpoint stays
+ * trusted with a `/v1` suffix or full route path, while lookalike hosts mismatch.
+ */
+function isOfficialAnthropicBaseUrl(rawBaseUrl: unknown): boolean {
+  if (typeof rawBaseUrl !== 'string' || !rawBaseUrl.trim()) return false
+  try {
+    return new URL(rawBaseUrl.trim()).origin.toLowerCase() === new URL(ANTHROPIC_PRESET_BASE_URL).origin.toLowerCase()
+  } catch {
+    return false
+  }
+}
+
+// Trust any channel that resolves to the official Anthropic endpoint — a custom
+// provider cloned from the preset (or inheriting its endpoint type) reports an
+// accurate window when it keeps the official baseUrl. Only a custom baseUrl
+// proves an untrusted relay that can overstate the window (e.g. #18894).
+// `claude-code` (external-cli) is the second official channel and is trusted alike.
+function isTrustedClaudeChannel(provider?: Provider | null): boolean {
+  // A custom baseUrl confirms an untrusted channel that can overstate the
+  // window (e.g. #18894). The preset itself defines `https://api.anthropic.com`,
+  // which is merged into every provider's runtime endpointConfigs, so the check
+  // must compare against that value rather than merely testing for existence.
+  const rawBaseUrl = provider?.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
+  const hasCustomAnthropicBaseUrl =
+    typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== '' && !isOfficialAnthropicBaseUrl(rawBaseUrl)
+  return (
+    provider != null && (isAnthropicProvider(provider) || isExternalCliProvider(provider)) && !hasCustomAnthropicBaseUrl
+  )
+}
+
+/**
+ * The context window the Claude Code runtime budgets against: the declared
+ * window for trusted channels, the conservative 0.6-margined window for
+ * untrusted relays that may overstate it (#18894). Exported so the settings
+ * builder can pin the same derated window when the auto-compact budget itself
+ * is omitted and the CLI falls back to its own default compaction.
+ */
+export function resolveEffectiveClaudeContextWindow(
+  contextWindow: number,
+  requestedOutput: number,
+  provider?: Provider | null
+): number {
+  if (isTrustedClaudeChannel(provider)) {
+    return contextWindow
+  }
+  // For tiny windows the 0.6 margin would make the MIN floor even more
+  // provider-unsafe (e.g. 100K * 0.6 = 60K - 32K = 28K room vs 68K raw room,
+  // both capped to 100K). Skip the margin when the margined room falls below
+  // MIN so the overflow magnitude is minimized; large windows where the
+  // 256K/128K overstatement is plausible keep the conservative margin.
+  const margined = Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
+  const marginedRoom = margined - requestedOutput
+  const rawRoom = contextWindow - requestedOutput
+  // Only skip the conservative margin when BOTH rooms would be below
+  // the SDK floor. For a 200K declared window the margined room is 88K
+  // (<100K) but the raw room is 168K (>100K): the margin must stay to keep
+  // the budget inside a 128K-real provider (100K vs 164K overflow). For a
+  // tiny 100K window both rooms are below the floor and the SDK requires
+  // 100K either way, so we pick the raw window to minimize overflow
+  // magnitude (32K vs 72K). Large windows where the 256K/128K overstatement
+  // is plausible keep the margin.
+  const shouldSkipMargin = marginedRoom < MIN_AUTO_COMPACT_WINDOW && rawRoom < MIN_AUTO_COMPACT_WINDOW
+  return shouldSkipMargin ? contextWindow : margined
+}
+
 export function resolveAutoCompactWindow(
   contextWindow: number | undefined,
   requestedOutput: number,
@@ -81,52 +149,8 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  // A custom baseUrl confirms an untrusted channel that can overstate the
-  // window (e.g. #18894). The preset itself defines `https://api.anthropic.com`,
-  // which is merged into every provider's runtime endpointConfigs, so the check
-  // must compare against that value rather than merely testing for existence.
-  const ANTHROPIC_PRESET_BASE_URL = 'https://api.anthropic.com'
-  const normalizeAnthropicBaseUrl = (url: string): string => {
-    let n = url.trim().replace(/\/+$/, '')
-    if (n.toLowerCase().endsWith('/v1')) n = n.slice(0, -3).replace(/\/+$/, '')
-    return n.toLowerCase()
-  }
-  const rawBaseUrl = provider?.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
-  const normalizedActual =
-    typeof rawBaseUrl === 'string' && rawBaseUrl.trim() ? normalizeAnthropicBaseUrl(rawBaseUrl) : undefined
-  const normalizedPreset = normalizeAnthropicBaseUrl(ANTHROPIC_PRESET_BASE_URL)
-  const hasCustomAnthropicBaseUrl =
-    normalizedActual !== undefined && normalizedActual !== '' && normalizedActual !== normalizedPreset
-  // Trust any channel that resolves to the official Anthropic endpoint — a custom
-  // provider cloned from the preset (or inheriting its endpoint type) reports an
-  // accurate window when it keeps the official baseUrl. Only a custom baseUrl
-  // proves an untrusted relay that can overstate the window (e.g. #18894).
-  // `claude-code` (external-cli) is the second official channel and is trusted alike.
-  const isTrustedAnthropic =
-    provider != null && (isAnthropicProvider(provider) || isExternalCliProvider(provider)) && !hasCustomAnthropicBaseUrl
-  // For tiny windows the 0.6 margin would make the MIN floor even more
-  // provider-unsafe (e.g. 100K * 0.6 = 60K - 32K = 28K room vs 68K raw room,
-  // both capped to 100K). Skip the margin when the margined room falls below
-  // MIN so the overflow magnitude is minimized; large windows where the
-  // 256K/128K overstatement is plausible keep the conservative margin.
-  let effectiveContextWindow: number
-  if (isTrustedAnthropic) {
-    effectiveContextWindow = contextWindow
-  } else {
-    const margined = Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
-    const marginedRoom = margined - requestedOutput
-    const rawRoom = contextWindow - requestedOutput
-    // Only skip the conservative margin when BOTH rooms would be below
-    // the SDK floor. For a 200K declared window the margined room is 88K
-    // (<100K) but the raw room is 168K (>100K): the margin must stay to keep
-    // the budget inside a 128K-real provider (100K vs 164K overflow). For a
-    // tiny 100K window both rooms are below the floor and the SDK requires
-    // 100K either way, so we pick the raw window to minimize overflow
-    // magnitude (32K vs 72K). Large windows where the 256K/128K overstatement
-    // is plausible keep the margin.
-    const shouldSkipMargin = marginedRoom < MIN_AUTO_COMPACT_WINDOW && rawRoom < MIN_AUTO_COMPACT_WINDOW
-    effectiveContextWindow = shouldSkipMargin ? contextWindow : margined
-  }
+  const isTrustedAnthropic = isTrustedClaudeChannel(provider)
+  const effectiveContextWindow = resolveEffectiveClaudeContextWindow(contextWindow, requestedOutput, provider)
   const inputRoom = effectiveContextWindow - requestedOutput
   const budget = Math.floor(inputRoom * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
   const clamped = Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)

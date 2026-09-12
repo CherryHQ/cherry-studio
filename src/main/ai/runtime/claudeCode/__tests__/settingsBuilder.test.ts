@@ -761,10 +761,13 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.settings).not.toHaveProperty('autoCompactWindow')
     // The budget is omitted but the usable window still pins the request, so the CLI
-    // keeps the catalog output cap and window instead of its own defaults.
+    // keeps the catalog output cap instead of its own defaults — and the window pin
+    // carries the safety-adjusted 153_600 (floor(256K * 0.6)) rather than the
+    // overstated declaration, so the CLI's default compaction lands inside the
+    // real limit instead of above it.
     expect(settings.env).toMatchObject({
       CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000',
-      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '256000'
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '153600'
     })
   })
 
@@ -790,6 +793,54 @@ describe('buildClaudeCodeSessionSettings', () => {
     )
 
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
+  })
+
+  // A custom provider keeping the official endpoint stays trusted with a full
+  // route path, not just the bare base URL or a `/v1` suffix.
+  it('trusts a custom provider that keeps the official Anthropic endpoint with a route path', async () => {
+    const customAnthropic = {
+      id: 'my-anthropic-relay',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: 'https://api.anthropic.com/v1/messages' }
+      }
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      customAnthropic,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
+  })
+
+  // A lookalike hostname is still an untrusted relay even though it contains
+  // the official hostname.
+  it('distrusts a lookalike Anthropic hostname', async () => {
+    const lookalikeRelay = {
+      id: 'anthropic-lookalike',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: 'https://api.anthropic.com.evil.com/v1' }
+      }
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      lookalikeRelay,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
   })
 
   it.each([undefined, 64_000, 99_999])(
