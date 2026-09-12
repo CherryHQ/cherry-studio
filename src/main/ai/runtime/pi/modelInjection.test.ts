@@ -635,6 +635,56 @@ describe('OpenCode Pi session headers', () => {
   })
 })
 
+describe('OpenRouter Pi session headers', () => {
+  beforeEach(() => {
+    serviceMocks.resolveApiKey.mockReturnValue({ value: REAL_KEY })
+  })
+
+  afterEach(() => {
+    serviceMocks.resolveApiKey.mockReset()
+  })
+
+  const provider = makeProvider({
+    id: 'my-router',
+    presetProviderId: 'openrouter',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: {
+      'openai-chat-completions': { adapterFamily: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1' }
+    }
+  })
+  const model = makeModel({
+    providerId: provider.id,
+    endpointTypes: ['openai-chat-completions']
+  })
+
+  it('keeps an opaque session header stable and isolates sessions', async () => {
+    const first = await resolvePiProviderInjectionForSession('session-1', provider, model)
+    const repeated = await resolvePiProviderInjectionForSession('session-1', provider, model)
+    const second = await resolvePiProviderInjectionForSession('session-2', provider, model)
+
+    const key = first.providerConfig.headers?.['x-session-id']
+    expect(key).toMatch(/^cherry-agent:[0-9a-f]{32}$/)
+    expect(key).not.toContain('session-1')
+    expect(repeated.providerConfig.headers?.['x-session-id']).toBe(key)
+    expect(second.providerConfig.headers?.['x-session-id']).not.toBe(key)
+  })
+
+  it('recognizes the OpenRouter adapter and preserves an explicit header regardless of casing', async () => {
+    const configured = {
+      ...provider,
+      id: 'custom-router',
+      presetProviderId: undefined,
+      settings: { extraHeaders: { 'X-Session-Id': 'chosen-session', 'x-tenant': 'tenant-1' } }
+    }
+    const injection = await resolvePiProviderInjectionForSession('session-1', configured, model)
+
+    expect(injection.providerConfig.headers).toEqual({
+      'X-Session-Id': 'chosen-session',
+      'x-tenant': 'tenant-1'
+    })
+  })
+})
+
 describe('Cherry Cloud Pi injection', () => {
   const provider = makeProvider({
     id: CHERRY_CLOUD_PROVIDER_ID,
