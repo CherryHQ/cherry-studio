@@ -13,7 +13,8 @@ export const selectionHandlers: IpcHandlersFor<typeof selectionRequestSchemas> =
   'selection.hide_toolbar': async () => {
     application.get('SelectionService').hideToolbar()
   },
-  'selection.write_to_clipboard': async (text) => application.get('SelectionService').writeToClipboard(text) ?? false,
+  'selection.write_to_clipboard': async (text) =>
+    (await application.get('SelectionService').writeToClipboard(text)) ?? false,
   'selection.determine_toolbar_size': async ({ width, height }) => {
     application.get('SelectionService').determineToolbarSize(width, height)
   },
