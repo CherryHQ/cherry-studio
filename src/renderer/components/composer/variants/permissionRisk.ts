@@ -37,7 +37,7 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
 
   // The `(`, backtick, and `/` separators also catch commands inside $(...),
   // backticks, and invocations by absolute path such as /usr/bin/rm.
-  if (/(^|[\s;&|`(/])(rm|rmdir|del|erase|rd|dd|truncate)\s/i.test(text)) {
+  if (/(^|[\s;&|`(/])(rm|rmdir|del|erase|rd|dd|truncate|shred|unlink)\s/i.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
@@ -58,7 +58,7 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   }
   if (
     /https?:\/\//i.test(text) ||
-    /\b(?:curl|wget|scp|rsync|sftp|ssh|nc)\b/i.test(text) ||
+    /\b(?:curl|wget|scp|rsync|sftp|ssh|nc|ncat|socat)\b/i.test(text) ||
     /\bgit\s+(?:push|fetch|pull|clone)\b/i.test(text)
   ) {
     effects.add('network')

@@ -91,4 +91,18 @@ describe('getPermissionRiskEffects', () => {
       })
     ).toEqual([])
   })
+
+  it('flags file shredding and unlinking as destructive', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'shred -u secret.txt' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'unlink old-link' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+  })
+
+  it('flags netcat-style tools as network operations', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ncat -l 8080' })).toContain('network')
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'socat TCP-LISTEN:8080 -' })).toContain('network')
+  })
 })
