@@ -51,6 +51,15 @@ describe('checkDshHomeHealth', () => {
     })
   })
 
+  it('flags a corrupt workspace file with its own reason code', async () => {
+    await writeStore('workspace.json', '{not json')
+    await expect(checkDshHomeHealth(dir)).resolves.toEqual({
+      healthy: false,
+      reason: 'workspace-unreadable',
+      detail: expect.stringContaining('workspace.json')
+    })
+  })
+
   it('flags workspaces with empty sessionIds while archived sessions exist', async () => {
     await writeStore(
       'workspace.json',

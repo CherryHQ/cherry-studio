@@ -7,7 +7,7 @@ export type DshHomeHealth =
   | { healthy: true }
   | {
       healthy: false
-      reason: 'projcache-unreadable' | 'projcache-version' | 'workspace-inconsistent'
+      reason: 'projcache-unreadable' | 'projcache-version' | 'workspace-inconsistent' | 'workspace-unreadable'
       detail: string
     }
 
@@ -98,7 +98,7 @@ export async function checkDshHomeHealth(dshHomeDir: AbsoluteFilePath): Promise<
     workspace = await readStoreJson(dshHomeDir, 'workspace.json')
   } catch (error) {
     if (error instanceof SyntaxError) {
-      return { healthy: false, reason: 'projcache-unreadable', detail: 'storages/workspace.json is not valid JSON' }
+      return { healthy: false, reason: 'workspace-unreadable', detail: 'storages/workspace.json is not valid JSON' }
     }
     return { healthy: true }
   }
