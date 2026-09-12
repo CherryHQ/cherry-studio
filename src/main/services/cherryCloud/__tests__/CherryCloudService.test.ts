@@ -180,6 +180,12 @@ function jsonResponse(value: unknown, status = 200): Response {
   })
 }
 
+function cloudErrorResponse(status: number, code: string): Response {
+  const response = jsonResponse({ type: 'error', error: { code, message: code } }, status)
+  response.headers.set('Cherry-Error-Code', code)
+  return response
+}
+
 type RouteReply = Response | Promise<Response> | ((init: RequestInit) => Response | Promise<Response>)
 
 const routeReplies = new Map<string, RouteReply[]>()
@@ -501,7 +507,7 @@ describe('CherryCloudService', () => {
       restoredCode = new Headers(init.headers).get('Cherry-Machine-Code')
       return restoredCode === originalCode
         ? jsonResponse(refreshedTokenSet())
-        : jsonResponse({ error: { code: 'REAUTH_REQUIRED' } }, 401)
+        : cloudErrorResponse(401, 'REAUTH_REQUIRED')
     })
     CherryCloudService.resetInstances()
     const copied = await createService()
@@ -1261,7 +1267,8 @@ describe('CherryCloudService', () => {
     const catalogRequest = deferred<Response>()
     mockCloudRoute('/api/v1/account', accountRequest.promise)
     mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
-    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+    mockCloudRoute('/api/v1/product-sessions/refresh', cloudErrorResponse(401, 'REAUTH_REQUIRED'))
 
     const sync = service['syncEntitledModels']()
     const syncFailure = expect(sync).rejects.toMatchObject({ name: 'AbortError' })
@@ -1282,7 +1289,8 @@ describe('CherryCloudService', () => {
     const oldCatalogRequest = deferred<Response>()
     mockCloudRoute('/api/v1/account', oldAccountRequest.promise)
     mockCloudRoute('/v1/models?limit=1000', oldCatalogRequest.promise)
-    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+    mockCloudRoute('/api/v1/product-sessions/refresh', cloudErrorResponse(401, 'REAUTH_REQUIRED'))
 
     const oldSync = service['syncEntitledModels']()
     const oldSyncFailure = expect(oldSync).rejects.toMatchObject({ name: 'AbortError' })
@@ -1299,7 +1307,7 @@ describe('CherryCloudService', () => {
       )
     )
 
-    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(7))
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(8))
     oldAccountRequest.resolve(jsonResponse(accountSnapshot))
     oldCatalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
@@ -1405,6 +1413,32 @@ describe('CherryCloudService', () => {
     }
   })
 
+  it.each([200, 503])('bounds proactive refresh and preserves its failure (%s)', async (status) => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
+    try {
+      const service = await createSignedInService()
+      mockCloudRoute(
+        '/api/v1/product-sessions/refresh',
+        status === 200 ? jsonResponse(refreshedTokenSet()) : cloudErrorResponse(503, 'SERVICE_UNAVAILABLE')
+      )
+      mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
+
+      const response = await service.authenticatedFetch('/v1/messages')
+
+      expect(response.status).toBe(status === 200 ? 401 : 503)
+      expect(await response.json()).toMatchObject({
+        error: { code: status === 200 ? 'AUTH_REQUIRED' : 'SERVICE_UNAVAILABLE' }
+      })
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+      expect(requestCalls('/v1/messages')).toHaveLength(status === 200 ? 1 : 0)
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(mocks.savedSession).toMatchObject({ refreshToken: token(status === 200 ? 'I' : 'G') })
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
   it('clears runtime state when a refreshed Session cannot be persisted', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
 
@@ -1425,13 +1459,13 @@ describe('CherryCloudService', () => {
     }
   })
 
-  it('keeps a refreshed Session when an older request returns 401 afterward', async () => {
+  it('reuses a refreshed token when an older request returns AUTH_REQUIRED afterward', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
 
     try {
       const service = await createSignedInService()
       const pendingOldRequest = deferred<Response>()
-      mockCloudRoute('/v1/messages', pendingOldRequest.promise)
+      mockCloudRoute('/v1/messages', pendingOldRequest.promise, jsonResponse({ type: 'message' }))
       mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
       mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
@@ -1439,84 +1473,43 @@ describe('CherryCloudService', () => {
 
       clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
       await expect(service.authenticatedFetch('/v1/models')).resolves.toHaveProperty('status', 200)
-      pendingOldRequest.resolve(jsonResponse({ type: 'error' }, 401))
-      await expect(oldRequest).resolves.toHaveProperty('status', 401)
+      pendingOldRequest.resolve(cloudErrorResponse(401, 'AUTH_REQUIRED'))
+      await expect(oldRequest).resolves.toHaveProperty('status', 200)
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
       expect(mocks.savedSession).toMatchObject({ refreshToken: token('I') })
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+      expect(new Headers(requestCalls('/v1/messages')[1][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
       expect(new Headers(requestCalls('/v1/models')[0][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
     } finally {
       clock.mockRestore()
     }
   })
 
-  it('does not restore a refreshed Session after an older request has cleared it', async () => {
+  it('shares an in-flight refresh before retrying a 401', async () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
 
     try {
       const service = await createSignedInService()
       const pendingOldRequest = deferred<Response>()
       const pendingRefresh = deferred<Response>()
-      mockCloudRoute('/v1/messages', pendingOldRequest.promise)
+      mockCloudRoute('/v1/messages', pendingOldRequest.promise, jsonResponse({ type: 'message' }))
       mockCloudRoute('/api/v1/product-sessions/refresh', pendingRefresh.promise)
+      mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
       clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
       const refreshingRequest = service.authenticatedFetch('/v1/models')
-      const refreshFailure = expect(refreshingRequest).rejects.toThrow(
-        'Cherry Cloud session changed while refresh was in progress'
-      )
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
 
-      pendingOldRequest.resolve(jsonResponse({ type: 'error' }, 401))
-      await expect(oldRequest).resolves.toHaveProperty('status', 401)
+      pendingOldRequest.resolve(cloudErrorResponse(401, 'AUTH_REQUIRED'))
       pendingRefresh.resolve(jsonResponse(refreshedTokenSet()))
-      await refreshFailure
-
-      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
-      expect(mocks.savedSession).toBeNull()
-      expect(mocks.netFetch).toHaveBeenCalledTimes(2)
-    } finally {
-      clock.mockRestore()
-    }
-  })
-
-  it('does not share an in-flight token refresh with a newer Session', async () => {
-    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
-
-    try {
-      const service = await createSignedInService()
-      const pendingOldRequest = deferred<Response>()
-      const pendingOldRefresh = deferred<Response>()
-      mockCloudRoute('/v1/messages', pendingOldRequest.promise)
-      mockCloudRoute('/api/v1/product-sessions/refresh', pendingOldRefresh.promise, jsonResponse(refreshedTokenSet()))
-
-      const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
-      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
-      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
-      const oldRefresh = service.authenticatedFetch('/v1/models')
-      const oldRefreshFailure = expect(oldRefresh).rejects.toThrow(
-        'Cherry Cloud session changed while refresh was in progress'
-      )
-      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
-
-      pendingOldRequest.resolve(jsonResponse({}, 401))
-      await oldRequest
-      mockAuthorizationFlow(authorizationResponse(), exchangeResponse(30))
-      mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
-      await service.startLogin()
-      const createBody = authorizationRequestBody()
-      await loopbackCallback()(
-        new URL(
-          `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
-        )
+      await expect(Promise.all([oldRequest, refreshingRequest])).resolves.toEqual(
+        expect.arrayContaining([expect.objectContaining({ status: 200 }), expect.objectContaining({ status: 200 })])
       )
 
-      await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(7))
-      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(2)
-      pendingOldRefresh.resolve(jsonResponse(refreshedTokenSet()))
-      await oldRefreshFailure
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     } finally {
       clock.mockRestore()
@@ -1629,14 +1622,319 @@ describe('CherryCloudService', () => {
     }
   })
 
-  it('clears the Product Session when Cloud API rejects authentication', async () => {
+  it('clears the Product Session when the retry explicitly requires reauthentication', async () => {
     const service = await createSignedInService()
-    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'), cloudErrorResponse(401, 'REAUTH_REQUIRED'))
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
 
     await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
 
+    expect(requestCalls('/v1/messages')).toHaveLength(2)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
     expect(mocks.savedSession).toBeNull()
+  })
+
+  it('refreshes and retries once when Cloud API rejects an otherwise valid access token', async () => {
+    const service = await createSignedInService()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'), jsonResponse({ type: 'message' }))
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+
+    await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 200)
+
+    expect(requestCalls('/v1/messages')).toHaveLength(2)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+    expect(new Headers(requestCalls('/v1/messages')[0][1].headers).get('Authorization')).toBe(`Bearer ${token('F')}`)
+    expect(new Headers(requestCalls('/v1/messages')[1][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it.each([
+    [503, 'SERVICE_UNAVAILABLE'],
+    [429, 'RATE_LIMITED'],
+    [409, 'REQUEST_REPLAYED'],
+    [401, 'UNKNOWN_ERROR']
+  ])('keeps credentials and returns the refresh failure (%s %s) to every waiting request', async (status, code) => {
+    const service = await createSignedInService()
+    const savedSession = structuredClone(mocks.savedSession)
+    const pendingRefresh = deferred<Response>()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'), cloudErrorResponse(401, 'AUTH_REQUIRED'))
+    mockCloudRoute('/api/v1/product-sessions/refresh', pendingRefresh.promise)
+
+    const requests = [service.authenticatedFetch('/v1/messages'), service.authenticatedFetch('/v1/messages')]
+    await vi.waitFor(() => expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1))
+    const failure = cloudErrorResponse(status, code)
+    failure.headers.set('Retry-After', '30')
+    pendingRefresh.resolve(failure)
+    for (const response of await Promise.all(requests)) {
+      expect(response.status).toBe(status)
+      expect(response.headers.get('Retry-After')).toBe('30')
+      expect(await response.json()).toMatchObject({ error: { code } })
+    }
+
+    expect(requestCalls('/v1/messages')).toHaveLength(2)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(mocks.savedSession).toEqual(savedSession)
+    mockCloudRoute('/v1/messages', jsonResponse({ type: 'message' }))
+    await expect(service.authenticatedFetch('/v1/messages')).resolves.toHaveProperty('status', 200)
+  })
+
+  it.each([new TypeError('Network unavailable'), new DOMException('Timed out', 'TimeoutError')])(
+    'keeps credentials and propagates a refresh transport failure: %s',
+    async (error) => {
+      const service = await createSignedInService()
+      const savedSession = structuredClone(mocks.savedSession)
+      mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+      mockCloudRoute('/api/v1/product-sessions/refresh', () => {
+        throw error
+      })
+
+      await expect(service.authenticatedFetch('/v1/messages')).rejects.toBe(error)
+
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+      expect(mocks.savedSession).toEqual(savedSession)
+      expect(requestCalls('/v1/messages')).toHaveLength(1)
+      mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'), jsonResponse({ type: 'message' }))
+      mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+      await expect(service.authenticatedFetch('/v1/messages')).resolves.toHaveProperty('status', 200)
+    }
+  )
+
+  it.each([undefined, 'UNKNOWN_ERROR'])(
+    'does not treat an upstream or unknown 401 (%s) as a Cloud login failure',
+    async (code) => {
+      const service = await createSignedInService()
+      const failure = code ? cloudErrorResponse(401, code) : jsonResponse({ error: { code: 'REAUTH_REQUIRED' } }, 401)
+      mockCloudRoute('/v1/messages', failure)
+
+      const response = await service.authenticatedFetch('/v1/messages')
+
+      expect(response).toBe(failure)
+      expect(await response.json()).toHaveProperty('error.code')
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    }
+  )
+
+  it.each(['SESSION_EXPIRED', 'REAUTH_REQUIRED'])(
+    'clears an explicitly invalid session (%s) without refreshing',
+    async (code) => {
+      const service = await createSignedInService()
+      mockCloudRoute('/v1/messages', cloudErrorResponse(401, code))
+
+      const response = await service.authenticatedFetch('/v1/messages')
+
+      expect(response.status).toBe(401)
+      expect(await response.json()).toMatchObject({ error: { code } })
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
+      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(mocks.savedSession).toBeNull()
+    }
+  )
+
+  it.each(['AUTH_REQUIRED', 'SESSION_EXPIRED', 'REAUTH_REQUIRED'])(
+    'clears credentials when refresh explicitly rejects them (%s)',
+    async (code) => {
+      const service = await createSignedInService()
+      mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+      mockCloudRoute('/api/v1/product-sessions/refresh', cloudErrorResponse(401, code))
+
+      const response = await service.authenticatedFetch('/v1/messages')
+
+      expect(response.status).toBe(401)
+      expect(await response.json()).toMatchObject({ error: { code } })
+      expect(requestCalls('/v1/messages')).toHaveLength(1)
+      expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
+      expect(mocks.savedSession).toBeNull()
+    }
+  )
+
+  it.each(['/v1/messages', '/v1/chat/completions'])(
+    're-signs a replay once with the same token, body and business key for %s',
+    async (path) => {
+      const service = await createSignedInService()
+      mockCloudRoute(path, cloudErrorResponse(409, 'REQUEST_REPLAYED'), jsonResponse({ result: 'ok' }))
+      const body = '{"model":"deepseek-free","messages":[],"max_tokens":8}'
+      const response = await service.authenticatedFetch(path, { method: 'POST', body })
+
+      expect(await response.json()).toEqual({ result: 'ok' })
+      const requests = requestCalls(path)
+      expect(requests).toHaveLength(2)
+      const [first, second] = requests.map(([, init]) => new Headers(init.headers))
+      expect(first.get('Idempotency-Key')).toBeTruthy()
+      for (const name of ['Authorization', 'Idempotency-Key', 'Cherry-Body-SHA256']) {
+        expect(second.get(name)).toBe(first.get(name))
+      }
+      expect(second.get('Cherry-Request-ID')).not.toBe(first.get('Cherry-Request-ID'))
+      expect(second.get('Cherry-Signature')).not.toBe(first.get('Cherry-Signature'))
+      expect(requests.map(([, init]) => Buffer.from(init.body).toString())).toEqual([body, body])
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    }
+  )
+
+  it.each([
+    [409, 'REQUEST_REPLAYED', 409, 'REQUEST_REPLAYED'],
+    [409, 'REQUEST_REPLAYED', 401, 'AUTH_REQUIRED'],
+    [401, 'AUTH_REQUIRED', 409, 'REQUEST_REPLAYED'],
+    [401, 'AUTH_REQUIRED', 401, 'AUTH_REQUIRED']
+  ])(
+    'bounds recovery across mixed errors (%s %s then %s %s) without clearing login',
+    async (status, code, retryStatus, retryCode) => {
+      const service = await createSignedInService()
+      mockCloudRoute('/v1/messages', cloudErrorResponse(status, code), cloudErrorResponse(retryStatus, retryCode))
+      if (status === 401) mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+
+      const response = await service.authenticatedFetch('/v1/messages', {
+        method: 'POST',
+        headers: { 'Idempotency-Key': 'caller-key' },
+        body: '{}'
+      })
+
+      expect(response.status).toBe(retryStatus)
+      expect(await response.json()).toMatchObject({ error: { code: retryCode } })
+      expect(requestCalls('/v1/messages')).toHaveLength(2)
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(status === 401 ? 1 : 0)
+      expect(requestCalls('/v1/messages').map(([, init]) => new Headers(init.headers).get('Idempotency-Key'))).toEqual([
+        'caller-key',
+        'caller-key'
+      ])
+      expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    }
+  )
+
+  it.each([
+    'REQUEST_ALREADY_COMPLETED',
+    'REQUEST_OUTCOME_UNKNOWN',
+    'REQUEST_IN_PROGRESS',
+    'IDEMPOTENCY_KEY_CONFLICT',
+    'REQUEST_CANCELLED'
+  ])('returns business conflict %s without another request', async (code) => {
+    const service = await createSignedInService()
+    const failure = cloudErrorResponse(409, code)
+    mockCloudRoute('/v1/messages', failure)
+
+    expect(await service.authenticatedFetch('/v1/messages', { method: 'POST', body: '{}' })).toBe(failure)
+    expect(requestCalls('/v1/messages')).toHaveLength(1)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it.each([401, 409])('does not recover a request cancelled when its %s response arrives', async (status) => {
+    const service = await createSignedInService()
+    const controller = new AbortController()
+    mockCloudRoute('/v1/messages', () => {
+      controller.abort()
+      return cloudErrorResponse(status, status === 401 ? 'AUTH_REQUIRED' : 'REQUEST_REPLAYED')
+    })
+
+    await expect(service.authenticatedFetch('/v1/messages', { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+
+    expect(requestCalls('/v1/messages')).toHaveLength(1)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it('does not start a refresh for an already cancelled request', async () => {
+    const service = await createSignedInService()
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(service.authenticatedFetch('/v1/messages', { signal: controller.signal })).rejects.toMatchObject({
+      name: 'AbortError'
+    })
+
+    expect(mocks.netFetch).not.toHaveBeenCalled()
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+  })
+
+  it('lets another waiter finish a shared refresh without retrying the cancelled request', async () => {
+    const service = await createSignedInService()
+    const controller = new AbortController()
+    const pendingRefresh = deferred<Response>()
+    mockCloudRoute(
+      '/v1/messages',
+      cloudErrorResponse(401, 'AUTH_REQUIRED'),
+      cloudErrorResponse(401, 'AUTH_REQUIRED'),
+      jsonResponse({ result: 'ok' })
+    )
+    mockCloudRoute('/api/v1/product-sessions/refresh', pendingRefresh.promise)
+    const cancelled = service.authenticatedFetch('/v1/messages', { signal: controller.signal })
+    const cancelledFailure = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' })
+    const other = service.authenticatedFetch('/v1/messages')
+    await vi.waitFor(() => expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1))
+    controller.abort()
+    expect(requestCalls('/api/v1/product-sessions/refresh')[0][1].signal.aborted).toBe(false)
+    pendingRefresh.resolve(jsonResponse(refreshedTokenSet()))
+
+    await cancelledFailure
+    expect(await (await other).json()).toEqual({ result: 'ok' })
+    expect(requestCalls('/v1/messages')).toHaveLength(3)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+    expect(mocks.savedSession).toMatchObject({ refreshToken: token('I') })
+  })
+
+  it.each([200, 401])('does not let an old refresh (%s) overwrite or clear a newer login', async (status) => {
+    const service = await createSignedInService()
+    const pendingRefresh = deferred<Response>()
+    mockCloudRoute('/v1/messages', cloudErrorResponse(401, 'AUTH_REQUIRED'))
+    mockCloudRoute('/api/v1/product-sessions/refresh', pendingRefresh.promise)
+    const oldRequest = service.authenticatedFetch('/v1/messages')
+    const oldResult =
+      status === 200
+        ? expect(oldRequest).rejects.toThrow('Cherry Cloud session changed while refresh was in progress')
+        : expect(oldRequest).resolves.toHaveProperty('status', 401)
+    await vi.waitFor(() => expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1))
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+    mockAuthorizationFlow()
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+    await service.startLogin()
+    await loopbackCallback()(
+      new URL(
+        `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${authorizationRequestBody().state}`
+      )
+    )
+    await service['syncEntitledModels']()
+    const newCredentials = structuredClone(mocks.savedSession)
+    pendingRefresh.resolve(
+      status === 200 ? jsonResponse(refreshedTokenSet()) : cloudErrorResponse(401, 'REAUTH_REQUIRED')
+    )
+
+    await oldResult
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(mocks.savedSession).toEqual(newCredentials)
+    expect(requestCalls('/v1/messages')).toHaveLength(1)
+  })
+
+  it('returns a stream untouched and does not restart generation after a stream failure', async () => {
+    const service = await createSignedInService()
+    const streamController = deferred<ReadableStreamDefaultController<Uint8Array>>()
+    mockCloudRoute(
+      '/v1/messages',
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('data: first\n\n'))
+            streamController.resolve(controller)
+          }
+        }),
+        { headers: { 'Content-Type': 'text/event-stream' } }
+      )
+    )
+
+    const response = await service.authenticatedFetch('/v1/messages')
+    const reader = response.body!.getReader()
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe('data: first\n\n')
+    ;(await streamController.promise).error(new Error('Stream disconnected'))
+    await expect(reader.read()).rejects.toThrow('Stream disconnected')
+
+    expect(requestCalls('/v1/messages')).toHaveLength(1)
+    expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(0)
+    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
   it('keeps the current Session when persisted removal fails', async () => {
