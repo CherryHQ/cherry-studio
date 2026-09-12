@@ -255,6 +255,8 @@ const TranslatePage: FC = () => {
   const [translateInput, setTranslateInput] = useCache('translate.input')
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
+  const [pendingHistoryRestore, setPendingHistoryRestore] = useCache('translate.history_restore_pending')
+  const [restoredPdfHandoff, setRestoredPdfHandoff] = useCache('translate.restored_pdf')
 
   const translationOperationRef = useRef<{ revision: number } | null>(null)
   const markContentChanged = useCallback(() => {
@@ -289,16 +291,18 @@ const TranslatePage: FC = () => {
   const [detectedLanguage, setDetectedLanguage] = useState<TranslateLangCode | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
-  const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(null)
+  const [pdfFile, setPdfFile] = useState<PdfTranslationFile | null>(restoredPdfHandoff?.file ?? null)
   /** Set only when reopening a finished translation from history; `key` remounts the view. */
-  const [restoredPdf, setRestoredPdf] = useState<{ output: PdfTranslationOutput; key: string } | null>(null)
+  const [restoredPdf, setRestoredPdf] = useState<{ output: PdfTranslationOutput; key: string } | null>(
+    restoredPdfHandoff ? { output: restoredPdfHandoff.output, key: restoredPdfHandoff.key } : null
+  )
   const [pdfStatus, setPdfStatus] = useState<PdfTranslationStatus>({ phase: 'idle', running: false })
   const [pdfHandleReady, setPdfHandleReady] = useState(false)
   const [pdfTextFallbackActive, setPdfTextFallbackActive] = useState(false)
   const [pdfTextOcrRequired, setPdfTextOcrRequired] = useState(false)
   const [isPdfTextExtracting, setIsPdfTextExtracting] = useState(false)
   const [isExchangePending, setIsExchangePending] = useState(false)
-  const [isHistoryRestorePending, setIsHistoryRestorePending] = useState(false)
+  const isHistoryRestorePending = pendingHistoryRestore !== null
   const isOcrRunning = ocrJob !== null
   const isPdfMode = pdfFile !== null
   const isTranslationRunning = isTranslating || pdfStatus.running
@@ -333,6 +337,12 @@ const TranslatePage: FC = () => {
     translateContentRef.current = { input: translateInput, output: translateOutput, pdfFile }
   }, [pdfFile, translateInput, translateOutput])
 
+  useEffect(() => {
+    if (!restoredPdfHandoff || restoredPdf?.key === restoredPdfHandoff.key) return
+    setPdfFile(restoredPdfHandoff.file)
+    setRestoredPdf({ output: restoredPdfHandoff.output, key: restoredPdfHandoff.key })
+  }, [restoredPdfHandoff, restoredPdf?.key])
+
   const selectedModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
     [translateModelId]
@@ -359,7 +369,8 @@ const TranslatePage: FC = () => {
     setIsProcessing(false)
     setPdfFile(null)
     setRestoredPdf(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
+    setRestoredPdfHandoff(null)
+  }, [cancel, isTranslating, pdfTextFallbackActive, setRestoredPdfHandoff, setTranslateOutput])
 
   const resetPdfMode = useCallback(() => {
     markContentChanged()
@@ -674,7 +685,7 @@ const TranslatePage: FC = () => {
       isTranslating ||
       isDetecting ||
       exchangePendingRef.current ||
-      historyRestorePendingRef.current
+      cacheService.get('translate.history_restore_pending') != null
     )
       return
     exchangePendingRef.current = true
@@ -734,6 +745,13 @@ const TranslatePage: FC = () => {
         }
         filePaths = { source: files.source.path, target: files.target.path }
       }
+      const restoredFile = filePaths
+        ? {
+            file: { name: history.sourceText, path: filePaths.source },
+            output: { outputPath: filePaths.target, fileName: history.targetText },
+            key: history.id
+          }
+        : null
 
       let contentRestored = false
       let releaseHistoryRestore!: (contentRestored: boolean) => void
@@ -742,7 +760,8 @@ const TranslatePage: FC = () => {
       })
       historyRestoreBarrierRef.current = historyRestoreBarrier
       historyRestorePendingRef.current = true
-      setIsHistoryRestorePending(true)
+      const restoreToken = Symbol('translate history restore')
+      setPendingHistoryRestore(restoreToken)
       try {
         const persisted = await safePersist(
           setTranslateLanguages({
@@ -757,15 +776,26 @@ const TranslatePage: FC = () => {
           lastRestore?.revision === currentIntentRevision && lastRestore.revision > contentIntentRevisionBeforePersist
         if (!persisted || (contentIntentRevisionBeforePersist !== currentIntentRevision && !priorRestoreAdvancedIntent))
           return
-
         if (!isMountedRef.current) {
+          if (restoredFile) {
+            if (
+              contentIntentRevisionBeforePersist !== currentIntentRevision ||
+              cacheService.get('translate.input') !== contentBeforePersist.input ||
+              cacheService.get('translate.output') !== contentBeforePersist.output
+            )
+              return
+            advanceContentOperationRevision()
+            markContentChanged()
+            setRestoredPdfHandoff(restoredFile)
+            contentRestored = true
+            return
+          }
           if (
-            filePaths ||
-            ((cacheService.get('translate.input') !== contentBeforePersist.input ||
+            (cacheService.get('translate.input') !== contentBeforePersist.input ||
               cacheService.get('translate.output') !== contentBeforePersist.output) &&
-              (!priorRestoreAdvancedIntent ||
-                cacheService.get('translate.input') !== lastRestore.input ||
-                cacheService.get('translate.output') !== lastRestore.output))
+            (!priorRestoreAdvancedIntent ||
+              cacheService.get('translate.input') !== lastRestore.input ||
+              cacheService.get('translate.output') !== lastRestore.output)
           )
             return
 
@@ -786,15 +816,16 @@ const TranslatePage: FC = () => {
         advanceContentOperationRevision()
         markContentChanged()
 
-        if (filePaths) {
+        if (restoredFile) {
           translateContentRef.current = {
             input: contentBeforePersist.input,
             output: contentBeforePersist.output,
-            pdfFile: { name: history.sourceText, path: filePaths.source }
+            pdfFile: restoredFile.file
           }
           clearPdfMode()
-          setRestoredPdf({ output: { outputPath: filePaths.target, fileName: history.targetText }, key: history.id })
-          setPdfFile({ name: history.sourceText, path: filePaths.source })
+          setRestoredPdfHandoff(restoredFile)
+          setRestoredPdf({ output: restoredFile.output, key: restoredFile.key })
+          setPdfFile(restoredFile.file)
         } else {
           translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
           clearPdfMode()
@@ -811,7 +842,7 @@ const TranslatePage: FC = () => {
         contentRestored = true
       } finally {
         historyRestorePendingRef.current = false
-        if (isMountedRef.current) setIsHistoryRestorePending(false)
+        setPendingHistoryRestore((current) => (current === restoreToken ? null : current))
         releaseHistoryRestore(contentRestored)
         if (historyRestoreBarrierRef.current === historyRestoreBarrier) historyRestoreBarrierRef.current = null
       }
@@ -823,6 +854,8 @@ const TranslatePage: FC = () => {
       setTranslateLanguages,
       setTranslateInput,
       setTranslateOutput,
+      setPendingHistoryRestore,
+      setRestoredPdfHandoff,
       t,
       targetLanguage
     ]
@@ -936,6 +969,7 @@ const TranslatePage: FC = () => {
         })
         jobId = snapshot.id
       } catch (error) {
+        if (!isContentOperationCurrent(contentOperationRevision)) return
         logger.error('Failed to start image OCR.', error as Error)
         toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.ocr')))
         return
@@ -963,6 +997,8 @@ const TranslatePage: FC = () => {
         setPdfTextFallbackActive(false)
         setPdfTextOcrRequired(false)
         setIsPdfTextExtracting(false)
+        setRestoredPdfHandoff(null)
+        setRestoredPdf(null)
         setPdfFile({ name: file.name, path: AbsoluteFilePathSchema.parse(file.path) })
         return
       }
@@ -974,17 +1010,17 @@ const TranslatePage: FC = () => {
         await readFile(file, contentOperationRevision)
       }
     },
-    [clearPdfMode, isContentOperationCurrent, readFile, startOcr, t, translateOutput]
+    [clearPdfMode, isContentOperationCurrent, readFile, setRestoredPdfHandoff, startOcr, t, translateOutput]
   )
 
   const handleSelectFile = useCallback(async () => {
     if (exchangePendingRef.current || selecting || isTranslationRunning || isOcrRunning) return
     const contentOperationRevision = getContentOperationRevision()
-    markContentChanged()
     setIsProcessing(true)
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
       if (file && isContentOperationCurrent(contentOperationRevision)) {
+        markContentChanged()
         await processFile(file, contentOperationRevision)
       }
     } catch (error) {
@@ -1024,7 +1060,6 @@ const TranslatePage: FC = () => {
     async (e: DragEvent<HTMLDivElement>) => {
       if (exchangePendingRef.current || isProcessing || isOcrRunning || isTranslationRunning) return
       const contentOperationRevision = getContentOperationRevision()
-      markContentChanged()
       setIsProcessing(true)
       try {
         const data = await getTextFromDropEvent(e).catch((error) => {
@@ -1033,7 +1068,10 @@ const TranslatePage: FC = () => {
           return null
         })
         if (!isContentOperationCurrent(contentOperationRevision)) return
-        if (data) appendTranslateInput(data)
+        if (data) {
+          markContentChanged()
+          appendTranslateInput(data)
+        }
 
         const droppedFiles = await getFilesFromDropEvent(e).catch((error) => {
           logger.error('handleDrop:', error as Error)
@@ -1045,6 +1083,7 @@ const TranslatePage: FC = () => {
         if (droppedFiles) {
           const file = getSingleFile(droppedFiles) as FileMetadata
           if (file) {
+            if (!data) markContentChanged()
             await processFile(file, contentOperationRevision)
           }
         }
@@ -1074,7 +1113,6 @@ const TranslatePage: FC = () => {
       const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
       if (!hasFiles) return
       const contentOperationRevision = getContentOperationRevision()
-      markContentChanged()
       setIsProcessing(true)
       try {
         const clipboardText = event.clipboardData.getData('text')
@@ -1108,6 +1146,7 @@ const TranslatePage: FC = () => {
           toast.error(t('translate.files.error.unknown'))
           return
         }
+        markContentChanged()
         await processFile(selectedFile, contentOperationRevision)
       } catch (error) {
         logger.error('onPaste:', error as Error)
@@ -1192,13 +1231,13 @@ const TranslatePage: FC = () => {
             className="px-0 py-0 lg:px-0"
             sourceLanguage={sourceLanguage}
             onSourceChange={(language) => {
-              if (!exchangePendingRef.current && !historyRestorePendingRef.current) {
+              if (!exchangePendingRef.current && cacheService.get('translate.history_restore_pending') == null) {
                 void safePersist(setSourceLanguage(language), 'translate source language')
               }
             }}
             targetLanguage={targetLanguage}
             onTargetChange={(language) => {
-              if (!exchangePendingRef.current && !historyRestorePendingRef.current) {
+              if (!exchangePendingRef.current && cacheService.get('translate.history_restore_pending') == null) {
                 void safePersist(setTargetLanguage(language), 'translate target language')
               }
             }}

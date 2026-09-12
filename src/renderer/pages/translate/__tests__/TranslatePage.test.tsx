@@ -7,6 +7,7 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as CacheHooks from '@data/hooks/useCache'
 import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
@@ -104,6 +105,19 @@ const createDeferredLanguagePersist = () => {
   )
   return { persistLanguages, resolvePersist: () => resolvePersist() }
 }
+
+vi.mock('@data/hooks/useCache', async (importOriginal) => {
+  const actual = await importOriginal<typeof CacheHooks>()
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+  return {
+    ...MockUseCache,
+    // This handoff must use the same CacheService store as the revision fence.
+    useCache: ((key, initValue) =>
+      key === 'translate.restored_pdf' || key === 'translate.history_restore_pending'
+        ? actual.useCache(key, initValue)
+        : MockUseCache.useCache(key, initValue)) as typeof actual.useCache
+  }
+})
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -1606,6 +1620,69 @@ describe('TranslatePage', () => {
     expect(fileMock.write).toHaveBeenCalled()
   })
 
+  it.each(['canceled picker', 'empty drop', 'file paste with text'])(
+    'restores pending history after a %s does not change content',
+    async (action) => {
+      const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+      MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+      MockUseCacheUtils.setCacheValue('translate.output', 'current output')
+      fileMock.onSelectFile.mockResolvedValue([])
+
+      await MockUsePreference.useMultiplePreferences.withImplementation(
+        (keys) => {
+          const values = Object.fromEntries(
+            Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+          )
+          return [values, persistLanguages] as never
+        },
+        async () => {
+          const { rerender } = render(<TranslatePage />)
+          fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+          fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+          await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+
+          if (action === 'canceled picker') {
+            fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+            await waitFor(() => expect(fileMock.onSelectFile).toHaveBeenCalledTimes(1))
+          } else if (action === 'empty drop') {
+            fireEvent.drop(screen.getByTestId('translate-input-pane'))
+            await waitFor(() => expect(dropMock.getFilesFromDropEvent).toHaveBeenCalledTimes(1))
+          } else {
+            fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+              clipboardData: { getData: () => 'clipboard text', files: [{ name: 'image.png' }] }
+            })
+          }
+
+          await act(async () => resolvePersist())
+          rerender(<TranslatePage />)
+          expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('history input')
+          expect(screen.getByTestId('translate-output-content')).toHaveTextContent('history output')
+        }
+      )
+    }
+  )
+
+  it('does not show a stale OCR start error after history replaces the input', async () => {
+    let rejectStart!: (error: Error) => void
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/image.png', size: 10, type: 'image' }])
+    fileMock.startJob.mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectStart = reject
+      })
+    )
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    await waitFor(() => expect(fileMock.startJob).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+    await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('history input'))
+
+    await act(async () => rejectStart(new Error('stale OCR failure')))
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('history input')
+  })
+
   it('ignores empty text data when handling drops', async () => {
     dropMock.getTextFromDropEvent.mockResolvedValue('')
 
@@ -2479,6 +2556,58 @@ describe('TranslatePage', () => {
     )
   })
 
+  it.each(['resolved', 'rejected'])(
+    'keeps remounted language controls disabled until history persistence is %s',
+    async (outcome) => {
+      let settle!: () => void
+      const persistLanguages = vi.fn(
+        (values: { sourceLanguage?: string; targetLanguage?: string }) =>
+          new Promise<void>((resolve, reject) => {
+            settle = () => {
+              if (outcome === 'rejected') {
+                reject(new Error('save failed'))
+              } else {
+                MockUsePreferenceUtils.setMultiplePreferenceValues({
+                  'feature.translate.page.source_language': values.sourceLanguage,
+                  'feature.translate.page.target_language': values.targetLanguage
+                })
+                resolve()
+              }
+            }
+          })
+      )
+      MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+      MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+      MockCacheUtils.setInitialState({ memory: [['translate.input', 'current input']] })
+
+      await MockUsePreference.useMultiplePreferences.withImplementation(
+        (keys) => {
+          const values = Object.fromEntries(
+            Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+          )
+          return [values, persistLanguages] as never
+        },
+        async () => {
+          const firstPage = render(<TranslatePage />)
+          fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+          fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+          await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+          firstPage.unmount()
+
+          const secondPage = render(<TranslatePage />)
+          const targetControl = screen.getByRole('button', { name: /translate\.target_language/ })
+          expect(targetControl).toBeDisabled()
+          expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
+
+          await act(async () => settle())
+          secondPage.rerender(<TranslatePage />)
+          await waitFor(() => expect(targetControl).not.toBeDisabled())
+          expect(screen.getByRole('button', { name: 'translate.button.translate' })).not.toBeDisabled()
+        }
+      )
+    }
+  )
+
   it('keeps remounted history panes aligned with the last persisted language pair', async () => {
     const pending: Array<() => void> = []
     const persistLanguages = vi.fn(
@@ -2526,8 +2655,11 @@ describe('TranslatePage', () => {
         await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(2))
 
         await act(async () => pending[0]())
+        secondPage.rerender(<TranslatePage />)
+        expect(screen.getByRole('button', { name: /translate\.target_language/ })).toBeDisabled()
         await act(async () => pending[1]())
         secondPage.rerender(<TranslatePage />)
+        expect(screen.getByRole('button', { name: /translate\.target_language/ })).not.toBeDisabled()
 
         expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('zh-cn')
         expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('ja-jp')
@@ -2586,7 +2718,7 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('preserves a translation started after remount while an older history restoration is pending', async () => {
+  it('starts translation after a remounted history restore settles without replacing newer input', async () => {
     let emitResponse!: (text: string, isComplete: boolean) => void
     let resolveTranslate!: (value: string) => void
     translateCoreMock.translateText.mockImplementationOnce(
@@ -2627,10 +2759,13 @@ describe('TranslatePage', () => {
         firstPage.unmount()
 
         const secondPage = render(<TranslatePage />)
+        fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'new input' } })
+        expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
+        await act(async () => resolvePersist())
+        secondPage.rerender(<TranslatePage />)
         fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
         await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
 
-        await act(async () => resolvePersist())
         await act(async () => {
           emitResponse('new translation', true)
           resolveTranslate('new translation')
@@ -2639,7 +2774,7 @@ describe('TranslatePage', () => {
       }
     )
 
-    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('current input')
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('new input')
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('new translation')
     expect(toast.success).toHaveBeenCalledWith('translate.complete')
   })
@@ -2974,6 +3109,88 @@ describe('TranslatePage', () => {
     })
     // A PDF row's texts are file names — they must not land in the text panes.
     expect(MockUseCacheUtils.getCacheValue('translate.input')).not.toBe('paper.pdf')
+  })
+
+  it('restores a pending PDF history preview after remount with its persisted language pair', async () => {
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+    MockUseCacheUtils.setCacheValue('translate.input', '')
+    MockUseCacheUtils.setCacheValue('translate.output', '')
+    MockCacheUtils.setInitialState({
+      memory: [
+        ['translate.input', ''],
+        ['translate.output', '']
+      ]
+    })
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const firstPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        firstPage.unmount()
+
+        const secondPage = render(<TranslatePage />)
+        await act(async () => resolvePersist())
+        secondPage.rerender(<TranslatePage />)
+
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.source_language')).toBe('auto')
+        expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.page.target_language')).toBe('zh-cn')
+        const view = await screen.findByTestId('pdf-translation-view')
+        expect(view).toHaveAttribute('data-file-path', '/tmp/paper.pdf')
+        expect(view).toHaveAttribute('data-restored-output', '/tmp/files/entry-target.pdf')
+      }
+    )
+  })
+
+  it('does not restore an older PDF history over panes changed after remount', async () => {
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'current output')
+    MockCacheUtils.setInitialState({
+      memory: [
+        ['translate.input', 'current input'],
+        ['translate.output', 'current output']
+      ]
+    })
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const firstPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-pdf-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        firstPage.unmount()
+
+        MockUseCacheUtils.setCacheValue('translate.input', 'remounted input')
+        MockUseCacheUtils.setCacheValue('translate.output', 'remounted output')
+        MockCacheUtils.triggerCacheChange('translate.input', 'remounted input')
+        MockCacheUtils.triggerCacheChange('translate.output', 'remounted output')
+        const secondPage = render(<TranslatePage />)
+        await act(async () => resolvePersist())
+        secondPage.rerender(<TranslatePage />)
+
+        expect(screen.queryByTestId('pdf-translation-view')).toBeNull()
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('remounted input')
+        expect(screen.getByTestId('translate-output-content')).toHaveTextContent('remounted output')
+      }
+    )
   })
 
   it('reports a PDF history entry whose files are gone instead of opening an empty preview', async () => {
