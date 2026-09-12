@@ -1,5 +1,5 @@
-import path from 'node:path'
 import { spawn } from 'child_process'
+import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
