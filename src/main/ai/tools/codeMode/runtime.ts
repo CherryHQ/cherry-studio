@@ -12,13 +12,30 @@ const EXECUTION_TIMEOUT_MS = 60_000
 export interface ExecResult {
   result: unknown
   logs?: string[]
+  images?: ExecImage[]
   error?: string
   isError?: boolean
 }
 
+export interface ExecImage {
+  data: string
+  mimeType: string
+}
+
+export interface ExecToolResult {
+  value: unknown
+  images?: ExecImage[]
+}
+
 export interface ExecCodeContext {
   abortSignal?: AbortSignal
-  executeTool(name: string, params: Record<string, unknown>, requestId: string, signal: AbortSignal): Promise<unknown>
+  facades?: Record<string, Record<string, string>>
+  executeTool(
+    name: string,
+    params: Record<string, unknown>,
+    requestId: string,
+    signal: AbortSignal
+  ): Promise<ExecToolResult>
   onExecutionStarted?: (controls: { pauseTimeout: () => void; resumeTimeout: () => void }) => void
 }
 
@@ -38,6 +55,7 @@ interface WorkerResultMessage {
   type: 'result'
   result: unknown
   logs?: string[]
+  images?: ExecImage[]
 }
 
 interface WorkerErrorMessage {
@@ -162,7 +180,12 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       try {
         const result = await ctx.executeTool(message.name, message.params ?? {}, message.requestId, childAbort.signal)
         if (finished || timedOut || terminating) return
-        worker.postMessage({ type: 'toolResult', requestId: message.requestId, result })
+        worker.postMessage({
+          type: 'toolResult',
+          requestId: message.requestId,
+          result: result.value,
+          images: result.images
+        })
       } catch (err) {
         if (finished || timedOut || terminating) return
         const errorMessage = err instanceof Error ? err.message : String(err)
@@ -183,7 +206,11 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
           break
         case 'result': {
           const resolvedLogs = message.logs && message.logs.length > 0 ? message.logs : logs
-          void finalize({ result: message.result, logs: resolvedLogs.length > 0 ? resolvedLogs : undefined })
+          void finalize({
+            result: message.result,
+            logs: resolvedLogs.length > 0 ? resolvedLogs : undefined,
+            images: message.images
+          })
           break
         }
         case 'error': {
@@ -221,6 +248,6 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       )
     })
 
-    worker.postMessage({ type: 'exec', code })
+    worker.postMessage({ type: 'exec', code, facades: ctx.facades })
   })
 }

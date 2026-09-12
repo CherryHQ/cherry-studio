@@ -34,11 +34,13 @@ export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResu
         throw new Error(`Tool ${name} requires user approval; call it directly instead of via tool_exec.`)
       }
 
-      return execute(params, {
-        ...ctx.parentOptions,
-        toolCallId: `${ctx.parentOptions.toolCallId}::exec::${requestId}`,
-        abortSignal: signal
-      })
+      return {
+        value: await execute(params, {
+          ...ctx.parentOptions,
+          toolCallId: `${ctx.parentOptions.toolCallId}::exec::${requestId}`,
+          abortSignal: signal
+        })
+      }
     }
   })
 }

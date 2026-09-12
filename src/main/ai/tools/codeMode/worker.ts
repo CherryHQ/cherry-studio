@@ -5,6 +5,7 @@ const { parentPort } = require('node:worker_threads')
 const MAX_LOGS = 1000
 
 const logs = []
+const images = []
 const pendingCalls = new Map()
 const activeCalls = new Map()
 let isExecuting = false
@@ -72,9 +73,24 @@ const tools = {
   }
 }
 
-const buildContext = () => {
+const emitImage = (image) => {
+  if (!image || typeof image.data !== 'string' || typeof image.mimeType !== 'string') {
+    throw new Error('emitImage requires string data and mimeType')
+  }
+  images.push({ data: image.data, mimeType: image.mimeType })
+}
+
+const buildContext = (facades) => {
+  const generatedFacades = {}
+  for (const [facadeName, methods] of Object.entries(facades || {})) {
+    generatedFacades[facadeName] = Object.fromEntries(
+      Object.entries(methods).map(([methodName, toolName]) => [methodName, (params = {}) => invoke(toolName, params)])
+    )
+  }
   return {
     tools,
+    ...generatedFacades,
+    emitImage,
     parallel: (...promises) => Promise.all(promises),
     settle: (...promises) => Promise.allSettled(promises),
     console: capturedConsole
@@ -103,14 +119,14 @@ const drainActiveCalls = async () => {
   }
 }
 
-const handleExec = async (code) => {
+const handleExec = async (code, facades) => {
   if (isExecuting) {
     return
   }
   isExecuting = true
 
   try {
-    const context = buildContext()
+    const context = buildContext(facades)
     let result
     let codeError
     try {
@@ -120,7 +136,12 @@ const handleExec = async (code) => {
     }
     await drainActiveCalls()
     if (codeError) throw codeError
-    parentPort?.postMessage({ type: 'result', result, logs: logs.length > 0 ? logs : undefined })
+    parentPort?.postMessage({
+      type: 'result',
+      result,
+      logs: logs.length > 0 ? logs : undefined,
+      images: images.length > 0 ? images : undefined
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     parentPort?.postMessage({ type: 'error', error: errorMessage, logs: logs.length > 0 ? logs : undefined })
@@ -137,6 +158,7 @@ const handleToolResult = (message) => {
   }
   pendingCalls.delete(message.requestId)
   activeCalls.delete(message.requestId)
+  for (const image of message.images || []) emitImage(image)
   pending.resolve(message.result)
 }
 
@@ -156,7 +178,7 @@ parentPort?.on('message', (message) => {
   }
   switch (message.type) {
     case 'exec':
-      handleExec(message.code)
+      handleExec(message.code, message.facades)
       break
     case 'toolResult':
       handleToolResult(message)

@@ -1,7 +1,7 @@
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 
-import { runExecCode } from '@main/ai/tools/codeMode/runtime'
-import { toolsToTypeScript, toolToTypeScript } from '@main/ai/tools/codeMode/schemaToTypeScript'
+import { type ExecImage, type ExecResult, runExecCode } from '@main/ai/tools/codeMode/runtime'
+import { toolFacadeToTypeScript, toolsToTypeScript, toolToTypeScript } from '@main/ai/tools/codeMode/schemaToTypeScript'
 import {
   PI_TOOL_CALL_TOOL_NAME,
   PI_TOOL_DESCRIBE_TOOL_NAME,
@@ -19,6 +19,7 @@ type SerializedAuthorizer = (request: PiToolAuthorizationRequest) => ReturnType<
 const SEARCH_RESULT_LIMIT = 20
 const BM25_K1 = 1.2
 const BM25_B = 0.75
+const BROWSER_TOOL_PREFIX = 'mcp__browser__'
 
 const searchParameters = {
   type: 'object',
@@ -67,6 +68,12 @@ export function createPiCodeModeTools(
   authorizeTool: PiToolAuthorizer
 ): ToolDefinition[] {
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
+  const browserFacade = Object.fromEntries(
+    tools.flatMap((tool) => {
+      const methodName = browserMethodName(tool.name)
+      return methodName ? [[methodName, tool.name]] : []
+    })
+  )
   const invokeTargetTool = async (
     executionToolCallId: string,
     approvalToolCallId: string,
@@ -100,33 +107,23 @@ export function createPiCodeModeTools(
     async execute(_toolCallId, params) {
       const input = params as Record<string, unknown>
       const query = typeof input.query === 'string' ? input.query : ''
-      const matches = rankTools(
+      const matchedTools = rankTools(
         [...catalog.values()].filter((tool) => !isDisabled(tool.name)),
         query
-      )
-        .slice(0, SEARCH_RESULT_LIMIT)
-        .map((tool) => ({
-          name: tool.name,
-          description: tool.description,
-          declaration: toolToTypeScript(
-            tool.name,
-            tool.description,
-            tool.parameters,
-            catalog.get(tool.name)?.outputSchema
-          )
-        }))
+      ).slice(0, SEARCH_RESULT_LIMIT)
+      const matches = matchedTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        declaration: toolToTypeScript(
+          tool.name,
+          tool.description,
+          tool.parameters,
+          catalog.get(tool.name)?.outputSchema
+        )
+      }))
 
       const text =
-        matches.length > 0
-          ? toolsToTypeScript(
-              matches.map((match) => ({
-                name: match.name,
-                description: match.description,
-                inputSchema: catalog.get(match.name)?.parameters,
-                outputSchema: catalog.get(match.name)?.outputSchema
-              }))
-            )
-          : 'No tools matched. Broaden the query or omit it.'
+        matches.length > 0 ? declarationsForTools(matchedTools) : 'No tools matched. Broaden the query or omit it.'
       return {
         content: [{ type: 'text', text }],
         details: { matchedNamespaces: matches.length > 0 ? [{ namespace: 'pi', tools: matches }] : [] }
@@ -145,16 +142,17 @@ export function createPiCodeModeTools(
       const name = typeof input.name === 'string' ? input.name : ''
       const tool = catalog.get(name)
       if (!tool || isDisabled(name)) throw new Error(`Tool not found: ${name}`)
+      const declaration = declarationsForTools([tool])
       return {
         content: [
           {
             type: 'text',
-            text: `${tool.description}\n\n${toolToTypeScript(tool.name, tool.description, tool.parameters, tool.outputSchema)}`
+            text: `${tool.description}\n\n${declaration}`
           }
         ],
         details: {
           name: tool.name,
-          declaration: toolToTypeScript(tool.name, tool.description, tool.parameters, tool.outputSchema)
+          declaration
         }
       }
     }
@@ -182,7 +180,9 @@ export function createPiCodeModeTools(
     promptSnippet: 'Execute JavaScript that orchestrates multiple tools',
     promptGuidelines: [
       'Use tool_search before tool_exec when you do not already know the exact tool name and TypeScript signature.',
-      'tool_exec runs JavaScript, not TypeScript syntax. Explicitly return the final value.'
+      'tool_exec runs JavaScript, not TypeScript syntax. Explicitly return the final value.',
+      'Batch related browser actions in one tool_exec call instead of making one outer call per action.',
+      'End each browser batch with one final snapshot or screenshot so the resulting page state is available.'
     ],
     parameters: execParameters,
     async execute(toolCallId, params, signal) {
@@ -193,26 +193,26 @@ export function createPiCodeModeTools(
       const serializeAuthorization = createSerializedAuthorizer(authorizeTool)
       const result = await runExecCode(code, {
         abortSignal: signal,
+        facades: { browser: browserFacade },
         onExecutionStarted({ pauseTimeout, resumeTimeout }) {
           pauseExecutionTimeout = pauseTimeout
           resumeExecutionTimeout = resumeTimeout
         },
         async executeTool(name, input, requestId, childSignal) {
           const nestedToolCallId = `${toolCallId}::exec::${requestId}`
-          return (
-            await invokeTargetTool(
-              nestedToolCallId,
-              toolCallId,
-              name,
-              input,
-              childSignal,
-              () => {
-                pauseExecutionTimeout?.()
-                return () => resumeExecutionTimeout?.()
-              },
-              serializeAuthorization
-            )
-          ).value
+          const invoked = await invokeTargetTool(
+            nestedToolCallId,
+            toolCallId,
+            name,
+            input,
+            childSignal,
+            () => {
+              pauseExecutionTimeout?.()
+              return () => resumeExecutionTimeout?.()
+            },
+            serializeAuthorization
+          )
+          return { value: invoked.value, images: imageContent(invoked.raw) }
         }
       })
 
@@ -221,6 +221,46 @@ export function createPiCodeModeTools(
   }
 
   return [searchTool, describeTool, callTool, execTool]
+
+  function declarationsForTools(discovered: readonly PiMcpToolDefinition[]): string {
+    const declarations = toolsToTypeScript(
+      discovered.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.parameters,
+        outputSchema: tool.outputSchema
+      }))
+    )
+    const browserTools = discovered.flatMap((tool) => {
+      const methodName = browserMethodName(tool.name)
+      return methodName
+        ? [
+            {
+              methodName,
+              name: tool.name,
+              description: tool.description,
+              inputSchema: tool.parameters,
+              outputSchema: tool.outputSchema
+            }
+          ]
+        : []
+    })
+    return browserTools.length > 0
+      ? `${declarations}\n\n${toolFacadeToTypeScript('browser', browserTools)}`
+      : declarations
+  }
+}
+
+function browserMethodName(toolName: string): string | undefined {
+  if (!toolName.startsWith(BROWSER_TOOL_PREFIX)) return undefined
+  return toolName.slice(BROWSER_TOOL_PREFIX.length) || undefined
+}
+
+function imageContent(result: ToolResult): ExecImage[] | undefined {
+  const images = result.content.filter(
+    (part): part is Extract<(typeof result.content)[number], { type: 'image' }> => part.type === 'image'
+  )
+  return images.length > 0 ? images.map(({ data, mimeType }) => ({ data, mimeType })) : undefined
 }
 
 function rankTools(tools: readonly ToolDefinition[], query: string): ToolDefinition[] {
@@ -306,7 +346,7 @@ function isStringSchema(schema: unknown): boolean {
   return isRecord(schema) && schema.type === 'string'
 }
 
-function toPiResult(result: { result: unknown; logs?: string[]; error?: string; isError?: boolean }): ToolResult {
+function toPiResult(result: ExecResult): ToolResult {
   if (result.isError) {
     throw new Error(withLogs(result.error ?? 'tool_exec failed', result.logs))
   }
@@ -323,7 +363,10 @@ function toPiResult(result: { result: unknown; logs?: string[]; error?: string; 
     throw new Error(withLogs(message, result.logs))
   }
   return {
-    content: [{ type: 'text', text: output }],
+    content: [
+      { type: 'text', text: output },
+      ...(result.images?.map(({ data, mimeType }) => ({ type: 'image' as const, data, mimeType })) ?? [])
+    ],
     details: { result: JSON.parse(output), logs: result.logs }
   }
 }
