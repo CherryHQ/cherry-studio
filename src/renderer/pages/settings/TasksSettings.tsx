@@ -1273,10 +1273,14 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     ? t('agent.session.workspace_selector.no_project')
     : (workspaces?.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId)
   const trigger = useMemo(() => formStateToTrigger(schedule), [schedule])
+  const unchangedExistingSchedule =
+    props.task !== undefined &&
+    scheduleInputsEqual(schedule, initialDraftRef.current?.schedule ?? taskToDraftSnapshot(props.task).schedule)
+  const resolvedTrigger = trigger ?? (unchangedExistingSchedule ? props.task?.trigger : null)
 
   const handleSave = useCallback(async () => {
     setSubmitted(true)
-    if (!agentId || !name.trim() || !prompt.trim() || !trigger) return
+    if (!agentId || !name.trim() || !prompt.trim() || !resolvedTrigger) return
 
     setSaving(true)
     try {
@@ -1301,7 +1305,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
-          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, trigger)
+          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, resolvedTrigger)
           if (!triggersEqual(nextTrigger, props.task.trigger)) updates.trigger = nextTrigger
         }
 
@@ -1310,7 +1314,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         saved = await props.onCreate(agentId, {
           name: name.trim(),
           prompt: prompt.trim(),
-          trigger,
+          trigger: resolvedTrigger,
           workspace,
           timeoutMinutes,
           reuseSession,
@@ -1321,7 +1325,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     } finally {
       setSaving(false)
     }
-  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, trigger, workspaceId])
+  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, resolvedTrigger, workspaceId])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -1428,7 +1432,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
             <TaskScheduleControls
               value={schedule}
               disabled={saving}
-              invalid={submitted && !trigger}
+              invalid={submitted && !resolvedTrigger}
               onChange={setSchedule}
             />
 

@@ -1693,6 +1693,42 @@ describe('TasksSettings detail behavior', () => {
     expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })).toHaveValue('*/40 8-12 * * *')
   })
 
+  it('saves unrelated edits without rewriting a previously accepted non-running Cron', async () => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, trigger: { kind: 'cron', expr: '0 0 31 2 *' } }
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })).toHaveValue('0 0 31 2 *')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed task' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Renamed task' })
+    )
+  })
+
+  it('rejects a changed non-running Cron on an existing task', async () => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, trigger: { kind: 'cron', expr: '0 0 31 2 *' } }
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    const cronInput = within(dialog).getByRole('textbox', { name: 'agent.tasks.schedule.cron' })
+    fireEvent.change(cronInput, { target: { value: '0 0 30 2 *' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    expect(cronInput).toHaveAttribute('aria-invalid', 'true')
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('agent.tasks.schedule.invalidCron')
+    expect(taskMutationMocks.updateTask).not.toHaveBeenCalled()
+  })
+
   it('persists the simplified interval editor through the shared edit Dialog', async () => {
     render(<TasksSettings />)
 
