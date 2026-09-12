@@ -972,6 +972,46 @@ describe('transformMessage', () => {
     expect(resolveUniqueModelId(null, result.messageSnapshot?.model)).toBe(result.modelId)
   })
 
+  it.each([
+    ['missing', undefined, 'model-b', undefined],
+    ['blank', { id: '', name: 'Legacy Model', provider: '', group: 'group-a' }, 'Legacy Model', 'group-a'],
+    [
+      'non-string',
+      { id: 42, name: 'Legacy Model', provider: null, group: 'group-a' } as unknown as OldMessage['model'],
+      'Legacy Model',
+      'group-a'
+    ]
+  ] as const)(
+    'uses a valid fallback model ID when the legacy model object is %s',
+    async (_scenario, model, expectedName, expectedGroup) => {
+      const oldMsg: OldMessage = {
+        ...msg('m1', 'assistant'),
+        modelId: 'provider-b::model-b',
+        model
+      }
+      const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
+
+      const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1', undefined, {
+        id: 'asst-1',
+        name: 'Assistant',
+        emoji: ''
+      })
+
+      expect(result.modelId).toBe('provider-b::model-b')
+      expect(result.messageSnapshot).toEqual({
+        id: 'asst-1',
+        name: 'Assistant',
+        emoji: '',
+        model: {
+          id: 'model-b',
+          name: expectedName,
+          provider: 'provider-b',
+          group: expectedGroup
+        }
+      })
+    }
+  )
+
   it('returns null snapshot when the assistant is missing (author owns the model)', async () => {
     const oldMsg: OldMessage = {
       ...msg('m1', 'assistant'),

@@ -593,8 +593,8 @@ export async function transformMessage(
 
 /**
  * Build the author {@link MessageSnapshot} from a legacy v1 message: the producing assistant with
- * the model nested inside. Returns null unless both the assistant and a valid model are present
- * (the author owns the model — no author, no snapshot).
+ * the model nested inside. Returns null unless both the assistant and a valid model identity are
+ * present (the author owns the model — no author, no snapshot).
  */
 function buildMessageSnapshot(
   model: OldMessage['model'],
@@ -602,19 +602,18 @@ function buildMessageSnapshot(
   fallbackModelId?: string | null
 ): MessageSnapshot | null {
   if (!assistant) return null
-  if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
-  if (!model.id.trim() || !model.provider.trim()) return null
   const uniqueModelId = legacyModelToUniqueId(model, fallbackModelId)
-  const { providerId, modelId } = uniqueModelId
-    ? parseUniqueModelId(uniqueModelId)
-    : { providerId: model.provider, modelId: model.id }
+  if (!uniqueModelId) return null
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const legacyModelId = typeof model?.id === 'string' ? model.id.trim() : ''
+  const fallbackName = legacyModelId || modelId
   return {
     ...assistant,
     model: {
       id: modelId,
-      name: (typeof model.name === 'string' ? model.name : model.id) || model.id,
+      name: (typeof model?.name === 'string' ? model.name : fallbackName) || fallbackName,
       provider: providerId,
-      group: typeof model.group === 'string' ? model.group : undefined
+      group: typeof model?.group === 'string' ? model.group : undefined
     }
   }
 }
