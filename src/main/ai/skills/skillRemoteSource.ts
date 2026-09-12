@@ -373,7 +373,7 @@ async function renameGithubRootDir(tempDir: string, skillDir: string, repo: stri
   let sanitized = sanitizeFolderName(claimed)
   if (!sanitized || sanitized === stagingName) sanitized = sanitizeFolderName(repo)
   if (!sanitized) throw new Error(`Cannot derive a folder name for GitHub skill: ${repo}`)
-  if (sanitized === 'repo.git') sanitized = `${sanitized}-skill`
+  if (sanitized === stagingName) sanitized = `${stagingName}-skill`
   const dest = path.join(tempDir, sanitized)
   if (dest !== skillDir) await fs.promises.rename(skillDir, dest)
   return dest

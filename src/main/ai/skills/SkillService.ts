@@ -538,6 +538,15 @@ export class SkillService {
       }
     }
 
+    // A same-origin reinstall whose derived folder name changed (pre-fix GitHub root installs were
+    // filed under the staging dirname) migrates the existing row instead of inserting a duplicate.
+    const renamed =
+      !existing && sourceUrl
+        ? (agentGlobalSkillService
+            .listAll()
+            .find((skill) => skill.source === source && (skill.sourceUrl ?? null) === sourceUrl) ?? null)
+        : null
+
     const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
     if (!existing && storageEntry) {
       throw new Error(
@@ -577,6 +586,35 @@ export class SkillService {
       })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
+      return updated
+    }
+
+    if (renamed) {
+      // Move the catalog entry to the new folder, preserving the skill ID and its agent_skills rows.
+      const prevFolderName = renamed.folderName
+      application.get('DbService').withWriteTx((tx) => {
+        agentGlobalSkillService.updateTx(tx, renamed.id, {
+          folderName,
+          name: metadata.name,
+          description: metadata.description ?? null,
+          author: metadata.author ?? null,
+          version: metadata.version ?? null,
+          tags,
+          contentHash,
+          ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
+        })
+      })
+      try {
+        await this.installer.uninstall(this.getSkillStoragePath(prevFolderName))
+      } catch (error) {
+        logger.warn('Failed to remove previous skill folder after migration', {
+          prevFolderName,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+      await this.unlinkMirror(prevFolderName)
+      const updated = agentGlobalSkillService.getById(renamed.id)!
+      logger.info('Skill folder migrated', { id: renamed.id, prevFolderName, folderName, source })
       return updated
     }
 
