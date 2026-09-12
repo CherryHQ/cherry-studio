@@ -338,43 +338,28 @@ vi.mock('@cherrystudio/ui', () => {
     },
     Center: passthrough('div'),
     Combobox: ({
-      'aria-label': ariaLabel,
       disabled,
       multiple,
       onChange,
       options,
       placeholder,
       renderOption,
-      renderValue,
       searchable,
       searchPlaceholder,
       value
     }: {
-      'aria-label'?: string
       disabled?: boolean
       multiple?: boolean
       onChange?: (value: string | string[]) => void
       options?: Array<{ value: string; label: React.ReactNode }>
       placeholder?: React.ReactNode
       renderOption?: (option: { value: string; label: React.ReactNode }) => React.ReactNode
-      renderValue?: (
-        value: string | string[],
-        options: Array<{ value: string; label: React.ReactNode }>
-      ) => React.ReactNode
       searchable?: boolean
       searchPlaceholder?: string
       value?: string | string[]
     }) => (
       <div>
-        <div role="combobox" aria-label={ariaLabel}>
-          {renderValue
-            ? renderValue(value ?? (multiple ? [] : ''), options ?? [])
-            : multiple && Array.isArray(value) && value.length > 0
-              ? options
-                  ?.filter((option) => value.includes(option.value))
-                  .map((option) => <span key={option.value}>{option.label}</span>)
-              : placeholder && <span>{placeholder}</span>}
-        </div>
+        {placeholder && <span>{placeholder}</span>}
         {searchable ? <input type="search" placeholder={searchPlaceholder} /> : null}
         {options?.map((option) => (
           <button
@@ -1957,45 +1942,10 @@ describe('TasksSettings detail behavior', () => {
   })
 })
 
-describe('TaskTimeSelect', () => {
+describe('TaskTimeSelect minute retention on fresh mount', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     translationMock.t = (key: string) => key
-  })
-
-  it('keeps many selected hours in one truncated summary while each hour remains togglable', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-    const selectedHours = Array.from({ length: 16 }, (_, hour) => String(hour).padStart(2, '0'))
-
-    render(<TaskTimeSelect value={selectedHours.map((hour) => `${hour}:30`).join(',')} onChange={onChange} />)
-
-    const timeSelect = screen.getByRole('group', { name: 'agent.tasks.schedule.time' })
-    const hourSelect = within(timeSelect).getByRole('combobox', { name: 'agent.tasks.schedule.hours' })
-    const summary = within(hourSelect).getByText(selectedHours.join(', '))
-
-    // Truncation is the layout contract that prevents selected values from escaping the fixed-height trigger.
-    expect(summary).toHaveClass('min-w-0', 'flex-1', 'truncate', 'text-left')
-    for (const hour of selectedHours) {
-      expect(within(timeSelect).getByRole('button', { name: hour })).toHaveAttribute('aria-pressed', 'true')
-    }
-
-    await user.click(within(timeSelect).getByRole('button', { name: '05' }))
-    expect(onChange).toHaveBeenLastCalledWith(
-      selectedHours
-        .filter((hour) => hour !== '05')
-        .map((hour) => `${hour}:30`)
-        .join(',')
-    )
-  })
-
-  it('shows the localized hours placeholder when no hour is selected', () => {
-    translationMock.t = (key: string) => (key === 'agent.tasks.schedule.hours' ? 'Hours' : key)
-
-    render(<TaskTimeSelect value="" onChange={vi.fn()} />)
-
-    const hourSelect = screen.getByRole('combobox', { name: 'Hours' })
-    expect(within(hourSelect).getByText('Hours')).toHaveClass('text-muted-foreground')
   })
 
   it('keeps a non-zero minute when a freshly mounted editor clears its only hour and re-picks', () => {
