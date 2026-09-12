@@ -3022,6 +3022,7 @@
   "provider.qiniu": "七牛云 AI 推理",
   "provider.qwenlm": "QwenLM",
   "provider.radeon-cloud": "AMD GPU Cloud",
+  "provider.requesty": "Requesty",
   "provider.silicon": "硅基流动",
   "provider.sophnet": "SophNet",
   "provider.stepfun": "阶跃星辰",
