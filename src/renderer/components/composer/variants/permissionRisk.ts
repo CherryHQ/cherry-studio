@@ -2,11 +2,13 @@ import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/
 
 export type PermissionRiskEffect = 'destructive' | 'network' | 'irreversible'
 
+// Only the executable command text is analyzed. The human-readable
+// description may mention keywords like "remove" or URLs without the
+// command itself performing those operations.
 function getCommandText(args: unknown): string {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return ''
   const command = (args as Record<string, unknown>).command
-  const description = (args as Record<string, unknown>).description
-  return `${typeof description === 'string' ? description : ''} ${typeof command === 'string' ? command : ''}`
+  return typeof command === 'string' ? command : ''
 }
 
 export function getPermissionRiskEffects(toolName: string, args: unknown): PermissionRiskEffect[] {

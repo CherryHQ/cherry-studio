@@ -82,4 +82,13 @@ describe('getPermissionRiskEffects', () => {
       expect.arrayContaining(['destructive', 'irreversible'])
     )
   })
+
+  it('ignores keywords in the human-readable description', () => {
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, {
+        command: 'pnpm install',
+        description: 'Install dependencies after removing old node_modules from https://example.com/docs'
+      })
+    ).toEqual([])
+  })
 })
