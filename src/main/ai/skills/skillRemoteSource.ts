@@ -32,6 +32,10 @@ import { createTempDir, safeRemoveDirectory, sanitizeFolderName } from './skillP
 
 const logger = loggerService.withContext('SkillRemoteSource')
 
+// Staging dirname a repository-root skill checks out into. It is never a valid catalog
+// folder name: root installs are renamed before the installer derives one from the basename.
+export const GITHUB_ROOT_STAGING_DIRNAME = 'content'
+
 // API base URLs for the 3 search sources
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
@@ -56,7 +60,7 @@ const SKILL_DESCRIPTOR_FILE_NAMES: readonly SkillDescriptorFileName[] = ['SKILL.
 type FetchedGithubCommit = {
   gitDir: string
   tempDir: string
-  git: (args: string[]) => Promise<string>
+  git: (args: string[], options?: { maxOutputBytes?: number }) => Promise<string>
 }
 
 type GithubRefResolution =
@@ -424,7 +428,8 @@ async function resolveGithubCommit(
 async function fetchGithubCommit(repoUrl: string, revision: string, tempDir: string): Promise<FetchedGithubCommit> {
   const gitCommand = await resolveGitCommand()
   const gitDir = path.join(tempDir, 'repo.git')
-  const git = (args: string[]) => runGit(gitCommand, [`--git-dir=${gitDir}`, ...args])
+  const git = (args: string[], options?: { maxOutputBytes?: number }) =>
+    runGit(gitCommand, [`--git-dir=${gitDir}`, ...args], options)
 
   await runGit(gitCommand, ['init', '--bare', '--quiet', gitDir])
   await git(['fetch', '--quiet', '--depth', '1', '--filter=blob:none', '--no-tags', '--', repoUrl, revision])
@@ -440,7 +445,7 @@ async function materializeGithubTarget(
   target: GithubSkillTarget,
   descriptorFileNames: readonly SkillDescriptorFileName[]
 ): Promise<{ contentDir: string; skillDir: string }> {
-  const contentDir = path.join(commit.tempDir, 'content')
+  const contentDir = path.join(commit.tempDir, GITHUB_ROOT_STAGING_DIRNAME)
   // The check and the checkout read one tree object: a sparse pattern and a pathspec naming the
   // same path fold case and Unicode differently on macOS and Windows, and select different trees.
   const treeOid = target.kind === 'root' ? 'FETCH_HEAD^{tree}' : await resolveGithubTargetTree(commit, target.path)
@@ -558,11 +563,11 @@ function assertGithubTargetTree(
  * The single entry point for every git subprocess an install spawns: bounded, non-interactive, and
  * routed through Cherry's proxy — which lives in the main process env, not in the captured login shell.
  */
-async function runGit(gitCommand: string, args: string[]): Promise<string> {
+async function runGit(gitCommand: string, args: string[], options?: { maxOutputBytes?: number }): Promise<string> {
   const env = await getShellEnv()
   return executeCommand(gitCommand, args, {
     capture: true,
-    maxOutputBytes: MAX_GIT_OUTPUT_BYTES,
+    maxOutputBytes: options?.maxOutputBytes ?? MAX_GIT_OUTPUT_BYTES,
     timeout: GIT_COMMAND_TIMEOUT_MS,
     env: {
       ...env,
