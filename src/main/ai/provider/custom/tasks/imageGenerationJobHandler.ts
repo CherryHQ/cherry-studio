@@ -244,10 +244,8 @@ async function downloadAndPersistImageUrls(
       signal.throwIfAborted()
     }
   } catch (error) {
-    if (signal.aborted) {
-      await deleteGeneratedImageEntries(files)
-      signal.throwIfAborted()
-    }
+    await deleteGeneratedImageEntries(files)
+    if (signal.aborted) signal.throwIfAborted()
     throw error
   }
   if (urls.length > 0 && downloadFailures === urls.length) {
@@ -265,7 +263,7 @@ async function deleteGeneratedImageEntries(files: ReadonlyArray<FileEntry>): Pro
   await Promise.all(
     files.map((file) =>
       fileManager.permanentDelete(file.id).catch((error) => {
-        logger.error(`Failed to delete generated image ${file.id} after cancellation`, error as Error)
+        logger.error(`Failed to delete generated image ${file.id} after job failure`, error as Error)
       })
     )
   )

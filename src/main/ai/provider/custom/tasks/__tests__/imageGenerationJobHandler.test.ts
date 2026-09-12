@@ -470,6 +470,22 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(permanentDeleteMock).toHaveBeenCalledWith('file-cancelled')
   })
 
+  it('deletes earlier manual outputs and preserves the persistence error when a later write fails', async () => {
+    const persistenceError = new Error('second image persistence failed')
+    submitMock.mockResolvedValue({
+      imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png']
+    })
+    createInternalEntryMock.mockResolvedValueOnce({ id: 'file-created' }).mockRejectedValueOnce(persistenceError)
+    permanentDeleteMock.mockRejectedValueOnce(new Error('cleanup failed'))
+
+    const ctx = createCtx()
+    ctx.input.cleanupPolicy = 'manual'
+
+    await expect(imageGenerationJobHandler.execute(ctx)).rejects.toBe(persistenceError)
+    expect(permanentDeleteMock).toHaveBeenCalledTimes(1)
+    expect(permanentDeleteMock).toHaveBeenCalledWith('file-created')
+  })
+
   it('throws when transport resolution yields nothing', async () => {
     resolveImageTransportMock.mockReturnValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/no async transport/i)
