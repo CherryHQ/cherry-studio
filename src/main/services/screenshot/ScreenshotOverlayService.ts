@@ -914,11 +914,14 @@ function matchCapture(
       return result
     }
 
-    // 3. Windows HiDPI: the native side reports physical pixels in the primary
-    //    display's grid while Electron reports DIP, so normalize before comparing.
-    if (primaryScaleFactor !== 1) {
-      const normX = Math.round(monitorInfo.x / primaryScaleFactor)
-      const normY = Math.round(monitorInfo.y / primaryScaleFactor)
+    // 3. Windows HiDPI: native origins can follow either the primary or the
+    //    monitor's physical-pixel grid, so normalize against both scales.
+    const scaleFactors = [primaryScaleFactor]
+    if (isWin && monitorInfo.scaleFactor !== primaryScaleFactor) scaleFactors.push(monitorInfo.scaleFactor)
+    for (const scaleFactor of scaleFactors) {
+      if (scaleFactor === 1) continue
+      const normX = Math.round(monitorInfo.x / scaleFactor)
+      const normY = Math.round(monitorInfo.y / scaleFactor)
       if (Math.abs(normX - display.bounds.x) <= 1 && Math.abs(normY - display.bounds.y) <= 1) return result
     }
   }
