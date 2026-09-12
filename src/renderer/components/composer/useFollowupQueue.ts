@@ -285,8 +285,8 @@ export function useFollowupQueue({
     (nextPaused: boolean) => {
       const next = { ...stateRef.current, paused: nextPaused }
       persist(next)
-      setState(next)
       stateRef.current = next
+      setState(next)
       if (!nextPaused && isFulfilledRef.current && !failedItemIdRef.current && drainingIdRef.current === null) {
         const head = next.items[0]
         if (head) {
