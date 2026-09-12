@@ -33,14 +33,16 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   // BashOutput only reads output from an already-running command, so it never carries risk.
   if (toolName !== AgentToolsType.Bash) return []
 
-  // The `(` and backtick separators also catch commands inside $(...) and backticks.
-  if (/(^|[\s;&|`(])(rm|rmdir|del|erase|rd|dd|truncate)\s/i.test(text)) {
+  // The `(`, backtick, and `/` separators also catch commands inside $(...),
+  // backticks, and invocations by absolute path such as /usr/bin/rm.
+  if (/(^|[\s;&|`(/])(rm|rmdir|del|erase|rd|dd|truncate)\s/i.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
   // Shell output redirection truncates or modifies the target file. The leading
-  // separator requirement keeps `=>` and `>=` in inline scripts from matching.
-  if (/(^|[\s;&|])\d*>{1,2}\s*\S/.test(text)) {
+  // separator requirement keeps `=>` and `>=` in inline scripts from matching,
+  // and the lookahead skips fd-to-fd duplication such as `2>&1`.
+  if (/(^|[\s;&|])\d*>{1,2}(?!&)\s*\S/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }
@@ -55,7 +57,7 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   if (
     /https?:\/\//i.test(text) ||
     /\b(?:curl|wget|scp|rsync|sftp|ssh|nc)\b/i.test(text) ||
-    /\bgit\s+(?:push|fetch|pull)\b/i.test(text)
+    /\bgit\s+(?:push|fetch|pull|clone)\b/i.test(text)
   ) {
     effects.add('network')
   }

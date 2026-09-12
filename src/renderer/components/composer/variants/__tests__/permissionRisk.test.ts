@@ -66,4 +66,20 @@ describe('getPermissionRiskEffects', () => {
   it('treats background output retrieval as read-only', () => {
     expect(getPermissionRiskEffects(AgentToolsType.BashOutput, { bash_id: 'bash-1', filter: 'rm -rf' })).toEqual([])
   })
+
+  it('flags git clone as a network operation', () => {
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, { command: 'git clone git@github.com:user/repo.git' })
+    ).toContain('network')
+  })
+
+  it('does not mistake descriptor duplication for file redirection', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'vitest run 2>&1 | head' })).toEqual([])
+  })
+
+  it('flags path-qualified delete commands', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: '/usr/bin/rm -rf ./dist' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+  })
 })
