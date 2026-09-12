@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 import { loggerService } from '@logger'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
@@ -41,6 +41,9 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
   // widening the ceiling for every session of that agent.
   const isChatScope = !!context.assistant
   const assistantKnowledgeBaseIds = context.assistant?.knowledgeBaseIds
+  // Links still awaiting their PATCH: a rapid second click reads a pre-PATCH assistant
+  // snapshot, and without merging these ids the second PATCH would drop the first link.
+  const pendingLinkBaseIdsRef = useRef<Set<string>>(new Set())
 
   const unconfiguredBaseIds = useMemo(() => {
     if (!isChatScope) return new Set<string>()
@@ -52,8 +55,10 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
     async (base: KnowledgeBase): Promise<boolean> => {
       const assistant = context.assistant
       if (!assistant) return false
+      pendingLinkBaseIdsRef.current.add(base.id)
+      const knowledgeBaseIds = [...new Set([...(assistant.knowledgeBaseIds ?? []), ...pendingLinkBaseIdsRef.current])]
       try {
-        await updateAssistant(assistant.id, { knowledgeBaseIds: [...(assistant.knowledgeBaseIds ?? []), base.id] })
+        await updateAssistant(assistant.id, { knowledgeBaseIds })
         return true
       } catch (error) {
         logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
@@ -61,6 +66,8 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
           knowledgeBaseId: base.id
         })
         return false
+      } finally {
+        pendingLinkBaseIdsRef.current.delete(base.id)
       }
     },
     [context.assistant, updateAssistant]
