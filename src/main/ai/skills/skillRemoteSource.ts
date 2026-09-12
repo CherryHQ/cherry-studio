@@ -213,6 +213,9 @@ async function fetchFromGithub(
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
 
+  if (target.kind === 'root') {
+    return { skillDir: await renameGithubRootDir(tempDir, skillDir, repo), sourceUrl }
+  }
   return { skillDir, sourceUrl }
 }
 
@@ -494,6 +497,21 @@ function missingDescriptorError(
   const descriptor = descriptorFileNames.join(' or ')
   const location = target.kind === 'root' ? descriptor : `${target.path}/${descriptor}`
   return new Error(`No ${descriptor} found at the selected GitHub location: ${location}`)
+}
+
+// A repository-root skill checks out directly into the staging `content/` directory, so its
+// basename would become the catalog folder name. Rename it to the skill name instead.
+async function renameGithubRootDir(tempDir: string, skillDir: string, repo: string): Promise<string> {
+  const stagingName = path.basename(skillDir)
+  const metadata = await parseSkillMetadata(skillDir, repo, 'skills', { calculateSize: false })
+  const claimed = metadata.name?.trim() && metadata.name !== stagingName ? metadata.name.trim() : repo
+  let sanitized = sanitizeFolderName(claimed)
+  if (!sanitized || sanitized === stagingName) sanitized = sanitizeFolderName(repo)
+  if (!sanitized) throw new Error(`Cannot derive a folder name for GitHub skill: ${repo}`)
+  if (sanitized === 'repo.git') sanitized = `${sanitized}-skill`
+  const dest = path.join(tempDir, sanitized)
+  if (dest !== skillDir) await fs.promises.rename(skillDir, dest)
+  return dest
 }
 
 function assertGithubTargetTree(
