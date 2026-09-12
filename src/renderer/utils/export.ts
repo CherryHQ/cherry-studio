@@ -95,11 +95,8 @@ export const processCitations = (content: string, mode: 'remove' | 'normalize' =
 }
 
 /**
- * Reads the stored content of every pasted-text file part across the messages,
- * keyed by `fileTokenSourceId`. Pasted-text tokens are the inline-text chips the
- * composer mints for long pastes; copying must reproduce the text the user
- * actually wrote, not the chip's filename. An unreadable file falls back to the
- * token label (the pre-existing behavior).
+ * Reads each pasted-text file part's stored content, keyed by `fileTokenSourceId`, so
+ * copy reproduces the pasted text; an unreadable file falls back to the token label.
  */
 async function readPastedTextFileContents(messages: readonly ExportableMessage[]): Promise<Map<string, string>> {
   const contents = new Map<string, string>()
