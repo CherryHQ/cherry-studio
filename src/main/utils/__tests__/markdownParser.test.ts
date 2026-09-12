@@ -95,6 +95,27 @@ Body`
     expect(metadata.tools).toEqual(['Read', 'Grep'])
   })
 
+  it('preserves an explicitly declared skill name even when it matches the folder name', async () => {
+    vi.mocked(fs.promises.readFile).mockResolvedValue(`---
+name: content
+---
+
+Body`)
+
+    const metadata = await parseSkillMetadata('/abs/content', 'skills/content', 'skills')
+
+    expect(metadata).toMatchObject({ name: 'content', declaredName: 'content' })
+  })
+
+  it('leaves declaredName absent when the skill name falls back to the folder name', async () => {
+    vi.mocked(fs.promises.readFile).mockResolvedValue('Body')
+
+    const metadata = await parseSkillMetadata('/abs/content', 'skills/content', 'skills')
+
+    expect(metadata.name).toBe('content')
+    expect(metadata.declaredName).toBeUndefined()
+  })
+
   it('reads skill runtime fields and nested metadata version', async () => {
     vi.mocked(fs.promises.readFile).mockResolvedValue(`---
 name: parallel-web-search

@@ -238,7 +238,11 @@ export class SkillService {
     const fetched = await fetchRemoteSkill(source, rest.join(':'))
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
+      const installed = fetched.folderNameFallback
+        ? await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, {
+            folderNameFallback: fetched.folderNameFallback
+          })
+        : await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
       fetched.onInstalled?.()
       return installed
     } finally {
@@ -502,7 +506,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; folderNameFallback?: string } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -513,13 +517,16 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; folderNameFallback?: string } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
-    const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
+    const requestedFolderName = provenance.folderNameFallback
+      ? metadata.declaredName || metadata.slug?.trim() || provenance.folderNameFallback
+      : metadata.filename
+    const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(requestedFolderName)
 
     const existing = this.findCatalogSkillCaseInsensitive(folderName)
     if (existing) {
@@ -600,6 +607,7 @@ export class SkillService {
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
     } catch (error) {
+      await this.unlinkMirror(destFolderName)
       try {
         await this.installer.uninstall(destPath)
       } catch (cleanupError) {
@@ -612,6 +620,7 @@ export class SkillService {
       throw error
     }
     if (!inserted) {
+      await this.unlinkMirror(destFolderName)
       await this.installer.uninstall(destPath)
       throw new Error(`Failed to insert skill: ${metadata.name}`)
     }
