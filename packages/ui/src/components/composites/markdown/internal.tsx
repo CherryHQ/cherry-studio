@@ -40,7 +40,13 @@ import {
   SVG_ELEMENT_REGEX
 } from './utils'
 
-const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.values(defaultRemarkPlugins)
+const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.entries(defaultRemarkPlugins).map(([name, plugin]) => {
+  if (name !== 'gfm' || !Array.isArray(plugin)) return plugin
+
+  // Keep GFM extensions while treating single tildes as literal chat text.
+  const [gfmPlugin, options] = plugin
+  return [gfmPlugin, { ...(options as Record<string, unknown>), singleTilde: false }] as Pluggable
+})
 
 function MarkdownBlock({ content, ...props }: BlockProps): ReactElement {
   const markdownCtx = useMemo(() => ({ content }), [content])
