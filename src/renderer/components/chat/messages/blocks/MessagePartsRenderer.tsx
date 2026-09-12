@@ -71,6 +71,7 @@ import ConversationResetBlock from './ConversationResetBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
+import { useResolvedMessageImageParts } from './MessageImageUrlsContext'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
@@ -1621,7 +1622,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 })
 
 const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) => {
-  const messageParts = useMessageParts(message.id)
+  const rawMessageParts = useMessageParts(message.id)
+  const messageParts = useResolvedMessageImageParts(rawMessageParts)
   const { isActiveTurnProcessing, isStreamLive } = useMessageListItemActivityState(message)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
   const { collapseCompletedToolHistory } = useMessageRenderConfig()

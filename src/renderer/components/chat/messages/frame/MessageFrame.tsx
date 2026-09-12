@@ -13,6 +13,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId, type Model } from '@shared/data/types/model'
 
 import ImageBlock from '../blocks/ImageBlock'
+import { useResolvedMessageImageParts } from '../blocks/MessageImageUrlsContext'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
 import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
@@ -358,7 +359,8 @@ const UserBubbleMessage = ({
   const openUserProfile = useCallback(() => {
     void actions.openUserProfile?.()
   }, [actions])
-  const messageParts = useMessageParts(message.id)
+  const rawMessageParts = useMessageParts(message.id)
+  const messageParts = useResolvedMessageImageParts(rawMessageParts)
   const attachments = getHoistedAttachments(messageParts, message)
 
   return (
