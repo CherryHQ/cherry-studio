@@ -2414,6 +2414,13 @@ describe('TranslatePage', () => {
     )
 
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('completed translation')
+    expect(toast.success).toHaveBeenCalledWith('translate.complete')
+    expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+      sourceText: 'current input',
+      targetText: 'completed translation',
+      sourceLanguage: null,
+      targetLanguage: 'zh-cn'
+    })
   })
 
   it('completes text-history restoration after remount when cached panes are unchanged', async () => {
@@ -2541,6 +2548,8 @@ describe('TranslatePage', () => {
 
     expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('history input')
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('history output')
+    expect(toast.success).not.toHaveBeenCalledWith('translate.complete')
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
   })
 
   it('restores history when older language detection completes during language persistence', async () => {

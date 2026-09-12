@@ -305,6 +305,7 @@ const TranslatePage: FC = () => {
   const prePdfOutputRef = useRef<string | null>(null)
   const exchangePendingRef = useRef(false)
   const historyRestorePendingRef = useRef(false)
+  const historyRestoreBarrierRef = useRef<Promise<void> | null>(null)
   const isMountedRef = useRef(true)
   const translateContentRef = useRef({ input: translateInput, output: translateOutput, pdfFile })
   const isContentOperationCurrent = useCallback(
@@ -433,6 +434,8 @@ const TranslatePage: FC = () => {
 
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
+      const historyRestoreBarrier = historyRestoreBarrierRef.current
+      if (historyRestoreBarrier) await historyRestoreBarrier
       if (!translated || !isTranslationOperationCurrent()) return
       toast.success(t('translate.complete'))
 
@@ -722,6 +725,11 @@ const TranslatePage: FC = () => {
       }
 
       let persisted = false
+      let releaseHistoryRestore!: () => void
+      const historyRestoreBarrier = new Promise<void>((resolve) => {
+        releaseHistoryRestore = resolve
+      })
+      historyRestoreBarrierRef.current = historyRestoreBarrier
       historyRestorePendingRef.current = true
       setIsHistoryRestorePending(true)
       try {
@@ -735,6 +743,8 @@ const TranslatePage: FC = () => {
       } finally {
         historyRestorePendingRef.current = false
         if (isMountedRef.current) setIsHistoryRestorePending(false)
+        releaseHistoryRestore()
+        if (historyRestoreBarrierRef.current === historyRestoreBarrier) historyRestoreBarrierRef.current = null
       }
 
       if (!persisted || contentIntentRevisionBeforePersist !== contentIntentRevisionRef.current) return
