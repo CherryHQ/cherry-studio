@@ -65,6 +65,13 @@ export const entries: SettingsSearchEntry[] = [
     groupKey: 'settings.models.context_management.title'
   },
   {
+    anchorId: 'agent-language',
+    titleKey: 'settings.agent.language.label',
+    groupKey: 'settings.agent.language.title',
+    descriptionKey: 'settings.agent.language.description',
+    aliases: ['language', 'agent language', 'reply language']
+  },
+  {
     anchorId: 'retry-enabled',
     titleKey: 'settings.models.retry.label',
     groupKey: 'settings.models.retry.label',
