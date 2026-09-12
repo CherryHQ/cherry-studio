@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { gt as semverGt } from 'semver'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,6 +26,12 @@ const ipcMocks = vi.hoisted(() => ({
 }))
 const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }))
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
+const translationMock = vi.hoisted(() => ({
+  t: (key: string, options?: { details?: string; dependents?: string }) => {
+    const interpolation = options?.details ?? options?.dependents
+    return interpolation ? `${key} ${interpolation}` : key
+  }
+}))
 
 const setSnapshots = (records: Record<string, BinaryToolSnapshot>) => {
   snapshotRecords.value = records
@@ -74,12 +81,7 @@ vi.mock('@renderer/ipc/useIpcOn', () => ({ useIpcOn: vi.fn() }))
 vi.mock('@renderer/services/toast', () => ({ toast: toastMock }))
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({
-    t: (key: string, options?: { details?: string; dependents?: string }) => {
-      const interpolation = options?.details ?? options?.dependents
-      return interpolation ? `${key} ${interpolation}` : key
-    }
-  })
+  useTranslation: () => translationMock
 }))
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@data/hooks/usePreference', () => ({
@@ -591,6 +593,54 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalledTimes(1))
     act(() => ipcEventHandlers.get('binary.availability_changed')?.(undefined))
     await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalledTimes(2))
+  })
+
+  it('re-probes dependency state after a manual update check recovers the backend', async () => {
+    const user = userEvent.setup()
+    const unknown: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'unknown', reason: 'query_failed' },
+      availability: { source: 'bundled', path: 'C:\\Cherry\\bin\\uv.exe', version: '0.9.0' }
+    }
+    const recovered: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'absent' },
+      availability: unknown.availability
+    }
+    ipcMocks.snapshots.mockResolvedValueOnce({ uv: unknown }).mockResolvedValue({ uv: recovered })
+
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    expect(within(card).getByText('common.retry')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+
+    await waitFor(() => expect(within(card).queryByText('common.retry')).not.toBeInTheDocument())
+  })
+
+  it('keeps Retry and reports the probe error when a manual re-probe returns query_failed', async () => {
+    const user = userEvent.setup()
+    const unknown: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'unknown', reason: 'query_failed' },
+      availability: { source: 'bundled', path: 'C:\\Cherry\\bin\\uv.exe', version: '0.9.0' }
+    }
+    const failedProbe: BinaryToolSnapshot = {
+      ...unknown,
+      application: { status: 'unknown', reason: 'query_failed', message: 'mise ls failed' }
+    }
+    ipcMocks.snapshots.mockResolvedValueOnce({ uv: unknown }).mockResolvedValueOnce({ uv: failedProbe })
+
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+
+    await waitFor(() =>
+      expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed: mise ls failed')
+    )
+    expect(toastMock.success).not.toHaveBeenCalled()
+    expect(within(card).getByText('common.retry')).toBeInTheDocument()
   })
 
   it('hides the mini warning when bundled core dependencies are available', async () => {

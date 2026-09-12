@@ -154,7 +154,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [])
 
-  const refreshState = useCallback(async () => {
+  const refreshState = useCallback(async (propagateError = false): Promise<void> => {
     const requestId = ++resolutionRequestIdRef.current
     try {
       const nextSnapshots = await ipcApi.request(
@@ -164,8 +164,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
       setSnapshots(nextSnapshots)
       setResolutionsReady(true)
+      const queryFailure = Object.values(nextSnapshots).find(
+        (snapshot) => snapshot.application?.status === 'unknown' && snapshot.application.reason === 'query_failed'
+      )?.application
+      if (propagateError && queryFailure?.status === 'unknown') {
+        throw new Error(queryFailure.message ?? queryFailure.reason)
+      }
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
+      if (propagateError) throw error
     }
   }, [])
 
@@ -175,6 +182,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       setCheckingUpdates(true)
       try {
         const versions = await ipcApi.request('binary.get_latest_versions', force)
+        if (force) await refreshState(true)
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
           setLatestVersions(versions)
           // Only the manual refresh (force) gets a toast — the background check on
@@ -190,7 +198,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
       }
     },
-    [t]
+    [refreshState, t]
   )
 
   useEffect(() => {

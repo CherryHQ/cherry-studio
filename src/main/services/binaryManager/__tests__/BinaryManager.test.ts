@@ -1230,12 +1230,12 @@ describe('BinaryManager', () => {
         expect(snapshots.bun).toEqual({
           name: 'bun',
           availability: { source: 'bundled', path: '/mock/cherry.bin/bun', version: '1.2.3' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'system', path: '/usr/local/bin/fd' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
       })
 
@@ -1257,14 +1257,14 @@ describe('BinaryManager', () => {
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'mise', path: '/mock/feature.binary.data/shims/fd' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message: 'mise ls boom' }
         })
       })
 
       it.each([
-        ['a non-object', JSON.stringify(['not', 'an', 'object'])],
-        ['invalid spec entries', JSON.stringify({ fd: {} })]
-      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout) => {
+        ['a non-object', JSON.stringify(['not', 'an', 'object']), 'mise ls --json returned a non-object shape'],
+        ['invalid spec entries', JSON.stringify({ fd: {} }), 'mise ls --json returned invalid entries for fd']
+      ])('treats %s mise ls shape as query_failed, not absent', async (_case, stdout, message) => {
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
         ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
@@ -1276,7 +1276,7 @@ describe('BinaryManager', () => {
         expect(snapshots.fd).toEqual({
           name: 'fd',
           availability: { source: 'none' },
-          application: { status: 'unknown', reason: 'query_failed' }
+          application: { status: 'unknown', reason: 'query_failed', message }
         })
       })
 
