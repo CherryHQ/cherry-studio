@@ -1,10 +1,11 @@
+import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
@@ -357,7 +358,7 @@ describe('AiStreamManager', () => {
         type: 'tool-output-available',
         toolCallId: 'tool-call-1',
         output: 'approved'
-      } as UIMessageChunk)
+      })
       mgr.onChunk('topic-1', 'provider-a::model-a', approvalChunk)
       mgr.onChunk('topic-1', 'provider-a::model-a', {
         ...approvalChunk,
@@ -384,7 +385,7 @@ describe('AiStreamManager', () => {
         toolCallId: 'tool-call-1',
         toolName: 'read_file',
         input: {}
-      } as UIMessageChunk)
+      })
 
       expect(approvalRequestedEvents).toEqual([])
     })
@@ -402,7 +403,7 @@ describe('AiStreamManager', () => {
         type: 'tool-approval-request',
         approvalId: 'approval-1',
         toolCallId: 'tool-call-1'
-      } as UIMessageChunk)
+      })
 
       expect(approvalRequestedEvents).toEqual([])
     })
@@ -1712,12 +1713,12 @@ describe('AiStreamManager', () => {
         type: 'tool-output-available',
         toolCallId: 'call-large',
         output: large
-      } as UIMessageChunk)
+      })
       mgr.onChunk(topicId, 'provider-a::model-a', {
         type: 'tool-output-available',
         toolCallId: 'call-small',
         output: { content: 'tiny' }
-      } as UIMessageChunk)
+      })
 
       expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
       // A small output travelled inline, so nothing needs to be resolvable for it.
@@ -1740,7 +1741,7 @@ describe('AiStreamManager', () => {
           type: 'tool-output-available',
           toolCallId: `call-${tag}`,
           output: large(tag)
-        } as UIMessageChunk)
+        })
       }
 
       // The evicted one is not lost — it resolves from SQLite once the message is persisted.
@@ -1760,10 +1761,10 @@ describe('AiStreamManager', () => {
         request: req('a'),
         listeners: [new FakeListener('l:a')]
       })
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' } as UIMessageChunk)
-      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' } as UIMessageChunk)
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'hel' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'lo' })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'text-end', id: 'p1' })
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       // `attach` is the public IPC-facing method; tests pass a minimal
@@ -1809,13 +1810,13 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' })
       for (let i = 0; i < 5; i++) {
         ringMgr.onChunk('a', 'provider-a::model-a', {
           type: 'text-delta',
           id: 'p',
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
 
       const snap = ringMgr.inspect('a')!
@@ -1848,7 +1849,7 @@ describe('AiStreamManager', () => {
           type: 'text-delta',
           id: `p${i}`,
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
 
       const snap = ringMgr.inspect('a')!
@@ -1892,13 +1893,13 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-start', id: 'r1' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-start', id: 'r1' })
       for (const delta of ['thinking ', 'in ', 'pieces']) {
-        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-delta', id: 'r1', delta } as UIMessageChunk)
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-delta', id: 'r1', delta })
       }
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-end', id: 'r1' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'answer' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'reasoning-end', id: 'r1' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' })
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p1', delta: 'answer' })
 
       // The final push overflowed the ring and evicted `reasoning-start`.
       const snap = ringMgr.inspect('a')!
@@ -1941,12 +1942,12 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:a')]
       })
 
-      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' })
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'text-delta',
         id: 'p',
         delta: 'abcdefghijkl'
-      } as UIMessageChunk)
+      })
 
       const snap = ringMgr.inspect('a')!
       expect(snap.executions[0].bufferedChunkCount).toBe(2)
@@ -1978,19 +1979,19 @@ describe('AiStreamManager', () => {
           type: 'text-delta',
           id: 'p',
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-available',
         toolCallId: 'call-1',
         toolName: 'search',
         input: { query: 'Cherry Studio' }
-      } as UIMessageChunk)
+      })
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-approval-request',
         approvalId: 'approval-1',
         toolCallId: 'call-1'
-      } as UIMessageChunk)
+      })
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
@@ -2022,26 +2023,26 @@ describe('AiStreamManager', () => {
         toolCallId: 'call-1',
         toolName: 'search',
         input: { query: 'Cherry Studio' }
-      } as UIMessageChunk)
+      })
       for (let i = 0; i < 2; i++) {
         approvalMgr.onChunk('a', 'provider-a::model-a', {
           type: 'text-delta',
           id: 'p',
           delta: String(i)
-        } as UIMessageChunk)
+        })
       }
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-approval-request',
         approvalId: 'approval-1',
         toolCallId: 'call-1'
-      } as UIMessageChunk)
+      })
       // Over the cap while pending: nothing may be evicted, so the tool input
       // needed to render and act on the approval stays replayable.
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'text-delta',
         id: 'p2',
         delta: 'sibling'
-      } as UIMessageChunk)
+      })
 
       const snap = approvalMgr.inspect('a')!
       // The two same-part deltas merge into one entry on ingest.
@@ -2069,7 +2070,7 @@ describe('AiStreamManager', () => {
         type: 'tool-output-available',
         toolCallId: 'call-1',
         output: { ok: true }
-      } as UIMessageChunk)
+      })
 
       const after = approvalMgr.inspect('a')!
       expect(after.executions[0].bufferedChunkCount).toBe(4)
@@ -2715,8 +2716,8 @@ describe('AiStreamManager', () => {
       // The approval-request chunk flows through the loop's onChunk callback, which re-arms the
       // idle watchdog to the generous approval bound (default 2 h). The stream then stays open with
       // no further chunks (the human is deliberating).
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' })
 
       // Wait for the listener to have actually seen the approval chunk: that is
       // the re-arm, and it is a state rather than an interval. The fake clock is
@@ -2748,8 +2749,8 @@ describe('AiStreamManager', () => {
         listeners: [listener]
       })
 
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' })
 
       // Wait for the approval chunk to land (the re-arm) before moving the clock —
       // otherwise this only ever proves *some* timer fired, not the approval bound.
@@ -2786,11 +2787,11 @@ describe('AiStreamManager', () => {
       // Feed a complete message — the AI SDK stream shape requires both
       // message-level `start` / `finish` boundaries and the text-part
       // triplet for readUIMessageStream to yield a UIMessage snapshot.
-      controlled.enqueue({ type: 'start' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'hello' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start' })
+      controlled.enqueue({ type: 'text-start', id: 'p1' })
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'hello' })
+      controlled.enqueue({ type: 'text-end', id: 'p1' })
+      controlled.enqueue({ type: 'finish' })
       controlled.close()
 
       // Let the tee → accumulator → terminal chain drain. Poll for the terminal
@@ -2918,7 +2919,7 @@ describe('AiStreamManager', () => {
       })
 
       // Provider surfaces a terminal error chunk rather than throwing.
-      controlled.enqueue({ type: 'error', errorText: 'boom' } as UIMessageChunk)
+      controlled.enqueue({ type: 'error', errorText: 'boom' })
       controlled.close()
 
       // Let the tee → broadcast → terminal chain drain.
@@ -2951,7 +2952,7 @@ describe('AiStreamManager', () => {
         new ReadableStream({
           pull(controller) {
             pulls += 1
-            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' } as UIMessageChunk)
+            if (pulls === 1) controller.enqueue({ type: 'error', errorText: 'Forbidden' })
             else controller.error(apiError)
           }
         })
@@ -3029,12 +3030,12 @@ describe('AiStreamManager', () => {
       // Continuation: resolve the pre-existing tool call (references the seed's
       // toolCallId), then append text. Without the seed, the tool-output chunk
       // throws inside the accumulator and the later text never accumulates.
-      controlled.enqueue({ type: 'start', messageId: 'assistant-resume' } as UIMessageChunk)
-      controlled.enqueue({ type: 'tool-output-available', toolCallId: 'tc-1', output: { ok: true } } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'continued' } as UIMessageChunk)
-      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
-      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.enqueue({ type: 'start', messageId: 'assistant-resume' })
+      controlled.enqueue({ type: 'tool-output-available', toolCallId: 'tc-1', output: { ok: true } })
+      controlled.enqueue({ type: 'text-start', id: 'p1' })
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'continued' })
+      controlled.enqueue({ type: 'text-end', id: 'p1' })
+      controlled.enqueue({ type: 'finish' })
       controlled.close()
 
       await vi.waitFor(() => expect(mgr.inspect('a')!.status).toBe('done'))
@@ -3479,7 +3480,6 @@ describe('AiStreamManager', () => {
     /** Drive a `tool-approval-request` so the exec is awaiting approval; return the private exec. */
     const startAwaitingApproval = (topicId: string, modelId: UniqueModelId) => {
       mgr.onChunk(topicId, modelId, { type: 'tool-approval-request' } as UIMessageChunk)
-      // biome-ignore lint/suspicious/noExplicitAny: reach the private exec to drive the abort path
       return (mgr as any).activeStreams.get(topicId).executions.get(modelId)
     }
 

@@ -19,7 +19,9 @@ vi.mock('echarts/renderers', () => ({ CanvasRenderer: {} }))
 
 vi.stubGlobal(
   'ResizeObserver',
-  vi.fn(() => ({ disconnect: vi.fn(), observe: vi.fn() }))
+  vi.fn(function ResizeObserverMock() {
+    return { disconnect: vi.fn(), observe: vi.fn() }
+  })
 )
 
 describe('Echarts', () => {

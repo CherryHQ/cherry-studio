@@ -1,9 +1,9 @@
 ---
 description: How to add Preference keys through the data-classify generator without editing generated schemas
 sources:
-  - v2-refactor-temp/tools/data-classify/data/classification.json
-  - v2-refactor-temp/tools/data-classify/data/target-key-definitions.json
-  - v2-refactor-temp/tools/data-classify/scripts/generate-preferences.js
+  - scripts/data-classify/data/classification.json
+  - scripts/data-classify/data/target-key-definitions.json
+  - scripts/data-classify/scripts/generate-preferences.js
   - src/shared/data/preference/preferenceTypes.ts
 ---
 
@@ -17,8 +17,8 @@ generator inputs, run the generator, and commit the generated result.
 
 | Kind of key | Source of truth |
 |---|---|
-| New v2 setting with no v1 source | `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json` |
-| Simple v1-to-v2 mapping | `v2-refactor-temp/tools/data-classify/data/classification.json` |
+| New v2 setting with no v1 source | `scripts/data-classify/data/target-key-definitions.json` |
+| Simple v1-to-v2 mapping | `scripts/data-classify/data/classification.json` |
 | Complex migration output | `target-key-definitions.json`, plus the transformer and complex mapping owned by the v2 migrator |
 | Reusable TypeScript type | `src/shared/data/preference/preferenceTypes.ts` |
 
@@ -87,7 +87,7 @@ For a TypeScript expression rather than a JSON literal, use the generator's
 Run the supported generator pipeline from its package directory:
 
 ```bash
-cd v2-refactor-temp/tools/data-classify
+cd scripts/data-classify
 npm run generate
 ```
 

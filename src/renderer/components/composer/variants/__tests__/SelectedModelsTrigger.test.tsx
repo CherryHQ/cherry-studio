@@ -1,9 +1,10 @@
-import type { Model } from '@shared/data/types/model'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { Model } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
 import { SelectedModelsTrigger } from '../SelectedModelsTrigger'
 

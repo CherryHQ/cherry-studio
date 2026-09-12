@@ -1,10 +1,11 @@
-import enUS from '@renderer/i18n/locales/en-us.json'
-import zhCN from '@renderer/i18n/locales/zh-cn.json'
-import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import enUS from '@renderer/i18n/locales/en-us.json'
+import zhCN from '@renderer/i18n/locales/zh-cn.json'
+import type { ScheduledTaskEntity, ScheduledTaskListItem } from '@shared/data/types/agent'
 
 import TasksSettings, {
   formStateToTrigger,
@@ -50,7 +51,7 @@ const taskDataMock = vi.hoisted(() => {
     nextRun: null,
     lastRun: null,
     enabled: true,
-    status: 'active' as 'active' | 'paused' | 'completed',
+    status: 'active',
     createdAt: '2026-06-25T00:00:00.000Z',
     updatedAt: '2026-06-25T00:00:00.000Z'
   }
@@ -111,9 +112,9 @@ const channelDataMock = vi.hoisted(() => ({
   isLoading: false
 }))
 
-const translationMock = vi.hoisted(() => ({
+const translationMock = vi.hoisted((): { i18n: { language: string }; t: TranslationFunction } => ({
   i18n: { language: 'en-US' },
-  t: ((key: string) => key) as TranslationFunction
+  t: (key: string) => key
 }))
 
 const promptPolishActionsMock = vi.hoisted(() => vi.fn())

@@ -1,10 +1,11 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse as parseYaml } from 'yaml'
+
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parse as parseYaml } from 'yaml'
 
 import { clearCliConfig, writeCliConfigDraft } from '../index'
 
@@ -88,6 +89,8 @@ describe('writeCliConfigDraft', () => {
   let existing: Record<string, string>
 
   beforeEach(() => {
+    mocks.request.mockClear()
+    vi.mocked(dataApiService.get).mockClear()
     written = null
     writes = []
     existing = {}
@@ -655,7 +658,7 @@ describe('writeCliConfigDraft', () => {
     // that remote compaction is on, regardless of the actual toggle — so a provider whose
     // display name really is "OpenAI" must never be written verbatim unless that mode is on.
     it('avoids the "OpenAI" name collision when the provider is actually named OpenAI (remote compaction off)', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -670,7 +673,7 @@ describe('writeCliConfigDraft', () => {
     })
 
     it('writes the literal "OpenAI" name when remote compaction is actually on', async () => {
-      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' }
       mockGet({
         '/providers/deepseek': () => openaiNamedProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),

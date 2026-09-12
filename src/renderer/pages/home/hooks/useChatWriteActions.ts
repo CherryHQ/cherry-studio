@@ -1,3 +1,6 @@
+import type { ChatRequestOptions } from 'ai'
+import { useCallback, useMemo, useRef, useState } from 'react'
+
 /**
  * Build the `ChatWriteActions` bag passed down through context.
  *
@@ -33,8 +36,6 @@ import type {
 } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { createClearContextPart, hasClearContextPart } from '@shared/data/types/uiParts'
-import type { ChatRequestOptions } from 'ai'
-import { useCallback, useMemo, useRef, useState } from 'react'
 
 import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
@@ -397,7 +398,7 @@ export function useChatWriteActions(params: Params): Result {
             status: newMessage.status,
             createdAt: newMessage.createdAt
           }
-        } as CherryUIMessage
+        }
       ])
       // Sync `useChat` from DB before regenerate. The server flipped
       // `activeNodeId` to the new branch in the same transaction.

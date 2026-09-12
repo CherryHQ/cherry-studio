@@ -1,10 +1,11 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import { modelService } from '@data/services/ModelService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MINI_APP_MAX_INPUT_BYTES, MINI_APP_MAX_MESSAGES } from '@shared/types/miniAppManifest'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MiniAppUnavailableError } from '../../errors'
 import { resetHiddenBudgets } from '../quota'
@@ -75,13 +76,8 @@ const { publicErrorOf } = await import('../../runtime/bridge')
 const A = 'com.example.a'
 const GUEST = 7
 const HI = { messages: [{ role: 'user' as const, content: 'hi' }] }
-const chat = (
-  appId = A,
-  params: unknown = HI,
-  emit: (c: string) => void = () => {},
-  guest = GUEST,
-  callId: string | undefined = undefined
-) => aiCapability.chat(appId, params, emit, guest, callId)
+const chat = (appId = A, params: unknown = HI, emit: (c: string) => void = () => {}, guest = GUEST, callId?: string) =>
+  aiCapability.chat(appId, params, emit, guest, callId)
 
 // A real DB, not a stub: `insertApp` below writes the app and installation rows that
 // `resolveModelFor` reads. Nothing here reads the usage ledger.

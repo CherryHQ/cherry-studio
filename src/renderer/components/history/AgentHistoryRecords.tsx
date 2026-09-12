@@ -1,3 +1,6 @@
+import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -13,8 +16,6 @@ import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { type ReactElement, type ReactNode, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'

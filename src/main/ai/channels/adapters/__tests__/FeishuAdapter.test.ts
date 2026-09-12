@@ -66,7 +66,6 @@ vi.mock('@larksuiteoapi/node-sdk', () => ({
 }))
 
 import '../feishu/FeishuAdapter'
-
 import { registerAdapterFactory } from '../../ChannelManager'
 
 function getFactory() {

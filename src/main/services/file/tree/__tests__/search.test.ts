@@ -6,8 +6,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
 
@@ -149,14 +150,14 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     // 75 files exercises the > 50 threshold called out in the PR plan and
     // would have been chopped to 20 under the old `maxEntries` default.
     await writeMany(tmp, 75)
-    const results = await listDirectory(tmp as AbsoluteFilePath)
+    const results = await listDirectory(tmp)
     expect(results.length).toBe(75)
   })
 
   it('uses the BinaryManager-resolved ripgrep path', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
 
-    await listDirectory(tmp as AbsoluteFilePath)
+    await listDirectory(tmp)
 
     const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
     expect(checkedPaths.some((p) => path.basename(p) === (process.platform === 'win32' ? 'rg.exe' : 'rg'))).toBe(true)
@@ -167,7 +168,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await mkdir(path.join(tmp, 'sub'))
     await writeFile(path.join(tmp, 'sub', 'inner.md'), 'inner')
 
-    const results = await listDirectory(tmp as AbsoluteFilePath)
+    const results = await listDirectory(tmp)
     const basenames = results.map((p) => path.basename(p))
     expect(basenames).toContain('root.md')
     expect(basenames).toContain('inner.md')
@@ -178,10 +179,10 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await writeFile(path.join(tmp, 'visible.txt'), '1')
     await writeFile(path.join(tmp, '.hidden'), '2')
 
-    const defaultRun = await listDirectory(tmp as AbsoluteFilePath)
+    const defaultRun = await listDirectory(tmp)
     expect(defaultRun.some((p) => p.endsWith('/.hidden'))).toBe(false)
 
-    const withHidden = await listDirectory(tmp as AbsoluteFilePath, { includeHidden: true })
+    const withHidden = await listDirectory(tmp, { includeHidden: true })
     expect(withHidden.some((p) => p.endsWith('/.hidden'))).toBe(true)
   })
 
@@ -190,7 +191,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await mkdir(path.join(tmp, 'sub'))
     await writeFile(path.join(tmp, 'sub', 'nested.md'), 'nested')
 
-    const results = await listDirectory(tmp as AbsoluteFilePath, { maxDepth: 1 })
+    const results = await listDirectory(tmp, { maxDepth: 1 })
     const basenames = results.map((p) => path.basename(p))
     expect(basenames).toContain('top.md')
     expect(basenames).not.toContain('nested.md')
@@ -211,7 +212,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     for (let i = 0; i < 12; i++) {
       await writeFile(path.join(tmp, `updater-${i}.ts`), 'x')
     }
-    const results = await listDirectory(tmp as AbsoluteFilePath, {
+    const results = await listDirectory(tmp, {
       searchPattern: 'updater',
       maxEntries: 5
     })
@@ -227,7 +228,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(tmp, 'misc'))
     await writeFile(path.join(tmp, 'misc', 'inner-updater.ts'), 'c')
 
-    const results = await listDirectory(tmp as AbsoluteFilePath, {
+    const results = await listDirectory(tmp, {
       searchPattern: 'updater',
       maxEntries: 10
     })
@@ -274,7 +275,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(searchRoot, 'target-dir'))
     await writeFile(path.join(searchRoot, 'unrelated-file.md'), 'unrelated')
 
-    const results = await listDirectoryEntries(searchRoot as AbsoluteFilePath, {
+    const results = await listDirectoryEntries(searchRoot, {
       includeFiles: true,
       includeDirectories: true,
       searchPattern: 'target'
@@ -292,7 +293,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(tmp, 'alpha'))
     await writeFile(path.join(tmp, 'alpha', 'beta.md'), 'match across path segments')
 
-    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+    const results = await listDirectoryEntries(tmp, {
       includeFiles: true,
       includeDirectories: false,
       searchPattern: 'ab'
@@ -311,7 +312,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(tmp, 'other'))
     await writeFile(path.join(tmp, 'documentation-file.md'), 'docs')
 
-    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+    const results = await listDirectoryEntries(tmp, {
       recursive: true,
       includeFiles: false,
       includeDirectories: true,
@@ -330,7 +331,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(tmp, 'notes-folder'))
     await writeFile(path.join(tmp, 'notes-file.md'), 'notes')
 
-    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+    const results = await listDirectoryEntries(tmp, {
       includeFiles: true,
       includeDirectories: false,
       searchPattern: 'notes'
@@ -351,7 +352,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(tmp, 'c'))
     await writeFile(path.join(tmp, 'c', 'q'), 'q')
 
-    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+    const results = await listDirectoryEntries(tmp, {
       searchPattern: 'q',
       maxEntries: 2
     })
@@ -370,7 +371,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(tmp, 'node_modules', 'target'), { recursive: true })
     await mkdir(path.join(tmp, 'deep', 'one', 'target'), { recursive: true })
 
-    const results = await listDirectory(tmp as AbsoluteFilePath, {
+    const results = await listDirectory(tmp, {
       recursive: true,
       maxDepth: 2,
       includeHidden: false,
@@ -385,7 +386,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
   it('treats maxDepth=0 as unlimited for fuzzy directory candidates', async () => {
     await mkdir(path.join(tmp, 'deep', 'one', 'target-empty'), { recursive: true })
 
-    const results = await listDirectory(tmp as AbsoluteFilePath, {
+    const results = await listDirectory(tmp, {
       recursive: true,
       maxDepth: 0,
       includeFiles: false,
@@ -410,7 +411,7 @@ describe('listDirectory (directory-only fuzzy options)', () => {
     await mkdir(path.join(tmp, 'target-root'))
     await mkdir(path.join(tmp, 'container', 'target-nested'), { recursive: true })
 
-    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+    const results = await listDirectoryEntries(tmp, {
       recursive: false,
       includeFiles: false,
       includeDirectories: true,
@@ -429,7 +430,7 @@ describe('listDirectory (directory-only fuzzy options)', () => {
     await mkdir(path.join(tmp, '.target-hidden'))
     await mkdir(path.join(tmp, 'other'))
 
-    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+    const results = await listDirectoryEntries(tmp, {
       includeHidden: true,
       includeFiles: false,
       includeDirectories: true,
@@ -452,7 +453,7 @@ describe('listDirectory (directory-only fuzzy options)', () => {
     // Relative scoring rewards the consecutive "bc" in a-long-bc. Scoring
     // the absolute paths would instead satisfy "abc" in the shared root and
     // let the path-length penalty incorrectly prefer the shorter a-b-c.
-    const results = await listDirectoryEntries(searchRoot as AbsoluteFilePath, {
+    const results = await listDirectoryEntries(searchRoot, {
       includeFiles: false,
       includeDirectories: true,
       searchPattern: 'abc',
@@ -481,7 +482,7 @@ describe('listDirectory (error paths)', () => {
     await mkdir(path.join(tmp, 'docs-empty'))
     mockExistsSync.mockReturnValue(false)
 
-    const results = await listDirectory(tmp as AbsoluteFilePath, {
+    const results = await listDirectory(tmp, {
       includeFiles: false,
       includeDirectories: true,
       searchPattern: 'docs'
@@ -525,7 +526,7 @@ describe('listDirectory (error paths)', () => {
     }) as NodeJS.ErrnoException
     mockPromisesStat.mockRejectedValueOnce(eaccesErr)
 
-    await expect(listDirectory('/some/locked/path' as AbsoluteFilePath)).rejects.toBe(eaccesErr)
+    await expect(listDirectory('/some/locked/path')).rejects.toBe(eaccesErr)
   })
 
   it('propagates EACCES when the root directory cannot be enumerated', async () => {
