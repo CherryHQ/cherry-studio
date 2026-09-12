@@ -27,6 +27,9 @@ import { composeHooks } from './params/composeHooks'
 type AppProviderKey = StringKeys<AppProviderSettingsMap>
 
 const MISSING_FINISH_REASON_MESSAGE = 'Response stream ended without a finish reason.'
+const LEADING_TOOL_BOUNDARY_MARKERS = /^[\u2050-\u2057\u2063]+/u
+const ONLY_TOOL_BOUNDARY_MARKERS = /^[\u2050-\u2057\u2063]+$/u
+const TRAILING_TOOL_BOUNDARY_MARKERS = /[\u2050-\u2057\u2063]+$/u
 
 class MissingFinishReasonError extends Error {
   readonly i18nKey = 'missing_finish_reason'
@@ -330,6 +333,61 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const reader = uiStream.getReader()
       let readFailure: { error: unknown } | undefined
       let pendingFinish: Extract<UIMessageChunk, { type: 'finish' }> | undefined
+      let pendingTrailingMarkers: Array<Extract<UIMessageChunk, { type: 'text-delta' }>> = []
+      let chunksAfterTrailingMarkers: UIMessageChunk[] = []
+      let followsToolBoundary = false
+      const flushTrailingMarkers = async (): Promise<void> => {
+        for (const chunk of pendingTrailingMarkers) await writer.write(chunk)
+        for (const chunk of chunksAfterTrailingMarkers) await writer.write(chunk)
+        pendingTrailingMarkers = []
+        chunksAfterTrailingMarkers = []
+      }
+      const writeUiChunk = async (chunk: UIMessageChunk): Promise<void> => {
+        const isToolChunk = chunk.type.startsWith('tool-')
+        if (isToolChunk) {
+          if (pendingTrailingMarkers.length > 0) {
+            pendingTrailingMarkers = []
+            for (const pendingChunk of chunksAfterTrailingMarkers) await writer.write(pendingChunk)
+            chunksAfterTrailingMarkers = []
+          }
+          followsToolBoundary = true
+          await writer.write(chunk)
+          return
+        }
+
+        if (chunk.type !== 'text-delta') {
+          if (pendingTrailingMarkers.length > 0) {
+            chunksAfterTrailingMarkers.push(chunk)
+            return
+          }
+          await writer.write(chunk)
+          return
+        }
+
+        if (pendingTrailingMarkers.length > 0) {
+          if (ONLY_TOOL_BOUNDARY_MARKERS.test(chunk.delta)) {
+            pendingTrailingMarkers.push(chunk)
+            return
+          }
+          await flushTrailingMarkers()
+        }
+        let delta = chunk.delta
+        if (followsToolBoundary) {
+          delta = delta.replace(LEADING_TOOL_BOUNDARY_MARKERS, '')
+          if (delta.length === 0) return
+          followsToolBoundary = false
+        }
+
+        const trailingMarkers = delta.match(TRAILING_TOOL_BOUNDARY_MARKERS)?.[0]
+        if (!trailingMarkers) {
+          await writer.write(delta === chunk.delta ? chunk : { ...chunk, delta })
+          return
+        }
+
+        const visibleDelta = delta.slice(0, -trailingMarkers.length)
+        if (visibleDelta) await writer.write({ ...chunk, delta: visibleDelta })
+        pendingTrailingMarkers.push({ ...chunk, delta: trailingMarkers })
+      }
       try {
         while (true) {
           const { done, value } = await reader.read()
@@ -345,6 +403,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
               ? capturedUiErrors.shift()
               : undefined
           if (value.type === 'error' && capturedError) {
+            await flushTrailingMarkers()
             await reader.cancel(capturedError.error).catch(() => {})
             throw capturedError.error
           }
@@ -356,8 +415,9 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
             pendingFinish = value
             continue
           }
-          await writer.write(value)
+          await writeUiChunk(value)
         }
+        if (!signal.aborted) await flushTrailingMarkers()
       } catch (error) {
         readFailure = { error }
       } finally {
