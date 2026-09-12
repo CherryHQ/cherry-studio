@@ -176,6 +176,21 @@ describe('LoggerService file output', () => {
     }
   )
 
+  it.each([
+    ['a line terminator', 'http://user:Qx7z\nk@proxy:99999', 'http://<redacted>:<redacted>@proxy:99999'],
+    ['no slashes after the scheme', 'http:user:Qx7zk@proxy:99999', 'http:<redacted>:<redacted>@proxy:99999'],
+    ['backslashes after the scheme', 'http:\\\\user:Qx7zk@proxy:99999', 'http:\\\\<redacted>:<redacted>@proxy:99999']
+  ])('redacts ERR_INVALID_URL input with %s', async (_name, url, redacted) => {
+    const { loggerService, lines, readLine } = await loadLogger()
+
+    loggerService.error('Invalid proxy', invalidUrlError(url))
+
+    const line = await readLine()
+    expect(lines[0]).not.toContain('Qx7z')
+    expect(line.code).toBe('ERR_INVALID_URL')
+    expect(line.input).toBe(redacted)
+  })
+
   it('leaves input fields outside ERR_INVALID_URL untouched', async () => {
     const { loggerService, readLine } = await loadLogger()
     const input = 'https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.0.0/dist/standalone.js'

@@ -222,16 +222,24 @@ describe('redactInvalidUrlCredentials', () => {
     ['http://user:ab/cd@proxy:8080', 'http://<redacted>:<redacted>@proxy:8080'],
     ['http://user:ab?cd@proxy:8080', 'http://<redacted>:<redacted>@proxy:8080'],
     ['http://u:sec@ret@host:abc', 'http://<redacted>:<redacted>@host:abc'],
+    ['http://user:ab\ncd@proxy:99999', 'http://<redacted>:<redacted>@proxy:99999'],
+    ['http://user:ab\rcd/x@proxy:99999', 'http://<redacted>:<redacted>@proxy:99999'],
+    ['socks5://user:ab cd@[bad', 'socks5://<redacted>:<redacted>@[bad'],
+    ['http:user:secret@proxy:99999', 'http:<redacted>:<redacted>@proxy:99999'],
+    ['http:/user:secret@proxy:99999', 'http:/<redacted>:<redacted>@proxy:99999'],
+    ['http:\\\\user:secret@proxy:99999', 'http:\\\\<redacted>:<redacted>@proxy:99999'],
     ['http://host:abc', 'http://host:abc'],
     ['not a url', 'not a url']
   ])('treats everything up to the last @ as userinfo: %s', (input, expected) => {
     expect(redactInvalidUrlCredentials(input)).toBe(expected)
   })
 
-  it('is idempotent', () => {
-    const redacted = 'http://<redacted>:<redacted>@proxy:8080'
-    expect(redactInvalidUrlCredentials(redacted)).toBe(redacted)
-  })
+  it.each(['http://<redacted>:<redacted>@proxy:8080', 'http:<redacted>:<redacted>@proxy:99999'])(
+    'is idempotent: %s',
+    (redacted) => {
+      expect(redactInvalidUrlCredentials(redacted)).toBe(redacted)
+    }
+  )
 })
 
 describe('redactUrlToOrigin', () => {

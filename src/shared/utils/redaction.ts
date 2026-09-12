@@ -39,7 +39,7 @@ export function redactUrlCredentials(text: string): string {
  * over-redaction is the safe direction for an invalid URL.
  */
 export function redactInvalidUrlCredentials(text: string): string {
-  return text.replace(/\/\/.*@/, `//${REDACTED}:${REDACTED}@`)
+  return text.replace(/^([a-z][a-z\d+.-]*:[\\/]*)?[\s\S]*@/i, `$1${REDACTED}:${REDACTED}@`)
 }
 
 /**
