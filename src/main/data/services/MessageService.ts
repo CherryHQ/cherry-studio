@@ -1910,8 +1910,9 @@ export class MessageService {
    *
    * Supports two modes:
    * - cascade=true: Delete the message and all its descendants
-   * - cascade=false: Delete only this message. An active grouped reply hands context
-   *   and children to its next sibling (previous at the end); otherwise splice onto the parent.
+   * - cascade=false: Delete only this message. A grouped reply on the active path hands
+   *   children to the newest different-model sibling if itself active, or the next sibling
+   *   (previous at the end) if an active descendant survives; otherwise splice onto the parent.
    *
    * When the deleted message(s) include the topic's activeNodeId, it will be
    * automatically updated based on activeNodeStrategy:
