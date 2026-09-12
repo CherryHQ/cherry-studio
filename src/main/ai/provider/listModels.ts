@@ -797,6 +797,12 @@ const openAICompatibleFetcher: ModelFetcher = {
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
+    if (response.skippedModelCount > 0) {
+      logger.warn('Skipped malformed OpenAI-compatible model entries', {
+        providerId: provider.id,
+        skippedModelCount: response.skippedModelCount
+      })
+    }
     return dedup(response.data, (m) => m.id).map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
