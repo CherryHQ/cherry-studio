@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -57,7 +58,7 @@ describe('MigrationDbService', () => {
       migrationLocalStorageExportDir: path.join(root, 'migration_temp', 'localstorage_export'),
       migrationLocalStorageExportFile: path.join(root, 'migration_temp', 'localstorage_export', 'localStorage.json'),
       legacyConfigFile: path.join(root, 'config.json'),
-      migrationsFolder: path.resolve('migrations/sqlite-drizzle')
+      migrationsFolder: resolveMigrationsPath()
     } satisfies MigrationPaths
 
     let thrown: unknown
