@@ -140,6 +140,87 @@ describe('listModels — default grouping', () => {
   )
 })
 
+describe('listModels — malformed OpenAI-compatible rows', () => {
+  it.each([
+    {
+      name: 'OpenRouter',
+      providerId: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      responses: [
+        { data: [{ id: 'openrouter-chat' }], skippedModelCount: 1 },
+        { data: [{ id: 'openrouter-embedding' }], skippedModelCount: 2 },
+        { data: [{ id: 'openrouter-image' }], skippedModelCount: 3 }
+      ],
+      expectedModelIds: ['openrouter-chat', 'openrouter-embedding', 'openrouter-image'],
+      expectedSkippedModelCount: 6
+    },
+    {
+      name: 'PPIO',
+      providerId: 'ppio',
+      baseUrl: 'https://api.ppio.com/v1',
+      responses: [
+        { data: [{ id: 'ppio-chat' }], skippedModelCount: 1 },
+        { data: [{ id: 'ppio-embedding' }], skippedModelCount: 2 },
+        { data: [{ id: 'ppio-reranker' }], skippedModelCount: 3 }
+      ],
+      expectedModelIds: ['ppio-chat', 'ppio-embedding', 'ppio-reranker'],
+      expectedSkippedModelCount: 6
+    },
+    {
+      name: 'Jina',
+      providerId: 'jina',
+      baseUrl: 'https://api.jina.ai',
+      responses: [{ data: [{ id: 'jina-ai/jina-valid' }], skippedModelCount: 2 }],
+      expectedModelIds: ['jina-valid'],
+      expectedSkippedModelCount: 2
+    },
+    {
+      name: 'OpenAI',
+      providerId: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      responses: [{ data: [{ id: 'gpt-4o' }], skippedModelCount: 2 }],
+      expectedModelIds: ['gpt-4o'],
+      expectedSkippedModelCount: 2
+    },
+    {
+      name: 'generic fallback',
+      providerId: 'custom-openai-compatible',
+      baseUrl: 'https://models.example.com/v1',
+      responses: [{ data: [{ id: 'fallback-valid' }], skippedModelCount: 2 }],
+      expectedModelIds: ['fallback-valid'],
+      expectedSkippedModelCount: 2
+    }
+  ])(
+    'keeps valid $name models and emits one aggregate warning',
+    async ({ providerId, baseUrl, responses, expectedModelIds, expectedSkippedModelCount }) => {
+      const provider = makeProvider({
+        id: providerId,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl }
+        }
+      })
+      let responseIndex = 0
+      aiSdkGetFromApiMock.mockImplementation(() => Promise.resolve({ value: responses[responseIndex++] }))
+
+      const models = await listModels(provider)
+
+      expect(models.map((model) => model.apiModelId)).toEqual(expectedModelIds)
+      expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(responses.length)
+      expect(
+        mockMainLoggerService.warn.mock.calls.filter(
+          ([message]) => message === 'Skipped malformed OpenAI-compatible model entries'
+        )
+      ).toEqual([
+        [
+          'Skipped malformed OpenAI-compatible model entries',
+          { providerId: provider.id, skippedModelCount: expectedSkippedModelCount }
+        ]
+      ])
+    }
+  )
+})
+
 describe('listModels — TokenDance protocol routing', () => {
   function makeTokenDanceProvider(id = 'tokendance') {
     return makeProvider({
