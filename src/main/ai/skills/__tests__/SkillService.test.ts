@@ -1027,6 +1027,62 @@ describe('SkillService', () => {
       }
     })
 
+    it('reinstalls a legacy repository-root skill in place without duplicating its catalog row', async () => {
+      const { skillService, dataSkillsRoot, mirrorRoot, restoreGetPath } = await setupGithubRootInstall()
+      const legacySkillId = 'legacy-content-skill'
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/legacy-repo/refs/heads/main/SKILL.md'
+      const legacySkillDir = path.join(dataSkillsRoot, 'content')
+
+      try {
+        await seedAgent()
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: legacySkillId,
+          name: 'Legacy Skill',
+          folderName: 'content',
+          source: 'marketplace',
+          sourceUrl,
+          contentHash: 'legacy-hash',
+          isEnabled: false
+        })
+        await dbh.db.insert(agentSkillTable).values({
+          agentId: AGENT_ID,
+          skillId: legacySkillId,
+          isEnabled: true
+        })
+        await fs.promises.mkdir(legacySkillDir, { recursive: true })
+        await fs.promises.writeFile(path.join(legacySkillDir, 'SKILL.md'), '# legacy skill')
+        await skillService['linkMirror']('content')
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Renamed Skill', declaredName: 'Renamed Skill' }) as never
+        )
+
+        const reinstalled = await skillService.install({
+          installSource: 'github:https://github.com/owner/legacy-repo/blob/main/SKILL.md'
+        })
+
+        const rows = await dbh.db.select().from(agentGlobalSkillTable)
+        const agentSkill = dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, legacySkillId)).get()
+        expect(rows).toHaveLength(1)
+        expect(reinstalled).toMatchObject({
+          id: legacySkillId,
+          folderName: 'content',
+          name: 'Renamed Skill',
+          isGlobalEnabled: false,
+          sourceUrl
+        })
+        expect(agentSkill).toMatchObject({ agentId: AGENT_ID, skillId: legacySkillId, isEnabled: true })
+        await expect(fs.promises.readFile(path.join(legacySkillDir, 'SKILL.md'), 'utf-8')).resolves.toBe('# skill')
+        await expect(fs.promises.readFile(path.join(mirrorRoot, 'content', 'SKILL.md'), 'utf-8')).resolves.toBe(
+          '# skill'
+        )
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'Renamed_Skill'))).rejects.toThrow()
+        await expect(fs.promises.access(path.join(mirrorRoot, 'Renamed_Skill'))).rejects.toThrow()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('does not overwrite an existing repository-root skill with a different GitHub origin', async () => {
       const { skillService, dataSkillsRoot, restoreGetPath } = await setupGithubRootInstall()
       const metadata = githubRootMetadata({ name: 'Same Skill', declaredName: 'Same Skill' })

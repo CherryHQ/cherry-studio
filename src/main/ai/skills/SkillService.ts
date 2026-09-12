@@ -528,7 +528,12 @@ export class SkillService {
       : metadata.filename
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(requestedFolderName)
 
-    const existing = this.findCatalogSkillCaseInsensitive(folderName)
+    const existingByFolderName = this.findCatalogSkillCaseInsensitive(folderName)
+    const existing =
+      existingByFolderName ??
+      (provenance.folderNameFallback && source === 'marketplace' && sourceUrl
+        ? this.findCatalogSkillBySourceUrl(source, sourceUrl)
+        : null)
     if (existing) {
       // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
       // existing folder in place. Anything else — a marketplace install colliding with a builtin,
@@ -1089,6 +1094,16 @@ export class SkillService {
       throw new Error(
         `Multiple catalog skills conflict by case for "${folderName}": ${matches.map((skill) => skill.folderName).join(', ')}`
       )
+    }
+    return matches[0] ?? null
+  }
+
+  private findCatalogSkillBySourceUrl(source: string, sourceUrl: string): InstalledSkill | null {
+    const matches = agentGlobalSkillService
+      .listAll()
+      .filter((skill) => skill.source === source && skill.sourceUrl === sourceUrl)
+    if (matches.length > 1) {
+      throw new Error(`Multiple catalog skills share the same ${source} source URL: ${sourceUrl}`)
     }
     return matches[0] ?? null
   }
