@@ -33,14 +33,30 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   // BashOutput only reads output from an already-running command, so it never carries risk.
   if (toolName !== AgentToolsType.Bash) return []
 
-  if (/(^|[\s;&|])(rm|rmdir|del|erase|rd)\s/i.test(text)) {
+  // The `(` and backtick separators also catch commands inside $(...) and backticks.
+  if (/(^|[\s;&|`(])(rm|rmdir|del|erase|rd|dd|truncate)\s/i.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
+  }
+  // Shell output redirection truncates or modifies the target file. The leading
+  // separator requirement keeps `=>` and `>=` in inline scripts from matching.
+  if (/(^|[\s;&|])\d*>{1,2}\s*\S/.test(text)) {
+    effects.add('destructive')
+    effects.add('irreversible')
+  }
+  // Moving a file removes the source path and may overwrite the destination,
+  // but it can be moved back, so it is not marked irreversible.
+  if (/\bmv\s+\S+\s+\S+/.test(text)) {
+    effects.add('destructive')
   }
   if (/\b(?:remove|uninstall)\b/.test(lowerText) && /\b(?:npm|pnpm|yarn|bun|pip|uv|cargo|brew)\b/.test(lowerText)) {
     effects.add('destructive')
   }
-  if (/https?:\/\//i.test(text) || /\b(?:curl|wget)\b/i.test(text) || /\bgit\s+(?:push|fetch|pull)\b/i.test(text)) {
+  if (
+    /https?:\/\//i.test(text) ||
+    /\b(?:curl|wget|scp|rsync|sftp|ssh|nc)\b/i.test(text) ||
+    /\bgit\s+(?:push|fetch|pull)\b/i.test(text)
+  ) {
     effects.add('network')
   }
   if (/\bgit\s+push\b/i.test(text)) {

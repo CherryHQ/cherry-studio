@@ -27,8 +27,40 @@ describe('getPermissionRiskEffects', () => {
     expect(getPermissionRiskEffects(AgentToolsType.WebFetch, { url: 'https://example.com' })).toContain('network')
   })
 
-  it('leaves read-only commands without risk effects', () => {
-    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'pnpm test' })).toEqual([])
+  it('flags deletes hidden inside command substitution', () => {
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, { command: 'result=$(rm -rf ./dist) && echo "$result"' })
+    ).toEqual(expect.arrayContaining(['destructive', 'irreversible']))
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'echo `rm -rf ./dist`' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+  })
+
+  it('flags disk wipes and content destruction', () => {
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, { command: 'dd if=/dev/zero of=/tmp/wipe.img bs=1M count=1' })
+    ).toEqual(expect.arrayContaining(['destructive', 'irreversible']))
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'truncate -s 0 data.db' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'echo hi > notes.txt' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+  })
+
+  it('flags moves as destructive but reversible', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'mv old.txt new.txt' })).toEqual(['destructive'])
+  })
+
+  it('does not mistake arrow functions for shell redirection', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: "node -e 'list.map((x) => x)'" })).toEqual([])
+  })
+
+  it('flags remote transfers and remote execution as network operations', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'scp report.txt user@host:/tmp' })).toContain(
+      'network'
+    )
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ssh user@host uptime' })).toContain('network')
   })
 
   it('treats background output retrieval as read-only', () => {
