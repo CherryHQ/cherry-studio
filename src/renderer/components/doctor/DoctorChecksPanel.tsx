@@ -194,8 +194,8 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
 
   if (viewModel.report) {
     const summary =
-      viewModel.problemCount > 0
-        ? t('settings.doctor.summary.problems', { count: viewModel.problemCount })
+      viewModel.summary.userFixable > 0
+        ? t('settings.doctor.summary.problems', { count: viewModel.summary.userFixable })
         : viewModel.summary.error > 0 || viewModel.summary.skip > 0
           ? t('settings.doctor.summary.incomplete')
           : t(
@@ -222,7 +222,7 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
             {t('settings.doctor.summary.fixed', { count: session.fixedCheckIds.length })}
           </span>
           <span className="text-warning">
-            {t('settings.doctor.summary.needs_attention', { count: viewModel.problemCount })}
+            {t('settings.doctor.summary.needs_attention', { count: viewModel.summary.userFixable })}
           </span>
           <span className="text-muted-foreground">{summary}</span>
         </p>

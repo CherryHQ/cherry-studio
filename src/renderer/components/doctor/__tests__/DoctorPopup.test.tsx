@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
     'settings.doctor.checks.provider-api-key-present.title': 'Default provider API key',
     'settings.doctor.summary.fixed': 'Fixed: {{count}}',
     'settings.doctor.summary.needs_attention': 'Needs attention: {{count}}',
+    'settings.doctor.summary.problems': '{{count}} items need attention',
     'settings.doctor.summary.progress': '{{completed}} of {{total}} completed',
     'settings.doctor.summary.running_basic': 'Running quick basic checks…',
     'settings.doctor.summary.running_full': 'Running full checks, including network and services…'
@@ -426,6 +427,8 @@ describe('DoctorPopup', () => {
     expect(diagnosticSections).toHaveLength(2)
     expect(screen.getByRole('region', { name: 'error.diagnostics.result' })).toBeVisible()
     const actionRequired = screen.getByRole('region', { name: 'error.diagnostics.action_required' })
+    expect(screen.getByText('Needs attention: 2')).toBeVisible()
+    expect(screen.getByText('2 items need attention')).toBeVisible()
 
     expect(
       screen.queryByRole('button', { name: /settings\.doctor\.checks\.install-version-channel\.title/ })
