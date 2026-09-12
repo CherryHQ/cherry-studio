@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
-
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react'
 import type { CompositionEvent } from 'react'
 import * as React from 'react'
