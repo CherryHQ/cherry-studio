@@ -55,6 +55,7 @@ import p_qiniu from './qiniu'
 import p_qwencloud from './qwencloud'
 import p_radeon_cloud from './radeon-cloud'
 import p_rapid_mlx from './rapid-mlx'
+import p_requesty from './requesty'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
@@ -91,6 +92,7 @@ export const PROVIDERS: Provider[] = [
   p_ollama,
   p_radeon_cloud,
   p_tokendance,
+  p_requesty,
   p_new_api,
   p_lmstudio,
   p_litellm,

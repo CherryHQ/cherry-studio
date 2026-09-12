@@ -141,6 +141,7 @@ import { meta as radeonCloudMeta } from './radeon-cloud/meta'
 import { meta as rapidMlxMeta } from './rapid-mlx/meta'
 import { meta as recraftMeta } from './recraft/meta'
 import { meta as relaceMeta } from './relace/meta'
+import { meta as requestyMeta } from './requesty/meta'
 import { meta as riverflowMeta } from './riverflow/meta'
 import { meta as runwayMeta } from './runway/meta'
 import { meta as searxngMeta } from './searxng/meta'
@@ -318,6 +319,7 @@ export const PROVIDER_ICON_META_CATALOG = {
   'rapid-mlx': rapidMlxMeta,
   recraft: recraftMeta,
   relace: relaceMeta,
+  requesty: requestyMeta,
   riverflow: riverflowMeta,
   runway: runwayMeta,
   searxng: searxngMeta,
