@@ -48,12 +48,20 @@ function toNullableString(value: unknown): string | null {
   return null
 }
 
+/**
+ * The same rule as {@link toNullableString} carried from shape to range. An
+ * `integer()` column can be written a value it cannot give back: SQLite stores a
+ * non-integral double as REAL under integer affinity, and an integer at or beyond
+ * 2^53 comes back out of the driver as a `RangeError` ("Value is too large to be
+ * represented as a JavaScript number") rather than a number. Such a row inserts
+ * successfully and is then unreadable, which moves #20301's failure from the write
+ * to every later read, so a value outside the safe-integer range becomes null.
+ */
 function toNullableInteger(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? Math.trunc(value) : null
-  if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
-    return Math.trunc(Number(value))
-  }
-  if (value instanceof Date && Number.isFinite(value.getTime())) return value.getTime()
+  const safe = (candidate: number): number | null => (Number.isSafeInteger(candidate) ? candidate : null)
+  if (typeof value === 'number') return safe(Math.trunc(value))
+  if (typeof value === 'string' && value.trim() !== '') return safe(Math.trunc(Number(value)))
+  if (value instanceof Date) return safe(value.getTime())
   return null
 }
 

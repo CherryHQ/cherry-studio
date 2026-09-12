@@ -257,6 +257,52 @@ describe('McpServerMigrator', () => {
       })
     })
 
+    it('drops an integer a column cannot give back rather than persisting an unreadable row', async () => {
+      // An `integer()` column accepts more than it can return: a non-integral
+      // double is stored as REAL under integer affinity, and an integer at or
+      // beyond 2^53 comes back out of the driver as a RangeError. Such a row
+      // inserts fine and then breaks every read, which is #20301 again, one
+      // step later. Ordinary values, including fractional ones, are kept.
+      const ctx = createMockContext({
+        mcp: {
+          servers: [
+            {
+              id: 'srv-range',
+              name: 'Range',
+              timeout: Number.MAX_SAFE_INTEGER + 2,
+              trustedAt: 1e300,
+              installedAt: new Date(8.64e15 + 1)
+            },
+            {
+              id: 'srv-ok',
+              name: 'Ok',
+              timeout: 30.9,
+              trustedAt: '1700000000000',
+              installedAt: Number.MAX_SAFE_INTEGER
+            }
+          ]
+        }
+      })
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+
+      expect(result).toStrictEqual({ success: true, processedCount: 2 })
+      // Out of range, so the column is left empty rather than made unreadable.
+      expect(ctx.insertedRows[0]).toMatchObject({
+        name: 'Range',
+        timeout: null,
+        trustedAt: null,
+        installedAt: null
+      })
+      // In range: truncated, parsed and passed through as before.
+      expect(ctx.insertedRows[1]).toMatchObject({
+        name: 'Ok',
+        timeout: 30,
+        trustedAt: 1700000000000,
+        installedAt: Number.MAX_SAFE_INTEGER
+      })
+    })
+
     it('skips a row that cannot be inserted instead of failing the whole migration', async () => {
       const ctx = createMockContext({
         mcp: {
