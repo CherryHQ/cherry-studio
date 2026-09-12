@@ -3,6 +3,8 @@ import type * as NodeModule from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -10,7 +12,6 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import type * as UserDataSqliteGuard from '@main/ai/toolApproval/userDataSqliteGuard'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
 const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
@@ -34,8 +35,12 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getBuiltinAgentPluginDirectory: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
-  createAssistantServer: vi.fn(() => ({ mcpServer: {} })),
-  createAssistantFileToolsServer: vi.fn(() => ({ mcpServer: {} })),
+  createAssistantServer: vi.fn(function () {
+    return { mcpServer: {} }
+  }),
+  createAssistantFileToolsServer: vi.fn(function () {
+    return { mcpServer: {} }
+  }),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
@@ -69,7 +74,7 @@ const mocks = vi.hoisted(() => ({
   createAgentsMdLoader: vi.fn(),
   loadAgentsMdInitialContext: vi.fn(),
   agentsMdHook: vi.fn(async () => ({})),
-  platform: { isMac: false },
+  platform: { isLinux: false, isMac: false },
   isWin: false
 }))
 
@@ -144,10 +149,12 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({
-    buildPromptParts: mocks.buildPrompt,
-    buildMemoriesSection: vi.fn(async () => undefined)
-  }))
+  PromptBuilder: vi.fn(function () {
+    return {
+      buildPromptParts: mocks.buildPrompt,
+      buildMemoriesSection: vi.fn(async () => undefined)
+    }
+  })
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({ default: mocks.createAssistantServer }))
@@ -184,7 +191,9 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('@main/core/platform', () => ({
-  isLinux: false,
+  get isLinux() {
+    return mocks.platform.isLinux
+  },
   get isWin() {
     return mocks.isWin
   },
@@ -277,6 +286,10 @@ function systemPromptText(systemPrompt: unknown): string {
 }
 
 describe('buildClaudeCodeSessionSettings', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
@@ -341,6 +354,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     // test's instance. Must run after the application.get implementation above is in place.
     disposeToolPolicySnapshot('session-1')
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
+    mocks.platform.isLinux = false
     mocks.platform.isMac = false
     mocks.getShellEnv.mockResolvedValue({})
     mocks.refreshShellEnv.mockResolvedValue({})
@@ -387,6 +401,40 @@ describe('buildClaudeCodeSessionSettings', () => {
       MISE_STATE_DIR: '/managed/state',
       MISE_SHIMS_DIR: '/managed/shims'
     })
+  })
+
+  it('preserves the running Linux desktop session bus when the login shell omits it', async () => {
+    mocks.platform.isLinux = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/flatpak/session-bus')
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env!.DBUS_SESSION_BUS_ADDRESS).toBe('unix:path=/flatpak/session-bus')
+  })
+
+  it('does not invent a Linux desktop session bus when neither environment provides one', async () => {
+    mocks.platform.isLinux = true
+    mocks.getShellEnv.mockResolvedValue({ PATH: '/usr/bin' })
+    vi.stubEnv('DBUS_SESSION_BUS_ADDRESS', undefined)
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.env).not.toHaveProperty('DBUS_SESSION_BUS_ADDRESS')
   })
 
   it.each(['PostToolUse', 'PostToolUseFailure'] as const)(
@@ -2807,7 +2855,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     it('reuses one snapshot per session so a warm-hit refresh is seen by the prewarm-baked hook (Bug A)', async () => {
       // Each create returns a fresh stateful snapshot; `update()` simulates the connect-time policy
       // disabling Bash. With the fix, both builds share one snapshot and the prewarm hook sees it.
-      const created: Array<{ update: ReturnType<typeof vi.fn> }> = []
+      const created: Array<{ update: ReturnType<typeof vi.fn<(...args: any[]) => any>> }> = []
       mocks.createToolPolicySnapshot.mockImplementation(async () => {
         const disabled = new Set<string>()
         const snap = {

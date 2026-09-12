@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { MIN_COMPRESS_THRESHOLD_PERCENT, MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const prefs = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,

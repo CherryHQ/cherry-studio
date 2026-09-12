@@ -22,9 +22,9 @@ export function exportViewToUIMessage(message: MessageExportView): CherryUIMessa
   return {
     id: message.id,
     role: message.role,
-    parts: message.parts as CherryUIMessage['parts'],
+    parts: message.parts,
     metadata
-  } as CherryUIMessage
+  }
 }
 
 /** Attach each message's earlier citable tool parts so a list export resolves re-cited ids like the screen. */
@@ -44,7 +44,7 @@ export function withPriorCitationParts(messages: MessageExportView[]): MessageEx
 export function createPartsByMessageId(messages: CherryUIMessage[]): Record<string, CherryMessagePart[]> {
   const partsByMessageId: Record<string, CherryMessagePart[]> = {}
   for (const message of messages) {
-    partsByMessageId[message.id] = (message.parts ?? []) as CherryMessagePart[]
+    partsByMessageId[message.id] = message.parts ?? []
   }
   return partsByMessageId
 }

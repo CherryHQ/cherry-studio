@@ -1,5 +1,6 @@
-import type { CherryUIMessage } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryUIMessage } from '@shared/data/types/message'
 
 import { mergeMessagesById } from '../mergeMessagesById'
 
@@ -9,7 +10,7 @@ function message(id: string, value: string, metadata?: CherryUIMessage['metadata
     role: 'assistant',
     parts: [{ type: 'text', text: value }],
     metadata
-  } as CherryUIMessage
+  }
 }
 
 describe('mergeMessagesById', () => {

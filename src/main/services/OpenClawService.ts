@@ -738,7 +738,7 @@ export class OpenClawService extends BaseService {
     if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
       this.throwSchemaCapabilityError('config schema did not return a top-level object')
     }
-    return schema as OpenClawConfigSchemaNode
+    return schema
   }
 
   private throwSchemaCapabilityError(diagnostic: string): never {
@@ -1121,12 +1121,10 @@ export class OpenClawService extends BaseService {
     }
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
-    const [provider, primaryModel, models, apiKeys] = await Promise.all([
-      providerService.getByProviderId(providerId),
-      modelService.getByKey(providerId, modelId),
-      modelService.list({ providerId, enabled: true }),
-      providerService.getApiKeys(providerId, { enabled: true })
-    ])
+    const provider = providerService.getByProviderId(providerId)
+    const primaryModel = modelService.getByKey(providerId, modelId)
+    const models = modelService.list({ providerId, enabled: true })
+    const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {

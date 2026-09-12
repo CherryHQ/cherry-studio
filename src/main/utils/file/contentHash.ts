@@ -1,4 +1,5 @@
 import { xxh3 } from '@node-rs/xxhash'
+
 import { CONTENT_HASH_PATTERN, type ContentHash, ContentHashSchema } from '@shared/data/types/file'
 
 /** Algorithm tag prefixing content hashes produced by this module. */

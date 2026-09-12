@@ -1,10 +1,11 @@
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useState } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { useState } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type InputCapability, usePaintingComposerInputFiles } from '../usePaintingComposerInputFiles'
 
@@ -18,7 +19,7 @@ const makeAttachment = (sourceId: string, path: string): ComposerAttachment => (
   origin_name: 'x.png',
   ext: '.png',
   size: 100,
-  type: 'image' as ComposerAttachment['type']
+  type: 'image'
 })
 
 describe('usePaintingComposerInputFiles', () => {
@@ -129,8 +130,8 @@ describe('usePaintingComposerInputFiles', () => {
     })
 
   it('reuses seeded entries and carries a seed-failed one to the tail', async () => {
-    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockImplementation(async ({ id }: { id: string }) =>
-      id === 'fe-bad' ? Promise.reject(new Error('unresolvable')) : `/p/${id}.png`
+    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(
+      async ({ id }: { id: string }) => (id === 'fe-bad' ? Promise.reject(new Error('unresolvable')) : `/p/${id}.png`)
     )
 
     // fe-bad fails to seed (no chip) but survives; fe-ok seeds and materializes from cache.
@@ -154,14 +155,20 @@ describe('usePaintingComposerInputFiles', () => {
     // would keep handing out the dead id, which PaintingService silently drops from
     // the refs: the chip stays visible while its image vanishes from the request.
     const seeded = makeEntry('fe-gone')
-    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockResolvedValue('/p/fe-gone.png')
+    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockResolvedValue(
+      '/p/fe-gone.png'
+    )
 
     const { result } = renderStatefulHarness('p-reclaimed', [seeded])
     await waitFor(() => expect(result.current.files).toHaveLength(1))
 
     // The entry is reclaimed between seeding and the send: the probe now rejects.
-    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not found'))
-    ;(window.api.file.createInternalEntry as ReturnType<typeof vi.fn>).mockResolvedValue(makeEntry('fe-fresh'))
+    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockRejectedValue(
+      new Error('not found')
+    )
+    ;(window.api.file.createInternalEntry as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockResolvedValue(
+      makeEntry('fe-fresh')
+    )
 
     let out = { entries: [] as FileEntry[], complete: false }
     await act(async () => {
@@ -175,7 +182,9 @@ describe('usePaintingComposerInputFiles', () => {
   })
 
   it('carries every input through when all seeds fail to resolve their path', async () => {
-    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('blob missing'))
+    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockRejectedValue(
+      new Error('blob missing')
+    )
 
     const { result } = renderStatefulHarness('p-fail', [makeEntry('fe-1'), makeEntry('fe-2')])
 
@@ -196,7 +205,7 @@ describe('usePaintingComposerInputFiles', () => {
   })
 
   it('drops the chip and notifies when an attachment fails to materialize', async () => {
-    ;(window.api.file.createInternalEntry as ReturnType<typeof vi.fn>).mockImplementation(
+    ;(window.api.file.createInternalEntry as ReturnType<typeof vi.fn<(...args: any[]) => any>>).mockImplementation(
       async ({ path }: { path: string }) =>
         path.includes('bad') ? Promise.reject(new Error('promote failed')) : makeEntry('fe-ok')
     )
@@ -357,7 +366,7 @@ describe('usePaintingComposerInputFiles', () => {
     window.api = {
       ...window.api,
       file: { ...window.api.file, getPhysicalPath: vi.fn(() => pending) }
-    } as unknown as typeof window.api
+    }
     return release
   }
 
