@@ -105,4 +105,17 @@ describe('getPermissionRiskEffects', () => {
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'ncat -l 8080' })).toContain('network')
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'socat TCP-LISTEN:8080 -' })).toContain('network')
   })
+
+  it('flags batch deletion via find', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: "find ./dist -name '*.tmp' -delete" })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+  })
+
+  it('flags download and remote-connection tools as network operations', () => {
+    expect(
+      getPermissionRiskEffects(AgentToolsType.Bash, { command: 'aria2c --seed-time=0 release.torrent' })
+    ).toContain('network')
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'telnet example.com 80' })).toContain('network')
+  })
 })

@@ -48,6 +48,11 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     effects.add('destructive')
     effects.add('irreversible')
   }
+  // `find ... -delete` removes matching files in batch.
+  if (/\bfind\b[\s\S]*\s-delete(\s|$)/.test(text)) {
+    effects.add('destructive')
+    effects.add('irreversible')
+  }
   // Moving a file removes the source path and may overwrite the destination,
   // but it can be moved back, so it is not marked irreversible.
   if (/\bmv\s+\S+\s+\S+/.test(text)) {
@@ -58,7 +63,7 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   }
   if (
     /https?:\/\//i.test(text) ||
-    /\b(?:curl|wget|scp|rsync|sftp|ssh|nc|ncat|socat)\b/i.test(text) ||
+    /\b(?:curl|wget|scp|rsync|sftp|ssh|nc|ncat|socat|aria2c|telnet)\b/i.test(text) ||
     /\bgit\s+(?:push|fetch|pull|clone)\b/i.test(text)
   ) {
     effects.add('network')
