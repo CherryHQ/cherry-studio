@@ -220,4 +220,49 @@ describe('Agent tool-boundary text', () => {
 
     expect(chunks).toEqual(sourceChunks)
   })
+
+  it('flushes buffered chunks before propagating a UI stream error', async () => {
+    const streamError = new Error('UI stream failed')
+    const sourceChunks: UIMessageChunk[] = [
+      { type: 'text-start', id: 'text-1' },
+      { type: 'text-delta', id: 'text-1', delta: `Keep this ${BOUNDARY_MARKERS}` },
+      { type: 'text-end', id: 'text-1' }
+    ]
+    let sourceIndex = 0
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            pull(controller) {
+              const chunk = sourceChunks[sourceIndex++]
+              if (chunk) controller.enqueue(chunk)
+              else controller.error(streamError)
+            }
+          }),
+        steps: Promise.resolve([])
+      })
+    })
+
+    const agent = await makeAgent()
+    const messages = [{ id: 'user-1', role: 'user' as const, parts: [{ type: 'text' as const, text: 'Continue.' }] }]
+    const reader = agent.stream(messages, new AbortController().signal).getReader()
+    const chunks: UIMessageChunk[] = []
+
+    await expect(
+      (async () => {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) return
+          chunks.push(value)
+        }
+      })()
+    ).rejects.toBe(streamError)
+    expect(chunks.map((chunk) => chunk.type)).toEqual(['text-start', 'text-delta', 'text-delta', 'text-end'])
+    expect(
+      chunks
+        .filter((chunk): chunk is Extract<UIMessageChunk, { type: 'text-delta' }> => chunk.type === 'text-delta')
+        .map((chunk) => chunk.delta)
+        .join('')
+    ).toBe(`Keep this ${BOUNDARY_MARKERS}`)
+  })
 })
