@@ -10,6 +10,8 @@ import { createContext, use, useMemo } from 'react'
 
 import type { CherryMessagePart } from '@shared/data/types/message'
 
+import { MessageImageUrlsProvider } from './MessageImageUrlsContext'
+
 // ============================================================================
 // Refresh Context — allows deep components to trigger data refresh
 // ============================================================================
@@ -69,7 +71,9 @@ export function MessagePartsScopeProvider({
   const value = useMemo(() => ({ messageId, parts }), [messageId, parts])
   return (
     <MessageIdContext value={messageId}>
-      <MessagePartsScopeContext value={value}>{children}</MessagePartsScopeContext>
+      <MessagePartsScopeContext value={value}>
+        <MessageImageUrlsProvider parts={parts}>{children}</MessageImageUrlsProvider>
+      </MessagePartsScopeContext>
     </MessageIdContext>
   )
 }
