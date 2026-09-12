@@ -666,7 +666,11 @@ describe('AgentSessionService', () => {
         { endpoint: '/agent-workspaces', kind: 'membership' }
       ])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(3, [
+        { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
+        { endpoint: '/followup-queue-states' }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(3)
     })
   })
 
@@ -1152,7 +1156,11 @@ describe('AgentSessionService', () => {
       { endpoint: '/agent-workspaces', kind: 'membership' }
     ])
     expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [{ endpoint: '/pins', kind: 'membership' }])
-    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+    expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(3, [
+      { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey' },
+      { endpoint: '/followup-queue-states' }
+    ])
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(3)
   })
 
   it('clears a paused task projection immediately when its bound session is deleted', async () => {

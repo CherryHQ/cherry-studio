@@ -19,6 +19,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/AgentWorkspaceService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -39,6 +40,7 @@ import type {
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { sessionFollowupScopePrefix } from '@shared/data/types/followupQueue'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import {
@@ -655,6 +657,7 @@ export class AgentSessionService {
     )
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     if (result.deletedDuplicateSessionIds.length > 0) pinService.notifyPurged()
+    if (result.deletedDuplicateSessionIds.length > 0) followupQueueService.notifyPurged()
     return {
       session: result.session,
       created: result.created,
@@ -982,6 +985,7 @@ export class AgentSessionService {
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
     if (result.deletedIds.length > 0) pinService.notifyPurged()
+    if (result.deletedIds.length > 0) followupQueueService.notifyPurged()
     return result
   }
 
@@ -1042,6 +1046,7 @@ export class AgentSessionService {
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
     if (result.deletedIds.length > 0) pinService.notifyPurged()
+    if (result.deletedIds.length > 0) followupQueueService.notifyPurged()
     logger.info(options.permanent === true ? 'Permanently deleted sessions' : 'Moved sessions to Recycle Bin', {
       count: result.deletedIds.length
     })
@@ -1200,6 +1205,7 @@ export class AgentSessionService {
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
     this.notifyReadModelChange(result.deletedIds, 'membership')
     if (result.deletedIds.length > 0) pinService.notifyPurged()
+    if (result.deletedIds.length > 0) followupQueueService.notifyPurged()
     logger.info('Deleted user workspace', {
       workspaceId,
       deletedSessionCount: result.deletedIds.length,
@@ -1222,6 +1228,7 @@ export class AgentSessionService {
       .all()
     const sessionIds = deletedSessions.map((session) => session.id)
     pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
+    for (const id of sessionIds) followupQueueService.purgeForScopePrefixTx(tx, sessionFollowupScopePrefix(id))
     return sessionIds
   }
 
@@ -1247,6 +1254,7 @@ export class AgentSessionService {
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
     if (result.deletedIds.length > 0) pinService.notifyPurged()
+    if (result.deletedIds.length > 0) followupQueueService.notifyPurged()
     logger.info(
       options.permanent === true ? 'Permanently deleted agent sessions' : 'Moved agent sessions to Recycle Bin',
       {
@@ -1397,6 +1405,7 @@ export class AgentSessionService {
     const deletedIds = rows.map((row) => row.id)
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
+    for (const id of deletedIds) followupQueueService.purgeForScopePrefixTx(tx, sessionFollowupScopePrefix(id))
     return deletedIds
   }
 

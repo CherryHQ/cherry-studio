@@ -1,169 +1,270 @@
+import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const store = new Map<string, unknown>()
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    getCasual: vi.fn((key: string) => store.get(key)),
-    setCasual: vi.fn((key: string, value: unknown) => {
-      store.set(key, value)
-    })
-  }
+import { toast } from '@renderer/services/toast'
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const { useFollowupQueue } = await import('../useFollowupQueue')
+import { FOLLOWUP_QUEUE_LIMIT, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
 
-const draft = (text: string) => ({ text, tokens: [] }) as any
-const payload = (text: string) => ({ text, userMessageParts: [{ type: 'text', text }] }) as any
-const item = (id: string, text: string) => ({ id, draft: draft(text), payload: payload(text) })
+import { useFollowupQueue } from '../useFollowupQueue'
 
-const persistedTexts = (key: string) => (store.get(key) as Array<{ draft: { text: string } }>).map((i) => i.draft.text)
+const SCOPE = 's1'
+
+const row = (id: string, text: string, status: FollowupQueueRow['status'] = 'pending'): FollowupQueueRow => ({
+  id,
+  scopeKey: SCOPE,
+  draft: { text, tokens: [] },
+  payload: { text, userMessageParts: [] },
+  status,
+  orderKey: id,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z'
+})
+
+const draft = (text: string) => ({ text, tokens: [] }) as never
+const payload = (text: string) => ({ text, userMessageParts: [] }) as never
+
+function wireQuery(rows: FollowupQueueRow[], paused = false) {
+  const refetch = vi.fn()
+  const refetchState = vi.fn()
+  mockUseQuery.mockImplementation((path: string) => {
+    if (path === '/followup-queues') {
+      return { data: rows, isLoading: false, isRefreshing: false, error: undefined, refetch, mutate: vi.fn() }
+    }
+    if (path === '/followup-queue-states') {
+      return {
+        data: { scopeKey: SCOPE, paused, createdAt: '', updatedAt: '' },
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: refetchState,
+        mutate: vi.fn()
+      }
+    }
+    throw new Error(`unexpected query path ${path}`)
+  })
+  return { refetch, refetchState }
+}
+
+function wireMutations() {
+  const postTrigger = vi.fn(async (): Promise<any> => undefined)
+  const deleteTrigger = vi.fn(async (): Promise<any> => undefined)
+  const reorderTrigger = vi.fn(async (): Promise<any> => undefined)
+  const claimTrigger = vi.fn(async (): Promise<any> => undefined)
+  const failTrigger = vi.fn(async (): Promise<any> => undefined)
+  const setPausedTrigger = vi.fn(async (): Promise<any> => undefined)
+  mockUseMutation.mockImplementation((method: string, path: string) => {
+    if (method === 'POST' && path === '/followup-queues')
+      return { trigger: postTrigger, isLoading: false, error: undefined }
+    if (method === 'DELETE' && path === '/followup-queues/:id')
+      return { trigger: deleteTrigger, isLoading: false, error: undefined }
+    if (method === 'PATCH' && path === '/followup-queues/order:batch')
+      return { trigger: reorderTrigger, isLoading: false, error: undefined }
+    if (method === 'POST' && path === '/followup-queues/:id/claim')
+      return { trigger: claimTrigger, isLoading: false, error: undefined }
+    if (method === 'POST' && path === '/followup-queues/:id/fail')
+      return { trigger: failTrigger, isLoading: false, error: undefined }
+    if (method === 'PUT' && path === '/followup-queue-states')
+      return { trigger: setPausedTrigger, isLoading: false, error: undefined }
+    throw new Error(`unexpected mutation ${method} ${path}`)
+  })
+  return { postTrigger, deleteTrigger, reorderTrigger, claimTrigger, failTrigger, setPausedTrigger }
+}
+
+function baseProps(overrides: Record<string, unknown> = {}) {
+  return {
+    scopeKey: SCOPE,
+    isFulfilled: false,
+    markSeen: vi.fn(),
+    onDrain: vi.fn(async () => true),
+    ...overrides
+  }
+}
 
 describe('useFollowupQueue', () => {
-  beforeEach(() => store.clear())
-
-  it('enqueues (storing draft + payload, persisting) and removeId dequeues', () => {
-    const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
-    )
-
-    act(() => result.current.enqueue(draft('a'), payload('a')))
-    act(() => result.current.enqueue(draft('b'), payload('b')))
-
-    expect(result.current.items.map((i) => i.draft.text)).toEqual(['a', 'b'])
-    expect(result.current.items.map((i) => i.payload.text)).toEqual(['a', 'b'])
-    expect(persistedTexts('followup-queue.s1')).toEqual(['a', 'b'])
-
-    act(() => result.current.removeId(result.current.items[0].id))
-    expect(result.current.items.map((i) => i.draft.text)).toEqual(['b'])
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
   })
 
-  it('reorders the queue and persists the new order', () => {
-    const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
-    )
+  it('surfaces the persisted rows as items', () => {
+    wireQuery([row('h', 'head'), row('t', 'tail')])
+    wireMutations()
 
-    act(() => result.current.enqueue(draft('a'), payload('a')))
-    act(() => result.current.enqueue(draft('b'), payload('b')))
-    const [first, second] = result.current.items
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
 
-    act(() => result.current.reorder([second, first]))
-
-    expect(result.current.items.map((i) => i.draft.text)).toEqual(['b', 'a'])
-    expect(persistedTexts('followup-queue.s1')).toEqual(['b', 'a'])
-  })
-
-  it('reloads the queue from the cache when the scopeKey changes', () => {
-    store.set('followup-queue.s2', [item('x', 'queued')])
-    const { result, rerender } = renderHook(
-      ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() }),
-      { initialProps: { scopeKey: 's1' } }
-    )
-
-    expect(result.current.items).toEqual([])
-    rerender({ scopeKey: 's2' })
-    expect(result.current.items.map((i) => i.draft.text)).toEqual(['queued'])
-  })
-
-  it('drains the head on the live→idle edge, then dequeues on success', async () => {
-    const onDrain = vi.fn().mockResolvedValue(true)
-    const markSeen = vi.fn()
-    const headPayload = payload('head')
-    store.set('followup-queue.s1', [{ id: 'h', draft: draft('head'), payload: headPayload }])
-
-    const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
-      { initialProps: { isFulfilled: false } }
-    )
-
-    expect(onDrain).not.toHaveBeenCalled()
-
-    await act(async () => {
-      rerender({ isFulfilled: true })
-    })
-
-    expect(markSeen).toHaveBeenCalled()
-    expect(onDrain).toHaveBeenCalledWith(headPayload)
-    expect(result.current.items).toEqual([])
-  })
-
-  it('keeps the head queued and reports failure when auto-drain fails', async () => {
-    const onDrain = vi.fn().mockResolvedValue(false)
-    const onDrainFailed = vi.fn()
-    const markSeen = vi.fn()
-    const head = item('h', 'head')
-    store.set('followup-queue.s1', [head])
-
-    const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
-      { initialProps: { isFulfilled: false } }
-    )
-
-    await act(async () => {
-      rerender({ isFulfilled: true })
-    })
-
-    expect(markSeen).toHaveBeenCalled()
-    expect(onDrain).toHaveBeenCalledWith(head.payload)
-    expect(onDrainFailed).toHaveBeenCalledOnce()
-    expect(result.current.items).toEqual([head])
-  })
-
-  it('keeps the head queued and reports failure when auto-drain rejects', async () => {
-    const onDrain = vi.fn().mockRejectedValue(new Error('drain blew up'))
-    const onDrainFailed = vi.fn()
-    const markSeen = vi.fn()
-    const head = item('h', 'head')
-    store.set('followup-queue.s1', [head])
-
-    const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain, onDrainFailed }),
-      { initialProps: { isFulfilled: false } }
-    )
-
-    await act(async () => {
-      rerender({ isFulfilled: true })
-    })
-
-    expect(onDrain).toHaveBeenCalledWith(head.payload)
-    expect(onDrainFailed).toHaveBeenCalledOnce()
-    expect(result.current.items).toEqual([head])
-  })
-
-  it('does not drain while paused', async () => {
-    const onDrain = vi.fn().mockResolvedValue(true)
-    store.set('followup-queue.s1', [item('h', 'head')])
-
-    const { result, rerender } = renderHook(
-      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
-      { initialProps: { isFulfilled: false } }
-    )
-
-    act(() => result.current.setPaused(true))
-    await act(async () => {
-      rerender({ isFulfilled: true })
-    })
-
-    expect(onDrain).not.toHaveBeenCalled()
-    expect(result.current.items).toHaveLength(1)
-  })
-
-  it('keeps each conversation paused until the user resumes it', async () => {
-    const onDrain = vi.fn().mockResolvedValue(true)
-    store.set('followup-queue.s1', [item('h', 'head')])
-
-    const { result, rerender } = renderHook(
-      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
-      { initialProps: { scopeKey: 's1', isFulfilled: false } }
-    )
-
-    act(() => result.current.setPaused(true))
-    act(() => rerender({ scopeKey: 's2', isFulfilled: false }))
+    expect(result.current.items.map((item) => item.draft.text)).toEqual(['head', 'tail'])
+    expect(result.current.items.map((item) => item.payload.text)).toEqual(['head', 'tail'])
     expect(result.current.paused).toBe(false)
-    await act(async () => rerender({ scopeKey: 's1', isFulfilled: true }))
+  })
+
+  it('enqueues through the API and reports success', async () => {
+    wireQuery([])
+    const { postTrigger } = wireMutations()
+    postTrigger.mockResolvedValueOnce(row('n', 'new'))
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let queued = false
+    await act(async () => {
+      queued = await result.current.enqueue(draft('new'), payload('new'))
+    })
+
+    expect(queued).toBe(true)
+    expect(postTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, draft: draft('new'), payload: payload('new') }
+    })
+  })
+
+  it('refuses to enqueue past the limit without calling the API', async () => {
+    wireQuery(Array.from({ length: FOLLOWUP_QUEUE_LIMIT }, (_, i) => row(`id-${i}`, `item-${i}`)))
+    const { postTrigger } = wireMutations()
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let queued = true
+    await act(async () => {
+      queued = await result.current.enqueue(draft('overflow'), payload('overflow'))
+    })
+
+    expect(queued).toBe(false)
+    expect(postTrigger).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('chat.input.followup_queue.limit_reached')
+  })
+
+  it('reports a failed enqueue without clearing the draft', async () => {
+    wireQuery([])
+    const { postTrigger } = wireMutations()
+    postTrigger.mockRejectedValueOnce(new Error('db down'))
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    let queued = true
+    await act(async () => {
+      queued = await result.current.enqueue(draft('a'), payload('a'))
+    })
+
+    expect(queued).toBe(false)
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('drains the head through claim → send → delete on the idle edge', async () => {
+    const head = row('h', 'head')
+    wireQuery([head, row('t', 'tail')])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const onDrain = vi.fn(async () => true)
+    const markSeen = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, markSeen, onDrain })),
+      {
+        initialProps: { isFulfilled: false }
+      }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(markSeen).toHaveBeenCalled()
+    expect(claimTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(onDrain).toHaveBeenCalledWith(head.payload)
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).not.toHaveBeenCalled()
+  })
+
+  it('marks the head failed and reports when the send fails', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    const onDrain = vi.fn(async () => false)
+    const onDrainFailed = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(deleteTrigger).not.toHaveBeenCalled()
+    expect(onDrainFailed).toHaveBeenCalledOnce()
+  })
+
+  it('skips the send silently when another window wins the claim', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: false })
+    const onDrain = vi.fn(async () => true)
+    const onDrainFailed = vi.fn()
+
+    const { rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain, onDrainFailed })),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+
+    expect(onDrain).not.toHaveBeenCalled()
+    expect(onDrainFailed).not.toHaveBeenCalled()
+    expect(deleteTrigger).not.toHaveBeenCalled()
+  })
+
+  it('does not drain while paused and toggles pause through the API', async () => {
+    wireQuery([row('h', 'head')], true)
+    const { setPausedTrigger } = wireMutations()
+    const onDrain = vi.fn(async () => true)
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue(baseProps({ isFulfilled, onDrain })),
+      { initialProps: { isFulfilled: false } }
+    )
 
     expect(result.current.paused).toBe(true)
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
     expect(onDrain).not.toHaveBeenCalled()
-    expect(result.current.items).toHaveLength(1)
+
+    act(() => result.current.setPaused(false))
+    expect(setPausedTrigger).toHaveBeenCalledWith({
+      body: { scopeKey: SCOPE, paused: false }
+    })
+  })
+
+  it('removes and reorders through the API', () => {
+    const first = row('a', 'a')
+    const second = row('b', 'b')
+    wireQuery([first, second])
+    const { deleteTrigger, reorderTrigger } = wireMutations()
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    act(() => result.current.removeId('a'))
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'a' } })
+
+    act(() => result.current.reorder([result.current.items[1], result.current.items[0]]))
+    expect(reorderTrigger).toHaveBeenCalledWith({
+      body: { moves: [{ id: 'a', anchor: { after: 'b' } }] }
+    })
+  })
+
+  it('refetches on cross-window queue changes', () => {
+    const { refetch } = wireQuery([row('h', 'head')])
+    wireMutations()
+    renderHook(() => useFollowupQueue(baseProps()))
+
+    MockUseDataApiUtils.emitDataChange([{ endpoint: '/followup-queues', kind: 'membership' }])
+
+    expect(refetch).toHaveBeenCalled()
   })
 })
