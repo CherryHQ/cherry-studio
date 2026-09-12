@@ -782,19 +782,24 @@ describe('useFollowupQueue', () => {
   })
 
   it('discards cached entries with a misshapen draft instead of crashing the dock', () => {
+    const validPayload = payload('x')
     seedQueue('s1', [
       item('good', 'fine'),
       { id: 'bad-text', draft: { text: 42, tokens: [] }, payload: payload('x') },
       { id: 'bad-tokens', draft: { text: 'x', tokens: 'nope' }, payload: payload('x') },
+      { id: 'bad-token-element', draft: { text: 'x', tokens: [null] }, payload: payload('x') },
       { id: 'bad-draft', draft: null, payload: payload('x') },
       { id: 'bad-payload', draft: draft('x'), payload: 'nope' },
+      { id: 'bad-models', draft: draft('x'), payload: { ...validPayload, mentionedModels: 'nope' } },
+      { id: 'bad-attachments', draft: draft('x'), payload: { ...validPayload, attachments: {} } },
       { id: '', draft: draft('x'), payload: payload('x') }
     ])
     const { result } = renderHook(() =>
       useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
     )
 
-    // Only the well-formed entry survives (the dock calls tokens.some/text.trim).
+    // Only the well-formed entry survives (the dock calls tokens.some/text.trim,
+    // filters on token.kind, and edit-restore maps mentionedModels).
     expect(result.current.items.map((i) => i.id)).toEqual(['good'])
   })
 
@@ -897,6 +902,83 @@ describe('useFollowupQueue', () => {
       resolveDrain(true)
     })
     expect(onDrain).toHaveBeenCalledTimes(1)
+  })
+
+  it('a remount does not resend a head another instance is still sending', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    const first = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+    await act(async () => {
+      first.rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    first.unmount()
+
+    // Remount while the original send is still pending, already fulfilled: the
+    // durable claim blocks a replacement send for the same payload.
+    const second = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: true } }
+    )
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    // The original send succeeds: dequeued from the shared entry, still one send.
+    await act(async () => {
+      resolveDrain(true)
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(persistedTexts('s1')).toEqual([])
+
+    // The remounted hook still lists the ghost row; the next edge syncs it away
+    // instead of resending it.
+    await act(async () => {
+      second.rerender({ isFulfilled: false })
+    })
+    await act(async () => {
+      second.rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    expect(second.result.current.items).toEqual([])
+  })
+
+  it('a stale failure releases the durable claim so the scope can drain on return', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+      .mockResolvedValue(true)
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { result, rerender } = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ scopeKey: 's1', isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      rerender({ scopeKey: 's2', isFulfilled: true })
+    })
+    await act(async () => {
+      resolveDrain(false)
+    })
+    // Nothing sent: the head stays queued and the claim is released.
+    expect(persistedTexts('s1')).toEqual(['first'])
+
+    // Returning to the scope drains the head on the fulfilled edge (no stall).
+    await act(async () => {
+      rerender({ scopeKey: 's1', isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(result.current.items).toEqual([])
   })
 
   it('tryClaimSend fails while an auto-drain is in flight', async () => {

@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),
   timeoutCallbacks: new Map<string, () => void>(),
   persistCache: new Map<string, unknown>(),
+  casualCache: new Map<string, unknown>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
   updateAgent: vi.fn(),
@@ -292,9 +293,11 @@ vi.mock('@data/CacheService', () => ({
     get: vi.fn(() => undefined),
     has: vi.fn(() => false),
     set: vi.fn(),
-    getCasual: vi.fn(() => ''),
-    hasCasual: vi.fn(() => false),
-    setCasual: vi.fn(),
+    getCasual: vi.fn((key: string) => mocks.casualCache.get(key)),
+    hasCasual: vi.fn((key: string) => mocks.casualCache.has(key)),
+    setCasual: vi.fn((key: string, value: unknown) => {
+      mocks.casualCache.set(key, value)
+    }),
     getPersist: vi.fn((key: string) => mocks.persistCache.get(key) ?? {}),
     setPersist: vi.fn((key: string, value: unknown) => {
       const prev = mocks.persistCache.get(key) ?? {}
@@ -811,6 +814,7 @@ describe('AgentComposer', () => {
     mocks.topicFulfilled = false
     mocks.markTopicSeen.mockReset()
     mocks.persistCache.clear()
+    mocks.casualCache.clear()
     mocks.listDirectory.mockReset()
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()
@@ -822,11 +826,16 @@ describe('AgentComposer', () => {
     vi.mocked(cacheService.has).mockReset()
     vi.mocked(cacheService.has).mockReturnValue(false)
     vi.mocked(cacheService.set).mockReset()
+    // Map-backed so the follow-up queue's entry checks read back what the hook
+    // persisted (the production casual-cache contract).
     vi.mocked(cacheService.getCasual).mockReset()
-    vi.mocked(cacheService.getCasual).mockReturnValue(undefined)
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) => mocks.casualCache.get(key))
     vi.mocked(cacheService.hasCasual).mockReset()
-    vi.mocked(cacheService.hasCasual).mockReturnValue(false)
+    vi.mocked(cacheService.hasCasual).mockImplementation((key: string) => mocks.casualCache.has(key))
     vi.mocked(cacheService.setCasual).mockReset()
+    vi.mocked(cacheService.setCasual).mockImplementation((key: string, value: unknown) => {
+      mocks.casualCache.set(key, value)
+    })
     mocks.createInternalEntry.mockReset()
     mocks.createInternalEntry.mockResolvedValue({ id: 'fe-1', ext: 'png' })
     mocks.getPhysicalPath.mockReset()
