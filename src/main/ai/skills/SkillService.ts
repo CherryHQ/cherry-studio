@@ -529,11 +529,11 @@ export class SkillService {
     const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(requestedFolderName)
 
     const existingByFolderName = this.findCatalogSkillCaseInsensitive(folderName)
-    const existing =
-      existingByFolderName ??
-      (provenance.folderNameFallback && source === 'marketplace' && sourceUrl
+    const existingBySourceUrl =
+      provenance.folderNameFallback && source === 'marketplace' && sourceUrl
         ? this.findCatalogSkillBySourceUrl(source, sourceUrl)
-        : null)
+        : null
+    const existing = existingBySourceUrl ?? existingByFolderName
     if (existing) {
       // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
       // existing folder in place. Anything else — a marketplace install colliding with a builtin,
@@ -550,7 +550,8 @@ export class SkillService {
       }
     }
 
-    const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+    const storageFolderName = existing?.folderName ?? folderName
+    const storageEntry = await this.findStorageFolderCaseInsensitive(storageFolderName)
     if (!existing && storageEntry) {
       throw new Error(
         `Folder name "${folderName}" conflicts with an existing library directory "${storageEntry}"; ` +

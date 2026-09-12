@@ -1083,6 +1083,72 @@ describe('SkillService', () => {
       }
     })
 
+    it('reinstalls a legacy root skill without overwriting an unrelated derived-folder skill', async () => {
+      const { skillService, dataSkillsRoot, mirrorRoot, restoreGetPath } = await setupGithubRootInstall()
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/legacy-repo/refs/heads/main/SKILL.md'
+      const legacySkillDir = path.join(dataSkillsRoot, 'content')
+      const unrelatedSkillDir = path.join(dataSkillsRoot, 'Renamed_Skill')
+
+      try {
+        await seedAgent()
+        await dbh.db.insert(agentGlobalSkillTable).values([
+          {
+            id: SKILL_ID_1,
+            name: 'Legacy Skill',
+            folderName: 'content',
+            source: 'marketplace',
+            sourceUrl,
+            contentHash: 'legacy-hash',
+            isEnabled: false
+          },
+          {
+            id: SKILL_ID_2,
+            name: 'Renamed Skill',
+            folderName: 'Renamed_Skill',
+            source: 'marketplace',
+            sourceUrl: 'https://raw.githubusercontent.com/other/repo/refs/heads/main/SKILL.md',
+            contentHash: 'unrelated-hash',
+            isEnabled: true
+          }
+        ])
+        await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+        await fs.promises.mkdir(legacySkillDir, { recursive: true })
+        await fs.promises.mkdir(unrelatedSkillDir, { recursive: true })
+        await fs.promises.writeFile(path.join(legacySkillDir, 'SKILL.md'), '# legacy skill')
+        await fs.promises.writeFile(path.join(unrelatedSkillDir, 'SKILL.md'), '# unrelated skill')
+        await skillService['linkMirror']('content')
+        await skillService['linkMirror']('Renamed_Skill')
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Renamed Skill', declaredName: 'Renamed Skill' }) as never
+        )
+
+        const reinstalled = await skillService.install({
+          installSource: 'github:https://github.com/owner/legacy-repo/blob/main/SKILL.md'
+        })
+
+        const rows = dbh.db.select().from(agentGlobalSkillTable).all()
+        const agentSkill = dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1)).get()
+        expect(rows).toHaveLength(2)
+        expect(reinstalled).toMatchObject({ id: SKILL_ID_1, folderName: 'content', isGlobalEnabled: false })
+        expect(rows.find((row) => row.id === SKILL_ID_2)).toMatchObject({
+          folderName: 'Renamed_Skill',
+          contentHash: 'unrelated-hash',
+          isEnabled: true
+        })
+        expect(agentSkill).toMatchObject({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
+        await expect(fs.promises.readFile(path.join(legacySkillDir, 'SKILL.md'), 'utf-8')).resolves.toBe('# skill')
+        await expect(fs.promises.readFile(path.join(unrelatedSkillDir, 'SKILL.md'), 'utf-8')).resolves.toBe(
+          '# unrelated skill'
+        )
+        await expect(fs.promises.readFile(path.join(mirrorRoot, 'Renamed_Skill', 'SKILL.md'), 'utf-8')).resolves.toBe(
+          '# unrelated skill'
+        )
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('does not overwrite an existing repository-root skill with a different GitHub origin', async () => {
       const { skillService, dataSkillsRoot, restoreGetPath } = await setupGithubRootInstall()
       const metadata = githubRootMetadata({ name: 'Same Skill', declaredName: 'Same Skill' })
