@@ -21,6 +21,16 @@ describe('main i18n', () => {
       expect(getAppLanguage()).toBe('en-US')
     })
 
+    it.each([
+      ['de', 'de-DE'],
+      ['fr', 'fr-FR'],
+      ['ja', 'ja-JP'],
+      ['ru', 'ru-RU']
+    ] as const)('maps the language-only system locale %s to %s', (systemLocale, expected) => {
+      vi.mocked(app.getLocale).mockReturnValueOnce(systemLocale)
+      expect(getAppLanguage()).toBe(expected)
+    })
+
     it('falls back to the default language when the system locale is not in the catalog', () => {
       // No preference set and 'ko-KR' has no catalog → resolves to the default,
       // not the raw system locale.

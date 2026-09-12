@@ -32,8 +32,7 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
-import { SUPPORTED_LANGUAGES, t } from '@main/i18n'
-import { defaultLanguage } from '@shared/utils/languages'
+import { resolveSystemLanguage, t } from '@main/i18n'
 
 const logger = loggerService.withContext('V2MigrationGate')
 
@@ -86,8 +85,7 @@ async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: 
       logger.error('Migration database unavailable', error as Error)
       migrationEngine.close()
       await app.whenReady()
-      const systemLocale = app.getLocale()
-      const language = SUPPORTED_LANGUAGES.find((supported) => supported === systemLocale) ?? defaultLanguage
+      const language = resolveSystemLanguage(app.getLocale())
       const { response } = await dialog.showMessageBox({
         type: 'error',
         title: t('dialog.migration_database_unavailable.title', undefined, language),

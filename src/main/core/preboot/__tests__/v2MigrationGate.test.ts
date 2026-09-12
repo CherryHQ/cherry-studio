@@ -347,7 +347,7 @@ describe('runV2MigrationGate', () => {
       })
       needsMigrationMock.mockResolvedValue(false)
       showMessageBoxMock.mockResolvedValueOnce({ response: 0 })
-      getLocaleMock.mockReturnValue('zh-CN')
+      getLocaleMock.mockReturnValue('zh')
       stubMigrationV2()
       stubElectron()
       stubApplication()
