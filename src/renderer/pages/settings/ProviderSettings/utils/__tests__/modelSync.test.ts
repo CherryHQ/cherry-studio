@@ -274,7 +274,9 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('forwards all discovered capabilities for a custom model', () => {
+  it('does not forward capabilities for a custom model either; the row derives them from the registry', () => {
+    // Persisting the enriched snapshot would pin capabilitiesExplicit on creation,
+    // freezing whatever the catalog said at add time instead of tracking updates (#20239).
     const dto = toCreateModelDto('ollama', {
       id: 'ollama::acme-thinker:latest',
       providerId: 'ollama',
@@ -286,7 +288,7 @@ describe('toCreateModelDto', () => {
       isHidden: false
     })
 
-    expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(dto.capabilities).toBeUndefined()
   })
 
   it('persists a discovered context window so the runtime can send num_ctx', () => {
