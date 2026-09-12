@@ -30,7 +30,6 @@ import EditIcon from '@renderer/components/icons/EditIcon'
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdownLight'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
@@ -55,6 +54,8 @@ export interface MessageMenuBarActionContext {
   messageParts: CherryMessagePart[]
   messageForExport: MessageExportView
   messageContainerRef: RefObject<HTMLDivElement>
+  acquireMessageCaptureLease?: (messageId: string) => () => void
+  getRenderedMessageElement?: (messageId: string) => HTMLElement | null
   mainTextContent: string
   selection?: MessageListSelectionState
   menuConfig: MessageMenuConfig
@@ -156,6 +157,30 @@ function registerToolbarAction(
   })
 }
 
+function getMessageCaptureRef(context: MessageMenuBarActionContext): RefObject<HTMLElement | null> {
+  const getRenderedMessageElement = context.getRenderedMessageElement
+  if (!getRenderedMessageElement) return context.messageContainerRef
+
+  return {
+    get current() {
+      const element = getRenderedMessageElement(context.message.id)
+      if (!element) {
+        throw new Error('Message is no longer available for image capture')
+      }
+      return element
+    }
+  }
+}
+
+async function withMessageCaptureLease<T>(context: MessageMenuBarActionContext, capture: () => Promise<T>): Promise<T> {
+  const release = context.acquireMessageCaptureLease?.(context.message.id)
+  try {
+    return await capture()
+  } finally {
+    release?.()
+  }
+}
+
 registerCommand('message.copy', async ({ actions, mainTextContent, messageParts, setCopied, t }) => {
   const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(messageParts) : null
   if (richContent) {
@@ -229,29 +254,35 @@ registerCommand('message.copyPlainText', async ({ actions, messageForExport, t }
   })
 })
 
-registerCommand('message.copyImage', async ({ actions, messageContainerRef }) => {
-  await captureScrollableAsBlob(messageContainerRef, async (blob) => {
-    if (blob) {
-      await actions.copyImage?.(blob)
-    }
+registerCommand('message.copyImage', async (context) => {
+  await withMessageCaptureLease(context, async () => {
+    const { exportService } = await import('@renderer/services/ExportService')
+    const messageContainerRef = getMessageCaptureRef(context)
+    await exportService.captureScrollableAsBlob(messageContainerRef, async (blob) => {
+      if (blob) {
+        await context.actions.copyImage?.(blob)
+      }
+    })
   })
 })
 
-registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
-  const imageData = await captureScrollableAsDataUrl(messageContainerRef)
-  const { getMessageTitle } = await import('@renderer/services/ExportService')
-  const title = await getMessageTitle(messageForExport)
-  if (!title || !imageData || !actions.saveImage) {
-    actions.notifyError?.(t('message.error.unknown'))
-    return
-  }
+registerCommand('message.exportImage', async (context) => {
+  await withMessageCaptureLease(context, async () => {
+    const { exportService, getMessageTitle } = await import('@renderer/services/ExportService')
+    const imageData = await exportService.captureScrollableAsDataUrl(getMessageCaptureRef(context))
+    const title = await getMessageTitle(context.messageForExport)
+    if (!title || !imageData || !context.actions.saveImage) {
+      context.actions.notifyError?.(context.t('message.error.unknown'))
+      return
+    }
 
-  const success = await actions.saveImage(title, imageData)
-  if (success) {
-    actions.notifySuccess?.(t('chat.topics.export.image_saved'))
-  } else {
-    actions.notifyError?.(t('message.error.unknown'))
-  }
+    const success = await context.actions.saveImage(title, imageData)
+    if (success) {
+      context.actions.notifySuccess?.(context.t('chat.topics.export.image_saved'))
+    } else {
+      context.actions.notifyError?.(context.t('message.error.unknown'))
+    }
+  })
 })
 
 registerCommand('message.exportMarkdown', async ({ actions, messageForExport }) => {

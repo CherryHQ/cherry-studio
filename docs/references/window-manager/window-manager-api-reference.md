@@ -144,9 +144,9 @@ For non-pooled windows, the same two endpoints apply without any intermediate st
 | `onWindowCreatedByType(type, listener)` | `(type, listener) => Disposable` | Convenience variant of `onWindowCreated` that filters to a single `WindowType`. Equivalent to `onWindowCreated` + an inline `if (managed.type === type)` guard, but avoids the boilerplate at every call site. Prefer this for single-type subscriptions (the typical consumer case). |
 | `onWindowDestroyedByType(type, listener)` | `(type, listener) => Disposable` | Type-filtered counterpart to `onWindowDestroyed`. Same filtering semantics as `onWindowCreatedByType`. |
 
-The intermediate Released and Recycled stages have no dedicated lifecycle events — side effects on `hide` / `close` / `show` should be expressed as declarative [Platform Quirks](./window-manager-platform.md#platform-quirks), and per-session data on recycle is delivered via the `window.reused` IpcApi payload (see [Init Data](#init-data)).
+The intermediate Released and Recycled stages have no dedicated lifecycle events — side effects on `hide` / `close` / `show` should be expressed as declarative [OS Quirks](./window-manager-platform.md#os-quirks), and per-session data on recycle is delivered via the `window.reused` IpcApi payload (see [Init Data](#init-data)).
 
 **Usage notes for pooled windows:**
 
 - **Do NOT set `paintWhenInitiallyHidden: false`** on pooled windows — it suppresses the native `ready-to-show` event, breaking the pool's fresh-window auto-show path (`showMode === 'auto'` listens for `ready-to-show`). It is NOT an acceptable workaround for "show only when content ready" — use `showMode: 'manual'` + consumer-driven show for that, or rely on the reuse-path `Reused` payload to ensure the renderer has data before `.show()` is called.
-- **macOS focus / hover / always-on-top workarounds** are declarative — see [Platform Quirks](./window-manager-platform.md#platform-quirks).
+- **macOS focus / hover / always-on-top workarounds** are declarative — see [OS Quirks](./window-manager-platform.md#os-quirks).

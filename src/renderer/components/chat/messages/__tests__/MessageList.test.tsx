@@ -4,7 +4,7 @@ import i18n from 'i18next'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
+import { exportService } from '@renderer/services/ExportService'
 
 import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
@@ -27,11 +27,13 @@ const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
   navigationBaseKey: null as string | null,
   renderItemLimit: undefined as number | undefined,
+  renderVersion: 0,
   readyCallbacks: [] as ((element: HTMLDivElement) => void)[],
   scrollElement: null as HTMLDivElement | null
 }))
 const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 const messageGroupMountCounts = vi.hoisted(() => new Map<string, number>())
+const messageCaptureProbes = vi.hoisted(() => new Map<string, () => Promise<string | undefined>>())
 const messageOutlineModule = vi.hoisted(() => ({ loaded: false }))
 const messageListSearchMock = vi.hoisted(() => ({
   props: null as {
@@ -95,9 +97,10 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/utils/image', () => ({
-  captureScrollable: vi.fn(),
-  captureScrollableAsDataUrl: vi.fn()
+vi.mock('@renderer/services/ExportService', () => ({
+  exportService: {
+    captureScrollableAsDataUrl: vi.fn()
+  }
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -161,6 +164,8 @@ vi.mock('../list/MessageAnchorLine', () => ({
 vi.mock('../list/MessageGroup', async () => {
   const React = await import('react')
   const { useHtmlArtifactPopupContext } = await import('@renderer/components/chat/HtmlArtifactPopupContext')
+  const { useOptionalMessageCaptureLease } = await import('../list/MessageCaptureLeaseContext')
+  const { exportService } = await import('@renderer/services/ExportService')
   const ArtifactLifecycleControl = () => {
     const popupContext = useHtmlArtifactPopupContext()
     const artifactId = 'artifact-1'
@@ -203,6 +208,37 @@ vi.mock('../list/MessageGroup', async () => {
       messageGroupMountCounts.set(mountGroupId, (messageGroupMountCounts.get(mountGroupId) ?? 0) + 1)
     }, [])
 
+    const MessageCaptureProbe = ({ messageId }: { messageId: string }) => {
+      const captureLease = useOptionalMessageCaptureLease()
+      const captureRef = React.useMemo(
+        () => ({
+          get current() {
+            return captureLease?.getRenderedMessageElement(messageId) ?? null
+          }
+        }),
+        [captureLease, messageId]
+      )
+      const runCapture = React.useCallback(async () => {
+        const release = captureLease?.acquireMessageCaptureLease(messageId)
+        try {
+          return await exportService.captureScrollableAsDataUrl(captureRef)
+        } finally {
+          release?.()
+        }
+      }, [captureLease, captureRef, messageId])
+
+      React.useEffect(() => {
+        messageCaptureProbes.set(messageId, runCapture)
+        return () => {
+          if (messageCaptureProbes.get(messageId) === runCapture) {
+            messageCaptureProbes.delete(messageId)
+          }
+        }
+      }, [messageId, runCapture])
+
+      return null
+    }
+
     return (
       <div data-testid="message-group">
         {messages.map((message) => {
@@ -212,13 +248,16 @@ vi.mock('../list/MessageGroup', async () => {
           return (
             <div
               id={`message-${message.id}`}
-              key={message.id}
+              key={`${message.id}-${messageVirtualListMocks.renderVersion}`}
               ref={setRef}
               className="fold"
               data-testid={`message-node-${message.id}`}
             />
           )
         })}
+        {messages.map((message) => (
+          <MessageCaptureProbe key={`capture-${message.id}`} messageId={message.id} />
+        ))}
         {messages.some((message) => message.id === 'artifact-source') && <ArtifactLifecycleControl />}
         {groupId}
       </div>
@@ -252,6 +291,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       handleRef,
       items,
       keepMountedKeys,
+      getItemKey,
       onScrollContainerReady,
       renderItem,
       scrollToBottomButtonBottomOffset,
@@ -285,7 +325,11 @@ vi.mock('../list/MessageVirtualList', async () => {
         }
       }, [onScrollContainerReady])
 
-      const visibleItems = items.slice(0, messageVirtualListMocks.renderItemLimit ?? items.length)
+      const visibleItems = items.filter(
+        (item: unknown, index: number) =>
+          index < (messageVirtualListMocks.renderItemLimit ?? items.length) ||
+          (keepMountedKeys ?? []).includes(getItemKey(item, index))
+      )
 
       return (
         <div
@@ -296,7 +340,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           data-testid="virtual-list"
           data-top-padding={topPadding}>
           {visibleItems.map((item: unknown, index: number) => (
-            <div key={index}>{renderItem(item, index)}</div>
+            <div key={`${index}-${messageVirtualListMocks.renderVersion}`}>{renderItem(item, index)}</div>
           ))}
         </div>
       )
@@ -345,6 +389,25 @@ const renderMessageList = (messages: MessageListItem[]) =>
     </MessageListProvider>
   )
 
+const deferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+// jsdom's Blob has no text().
+const readBlobText = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsText(blob)
+  })
+
 describe('MessageList', () => {
   beforeEach(() => {
     scrollToBottom.mockClear()
@@ -352,15 +415,16 @@ describe('MessageList', () => {
     scrollToKey.mockReset()
     scrollToElement.mockClear()
     scrollToRange.mockClear()
-    vi.mocked(captureScrollable).mockReset()
-    vi.mocked(captureScrollableAsDataUrl).mockReset()
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
     messageVirtualListMocks.navigationBaseKey = null
     messageVirtualListMocks.renderItemLimit = undefined
+    messageVirtualListMocks.renderVersion = 0
     messageVirtualListMocks.readyCallbacks = []
     messageVirtualListMocks.scrollElement = document.createElement('div')
     messageGroupRenderCounts.clear()
     messageGroupMountCounts.clear()
+    messageCaptureProbes.clear()
     messageListSearchMock.props = null
     chatLayoutModeMock.railGutterPx = 0
     chatLayoutModeMock.setRailGutterPx.mockReset()
@@ -678,6 +742,87 @@ describe('MessageList', () => {
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
   })
 
+  it('keeps a queued message capture mounted and resolves a replacement element', async () => {
+    const messageA = createMessage('message-a', 'user')
+    const messageB = createMessage('message-b', 'user')
+    const captureRequests: Array<{
+      ref: { readonly current: HTMLElement | null }
+      resolve: (value: string | undefined) => void
+    }> = []
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockImplementation(
+      (ref) =>
+        new Promise<string | undefined>((resolve) => {
+          captureRequests.push({ ref, resolve })
+        })
+    )
+    const renderTree = () => (
+      <MessageListProvider value={createValue([messageA, messageB])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    const view = render(renderTree())
+    const captureA = messageCaptureProbes.get(messageA.id)
+    const captureB = messageCaptureProbes.get(messageB.id)
+
+    expect(captureA).toBeDefined()
+    expect(captureB).toBeDefined()
+
+    const firstCapture = captureA!()
+    await vi.waitFor(() => expect(captureRequests).toHaveLength(1))
+    const secondCapture = captureB!()
+    await vi.waitFor(() => expect(captureRequests).toHaveLength(2))
+
+    const originalB = screen.getByTestId(`message-node-${messageB.id}`)
+    messageVirtualListMocks.renderItemLimit = 1
+    view.rerender(renderTree())
+
+    expect(screen.getByTestId(`message-node-${messageB.id}`)).toBe(originalB)
+
+    messageVirtualListMocks.renderVersion = 1
+    view.rerender(renderTree())
+    const replacementB = screen.getByTestId(`message-node-${messageB.id}`)
+    expect(replacementB).not.toBe(originalB)
+
+    captureRequests[0].resolve('capture-a')
+    await expect(firstCapture).resolves.toBe('capture-a')
+    expect(captureRequests[1].ref.current).toBe(replacementB)
+
+    captureRequests[1].resolve('capture-b')
+    await expect(secondCapture).resolves.toBe('capture-b')
+    await vi.waitFor(() => expect(screen.queryByTestId(`message-node-${messageB.id}`)).not.toBeInTheDocument())
+  })
+
+  it('releases a queued message capture lease after capture failure', async () => {
+    const message = createMessage('message-failure', 'user')
+    const captureStarted = deferred<void>()
+    const captureFinished = deferred<void>()
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockImplementation(async () => {
+      captureStarted.resolve()
+      await captureFinished.promise
+      throw new Error('capture failed')
+    })
+
+    const view = renderMessageList([message])
+    const capture = messageCaptureProbes.get(message.id)
+    expect(capture).toBeDefined()
+    const capturePromise = capture!()
+    await captureStarted.promise
+
+    messageVirtualListMocks.renderItemLimit = 0
+    view.rerender(
+      <MessageListProvider value={createValue([message])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    expect(screen.getByTestId(`message-node-${message.id}`)).toBeInTheDocument()
+
+    captureFinished.resolve()
+    await expect(capturePromise).rejects.toThrow('capture failed')
+    await vi.waitFor(() => expect(screen.queryByTestId(`message-node-${message.id}`)).not.toBeInTheDocument())
+  })
+
   it('keeps an active success-row assistant group mounted while approval owns the turn', () => {
     const assistant = createMessage('assistant-1', 'assistant', 'success')
     render(
@@ -806,7 +951,7 @@ describe('MessageList', () => {
 
   it('exports topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
@@ -854,10 +999,8 @@ describe('MessageList', () => {
 
   it('copies topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const copyImage = vi.fn().mockResolvedValue(undefined)
-    const imageBlob = new Blob(['topic'], { type: 'image/png' })
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ blob: async () => imageBlob } as Response)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
       bindRuntime: (nextRuntime) => {
@@ -898,14 +1041,14 @@ describe('MessageList', () => {
     await act(async () => {
       await copyPromise
     })
-    expect(fetchSpy).toHaveBeenCalledWith('data:image/png;base64,dG9waWM=')
-    fetchSpy.mockRestore()
-    expect(copyImage).toHaveBeenCalledWith(imageBlob)
+    const copiedBlob = copyImage.mock.calls[0]?.[0] as Blob
+    expect(copiedBlob.type).toBe('image/png')
+    expect(await readBlobText(copiedBlob)).toBe('topic')
   })
 
   it('exports a pending topic image after the loading list scroll container is ready', async () => {
     messageVirtualListMocks.renderItemLimit = 0
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -968,7 +1111,7 @@ describe('MessageList', () => {
   })
 
   it('rejects a pending topic image export when the loading list unmounts before it is ready', async () => {
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     captureScrollableAsDataUrlMock.mockClear()
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
@@ -1015,7 +1158,7 @@ describe('MessageList', () => {
   it('exports a pending topic image when the scroll container becomes ready after runtime binding', async () => {
     messageVirtualListMocks.deferScrollContainerReady = true
     messageVirtualListMocks.scrollElement = null
-    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    const captureScrollableAsDataUrlMock = vi.mocked(exportService.captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -1063,7 +1206,7 @@ describe('MessageList', () => {
   })
 
   it('rejects topic image export when capture does not produce image data', async () => {
-    vi.mocked(captureScrollableAsDataUrl).mockResolvedValue(undefined)
+    vi.mocked(exportService.captureScrollableAsDataUrl).mockResolvedValue(undefined)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
