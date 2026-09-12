@@ -1,8 +1,3 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
-
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -803,103 +798,89 @@ describe('ClaudeCodeRuntimeDriver', () => {
   })
 
   it('hands external images whose base64 payload exceeds 5 MB to the agent as paths, not native image blocks', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'claude-image-cap-'))
-    try {
-      const imagePath = path.join(dir, 'huge.png')
-      await writeFile(imagePath, Buffer.alloc(4 * MB))
-      const queryQueue = createAsyncQueue<any>()
-      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-      mocks.createClaudeQuery.mockReturnValue(query)
-      mocks.materializeNativeFilePart.mockResolvedValue({
-        type: 'file',
-        url: 'data:image/png;base64,QUJD',
-        mediaType: 'image/png'
-      })
-      const connection = await new ClaudeCodeRuntimeDriver().connect({
-        sessionId: 'session-1',
-        agentId: 'agent-1',
-        modelId: 'claude-code::sonnet'
-      })
-      const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
-      const nextInput = sdkInput[Symbol.asyncIterator]().next()
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValue({
+      type: 'file',
+      url: `data:image/png;base64,${'A'.repeat(5 * MB + 4)}`,
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
-      await connection.send({
-        message: {
-          ...userMessage(),
-          data: {
-            parts: [
-              { type: 'text', text: 'describe this' },
-              { type: 'file', url: pathToFileURL(imagePath).href, mediaType: 'image/png', filename: 'huge.png' }
-            ]
-          }
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/huge.png', mediaType: 'image/png', filename: 'huge.png' }
+          ]
         }
-      })
+      }
+    })
 
-      await expect(nextInput).resolves.toMatchObject({
-        value: {
-          message: {
-            role: 'user',
-            content: `describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "huge.png": ${imagePath}`
-          }
-        },
-        done: false
-      })
-      expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
-      void connection.close()
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "huge.png": /tmp/huge.png'
+        }
+      },
+      done: false
+    })
+    void connection.close()
   })
 
   it('still sends external images under the inline cap as native image blocks', async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), 'claude-image-cap-'))
-    try {
-      const imagePath = path.join(dir, 'pixel.png')
-      await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]))
-      const queryQueue = createAsyncQueue<any>()
-      const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-      mocks.createClaudeQuery.mockReturnValue(query)
-      mocks.materializeNativeFilePart.mockResolvedValue({
-        type: 'file',
-        url: 'data:image/png;base64,QUJD',
-        mediaType: 'image/png'
-      })
-      const connection = await new ClaudeCodeRuntimeDriver().connect({
-        sessionId: 'session-1',
-        agentId: 'agent-1',
-        modelId: 'claude-code::sonnet'
-      })
-      const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
-      const nextInput = sdkInput[Symbol.asyncIterator]().next()
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValue({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet'
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
-      await connection.send({
-        message: {
-          ...userMessage(),
-          data: {
-            parts: [
-              { type: 'text', text: 'describe this' },
-              { type: 'file', url: pathToFileURL(imagePath).href, mediaType: 'image/png', filename: 'pixel.png' }
-            ]
-          }
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
         }
-      })
+      }
+    })
 
-      await expect(nextInput).resolves.toMatchObject({
-        value: {
-          message: {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'describe this' },
-              { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
-            ]
-          }
-        },
-        done: false
-      })
-      void connection.close()
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'describe this' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
+    void connection.close()
   })
 
   it('passes first-party archive attachments to ordinary Agents as tool-readable paths', async () => {

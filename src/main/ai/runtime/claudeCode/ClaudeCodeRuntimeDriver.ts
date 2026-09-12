@@ -1,4 +1,3 @@
-import { stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
 import type {
@@ -1267,16 +1266,18 @@ async function materializeUserContent(
     const preparedDataUrl = part.url ? parseDataUrl(part.url) : null
     let parsed = preparedDataUrl?.isBase64 ? preparedDataUrl : null
     if (!parsed) {
-      if (!fileEntryId && part.url?.startsWith('file://') && (await exceedsClaudeInlineImageCap(part.url))) {
-        fallbackParts.push(originalPart)
-        continue
-      }
       const materialized = await materializeNativeFilePart(part)
       if (!materialized) {
         unavailableParts.push(originalPart)
         continue
       }
       parsed = materialized.url ? parseDataUrl(materialized.url) : null
+      // External images skip prepareChatMessages, so the produced payload is measured here; a stat
+      // taken before the read would not be atomic with it. Over the cap, the agent reads the path.
+      if (!fileEntryId && parsed && parsed.data.length > CLAUDE_MAX_INLINE_IMAGE_BASE64_BYTES) {
+        fallbackParts.push(originalPart)
+        continue
+      }
     }
 
     if (!parsed?.isBase64 || parsed.data.length === 0) {
@@ -1368,16 +1369,6 @@ async function extractAttachmentPaths(
     }
   }
   return { files, unavailable }
-}
-
-// An unstat-able file must still reach materialization so it surfaces as unavailable, not as a path.
-async function exceedsClaudeInlineImageCap(fileUrl: string): Promise<boolean> {
-  try {
-    const { size } = await stat(fileURLToPath(fileUrl))
-    return Math.ceil(size / 3) * 4 > CLAUDE_MAX_INLINE_IMAGE_BASE64_BYTES
-  } catch {
-    return false
-  }
 }
 
 function isImageFilePart(part: FileUIPart): boolean {
