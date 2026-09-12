@@ -45,6 +45,13 @@ export const resolveSystemLanguage = (locale: string): LanguageVarious => {
   if (exactMatch) return exactMatch
 
   const language = normalizedLocale.split('-')[0]
+  if (language === 'zh') {
+    try {
+      return new Intl.Locale(locale).maximize().script === 'Hant' ? 'zh-TW' : 'zh-CN'
+    } catch {
+      return 'zh-CN'
+    }
+  }
   return SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase().split('-')[0] === language) ?? defaultLanguage
 }
 
