@@ -98,7 +98,7 @@ export function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
 }
 
 function rowToReasoningProviderContext(
-  row: UserProviderRow,
+  row: Pick<UserProviderRow, 'providerId' | 'presetProviderId' | 'endpointConfigs' | 'defaultChatEndpoint'>,
   metadata: ProviderDisplayMetadata
 ): ReasoningProviderContext {
   const providerRegistryService = getDataService('ProviderRegistryService')
@@ -422,7 +422,16 @@ class ProviderService {
     const ids = [...new Set(providerIds)]
     if (ids.length === 0) return new Map()
 
-    const rows = tx.select().from(userProviderTable).where(inArray(userProviderTable.providerId, ids)).all()
+    const rows = tx
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId,
+        endpointConfigs: userProviderTable.endpointConfigs,
+        defaultChatEndpoint: userProviderTable.defaultChatEndpoint
+      })
+      .from(userProviderTable)
+      .where(inArray(userProviderTable.providerId, ids))
+      .all()
     const contexts = new Map<string, ReasoningProviderContext>()
     for (const row of rows) {
       const metadata = getAvailableProviderMetadata(row)
