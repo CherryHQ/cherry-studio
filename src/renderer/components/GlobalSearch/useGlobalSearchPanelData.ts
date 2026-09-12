@@ -365,7 +365,10 @@ export function useGlobalSearchPanelData({
     isMessageSearchMode &&
     Object.keys(activeContentSearchState.requestedCursors).length > 0 &&
     isContentSearchRefreshing
-  const isMessageLoading = isMessageSearchMode && activeContentSearchState.items.length === 0 && isContentSearchLoading
+  const isMessageLoading =
+    isMessageSearchMode &&
+    activeContentSearchState.items.length === 0 &&
+    (isContentSearchLoading || activeContentSearchState.needsFirstPageRefresh)
   const messageError = contentSearchError
   const messageLoadMoreCount = Object.keys(activeContentSearchState.nextCursors).length * messageSearchLimit
   const loadMoreMessageResults = useCallback(() => {

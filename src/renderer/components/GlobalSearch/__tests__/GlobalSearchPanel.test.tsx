@@ -1590,7 +1590,9 @@ describe('GlobalSearchPanel', () => {
     const replacementFirstPage = {
       items: [createMessage('message-page-1-replacement', 'needle replacement first page', '2026-01-01T00:00:01.000Z')]
     }
+    const firstPageRefresh = createDeferred<void>()
     mocks.refetchContentSearch.mockImplementationOnce(async () => {
+      await firstPageRefresh.promise
       mocks.messageQueryResultsByCursor.set(undefined, replacementFirstPage)
     })
     mocks.useQuery.mockClear()
@@ -1598,8 +1600,13 @@ describe('GlobalSearchPanel', () => {
       MockUseDataApiUtils.emitDataChange([{ endpoint: '/search/contents', entityIds: ['message-page-1-deleted'] }])
     })
 
+    await waitFor(() => expect(mocks.refetchContentSearch).toHaveBeenCalledOnce())
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle deleted first page/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /needle stale second page/ })).not.toBeInTheDocument()
+
+    firstPageRefresh.resolve()
     expect(await screen.findByRole('option', { name: /needle replacement first page/ })).toBeInTheDocument()
-    expect(mocks.refetchContentSearch).toHaveBeenCalledOnce()
     expect(screen.queryByRole('option', { name: /needle deleted first page/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /needle stale second page/ })).not.toBeInTheDocument()
 
