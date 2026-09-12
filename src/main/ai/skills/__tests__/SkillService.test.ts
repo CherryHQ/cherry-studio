@@ -1105,6 +1105,70 @@ describe('SkillService', () => {
       }
     })
 
+    it('restores the complete old folder when migration commit fails', async () => {
+      const root = await createTempDir('github-migrate-rollback-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Repo',
+        folderName: 'content',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'old-hash',
+        isEnabled: false
+      })
+      await fs.promises.mkdir(path.join(dataSkillsRoot, 'content'), { recursive: true })
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), '# old')
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'my-skill',
+        name: 'my-skill',
+        description: 'Migrated skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      vi.spyOn(agentGlobalSkillService, 'updateTx').mockImplementationOnce(() => {
+        throw new Error('db down')
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+
+      try {
+        await expect(
+          skillService.install({ installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md' })
+        ).rejects.toThrow('db down')
+
+        // Old folder restored with its contents, new folder removed, row untouched.
+        await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), 'utf8')).resolves.toBe(
+          '# old'
+        )
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'my-skill'))).rejects.toMatchObject({
+          code: 'ENOENT'
+        })
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toMatchObject([
+          { id: SKILL_ID_1, folderName: 'content', contentHash: 'old-hash' }
+        ])
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+        vi.mocked(agentGlobalSkillService.updateTx).mockRestore()
+      }
+    })
+
     it('does not migrate an unrelated skill sharing the same source URL', async () => {
       const root = await createTempDir('github-no-migrate-')
       const dataSkillsRoot = path.join(root, 'Data', 'Skills')

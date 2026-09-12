@@ -597,12 +597,36 @@ export class SkillService {
 
     if (renamed) {
       // Move the catalog entry to the new folder, preserving the skill ID and its agent_skills rows.
-      // The previous folder is removed before the row is updated so a failed cleanup throws while
-      // the old state is still intact (retryable) instead of orphaning a folder reconcile would adopt.
+      // The previous folder is kept as a recoverable backup until the row is updated: recursive
+      // deletion is not atomic, so deleting it first could strand a half-removed old state.
       const prevFolderName = renamed.folderName
+      const backupPath = await this.installer.backupReplacedFolder(this.getSkillStoragePath(prevFolderName))
       try {
-        await this.installer.uninstall(this.getSkillStoragePath(prevFolderName))
+        application.get('DbService').withWriteTx((tx) => {
+          agentGlobalSkillService.updateTx(tx, renamed.id, {
+            folderName,
+            name: metadata.name,
+            description: metadata.description ?? null,
+            author: metadata.author ?? null,
+            version: metadata.version ?? null,
+            tags,
+            contentHash,
+            ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
+          })
+        })
       } catch (error) {
+        // Best-effort rollback to the complete old state; a leftover `.bak` marker is restored
+        // by startup recovery, so even a double fault loses nothing.
+        if (backupPath) {
+          try {
+            await fs.promises.rename(backupPath, this.getSkillStoragePath(prevFolderName))
+          } catch (restoreError) {
+            logger.error('Failed to restore previous skill folder after migration failure', {
+              prevFolderName,
+              error: restoreError instanceof Error ? restoreError.message : String(restoreError)
+            })
+          }
+        }
         try {
           await this.installer.uninstall(destPath)
         } catch (cleanupError) {
@@ -614,18 +638,7 @@ export class SkillService {
         }
         throw error
       }
-      application.get('DbService').withWriteTx((tx) => {
-        agentGlobalSkillService.updateTx(tx, renamed.id, {
-          folderName,
-          name: metadata.name,
-          description: metadata.description ?? null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags,
-          contentHash,
-          ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
-        })
-      })
+      await this.installer.commitReplacedFolder(backupPath)
       await this.unlinkMirror(prevFolderName)
       const updated = agentGlobalSkillService.getById(renamed.id)!
       logger.info('Skill folder migrated', { id: renamed.id, prevFolderName, folderName, source })
