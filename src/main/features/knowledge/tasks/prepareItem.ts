@@ -1,5 +1,6 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { foldKnowledgeRelativePath } from '@main/utils/knowledge'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -80,6 +81,10 @@ async function prepareDirectoryForRuntime(
  * relativePath contributes its first segment: a bare file (`report.pdf`) or another
  * directory's namespace (`docs/sub/a.pdf` → `docs`). Runs inside the base mutation
  * lock, so the read-then-dedupe-then-write is free of concurrent expansions.
+ *
+ * Holds folded keys, not literal names — `docs` and `Docs` are one namespace once the base
+ * is restored onto a case-insensitive filesystem. Same key the migrator's
+ * `reservedTopLevelNames` uses.
  */
 function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): Set<string> {
   const items = knowledgeItemService.getItemsByBaseId(baseId)
@@ -87,7 +92,7 @@ function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): S
   for (const relativePath of collectKnowledgeReservedRelativePaths(items, { excludeItemId })) {
     const topSegment = relativePath.split('/')[0]
     if (topSegment) {
-      names.add(topSegment)
+      names.add(foldKnowledgeRelativePath(topSegment))
     }
   }
   return names
