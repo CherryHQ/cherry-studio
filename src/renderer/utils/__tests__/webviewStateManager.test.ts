@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   clearAllWebviewStates,
   clearWebviewState,
+  getWebviewLoaded,
+  onWebviewRecreateRequest,
   onWebviewStateChange,
+  requestWebviewRecreate,
   setWebviewLoaded
 } from '../webviewStateManager'
 
@@ -25,5 +28,27 @@ describe('webviewStateManager', () => {
     expect(listener).toHaveBeenNthCalledWith(3, true)
 
     unsubscribe()
+  })
+
+  it('clears readiness and emits every full WebView recreation request', () => {
+    const stateListener = vi.fn()
+    const recreateListener = vi.fn(() => {
+      expect(getWebviewLoaded('comfyui')).toBe(false)
+    })
+    const unsubscribeState = onWebviewStateChange('comfyui', stateListener)
+    const unsubscribeRecreate = onWebviewRecreateRequest(recreateListener)
+
+    setWebviewLoaded('comfyui', true)
+    requestWebviewRecreate('comfyui')
+    requestWebviewRecreate('comfyui')
+
+    expect(stateListener).toHaveBeenNthCalledWith(1, true)
+    expect(stateListener).toHaveBeenNthCalledWith(2, false)
+    expect(stateListener).toHaveBeenNthCalledWith(3, false)
+    expect(recreateListener).toHaveBeenCalledTimes(2)
+    expect(recreateListener).toHaveBeenCalledWith('comfyui')
+
+    unsubscribeState()
+    unsubscribeRecreate()
   })
 })
