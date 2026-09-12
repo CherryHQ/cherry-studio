@@ -30,4 +30,8 @@ describe('getPermissionRiskEffects', () => {
   it('leaves read-only commands without risk effects', () => {
     expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'pnpm test' })).toEqual([])
   })
+
+  it('treats background output retrieval as read-only', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.BashOutput, { bash_id: 'bash-1', filter: 'rm -rf' })).toEqual([])
+  })
 })

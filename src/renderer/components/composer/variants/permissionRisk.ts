@@ -30,7 +30,8 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
     return [...effects]
   }
 
-  if (toolName !== AgentToolsType.Bash && toolName !== AgentToolsType.BashOutput) return []
+  // BashOutput only reads output from an already-running command, so it never carries risk.
+  if (toolName !== AgentToolsType.Bash) return []
 
   if (/(^|[\s;&|])(rm|rmdir|del|erase|rd)\s/i.test(text)) {
     effects.add('destructive')
