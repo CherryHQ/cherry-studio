@@ -227,7 +227,7 @@ export function createPiCodeModeTools(
     )
     const browserTools = discovered.flatMap((tool) => {
       const methodName = browserMethodName(tool)
-      return methodName
+      return methodName && browserFacade[methodName] === tool.name
         ? [
             {
               methodName,
@@ -252,10 +252,15 @@ function browserMethodName(tool: PiMcpToolDefinition): string | undefined {
 
 function buildBrowserFacade(tools: readonly PiMcpToolDefinition[]): Record<string, string> {
   const methods = new Map<string, string>()
+  const ambiguousMethods = new Set<string>()
   for (const tool of tools) {
     const methodName = browserMethodName(tool)
-    if (!methodName) continue
-    if (methods.has(methodName)) throw new Error(`Duplicate browser facade method: browser.${methodName}`)
+    if (!methodName || ambiguousMethods.has(methodName)) continue
+    if (methods.has(methodName)) {
+      methods.delete(methodName)
+      ambiguousMethods.add(methodName)
+      continue
+    }
     methods.set(methodName, tool.name)
   }
   return Object.fromEntries(methods)

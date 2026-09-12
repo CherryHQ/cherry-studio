@@ -213,11 +213,25 @@ describe('createPiCodeModeTools', () => {
     )
   })
 
-  it('rejects duplicate browser facade method names', () => {
+  it('omits ambiguous browser facade methods while keeping the original tools callable', async () => {
     const first = browserTool({ name: 'mcp__browser-a__open', label: 'open' })
     const second = browserTool({ name: 'mcp__browser-b__open', label: 'open' })
+    const screenshot = browserTool({ name: 'mcp__browser-a__screenshot', label: 'screenshot' })
+    const tools = codeModeTools([first, second, screenshot])
+    const search = tools.find((item) => item.name === PI_TOOL_SEARCH_TOOL_NAME)!
+    const call = tools.find((item) => item.name === PI_TOOL_CALL_TOOL_NAME)!
 
-    expect(() => codeModeTools([first, second])).toThrow('Duplicate browser facade method: browser.open')
+    const discovery = await search.execute('search-1', { query: 'browser' }, undefined, undefined, {} as never)
+    const text = discovery.content[0].type === 'text' ? discovery.content[0].text : ''
+    expect(text).toContain('mcp__browser-a__open')
+    expect(text).toContain('mcp__browser-b__open')
+    expect(text).not.toMatch(/\bopen\(params:/)
+    expect(text).toMatch(/\bscreenshot\(params:/)
+
+    for (const name of [first.name, second.name]) {
+      const result = await call.execute('call-1', { name, params: {} }, undefined, undefined, {} as never)
+      expect(result.details).toEqual({ ok: true })
+    }
   })
 
   it('forwards images returned by browser facade methods as tool_exec image content', async () => {
