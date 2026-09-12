@@ -1,13 +1,14 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dataApiService } from '@data/DataApiService'
+
 const { invalidateMessages, loggerError, streamOpen } = vi.hoisted(() => ({
   invalidateMessages: vi.fn(),
   loggerError: vi.fn(),
   streamOpen: vi.fn()
 }))
 
-vi.mock('@data/DataApiService', () => ({ dataApiService: { get: vi.fn(), patch: vi.fn() } }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: loggerError }) }
 }))
@@ -86,6 +87,7 @@ function renderActions(
     cache,
     scrollToBottom,
     regenerate,
+    setMessages,
     seedReservedMessages
   }
 }
@@ -105,6 +107,106 @@ describe('useChatWriteActions — pause', () => {
     await vi.waitFor(() =>
       expect(loggerError).toHaveBeenCalledWith('Failed to pause chat stream', { topicId: 't1', error: stopError })
     )
+  })
+})
+
+describe('useChatWriteActions — canvas branch targets', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    MockDataApiUtils.resetMocks()
+    MockUseDataApiUtils.resetMocks()
+    streamOpen.mockReset()
+  })
+
+  function persisted(id: string, role: Message['role'], parentId: string): Message {
+    return {
+      id,
+      topicId: 't1',
+      role,
+      parentId,
+      data: { parts: [{ type: 'text', text: id }] },
+      searchableText: id,
+      status: 'success',
+      siblingsGroupId: 0,
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z'
+    }
+  }
+
+  function seedBranch(user: Message, assistants: Message[]) {
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce([user, assistants[0]])
+      .mockResolvedValueOnce({
+        items: [{ message: user }, { message: assistants[0], siblingsGroup: assistants }],
+        activeNodeId: assistants[0].id,
+        rootId: 'vroot'
+      })
+  }
+
+  it('returns the activated leaf so branch views can reveal the continuation', async () => {
+    const user = persisted('other-user', 'user', 'vroot')
+    const answer = persisted('other-answer', 'assistant', user.id)
+    MockDataApiUtils.setCustomResponse('/topics/t1/path', 'GET', [user, answer])
+    const { actions, cache } = renderActions([uiMsg('selected-user', 'user', 'vroot')])
+
+    await expect(actions.setActiveBranch(user.id)).resolves.toBe(answer.id)
+
+    expect(cache.setActiveNodeTrigger).toHaveBeenCalledWith({
+      params: { id: 't1' },
+      body: { nodeId: answer.id }
+    })
+  })
+
+  it('regenerates against the requested branch history and parent instead of the selected branch', async () => {
+    seedBranch(persisted('other-user', 'user', 'vroot'), [persisted('other-answer', 'assistant', 'other-user')])
+    const { actions, regenerate, setMessages } = renderActions([uiMsg('selected-user', 'user', 'vroot')])
+    await actions.regenerate('other-answer')
+    expect(setMessages.mock.calls[0][0].map((message: { id: string }) => message.id)).toEqual([
+      'other-user',
+      'other-answer'
+    ])
+    expect(regenerate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: 'other-answer',
+        body: expect.objectContaining({ parentAnchorId: 'other-user' })
+      })
+    )
+  })
+
+  it('retains every original model when editing a user message on another branch', async () => {
+    const user = persisted('other-user', 'user', 'vroot')
+    const assistants = ['a', 'b'].map((model) => ({
+      ...persisted('answer-' + model, 'assistant', user.id),
+      modelId: `provider::model-${model}`,
+      data: { parts: [{ type: 'text' as const, text: model }], turnOptions: { fastMode: true } }
+    }))
+    seedBranch(user, assistants)
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(persisted('edited-user', 'user', 'vroot'))
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions } = renderActions([uiMsg('selected-user', 'user', 'vroot')], cache)
+    await actions.forkAndResend(user.id, [{ type: 'text', text: 'Edited prompt' }])
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentAnchorId: 'edited-user',
+        mentionedModelIds: ['provider::model-a', 'provider::model-b'],
+        fastMode: true
+      })
+    )
+  })
+
+  it('permits loaded canvas targets while rejecting pending replies and other topics', () => {
+    const answer = persisted('other-answer', 'assistant', 'other-user')
+    const { actions } = renderActions([uiMsg('selected-user', 'user', 'vroot')])
+    MockUseDataApiUtils.seedCache('/messages/other-answer', answer)
+    expect(actions.getMessageDeleteAvailability(answer.id)).toEqual({ enabled: true })
+    MockUseDataApiUtils.seedCache('/messages/other-answer', { ...answer, status: 'pending' })
+    expect(actions.getMessageDeleteAvailability(answer.id)).toEqual({ enabled: false, reason: 'generating' })
+    MockUseDataApiUtils.seedCache('/messages/other-answer', { ...answer, topicId: 'other-topic' })
+    expect(actions.getMessageDeleteAvailability(answer.id)).toEqual({ enabled: false, reason: 'not-loaded' })
   })
 })
 
@@ -460,12 +562,17 @@ describe('useChatWriteActions — regenerate', () => {
     let finishRegenerate: (() => void) | undefined
     regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
 
-    const request = actions.regenerate('a1')
+    let settled = false
+    const request = actions.regenerate('a1').finally(() => {
+      settled = true
+    })
 
-    expect(regenerate).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(regenerate).toHaveBeenCalledOnce())
+    expect(settled).toBe(false)
 
     finishRegenerate?.()
     await request
+    expect(settled).toBe(true)
   })
 
   it('inherits the persisted turn options when retrying an assistant message', async () => {
@@ -680,3 +787,7 @@ describe('useChatWriteActions — fork and resend', () => {
     await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
   })
 })
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+
+import type { Message } from '@shared/data/types/message'

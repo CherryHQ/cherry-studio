@@ -1,32 +1,32 @@
-import { CopyPlus, GitBranch } from 'lucide-react'
+import { CopyPlus, CornerDownRight, GitBranch } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { dataApiService } from '@data/DataApiService'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   buildTopicMessageFlowGraph,
-  layoutTopicMessageFlowGraph,
   mergeTopicMessageFlowLiveTree,
   TopicMessageFlowCanvas,
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
-import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
+import type { TreeResponse } from '@shared/data/types/message'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
 
 interface Props {
   open: boolean
   topicId: string
-  topicName?: string
   liveState?: TopicMessageFlowLiveState | null
   focusKey?: string | number
   layoutReady?: boolean
@@ -48,19 +48,14 @@ function getMessageIdFromContextMenuEvent(event: MouseEvent): string | null {
   return target.closest<HTMLElement>('[data-message-id]')?.dataset.messageId ?? null
 }
 
-const TopicBranchPanel: FC<Props> = ({
-  open,
-  topicId,
-  topicName,
-  liveState,
-  focusKey,
-  layoutReady,
-  onLocateMessage
-}) => {
+const TopicBranchPanel: FC<Props> = ({ open, topicId, liveState, focusKey, layoutReady, onLocateMessage }) => {
   const { t } = useTranslation()
   const contextMenuMessageIdRef = useRef<string | null>(null)
-  const messagesCachePath = `/topics/${topicId}/messages` as const
-  const treeCachePath = `/topics/${topicId}/tree` as const
+  const [revealNodeId, setRevealNodeId] = useState<string>()
+  const [branchActionPending, setBranchActionPending] = useState(false)
+  const { isPending, status } = useTopicStreamStatus(topicId)
+  const chatWrite = useChatWrite()
+  const actionsDisabled = !chatWrite || branchActionPending || isPending || status === 'awaiting-approval'
   const { data, error, isLoading, refetch } = useQuery('/topics/:topicId/tree', {
     enabled: open,
     params: { topicId },
@@ -73,9 +68,6 @@ const TopicBranchPanel: FC<Props> = ({
     },
     { routeParams: { topicId } }
   )
-  const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
-    refresh: [messagesCachePath, treeCachePath]
-  })
   const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
     refresh: ['/topics']
   })
@@ -85,50 +77,46 @@ const TopicBranchPanel: FC<Props> = ({
     () => mergeTopicMessageFlowLiveTree(data ?? emptyTree, liveState?.topicId === topicId ? liveState : null),
     [data, liveState, topicId]
   )
-  const graph = useMemo(() => layoutTopicMessageFlowGraph(buildTopicMessageFlowGraph(tree)), [tree])
+  const graph = useMemo(() => buildTopicMessageFlowGraph(tree), [tree])
 
-  const handleNodeSelect = useCallback(
+  const handleActivateNodeBranch = useCallback(
     async (messageId: string) => {
+      if (!chatWrite || actionsDisabled) return
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
-      if (selectedNode?.data.isAwaitingInput && messageId === graph.activeNodeId) return
-      if (selectedNode?.data.isOnActivePath) {
-        onLocateMessage?.(messageId)
-        return
-      }
-
+      setBranchActionPending(true)
       let leafId = messageId
       try {
-        const path = (await dataApiService.get(`/topics/${topicId}/path`, {
-          query: { nodeId: messageId }
-        })) as DbMessage[]
-        if (path.length > 0) {
-          leafId = path[path.length - 1].id
+        if (selectedNode?.data.isOnActivePath) {
+          if (!selectedNode.data.isAwaitingInput) onLocateMessage?.(messageId)
+        } else {
+          const activatedLeafId = await chatWrite.setActiveBranch(messageId)
+          if (!activatedLeafId) return
+          leafId = activatedLeafId
         }
-        await setActiveNode({
-          params: { id: topicId },
-          body: { nodeId: leafId }
-        })
+        setRevealNodeId(leafId)
+        void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId })
       } catch (err) {
-        if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
-          logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })
-          return
-        }
         logger.error('Failed to set active branch from topic flow', err as Error)
         toast.error(t('common.error'))
+      } finally {
+        setBranchActionPending(false)
       }
     },
-    [graph.activeNodeId, graph.nodes, onLocateMessage, setActiveNode, t, topicId]
+    [actionsDisabled, chatWrite, graph.nodes, onLocateMessage, t, topicId]
   )
 
   const handleStartNodeBranch = useCallback(
     async (messageId: string) => {
+      if (actionsDisabled) return
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
       if (selectedNode?.data.role !== 'assistant') {
         return
       }
 
+      setBranchActionPending(true)
       try {
-        await reserveBranch(messageId)
+        const branch = await reserveBranch(messageId)
+        setRevealNodeId(branch.id)
         toast.success(t('chat.message.new.branch.created'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
@@ -137,9 +125,11 @@ const TopicBranchPanel: FC<Props> = ({
         }
         logger.error('Failed to start message branch from topic flow', err as Error)
         toast.error(t('common.error'))
+      } finally {
+        setBranchActionPending(false)
       }
     },
-    [graph.nodes, reserveBranch, t, topicId]
+    [actionsDisabled, graph.nodes, reserveBranch, t, topicId]
   )
 
   const handleCopyBranchToNewTopic = useCallback(
@@ -197,6 +187,15 @@ const TopicBranchPanel: FC<Props> = ({
 
       const actions: ResolvedAction[] = [
         {
+          id: 'topic-flow.activate-branch',
+          label: t('chat.message.flow.continue_branch'),
+          icon: <CornerDownRight size={14} />,
+          group: 'branch',
+          danger: false,
+          availability: { visible: true, enabled: !actionsDisabled },
+          children: []
+        },
+        {
           id: 'topic-flow.start-branch',
           commandId: 'message.newBranch',
           label: t('chat.message.new.branch.label'),
@@ -205,7 +204,7 @@ const TopicBranchPanel: FC<Props> = ({
           danger: false,
           availability: {
             visible: canShowStartBranch,
-            enabled: canShowStartBranch
+            enabled: canShowStartBranch && !actionsDisabled
           },
           children: []
         },
@@ -237,6 +236,10 @@ const TopicBranchPanel: FC<Props> = ({
 
       return actionsToCommandMenuExtraItems(actions, (action) => {
         if (!action.availability.enabled) return
+        if (action.id === 'topic-flow.activate-branch') {
+          void handleActivateNodeBranch(messageId)
+          return
+        }
         if (action.id === 'topic-flow.start-branch') {
           void handleStartNodeBranch(messageId)
           return
@@ -250,7 +253,15 @@ const TopicBranchPanel: FC<Props> = ({
         }
       })
     },
-    [graph.nodes, handleCopyBranchToNewTopic, handleDeleteAwaitingInputMessage, handleStartNodeBranch, t]
+    [
+      actionsDisabled,
+      graph.nodes,
+      handleActivateNodeBranch,
+      handleCopyBranchToNewTopic,
+      handleDeleteAwaitingInputMessage,
+      handleStartNodeBranch,
+      t
+    ]
   )
 
   const handleContextMenuOpenChange = useCallback((open: boolean) => {
@@ -259,21 +270,6 @@ const TopicBranchPanel: FC<Props> = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden text-card-foreground">
-      <div className="flex min-h-10 shrink-0 items-center gap-2 border-border-subtle border-b px-3 text-xs">
-        {topicName && (
-          <>
-            <span className="min-w-0 max-w-55 truncate text-foreground-tertiary">{topicName}</span>
-            <span className="shrink-0 text-foreground-tertiary">·</span>
-          </>
-        )}
-        <span className="shrink-0 text-foreground-tertiary">
-          {graph.stats.branchCount} {t('chat.message.flow.branches', { defaultValue: 'branches' })}
-        </span>
-        <span className="shrink-0 text-foreground-tertiary">·</span>
-        <span className="shrink-0 text-foreground-tertiary">
-          {graph.stats.nodeCount} {t('chat.message.flow.nodes', { defaultValue: 'nodes' })}
-        </span>
-      </div>
       <div className="min-h-0 flex-1">
         {error ? (
           <div className="flex h-full min-h-80 items-center justify-center text-destructive text-sm" role="alert">
@@ -295,7 +291,10 @@ const TopicBranchPanel: FC<Props> = ({
                 graph={graph}
                 layoutReady={layoutReady}
                 onNodeContextMenu={handleNodeContextMenu}
-                onNodeSelect={handleNodeSelect}
+                onNodeActivate={handleActivateNodeBranch}
+                onStartBranch={handleStartNodeBranch}
+                actionsDisabled={actionsDisabled}
+                revealNodeId={revealNodeId}
               />
             </div>
           </CommandContextMenu>

@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2 } from 'lucide-react'
+import { Maximize2, Minimize2, X } from 'lucide-react'
 import type { ComponentProps, ComponentType, MouseEvent, ReactNode } from 'react'
 import { Activity, createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +33,8 @@ export interface RightPanelInstance {
   headerMode?: 'shell' | 'content'
   /** Whether this panel may enter maximized presentation. */
   canMaximize?: boolean
+  /** Presents only at full width; restoring this panel closes it. */
+  maximizedOnly?: boolean
 }
 
 /** Resolves one panel slot from domain-owned scope; null means the slot has no identity. */
@@ -62,7 +64,7 @@ export interface RightPanelState {
   activePaneWidth: RightPaneWidthPolicy
   /** First ready entry, then first pending entry, then the first catalog entry. */
   defaultPanelId?: string
-  /** Raw maximize intent, retained while environmental presentation is disabled. */
+  /** Maximize intent or panel policy, retained while environmental presentation is disabled. */
   maximized: boolean
   /** True only when the panel is open and a ready entry is being presented. */
   presentationOpen: boolean
@@ -204,7 +206,7 @@ export function RightPanelProvider<TScope>({
 }) {
   const entries = useMemo(() => resolveRightPanelEntries(capabilities, scope), [capabilities, scope])
   const [open, setOpen] = useState(defaultOpen)
-  const [maximized, setMaximized] = useState(false)
+  const [maximizedIntent, setMaximized] = useState(false)
   const [requestedPanelId, setRequestedPanelId] = useState(defaultPanelId)
   const [layoutAnimationPending, setLayoutAnimationPending] = useState(false)
   const [fullWidthActive, setFullWidthActive] = useState(false)
@@ -262,6 +264,7 @@ export function RightPanelProvider<TScope>({
         ? defaultEntry
         : undefined
   const reconciledEntry = activeEntry ?? pendingEntry
+  const maximized = maximizedIntent || (open && Boolean(activeEntry?.maximizedOnly))
   const presentationOpen = present && open && Boolean(activeEntry)
   const presentationMaximized = presentationOpen && maximized
   // The pane keeps covering the centre until its phase ends, so the composer has to stay lifted
@@ -310,15 +313,20 @@ export function RightPanelProvider<TScope>({
     onOpenChangeRef.current?.(false)
   }, [])
   const minimize = useCallback(() => {
+    if (activeEntry?.maximizedOnly) {
+      close()
+      return
+    }
     setLayoutAnimationPending(true)
     setPdfLayoutPending(false)
     setMaximized(false)
-  }, [])
+  }, [activeEntry?.maximizedOnly, close])
   const toggleMaximized = useCallback(() => {
+    if (activeEntry?.maximizedOnly) return
     setLayoutAnimationPending(true)
     setPdfLayoutPending(false)
     setMaximized((current) => !current)
-  }, [])
+  }, [activeEntry?.maximizedOnly])
   const completeLayoutAnimation = useCallback((mode: RightPaneLayoutMode) => {
     setLayoutAnimationPending(false)
     if (mode === 'closed') return
@@ -441,17 +449,20 @@ export function useOptionalRightPanelActions(): RightPanelActions | undefined {
 export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?: boolean }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
+  const context = use(RightPanelRenderContext)!
+  const maximizedOnly = findEntry(context.entries, state.activePanelId)?.maximizedOnly
   const { t } = useTranslation()
   const maximizeLabel = t(state.presentationMaximized ? 'common.minimize' : 'common.maximize')
   const MaximizeIcon = state.presentationMaximized ? Minimize2 : Maximize2
-  const closeLabel = t('common.close_sidebar')
+  const closeLabel = t(maximizedOnly ? 'common.close' : 'common.close_sidebar')
+  const CloseIcon = maximizedOnly ? X : RightSidebarCollapseIcon
 
   const maximizeButton =
-    canMaximize || state.presentationMaximized ? (
+    !maximizedOnly && (canMaximize || state.presentationMaximized) ? (
       <Tooltip content={maximizeLabel} delay={800}>
         <NavbarIcon
           tone="conversation"
-          className="shrink-0 [&_svg]:!size-3.5"
+          className="[&_svg]:!size-3.5 shrink-0"
           aria-label={maximizeLabel}
           aria-pressed={state.presentationMaximized}
           onClick={actions.toggleMaximized}>
@@ -465,7 +476,7 @@ export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?
       {maximizeButton}
       <Tooltip content={closeLabel} delay={800}>
         <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={actions.close}>
-          <RightSidebarCollapseIcon />
+          <CloseIcon />
         </NavbarIcon>
       </Tooltip>
     </div>
@@ -479,12 +490,12 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
     <div
       data-testid="shell-tab-list"
       className={cn(
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-2 [-webkit-app-region:no-drag]',
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]',
         state.presentationMaximized && 'bg-card'
       )}>
       <div
         data-testid="shell-tab-title"
-        className="min-w-0 flex-1 truncate px-1 text-sm font-medium text-foreground select-none">
+        className="min-w-0 flex-1 select-none truncate px-1 font-medium text-foreground text-sm">
         {title}
       </div>
       <RightPanelHeaderControls canMaximize={canMaximize} />
@@ -633,7 +644,7 @@ export function RightPanelShortcut({
     <NavbarIcon
       {...buttonProps}
       tone="conversation"
-      className={cn('shrink-0 [&_svg]:!size-3.5', className)}
+      className={cn('[&_svg]:!size-3.5 shrink-0', className)}
       active={active}
       disabled={disabled}
       aria-label={label}
