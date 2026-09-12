@@ -235,7 +235,7 @@ describe('KnowledgeBaseToolRuntime', () => {
 
     await openedOptions.list[0].action?.({
       item: { ...openedOptions.list[0], isSelected: true }
-    } as never)
+    })
 
     expect(onLinkBase).toHaveBeenCalledWith(mocks.knowledgeBases[0])
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]])
@@ -265,7 +265,7 @@ describe('KnowledgeBaseToolRuntime', () => {
     // copy — the rollback must go back through the provider, not mutate the copy.
     const updateItemSelection = vi.fn()
     const item = { ...openedOptions.list[0], isSelected: true }
-    await openedOptions.list[0].action?.({ context: { updateItemSelection }, item } as never)
+    await openedOptions.list[0].action?.({ context: { updateItemSelection }, item })
 
     expect(onLinkBase).toHaveBeenCalledWith(mocks.knowledgeBases[0])
     expect(onSelect).not.toHaveBeenCalled()
@@ -295,7 +295,7 @@ describe('KnowledgeBaseToolRuntime', () => {
 
     await openedOptions.list[0].action?.({
       item: { ...openedOptions.list[0], isSelected: false }
-    } as never)
+    })
 
     expect(onLinkBase).not.toHaveBeenCalled()
     expect(onSelect).toHaveBeenLastCalledWith([])
