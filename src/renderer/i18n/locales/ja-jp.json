@@ -4880,6 +4880,8 @@
   "settings.skills.installSuccess": "スキルをインストールしました：{{name}}",
   "settings.skills.installed": "インストール済みスキル",
   "settings.skills.invalidFormat": "ZIPファイルとフォルダーのみがサポートされています",
+  "settings.skills.mirrorToggle": "スキル {{name}} を agents ディレクトリへ同期",
+  "settings.skills.mirrorToggleFailed": "スキル {{name}} の同期に失敗しました",
   "settings.skills.tabs.builtin": "内蔵",
   "settings.skills.tabs.system": "システム",
   "settings.skills.title": "スキル",

@@ -4880,6 +4880,8 @@
   "settings.skills.installSuccess": "技能已安裝：{{name}}",
   "settings.skills.installed": "已安裝",
   "settings.skills.invalidFormat": "僅支援 ZIP 檔案和資料夾",
+  "settings.skills.mirrorToggle": "同步技能 {{name}} 到 agents 目錄",
+  "settings.skills.mirrorToggleFailed": "同步技能 {{name}} 失敗",
   "settings.skills.tabs.builtin": "內建",
   "settings.skills.tabs.system": "系統",
   "settings.skills.title": "技能",

@@ -4880,6 +4880,8 @@
   "settings.skills.installSuccess": "Skill installed: {{name}}",
   "settings.skills.installed": "Installed",
   "settings.skills.invalidFormat": "Only ZIP files and directories are supported",
+  "settings.skills.mirrorToggle": "Sync skill {{name}} to agents directory",
+  "settings.skills.mirrorToggleFailed": "Failed to sync skill {{name}}",
   "settings.skills.tabs.builtin": "Built-in",
   "settings.skills.tabs.system": "System",
   "settings.skills.title": "Skills",

@@ -4880,6 +4880,8 @@
   "settings.skills.installSuccess": "Abilitate instalată: {{name}}",
   "settings.skills.installed": "Abilități Instalate",
   "settings.skills.invalidFormat": "Sunt acceptate doar fișiere ZIP și directoare.",
+  "settings.skills.mirrorToggle": "Sincronizează abilitatea {{name}} în directorul agents",
+  "settings.skills.mirrorToggleFailed": "Sincronizarea abilității {{name}} a eșuat",
   "settings.skills.tabs.builtin": "Încorporate",
   "settings.skills.tabs.system": "Sistem",
   "settings.skills.title": "Abilități",

@@ -4880,6 +4880,8 @@
   "settings.skills.installSuccess": "Fähigkeit installiert: {{name}}",
   "settings.skills.installed": "Installierte Fähigkeiten",
   "settings.skills.invalidFormat": "Nur ZIP-Dateien und Verzeichnisse werden unterstützt",
+  "settings.skills.mirrorToggle": "Fähigkeit {{name}} mit dem agents-Verzeichnis synchronisieren",
+  "settings.skills.mirrorToggleFailed": "Synchronisieren der Fähigkeit {{name}} fehlgeschlagen",
   "settings.skills.tabs.builtin": "Integriert",
   "settings.skills.tabs.system": "System",
   "settings.skills.title": "Fähigkeiten",

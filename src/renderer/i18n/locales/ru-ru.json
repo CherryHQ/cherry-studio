@@ -4880,6 +4880,8 @@
   "settings.skills.installSuccess": "Навык установлен: {{name}}",
   "settings.skills.installed": "Установленные навыки",
   "settings.skills.invalidFormat": "Поддерживаются только ZIP-файлы и каталоги",
+  "settings.skills.mirrorToggle": "Синхронизировать навык {{name}} в каталог agents",
+  "settings.skills.mirrorToggleFailed": "Не удалось синхронизировать навык {{name}}",
   "settings.skills.tabs.builtin": "Встроенные",
   "settings.skills.tabs.system": "Система",
   "settings.skills.title": "Навыки",
