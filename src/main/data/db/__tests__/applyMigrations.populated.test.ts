@@ -1049,6 +1049,40 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
+  it('pins pre-column capability snapshots as explicit, keeping null and empty custom rows healable', () => {
+    // Pinned to the 0020 baseline so the 0021 backfill runs against the seed rows below.
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0020_wooden_fat_cobra'))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+       VALUES ('openai', 'OpenAI', 'a1', ?, ?)`
+      )
+      .run(now, now)
+    const insertModel = sqlite.prepare(
+      `INSERT INTO user_model
+        (id, provider_id, model_id, preset_model_id, name, capabilities, supports_streaming, order_key, created_at, updated_at)
+       VALUES (?, 'openai', ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    // Preset row with a migrator-preserved v1 explicit disable (stored as []): pinned.
+    insertModel.run('openai::preset-disable', 'preset-disable', 'preset-disable', 'Preset', '[]', 1, 'a1', now, now)
+    // Preset row without an explicit selection (null): stays healable.
+    insertModel.run('openai::preset-null', 'preset-null', 'preset-null', 'Preset', null, 1, 'a2', now, now)
+    // Custom row with a stored selection (v1 selection or v2-era edit): pinned.
+    insertModel.run('openai::custom-set', 'custom-set', null, 'Custom Set', '["function-call"]', 1, 'a3', now, now)
+    // Custom row with the creation default ([]): "never set", stays healable (#20239).
+    insertModel.run('openai::custom-default', 'custom-default', null, 'Custom Default', '[]', 1, 'a4', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT id, capabilities_explicit FROM user_model ORDER BY order_key`).all()).toEqual([
+      { id: 'openai::preset-disable', capabilities_explicit: 1 },
+      { id: 'openai::preset-null', capabilities_explicit: 0 },
+      { id: 'openai::custom-set', capabilities_explicit: 1 },
+      { id: 'openai::custom-default', capabilities_explicit: 0 }
+    ])
+  })
+
   it('backfills cancel_requested_at from updated_at only for cancel-requested job rows', () => {
     // Pinned to the 0020 backfill migration: the default tip baseline would drift
     // forward past it once a later migration exists (0021+), skipping the backfill
