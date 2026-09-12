@@ -305,7 +305,7 @@ const TranslatePage: FC = () => {
   const prePdfOutputRef = useRef<string | null>(null)
   const exchangePendingRef = useRef(false)
   const historyRestorePendingRef = useRef(false)
-  const historyRestoreBarrierRef = useRef<Promise<void> | null>(null)
+  const historyRestoreBarrierRef = useRef<Promise<boolean> | null>(null)
   const isMountedRef = useRef(true)
   const translateContentRef = useRef({ input: translateInput, output: translateOutput, pdfFile })
   const isContentOperationCurrent = useCallback(
@@ -434,9 +434,9 @@ const TranslatePage: FC = () => {
 
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
-      const historyRestoreBarrier = historyRestoreBarrierRef.current
-      if (historyRestoreBarrier) await historyRestoreBarrier
       if (!translated || !isTranslationOperationCurrent()) return
+      const historyRestoreBarrier = historyRestoreBarrierRef.current
+      if (historyRestoreBarrier && (await historyRestoreBarrier)) return
       toast.success(t('translate.complete'))
 
       if (autoCopy) {
@@ -724,67 +724,68 @@ const TranslatePage: FC = () => {
         filePaths = { source: files.source.path, target: files.target.path }
       }
 
-      let persisted = false
-      let releaseHistoryRestore!: () => void
-      const historyRestoreBarrier = new Promise<void>((resolve) => {
+      let contentRestored = false
+      let releaseHistoryRestore!: (contentRestored: boolean) => void
+      const historyRestoreBarrier = new Promise<boolean>((resolve) => {
         releaseHistoryRestore = resolve
       })
       historyRestoreBarrierRef.current = historyRestoreBarrier
       historyRestorePendingRef.current = true
       setIsHistoryRestorePending(true)
       try {
-        persisted = await safePersist(
+        const persisted = await safePersist(
           setTranslateLanguages({
             ...(nextSourceLanguage ? { sourceLanguage: nextSourceLanguage } : {}),
             targetLanguage: nextTargetLanguage
           }),
           'translate history languages'
         )
-      } finally {
-        historyRestorePendingRef.current = false
-        if (isMountedRef.current) setIsHistoryRestorePending(false)
-        releaseHistoryRestore()
-        if (historyRestoreBarrierRef.current === historyRestoreBarrier) historyRestoreBarrierRef.current = null
-      }
+        if (!persisted || contentIntentRevisionBeforePersist !== contentIntentRevisionRef.current) return
 
-      if (!persisted || contentIntentRevisionBeforePersist !== contentIntentRevisionRef.current) return
+        if (!isMountedRef.current) {
+          if (
+            filePaths ||
+            cacheService.get('translate.input') !== contentBeforePersist.input ||
+            cacheService.get('translate.output') !== contentBeforePersist.output
+          )
+            return
 
-      if (!isMountedRef.current) {
-        if (
-          filePaths ||
-          cacheService.get('translate.input') !== contentBeforePersist.input ||
-          cacheService.get('translate.output') !== contentBeforePersist.output
-        )
+          contentOperationRevisionRef.current += 1
+          markContentChanged()
+          translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
+          setTranslateInput(history.sourceText)
+          setTranslateOutput(history.targetText)
+          contentRestored = true
           return
+        }
 
         contentOperationRevisionRef.current += 1
         markContentChanged()
-        translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
-        setTranslateInput(history.sourceText)
-        setTranslateOutput(history.targetText)
-        return
-      }
 
-      contentOperationRevisionRef.current += 1
-      markContentChanged()
-
-      if (filePaths) {
-        translateContentRef.current = {
-          input: contentBeforePersist.input,
-          output: contentBeforePersist.output,
-          pdfFile: { name: history.sourceText, path: filePaths.source }
+        if (filePaths) {
+          translateContentRef.current = {
+            input: contentBeforePersist.input,
+            output: contentBeforePersist.output,
+            pdfFile: { name: history.sourceText, path: filePaths.source }
+          }
+          clearPdfMode()
+          setRestoredPdf({ output: { outputPath: filePaths.target, fileName: history.targetText }, key: history.id })
+          setPdfFile({ name: history.sourceText, path: filePaths.source })
+        } else {
+          translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
+          clearPdfMode()
+          setTranslateInput(history.sourceText)
+          setTranslateOutput(history.targetText)
         }
-        clearPdfMode()
-        setRestoredPdf({ output: { outputPath: filePaths.target, fileName: history.targetText }, key: history.id })
-        setPdfFile({ name: history.sourceText, path: filePaths.source })
-      } else {
-        translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
-        clearPdfMode()
-        setTranslateInput(history.sourceText)
-        setTranslateOutput(history.targetText)
-      }
 
-      setHistoryOpen(false)
+        setHistoryOpen(false)
+        contentRestored = true
+      } finally {
+        historyRestorePendingRef.current = false
+        if (isMountedRef.current) setIsHistoryRestorePending(false)
+        releaseHistoryRestore(contentRestored)
+        if (historyRestoreBarrierRef.current === historyRestoreBarrier) historyRestoreBarrierRef.current = null
+      }
     },
     [
       markContentChanged,

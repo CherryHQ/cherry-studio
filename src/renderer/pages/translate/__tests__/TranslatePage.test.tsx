@@ -2408,11 +2408,15 @@ describe('TranslatePage', () => {
           emitResponse('completed translation', true)
           resolveTranslate('completed translation')
         })
+        const input = screen.getByLabelText('translate.input.placeholder')
+        fireEvent.change(input, { target: { value: 'newer input' } })
+        rerender(<TranslatePage />)
         await act(async () => rejectPersist())
         rerender(<TranslatePage />)
       }
     )
 
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('newer input')
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('completed translation')
     expect(toast.success).toHaveBeenCalledWith('translate.complete')
     expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
