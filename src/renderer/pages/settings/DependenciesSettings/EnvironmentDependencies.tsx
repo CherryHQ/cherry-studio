@@ -183,18 +183,24 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       const requestId = ++latestRequestIdRef.current
       setCheckingUpdates(true)
       try {
-        const versions = await ipcApi.request('binary.get_latest_versions', force)
-        const stateRefreshed = !force || (await refreshState(true))
+        const [versionsResult, stateResult] = await Promise.allSettled([
+          ipcApi.request('binary.get_latest_versions', force),
+          force ? refreshState(true) : Promise.resolve(true)
+        ])
+        if (versionsResult.status === 'rejected') throw versionsResult.reason
+        if (stateResult.status === 'rejected') throw stateResult.reason
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
-          setLatestVersions(versions)
+          setLatestVersions(versionsResult.value)
           // Only the manual refresh (force) gets a toast — the background check on
           // mount must stay silent.
-          if (force && stateRefreshed) toast.success(t('settings.dependencies.updateCheckSuccess'))
+          if (force && stateResult.value) toast.success(t('settings.dependencies.updateCheckSuccess'))
         }
-        return versions
+        return versionsResult.value
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
-        if (force) toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        if (force && mountedRef.current && requestId === latestRequestIdRef.current) {
+          toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        }
         return null
       } finally {
         if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
@@ -215,7 +221,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }, [fetchLatestVersions, mini])
 
   useIpcOn('binary.availability_changed', () => {
+    latestRequestIdRef.current++
     setLatestVersions(null)
+    setCheckingUpdates(false)
     void refreshState()
   })
 

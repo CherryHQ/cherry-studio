@@ -618,6 +618,29 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(within(card).queryByText('common.retry')).not.toBeInTheDocument())
   })
 
+  it('re-probes dependency state even when the version catalog request fails', async () => {
+    const user = userEvent.setup()
+    const unknown: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'unknown', reason: 'query_failed' },
+      availability: { source: 'bundled', path: 'C:\\Cherry\\bin\\uv.exe', version: '0.9.0' }
+    }
+    ipcMocks.snapshots
+      .mockResolvedValueOnce({ uv: unknown })
+      .mockResolvedValue({ uv: { ...unknown, application: { status: 'absent' } } })
+    ipcMocks.latestVersions.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('catalog offline'))
+
+    render(<EnvironmentDependencies />)
+    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    expect(within(card).getByText('common.retry')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+
+    await waitFor(() => expect(within(card).queryByText('common.retry')).not.toBeInTheDocument())
+    expect(toastMock.error).toHaveBeenCalledWith('settings.dependencies.updateCheckFailed: catalog offline')
+    expect(toastMock.success).not.toHaveBeenCalled()
+  })
+
   it('keeps Retry and reports the probe error when a manual re-probe returns query_failed', async () => {
     const user = userEvent.setup()
     const unknown: BinaryToolSnapshot = {
@@ -676,6 +699,27 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' })).toBeEnabled()
     )
+    expect(toastMock.success).not.toHaveBeenCalled()
+  })
+
+  it('does not restore stale version badges after an availability change', async () => {
+    const user = userEvent.setup()
+    setSnapshots({ uv: miseSnapshot('uv') })
+    let resolveCatalog: (versions: Record<string, string>) => void = () => undefined
+    const manualCatalog = new Promise<Record<string, string>>((resolve) => {
+      resolveCatalog = resolve
+    })
+    ipcMocks.latestVersions.mockResolvedValueOnce({}).mockReturnValueOnce(manualCatalog)
+
+    render(<EnvironmentDependencies />)
+    await screen.findByText('uv')
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledTimes(2))
+
+    act(() => ipcEventHandlers.get('binary.availability_changed')?.(undefined))
+    await act(async () => resolveCatalog({ uv: '9.0.0' }))
+
+    expect(screen.queryByText('v9.0.0')).not.toBeInTheDocument()
     expect(toastMock.success).not.toHaveBeenCalled()
   })
 
