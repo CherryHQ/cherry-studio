@@ -48,8 +48,9 @@ export function getPermissionRiskEffects(toolName: string, args: unknown): Permi
   // Shell output redirection truncates or modifies the target file. A word
   // character may precede `>` (as in `hi>file`), while `=` stays excluded so
   // `=>` and `>=` in inline scripts still don't match. The lookahead skips
-  // fd-to-fd duplication such as `2>&1`.
-  if (/(^|[\s;&|\w])\d*>{1,2}(?!&)\s*\S/.test(text)) {
+  // fd-to-fd duplication such as `2>&1` and `>&-`, but still flags `>& file`,
+  // which writes to a file.
+  if (/(^|[\s;&|\w])\d*>{1,2}(?!&[\d-])\s*\S/.test(text)) {
     effects.add('destructive')
     effects.add('irreversible')
   }

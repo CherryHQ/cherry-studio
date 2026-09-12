@@ -125,6 +125,13 @@ describe('getPermissionRiskEffects', () => {
     )
   })
 
+  it('flags combined stdout/stderr file redirects but not fd operations', () => {
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'make >& build.log' })).toEqual(
+      expect.arrayContaining(['destructive', 'irreversible'])
+    )
+    expect(getPermissionRiskEffects(AgentToolsType.Bash, { command: 'make >&-' })).toEqual([])
+  })
+
   it('flags git operations that discard work', () => {
     for (const command of ['git clean -fd', 'git reset --hard HEAD~1', 'git branch -D stale']) {
       expect(getPermissionRiskEffects(AgentToolsType.Bash, { command })).toEqual(
