@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   spawn: vi.fn(),
   writeConfig: vi.fn(),
   rollbackConfig: vi.fn(),
+  checkHomeHealth: vi.fn(),
   providerGet: vi.fn(),
   providerGetApiKeys: vi.fn(),
   modelGet: vi.fn(),
@@ -69,6 +70,7 @@ vi.mock('../config', async () => {
     rollbackDeepSeekHarnessConfig: mocks.rollbackConfig
   }
 })
+vi.mock('../storageHealth', () => ({ checkDshHomeHealth: mocks.checkHomeHealth }))
 
 const { DeepSeekHarnessService } = await import('../DeepSeekHarnessService')
 
@@ -172,6 +174,7 @@ describe('DeepSeekHarnessService', () => {
       settings: { path: '/mock/home/.dsh/settings.yaml', written: 'written settings' }
     })
     mocks.rollbackConfig.mockResolvedValue(true)
+    mocks.checkHomeHealth.mockResolvedValue({ healthy: true })
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.gatewayEnsureKey.mockResolvedValue('gateway-key')
     mocks.gatewayGetConfig.mockReturnValue({ host: '127.0.0.1', port: 23333 })
@@ -366,6 +369,23 @@ describe('DeepSeekHarnessService', () => {
     expect(result).toEqual({ success: false, message: 'This provider must be used through the Unified Gateway' })
     expect(mocks.writeConfig).not.toHaveBeenCalled()
     expect(mocks.spawn).not.toHaveBeenCalled()
+  })
+
+  it('fails fast without spawning when a populated home fails the upgrade preflight', async () => {
+    mocks.checkHomeHealth.mockResolvedValue({
+      healthy: false,
+      reason: 'workspace-inconsistent',
+      detail:
+        'storages/workspace.json lists 3 workspace(s) with empty sessionIds while archivedSessionIds holds 4 session(s)'
+    })
+    const service = new DeepSeekHarnessService()
+
+    const result = await service.start(startInput)
+
+    expect(result).toEqual({ success: false, message: expect.stringContaining('[dsh-home-workspace-inconsistent]') })
+    expect(mocks.spawn).not.toHaveBeenCalled()
+    expect(mocks.writeConfig).not.toHaveBeenCalled()
+    expect(service.getStatus()).toEqual({ status: 'error' })
   })
 
   it('starts the global gateway and projects its current address, key, and gateway model id', async () => {

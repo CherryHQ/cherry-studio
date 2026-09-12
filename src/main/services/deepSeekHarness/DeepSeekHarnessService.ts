@@ -1,4 +1,5 @@
-import type { ChildProcess } from 'node:child_process'
+import { type ChildProcess, execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
 import { Mutex } from 'async-mutex'
 
@@ -29,6 +30,7 @@ import {
   rollbackDeepSeekHarnessConfig,
   writeDeepSeekHarnessConfig
 } from './config'
+import { checkDshHomeHealth } from './storageHealth'
 
 const logger = loggerService.withContext('DeepSeekHarnessService')
 
@@ -41,6 +43,7 @@ const NO_KEY_PLACEHOLDER = 'no-key-required'
 const GATEWAY_ROUTE = 'cherry-studio-codemate-gateway'
 const GATEWAY_CREDENTIAL_REF = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
 const MANAGED_CREDENTIAL_ENV = /^CHERRY_STUDIO_CODEMATE_(?:[A-F0-9]{12}|GATEWAY)_API_KEY$/i
+const execFileAsync = promisify(execFile)
 
 interface DeepSeekHarnessStartInput extends DeepSeekHarnessSettings {
   mode: DeepSeekHarnessMode
@@ -140,6 +143,25 @@ export class DeepSeekHarnessService extends BaseService {
           const runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
             throw new Error('DeepSeek Harness startup was cancelled')
+          }
+          const homeHealth = await checkDshHomeHealth(
+            AbsoluteFilePathSchema.parse(application.getPath('external.deepseek_harness.config'))
+          )
+          if (!homeHealth.healthy) {
+            const dshVersion = await readDshVersion(runtime.path)
+            logger.warn('DeepSeek Harness home failed preflight', {
+              reason: homeHealth.reason,
+              detail: homeHealth.detail,
+              ...(dshVersion ? { dshVersion } : {})
+            })
+            this.url = undefined
+            this.setStatus('error')
+            return {
+              success: false,
+              message: sanitizeDiagnostic(
+                `DeepSeek Harness home looks upgraded-incompatible (${homeHealth.detail}). Back it up, delete storages/session_projcache.json and storages/workspace.json inside it, then retry. [dsh-home-${homeHealth.reason}]`
+              )
+            }
           }
           const synced = await this.syncConfig(input)
           const projection = synced.projection
@@ -347,6 +369,15 @@ function appendBounded(current: string, chunk: Buffer | string): string {
 
 function sanitizeDiagnostic(value: string, secret?: string): string {
   return redactSecretText(redactLiteral(value, secret)).slice(0, DIAGNOSTIC_LIMIT)
+}
+
+async function readDshVersion(binaryPath: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync(binaryPath, ['--version'], { timeout: 3000 })
+    return stdout.split('\n', 1)[0]?.trim().slice(0, 80) || undefined
+  } catch {
+    return undefined
+  }
 }
 
 function parseReadyUrl(output: string): string | undefined {
