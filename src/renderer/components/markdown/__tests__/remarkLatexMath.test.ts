@@ -281,6 +281,27 @@ describe('remarkLatexMath', () => {
     expect(textValue(tree)).toContain('After formula.')
   })
 
+  it.each([
+    ['LF', '$$x$$\n\nText with $$y$$'],
+    ['CRLF', '$$x$$\r\n\r\nText with $$y$$'],
+    ['trailing spaces', '$$x$$  \n\nText with $$y$$']
+  ])('leaves a first-line closing fence to the existing parser (%s)', (_label, source) => {
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([
+      { type: 'inlineMath', value: 'x' },
+      { type: 'inlineMath', value: 'y' }
+    ])
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'paragraph'])
+    expect(tree.children[1]).toMatchObject({
+      type: 'paragraph',
+      children: [
+        { type: 'text', value: 'Text with ' },
+        { type: 'inlineMath', value: 'y' }
+      ]
+    })
+  })
+
   it('preserves a leading tag in existing multiline display math', () => {
     const source = '$$\\tag{1}\nx=1\n$$'
 

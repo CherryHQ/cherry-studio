@@ -347,8 +347,31 @@ const latexMultilineDollarMath: Construct = {
         effects.exit('latexDirectMathData')
         return effects.attempt(latexNonLazyContinuation, contentStart, nok)(code)
       }
+      if (code === DOLLAR) {
+        closingSize = 0
+        return firstLineClosingFence(code)
+      }
       effects.consume(code)
       return firstLine
+    }
+
+    function firstLineClosingFence(code: number | null): State | undefined {
+      if (code === DOLLAR) {
+        closingSize += 1
+        effects.consume(code)
+        return firstLineClosingFence
+      }
+      if (closingSize !== fenceSize) return firstLine(code)
+      return firstLineClosingTail(code)
+    }
+
+    function firstLineClosingTail(code: number | null): State | undefined {
+      if (code === SPACE || code === 9) {
+        effects.consume(code)
+        return firstLineClosingTail
+      }
+      if (code === null || code <= -3) return nok(code)
+      return firstLine(code)
     }
 
     function contentStart(code: number | null): State | undefined {
