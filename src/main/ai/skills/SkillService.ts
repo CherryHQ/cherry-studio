@@ -523,10 +523,14 @@ export class SkillService {
 
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
-    const requestedFolderName = provenance.folderNameFallback
-      ? metadata.declaredName || metadata.slug?.trim() || provenance.folderNameFallback
-      : metadata.filename
-    const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(requestedFolderName)
+    const folderName = isInPlace
+      ? path.basename(skillDir)
+      : provenance.folderNameFallback
+        ? ([metadata.declaredName, metadata.slug?.trim(), provenance.folderNameFallback]
+            .map((candidate) => sanitizeFolderName(candidate ?? ''))
+            .find(Boolean) ?? '')
+        : sanitizeFolderName(metadata.filename)
+    const candidateDestPath = this.getSkillStoragePath(folderName)
 
     const existingByFolderName = this.findCatalogSkillCaseInsensitive(folderName)
     const existingBySourceUrl =
@@ -565,9 +569,9 @@ export class SkillService {
       )
     }
 
-    const contentHash = await this.installer.computeContentHash(skillDir)
     const destFolderName = existing?.folderName ?? folderName
-    const destPath = this.getSkillStoragePath(destFolderName)
+    const destPath = existing ? this.getSkillStoragePath(destFolderName) : candidateDestPath
+    const contentHash = await this.installer.computeContentHash(skillDir)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
@@ -644,7 +648,12 @@ export class SkillService {
   // ===========================================================================
 
   private getSkillStoragePath(folderName: string): string {
-    return path.join(application.getPath('feature.agents.skills'), folderName)
+    const storageRoot = path.resolve(application.getPath('feature.agents.skills'))
+    const storagePath = path.resolve(storageRoot, folderName)
+    if (storagePath === storageRoot || path.dirname(storagePath) !== storageRoot) {
+      throw new Error(`Invalid skill folder name: ${folderName}`)
+    }
+    return storagePath
   }
 
   // ===========================================================================

@@ -76,7 +76,7 @@ type SkillServicePrivate = {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance?: { namespace?: string | null }
+    provenance?: { namespace?: string | null; folderNameFallback?: string }
   ) => Promise<unknown>
 }
 
@@ -1023,6 +1023,67 @@ describe('SkillService', () => {
         ).resolves.toBeUndefined()
       } finally {
         restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('falls back to the repository name when root skill metadata sanitizes to an empty folder', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath } = await setupGithubRootInstall()
+      const sentinelFile = path.join(dataSkillsRoot, 'existing-sentinel', 'keep.txt')
+
+      try {
+        await fs.promises.mkdir(path.dirname(sentinelFile), { recursive: true })
+        await fs.promises.writeFile(sentinelFile, 'keep')
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Root Skill', declaredName: '\0' }) as never
+        )
+
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/repository-fallback/blob/main/SKILL.md'
+        })
+
+        expect(installed.folderName).toBe('repository-fallback')
+        await expect(fs.promises.readFile(sentinelFile, 'utf-8')).resolves.toBe('keep')
+        await expect(
+          fs.promises.access(path.join(dataSkillsRoot, 'repository-fallback', 'SKILL.md'))
+        ).resolves.toBeUndefined()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('rejects installation before filesystem mutation when every folder candidate sanitizes empty', async () => {
+      const root = await createTempDir('invalid-folder-skills-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const sentinelFile = path.join(dataSkillsRoot, 'existing-sentinel', 'keep.txt')
+      const sourceDir = path.join(root, 'source')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : path.join(root, '.claude', 'skills')
+        return filename ? path.join(base, filename) : base
+      })
+      const skillService = new SkillService()
+      const computeContentHashSpy = vi.spyOn(skillService['installer'], 'computeContentHash')
+      const installSpy = vi.spyOn(skillService['installer'], 'install')
+
+      try {
+        await fs.promises.mkdir(path.dirname(sentinelFile), { recursive: true })
+        await fs.promises.writeFile(sentinelFile, 'keep')
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: '\0', declaredName: '\0', slug: '\0' }) as never
+        )
+
+        await expect(
+          skillService['installSkillDir'](sourceDir, 'marketplace', 'https://github.com/owner/repo', {
+            folderNameFallback: '\0'
+          })
+        ).rejects.toThrow('Invalid skill folder name')
+
+        expect(computeContentHashSpy).not.toHaveBeenCalled()
+        expect(installSpy).not.toHaveBeenCalled()
+        await expect(fs.promises.readFile(sentinelFile, 'utf-8')).resolves.toBe('keep')
+      } finally {
+        getPathSpy.mockRestore()
         vi.mocked(parseSkillMetadata).mockReset()
       }
     })
