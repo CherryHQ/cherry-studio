@@ -154,14 +154,14 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [])
 
-  const refreshState = useCallback(async (propagateError = false): Promise<void> => {
+  const refreshState = useCallback(async (propagateError = false): Promise<boolean> => {
     const requestId = ++resolutionRequestIdRef.current
     try {
       const nextSnapshots = await ipcApi.request(
         'binary.get_tool_snapshots',
         PRESETS_BINARY_TOOLS.map((tool) => tool.name)
       )
-      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return
+      if (!mountedRef.current || requestId !== resolutionRequestIdRef.current) return false
       setSnapshots(nextSnapshots)
       setResolutionsReady(true)
       const queryFailure = Object.values(nextSnapshots).find(
@@ -170,9 +170,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       if (propagateError && queryFailure?.status === 'unknown') {
         throw new Error(queryFailure.message ?? queryFailure.reason)
       }
+      return true
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
       if (propagateError) throw error
+      return false
     }
   }, [])
 
@@ -182,12 +184,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       setCheckingUpdates(true)
       try {
         const versions = await ipcApi.request('binary.get_latest_versions', force)
-        if (force) await refreshState(true)
+        const stateRefreshed = !force || (await refreshState(true))
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
           setLatestVersions(versions)
           // Only the manual refresh (force) gets a toast — the background check on
           // mount must stay silent.
-          if (force) toast.success(t('settings.dependencies.updateCheckSuccess'))
+          if (force && stateRefreshed) toast.success(t('settings.dependencies.updateCheckSuccess'))
         }
         return versions
       } catch (error) {

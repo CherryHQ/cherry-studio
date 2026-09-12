@@ -643,6 +643,42 @@ describe('EnvironmentDependencies', () => {
     expect(within(card).getByText('common.retry')).toBeInTheDocument()
   })
 
+  it('does not report success when a concurrent refresh supersedes the manual re-probe', async () => {
+    const user = userEvent.setup()
+    const unknown: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'unknown', reason: 'query_failed', message: 'mise ls failed' },
+      availability: { source: 'bundled', path: 'C:\\Cherry\\bin\\uv.exe', version: '0.9.0' }
+    }
+    const recovered: BinaryToolSnapshot = {
+      name: 'uv',
+      application: { status: 'absent' },
+      availability: unknown.availability
+    }
+    let resolveManualProbe: (snapshots: Record<string, BinaryToolSnapshot>) => void = () => undefined
+    const manualProbe = new Promise<Record<string, BinaryToolSnapshot>>((resolve) => {
+      resolveManualProbe = resolve
+    })
+    ipcMocks.snapshots
+      .mockResolvedValueOnce({ uv: unknown })
+      .mockReturnValueOnce(manualProbe)
+      .mockResolvedValueOnce({ uv: unknown })
+
+    render(<EnvironmentDependencies />)
+    await screen.findByText('uv')
+
+    await user.click(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' }))
+    await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalledTimes(2))
+    act(() => ipcEventHandlers.get('binary.availability_changed')?.(undefined))
+    await waitFor(() => expect(ipcMocks.snapshots).toHaveBeenCalledTimes(3))
+    act(() => resolveManualProbe({ uv: recovered }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'settings.dependencies.checkUpdates' })).toBeEnabled()
+    )
+    expect(toastMock.success).not.toHaveBeenCalled()
+  })
+
   it('hides the mini warning when bundled core dependencies are available', async () => {
     setSnapshots({
       uv: { name: 'uv', availability: { source: 'bundled', path: '/bundled/uv' } },
