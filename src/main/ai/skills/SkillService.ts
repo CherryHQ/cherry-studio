@@ -30,7 +30,7 @@ import type {
 import { extractZip, resolveSkillDirectory, validateZipFile } from './skillArchive'
 import { SkillInstaller } from './SkillInstaller'
 import { buildFileTree, createTempDir, normalizeFolderKey, safeRemoveDirectory, sanitizeFolderName } from './skillPaths'
-import { fetchRemoteSkill } from './skillRemoteSource'
+import { fetchRemoteSkill, GITHUB_ROOT_STAGING_DIRNAME } from './skillRemoteSource'
 import { buildSystemSkillSources } from './systemSkillSources'
 
 const logger = loggerService.withContext('SkillService')
@@ -538,6 +538,21 @@ export class SkillService {
       }
     }
 
+    // A same-origin reinstall whose derived folder name changed migrates the existing row instead
+    // of inserting a duplicate. Only rows still filed under the legacy staging dirname qualify —
+    // no current install path can produce it, so an unrelated skill sharing the URL can never match.
+    const renamed =
+      !existing && sourceUrl
+        ? (agentGlobalSkillService
+            .listAll()
+            .find(
+              (skill) =>
+                skill.source === source &&
+                (skill.sourceUrl ?? null) === sourceUrl &&
+                skill.folderName === GITHUB_ROOT_STAGING_DIRNAME
+            ) ?? null)
+        : null
+
     const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
     if (!existing && storageEntry) {
       throw new Error(
@@ -577,6 +592,56 @@ export class SkillService {
       })
       const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName: destFolderName, source })
+      return updated
+    }
+
+    if (renamed) {
+      // Move the catalog entry to the new folder, preserving the skill ID and its agent_skills rows.
+      // The previous folder is kept as a recoverable backup until the row is updated: recursive
+      // deletion is not atomic, so deleting it first could strand a half-removed old state.
+      const prevFolderName = renamed.folderName
+      const backupPath = await this.installer.backupReplacedFolder(this.getSkillStoragePath(prevFolderName))
+      try {
+        application.get('DbService').withWriteTx((tx) => {
+          agentGlobalSkillService.updateTx(tx, renamed.id, {
+            folderName,
+            name: metadata.name,
+            description: metadata.description ?? null,
+            author: metadata.author ?? null,
+            version: metadata.version ?? null,
+            tags,
+            contentHash,
+            ...(source === 'system' ? { sourceUrl, namespace: provenance.namespace ?? null } : {})
+          })
+        })
+      } catch (error) {
+        // Best-effort rollback to the complete old state; a leftover `.bak` marker is restored
+        // by startup recovery, so even a double fault loses nothing.
+        if (backupPath) {
+          try {
+            await fs.promises.rename(backupPath, this.getSkillStoragePath(prevFolderName))
+          } catch (restoreError) {
+            logger.error('Failed to restore previous skill folder after migration failure', {
+              prevFolderName,
+              error: restoreError instanceof Error ? restoreError.message : String(restoreError)
+            })
+          }
+        }
+        try {
+          await this.installer.uninstall(destPath)
+        } catch (cleanupError) {
+          logger.error('Failed to clean up skill files after migration failure', {
+            folderName,
+            destPath,
+            error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+          })
+        }
+        throw error
+      }
+      await this.installer.commitReplacedFolder(backupPath)
+      await this.unlinkMirror(prevFolderName)
+      const updated = agentGlobalSkillService.getById(renamed.id)!
+      logger.info('Skill folder migrated', { id: renamed.id, prevFolderName, folderName, source })
       return updated
     }
 

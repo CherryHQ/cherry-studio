@@ -30,6 +30,10 @@ import { createTempDir, safeRemoveDirectory, sanitizeFolderName } from './skillP
 
 const logger = loggerService.withContext('SkillRemoteSource')
 
+// Staging dirname a repository-root skill checks out into. It is never a valid catalog
+// folder name: root installs are renamed before the installer derives one from the basename.
+export const GITHUB_ROOT_STAGING_DIRNAME = 'content'
+
 // API base URLs for the 3 search sources
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
@@ -189,6 +193,9 @@ async function fetchFromGithub(
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
 
+  if (target.kind === 'root') {
+    return { skillDir: await renameGithubRootDir(tempDir, skillDir, repo), sourceUrl }
+  }
   return { skillDir, sourceUrl }
 }
 
@@ -331,7 +338,7 @@ async function materializeGithubTarget(
 ): Promise<{ contentDir: string; skillDir: string }> {
   const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
   const gitDir = path.join(tempDir, 'repo.git')
-  const contentDir = path.join(tempDir, 'content')
+  const contentDir = path.join(tempDir, GITHUB_ROOT_STAGING_DIRNAME)
   const git = (args: string[], options?: { maxOutputBytes?: number }) =>
     runGit(gitCommand, [`--git-dir=${gitDir}`, ...args], options)
 
@@ -359,6 +366,21 @@ async function materializeGithubTarget(
     contentDir,
     skillDir: target.kind === 'root' ? contentDir : path.join(contentDir, target.path)
   }
+}
+
+// A repository-root skill checks out directly into the staging `content/` directory, so its
+// basename would become the catalog folder name. Rename it to the skill name instead.
+async function renameGithubRootDir(tempDir: string, skillDir: string, repo: string): Promise<string> {
+  const stagingName = path.basename(skillDir)
+  const metadata = await parseSkillMetadata(skillDir, repo, 'skills', { calculateSize: false })
+  const claimed = metadata.name?.trim() && metadata.name !== stagingName ? metadata.name.trim() : repo
+  let sanitized = sanitizeFolderName(claimed)
+  if (!sanitized || sanitized === stagingName) sanitized = sanitizeFolderName(repo)
+  if (!sanitized) throw new Error(`Cannot derive a folder name for GitHub skill: ${repo}`)
+  if (sanitized === stagingName) sanitized = `${stagingName}-skill`
+  const dest = path.join(tempDir, sanitized)
+  if (dest !== skillDir) await fs.promises.rename(skillDir, dest)
+  return dest
 }
 
 function assertGithubTargetTree(
