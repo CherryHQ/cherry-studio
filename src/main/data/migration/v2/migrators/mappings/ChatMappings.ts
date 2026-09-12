@@ -578,7 +578,8 @@ export async function transformMessage(
     // assistant-role rows; the header shows it first, the model second.
     messageSnapshot: buildMessageSnapshot(
       oldMessage.model,
-      oldMessage.role === 'assistant' ? assistantSnapshot : undefined
+      oldMessage.role === 'assistant' ? assistantSnapshot : undefined,
+      oldMessage.modelId
     ),
     stats: mergeStats(
       oldMessage.usage,
@@ -597,12 +598,13 @@ export async function transformMessage(
  */
 function buildMessageSnapshot(
   model: OldMessage['model'],
-  assistant: { id: string; name: string; emoji: string } | undefined
+  assistant: { id: string; name: string; emoji: string } | undefined,
+  fallbackModelId?: string | null
 ): MessageSnapshot | null {
   if (!assistant) return null
   if (!model || typeof model.id !== 'string' || typeof model.provider !== 'string') return null
   if (!model.id.trim() || !model.provider.trim()) return null
-  const uniqueModelId = legacyModelToUniqueId(model)
+  const uniqueModelId = legacyModelToUniqueId(model, fallbackModelId)
   const { providerId, modelId } = uniqueModelId
     ? parseUniqueModelId(uniqueModelId)
     : { providerId: model.provider, modelId: model.id }
