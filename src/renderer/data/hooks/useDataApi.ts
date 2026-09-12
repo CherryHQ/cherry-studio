@@ -119,7 +119,7 @@ type InferPaginatedItem<TPath extends ApiPath> =
  * `useInfiniteQuery<'/some-path'>(...)`) may still bypass when `TPath` itself
  * is widened — always let TypeScript infer `TPath` from the path argument.
  */
-type CursorPaginatedPath<TPath extends ApiPath> =
+export type CursorPaginatedPath<TPath extends ApiPath> =
   InferPaginationMode<ResponseForPath<TPath, 'GET'>> extends 'cursor' ? TPath : never
 
 /**
@@ -246,7 +246,7 @@ export interface UseInfiniteQueryResult<TResponse> {
   mutate: SWRInfiniteKeyedMutator<TResponse[]>
 }
 
-type InfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'GET'> & {
+export type InfiniteQueryOptions<TPath extends ApiPath> = ParamsOption<TPath, 'GET'> & {
   query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
   limit?: number
   enabled?: boolean

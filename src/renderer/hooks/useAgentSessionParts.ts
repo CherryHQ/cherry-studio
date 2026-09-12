@@ -101,7 +101,6 @@ function reservedUIMessageToAgentSessionMessage(
 export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
-  const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
   // Load-all mode (multi-select "select all"): auto-paginate to the oldest
   // page — same pattern as `useTopics({ loadAll: true })`. `loadNext` is
   // fire-and-forget (its promise is dropped inside useDataApi), so a failed
@@ -133,7 +132,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     }
   )
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
-    refresh: [sessionMessagesCachePath]
+    refresh: ({ args }) => [`/agent-sessions/${args!.params.sessionId}/messages`]
   })
   const writeSessionMessagesCache = useWriteInfiniteCache('/agent-sessions/:sessionId/messages', {
     params: { sessionId },

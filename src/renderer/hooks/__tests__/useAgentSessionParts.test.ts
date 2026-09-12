@@ -54,7 +54,9 @@ function mockAgentSessionPartsDataApi(pages: Array<{ items: AgentSessionMessageE
 
 function mockLiveAgentSessionParts(initialItems: AgentSessionMessageEntity[]) {
   type Pages = Array<{ items: AgentSessionMessageEntity[]; nextCursor?: string }>
-  const trigger = vi.fn(async () => undefined)
+  const trigger = vi.fn<(args?: { params: { sessionId: string; messageId: string } }) => Promise<undefined>>(
+    async () => undefined
+  )
   MockUseDataApiUtils.seedInfiniteQuery(
     '/agent-sessions/:sessionId/messages',
     [{ items: [...initialItems].reverse(), nextCursor: undefined }],
@@ -637,6 +639,44 @@ describe('useAgentSessionParts', () => {
     ])
     expect(live.trigger).toHaveBeenCalledTimes(2)
     expect(live.getIds()).toEqual(['message-1'])
+  })
+
+  it('refreshes the initiating session when a queued delete runs after selection changes', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1'), sessionMessageRow('message-2')])
+    live.setItems('session-2', [sessionMessageRow('message-3', 'session-2')])
+    let resolveFirstDelete!: () => void
+    live.trigger
+      .mockImplementationOnce(
+        () =>
+          new Promise<undefined>((resolve) => {
+            resolveFirstDelete = () => resolve(undefined)
+          })
+      )
+      .mockResolvedValueOnce(undefined)
+    const { result, rerender } = renderHook(({ sessionId }) => useAgentSessionParts(sessionId), {
+      initialProps: { sessionId: 'session-1' }
+    })
+
+    let firstDelete!: Promise<void>
+    let queuedDelete!: Promise<void>
+    act(() => {
+      firstDelete = result.current.deleteMessage('message-1')
+      queuedDelete = result.current.deleteMessage('message-2')
+    })
+    rerender({ sessionId: 'session-2' })
+
+    await act(async () => {
+      resolveFirstDelete()
+      await Promise.all([firstDelete, queuedDelete])
+    })
+
+    const queuedArgs = live.trigger.mock.calls[1]?.[0]
+    const latestRefresh = dataApiMocks.useMutation.mock.calls.at(-1)?.[2]?.refresh as
+      | ((context: { args: typeof queuedArgs; result: undefined }) => string[])
+      | undefined
+    const refreshedPaths =
+      typeof latestRefresh === 'function' ? latestRefresh({ args: queuedArgs, result: undefined }) : latestRefresh
+    expect(refreshedPaths).toEqual(['/agent-sessions/session-1/messages'])
   })
 
   it('does not let a pending delete from another session block the current session', async () => {
