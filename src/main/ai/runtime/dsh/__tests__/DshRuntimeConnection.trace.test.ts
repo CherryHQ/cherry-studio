@@ -5,6 +5,7 @@ import { trace } from '@opentelemetry/api'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ShellEnvModule from '@main/utils/shellEnv'
+
 import { AgentSessionForkError, type RuntimeForkInput } from '../../fork'
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeTraceContext } from '../../types'
 
