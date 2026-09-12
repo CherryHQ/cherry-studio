@@ -2505,6 +2505,64 @@ describe('TranslatePage', () => {
     )
   })
 
+  it('preserves a translation started after remount while an older history restoration is pending', async () => {
+    let emitResponse!: (text: string, isComplete: boolean) => void
+    let resolveTranslate!: (value: string) => void
+    translateCoreMock.translateText.mockImplementationOnce(
+      (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
+        emitResponse = onResponse ?? (() => undefined)
+        return new Promise<string>((resolve) => {
+          resolveTranslate = resolve
+        })
+      }
+    )
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    MockUseCacheUtils.setCacheValue('translate.output', 'current output')
+    MockCacheUtils.setInitialState({
+      memory: [
+        ['translate.input', 'current input'],
+        ['translate.output', 'current output']
+      ]
+    })
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const firstPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        firstPage.unmount()
+
+        const secondPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+        await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
+
+        await act(async () => resolvePersist())
+        await act(async () => {
+          emitResponse('new translation', true)
+          resolveTranslate('new translation')
+        })
+        secondPage.rerender(<TranslatePage />)
+      }
+    )
+
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('current input')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('new translation')
+    expect(toast.success).toHaveBeenCalledWith('translate.complete')
+  })
+
   it('restores history when an older translation completes during language persistence', async () => {
     let emitResponse!: (text: string, isComplete: boolean) => void
     let resolveTranslate!: (value: string) => void

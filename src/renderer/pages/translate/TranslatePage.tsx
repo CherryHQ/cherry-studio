@@ -77,6 +77,12 @@ const TRANSLATE_LANGUAGE_PREFERENCE_KEYS = {
   sourceLanguage: 'feature.translate.page.source_language',
   targetLanguage: 'feature.translate.page.target_language'
 } as const
+const getContentIntentRevision = () => cacheService.get('translate.content_intent_revision') ?? 0
+const advanceContentIntentRevision = () =>
+  cacheService.set('translate.content_intent_revision', getContentIntentRevision() + 1)
+const getContentOperationRevision = () => cacheService.get('translate.content_operation_revision') ?? 0
+const advanceContentOperationRevision = () =>
+  cacheService.set('translate.content_operation_revision', getContentOperationRevision() + 1)
 const useBabelDoc = (enabled: boolean) => {
   const { t } = useTranslation()
   const [availability, setAvailability] = useState<BabelDocAvailability>('checking')
@@ -245,15 +251,13 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  const contentIntentRevisionRef = useRef(0)
-  const contentOperationRevisionRef = useRef(0)
   const translationOperationRef = useRef<{ revision: number } | null>(null)
   const markContentChanged = useCallback(() => {
-    contentIntentRevisionRef.current += 1
+    advanceContentIntentRevision()
     translationOperationRef.current = null
   }, [])
   const isTranslationOperationCurrent = useCallback(
-    () => translationOperationRef.current?.revision === contentOperationRevisionRef.current,
+    () => translationOperationRef.current?.revision === getContentOperationRevision(),
     []
   )
   const handleTranslationResponse = useCallback(
@@ -309,7 +313,7 @@ const TranslatePage: FC = () => {
   const isMountedRef = useRef(true)
   const translateContentRef = useRef({ input: translateInput, output: translateOutput, pdfFile })
   const isContentOperationCurrent = useCallback(
-    (revision: number) => isMountedRef.current && revision === contentOperationRevisionRef.current,
+    (revision: number) => isMountedRef.current && revision === getContentOperationRevision(),
     []
   )
 
@@ -605,7 +609,8 @@ const TranslatePage: FC = () => {
 
   const onTranslate = useCallback(async () => {
     if (exchangePendingRef.current || historyRestorePendingRef.current) return
-    translationOperationRef.current = { revision: contentOperationRevisionRef.current }
+    markContentChanged()
+    translationOperationRef.current = { revision: getContentOperationRevision() }
     if (pdfFile) {
       if (babelDoc.availability === 'checking' || babelDoc.installing || targetLanguage === UNKNOWN_LANG_CODE) return
       if (babelDoc.availability === 'available') {
@@ -633,6 +638,7 @@ const TranslatePage: FC = () => {
     babelDoc.installing,
     bidirectionalPair,
     isSelectedPdfModelRoutable,
+    markContentChanged,
     pdfFile,
     pdfStatus.running,
     sourceLanguage,
@@ -705,7 +711,7 @@ const TranslatePage: FC = () => {
     async (history: TranslateHistory, files?: TranslationFiles) => {
       if (exchangePendingRef.current || historyRestorePendingRef.current) return
       const contentBeforePersist = translateContentRef.current
-      const contentIntentRevisionBeforePersist = contentIntentRevisionRef.current
+      const contentIntentRevisionBeforePersist = getContentIntentRevision()
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
@@ -740,7 +746,7 @@ const TranslatePage: FC = () => {
           }),
           'translate history languages'
         )
-        if (!persisted || contentIntentRevisionBeforePersist !== contentIntentRevisionRef.current) return
+        if (!persisted || contentIntentRevisionBeforePersist !== getContentIntentRevision()) return
 
         if (!isMountedRef.current) {
           if (
@@ -750,7 +756,7 @@ const TranslatePage: FC = () => {
           )
             return
 
-          contentOperationRevisionRef.current += 1
+          advanceContentOperationRevision()
           markContentChanged()
           translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
           setTranslateInput(history.sourceText)
@@ -759,7 +765,7 @@ const TranslatePage: FC = () => {
           return
         }
 
-        contentOperationRevisionRef.current += 1
+        advanceContentOperationRevision()
         markContentChanged()
 
         if (filePaths) {
@@ -931,7 +937,7 @@ const TranslatePage: FC = () => {
 
   const handleSelectFile = useCallback(async () => {
     if (exchangePendingRef.current || selecting || isTranslationRunning || isOcrRunning) return
-    const contentOperationRevision = contentOperationRevisionRef.current
+    const contentOperationRevision = getContentOperationRevision()
     markContentChanged()
     setIsProcessing(true)
     try {
@@ -975,7 +981,7 @@ const TranslatePage: FC = () => {
   const onDrop = useCallback(
     async (e: DragEvent<HTMLDivElement>) => {
       if (exchangePendingRef.current || isProcessing || isOcrRunning || isTranslationRunning) return
-      const contentOperationRevision = contentOperationRevisionRef.current
+      const contentOperationRevision = getContentOperationRevision()
       markContentChanged()
       setIsProcessing(true)
       try {
@@ -1025,7 +1031,7 @@ const TranslatePage: FC = () => {
       if (exchangePendingRef.current || isProcessing || isOcrRunning || isTranslationRunning) return
       const hasFiles = !!event.clipboardData.files && event.clipboardData.files.length > 0
       if (!hasFiles) return
-      const contentOperationRevision = contentOperationRevisionRef.current
+      const contentOperationRevision = getContentOperationRevision()
       markContentChanged()
       setIsProcessing(true)
       try {

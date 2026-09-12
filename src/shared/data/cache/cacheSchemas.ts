@@ -168,6 +168,10 @@ export type UseCacheSchema = {
   'translate.output': string
   /** Whether detecting source language or not */
   'translate.detecting': boolean
+  /** Revision of the latest user intent that may change translated content */
+  'translate.content_intent_revision': number
+  /** Revision that invalidates asynchronous translated-content producers */
+  'translate.content_operation_revision': number
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
 
@@ -259,6 +263,8 @@ export const DefaultUseCache: UseCacheSchema = {
   'translate.input': '',
   'translate.output': '',
   'translate.detecting': false,
+  'translate.content_intent_revision': 0,
+  'translate.content_operation_revision': 0,
   'translate.translating': {
     isTranslating: false,
     abortKey: null
