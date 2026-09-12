@@ -23,6 +23,10 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
   const measurementScheduledRef = useRef(false)
   const mountedRef = useRef(true)
   const wasEnabledRef = useRef(enabled)
+  // Mirrors the isCompact value the current render actually painted, so the
+  // editor ResizeObserver below can tell a width change caused by a
+  // presentation flip apart from an external layout change.
+  const renderedIsCompactRef = useRef(enabled)
 
   const requestMeasurement = useCallback(() => {
     if (!enabled || isComposing() || measurementScheduledRef.current) return
@@ -100,10 +104,10 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
     // touching the inputbar's outer width or the content, so neither observer
     // above would notice: text that fit while focused can wrap on blur and get
     // clipped by the fixed-height compact frame. Watch the editor width itself
-    // and remeasure on change; the width-equality guard keeps presentation
-    // flips from re-requesting in a cycle.
+    // and remeasure on change.
     let observedEditorElement: HTMLElement | null = null
     let lastEditorWidth = 0
+    let lastSeenRenderedCompact = true
     let editorResizeObserver: ResizeObserver | null = null
     const composerFrame: HTMLElement = frame
 
@@ -115,11 +119,23 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
       editorResizeObserver?.disconnect()
       observedEditorElement = editorElement
       lastEditorWidth = editorElement.getBoundingClientRect().width
+      lastSeenRenderedCompact = renderedIsCompactRef.current
       editorResizeObserver = new ResizeObserver((entries) => {
         const nextEditorWidth = entries[0]?.contentRect.width ?? editorElement.getBoundingClientRect().width
         if (nextEditorWidth === lastEditorWidth) return
 
         lastEditorWidth = nextEditorWidth
+        // A presentation flip (the optimistic compact render while a
+        // measurement is pending, or the settled re-render afterwards) changes
+        // the editor width on its own. Feeding that echo back into a new
+        // measurement would toggle compact and regular forever while the
+        // compact content keeps overflowing, so consume it here and only
+        // remeasure for width changes that happen in a steady presentation.
+        const renderedCompactNow = renderedIsCompactRef.current
+        const flipDrivenWidthChange = renderedCompactNow !== lastSeenRenderedCompact
+        lastSeenRenderedCompact = renderedCompactNow
+        if (flipDrivenWidthChange) return
+
         requestMeasurement()
       })
       editorResizeObserver.observe(editorElement)
@@ -147,9 +163,11 @@ export function useCompactComposerPresentation({ enabled, frameRef, isComposing 
   }, [enabled, frameRef, requestMeasurement])
 
   const measurementPending = measurement.revision !== requestedRevision
+  const isCompact = enabled && (measurementPending || measurement.presentation === 'compact')
+  renderedIsCompactRef.current = isCompact
 
   return {
-    isCompact: enabled && (measurementPending || measurement.presentation === 'compact'),
+    isCompact,
     requestMeasurement
   }
 }

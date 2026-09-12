@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useCompactComposerPresentation } from '../useCompactComposerPresentation'
@@ -105,20 +105,75 @@ describe('useCompactComposerPresentation', () => {
     dims.scrollHeight = 60
     editorObserver().trigger(500)
     await waitFor(() => expect(result.current.isCompact).toBe(false))
+    // Widening back to the regular width is the flip's own echo; the browser
+    // delivers it right after the settled re-render, so consume it before the
+    // next entry models a real external change.
+    editorObserver().trigger(600)
+    await Promise.resolve()
+    expect(result.current.isCompact).toBe(false)
 
     // Refocus: the hint leaves the layout, the text fits on one line again.
     dims.scrollHeight = 20
-    editorObserver().trigger(600)
+    editorObserver().trigger(700)
     await waitFor(() => expect(result.current.isCompact).toBe(true))
+    editorObserver().trigger(520)
+    await Promise.resolve()
+    expect(result.current.isCompact).toBe(true)
 
     // The transition must keep working on repetition, not just once.
     dims.scrollHeight = 60
     editorObserver().trigger(500)
     await waitFor(() => expect(result.current.isCompact).toBe(false))
-
-    // An unchanged width must not schedule a measurement (no resize cycle).
-    editorObserver().trigger(500)
+    editorObserver().trigger(600)
     await Promise.resolve()
     expect(result.current.isCompact).toBe(false)
+
+    // An unchanged width must not schedule a measurement (no resize cycle).
+    editorObserver().trigger(600)
+    await Promise.resolve()
+    expect(result.current.isCompact).toBe(false)
+  })
+
+  it('does not toggle repeatedly when compact content stays overflowing', async () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver)
+    const { frame } = buildComposerFrame()
+    const frameRef = { current: frame }
+    const dims = { clientHeight: 20, scrollHeight: 20 }
+    const paintedPresentations: boolean[] = []
+
+    const { result } = renderHook(() => {
+      const hook = useCompactComposerPresentation({
+        enabled: true,
+        frameRef,
+        isComposing: () => false
+      })
+      paintedPresentations.push(hook.isCompact)
+      return hook
+    })
+    const editorElement = appendEditorElement(frame, dims)
+
+    // Single line fits: compact.
+    await waitFor(() => expect(result.current.isCompact).toBe(true))
+    const editorObserver = () => FakeResizeObserver.forElement(editorElement)
+    const paintCount = () => paintedPresentations.length
+
+    // Blur narrows the editor and the now-longer text overflows: regular.
+    dims.scrollHeight = 60
+    editorObserver().trigger(500)
+    await waitFor(() => expect(result.current.isCompact).toBe(false))
+    const settledPaints = paintCount()
+
+    // Widening back to the regular width is the flip's own echo, not a user
+    // layout change — it must be consumed instead of re-entering the
+    // measure -> flip -> resize loop, so no new paint may happen.
+    editorObserver().trigger(600)
+    await act(async () => {})
+    expect(result.current.isCompact).toBe(false)
+    expect(paintCount()).toBe(settledPaints)
+
+    // A real external narrowing must still remeasure.
+    dims.scrollHeight = 20
+    editorObserver().trigger(500)
+    await waitFor(() => expect(result.current.isCompact).toBe(true))
   })
 })
