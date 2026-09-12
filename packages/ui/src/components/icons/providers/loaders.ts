@@ -134,6 +134,7 @@ export const PROVIDER_ICON_LOADERS = {
   'radeon-cloud': () => import('./radeon-cloud').then(({ RadeonCloudIcon }) => RadeonCloudIcon),
   recraft: () => import('./recraft').then(({ RecraftIcon }) => RecraftIcon),
   relace: () => import('./relace').then(({ RelaceIcon }) => RelaceIcon),
+  requesty: () => import('./requesty/requesty').then(({ RequestyIcon }) => RequestyIcon),
   riverflow: () => import('./riverflow').then(({ RiverflowIcon }) => RiverflowIcon),
   runway: () => import('./runway').then(({ RunwayIcon }) => RunwayIcon),
   searxng: () => import('./searxng').then(({ SearxngIcon }) => SearxngIcon),

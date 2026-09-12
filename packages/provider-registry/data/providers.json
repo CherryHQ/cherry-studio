@@ -751,6 +751,27 @@
       "name": "TokenDance"
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Requesty - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://router.requesty.ai/v1"
+        }
+      },
+      "id": "requesty",
+      "metadata": {
+        "website": {
+          "apiKey": "https://app.requesty.ai/api-keys",
+          "docs": "https://docs.requesty.ai",
+          "models": "https://www.requesty.ai/models",
+          "official": "https://requesty.ai/"
+        }
+      },
+      "name": "Requesty"
+    },
+    {
       "availableInEditions": ["global", "cn"],
       "description": "New API - AI model provider",
       "endpointConfigs": {
@@ -2676,5 +2697,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "dbca1ba38bf86df7"
+  "version": "52445cbc885eb6dd"
 }
