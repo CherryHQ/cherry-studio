@@ -18,7 +18,9 @@ import {
   evaluateCandidateVersion,
   getAllMigrators,
   getBlockMessage,
+  isMigrationStorageError,
   isSchemaOutOfSyncError,
+  type MigrationPaths,
   migrationEngine,
   migrationWindowManager,
   pinUserDataPath,
@@ -65,6 +67,39 @@ async function quitWithDataLocationError(cause: unknown): Promise<V2MigrationGat
   )
   application.quit()
   return 'handled'
+}
+
+async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: boolean): Promise<boolean | null> {
+  while (true) {
+    try {
+      logger.info('Checking if data migration v2 is needed')
+      migrationEngine.initialize(paths, legacyDataConfirmed)
+      migrationEngine.registerMigrators(getAllMigrators())
+      const needsMigration = await migrationEngine.needsMigration()
+      logger.info('Migration status check result', { needsMigration })
+      return needsMigration
+    } catch (error) {
+      if (isDev || !isMigrationStorageError(error)) throw error
+
+      logger.error('Migration database unavailable', error as Error)
+      migrationEngine.close()
+      await app.whenReady()
+      const { response } = await dialog.showMessageBox({
+        type: 'error',
+        title: 'Database Unavailable',
+        message: 'Cherry Studio could not access its local database.',
+        detail:
+          'Check that your data location is available and writable and that your disk has free space, then try again.',
+        buttons: ['Retry', 'Quit'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      if (response === 0) continue
+
+      application.quit()
+      return null
+    }
+  }
 }
 
 /**
@@ -148,11 +183,9 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   let needsMigration = false
 
   try {
-    logger.info('Checking if data migration v2 is needed')
-    migrationEngine.initialize(paths, legacyDataConfirmed)
-    migrationEngine.registerMigrators(getAllMigrators())
-    needsMigration = await migrationEngine.needsMigration()
-    logger.info('Migration status check result', { needsMigration })
+    const result = await checkMigrationStatus(paths, legacyDataConfirmed)
+    if (result === null) return 'handled'
+    needsMigration = result
   } catch (error) {
     logger.error('Migration status check failed', error as Error)
     await app.whenReady()

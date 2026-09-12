@@ -70,10 +70,12 @@ const defaultResolveResult = {
 
 function stubMigrationV2() {
   vi.doMock('@data/migration/v2', async () => {
-    // The gate now imports the version-policy fns and isSchemaOutOfSyncError through
-    // the barrel, so they live on this mock. isSchemaOutOfSyncError is a pure predicate —
-    // keep the real implementation so schemaOutOfSyncError() fixtures are still detected.
-    const { isSchemaOutOfSyncError } = (await vi.importActual('@data/migration/v2/core/migrationErrors')) as {
+    // The gate imports the error predicates through the barrel. Keep the real
+    // implementations so the fixtures exercise production classification.
+    const { isMigrationStorageError, isSchemaOutOfSyncError } = (await vi.importActual(
+      '@data/migration/v2/core/migrationErrors'
+    )) as {
+      isMigrationStorageError: (error: unknown) => boolean
       isSchemaOutOfSyncError: (error: unknown) => boolean
     }
     return {
@@ -97,6 +99,7 @@ function stubMigrationV2() {
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
+      isMigrationStorageError,
       isSchemaOutOfSyncError
     }
   })
@@ -135,6 +138,13 @@ function stubPlatform(isDev: boolean) {
 function schemaOutOfSyncError(): Error {
   const inner = Object.assign(new Error('table `agent` already exists'), { code: 'SQLITE_ERROR' })
   return Object.assign(new Error('SQLITE_ERROR: table `agent` already exists'), { code: 'SQLITE_ERROR', cause: inner })
+}
+
+function storageError(): Error {
+  const cause = Object.assign(new Error('attempt to write a readonly database at /Users/private/cherrystudio.sqlite'), {
+    code: 'SQLITE_READONLY'
+  })
+  return new Error('Database WAL setup failed at /Users/private/cherrystudio.sqlite', { cause })
 }
 
 async function loadModule() {
@@ -328,6 +338,56 @@ describe('runV2MigrationGate', () => {
   })
 
   describe('handled path — migration check fails', () => {
+    it('retries a production storage failure in-process and continues after the next initialization succeeds', async () => {
+      initializeMock.mockImplementationOnce(() => {
+        throw storageError()
+      })
+      needsMigrationMock.mockResolvedValue(false)
+      showMessageBoxMock.mockResolvedValueOnce({ response: 0 })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+      stubPlatform(false)
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('skipped')
+      expect(initializeMock).toHaveBeenCalledTimes(2)
+      expect(registerMigratorsMock).toHaveBeenCalledTimes(1)
+      expect(closeMock).toHaveBeenCalledTimes(2)
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
+      expect(showMessageBoxMock.mock.calls[0][0]).toMatchObject({
+        buttons: ['Retry', 'Quit'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      expect(JSON.stringify(showMessageBoxMock.mock.calls[0][0])).not.toContain('/Users/private')
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(appQuitMock).not.toHaveBeenCalled()
+    })
+
+    it('closes partial state and quits when the user declines a production storage retry', async () => {
+      initializeMock.mockImplementation(() => {
+        throw storageError()
+      })
+      showMessageBoxMock.mockResolvedValueOnce({ response: 1 })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+      stubPlatform(false)
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(initializeMock).toHaveBeenCalledTimes(1)
+      expect(closeMock).toHaveBeenCalledTimes(1)
+      expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
+      expect(showErrorBoxMock).not.toHaveBeenCalled()
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+    })
+
     it("returns 'handled', shows an error dialog, and quits when the engine fails to initialize", async () => {
       initializeMock.mockImplementation(() => {
         throw new Error('DB unavailable')
