@@ -415,6 +415,10 @@ export class AiStreamManager extends BaseService {
     // stream opened in the boot window before reconcile finished.
     await this.reconciled
     return this.withDispatchLock(req.topicId, async () => {
+      // A renderer submit can land while the previous turn's terminal dispatch is still running;
+      // admitting now would evict that stream before its terminal lifecycle ran (see startAgentSessionRun).
+      await this.whenTerminalDispatchSettled(req.topicId)
+
       // Write-quiesce admission gate, re-checked under the lock so a pause landing while this
       // dispatch waited on the mutex still rejects it — the gate must sit before `prepareDispatch`
       // writes the user/pending-assistant rows. `steer-continuation` is exempt: it only originates

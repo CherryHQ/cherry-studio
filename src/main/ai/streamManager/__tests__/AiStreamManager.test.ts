@@ -10,6 +10,7 @@ import type { SerializedError } from '@shared/types/error'
 import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
+import type * as DispatchModule from '../context/dispatch'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
@@ -70,6 +71,14 @@ class FakeListener implements StreamListener {
 
 const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
 const mockGetMessageById = vi.hoisted(() => vi.fn())
+
+// Real by default (steer continuations reach it through `dispatch()`); a test swaps it to observe admission.
+const mockDispatchStreamRequest = vi.hoisted(() => vi.fn())
+vi.mock('../context/dispatch', async (importOriginal) => {
+  const actual = await importOriginal<typeof DispatchModule>()
+  mockDispatchStreamRequest.mockImplementation(actual.dispatchStreamRequest)
+  return { ...actual, dispatchStreamRequest: mockDispatchStreamRequest }
+})
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
@@ -1537,6 +1546,53 @@ describe('AiStreamManager', () => {
         )
       releaseB()
       await followUp
+      await terminal
+
+      expect(conversationCompletedEvents).toEqual([
+        { topicId: 'a', turnId: previousTurnId, completedAt: expect.any(Number) }
+      ])
+      expect(fakeCacheService.setShared.mock.calls.map(([, value]) => value)).toContainEqual(
+        expect.objectContaining({ status: 'done', turnId: previousTurnId })
+      )
+      expect(mgr.inspect('a')).toMatchObject({ status: 'pending', listenerIds: [next.id] })
+    })
+
+    it('dispatch() admits a renderer follow-up only after the previous terminal dispatch settles', async () => {
+      ;(mgr as unknown as { markReconciled(): void }).markReconciled()
+      let releaseB!: () => void
+      const a = new FakeListener('cleanup-a:a', 'cleanup')
+      const aDone = new Promise<void>((resolve) => {
+        a.onDoneImpl = () => resolve()
+      })
+      const b = new FakeListener('cleanup-b:a', 'cleanup')
+      b.onDoneImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseB = resolve
+        })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [a, b],
+        isPersistentConversation: true
+      })
+      const previousTurnId = (sharedCacheStore.get('topic.stream.statuses.a') as { turnId: string }).turnId
+
+      const terminal = mgr.onExecutionDone('a', 'provider-a::model-a')
+      await aDone
+
+      const next = new FakeListener('wc:next:a')
+      mockDispatchStreamRequest.mockImplementationOnce(async () => {
+        startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [next] })
+        return { mode: 'started' }
+      })
+      const followUp = mgr.dispatch(next, { trigger: 'submit-message', topicId: 'a' } as never)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+      expect(conversationCompletedEvents).toEqual([])
+
+      releaseB()
+      await expect(followUp).resolves.toEqual({ mode: 'started' })
       await terminal
 
       expect(conversationCompletedEvents).toEqual([
