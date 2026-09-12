@@ -43,6 +43,7 @@ const showMessageBoxMock = vi.fn()
 const appQuitMock = vi.fn()
 const appRelaunchMock = vi.fn()
 const whenReadyMock = vi.fn().mockResolvedValue(undefined)
+const getLocaleMock = vi.fn().mockReturnValue('en-US')
 const relaunchMock = vi.fn()
 const exitMock = vi.fn()
 
@@ -112,6 +113,7 @@ function stubElectron() {
       whenReady: whenReadyMock,
       relaunch: relaunchMock,
       exit: exitMock,
+      getLocale: getLocaleMock,
       getVersion: vi.fn().mockReturnValue('2.0.0')
     },
     dialog: {
@@ -168,6 +170,7 @@ beforeEach(() => {
   appQuitMock.mockReset()
   appRelaunchMock.mockReset()
   whenReadyMock.mockReset().mockResolvedValue(undefined)
+  getLocaleMock.mockReset().mockReturnValue('en-US')
   relaunchMock.mockReset()
   exitMock.mockReset()
   setVersionIncompatibleMock.mockReset()
@@ -338,12 +341,13 @@ describe('runV2MigrationGate', () => {
   })
 
   describe('handled path — migration check fails', () => {
-    it('retries a production storage failure in-process and continues after the next initialization succeeds', async () => {
+    it('localizes a production storage retry and continues after the next initialization succeeds', async () => {
       initializeMock.mockImplementationOnce(() => {
         throw storageError()
       })
       needsMigrationMock.mockResolvedValue(false)
       showMessageBoxMock.mockResolvedValueOnce({ response: 0 })
+      getLocaleMock.mockReturnValue('zh-CN')
       stubMigrationV2()
       stubElectron()
       stubApplication()
@@ -358,7 +362,10 @@ describe('runV2MigrationGate', () => {
       expect(closeMock).toHaveBeenCalledTimes(2)
       expect(showMessageBoxMock).toHaveBeenCalledTimes(1)
       expect(showMessageBoxMock.mock.calls[0][0]).toMatchObject({
-        buttons: ['Retry', 'Quit'],
+        title: '数据库不可用',
+        message: 'Cherry Studio 无法访问本地数据库。',
+        detail: '请检查数据存储位置是否可用且可写，并确保磁盘有足够的可用空间，然后重试。',
+        buttons: ['重试', '退出'],
         defaultId: 0,
         cancelId: 1
       })

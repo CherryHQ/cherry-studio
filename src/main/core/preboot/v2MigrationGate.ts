@@ -32,6 +32,8 @@ import {
 } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
+import { SUPPORTED_LANGUAGES, t } from '@main/i18n'
+import { defaultLanguage } from '@shared/utils/languages'
 
 const logger = loggerService.withContext('V2MigrationGate')
 
@@ -84,13 +86,17 @@ async function checkMigrationStatus(paths: MigrationPaths, legacyDataConfirmed: 
       logger.error('Migration database unavailable', error as Error)
       migrationEngine.close()
       await app.whenReady()
+      const systemLocale = app.getLocale()
+      const language = SUPPORTED_LANGUAGES.find((supported) => supported === systemLocale) ?? defaultLanguage
       const { response } = await dialog.showMessageBox({
         type: 'error',
-        title: 'Database Unavailable',
-        message: 'Cherry Studio could not access its local database.',
-        detail:
-          'Check that your data location is available and writable and that your disk has free space, then try again.',
-        buttons: ['Retry', 'Quit'],
+        title: t('dialog.migration_database_unavailable.title', undefined, language),
+        message: t('dialog.migration_database_unavailable.message', undefined, language),
+        detail: t('dialog.migration_database_unavailable.detail', undefined, language),
+        buttons: [
+          t('dialog.migration_database_unavailable.retry', undefined, language),
+          t('dialog.migration_database_unavailable.quit', undefined, language)
+        ],
         defaultId: 0,
         cancelId: 1
       })

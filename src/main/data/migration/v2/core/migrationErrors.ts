@@ -34,6 +34,7 @@ function isStorageCode(code: unknown): boolean {
   if (typeof code !== 'string') return false
   return (
     code === 'SQLITE_CANTOPEN' ||
+    code.startsWith('SQLITE_CANTOPEN_') ||
     code === 'SQLITE_FULL' ||
     code === 'SQLITE_IOERR' ||
     code.startsWith('SQLITE_IOERR_') ||
