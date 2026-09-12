@@ -18,6 +18,10 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.reasonLabel': 'Reason for rejection (optional)',
         'agent.toolPermission.reasonPlaceholder': 'Tell the Agent what to do instead',
+        'agent.toolPermission.risk.title': 'What this does',
+        'agent.toolPermission.risk.destructive': 'Deletes or overwrites data.',
+        'agent.toolPermission.risk.irreversible': 'Cannot be undone automatically.',
+        'agent.toolPermission.risk.network': 'Sends data over the network or fetches remote content.',
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
         'agent.toolPermission.button.allow': 'Allow',
@@ -266,6 +270,61 @@ describe('PermissionRequestComposer', () => {
 
     expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
     expect(screen.getAllByText('CustomTool')).toHaveLength(1)
+  })
+
+  it('shows a plain-language risk summary with the reason before the raw command', () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          title: 'Clean up the old build output',
+          toolResponse: {
+            id: 'bash-call-1',
+            toolCallId: 'bash-call-1',
+            status: 'pending',
+            arguments: { command: 'rm -rf ./dist' },
+            tool: {
+              id: 'Bash',
+              name: 'Bash',
+              type: 'builtin'
+            }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const summary = screen.getByTestId('permission-risk-summary')
+    expect(summary).toHaveTextContent('What this does')
+    expect(summary).toHaveTextContent('Clean up the old build output')
+    expect(summary).toHaveTextContent('Deletes or overwrites data.')
+    expect(summary).toHaveTextContent('Cannot be undone automatically.')
+    expect(screen.getByTestId('permission-preview')).toHaveTextContent('rm -rf ./dist')
+  })
+
+  it('shows the risk summary without warnings for read-only commands', () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          title: 'Run the focused tests',
+          toolResponse: {
+            id: 'bash-call-1',
+            toolCallId: 'bash-call-1',
+            status: 'pending',
+            arguments: { command: 'pnpm test' },
+            tool: {
+              id: 'Bash',
+              name: 'Bash',
+              type: 'builtin'
+            }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const summary = screen.getByTestId('permission-risk-summary')
+    expect(summary).toHaveTextContent('Run the focused tests')
+    expect(summary).not.toHaveTextContent('Deletes or overwrites data.')
   })
 
   it('approves when Enter is pressed outside editable controls', async () => {
