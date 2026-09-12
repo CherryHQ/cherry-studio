@@ -999,7 +999,12 @@ export class AiService extends BaseService {
       if (signal?.aborted) {
         throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
       }
-      if (NoImageGeneratedError.isInstance(error)) {
+      const noImageError = NoImageGeneratedError.isInstance(error)
+        ? error
+        : error instanceof Error && NoImageGeneratedError.isInstance(error.cause)
+          ? error.cause
+          : undefined
+      if (noImageError) {
         const remoteDownloadFailures = [...remoteDownloadOutcomes.values()].filter(Boolean).length
         if (remoteDownloadOutcomes.size > 0 && remoteDownloadFailures === remoteDownloadOutcomes.size) {
           throw new Error(`Image generation produced ${remoteDownloadOutcomes.size} URL(s) but all downloads failed`, {
@@ -1007,10 +1012,15 @@ export class AiService extends BaseService {
           })
         }
         if (providerImageCount > 0) {
-          throw new Error(
-            `Image generation produced ${providerImageCount} image candidate(s), but none could be decoded or downloaded`,
-            { cause: error }
+          const receivedCount = Math.max(
+            providerImageCount,
+            ...[...remoteDownloadOutcomes.keys()].map((index) => index + 1)
           )
+          const rejected = Array.from({ length: receivedCount }, (_, index) => ({
+            index,
+            reason: remoteDownloadOutcomes.get(index) ? ('download_failed' as const) : ('invalid_image_data' as const)
+          }))
+          return { files: [], validation: { receivedCount, rejected } }
         }
         return { files: [], validation: { receivedCount: 0, rejected: [] } }
       }
@@ -1067,19 +1077,29 @@ export class AiService extends BaseService {
       })
     }
     const fileManager = application.get('FileManager')
-    const files = await Promise.all(
-      dataUrls.map((data) =>
-        fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
-      )
-    )
-    if (signal?.aborted) {
+    const files: AiImageResult['files'] = []
+    const deleteCreatedFiles = async () => {
       await Promise.all(
         files.map((file) =>
           fileManager.permanentDelete(file.id).catch((cleanupError) => {
-            logger.error(`Failed to delete generated image ${file.id} after cancellation`, cleanupError as Error)
+            logger.error(`Failed to delete generated image ${file.id} after generation failure`, cleanupError as Error)
           })
         )
       )
+    }
+    try {
+      for (const data of dataUrls) {
+        signal?.throwIfAborted()
+        files.push(
+          await fileManager.createInternalEntry({ source: 'base64', data, cleanupPolicy: request.cleanupPolicy })
+        )
+      }
+    } catch (error) {
+      await deleteCreatedFiles()
+      throw error
+    }
+    if (signal?.aborted) {
+      await deleteCreatedFiles()
       throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
     }
 

@@ -876,7 +876,37 @@ describe('AiService', () => {
       expect(permanentDelete).toHaveBeenCalledWith(file.id)
     })
 
-    it('keeps malformed URL candidates on the provider-error path', async () => {
+    it('reclaims a created image when a later image fails to persist', async () => {
+      const service = createService()
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      })
+      mockGenerateImage.mockResolvedValue({
+        images: [
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' },
+          { base64: TINY_PNG_BASE64, mediaType: 'image/png' }
+        ]
+      })
+      const file = { id: 'file-1', origin: 'internal', ext: 'png', name: 'image', size: 1, createdAt: 0 }
+      const createInternalEntry = vi.fn().mockResolvedValueOnce(file).mockRejectedValueOnce(new Error('disk full'))
+      const permanentDelete = vi.fn().mockResolvedValue(undefined)
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry, permanentDelete } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).rejects.toThrow('disk full')
+      expect(permanentDelete).toHaveBeenCalledWith(file.id)
+    })
+
+    it('reports malformed raw provider images after aiCore wraps the empty-result error', async () => {
       const service = createService()
       vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
         sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
@@ -892,7 +922,7 @@ describe('AiService', () => {
           metrics: { timeCompletionMs: 10 },
           completedAt: 100
         })
-        throw new NoImageGeneratedError({ responses: [] })
+        throw new Error('Failed to generate image', { cause: new NoImageGeneratedError({ responses: [] }) })
       })
 
       await expect(
@@ -902,7 +932,16 @@ describe('AiService', () => {
           cleanupPolicy: 'delete_when_unreferenced',
           paramValues: {}
         })
-      ).rejects.toThrow(/2 image candidate/i)
+      ).resolves.toEqual({
+        files: [],
+        validation: {
+          receivedCount: 2,
+          rejected: [
+            { index: 0, reason: 'invalid_image_data' },
+            { index: 1, reason: 'invalid_image_data' }
+          ]
+        }
+      })
       expect(mockDownloadImageAsBase64).not.toHaveBeenCalled()
     })
 
@@ -960,6 +999,33 @@ describe('AiService', () => {
           receivedCount: 1,
           rejected: [{ index: 0, reason: 'invalid_image_data' }]
         }
+      })
+      expect(createInternalEntry).not.toHaveBeenCalled()
+    })
+
+    it('rejects a detected TIFF that the painting view cannot render', async () => {
+      const service = createService()
+      vi.spyOn(service as unknown as AiServicePrivate, 'resolveTransportFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      })
+      const tiff = Buffer.from([73, 73, 42, 0, 8, 0, 0, 0, 0, 0]).toString('base64')
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: tiff, mediaType: 'image/tiff' }] })
+      const createInternalEntry = vi.fn()
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry } : undefined
+      )
+
+      await expect(
+        service.generateImage({
+          uniqueModelId: 'test-provider::test-model',
+          prompt: 'draw a cat',
+          cleanupPolicy: 'delete_when_unreferenced',
+          paramValues: {}
+        })
+      ).resolves.toEqual({
+        files: [],
+        validation: { receivedCount: 1, rejected: [{ index: 0, reason: 'unsupported_media_type' }] }
       })
       expect(createInternalEntry).not.toHaveBeenCalled()
     })

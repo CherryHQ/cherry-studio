@@ -7,6 +7,16 @@ import type { Base64String } from '@shared/types/file'
 
 const GENERATED_IMAGE_BASE64_SCHEMA = z.base64()
 const SVG_MEDIA_TYPE = 'image/svg+xml'
+const RENDERABLE_IMAGE_MEDIA_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'image/bmp',
+  'image/vnd.microsoft.icon',
+  SVG_MEDIA_TYPE
+])
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
 const SVG_COMMENT_OR_CDATA_PATTERN = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g
 const SVG_DOCTYPE_PATTERN = /<!DOCTYPE\b/i
@@ -58,9 +68,9 @@ export async function validateGeneratedImage(
       : mediaType === SVG_MEDIA_TYPE && isValidSvgImage(imageBytes)
         ? SVG_MEDIA_TYPE
         : undefined
-    return detectedMediaType
-      ? { data: `data:${detectedMediaType};base64,${candidate.base64}` }
-      : { reason: 'invalid_image_data' }
+    if (!detectedMediaType) return { reason: 'invalid_image_data' }
+    if (!RENDERABLE_IMAGE_MEDIA_TYPES.has(detectedMediaType)) return { reason: 'unsupported_media_type' }
+    return { data: `data:${detectedMediaType};base64,${candidate.base64}` }
   } catch {
     return { reason: 'invalid_image_data' }
   }
