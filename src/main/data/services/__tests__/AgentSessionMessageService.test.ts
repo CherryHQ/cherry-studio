@@ -452,6 +452,7 @@ describe('AgentSessionMessageService', () => {
         requestId: inboundRequest.id
       })[0]
       if (!inboundResult) throw new Error('Expected clear to create the sender failure result')
+      expect(clearResult.deliveryResults.map((message) => message.id)).toEqual([inboundResult.id])
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
         {
           endpoint: '/agent-sessions/:sessionId/messages',
@@ -1194,9 +1195,12 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('is idempotent when the session is empty or already gone', () => {
-    expect(agentSessionMessageService.clearSessionMessages(SESSION_ID)).toEqual({ deletedIds: [] })
+    expect(agentSessionMessageService.clearSessionMessages(SESSION_ID)).toEqual({ deletedIds: [], deliveryResults: [] })
     expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
-    expect(agentSessionMessageService.clearSessionMessages('missing-session')).toEqual({ deletedIds: [] })
+    expect(agentSessionMessageService.clearSessionMessages('missing-session')).toEqual({
+      deletedIds: [],
+      deliveryResults: []
+    })
     expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 

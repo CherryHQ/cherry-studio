@@ -613,7 +613,10 @@ export class AgentSessionMessageService {
     }
   }
 
-  clearSessionMessages(sessionId: string): { deletedIds: string[] } {
+  clearSessionMessages(sessionId: string): {
+    deletedIds: string[]
+    deliveryResults: AgentSessionMessageEntity[]
+  } {
     const result = application.get('DbService').withWriteTx((tx) => {
       const [session] = tx
         .select({ id: sessionTable.id })
@@ -674,7 +677,7 @@ export class AgentSessionMessageService {
     ]
     if (dataChangeEffects.length > 0) notifyDataApiDataChange(dataChangeEffects)
 
-    return { deletedIds: result.deletedIds }
+    return { deletedIds: result.deletedIds, deliveryResults: result.inboundResults }
   }
 
   getSessionMessage(sessionId: string, messageId: string): AgentSessionMessageEntity {

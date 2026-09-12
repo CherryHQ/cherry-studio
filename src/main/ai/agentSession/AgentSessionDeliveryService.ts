@@ -270,7 +270,10 @@ export class AgentSessionDeliveryService extends BaseService {
   }
 
   private async clearSessionMessagesInternal(sessionId: string): Promise<{ deletedIds: string[] }> {
-    let result: { deletedIds: string[] } = { deletedIds: [] }
+    let result: { deletedIds: string[]; deliveryResults: AgentSessionMessageEntity[] } = {
+      deletedIds: [],
+      deliveryResults: []
+    }
     this.clearingSessionIds.add(sessionId)
     try {
       await application
@@ -278,7 +281,8 @@ export class AgentSessionDeliveryService extends BaseService {
         .abortAndDrain(buildAgentSessionTopicId(sessionId), 'user-requested', () => {
           result = agentSessionMessageService.clearSessionMessages(sessionId)
         })
-      return result
+      for (const deliveryResult of result.deliveryResults) this.kick(deliveryResult.sessionId)
+      return { deletedIds: result.deletedIds }
     } finally {
       this.clearingSessionIds.delete(sessionId)
     }
