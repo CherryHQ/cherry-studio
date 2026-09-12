@@ -46,13 +46,17 @@ function isStorageCode(code: unknown): boolean {
 /** True when migration database setup failed because local storage is unavailable. */
 export function isMigrationStorageError(error: unknown): boolean {
   let current: unknown = error
+  let isOpenFailure = false
+  let hasErrorCode = false
   for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
-    if (!(current instanceof Error)) return false
-    if (current instanceof MigrationDatabaseError && current.stage === 'open') return true
-    if (isStorageCode((current as { code?: unknown }).code)) return true
+    if (!(current instanceof Error)) break
+    if (current instanceof MigrationDatabaseError && current.stage === 'open') isOpenFailure = true
+    const code = (current as { code?: unknown }).code
+    if (typeof code === 'string') hasErrorCode = true
+    if (isStorageCode(code)) return true
     current = (current as { cause?: unknown }).cause
   }
-  return false
+  return isOpenFailure && !hasErrorCode
 }
 
 /**

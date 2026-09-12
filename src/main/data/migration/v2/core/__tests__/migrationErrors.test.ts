@@ -94,6 +94,15 @@ describe('isMigrationStorageError', () => {
     )
   })
 
+  it.each(['SQLITE_NOTADB', 'SQLITE_CORRUPT'])(
+    'does not classify an open-stage %s failure as unavailable storage',
+    (code) => {
+      const corruption = makeError('database file is invalid', { code })
+
+      expect(isMigrationStorageError(new MigrationDatabaseError('open', corruption))).toBe(false)
+    }
+  )
+
   it('does not classify an ordinary schema incompatibility as a storage failure', () => {
     const schemaError = makeError('table `agent` already exists', { code: 'SQLITE_ERROR' })
 

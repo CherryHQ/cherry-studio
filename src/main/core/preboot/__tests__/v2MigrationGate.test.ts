@@ -388,6 +388,30 @@ describe('runV2MigrationGate', () => {
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
+    it.each(['SQLITE_NOTADB', 'SQLITE_CORRUPT'])(
+      'keeps an open-stage %s failure on the fatal production path',
+      async (code) => {
+        const { MigrationDatabaseError } = await vi.importActual<{
+          MigrationDatabaseError: new (stage: 'open' | 'wal' | 'schema', cause: unknown) => Error
+        }>('@data/migration/v2/core/migrationErrors')
+        initializeMock.mockImplementation(() => {
+          throw new MigrationDatabaseError('open', Object.assign(new Error('database file is invalid'), { code }))
+        })
+        stubMigrationV2()
+        stubElectron()
+        stubApplication()
+        stubPlatform(false)
+
+        const { runV2MigrationGate } = await loadModule()
+        const result = await runV2MigrationGate()
+
+        expect(result).toBe('handled')
+        expect(showMessageBoxMock).not.toHaveBeenCalled()
+        expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+        expect(appQuitMock).toHaveBeenCalledTimes(1)
+      }
+    )
+
     it("returns 'handled', shows an error dialog, and quits when the engine fails to initialize", async () => {
       initializeMock.mockImplementation(() => {
         throw new Error('DB unavailable')
