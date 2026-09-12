@@ -1,6 +1,6 @@
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { CheckIcon } from 'lucide-react'
+import { CheckIcon, MinusIcon } from 'lucide-react'
 import * as React from 'react'
 
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -62,7 +62,11 @@ function Checkbox({
       className={cn(checkboxVariants({ size }), className)}
       {...props}>
       <CheckboxPrimitive.Indicator data-slot="checkbox-indicator" className="grid place-content-center transition-none">
-        <CheckIcon strokeWidth={2.5} className={cn(checkboxIconVariants({ size }), 'text-current')} />
+        {props.checked === 'indeterminate' ? (
+          <MinusIcon strokeWidth={2.5} className={cn(checkboxIconVariants({ size }), 'text-current')} />
+        ) : (
+          <CheckIcon strokeWidth={2.5} className={cn(checkboxIconVariants({ size }), 'text-current')} />
+        )}
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )
