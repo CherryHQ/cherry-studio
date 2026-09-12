@@ -22,7 +22,7 @@ class FakeResizeObserver {
   disconnect() {}
 
   trigger(width: number) {
-    this.callback([{ contentRect: { width } }] as unknown as ResizeObserverEntry[], this as unknown as ResizeObserver)
+    this.callback([{ contentRect: { width } }] as unknown as ResizeObserverEntry[], this)
   }
 
   static forElement(element: Element): FakeResizeObserver {
