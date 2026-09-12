@@ -1105,6 +1105,57 @@ describe('SkillService', () => {
       }
     })
 
+    it('does not migrate an unrelated skill sharing the same source URL', async () => {
+      const root = await createTempDir('github-no-migrate-')
+      const dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      const mirrorRoot = path.join(root, '.claude', 'skills')
+      const getPathSpy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        const base = key === 'feature.agents.skills' ? dataSkillsRoot : mirrorRoot
+        return filename ? path.join(base, filename) : base
+      })
+      const sourceUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/main/SKILL.md'
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'Other',
+        folderName: 'other-skill',
+        source: 'marketplace',
+        sourceUrl,
+        contentHash: 'other-hash',
+        isEnabled: false
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue({
+        sourcePath: 'repo',
+        filename: 'my-skill',
+        name: 'my-skill',
+        description: 'New skill',
+        category: 'skills',
+        type: 'skill',
+        tags: [],
+        version: undefined,
+        author: undefined,
+        size: 0,
+        contentHash: 'new-hash'
+      })
+      const { skillService } = await setupGithubInstall({
+        refs: [{ name: 'main', oid: 'a'.repeat(40) }],
+        tree: ['SKILL.md'],
+        realInstall: true
+      })
+
+      try {
+        const installed = await skillService.install({
+          installSource: 'github:https://github.com/owner/repo/blob/main/SKILL.md'
+        })
+
+        expect(installed.folderName).toBe('my-skill')
+        expect(installed.id).not.toBe(SKILL_ID_1)
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(2)
+      } finally {
+        getPathSpy.mockRestore()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('uses an explicit tag namespace when a branch has the same name', async () => {
       const tagOid = 'b'.repeat(40)
       const { skillService, installSpy, gitCalls } = await setupGithubInstall({

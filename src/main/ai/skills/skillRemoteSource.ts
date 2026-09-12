@@ -30,6 +30,10 @@ import { createTempDir, safeRemoveDirectory, sanitizeFolderName } from './skillP
 
 const logger = loggerService.withContext('SkillRemoteSource')
 
+// Staging dirname a repository-root skill checks out into. It is never a valid catalog
+// folder name: root installs are renamed before the installer derives one from the basename.
+export const GITHUB_ROOT_STAGING_DIRNAME = 'content'
+
 // API base URLs for the 3 search sources
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
@@ -334,7 +338,7 @@ async function materializeGithubTarget(
 ): Promise<{ contentDir: string; skillDir: string }> {
   const gitCommand = (await findExecutableInEnv('git')) ?? 'git'
   const gitDir = path.join(tempDir, 'repo.git')
-  const contentDir = path.join(tempDir, 'content')
+  const contentDir = path.join(tempDir, GITHUB_ROOT_STAGING_DIRNAME)
   const git = (args: string[], options?: { maxOutputBytes?: number }) =>
     runGit(gitCommand, [`--git-dir=${gitDir}`, ...args], options)
 
