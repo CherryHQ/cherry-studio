@@ -651,7 +651,7 @@ export class AgentSessionMessageService {
             },
             {
               endpoint: '/search/contents' as const,
-              entityIds: result.deletedIds
+              entityIds: [...result.deletedIds, ...result.inboundResults.map((message) => message.id)]
             }
           ]
         : []),

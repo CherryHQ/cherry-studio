@@ -459,7 +459,7 @@ describe('AgentSessionMessageService', () => {
           routeParams: { sessionId: 'target' },
           entityIds: clearResult.deletedIds
         },
-        { endpoint: '/search/contents', entityIds: clearResult.deletedIds },
+        { endpoint: '/search/contents', entityIds: [...clearResult.deletedIds, inboundResult.id] },
         { endpoint: '/agent-sessions', kind: 'projection', entityIds: ['sender'] },
         { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: ['sender'] },
         { endpoint: '/agent-sessions/:sessionId', entityIds: ['sender'] },

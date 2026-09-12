@@ -9,7 +9,7 @@ import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -231,15 +231,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
-  'ai.agent.session.messages.clear': async ({ sessionId }) => {
-    let result: { deletedIds: string[] } = { deletedIds: [] }
-    await application
-      .get('AiStreamManager')
-      .abortAndDrain(buildAgentSessionTopicId(sessionId), 'user-requested', () => {
-        result = agentSessionMessageService.clearSessionMessages(sessionId)
-      })
-    return result
-  },
+  'ai.agent.session.messages.clear': ({ sessionId }) =>
+    application.get('AgentSessionDeliveryService').clearSessionMessages(sessionId),
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
   'ai.agent.session.reuse_or_create': (input) =>
