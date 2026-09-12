@@ -358,6 +358,13 @@ describe('imageGenerationJobHandler.execute', () => {
     })
   })
 
+  it('accepts case-insensitive image media types from provider downloads', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    downloadMock.mockResolvedValueOnce({ data: TINY_PNG_BASE64, media_type: 'IMAGE/PNG' })
+
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({ files: [{ id: 'file-1' }] })
+  })
+
   it('rejects invalid inline data instead of persisting it as an image', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['data:image/png;base64,YWJjMTIz'] })
 
@@ -425,6 +432,20 @@ describe('imageGenerationJobHandler.execute', () => {
 
     await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
     expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
+  it('deletes persisted output and preserves the abort reason when cancellation wins after persistence', async () => {
+    const controller = new AbortController()
+    const abortReason = new DOMException('cancelled after persistence', 'AbortError')
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    createInternalEntryMock.mockImplementationOnce(async () => {
+      controller.abort(abortReason)
+      return { id: 'file-cancelled' }
+    })
+    permanentDeleteMock.mockRejectedValueOnce(new Error('cleanup failed'))
+
+    await expect(imageGenerationJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toBe(abortReason)
+    expect(permanentDeleteMock).toHaveBeenCalledWith('file-cancelled')
   })
 
   it('throws when transport resolution yields nothing', async () => {

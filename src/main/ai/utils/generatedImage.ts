@@ -44,7 +44,7 @@ function isValidSvgImage(data: Buffer): boolean {
 export async function validateGeneratedImage(
   candidate: GeneratedImageCandidate
 ): Promise<GeneratedImageValidationResult> {
-  const mediaType = candidate.mediaType || 'image/png'
+  const mediaType = (candidate.mediaType || 'image/png').toLowerCase()
   if (!mediaType.startsWith('image/')) return { reason: 'unsupported_media_type' }
   if (!candidate.base64 || !GENERATED_IMAGE_BASE64_SCHEMA.safeParse(candidate.base64).success) {
     return { reason: 'invalid_image_data' }

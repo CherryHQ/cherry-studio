@@ -131,7 +131,10 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     // Preserve empty/rejected output as structured validation so both the painting
     // page and built-in tool can explain the paid no-op without parsing job errors.
     const output = await downloadAndPersistImageUrls(urls, ctx.signal, input.cleanupPolicy)
-    ctx.signal.throwIfAborted()
+    if (ctx.signal.aborted) {
+      await deleteGeneratedImageEntries(output.files)
+      ctx.signal.throwIfAborted()
+    }
     ctx.reportProgress(100, { stage: 'done' })
     return output satisfies ImageGenerationJobOutput
   }
@@ -223,20 +226,28 @@ async function downloadAndPersistImageUrls(
   const files: FileEntry[] = []
   const rejected: GeneratedImageValidation['rejected'] = []
   let downloadFailures = 0
-  for (const [index, url] of urls.entries()) {
-    if (signal.aborted) throw createAbortError('Image generation aborted')
-    const validated = await resolveImageDataUrl(url)
-    if (signal.aborted) throw createAbortError('Image generation aborted')
-    if ('downloadFailed' in validated) {
-      downloadFailures += 1
-      continue
+  try {
+    for (const [index, url] of urls.entries()) {
+      if (signal.aborted) throw createAbortError('Image generation aborted')
+      const validated = await resolveImageDataUrl(url)
+      if (signal.aborted) throw createAbortError('Image generation aborted')
+      if ('downloadFailed' in validated) {
+        downloadFailures += 1
+        continue
+      }
+      if (validated.reason) {
+        rejected.push({ index, reason: validated.reason })
+        continue
+      }
+      files.push(await fileManager.createInternalEntry({ source: 'base64', data: validated.data, cleanupPolicy }))
+      signal.throwIfAborted()
     }
-    if (validated.reason) {
-      rejected.push({ index, reason: validated.reason })
-      continue
+  } catch (error) {
+    if (signal.aborted) {
+      await deleteGeneratedImageEntries(files)
+      signal.throwIfAborted()
     }
-    files.push(await fileManager.createInternalEntry({ source: 'base64', data: validated.data, cleanupPolicy }))
-    signal.throwIfAborted()
+    throw error
   }
   if (files.length === 0 && downloadFailures > 0) {
     throw new Error(`Image generation produced ${urls.length} URL(s) but all downloads failed`)
@@ -246,6 +257,17 @@ async function downloadAndPersistImageUrls(
   }
   const validation = urls.length === 0 || rejected.length > 0 ? { receivedCount: urls.length, rejected } : undefined
   return { files, ...(validation && { validation }) }
+}
+
+async function deleteGeneratedImageEntries(files: ReadonlyArray<FileEntry>): Promise<void> {
+  const fileManager = application.get('FileManager')
+  await Promise.all(
+    files.map((file) =>
+      fileManager.permanentDelete(file.id).catch((error) => {
+        logger.error(`Failed to delete generated image ${file.id} after cancellation`, error as Error)
+      })
+    )
+  )
 }
 
 /**
