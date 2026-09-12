@@ -806,6 +806,269 @@ describe('buildAgentParams standard model parameters', () => {
     expect(sentBody?.thinking?.budget_tokens).toBe(299_999)
   })
 
+  it('reserves the Anthropic default thinking budget when an enabled override omits it', async () => {
+    let sentBody: Record<string, any> | undefined
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 300_000)
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'anthropic',
+        providerSettings: {
+          apiKey: 'sk-ant-test',
+          baseURL: 'https://gateway.test/v1',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
+            return Response.json({
+              id: 'msg_test',
+              type: 'message',
+              role: 'assistant',
+              model: 'custom-model',
+              content: [{ type: 'text', text: 'ok' }],
+              stop_reason: 'end_turn',
+              stop_sequence: null,
+              usage: { input_tokens: 1, output_tokens: 1 }
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          maxOutputTokens: 393_216,
+          providerOptions: { anthropic: { thinking: { type: 'enabled' } } }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      maxOutputTokens: result.options.maxOutputTokens,
+      providerOptions: result.options.providerOptions
+    })
+    expect(sentBody?.max_tokens).toBe(300_000)
+    expect(sentBody?.thinking?.budget_tokens).toBe(1024)
+  })
+
+  it('bounds the canonical Anthropic thinking override routed through Vertex', async () => {
+    let sentBody: Record<string, any> | undefined
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'google-vertex-anthropic',
+        providerSettings: {
+          baseURL: 'https://vertex.test/v1/projects/test/locations/global/publishers/anthropic/models',
+          generateAuthToken: async () => 'test-token',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
+            return Response.json({
+              id: 'msg_test',
+              type: 'message',
+              role: 'assistant',
+              model: 'custom-model',
+              content: [{ type: 'text', text: 'ok' }],
+              stop_reason: 'end_turn',
+              stop_sequence: null,
+              usage: { input_tokens: 1, output_tokens: 1 }
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'iam-gcp' }
+    })
+    const provider = makeProvider({
+      id: 'vertexai',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'google-vertex-anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'vertexai::custom-model',
+      providerId: 'vertexai',
+      apiModelId: 'custom-model',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      maxOutputTokens: 300_000
+    })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          maxOutputTokens: 393_216,
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 400_000 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.sdkConfig.providerOptionsKey).toBe('vertex')
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      maxOutputTokens: result.options.maxOutputTokens,
+      providerOptions: result.options.providerOptions
+    })
+    expect(sentBody?.max_tokens).toBe(300_000)
+    expect(sentBody?.thinking?.budget_tokens).toBe(299_999)
+  })
+
+  it('prefers a canonical Anthropic thinking override over generated Vertex thinking', async () => {
+    let sentBody: Record<string, any> | undefined
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'google-vertex-anthropic',
+        providerSettings: {
+          baseURL: 'https://vertex.test/v1/projects/test/locations/global/publishers/anthropic/models',
+          generateAuthToken: async () => 'test-token',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
+            return Response.json({
+              id: 'msg_test',
+              type: 'message',
+              role: 'assistant',
+              model: 'custom-model',
+              content: [{ type: 'text', text: 'ok' }],
+              stop_reason: 'end_turn',
+              stop_sequence: null,
+              usage: { input_tokens: 1, output_tokens: 1 }
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'iam-gcp' }
+    })
+    const provider = makeProvider({
+      id: 'vertexai',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'google-vertex-anthropic' }
+      }
+    })
+    const model = makeModel({
+      id: 'vertexai::custom-model',
+      providerId: 'vertexai',
+      apiModelId: 'custom-model',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      maxOutputTokens: 300_000,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'budget', min: 1024, max: 8192 }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+    const assistant = makeAssistant({ settings: { reasoning_effort: 'high' } })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          maxOutputTokens: 393_216,
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.providerOptions?.vertex?.thinking).toEqual({ type: 'enabled', budgetTokens: 4000 })
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      maxOutputTokens: result.options.maxOutputTokens,
+      providerOptions: result.options.providerOptions
+    })
+    expect(sentBody?.max_tokens).toBe(300_000)
+    expect(sentBody?.thinking?.budget_tokens).toBe(4000)
+  })
+
+  it('ignores a canonical Anthropic thinking override for Bedrock output budgeting', async () => {
+    let sentBody: Record<string, any> | undefined
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'bedrock',
+        providerSettings: {
+          apiKey: 'bedrock-test-token',
+          baseURL: 'https://bedrock.test',
+          fetch: async (_input: RequestInfo | URL, init?: RequestInit) => {
+            sentBody = JSON.parse(String(init?.body)) as Record<string, any>
+            return Response.json({
+              output: { message: { content: [{ text: 'ok' }], role: 'assistant' } },
+              stopReason: 'end_turn',
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+            })
+          }
+        }
+      },
+      credentialReceipt: { attribution: 'auth', method: 'api-key' }
+    })
+    const provider = makeProvider({
+      id: 'aws-bedrock',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'bedrock' }
+      }
+    })
+    const model = makeModel({
+      id: 'aws-bedrock::claude-sonnet-4-5',
+      providerId: 'aws-bedrock',
+      apiModelId: 'anthropic.claude-sonnet-4-5-v1:0',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      maxOutputTokens: 300_000,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'budget', min: 1024, max: 8192 }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+    const assistant = makeAssistant({ settings: { reasoning_effort: 'high' } })
+
+    const result = await buildAgentParams({
+      request: {
+        conversation: CONVERSATION,
+        callOverrides: {
+          maxOutputTokens: 393_216,
+          providerOptions: {
+            anthropic: { thinking: { type: 'enabled', budgetTokens: 4000 } }
+          }
+        }
+      },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.providerOptions?.bedrock).not.toHaveProperty('thinking')
+    const reasoningConfig = result.options.providerOptions?.bedrock?.reasoningConfig as
+      | { type?: string; budgetTokens?: number }
+      | undefined
+    expect(reasoningConfig).toMatchObject({ type: 'enabled' })
+    expect(reasoningConfig?.budgetTokens).toBeGreaterThan(4000)
+    expect(result.options.maxOutputTokens).toBe(300_000 - reasoningConfig!.budgetTokens!)
+    await aiCoreGenerateText<AppProviderSettingsMap>(result.sdkConfig.providerId, result.sdkConfig.providerSettings, {
+      model: result.sdkConfig.modelId,
+      prompt: 'hello',
+      maxOutputTokens: result.options.maxOutputTokens,
+      providerOptions: result.options.providerOptions
+    })
+    expect(sentBody?.inferenceConfig?.maxTokens).toBe(300_000)
+    expect(sentBody?.additionalModelRequestFields?.thinking?.budget_tokens).toBe(reasoningConfig?.budgetTokens)
+  })
+
   it('disables explicit Anthropic thinking when the total budget cannot satisfy its minimum', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 1024)
 

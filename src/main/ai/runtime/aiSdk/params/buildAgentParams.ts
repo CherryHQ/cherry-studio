@@ -1,3 +1,4 @@
+import type { JSONObject } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
@@ -630,6 +631,19 @@ function buildAgentOptions(
     overridden.providerOptions,
     request.fastMode === true
   )
+  const canonicalAnthropicOverride = callOverrides?.providerOptions?.anthropic
+  if (
+    sdkConfig.providerId === 'google-vertex-anthropic' &&
+    Object.hasOwn(canonicalAnthropicOverride ?? {}, 'thinking')
+  ) {
+    effectiveProviderOptions = {
+      ...effectiveProviderOptions,
+      [sdkConfig.providerOptionsKey]: {
+        ...effectiveProviderOptions[sdkConfig.providerOptionsKey],
+        thinking: canonicalAnthropicOverride?.thinking
+      }
+    }
+  }
   // A namespace that ended up empty carries nothing; emitting it would ship a bare
   // `providerOptions` for callers that opted into nothing.
   const hasProviderOptions = Object.values(effectiveProviderOptions).some((ns) => Object.keys(ns ?? {}).length > 0)
@@ -699,31 +713,27 @@ function boundExplicitThinkingByTotalOutput(
   const namespace = providerOptions[providerOptionsKey]
   const thinking = namespace?.thinking
   if (thinking === null || typeof thinking !== 'object' || Array.isArray(thinking)) return undefined
-  const thinkingOptions = thinking as Record<string, unknown>
-  if (thinkingOptions.type !== 'enabled' || typeof thinkingOptions.budgetTokens !== 'number') return undefined
+  const thinkingOptions = thinking
+  if (thinkingOptions.type !== 'enabled') return undefined
+  if (thinkingOptions.budgetTokens !== undefined && typeof thinkingOptions.budgetTokens !== 'number') return undefined
 
+  const requestedBudget = thinkingOptions.budgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET
   const budgetTokens =
-    totalOutputTokens === undefined
-      ? thinkingOptions.budgetTokens
-      : Math.min(thinkingOptions.budgetTokens, totalOutputTokens - 1)
+    totalOutputTokens === undefined ? requestedBudget : Math.min(requestedBudget, totalOutputTokens - 1)
+  let normalizedThinking: JSONObject
   if (budgetTokens < ANTHROPIC_MIN_THINKING_BUDGET) {
-    const disabledThinking = { ...thinkingOptions, type: 'disabled' }
-    Reflect.deleteProperty(disabledThinking, 'budgetTokens')
-    return {
-      providerOptions: {
-        ...providerOptions,
-        [providerOptionsKey]: { ...namespace, thinking: disabledThinking }
-      },
-      budgetTokens: undefined
-    }
+    normalizedThinking = { ...thinkingOptions, type: 'disabled' }
+    Reflect.deleteProperty(normalizedThinking, 'budgetTokens')
+  } else {
+    normalizedThinking = { ...thinkingOptions, budgetTokens }
   }
 
   return {
     providerOptions: {
       ...providerOptions,
-      [providerOptionsKey]: { ...namespace, thinking: { ...thinkingOptions, budgetTokens } }
+      [providerOptionsKey]: { ...namespace, thinking: normalizedThinking }
     },
-    budgetTokens
+    budgetTokens: normalizedThinking.type === 'enabled' ? budgetTokens : undefined
   }
 }
 
