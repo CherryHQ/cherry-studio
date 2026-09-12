@@ -1,23 +1,25 @@
-import { cacheService } from '@data/CacheService'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { type EnqueueResult, QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
+import { QUEUE_LIMIT, useFollowupQueue } from '../useFollowupQueue'
 
-const QUEUE_KEY = 'ui.composer.followup_queue'
+const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
 
 const draft = (text: string) => ({ text, tokens: [] }) as any
 const payload = (text: string) => ({ text, userMessageParts: [{ type: 'text', text }] }) as any
 const item = (id: string, text: string) => ({ id, draft: draft(text), payload: payload(text) })
 
-const queues = () =>
-  (MockCacheUtils.getCurrentState().persistCache.get(QUEUE_KEY) as Record<string, any> | undefined) ?? {}
-const persistedTexts = (scopeKey: string) => (queues()[scopeKey]?.items ?? []).map((i: any) => i.draft.text)
+const queues = () => MockCacheUtils.getCurrentState().memoryCache as Map<string, { value: unknown }>
+const persistedTexts = (scopeKey: string): string[] => {
+  const entry = queues().get(keyFor(scopeKey))?.value as { items?: Array<{ draft?: { text?: string } }> } | undefined
+  const items = (entry?.items ?? []) as Array<{ draft?: { text?: string } }>
+  return items.map((i) => i.draft?.text).filter((text): text is string => typeof text === 'string')
+}
 
-const seedQueue = (scopeKey: string, items: unknown[], paused = false) => {
+const seedQueue = (scopeKey: string, items: unknown[], paused = false, failedItemId?: string) => {
   MockCacheUtils.setInitialState({
-    persist: [[QUEUE_KEY, { [scopeKey]: { items, paused } }]]
+    memory: [[keyFor(scopeKey), { items, paused, ...(failedItemId ? { failedItemId } : {}) }]]
   })
 }
 
@@ -26,7 +28,7 @@ beforeEach(() => {
 })
 
 describe('useFollowupQueue', () => {
-  it('enqueues (storing draft + payload, persisting) and removeId dequeues', () => {
+  it('enqueues (storing draft + payload, caching) and removeId dequeues', () => {
     const { result } = renderHook(() =>
       useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
     )
@@ -48,7 +50,7 @@ describe('useFollowupQueue', () => {
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['b'])
   })
 
-  it('reorders the queue and persists the new order', () => {
+  it('reorders the queue and caches the new order', () => {
     const { result } = renderHook(() =>
       useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
     )
@@ -69,7 +71,7 @@ describe('useFollowupQueue', () => {
     expect(persistedTexts('s1')).toEqual(['b', 'a'])
   })
 
-  it('restores a queue (items + paused) persisted in an earlier session', () => {
+  it('restores a queue (items + paused) cached in an earlier session', () => {
     seedQueue('s1', [item('x', 'queued')], true)
     const { result } = renderHook(() =>
       useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
@@ -79,7 +81,7 @@ describe('useFollowupQueue', () => {
     expect(result.current.paused).toBe(true)
   })
 
-  it('reloads the queue from the persist cache when the scopeKey changes', () => {
+  it('reloads the queue from the memory cache when the scopeKey changes', () => {
     seedQueue('s2', [item('x', 'queued')])
     const { result, rerender } = renderHook(
       ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() }),
@@ -107,14 +109,14 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toHaveLength(QUEUE_LIMIT)
     expect(persistedTexts('s1')).toHaveLength(QUEUE_LIMIT)
 
-    // Drain every item; the now-empty entry is removed from the persist map.
+    // Drain every item; the queue empties in the memory cache.
     for (const queued of [...result.current.items]) {
       act(() => {
         result.current.removeId(queued.id)
       })
     }
     expect(result.current.items).toEqual([])
-    expect(queues()['s1'] ?? undefined).toBeUndefined()
+    expect(persistedTexts('s1')).toEqual([])
   })
 
   it('drains the head on the live→idle edge, then dequeues on success', async () => {
@@ -230,13 +232,12 @@ describe('useFollowupQueue', () => {
     expect(result.current.items.map((i) => i.draft.text)).toEqual([])
   })
 
-  it('drops a persisted failure marker for an item that is no longer queued', async () => {
+  it('drops a cached failure marker for an item that is no longer queued', async () => {
     const onDrain = vi.fn().mockResolvedValue(true)
-    // A skip whose follow-up drain settled before the failure reset committed (or a torn
-    // cross-window write) can persist a failure for an absent item; the restored queue
-    // must not stay blocked with no banner to resolve it.
+    // A skip whose follow-up drain settled before the failure reset committed can cache
+    // a failure for an absent item; the restored queue must not stay blocked with no banner.
     MockCacheUtils.setInitialState({
-      persist: [[QUEUE_KEY, { s1: { items: [item('h2', 'second')], paused: true, failedItemId: 'h1' } }]]
+      memory: [[keyFor('s1'), { items: [item('h2', 'second')], paused: true, failedItemId: 'h1' }]]
     })
 
     const { result, rerender } = renderHook(
@@ -277,7 +278,7 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toEqual([])
     expect(result.current.failedItemId).toBeNull()
     expect(result.current.paused).toBe(false)
-    expect(queues()['s1'] ?? undefined).toBeUndefined()
+    expect(persistedTexts('s1')).toEqual([])
   })
 
   it('does not drain while paused', async () => {
@@ -343,7 +344,7 @@ describe('useFollowupQueue', () => {
   })
 
   it('removing the failed head from the dock resolves the failure and resumes', async () => {
-    const onDrain = vi.fn().mockResolvedValue(false)
+    const onDrain = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
 
     const { result, rerender } = renderHook(
@@ -356,13 +357,16 @@ describe('useFollowupQueue', () => {
     })
     expect(result.current.failedItemId).toBe('h1')
 
-    act(() => {
+    await act(async () => {
       result.current.removeId('h1')
     })
 
+    // Deleting the failed head re-arms the queue like Skip does: the next message
+    // drains immediately even though the completion edge was already consumed.
+    expect(onDrain).toHaveBeenCalledTimes(2)
     expect(result.current.failedItemId).toBeNull()
     expect(result.current.paused).toBe(false)
-    expect(result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+    expect(result.current.items).toEqual([])
   })
 
   it('clear during an in-flight drain drops the resolution instead of resurrecting failure state', async () => {
@@ -394,7 +398,7 @@ describe('useFollowupQueue', () => {
     expect(result.current.failedItemId).toBeNull()
     expect(result.current.paused).toBe(false)
     expect(result.current.items).toEqual([])
-    expect(queues()['s1'] ?? undefined).toBeUndefined()
+    expect(persistedTexts('s1')).toEqual([])
   })
 
   it('abort during an in-flight retry leaves the queue clean when the retry fails', async () => {
@@ -498,6 +502,7 @@ describe('useFollowupQueue', () => {
       .fn()
       .mockResolvedValueOnce(false) // auto-drain fails
       .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
+      .mockResolvedValueOnce(true) // next head sends after the retried head succeeds
     const markSeen = vi.fn()
     seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
 
@@ -526,16 +531,17 @@ describe('useFollowupQueue', () => {
     expect(onDrain).toHaveBeenCalledTimes(2)
     expect(result.current.items.map((i) => i.draft.text)).toEqual(['first', 'second'])
 
-    // The retried head succeeds → dequeued; the failure resolves like a normal success.
+    // The retried head succeeds → dequeued; like Skip, the queue continues
+    // with the next message immediately instead of stalling.
     await act(async () => {
       resolveRetry(true)
     })
-    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(onDrain).toHaveBeenCalledTimes(3)
     expect(result.current.failedItemId).toBeNull()
-    expect(result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+    expect(result.current.items).toEqual([])
   })
 
-  it('persisting one conversation does not clobber another conversation\u2019s entry', () => {
+  it('queueing one conversation does not clobber another conversation\u2019s entry', () => {
     const first = renderHook(() =>
       useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
     )
@@ -616,24 +622,5 @@ describe('useFollowupQueue', () => {
     })
     expect(result.current.drainingId).toBeNull()
     expect(result.current.items).toEqual([])
-  })
-
-  it("reports persist-error (not full) when the durable write fails, keeping the caller's draft", () => {
-    const { result } = renderHook(() =>
-      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
-    )
-
-    vi.mocked(cacheService.flushPersistCache).mockImplementationOnce(() => {
-      throw new Error('quota exceeded')
-    })
-    let outcome!: EnqueueResult
-    act(() => {
-      outcome = result.current.enqueue(draft('a'), payload('a'))
-    })
-
-    expect(outcome).toBe('persist-error')
-    // Rolled back: neither local state nor the persist map keeps the item.
-    expect(result.current.items).toEqual([])
-    expect(persistedTexts('s1')).toEqual([])
   })
 })

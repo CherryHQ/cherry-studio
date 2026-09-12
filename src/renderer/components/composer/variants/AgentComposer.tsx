@@ -1577,11 +1577,7 @@ const AgentComposerInner = ({
       if (isStreaming && !options?.steer) {
         const followupResult = enqueueFollowup(draft, payload)
         if (followupResult !== 'ok') {
-          toast.error(
-            followupResult === 'full'
-              ? t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT })
-              : t('chat.input.followup_queue.persist_failed')
-          )
+          toast.error(t('chat.input.followup_queue.limit_reached', { count: QUEUE_LIMIT }))
           return
         }
         clearCurrentDraft()

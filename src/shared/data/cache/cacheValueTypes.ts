@@ -234,9 +234,9 @@ export type CacheMiniAppAttention = {
  * Follow-up message queue for one conversation (composer queue mode).
  *
  * While a turn streams, the composer enqueues follow-up drafts here and
- * auto-sends the head when the topic goes idle. The queue is serialized into
- * the renderer persist cache so pending follow-ups survive app restarts; the
- * renderer re-validates entries on load (the cache holds arbitrary JSON).
+ * auto-sends the head when the topic goes idle. The queue lives in per-window
+ * memory alongside the composer draft cache; the renderer re-validates entries
+ * on load.
  */
 export type FollowupQueueToken = CacheComposerSerializedToken
 
@@ -257,6 +257,3 @@ export type FollowupQueueState = {
   paused: boolean
   failedItemId?: string | null
 }
-
-/** Per-conversation follow-up queues, keyed by the composer's conversation scope key. */
-export type FollowupQueues = Record<string, FollowupQueueState | null>

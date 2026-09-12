@@ -606,7 +606,6 @@
   "chat.input.followup_queue.failure_title": "Gönderim başarısız",
   "chat.input.followup_queue.limit_reached": "Kuyruk dolu (en fazla {{count}} mesaj)",
   "chat.input.followup_queue.pause": "Otomatik göndermeyi duraklat",
-  "chat.input.followup_queue.persist_failed": "Could not save the queue — your draft was kept",
   "chat.input.followup_queue.remove": "Kaldır",
   "chat.input.followup_queue.resume": "Otomatik göndermeyi sürdür",
   "chat.input.followup_queue.retry": "Yeniden dene",

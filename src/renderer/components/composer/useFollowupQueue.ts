@@ -1,4 +1,3 @@
-import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { cacheService } from '@data/CacheService'
@@ -6,127 +5,51 @@ import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { FollowupQueueItem, FollowupQueueState } from '@shared/data/cache/cacheValueTypes'
 
 import type { ComposerSerializedDraft } from './tokens'
-import { isComposerDraftTokenKind } from './tokens'
 
 export const QUEUE_LIMIT = 20
 
 export type { FollowupQueueItem }
 
-/**
- * Per-conversation queue state persisted under one schema key (localStorage tier), so pending
- * follow-ups survive app restarts and stay in sync across windows.
- */
-const QUEUE_STORAGE_KEY = 'ui.composer.followup_queue'
+/** Same per-window memory tier + TTL as the inputbar draft cache (`composerDraft` / ChatComposer). */
+const QUEUE_TTL = 24 * 60 * 60 * 1000
+const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
 
-/** Load + validate a persisted queue (persist cache holds arbitrary JSON; discard malformed entries). */
+/** Load + validate a queued state (the cache holds arbitrary values; discard malformed entries). */
 function loadState(scopeKey: string): FollowupQueueState {
   try {
-    const queues = cacheService.getPersist(QUEUE_STORAGE_KEY) as unknown
-    if (!queues || typeof queues !== 'object' || Array.isArray(queues)) return { items: [], paused: false }
-    const entry = (queues as Record<string, unknown>)[scopeKey]
-    // Tombstone for cross-window deletion propagation (null sentinel stored via persistState)
-    if (entry === null) return { items: [], paused: false }
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return { items: [], paused: false }
-    const raw = entry as { items?: unknown; paused?: unknown; failedItemId?: unknown }
-    const items = Array.isArray(raw.items)
-      ? (raw.items as unknown[]).filter((item) => {
+    const cached = cacheService.getCasual<FollowupQueueState>(keyFor(scopeKey))
+    if (!cached || typeof cached !== 'object' || Array.isArray(cached)) return { items: [], paused: false }
+    const items = Array.isArray(cached.items)
+      ? (cached.items as unknown[]).filter((item) => {
           if (item == null || typeof item !== 'object' || Array.isArray(item)) return false
           const candidate = item as { id?: unknown; draft?: unknown; payload?: unknown }
-          if (typeof candidate.id !== 'string' || candidate.id.length === 0) return false
-
-          if (candidate.draft == null || typeof candidate.draft !== 'object' || Array.isArray(candidate.draft))
-            return false
-          const draft = candidate.draft as { text?: unknown; tokens?: unknown }
-          if (typeof draft.text !== 'string') return false
-          if (!Array.isArray(draft.tokens)) return false
-
-          // Validate token shape to avoid crashes when re-editing/restoring drafts.
-          for (const t of draft.tokens as unknown[]) {
-            if (t == null || typeof t !== 'object' || Array.isArray(t)) return false
-            const tok = t as Record<string, unknown>
-            if (typeof tok.id !== 'string' || tok.id.length === 0) return false
-            if (typeof tok.label !== 'string') return false
-            if (typeof tok.index !== 'number' || !Number.isFinite(tok.index)) return false
-            if (typeof tok.textOffset !== 'number' || !Number.isFinite(tok.textOffset)) return false
-            if (!isComposerDraftTokenKind(tok.kind)) return false
-          }
-
-          if (candidate.payload == null || typeof candidate.payload !== 'object' || Array.isArray(candidate.payload))
-            return false
-          const payload = candidate.payload as { text?: unknown; userMessageParts?: unknown; attachments?: unknown }
-          if (typeof payload.text !== 'string') return false
-          if (!Array.isArray(payload.userMessageParts)) return false
-          // Ensure message parts are objects (CherryMessagePart shape validated elsewhere).
-          for (const part of payload.userMessageParts as unknown[]) {
-            if (part == null || typeof part !== 'object' || Array.isArray(part)) return false
-          }
-          if (payload.attachments !== undefined) {
-            if (!Array.isArray(payload.attachments)) return false
-            for (const a of payload.attachments as unknown[]) {
-              if (a == null || typeof a !== 'object' || Array.isArray(a)) return false
-            }
-          }
-
-          return true
+          return (
+            typeof candidate.id === 'string' &&
+            candidate.id.length > 0 &&
+            candidate.draft != null &&
+            candidate.payload != null
+          )
         })
       : []
-    // Drop a failure marker for an item that is no longer queued (e.g. a skip whose
-    // follow-up drain settled before the failure reset committed); otherwise the
-    // restored queue would stay paused with no visible banner to resolve it.
     const failedItemId =
-      typeof raw.failedItemId === 'string' &&
-      (items as Array<{ id?: unknown }>).some((entry) => entry.id === raw.failedItemId)
-        ? (raw.failedItemId as string)
+      typeof cached.failedItemId === 'string' &&
+      items.some((entry) => (entry as { id?: unknown }).id === cached.failedItemId)
+        ? cached.failedItemId
         : undefined
-    return {
-      items: items as unknown as FollowupQueueItem[],
-      paused: raw.paused === true,
-      failedItemId
-    }
+    return { items: items as unknown as FollowupQueueItem[], paused: cached.paused === true, failedItemId }
   } catch {
     return { items: [], paused: false }
   }
 }
 
-/**
- * Write one conversation's queue; entries drained to empty are dropped to keep storage bounded.
- * Uses the functional updater so concurrent writes from other windows (same persist tier) merge
- * against the latest stored value instead of clobbering each other's entries.
- */
 function persistState(
   scopeKey: string,
   items: FollowupQueueItem[],
   paused: boolean,
   failedItemId?: string | null
 ): void {
-  cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
-    const next = { ...prev } as Record<string, unknown>
-    if (items.length === 0 && !paused) {
-      // Use null tombstone so cross-window shallow-merge can propagate the deletion
-      // instead of resurrecting the entry from the other window's stale snapshot.
-      next[scopeKey] = null as unknown as FollowupQueueState
-    } else {
-      next[scopeKey] = {
-        items,
-        paused,
-        ...(failedItemId ? { failedItemId } : {})
-      }
-    }
-    return next as typeof prev
-  })
-}
-
-function isWindowFocused(): boolean {
-  if (typeof document === 'undefined' || typeof document.hasFocus !== 'function') return true
-  try {
-    if (!document.hasFocus()) {
-      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-      if (!/jsdom|vitest/i.test(ua)) return false
-    }
-  } catch {
-    // hasFocus may throw in some environments — fall through as focused.
-  }
-  return true
+  const next: FollowupQueueState = { items, paused, ...(failedItemId ? { failedItemId } : {}) }
+  cacheService.setCasual(keyFor(scopeKey), next, QUEUE_TTL)
 }
 
 interface UseFollowupQueueParams {
@@ -140,13 +63,12 @@ interface UseFollowupQueueParams {
   onDrain: (payload: ComposerQueuedMessagePayload) => Promise<boolean>
 }
 
-export type EnqueueResult = 'ok' | 'full' | 'persist-error'
+export type EnqueueResult = 'ok' | 'full'
 
 export interface FollowupQueueController {
   items: FollowupQueueItem[]
   /**
-   * Queue a follow-up: `ok` when queued, `full` when the per-conversation limit
-   * rejected it, `persist-error` when the write could not be durably persisted.
+   * Queue a follow-up: `ok` when queued, `full` when the per-conversation limit rejected it.
    * Only `ok` means the caller may clear the draft.
    */
   enqueue: (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => EnqueueResult
@@ -178,8 +100,8 @@ export interface FollowupQueueController {
  * Per-conversation FIFO queue of follow-up drafts. While a turn streams the composer enqueues here
  * instead of sending; on the live→idle edge the head auto-drains (one per completion), and the dock
  * lets the user steer/edit/remove individual items, pause auto-drain, or clear the queue. A failed
- * drain auto-pauses and marks the head as failed for the user to Skip / Retry / Abort. Persisted in
- * the renderer persist cache (localStorage) so pending follow-ups survive app restarts.
+ * drain auto-pauses and marks the head as failed for the user to Skip / Retry / Abort. Persistence
+ * mirrors the draft cache (per-window memory + TTL).
  */
 export function useFollowupQueue({
   scopeKey,
@@ -188,10 +110,7 @@ export function useFollowupQueue({
   onDrain
 }: UseFollowupQueueParams): FollowupQueueController {
   const initial = loadState(scopeKey)
-  const [state, setState] = useState<FollowupQueueState>(() => ({
-    items: initial.items,
-    paused: initial.paused
-  }))
+  const [state, setState] = useState<FollowupQueueState>(() => ({ items: initial.items, paused: initial.paused }))
   const [failedItemId, setFailedItemId] = useState<string | null>(() => initial.failedItemId ?? null)
 
   // Serialize drains: only one send may be in flight per queue at a time.
@@ -262,7 +181,7 @@ export function useFollowupQueue({
     [setDraining]
   )
 
-  // Reload when switching conversations; the previous queue stays in its own scoped entry.
+  // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
   useEffect(() => {
     if (scopeKeyRef.current === scopeKey) return
     scopeKeyRef.current = scopeKey
@@ -274,11 +193,12 @@ export function useFollowupQueue({
     // running in the same commit would still see the previous conversation's items
     // and could drain the old head through the new conversation's completion edge.
     stateRef.current = { items: next.items, paused: next.paused }
+    failedItemIdRef.current = next.failedItemId ?? null
     setState({ items: next.items, paused: next.paused })
     setFailedItemId(next.failedItemId ?? null)
     // If the restored queue is non-empty and completion is already fulfilled, re-arm
     // draining immediately — the isFulfilled effect won't re-fire since its dep hasn't changed.
-    if (next.items.length > 0 && !next.paused && !next.failedItemId && isFulfilledRef.current && isWindowFocused()) {
+    if (next.items.length > 0 && !next.paused && !next.failedItemId && isFulfilledRef.current) {
       markSeenRef.current()
       // Defer to next tick so state has committed before drainHead checks drainingIdRef.
       // Re-read head inside the microtask so a rapid second scope switch does not
@@ -297,82 +217,15 @@ export function useFollowupQueue({
 
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload): EnqueueResult => {
-      // Fast local reject when clearly over limit.
       if (stateRef.current.items.length >= QUEUE_LIMIT) return 'full'
       const newItem = { id: crypto.randomUUID(), draft, payload } as unknown as FollowupQueueItem
-
-      // Atomically try to add to the persisted store so cross-window concurrency cannot
-      // later reject the item while we reported `ok`. Do not rely on side-effects from
-      // the updater (updaters must stay pure); instead, write the candidate and then
-      // re-load the authoritative persisted state to observe whether the item landed.
-      try {
-        cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
-          const next = { ...(prev as Record<string, unknown>) } as Record<string, unknown>
-          const raw = next[scopeKeyRef.current]
-          // Treat a tombstone/null as an empty queue
-          const entry =
-            raw === null
-              ? { items: [], paused: false }
-              : typeof raw === 'object' && !Array.isArray(raw)
-                ? (raw as any)
-                : { items: [] }
-          const items = Array.isArray(entry.items) ? [...entry.items] : []
-          if (items.length >= QUEUE_LIMIT) return prev
-          items.push(newItem)
-          if (items.length > QUEUE_LIMIT) return prev
-          next[scopeKeyRef.current] = {
-            items,
-            paused: entry.paused === true,
-            ...(typeof entry.failedItemId === 'string' && entry.failedItemId.length > 0
-              ? { failedItemId: entry.failedItemId }
-              : {})
-          }
-          return next as typeof prev
-        })
-        // Durability: try to flush to localStorage immediately. If quota is hit,
-        // roll back the optimistic write and report failure so the caller keeps
-        // the draft instead of losing it after restart.
-        try {
-          cacheService.flushPersistCache()
-        } catch {
-          cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
-            const next = { ...(prev as Record<string, unknown>) } as Record<string, unknown>
-            const raw = next[scopeKeyRef.current]
-            if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-              const entry = raw as { items?: unknown[]; paused?: unknown; failedItemId?: unknown }
-              if (Array.isArray(entry.items)) {
-                const filtered = (entry.items as Array<{ id?: unknown }>).filter((it) => it?.id !== newItem.id)
-                if (filtered.length === 0 && entry.paused !== true) {
-                  next[scopeKeyRef.current] = null as unknown as FollowupQueueState
-                } else {
-                  next[scopeKeyRef.current] = { ...entry, items: filtered } as unknown as FollowupQueueState
-                }
-              }
-            }
-            return next as typeof prev
-          })
-          try {
-            cacheService.flushPersistCache()
-          } catch {}
-          return 'persist-error'
-        }
-      } catch {
-        return 'persist-error'
-      }
-
-      // Reload authoritative persisted queue and check whether our item was accepted.
-      const synced = loadState(scopeKeyRef.current)
-      const added = synced.items.some((it) => it.id === newItem.id)
-      if (!added) return 'full'
-
-      stateRef.current = { items: synced.items, paused: synced.paused }
-      setState({ items: synced.items, paused: synced.paused })
-      if (synced.failedItemId !== undefined) {
-        setFailedItemId(synced.failedItemId ?? null)
-      }
+      const next = { items: [...stateRef.current.items, newItem], paused: stateRef.current.paused }
+      persist(next)
+      stateRef.current = next
+      setState(next)
       return 'ok'
     },
-    []
+    [persist]
   )
 
   const reorder = useCallback(
@@ -413,17 +266,18 @@ export function useFollowupQueue({
         setDraining(null)
       }
       const nextFailedId = wasFailed ? null : failedItemIdRef.current
-      const next: FollowupQueueState = {
-        items: stateRef.current.items.filter((item) => item.id !== id),
-        paused: wasFailed ? false : stateRef.current.paused
-      }
+      const remaining = stateRef.current.items.filter((item) => item.id !== id)
+      const next: FollowupQueueState = { items: remaining, paused: wasFailed ? false : stateRef.current.paused }
       persist(next, nextFailedId)
       stateRef.current = next
       failedItemIdRef.current = nextFailedId
       if (wasFailed) setFailedItemId(null)
       setState(next)
+      // Deleting the failed head unpauses with the completion edge already consumed,
+      // so continue with the next message immediately instead of stalling the queue.
+      if (wasFailed && remaining.length > 0) drainHead(remaining[0])
     },
-    [persist, setDraining]
+    [persist, setDraining, drainHead]
   )
   removeIdRef.current = removeId
 
@@ -434,7 +288,6 @@ export function useFollowupQueue({
       setState(next)
       stateRef.current = next
       if (!nextPaused && isFulfilledRef.current && !failedItemIdRef.current && drainingIdRef.current === null) {
-        if (!isWindowFocused()) return
         const head = next.items[0]
         if (head) {
           markSeenRef.current()
@@ -448,144 +301,13 @@ export function useFollowupQueue({
   // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
   // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
   // While a failure is unresolved the user must Skip/Retry/Abort — no automatic re-drain.
-  // When the same conversation is open in two windows (detached via openConversationWindow),
-  // both windows share the persist queue and both see isFulfilled. Gate auto-drain to the
-  // focused window so the head is not sent twice.
   useEffect(() => {
-    if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current || drainingIdRef.current !== null) {
-      return
-    }
-    if (!isWindowFocused()) return
+    if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current || drainingIdRef.current !== null) return
     const head = stateRef.current.items[0]
     if (!head) return
     markSeen()
     drainHead(head)
   }, [isFulfilled, markSeen, drainHead])
-
-  // If completion arrived while unfocused, re-arm draining when the window regains focus
-  // or becomes visible (some platforms fire visibilitychange instead of focus).
-  useEffect(() => {
-    const onWindowFocus = () => {
-      if (
-        !isFulfilledRef.current ||
-        stateRef.current.paused ||
-        failedItemIdRef.current ||
-        drainingIdRef.current !== null
-      )
-        return
-      if (stateRef.current.items.length === 0) return
-      // For actual focus events prefer the more strict hasFocus() check
-      if (!isWindowFocused()) return
-      const head = stateRef.current.items[0]
-      if (!head) return
-      markSeenRef.current()
-      drainHead(head)
-    }
-
-    const onVisibilityChange = () => {
-      if (
-        !isFulfilledRef.current ||
-        stateRef.current.paused ||
-        failedItemIdRef.current ||
-        drainingIdRef.current !== null
-      )
-        return
-      if (stateRef.current.items.length === 0) return
-      // Some platforms fire visibilitychange instead of focus; treat becoming visible
-      // as a re-arm even if document.hasFocus() may still be false.
-      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
-      const head = stateRef.current.items[0]
-      if (!head) return
-      markSeenRef.current()
-      drainHead(head)
-    }
-
-    window.addEventListener('focus', onWindowFocus)
-    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
-      document.addEventListener('visibilitychange', onVisibilityChange)
-    }
-    return () => {
-      window.removeEventListener('focus', onWindowFocus)
-      if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
-        document.removeEventListener('visibilitychange', onVisibilityChange)
-      }
-    }
-  }, [drainHead])
-
-  // Keep local queue in sync with cross-window persist broadcasts. The hook writes via
-  // imperative getPersist/setPersist so without a subscription an unfocused window would
-  // keep a stale stateRef and attempt to drain an already-removed head when it regains focus.
-  useEffect(() => {
-    return cacheService.subscribe(QUEUE_STORAGE_KEY, () => {
-      let next = loadState(scopeKeyRef.current)
-      const nextFailedId = next.failedItemId ?? null
-      const localFailedId = failedItemIdRef.current
-      const itemsEqual = isEqual(next.items, stateRef.current.items) && next.paused === stateRef.current.paused
-      const failedEqual = nextFailedId === localFailedId
-      if (itemsEqual && failedEqual) return
-      // Sync persisted failedItemId (survives reload / cross-window)
-      if (nextFailedId !== localFailedId) {
-        if (nextFailedId && next.items.some((item) => item.id === nextFailedId)) {
-          setFailedItemId(nextFailedId)
-        } else if (nextFailedId && !next.items.some((item) => item.id === nextFailedId)) {
-          // Stale failed id (item gone) — clear it
-          setFailedItemId(null)
-          if (next.paused) {
-            next = { ...next, paused: false, failedItemId: undefined }
-            persistState(scopeKeyRef.current, next.items, next.paused, null)
-          } else {
-            next = { ...next, failedItemId: undefined }
-          }
-        } else if (!nextFailedId && localFailedId) {
-          // Remote cleared failure — only accept if the failed item is no longer present
-          // (skip/remove). If the item is still in the incoming queue, the remote snapshot
-          // is stale and hasn't seen the recent failure yet, so keep the local failure.
-          if (!next.items.some((item) => item.id === localFailedId)) {
-            setFailedItemId(null)
-          } else {
-            // Preserve local failure; do not treat stale incoming as authoritative.
-            next = { ...next, failedItemId: localFailedId, paused: true }
-          }
-        }
-      }
-      // If the local failed item was removed externally, clear the failure so drains can resume.
-      let didUnpause = false
-      if (failedItemIdRef.current && !next.items.some((item) => item.id === failedItemIdRef.current)) {
-        const hasIncomingFailed =
-          typeof next.failedItemId === 'string' && next.items.some((item) => item.id === next.failedItemId)
-        if (!hasIncomingFailed) {
-          setFailedItemId(null)
-          if (next.paused) {
-            next = { ...next, paused: false, failedItemId: undefined }
-            persistState(scopeKeyRef.current, next.items, next.paused, null)
-            didUnpause = true
-          }
-        } else {
-          // Incoming has a different failed head — keep its failure and do not auto-drain
-          setFailedItemId(next.failedItemId ?? null)
-        }
-      }
-      // If the draining item disappeared externally, invalidate its resolution.
-      if (drainingIdRef.current && !next.items.some((item) => item.id === drainingIdRef.current)) {
-        drainEpochRef.current += 1
-        setDraining(null)
-      }
-      stateRef.current = { items: next.items, paused: next.paused }
-      setState({ items: next.items, paused: next.paused })
-      // Keep ref in sync with the reconciled persisted failure (not the stale incoming).
-      const reconciledFailedId = next.failedItemId ?? null
-      if (reconciledFailedId !== localFailedId) {
-        failedItemIdRef.current = reconciledFailedId
-      }
-      if (didUnpause && isFulfilledRef.current && drainingIdRef.current === null && isWindowFocused()) {
-        const head = next.items[0]
-        if (head) {
-          markSeenRef.current()
-          drainHead(head)
-        }
-      }
-    })
-  }, [drainHead, setDraining])
 
   // Shared exclusive claim between the auto-drain paths and manual steers: only one
   // send may be in flight per queue, whichever path started it.
