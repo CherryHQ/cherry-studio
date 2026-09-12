@@ -419,6 +419,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
         if (!signal.aborted) await flushTrailingMarkers()
       } catch (error) {
+        if (!signal.aborted) await flushTrailingMarkers()
         readFailure = { error }
       } finally {
         reader.releaseLock()
