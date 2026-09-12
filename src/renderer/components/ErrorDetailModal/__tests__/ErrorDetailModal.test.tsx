@@ -452,6 +452,7 @@ describe('ErrorDetailContent diagnostics', () => {
 
   it('shows the Doctor result after an automatic Doctor run fails', async () => {
     let rejectRun!: (error: Error) => void
+    const user = userEvent.setup()
     mocks.request.mockImplementation((route: string) => {
       if (route === 'diagnostics.doctor.run') {
         return new Promise((_, reject) => {
@@ -471,6 +472,13 @@ describe('ErrorDetailContent diagnostics', () => {
     expect(await screen.findByRole('region', { name: 'Diagnostic result' })).toHaveTextContent(
       'Fixed: None; needs attention: 0 items.'
     )
+    const quickRetry = screen.getByRole('button', { name: 'Quick basic checks' })
+    expect(quickRetry).toBeEnabled()
+    await user.click(quickRetry)
+    await waitFor(() =>
+      expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.doctor.run')).toHaveLength(2)
+    )
+    expect(mocks.request).toHaveBeenLastCalledWith('diagnostics.doctor.run', { tier: 'quick' })
     expect(mocks.diagnoseError).not.toHaveBeenCalled()
   })
 
