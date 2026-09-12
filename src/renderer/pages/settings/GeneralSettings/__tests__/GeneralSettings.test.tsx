@@ -64,6 +64,28 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Flex: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   InfoTooltip: () => null,
+  Combobox: ({
+    options,
+    value,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    options: { value: string; label: string }[]
+    value?: string | string[]
+    onChange?: (value: string | string[]) => void
+    'aria-label'?: string
+  }) => (
+    <select
+      aria-label={ariaLabel}
+      value={Array.isArray(value) ? (value[0] ?? '') : (value ?? '')}
+      onChange={(event) => onChange?.(event.target.value)}>
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   InputNumber: ({
     onBlur,
@@ -107,6 +129,7 @@ describe('GeneralSettings', () => {
       'settings.launch.title',
       'settings.proxy.mode.title',
       'settings.models.context_management.title',
+      'settings.agent.language.title',
       'settings.developer.title'
     ])
   })
@@ -144,6 +167,26 @@ describe('GeneralSettings', () => {
       expect(MockUsePreferenceUtils.getPreferenceValue('app.tray.on_close')).toBe(false)
       expect(MockUsePreferenceUtils.getPreferenceValue('app.tray.on_launch')).toBe(false)
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.click_tray_to_show')).toBe(false)
+    })
+  })
+
+  it('renders the agent reply language row defaulting to follow conversation', () => {
+    render(<GeneralSettings />)
+
+    const preset = screen.getByRole('combobox', { name: 'settings.agent.language.combo_label' })
+    expect(preset).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'settings.agent.language.custom_label' })).toHaveValue('')
+  })
+
+  it('persists the agent reply language preset', async () => {
+    render(<GeneralSettings />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'settings.agent.language.combo_label' }), {
+      target: { value: '日本語' }
+    })
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('agent.language')).toBe('日本語')
     })
   })
 })
