@@ -136,7 +136,7 @@ const useKnowledgeBaseToolController = ({
             if (!onLinkBase || !(await onLinkBase(base))) {
               // Roll the panel's selection state back through the provider — `item` here is
               // a copy, so mutating it would leave the panel checked.
-              context.updateItemSelection?.(item, false)
+              context?.updateItemSelection?.(item, false)
               toast.error(tRef.current('chat.input.knowledge_base_link_failed'))
               return
             }

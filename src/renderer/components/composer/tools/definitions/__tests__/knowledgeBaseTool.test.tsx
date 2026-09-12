@@ -141,9 +141,9 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     return vi.mocked(quickPanel.open).mock.calls[0][0].list
   }
 
-  it('keeps a first in-flight link when a second base is picked before the PATCH settles', async () => {
+  it('queues a second pick behind the first link and carries the first id into its PATCH', async () => {
     // Regression (#20238 review): both picks read the same pre-PATCH assistant snapshot;
-    // the second PATCH must still carry the first link, not replace it.
+    // the second PATCH must wait for the first outcome and still carry the first link.
     let resolveFirstPatch: (assistant: unknown) => void = () => {}
     const firstPatch = new Promise<unknown>((resolve) => {
       resolveFirstPatch = resolve
@@ -157,10 +157,34 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     expect(mocks.updateAssistant).toHaveBeenNthCalledWith(1, 'assistant-1', { knowledgeBaseIds: ['kb-1'] })
 
     const secondPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
+    // The queue holds the second PATCH until the first settles.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mocks.updateAssistant).toHaveBeenCalledTimes(1)
+
+    resolveFirstPatch({})
     await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(2))
     expect(mocks.updateAssistant).toHaveBeenNthCalledWith(2, 'assistant-1', { knowledgeBaseIds: ['kb-1', 'kb-2'] })
 
-    resolveFirstPatch({})
-    await Promise.all([firstPick, secondPick])
+    await Promise.all([firstPick as Promise<unknown>, secondPick as Promise<unknown>])
+  })
+
+  it('drops a failed link from the next pick instead of persisting it', async () => {
+    // A failed PATCH rolled its pick back in the panel; the queued pick must not carry
+    // the failed id into its own PATCH, or the server would hold a link the UI denies.
+    mocks.updateAssistant
+      .mockImplementationOnce(async () => {
+        throw new Error('network down')
+      })
+      .mockImplementationOnce(async () => ({}))
+
+    const list = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+
+    const firstPick = list[0].action?.({ item: { ...list[0], isSelected: true } })
+    const secondPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(2))
+
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(2, 'assistant-1', { knowledgeBaseIds: ['kb-2'] })
+    await Promise.all([firstPick as Promise<unknown>, secondPick as Promise<unknown>])
   })
 })

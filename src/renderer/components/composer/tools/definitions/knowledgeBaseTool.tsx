@@ -41,9 +41,18 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
   // widening the ceiling for every session of that agent.
   const isChatScope = !!context.assistant
   const assistantKnowledgeBaseIds = context.assistant?.knowledgeBaseIds
-  // Links still awaiting their PATCH: a rapid second click reads a pre-PATCH assistant
-  // snapshot, and without merging these ids the second PATCH would drop the first link.
-  const pendingLinkBaseIdsRef = useRef<Set<string>>(new Set())
+  // Latest ids this runtime has settled on: the assistant snapshot, or the last PATCH's
+  // own write while React Query has not delivered a fresher assistant yet.
+  const assistantSnapshotRef = useRef(context.assistant)
+  const latestKnowledgeBaseIdsRef = useRef<string[] | null>(null)
+  if (assistantSnapshotRef.current !== context.assistant) {
+    assistantSnapshotRef.current = context.assistant
+    latestKnowledgeBaseIdsRef.current = context.assistant?.knowledgeBaseIds ?? null
+  }
+  // Auto-link PATCHes run strictly one at a time, each body computed from the previous
+  // outcome: a failed link must not leak into the next pick's body (it would persist a
+  // link the picker just rolled back), and a successful one must be carried forward.
+  const linkQueueRef = useRef<Promise<boolean>>(Promise.resolve(true))
 
   const unconfiguredBaseIds = useMemo(() => {
     if (!isChatScope) return new Set<string>()
@@ -52,25 +61,30 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
   }, [assistantKnowledgeBaseIds, isChatScope, state.selectableKnowledgeBases])
 
   const handleLinkBase = useCallback(
-    async (base: KnowledgeBase): Promise<boolean> => {
-      const assistant = context.assistant
-      if (!assistant) return false
-      pendingLinkBaseIdsRef.current.add(base.id)
-      const knowledgeBaseIds = [...new Set([...(assistant.knowledgeBaseIds ?? []), ...pendingLinkBaseIdsRef.current])]
-      try {
-        await updateAssistant(assistant.id, { knowledgeBaseIds })
-        return true
-      } catch (error) {
-        logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
-          assistantId: assistant.id,
-          knowledgeBaseId: base.id
-        })
-        return false
-      } finally {
-        pendingLinkBaseIdsRef.current.delete(base.id)
+    (base: KnowledgeBase): Promise<boolean> => {
+      const run = async (): Promise<boolean> => {
+        const assistant = assistantSnapshotRef.current
+        if (!assistant) return false
+        const currentIds = latestKnowledgeBaseIdsRef.current ?? assistant.knowledgeBaseIds ?? []
+        if (currentIds.includes(base.id)) return true
+        const knowledgeBaseIds = [...currentIds, base.id]
+        try {
+          await updateAssistant(assistant.id, { knowledgeBaseIds })
+          latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
+          return true
+        } catch (error) {
+          logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
+            assistantId: assistant.id,
+            knowledgeBaseId: base.id
+          })
+          return false
+        }
       }
+      const result = linkQueueRef.current.then(run, run)
+      linkQueueRef.current = result.catch(() => false)
+      return result
     },
-    [context.assistant, updateAssistant]
+    [updateAssistant]
   )
 
   return (
