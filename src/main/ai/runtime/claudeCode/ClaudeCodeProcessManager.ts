@@ -44,12 +44,37 @@ export type SpawnProcess = (
     env: NodeJS.ProcessEnv
     signal: AbortSignal
     stdio: ['pipe', 'pipe', 'pipe']
+    uid?: number
     windowsHide: true
   }
 ) => SpawnedChildProcess
 
 type ExitListener = (code: number | null, signal: NodeJS.Signals | null) => void
 type ErrorListener = (error: Error) => void
+
+function logClaudeCodeProcessFailure(diagnostics: ClaudeCodeProcessDiagnostics): void {
+  logger.warn('Claude Code process failed', {
+    reference: diagnostics.reference,
+    category: diagnostics.category,
+    exitCode: diagnostics.exitCode,
+    exitSignal: diagnostics.exitSignal,
+    spawnFailed: diagnostics.spawnFailed
+  })
+}
+
+function recordSynchronousSpawnFailure(diagnostics: ClaudeCodeProcessDiagnostics, error: unknown): void {
+  if (!(error instanceof Error)) return
+  recordClaudeCodeSpawnError(diagnostics, error)
+  logClaudeCodeProcessFailure(diagnostics)
+}
+
+function macOsForkFallbackUid(error: unknown): number | undefined {
+  if (process.platform !== 'darwin' || typeof process.getuid !== 'function') return undefined
+  if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'EBADF') return undefined
+
+  // Apple posix_spawn rejects pipe fds above 10239 (libuv#5204); same uid selects libuv's fork/exec path.
+  return process.getuid()
+}
 
 class ManagedClaudeCodeProcess implements SpawnedProcess {
   private readonly events = new EventEmitter()
@@ -84,7 +109,7 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
     })
     child.once('error', (error) => {
       recordClaudeCodeSpawnError(diagnostics, error)
-      this.logTerminalReason()
+      logClaudeCodeProcessFailure(diagnostics)
       this.events.emit('error', error)
     })
   }
@@ -145,19 +170,8 @@ class ManagedClaudeCodeProcess implements SpawnedProcess {
     this.pendingExit = undefined
     if (this.drainTimer) clearTimeout(this.drainTimer)
     recordClaudeCodeProcessExit(this.diagnostics, exit.code, exit.signal, this.stderrTail)
-    if (exit.code !== 0) this.logTerminalReason()
+    if (exit.code !== 0) logClaudeCodeProcessFailure(this.diagnostics)
     this.events.emit('exit', exit.code, exit.signal)
-  }
-
-  /** Correlate the renderer reference with structured diagnostics without persisting untrusted stderr. */
-  private logTerminalReason(): void {
-    logger.warn('Claude Code process failed', {
-      reference: this.diagnostics.reference,
-      category: this.diagnostics.category,
-      exitCode: this.diagnostics.exitCode,
-      exitSignal: this.diagnostics.exitSignal,
-      spawnFailed: this.diagnostics.spawnFailed
-    })
   }
 }
 
@@ -176,14 +190,34 @@ export class ClaudeCodeProcessManager extends BaseService {
 
   spawn(options: SpawnOptions, diagnostics = createClaudeCodeProcessDiagnostics()): SpawnedProcess {
     resetClaudeCodeProcessDiagnostics(diagnostics)
-    const rawChild = this.spawnProcess(options.command, options.args, {
+    const spawnOptions: Parameters<SpawnProcess>[2] = {
       cwd: options.cwd,
       env: options.env,
       signal: options.signal,
       // Keeping stdin a pipe is also what makes the CLI exit on its own once this app dies.
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true
-    })
+    }
+    let rawChild: SpawnedChildProcess
+    try {
+      rawChild = this.spawnProcess(options.command, options.args, spawnOptions)
+    } catch (error) {
+      const uid = macOsForkFallbackUid(error)
+      if (uid === undefined) {
+        recordSynchronousSpawnFailure(diagnostics, error)
+        throw error
+      }
+
+      logger.warn('Retrying Claude Code process spawn through macOS fork fallback', {
+        reference: diagnostics.reference
+      })
+      try {
+        rawChild = this.spawnProcess(options.command, options.args, { ...spawnOptions, uid })
+      } catch (retryError) {
+        recordSynchronousSpawnFailure(diagnostics, retryError)
+        throw retryError
+      }
+    }
     const child = new ManagedClaudeCodeProcess(rawChild, diagnostics) as TrackedSpawnedProcess
     this.processes.add(child)
     // Untracked on the raw exit, not the wrapper's — no reason to hold a dead handle through the drain.
