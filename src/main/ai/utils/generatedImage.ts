@@ -14,6 +14,7 @@ const RENDERABLE_IMAGE_MEDIA_TYPES = new Set([
   'image/webp',
   'image/avif',
   'image/bmp',
+  'image/x-icon',
   'image/vnd.microsoft.icon',
   SVG_MEDIA_TYPE
 ])

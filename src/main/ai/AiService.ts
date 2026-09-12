@@ -1006,7 +1006,11 @@ export class AiService extends BaseService {
           : undefined
       if (noImageError) {
         const remoteDownloadFailures = [...remoteDownloadOutcomes.values()].filter(Boolean).length
-        if (remoteDownloadOutcomes.size > 0 && remoteDownloadFailures === remoteDownloadOutcomes.size) {
+        if (
+          remoteDownloadOutcomes.size > 0 &&
+          remoteDownloadFailures === remoteDownloadOutcomes.size &&
+          providerImageCount <= remoteDownloadOutcomes.size
+        ) {
           throw new Error(`Image generation produced ${remoteDownloadOutcomes.size} URL(s) but all downloads failed`, {
             cause: error
           })
@@ -1096,6 +1100,7 @@ export class AiService extends BaseService {
       }
     } catch (error) {
       await deleteCreatedFiles()
+      if (signal?.aborted) throw signal.reason ?? new DOMException('Image generation aborted', 'AbortError')
       throw error
     }
     if (signal?.aborted) {
