@@ -166,6 +166,11 @@ const OcrJobWatcher: FC<{
 
   useEffect(() => {
     if (handledRef.current) return
+    if (job.contentOperationRevision !== getContentOperationRevision()) {
+      handledRef.current = true
+      onSettled(job.jobId)
+      return
+    }
 
     const normalizeError = (error: unknown, fallbackMessage: string) => {
       if (error instanceof Error) return error
@@ -746,13 +751,21 @@ const TranslatePage: FC = () => {
           }),
           'translate history languages'
         )
-        if (!persisted || contentIntentRevisionBeforePersist !== getContentIntentRevision()) return
+        const currentIntentRevision = getContentIntentRevision()
+        const lastRestore = cacheService.get('translate.last_history_restore')
+        const priorRestoreAdvancedIntent =
+          lastRestore?.revision === currentIntentRevision && lastRestore.revision > contentIntentRevisionBeforePersist
+        if (!persisted || (contentIntentRevisionBeforePersist !== currentIntentRevision && !priorRestoreAdvancedIntent))
+          return
 
         if (!isMountedRef.current) {
           if (
             filePaths ||
-            cacheService.get('translate.input') !== contentBeforePersist.input ||
-            cacheService.get('translate.output') !== contentBeforePersist.output
+            ((cacheService.get('translate.input') !== contentBeforePersist.input ||
+              cacheService.get('translate.output') !== contentBeforePersist.output) &&
+              (!priorRestoreAdvancedIntent ||
+                cacheService.get('translate.input') !== lastRestore.input ||
+                cacheService.get('translate.output') !== lastRestore.output))
           )
             return
 
@@ -761,6 +774,11 @@ const TranslatePage: FC = () => {
           translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
           setTranslateInput(history.sourceText)
           setTranslateOutput(history.targetText)
+          cacheService.set('translate.last_history_restore', {
+            revision: getContentIntentRevision(),
+            input: history.sourceText,
+            output: history.targetText
+          })
           contentRestored = true
           return
         }
@@ -782,6 +800,11 @@ const TranslatePage: FC = () => {
           clearPdfMode()
           setTranslateInput(history.sourceText)
           setTranslateOutput(history.targetText)
+          cacheService.set('translate.last_history_restore', {
+            revision: getContentIntentRevision(),
+            input: history.sourceText,
+            output: history.targetText
+          })
         }
 
         setHistoryOpen(false)
@@ -832,6 +855,9 @@ const TranslatePage: FC = () => {
 
   const readFile = useCallback(
     async (file: FileMetadata, contentOperationRevision: number) => {
+      const closeStaleToast = () => {
+        if (loadingToastKey) toast.closeToast(loadingToastKey)
+      }
       const read = async () => {
         const fileExtension = getFileExtension(file.path)
         const isDocument = documentExts.includes(fileExtension)
@@ -841,13 +867,20 @@ const TranslatePage: FC = () => {
           try {
             isText = await isTextFile(file.path)
           } catch (error) {
+            if (!isContentOperationCurrent(contentOperationRevision)) {
+              closeStaleToast()
+              return
+            }
             logger.error('Failed to check file type.', error as Error)
             toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.check_type')))
             return
           }
         }
 
-        if (!isContentOperationCurrent(contentOperationRevision)) return
+        if (!isContentOperationCurrent(contentOperationRevision)) {
+          closeStaleToast()
+          return
+        }
 
         if (!isText && !isDocument) {
           toast.error(t('common.file.not_supported', { type: fileExtension }))
@@ -865,16 +898,25 @@ const TranslatePage: FC = () => {
           const result = isDocument
             ? await window.api.file.readExternal(file.path, true)
             : await window.api.fs.readText(file.path)
-          if (!isContentOperationCurrent(contentOperationRevision)) return
+          if (!isContentOperationCurrent(contentOperationRevision)) {
+            closeStaleToast()
+            return
+          }
           appendTranslateInput(result)
         } catch (error) {
+          if (!isContentOperationCurrent(contentOperationRevision)) {
+            closeStaleToast()
+            return
+          }
           logger.error('Failed to read file.', error as Error)
           toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))
         }
       }
 
-      const promise = read()
-      toast.loading({ title: t('translate.files.reading'), promise })
+      const loadingToastKey = toast.loading({
+        title: t('translate.files.reading'),
+        promise: Promise.resolve().then(read)
+      })
     },
     [appendTranslateInput, isContentOperationCurrent, t]
   )
