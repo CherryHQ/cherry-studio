@@ -29,6 +29,13 @@ function tool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name'>)
   }
 }
 
+function browserTool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name' | 'label'>): PiMcpToolDefinition {
+  return {
+    ...tool(overrides),
+    source: { serverName: '@cherry/browser', toolName: overrides.label }
+  }
+}
+
 function codeModeTools(
   catalog: PiMcpToolDefinition[],
   disabled = new Set<string>(),
@@ -150,7 +157,7 @@ describe('createPiCodeModeTools', () => {
   })
 
   it('generates a typed browser facade and dispatches its methods through the shared authorization boundary', async () => {
-    const name = 'mcp__browser__open'
+    const name = 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__open'
     const execute = vi.fn<ToolDefinition['execute']>(async () => ({
       content: [{ type: 'text' as const, text: '{"title":"Example"}' }],
       details: { title: 'Example' }
@@ -166,6 +173,7 @@ describe('createPiCodeModeTools', () => {
         },
         execute
       }),
+      source: { serverName: '@cherry/browser', toolName: 'open' },
       outputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }
     }
     const authorize = vi.fn<PiToolAuthorizer>(async () => undefined)
@@ -206,8 +214,9 @@ describe('createPiCodeModeTools', () => {
   })
 
   it('forwards images returned by browser facade methods as tool_exec image content', async () => {
-    const screenshot = tool({
-      name: 'mcp__browser__screenshot',
+    const screenshot = browserTool({
+      name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__screenshot',
+      label: 'screenshot',
       execute: vi.fn(async () => ({
         content: [{ type: 'image' as const, data: 'base64-png', mimeType: 'image/png' }],
         details: undefined
@@ -230,7 +239,7 @@ describe('createPiCodeModeTools', () => {
   })
 
   it('keeps browser facade calls behind the nested approval gate', async () => {
-    const reset = tool({ name: 'mcp__browser__reset' })
+    const reset = browserTool({ name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__reset', label: 'reset' })
     const authorize = vi.fn<PiToolAuthorizer>(async () => ({ block: true, reason: 'User denied browser control.' }))
     const exec = codeModeTools([reset], new Set(), authorize).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
 
@@ -238,7 +247,11 @@ describe('createPiCodeModeTools', () => {
       exec.execute('outer-1', { code: 'return await browser.reset({})' }, undefined, undefined, {} as never)
     ).rejects.toThrow('User denied browser control.')
     expect(authorize).toHaveBeenCalledWith(
-      expect.objectContaining({ toolName: 'mcp__browser__reset', toolCallId: 'outer-1', input: {} })
+      expect.objectContaining({
+        toolName: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__reset',
+        toolCallId: 'outer-1',
+        input: {}
+      })
     )
     expect(reset.execute).not.toHaveBeenCalled()
   })

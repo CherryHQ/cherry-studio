@@ -16,7 +16,10 @@ const logger = loggerService.withContext('PiMcpToolAdapter')
 type PiToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
 
 /** MCP keeps result schemas separately from tool-call parameters. Preserve that distinction for code-mode declarations. */
-export type PiMcpToolDefinition = ToolDefinition & { outputSchema?: unknown }
+export type PiMcpToolDefinition = ToolDefinition & {
+  outputSchema?: unknown
+  source?: { serverName: string; toolName: string }
+}
 
 class PiMcpToolIdentityError extends Error {}
 
@@ -63,7 +66,9 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
       await server.instance.connect(serverTransport)
       await client.connect(clientTransport)
       const result = await client.listTools()
-      const serverTools = result.tools.map((tool) => toPiToolDefinition(server.name, tool, client))
+      const serverTools = result.tools.map((tool) =>
+        toPiToolDefinition(server.name, server.logicalName ?? server.name, tool, client)
+      )
       const existingNames = new Set(tools.map((tool) => tool.name))
       const serverNames = new Set<string>()
       for (const tool of serverTools) {
@@ -92,12 +97,18 @@ export async function buildMcpToolDefinitions(servers: Record<string, AgentMcpSe
   }
 }
 
-function toPiToolDefinition(serverName: string, tool: Tool, client: Client): PiMcpToolDefinition {
+function toPiToolDefinition(
+  serverName: string,
+  logicalServerName: string,
+  tool: Tool,
+  client: Client
+): PiMcpToolDefinition {
   return {
     name: buildPiMcpToolName(serverName, tool.name),
     label: tool.name,
     description: tool.description ?? '',
     parameters: tool.inputSchema,
+    source: { serverName: logicalServerName, toolName: tool.name },
     ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
     async execute(_toolCallId, params, signal) {
       const result = (await client.callTool(

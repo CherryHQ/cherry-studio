@@ -8,6 +8,7 @@ import {
   PI_TOOL_EXEC_TOOL_NAME,
   PI_TOOL_SEARCH_TOOL_NAME
 } from '@shared/ai/piBuiltinTools'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 import type { PiToolAuthorizationRequest, PiToolAuthorizer } from './approvalExtension'
 import type { PiMcpToolDefinition } from './piMcpToolAdapter'
@@ -19,8 +20,6 @@ type SerializedAuthorizer = (request: PiToolAuthorizationRequest) => ReturnType<
 const SEARCH_RESULT_LIMIT = 20
 const BM25_K1 = 1.2
 const BM25_B = 0.75
-const BROWSER_TOOL_PREFIX = 'mcp__browser__'
-
 const searchParameters = {
   type: 'object',
   properties: {
@@ -70,7 +69,7 @@ export function createPiCodeModeTools(
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
   const browserFacade = Object.fromEntries(
     tools.flatMap((tool) => {
-      const methodName = browserMethodName(tool.name)
+      const methodName = browserMethodName(tool)
       return methodName ? [[methodName, tool.name]] : []
     })
   )
@@ -232,7 +231,7 @@ export function createPiCodeModeTools(
       }))
     )
     const browserTools = discovered.flatMap((tool) => {
-      const methodName = browserMethodName(tool.name)
+      const methodName = browserMethodName(tool)
       return methodName
         ? [
             {
@@ -251,9 +250,9 @@ export function createPiCodeModeTools(
   }
 }
 
-function browserMethodName(toolName: string): string | undefined {
-  if (!toolName.startsWith(BROWSER_TOOL_PREFIX)) return undefined
-  return toolName.slice(BROWSER_TOOL_PREFIX.length) || undefined
+function browserMethodName(tool: PiMcpToolDefinition): string | undefined {
+  if (tool.source?.serverName !== BuiltinMcpServerNames.browser) return undefined
+  return tool.source.toolName || undefined
 }
 
 function imageContent(result: ToolResult): ExecImage[] | undefined {
