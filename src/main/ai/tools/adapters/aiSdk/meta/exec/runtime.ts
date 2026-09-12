@@ -1,5 +1,6 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
 
+import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { type ExecResult, runExecCode } from '@main/ai/tools/codeMode/runtime'
 
 import { isApprovalGated } from '../../isApprovalGated'
@@ -34,13 +35,20 @@ export function runExec(code: string, ctx: ExecRuntimeContext): Promise<ExecResu
         throw new Error(`Tool ${name} requires user approval; call it directly instead of via tool_exec.`)
       }
 
-      return {
-        value: await execute(params, {
-          ...ctx.parentOptions,
-          toolCallId: `${ctx.parentOptions.toolCallId}::exec::${requestId}`,
-          abortSignal: signal
-        })
-      }
+      const value = await execute(params, {
+        ...ctx.parentOptions,
+        toolCallId: `${ctx.parentOptions.toolCallId}::exec::${requestId}`,
+        abortSignal: signal
+      })
+      const content = (value as Partial<McpCallToolResponse> | null)?.content
+      const images = Array.isArray(content)
+        ? content.flatMap((part) =>
+            part.type === 'image' && typeof part.data === 'string' && typeof part.mimeType === 'string'
+              ? [{ data: part.data, mimeType: part.mimeType }]
+              : []
+          )
+        : []
+      return { value, ...(images.length > 0 && { images }) }
     }
   })
 }

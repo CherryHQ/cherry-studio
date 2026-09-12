@@ -675,6 +675,12 @@ MCP catalog, including Cherry autonomy tools, is exposed through four native cus
   approvals are presented one at a time because the outer Pi tool part carries one
   active approval card; accepted calls may still execute concurrently.
 
+Browser MCP tools with unambiguous logical method names are also callable as
+`browser.<method>(params)` inside `tool_exec`; colliding aliases are omitted while
+both original MCP wire tools remain available through `tools.invoke`. Nested MCP
+image parts are forwarded as `tool_exec` image content; nested calls without an
+output schema omit those image parts from their returned value.
+
 This executor is an orchestration boundary, not a security sandbox:
 `worker_threads` isolates scheduling but retains the app's Node.js authority.
 Move it to a capability-isolated executor before allowing untrusted code without

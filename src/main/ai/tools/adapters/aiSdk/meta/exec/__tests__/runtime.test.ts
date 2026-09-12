@@ -58,6 +58,24 @@ describe('runExec / handleToolCall', () => {
     expect(execute.mock.calls[0][0]).toEqual({ foo: 'bar' })
   })
 
+  it('forwards nested MCP image content through the exec result', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      content: [
+        { type: 'text', text: 'captured' },
+        { type: 'image', data: 'base64-png', mimeType: 'image/png' }
+      ]
+    })
+    const reg = registryWith({ name: 'mcp__s1__screenshot', tool: toolWith({ execute }) })
+
+    const out = await runExec("await tools.invoke('mcp__s1__screenshot', {}); return 'done'", {
+      registry: reg,
+      parentOptions: makeOptions()
+    })
+
+    expect(out.result).toBe('done')
+    expect(out.images).toEqual([{ data: 'base64-png', mimeType: 'image/png' }])
+  })
+
   it('nests the toolCallId under the parent so telemetry can rebuild the call tree', async () => {
     const execute = vi.fn().mockResolvedValue('ok')
     const reg = registryWith({ name: 'mcp__s1__t', tool: toolWith({ execute }) })
