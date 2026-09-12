@@ -1001,12 +1001,18 @@ export function useWriteInfiniteCache<TPath extends ApiPath>(
       const nextPageKeys = new Set(nextPageEntries.map((entry) => entry.serializedKey))
       const pageMutations: Promise<unknown>[] = []
       for (const { key, page } of nextPageEntries) {
-        pageMutations.push(mutate(key, page, { revalidate: false }))
+        pageMutations.push(
+          mutate(key, (currentPage: Page | undefined) => (ownsAggregateCommit() ? page : currentPage), {
+            revalidate: false
+          })
+        )
       }
       for (const { key, serializedKey } of previousPageEntries) {
         if (nextPageKeys.has(serializedKey)) continue
         pageMutations.push(
-          mutate(key, undefined, { revalidate: false }).then(() => {
+          mutate(key, (currentPage: Page | undefined) => (ownsAggregateCommit() ? undefined : currentPage), {
+            revalidate: false
+          }).then(() => {
             if (ownsAggregateCommit()) cache.delete(serializedKey)
           })
         )

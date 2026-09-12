@@ -1269,15 +1269,16 @@ describe('useInfiniteQuery integration', () => {
     const olderCleanupStarted = new Promise<void>((resolve) => {
       noteOlderCleanupStarted = resolve
     })
+    let deferNextFirstPageMutation = false
     scopedMutateWrapper.current = (mutate) => {
       const invoke = mutate as unknown as (...args: unknown[]) => Promise<unknown>
       return (async (...args: unknown[]) => {
-        const mutation = invoke(...args)
-        if (Array.isArray(args[0]) && unstable_serialize(args[0]) === firstPageKey && args[1] === undefined) {
+        if (deferNextFirstPageMutation && Array.isArray(args[0]) && unstable_serialize(args[0]) === firstPageKey) {
+          deferNextFirstPageMutation = false
           noteOlderCleanupStarted()
           await olderCleanupRelease
         }
-        return mutation
+        return invoke(...args)
       }) as ScopedMutator
     }
 
@@ -1300,6 +1301,7 @@ describe('useInfiniteQuery integration', () => {
     }))
     let olderWrite!: Promise<BranchMessagesResponse[] | undefined>
     act(() => {
+      deferNextFirstPageMutation = true
       olderWrite = result.current.writeCache(() => undefined)
     })
     await olderCleanupStarted
