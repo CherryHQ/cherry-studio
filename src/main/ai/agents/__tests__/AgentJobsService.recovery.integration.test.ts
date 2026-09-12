@@ -1,3 +1,9 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { jobScheduleService } from '@data/services/JobScheduleService'
@@ -5,11 +11,6 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
-import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
   const mod = await import('@test-mocks/main/application')
