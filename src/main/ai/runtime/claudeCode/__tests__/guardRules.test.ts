@@ -264,6 +264,94 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('explorer-repeat-identical & explorer-consecutive-cap & same-file-cap', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
+      'denies identical explorer calls reaching threshold 5 under %s',
+      async (mode) => {
+        const decision = await evaluate(
+          makeCtx({
+            toolName: 'Read',
+            permissionMode: mode,
+            input: { file_path: 'src/app.ts' },
+            explorerLoopStatus: () => ({ identicalRun: 5, consecutiveReads: 5 })
+          })
+        )
+        expect(decision?.ruleId).toBe('explorer-repeat-identical')
+        expect(decision?.effect).toBe('deny')
+        expect(decision?.reason).toContain('5/5 times in a row')
+      }
+    )
+
+    it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
+      'denies exploration when consecutive reads reach cap of 30 under %s',
+      async (mode) => {
+        const decision = await evaluate(
+          makeCtx({
+            toolName: 'Grep',
+            permissionMode: mode,
+            input: { path: 'src', pattern: 'query' },
+            explorerLoopStatus: () => ({ identicalRun: 1, consecutiveReads: 30 })
+          })
+        )
+        expect(decision?.ruleId).toBe('explorer-consecutive-cap')
+        expect(decision?.effect).toBe('deny')
+        expect(decision?.reason).toContain('Exploration budget reached: 30/30 operations')
+      }
+    )
+
+    it('leaves runs below the hard thresholds to the soft hook warning', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: 'src/app.ts' },
+            explorerLoopStatus: () => ({ identicalRun: 3, consecutiveReads: 3 })
+          })
+        )
+      ).resolves.toBeUndefined()
+
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Glob',
+            input: { pattern: '*.ts' },
+            explorerLoopStatus: () => ({ identicalRun: 1, consecutiveReads: 20 })
+          })
+        )
+      ).resolves.toBeUndefined()
+    })
+
+    it('does not gate non-explorer tools like Bash or Edit', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Bash',
+            input: { command: 'ls' },
+            explorerLoopStatus: () => ({ identicalRun: 10, consecutiveReads: 20 })
+          })
+        )
+      ).resolves.toBeUndefined()
+    })
+
+    it('denies when same-file slice read cap (10) is reached', async () => {
+      const decision = await evaluate(
+        makeCtx({
+          toolName: 'Read',
+          input: { file_path: 'src/main.ts', offset: 151, limit: 50 },
+          explorerLoopStatus: () => ({
+            identicalRun: 1,
+            consecutiveReads: 10,
+            sameFileCapReached: true,
+            filePath: 'src/main.ts'
+          })
+        })
+      )
+      expect(decision?.ruleId).toBe('explorer-same-file-cap')
+      expect(decision?.effect).toBe('deny')
+      expect(decision?.reason).toContain("Reading 'src/main.ts' is capped after 10 slices")
+    })
+  })
+
   describe('headless-config-mutation', () => {
     const configTool = toCherryBuiltinRuntimeName('config')
 
