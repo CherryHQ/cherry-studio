@@ -59,6 +59,7 @@ import {
   resolveReasoningEffortForModel
 } from '@renderer/utils/model'
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import { buildTopicFollowupScopeKey } from '@shared/data/types/followupQueue'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
@@ -1018,7 +1019,7 @@ const ChatComposerInner = ({
   // Steer: while a turn is streaming (but not paused for tool approval) a new message is sent as a
   // follow-up rather than blocked — the main process persists it and yields/chains a continuation.
   const canSteer = isPending && !awaitingApproval
-  const selectedKnowledgeBasesScopeKey = `${scopeKey}:${selectedAssistantId ?? 'no-assistant'}`
+  const selectedKnowledgeBasesScopeKey = buildTopicFollowupScopeKey(scopeKey, selectedAssistantId)
   const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities({
     models: mentionedModels,
@@ -1738,8 +1739,8 @@ const ChatComposerInner = ({
       // Busy (streaming, not awaiting approval) → queue the follow-up instead of sending now. The
       // dock lets the user steer/edit/remove it; the head auto-drains when the turn goes idle.
       if (canSteer) {
-        enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        const queued = await enqueueFollowup(draft, payload)
+        if (queued) clearCurrentDraft()
         return
       }
 
