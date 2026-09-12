@@ -1587,8 +1587,11 @@ describe('GlobalSearchPanel', () => {
     await user.click(screen.getByRole('option', { name: 'Show 50 more' }))
     expect(await screen.findByRole('option', { name: /needle stale second page/ })).toBeInTheDocument()
 
-    mocks.messageQueryResultsByCursor.set(undefined, {
+    const replacementFirstPage = {
       items: [createMessage('message-page-1-replacement', 'needle replacement first page', '2026-01-01T00:00:01.000Z')]
+    }
+    mocks.refetchContentSearch.mockImplementationOnce(async () => {
+      mocks.messageQueryResultsByCursor.set(undefined, replacementFirstPage)
     })
     mocks.useQuery.mockClear()
     act(() => {
@@ -1596,6 +1599,7 @@ describe('GlobalSearchPanel', () => {
     })
 
     expect(await screen.findByRole('option', { name: /needle replacement first page/ })).toBeInTheDocument()
+    expect(mocks.refetchContentSearch).toHaveBeenCalledOnce()
     expect(screen.queryByRole('option', { name: /needle deleted first page/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /needle stale second page/ })).not.toBeInTheDocument()
 

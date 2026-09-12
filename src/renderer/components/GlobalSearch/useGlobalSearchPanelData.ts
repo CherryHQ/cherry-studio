@@ -31,6 +31,7 @@ type ContentSearchCursorMap = Partial<Record<ContentSearchSourceType, string>>
 type ContentSearchState = {
   baseKey: string
   items: GlobalMessageSearchResult[]
+  needsFirstPageRefresh: boolean
   requestedCursors: ContentSearchCursorMap
   nextCursors: ContentSearchCursorMap
 }
@@ -39,6 +40,7 @@ function createContentSearchState(baseKey: string): ContentSearchState {
   return {
     baseKey,
     items: [],
+    needsFirstPageRefresh: false,
     requestedCursors: {},
     nextCursors: {}
   }
@@ -278,7 +280,10 @@ export function useGlobalSearchPanelData({
       const shouldRestartPagination = isContentSearchPageRequestedRef.current
       const changedMessageIds = new Set(effects.flatMap((effect) => effect.entityIds ?? []))
       setContentSearchState((state) => {
-        if (shouldRestartPagination || effects.some((effect) => !effect.entityIds)) {
+        if (shouldRestartPagination) {
+          return { ...createContentSearchState(state.baseKey), needsFirstPageRefresh: true }
+        }
+        if (effects.some((effect) => !effect.entityIds)) {
           return createContentSearchState(state.baseKey)
         }
         const items = state.items.filter((item) => !changedMessageIds.has(item.messageId))
@@ -291,11 +296,38 @@ export function useGlobalSearchPanelData({
   useDataChange('/search/contents', handleContentSearchDataChange)
 
   useEffect(() => {
-    if (!contentSearchData || contentSearchData.query !== deferredQuery) return
+    if (!activeContentSearchState.needsFirstPageRefresh) return
+
+    let cancelled = false
+    const finishRefresh = () => {
+      if (cancelled) return
+      setContentSearchState((state) =>
+        state.baseKey === contentSearchStateKey && state.needsFirstPageRefresh
+          ? { ...state, needsFirstPageRefresh: false }
+          : state
+      )
+    }
+    void refetchContentSearch().then(finishRefresh, finishRefresh)
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeContentSearchState.needsFirstPageRefresh, contentSearchStateKey, refetchContentSearch])
+
+  useEffect(() => {
+    if (
+      !contentSearchData ||
+      contentSearchData.query !== deferredQuery ||
+      contentSearchError ||
+      activeContentSearchState.needsFirstPageRefresh
+    ) {
+      return
+    }
 
     setContentSearchState((state) => {
       const current = state.baseKey === contentSearchStateKey ? state : createContentSearchState(contentSearchStateKey)
-      const itemsById = new Map(current.items.map((item) => [getMessageSearchResultId(item), item] as const))
+      const retainedItems = isContentSearchPageRequested ? current.items : []
+      const itemsById = new Map(retainedItems.map((item) => [getMessageSearchResultId(item), item] as const))
 
       for (const group of contentSearchData.groups) {
         for (const item of mapContentSearchGroup(group)) {
@@ -319,7 +351,14 @@ export function useGlobalSearchPanelData({
         nextCursors
       }
     })
-  }, [contentSearchData, contentSearchStateKey, deferredQuery])
+  }, [
+    activeContentSearchState.needsFirstPageRefresh,
+    contentSearchData,
+    contentSearchError,
+    contentSearchStateKey,
+    deferredQuery,
+    isContentSearchPageRequested
+  ])
 
   const hasMoreMessageResults = isMessageSearchMode && Object.keys(activeContentSearchState.nextCursors).length > 0
   const isLoadingMoreMessageResults =
