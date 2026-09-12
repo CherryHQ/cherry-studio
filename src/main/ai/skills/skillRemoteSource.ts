@@ -32,6 +32,10 @@ import { createTempDir, safeRemoveDirectory, sanitizeFolderName } from './skillP
 
 const logger = loggerService.withContext('SkillRemoteSource')
 
+// Staging dirname a repository-root skill checks out into. It is never a valid catalog
+// folder name: root installs are renamed before the installer derives one from the basename.
+export const GITHUB_ROOT_STAGING_DIRNAME = 'content'
+
 // API base URLs for the 3 search sources
 const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 // A direct-URL install points git at a repository nobody vetted; no single step may hang forever.
@@ -440,7 +444,7 @@ async function materializeGithubTarget(
   target: GithubSkillTarget,
   descriptorFileNames: readonly SkillDescriptorFileName[]
 ): Promise<{ contentDir: string; skillDir: string }> {
-  const contentDir = path.join(commit.tempDir, 'content')
+  const contentDir = path.join(commit.tempDir, GITHUB_ROOT_STAGING_DIRNAME)
   // Sizes are left to the on-disk check after checkout: `ls-tree -l` fetches every blob one
   // round trip at a time, long enough for a 60-file skill to hit the git timeout.
   const tree = await commit.git([
