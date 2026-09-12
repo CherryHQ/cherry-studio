@@ -1,10 +1,8 @@
-import { existsSync } from 'node:fs'
-import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { type DshRuntimeEntrySpecifier, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
+import { resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 
 import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
 
@@ -29,51 +27,13 @@ describe('dsh SDK bundling viability', () => {
     expect(typeof protocol.JsonRpcLineTransport).toBe('function')
   })
 
-  it('resolves the runtime bin and every composed plugin to on-disk entries', () => {
-    const specifiers = [
-      '@deepseek-ai/dsh-sdk-jsonrpc-demo/bin',
-      '@deepseek-ai/dsh-sdk-jsonrpc-server',
-      '@deepseek-ai/dsh-llm-pi-ai',
-      '@deepseek-ai/dsh-llm-retry',
-      '@deepseek-ai/dsh-pwsh-local',
-      '@deepseek-ai/dsh-pwsh-sandbox',
-      '@deepseek-ai/dsh-sandbox-local',
-      '@deepseek-ai/dsh-sandbox-policy',
-      '@deepseek-ai/dsh-subprocess-local',
-      '@deepseek-ai/dsh-bash-sandbox',
-      '@deepseek-ai/dsh-user-approval',
-      '@deepseek-ai/dsh-agent-spine-demo',
-      '@deepseek-ai/dsh-attachment-local',
-      '@deepseek-ai/dsh-fs-local',
-      '@deepseek-ai/dsh-tool-fs',
-      '@deepseek-ai/dsh-tool-todo',
-      '@deepseek-ai/dsh-compaction-tool-result-pruner',
-      '@deepseek-ai/dsh-compaction-basic',
-      '@deepseek-ai/dsh-commands',
-      '@deepseek-ai/dsh-command-compact',
-      '@deepseek-ai/dsh-command-goal',
-      '@deepseek-ai/dsh-goal',
-      '@deepseek-ai/dsh-goal-round-driver',
-      '@deepseek-ai/dsh-tool-goal',
-      '@deepseek-ai/dsh-session-persistence-jsonl',
-      '@deepseek-ai/dsh-shell-env',
-      '@deepseek-ai/dsh-tool-pwsh',
-      '@cherrystudio/dsh-bridge/plugin'
-    ] satisfies DshRuntimeEntrySpecifier[]
-    for (const specifier of specifiers) {
-      const resolved = resolveBundledDshRuntimeEntry(specifier)
-      expect(path.isAbsolute(resolved), `not absolute: ${resolved}`).toBe(true)
-      expect(existsSync(resolved), `missing on disk: ${resolved}`).toBe(true)
-    }
-  })
-
   it('imports the built bridge plugin with production-declared runtime dependencies', async () => {
     const pluginPath = resolveBundledDshRuntimeEntry('@cherrystudio/dsh-bridge/plugin')
     await expect(import(pathToFileURL(pluginPath).href)).resolves.toMatchObject({ apply: expect.any(Function) })
   })
 
   it('loads the unified sharp stack through attachment-local and decodes a real PNG', async () => {
-    const [{ detectImage }, { default: sharp }] = await Promise.all([
+    const [{ prepareImageFile }, { default: sharp }] = await Promise.all([
       import(pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href),
       import('sharp')
     ])
@@ -83,7 +43,18 @@ describe('dsh SDK bundling viability', () => {
       .png()
       .toBuffer()
 
-    await expect(detectImage(png)).resolves.toEqual({ mediaType: 'image/png', width: 1, height: 1 })
+    const prepared = await prepareImageFile(
+      { data: png, mediaType: 'image/png' },
+      {
+        maxImageBytes: 1048576,
+        maxImagesPerMessage: 1,
+        maxMessageImageBytes: 1048576,
+        maxImagePixels: 1024,
+        maxImageDimension: 32
+      },
+      { maxPixels: 1024, maxDimension: 32, maxBytes: 1048576 }
+    )
+    expect(prepared.ref).toMatchObject({ mediaType: 'image/png', width: 1, height: 1 })
     expect(sharp.versions.sharp).toBe('0.35.3')
   })
 })

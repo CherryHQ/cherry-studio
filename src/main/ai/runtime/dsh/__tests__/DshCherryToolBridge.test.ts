@@ -188,15 +188,26 @@ describe('DshCherryToolBridge', () => {
     await expect(readFile(audioPath)).resolves.toEqual(audio)
     await expect(readFile(videoPath)).resolves.toEqual(video)
     await expect(readFile(documentPath)).resolves.toEqual(document)
-    const { detectImage } = await import(
+    const { prepareImageFile } = await import(
       pathToFileURL(resolveDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href
     )
-    await expect(detectImage(await readFile(imagePath))).resolves.toEqual({
+    const prepared = await prepareImageFile(
+      { data: await readFile(imagePath), mediaType: 'image/png' },
+      {
+        maxImageBytes: 1048576,
+        maxImagesPerMessage: 1,
+        maxMessageImageBytes: 1048576,
+        maxImagePixels: 1024,
+        maxImageDimension: 32
+      },
+      { maxPixels: 1024, maxDimension: 32, maxBytes: 1048576 }
+    )
+    expect(prepared.ref).toMatchObject({
       mediaType: 'image/png',
       width: 1,
       height: 1
     })
-    expect((await stat(imagePath)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') expect((await stat(imagePath)).mode & 0o777).toBe(0o600)
     await bridge.close()
   })
 
