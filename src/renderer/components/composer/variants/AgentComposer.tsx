@@ -1565,8 +1565,8 @@ const AgentComposerInner = ({
       // the dock lets the user steer/edit/remove items. The steer shortcut opts out of the queue and
       // falls through to the direct send below, mirroring the dock's "insert" action.
       if (isStreaming && !options?.steer) {
-        enqueueFollowup(draft, payload)
-        clearCurrentDraft()
+        const queued = await enqueueFollowup(draft, payload)
+        if (queued) clearCurrentDraft()
         return
       }
 

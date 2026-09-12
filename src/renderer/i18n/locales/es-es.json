@@ -599,6 +599,7 @@
   "chat.input.file_not_supported_count": "{{count}} archivos no soportados",
   "chat.input.focus_hint": "para enfocar",
   "chat.input.followup_queue.edit": "Editar",
+  "chat.input.followup_queue.limit_reached": "Cola llena (máx. {{count}})",
   "chat.input.followup_queue.pause": "Pausar envío automático",
   "chat.input.followup_queue.remove": "Eliminar",
   "chat.input.followup_queue.resume": "Reanudar envío automático",

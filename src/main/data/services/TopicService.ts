@@ -30,9 +30,11 @@ import type {
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
+import { topicFollowupScopePrefix } from '@shared/data/types/followupQueue'
 import type { Topic } from '@shared/data/types/topic'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
+import { followupQueueService } from './FollowupQueueService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -462,6 +464,7 @@ export class TopicService {
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     pinService.notifyPurged()
+    followupQueueService.notifyPurged()
 
     logger.info('Deleted topic', { id })
   }
@@ -471,6 +474,7 @@ export class TopicService {
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     if (deletedIds.length > 0) pinService.notifyPurged()
+    if (deletedIds.length > 0) followupQueueService.notifyPurged()
 
     logger.info('Deleted topics', { count: deletedIds.length })
 
@@ -499,6 +503,7 @@ export class TopicService {
     messageService.purgeByTopicIdsTx(tx, deletedIds)
     tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    for (const id of deletedIds) followupQueueService.purgeForScopePrefixTx(tx, topicFollowupScopePrefix(id))
     tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
 
     return deletedIds
@@ -732,6 +737,7 @@ export class TopicService {
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
     this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     if (deletedIds.length > 0) pinService.notifyPurged()
+    if (deletedIds.length > 0) followupQueueService.notifyPurged()
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 
