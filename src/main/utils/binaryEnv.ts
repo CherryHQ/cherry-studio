@@ -18,8 +18,9 @@ import { isWin } from '@main/core/platform'
  * Collapse a list of PATH segments to unique entries, first occurrence wins.
  * On Windows the compare is case-insensitive (the filesystem is), so `C:\Foo`
  * and `c:\foo` fold together; elsewhere it is case-sensitive. Blank segments
- * are dropped. Order is preserved — never sorted — because it is load-bearing
- * on Windows, where the shims dir must stay ahead of the system PATH.
+ * and segments carrying a NUL byte are dropped. Order is preserved — never
+ * sorted — because it is load-bearing on Windows, where the shims dir must
+ * stay ahead of the system PATH.
  *
  * The single home for this canonicalization: both `mergeBinaryExecutionEnv`
  * here and `shellEnv.appendCherryToolDirsToPath` run it back-to-back on the
@@ -29,6 +30,9 @@ export function dedupePathSegments(segments: string[]): string[] {
   const seen = new Set<string>()
   const unique: string[] = []
   for (const segment of segments) {
+    // Node rejects the whole child env when PATH carries a NUL (#20344). Dropped,
+    // not stripped: repairing `C:\a\0b` into `C:\ab` could hit a different real dir.
+    if (segment.includes('\0')) continue
     const trimmed = segment.trim()
     if (!trimmed) continue
     const canonical = isWin ? path.normalize(trimmed).toLowerCase() : path.normalize(trimmed)
@@ -42,6 +46,38 @@ export function dedupePathSegments(segments: string[]): string[] {
 /** Root dir for all Cherry-managed binary state (mise data, shims, isolated home). */
 function binaryDataDir(): string {
   return application.getPath('feature.binary.data')
+}
+
+/** Keep PATH's valid segments — a single bad segment must not cost the whole value. */
+function stripNullBytePathSegments(value: string): string {
+  const separator = isWin ? ';' : path.delimiter
+  return value
+    .split(separator)
+    .filter((segment) => !segment.includes('\0'))
+    .join(separator)
+}
+
+/** Windows env keys are case-insensitive; on POSIX `Path` is an unrelated variable. */
+function isPathKey(key: string): boolean {
+  return isWin ? key.toLowerCase() === 'path' : key === 'PATH'
+}
+
+/**
+ * Remove NUL bytes from an environment map so `spawn` cannot reject it (#20344).
+ * The check is not PATH-only: Node throws for a NUL in any value. PATH keeps its
+ * valid segments; every other value has no partial form, so its entry is dropped,
+ * which is why the result makes no promise about which keys survive.
+ */
+export function sanitizeEnvNullBytes<V extends string | undefined>(env: Record<string, V>): Record<string, V> {
+  const sanitized: Record<string, V> = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value !== 'string' || !value.includes('\0')) {
+      sanitized[key] = value
+    } else if (isPathKey(key)) {
+      sanitized[key] = stripNullBytePathSegments(value) as V
+    }
+  }
+  return sanitized
 }
 
 /** The mise shims dir — where installed-tool shim executables land. */

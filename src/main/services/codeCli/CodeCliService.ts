@@ -11,7 +11,7 @@ import { skillService } from '@main/ai/skills/SkillService'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { dedupePathSegments, mergeBinaryExecutionEnv, sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
@@ -856,7 +856,10 @@ export class CodeCliService extends BaseService {
         for (const terminal of linuxTerminals) {
           try {
             // Check if terminal exists
-            const checkResult = spawn('which', [terminal], { stdio: 'pipe' })
+            const checkResult = spawn('which', [terminal], {
+              stdio: 'pipe',
+              env: sanitizeEnvNullBytes({ ...process.env })
+            })
             await new Promise((resolve) => {
               // A failed `which` spawn emits 'error'; without a listener that is
               // an uncaught exception in the main process. Treat it as not found.

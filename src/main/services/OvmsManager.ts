@@ -15,6 +15,7 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 
 const logger = loggerService.withContext('OvmsManager')
 
@@ -170,7 +171,7 @@ export class OvmsManager extends BaseService {
 
       // Run run.bat without waiting for it to complete
       logger.info(`Starting OVMS with run.bat: ${runBatPath}`)
-      exec(`"${runBatPath}"`, { cwd: ovmsDir }, (error) => {
+      exec(`"${runBatPath}"`, { cwd: ovmsDir, env: sanitizeEnvNullBytes({ ...process.env }) }, (error) => {
         if (error) {
           logger.error(`Error running run.bat: ${error}`)
         }
@@ -401,7 +402,7 @@ export class OvmsManager extends BaseService {
       }
 
       logger.info(`Running ovdnd --pull for ${modelId} from ${modelSource}`)
-      const { stdout } = await execFileAsync(ovdndPath, args, { env: env, cwd: ovdndDir })
+      const { stdout } = await execFileAsync(ovdndPath, args, { env: sanitizeEnvNullBytes(env), cwd: ovdndDir })
 
       logger.info('Model download completed')
       logger.debug(`Command output: ${stdout}`)

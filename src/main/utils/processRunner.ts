@@ -8,6 +8,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 
+import { sanitizeEnvNullBytes } from './binaryEnv'
 import { getShellEnv } from './shellEnv'
 
 const execFileAsync = promisify(execFile)
@@ -46,7 +47,7 @@ export function runInstallScript(scriptPath: string, extraEnv?: Record<string, s
     logger.info(`Running script at: ${installScriptPath}`)
 
     const nodeProcess = spawn(process.execPath, [installScriptPath], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv }
+      env: sanitizeEnvNullBytes({ ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv })
     })
 
     nodeProcess.stdout.on('data', (data) => {
@@ -74,15 +75,21 @@ export function runInstallScript(scriptPath: string, extraEnv?: Record<string, s
  *
  * cross-spawn invokes batch shims through cmd.exe while quoting each argument,
  * unlike `shell: true`, which concatenates arbitrary arguments into one shell
- * command line. This boundary deliberately owns launch mechanics only; callers
- * continue to choose their execution environment.
+ * command line. Callers choose their execution environment, but this boundary
+ * still normalizes it: a NUL anywhere in a value makes Node reject the whole
+ * env before the subprocess starts (#20344).
  */
 export function crossPlatformSpawn(
   command: string,
   args: string[],
   options: SpawnOptions & { env: NodeJS.ProcessEnv }
 ): ChildProcess {
-  return crossSpawn(command, args, { ...options, windowsHide: true, stdio: options.stdio ?? 'pipe' })
+  return crossSpawn(command, args, {
+    ...options,
+    env: sanitizeEnvNullBytes(options.env),
+    windowsHide: true,
+    stdio: options.stdio ?? 'pipe'
+  })
 }
 
 /**

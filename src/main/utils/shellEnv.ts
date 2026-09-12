@@ -4,7 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 
-import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
+import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv, sanitizeEnvNullBytes } from './binaryEnv'
 import { getBundledGitDir } from './bundledGit'
 
 const logger = loggerService.withContext('ShellEnv')
@@ -291,16 +291,29 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
 let cachedEnv: Record<string, string> | null = null
 let inflight: Promise<Record<string, string>> | null = null
 
+/**
+ * Strip NUL bytes before the env is cached, so every consumer — including the
+ * raw env handed to system binaries — gets a value `spawn` accepts (#20344).
+ */
+function sanitizeCapturedEnv(env: Record<string, string>): Record<string, string> {
+  const affected = Object.keys(env).filter((key) => env[key].includes('\0'))
+  if (affected.length > 0) {
+    // Names only: the values are the user's environment and may carry local paths.
+    logger.warn('Dropped NUL bytes from the captured shell environment', { affected })
+  }
+  return sanitizeEnvNullBytes(env)
+}
+
 async function fetchShellEnv(): Promise<Record<string, string>> {
   try {
-    return await getLoginShellEnvironment()
+    return sanitizeCapturedEnv(await getLoginShellEnvironment())
   } catch (error) {
     logger.error('Failed to get shell environment, falling back to process.env', { error })
     const fallbackEnv: Record<string, string> = {}
     for (const key in process.env) {
       fallbackEnv[key] = process.env[key] || ''
     }
-    return fallbackEnv
+    return sanitizeCapturedEnv(fallbackEnv)
   }
 }
 

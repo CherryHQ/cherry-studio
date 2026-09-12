@@ -28,7 +28,12 @@ vi.mock('@application', () => ({
 
 vi.mock('path')
 
-import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv, mergePathSuffixes } from '../binaryEnv'
+import {
+  getBinaryIsolatedHomeEnv,
+  mergeBinaryExecutionEnv,
+  mergePathSuffixes,
+  sanitizeEnvNullBytes
+} from '../binaryEnv'
 
 describe('mergeBinaryExecutionEnv (Windows)', () => {
   beforeEach(async () => {
@@ -86,12 +91,48 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     expect(Path.split(';')).toEqual([shims, 'C:/Windows'])
   })
 
+  it('drops PATH segments carrying a null byte so spawn cannot reject the env', () => {
+    // Node refuses `spawn` with "options.env['Path'] must be a string without
+    // null bytes" when any env value carries a NUL, killing every Agent task
+    // before its subprocess starts (#20344). A NUL can ride in from the registry
+    // PATH or a `%VAR%` expansion, so none may survive into the child env.
+    const shims = 'C:\\data\\binary-manager\\shims'
+    const { Path } = mergeBinaryExecutionEnv({ Path: 'C:\\Windows;C:\\broken\0dir;C:\\Other' })
+
+    expect(Path).not.toContain('\0')
+    expect(Path.split(';')).toEqual([shims, 'C:\\Windows', 'C:\\Other'])
+  })
+
+  it('drops a PATH segment that is only a null byte', () => {
+    const shims = 'C:\\data\\binary-manager\\shims'
+    const { Path } = mergeBinaryExecutionEnv({ Path: 'C:\\Windows;\0;C:\\Other' })
+
+    expect(Path.split(';')).toEqual([shims, 'C:\\Windows', 'C:\\Other'])
+  })
+
   it('appends and deduplicates a fallback after all caller PATH casings', () => {
     const merged = mergePathSuffixes({ Path: 'C:\\User\\Bin', PATH: 'C:\\Windows;C:\\DATA\\BIN' }, ['C:\\data\\bin'])
 
     const pathKeys = Object.keys(merged).filter((key) => key.toLowerCase() === 'path')
     expect(pathKeys).toHaveLength(1)
     expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\User\\Bin', 'C:\\Windows', 'C:\\DATA\\BIN'])
+  })
+
+  it('strips a NUL-bearing PATH segment and drops other NUL env values', () => {
+    // Windows splits PATH on `;`, so the same rule must hold for the separator
+    // the platform actually uses — and a broken non-PATH var is dropped too.
+    const env = sanitizeEnvNullBytes({ Path: 'C:\\Windows;C:\\broken\0dir', BROKEN: 'x\0y' })
+
+    expect(env.Path).toBe('C:\\Windows')
+    expect(env.BROKEN).toBeUndefined()
+  })
+
+  it('treats every PATH casing as PATH, unlike the posix rule', () => {
+    // Windows env keys are case-insensitive, so an upper-cased `PATH` still gets
+    // segment-level repair instead of being dropped whole (#20344 review).
+    const env = sanitizeEnvNullBytes({ PATH: 'C:\\Windows;C:\\broken\0dir' })
+
+    expect(env.PATH).toBe('C:\\Windows')
   })
 
   it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {

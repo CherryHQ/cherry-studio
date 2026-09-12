@@ -6,7 +6,8 @@ import {
   getBinaryShimsDir,
   mergeBinaryExecutionEnv,
   mergePathPrefixes,
-  mergePathSuffixes
+  mergePathSuffixes,
+  sanitizeEnvNullBytes
 } from '../binaryEnv'
 
 // Real `node:path` (posix on CI) — the dedup's canonicalization runs against
@@ -47,6 +48,15 @@ describe('mergeBinaryExecutionEnv', () => {
 
     expect(PATH.split(':')).toEqual([shims, '/opt/mise/bin', '/usr/bin'])
   })
+
+  it('drops PATH segments carrying a null byte on every platform', () => {
+    // Node rejects any child env value containing a NUL, so the guard must not
+    // be Windows-only: a posix host has to sanitize identically (#20344).
+    const { PATH } = mergeBinaryExecutionEnv({ PATH: '/usr/bin:/broken\0dir:/opt/bin' })
+
+    expect(PATH).not.toContain('\0')
+    expect(PATH.split(':')).toEqual([shims, '/usr/bin', '/opt/bin'])
+  })
 })
 
 describe('mergePathPrefixes', () => {
@@ -69,6 +79,36 @@ describe('mergePathPrefixes', () => {
     const env = mergePathSuffixes({ PATH: '/user/mise/shims:/usr/bin' }, ['/mock/cherry.bin'])
 
     expect(env.PATH.split(':')).toEqual(['/user/mise/shims', '/usr/bin', '/mock/cherry.bin'])
+  })
+})
+
+describe('sanitizeEnvNullBytes', () => {
+  it('drops a non-PATH entry whose value carries a NUL', () => {
+    // Node rejects the whole child env for a NUL in ANY value, so a broken
+    // non-PATH variable must not survive either (#20344).
+    expect(sanitizeEnvNullBytes({ SAFE: 'ok', BROKEN: 'a\0b' })).toEqual({ SAFE: 'ok' })
+  })
+
+  it('keeps PATH’s valid segments and drops only the NUL-bearing one', () => {
+    // The whole PATH is load-bearing: discarding it wholesale would cost the
+    // user every other directory.
+    const env = sanitizeEnvNullBytes({ PATH: '/usr/bin:/broken\0dir:/opt/bin' })
+
+    expect(env.PATH).toBe('/usr/bin:/opt/bin')
+  })
+
+  it('leaves a clean environment and undefined values untouched', () => {
+    expect(sanitizeEnvNullBytes({ A: 'x', B: undefined })).toEqual({ A: 'x', B: undefined })
+  })
+
+  it('drops a NUL-bearing `Path` on posix, where it is not PATH', () => {
+    // Only Windows treats env keys case-insensitively. On posix `Path` is an
+    // unrelated variable, so segment-splitting it on `:` would mangle a value
+    // that PATH semantics never applied to (#20344 review).
+    const env = sanitizeEnvNullBytes({ PATH: '/usr/bin', Path: '/a\0b:/c' })
+
+    expect(env.PATH).toBe('/usr/bin')
+    expect(env.Path).toBeUndefined()
   })
 })
 

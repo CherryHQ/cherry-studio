@@ -7,6 +7,7 @@ import { app, shell } from 'electron'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { safeOpen, showInFolder } from '@main/services/file'
+import { sanitizeEnvNullBytes } from '@main/utils/binaryEnv'
 import { isSafeExternalUrl } from '@main/utils/externalUrlSafety'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import type { ExternalOpenTarget, ExternalOpenTargetResult } from '@shared/types/externalApp'
@@ -255,7 +256,7 @@ export class ExternalAppService {
     const executablePath = this.resolveExecutablePath(config)
     if (!executablePath) throw new Error(`Executable for external application "${appId}" was not found`)
     const directory = this.resolveTerminalDirectory(targetPath, pathKind)
-    const env = { ...process.env }
+    const env = sanitizeEnvNullBytes({ ...process.env })
     removeEnvProxy(env)
     try {
       await new Promise<void>((resolve, reject) => {

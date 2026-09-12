@@ -21,7 +21,8 @@ vi.mock('@main/utils/binaryResolver', async () => {
 })
 
 vi.mock('@main/utils/binaryEnv', () => ({
-  getBinaryExecutionEnv: () => ({})
+  getBinaryExecutionEnv: () => ({}),
+  sanitizeEnvNullBytes: (env: Record<string, string | undefined>) => env
 }))
 
 const ripgrepAvailable = tryTestRipgrepPath() !== null
