@@ -233,6 +233,7 @@ async function downloadAndPersistImageUrls(
       if (signal.aborted) throw createAbortError('Image generation aborted')
       if ('downloadFailed' in validated) {
         downloadFailures += 1
+        rejected.push({ index, reason: 'download_failed' })
         continue
       }
       if (validated.reason) {
@@ -249,7 +250,7 @@ async function downloadAndPersistImageUrls(
     }
     throw error
   }
-  if (files.length === 0 && downloadFailures > 0) {
+  if (urls.length > 0 && downloadFailures === urls.length) {
     throw new Error(`Image generation produced ${urls.length} URL(s) but all downloads failed`)
   }
   if (rejected.length > 0 || downloadFailures > 0) {

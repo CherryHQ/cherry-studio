@@ -314,6 +314,25 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
+  it('reports mixed download and validation failures as structured validation', async () => {
+    submitMock.mockResolvedValue({
+      imageUrls: ['https://cdn.example.com/a.png', 'data:image/png;base64,YWJjMTIz']
+    })
+    downloadMock.mockResolvedValueOnce(null)
+
+    await expect(imageGenerationJobHandler.execute(createCtx())).resolves.toEqual({
+      files: [],
+      validation: {
+        receivedCount: 2,
+        rejected: [
+          { index: 0, reason: 'download_failed' },
+          { index: 1, reason: 'invalid_image_data' }
+        ]
+      }
+    })
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+  })
+
   it('returns the valid subset when only some remote downloads fail', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
     downloadMock.mockImplementation(async (url: string) =>
@@ -322,7 +341,10 @@ describe('imageGenerationJobHandler.execute', () => {
     createInternalEntryMock.mockResolvedValueOnce({ id: 'file-a' })
 
     const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
-    expect(result).toEqual({ files: [{ id: 'file-a' }] })
+    expect(result).toEqual({
+      files: [{ id: 'file-a' }],
+      validation: { receivedCount: 2, rejected: [{ index: 1, reason: 'download_failed' }] }
+    })
     // Bills the generated URL count, not the persisted file count.
     expect(recordRequestMock).toHaveBeenCalledWith(
       expect.objectContaining({ requestId: 'custom-image:img-job-1', modality: 'image', imageCount: 2 })
