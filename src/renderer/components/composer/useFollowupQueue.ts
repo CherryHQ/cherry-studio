@@ -2,13 +2,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { cacheService } from '@data/CacheService'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
-import type { FollowupQueueItem, FollowupQueueState } from '@shared/data/cache/cacheValueTypes'
 
 import type { ComposerSerializedDraft } from './tokens'
 
 export const QUEUE_LIMIT = 20
 
-export type { FollowupQueueItem }
+/** Renderer composer-domain queue model (per-window memory cache entry, revalidated on load). */
+export interface FollowupQueueItem {
+  id: string
+  /** Serialized draft (text + tokens) — drives the dock preview and edit-restore. */
+  draft: ComposerSerializedDraft
+  /** Send-ready payload (text + parts + files/models) captured at enqueue time. */
+  payload: ComposerQueuedMessagePayload
+}
+
+export interface FollowupQueueState {
+  items: FollowupQueueItem[]
+  paused: boolean
+  failedItemId?: string | null
+}
 
 /** Same per-window memory tier + TTL as the inputbar draft cache (`composerDraft` / ChatComposer). */
 const QUEUE_TTL = 24 * 60 * 60 * 1000
@@ -50,6 +62,24 @@ function persistState(
 ): void {
   const next: FollowupQueueState = { items, paused, ...(failedItemId ? { failedItemId } : {}) }
   cacheService.setCasual(keyFor(scopeKey), next, QUEUE_TTL)
+}
+
+/**
+ * Drop an id from one scope's persisted entry without touching live hook state.
+ * Used when an in-flight send settles after its hook moved on (scope switch /
+ * unmount): a success must still dequeue from the scope it was sent for, or the
+ * sent item is redelivered later as a duplicate.
+ */
+function removeIdFromScope(targetScope: string, id: string): void {
+  const entry = loadState(targetScope)
+  if (!entry.items.some((item) => item.id === id)) return
+  const failedResolved = entry.failedItemId === id
+  persistState(
+    targetScope,
+    entry.items.filter((item) => item.id !== id),
+    failedResolved ? false : entry.paused,
+    failedResolved ? null : (entry.failedItemId ?? null)
+  )
 }
 
 interface UseFollowupQueueParams {
@@ -164,15 +194,27 @@ export function useFollowupQueue({
       if (!head || drainingIdRef.current !== null) return
       setDraining(head.id)
       const epoch = drainEpochRef.current
+      const drainScope = scopeKeyRef.current
       void onDrainRef.current(head.payload).then(
         (sent) => {
-          if (drainEpochRef.current !== epoch) return
+          if (drainEpochRef.current !== epoch) {
+            // Stale: the queue moved on (scope switch / clear / removal / unmount)
+            // while the send was in flight. Never touch the current queue — but a
+            // success still dequeues from the scope it was sent for, and either
+            // outcome releases the send claim if this drain still holds it.
+            if (sent) removeIdFromScope(drainScope, head.id)
+            if (drainingIdRef.current === head.id) setDraining(null)
+            return
+          }
           setDraining(null)
           if (sent) removeIdRef.current(head.id)
           else failHeadRef.current(head.id)
         },
         () => {
-          if (drainEpochRef.current !== epoch) return
+          if (drainEpochRef.current !== epoch) {
+            if (drainingIdRef.current === head.id) setDraining(null)
+            return
+          }
           setDraining(null)
           failHeadRef.current(head.id)
         }
@@ -180,6 +222,13 @@ export function useFollowupQueue({
     },
     [setDraining]
   )
+
+  // A late-settling send must not apply to whatever a remounted hook loads next.
+  useEffect(() => {
+    return () => {
+      drainEpochRef.current += 1
+    }
+  }, [])
 
   // Reload when switching conversations; the previous queue stays in its own scoped cache entry.
   useEffect(() => {
@@ -218,7 +267,7 @@ export function useFollowupQueue({
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload): EnqueueResult => {
       if (stateRef.current.items.length >= QUEUE_LIMIT) return 'full'
-      const newItem = { id: crypto.randomUUID(), draft, payload } as unknown as FollowupQueueItem
+      const newItem: FollowupQueueItem = { id: crypto.randomUUID(), draft, payload }
       const next = { items: [...stateRef.current.items, newItem], paused: stateRef.current.paused }
       persist(next)
       stateRef.current = next
@@ -232,8 +281,9 @@ export function useFollowupQueue({
     (nextItems: FollowupQueueItem[]) => {
       const nextIds = new Set(nextItems.map((i) => i.id))
       if (drainingIdRef.current && !nextIds.has(drainingIdRef.current)) {
+        // Same as removeId: invalidate the in-flight resolution but keep the send
+        // claim held until it settles, so the next item cannot start concurrently.
         drainEpochRef.current += 1
-        setDraining(null)
       }
       const shouldClearFailed = failedItemIdRef.current !== null && !nextIds.has(failedItemIdRef.current)
       const nextFailedId = shouldClearFailed ? null : failedItemIdRef.current
@@ -244,7 +294,7 @@ export function useFollowupQueue({
       if (shouldClearFailed) setFailedItemId(null)
       setState(next)
     },
-    [persist, setDraining]
+    [persist]
   )
 
   const clear = useCallback(() => {
@@ -261,9 +311,14 @@ export function useFollowupQueue({
   const removeId = useCallback(
     (id: string) => {
       const wasFailed = failedItemIdRef.current === id
-      if (drainingIdRef.current === id) {
+      const wasDraining = drainingIdRef.current === id
+      if (wasDraining) {
+        // A send for the removed item is still in flight: invalidate its resolution
+        // but keep the send claim held until it settles (its stale resolution
+        // releases it). Clearing the claim here would let the drain effect — which
+        // re-fires on any re-render while isFulfilled stays true — start the next
+        // item concurrently with the unsettled send.
         drainEpochRef.current += 1
-        setDraining(null)
       }
       const nextFailedId = wasFailed ? null : failedItemIdRef.current
       const remaining = stateRef.current.items.filter((item) => item.id !== id)
@@ -274,10 +329,13 @@ export function useFollowupQueue({
       if (wasFailed) setFailedItemId(null)
       setState(next)
       // Deleting the failed head unpauses with the completion edge already consumed,
-      // so continue with the next message immediately instead of stalling the queue.
-      if (wasFailed && remaining.length > 0) drainHead(remaining[0])
+      // so continue with the next message immediately instead of stalling the queue —
+      // unless the deleted item still has a send in flight (removal during a retry):
+      // that send may yet open a turn whose completion drains the next item, so
+      // starting another send now would put two sends in flight.
+      if (wasFailed && remaining.length > 0 && !wasDraining) drainHead(remaining[0])
     },
-    [persist, setDraining, drainHead]
+    [persist, drainHead]
   )
   removeIdRef.current = removeId
 

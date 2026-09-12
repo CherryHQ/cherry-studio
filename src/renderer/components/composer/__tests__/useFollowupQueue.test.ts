@@ -597,6 +597,190 @@ describe('useFollowupQueue', () => {
     expect(onDrain).toHaveBeenCalledTimes(1)
   })
 
+  it('removing the failed head while its retry is in flight does not start a second send', async () => {
+    let resolveRetry!: (sent: boolean) => void
+    const onDrain = vi
+      .fn()
+      .mockResolvedValueOnce(false) // auto-drain fails
+      .mockImplementationOnce(() => new Promise<boolean>((resolve) => (resolveRetry = resolve)))
+      .mockResolvedValueOnce(true) // next head sends on the following completion edge
+    // Stable like the production markSeen (useTopicStreamStatus): the drain effect
+    // only re-fires on a new completion edge, not on every re-render.
+    const markSeen = vi.fn()
+    seedQueue('s1', [item('h1', 'first'), item('h2', 'second')])
+
+    const { result, rerender } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen, onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(result.current.failedItemId).toBe('h1')
+
+    await act(async () => {
+      result.current.retryFailed()
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+
+    // Delete the failed head mid-retry: the next item must not send while the
+    // retry's send is still pending (single-send serialization).
+    act(() => {
+      result.current.removeId('h1')
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+
+    // The invalidated retry settles successfully — dropped, never resurrects failure state.
+    await act(async () => {
+      resolveRetry(true)
+    })
+    expect(onDrain).toHaveBeenCalledTimes(2)
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['second'])
+    expect(persistedTexts('s1')).toEqual(['second'])
+
+    // The next item still drains on the following completion edge (no stall).
+    await act(async () => {
+      rerender({ isFulfilled: false })
+    })
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(3)
+    expect(result.current.items).toEqual([])
+  })
+
+  it('a successful drain that settles after a scope switch dequeues from its original scope', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { result, rerender } = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ scopeKey: 's1', isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      rerender({ scopeKey: 's2', isFulfilled: false })
+    })
+
+    await act(async () => {
+      resolveDrain(true)
+    })
+
+    // Sent is sent: h1 leaves s1's persisted entry, so returning to s1 never redelivers it.
+    expect(persistedTexts('s1')).toEqual([])
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items).toEqual([])
+  })
+
+  it('a failed drain that settles after a scope switch keeps the original scope queued', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { result, rerender } = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 's1', isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ scopeKey: 's1', isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      rerender({ scopeKey: 's2', isFulfilled: false })
+    })
+
+    await act(async () => {
+      resolveDrain(false)
+    })
+
+    // Not sent: h1 stays queued in s1 (redrains on return) and s2 stays clean.
+    expect(persistedTexts('s1')).toEqual(['first'])
+    expect(result.current.failedItemId).toBeNull()
+    expect(result.current.paused).toBe(false)
+    expect(result.current.items).toEqual([])
+  })
+
+  it('a late failure from an unmounted hook does not overwrite a remounted queue', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { rerender, unmount } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    unmount()
+
+    const second = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain })
+    )
+    act(() => {
+      second.result.current.enqueue(draft('new'), payload('new'))
+    })
+
+    await act(async () => {
+      resolveDrain(false)
+    })
+
+    // The stale failure must not pause the remounted queue or drop the newer work.
+    expect(second.result.current.failedItemId).toBeNull()
+    expect(second.result.current.paused).toBe(false)
+    expect(second.result.current.items.map((i) => i.draft.text)).toEqual(['first', 'new'])
+    expect(persistedTexts('s1')).toEqual(['first', 'new'])
+  })
+
+  it('a late success from an unmounted hook dequeues the sent item but keeps newer work', async () => {
+    let resolveDrain!: (sent: boolean) => void
+    const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
+    seedQueue('s1', [item('h1', 'first')])
+
+    const { rerender, unmount } = renderHook(
+      ({ isFulfilled }) => useFollowupQueue({ scopeKey: 's1', isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { isFulfilled: false } }
+    )
+
+    await act(async () => {
+      rerender({ isFulfilled: true })
+    })
+    expect(onDrain).toHaveBeenCalledTimes(1)
+    unmount()
+
+    const second = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain })
+    )
+    act(() => {
+      second.result.current.enqueue(draft('new'), payload('new'))
+    })
+
+    await act(async () => {
+      resolveDrain(true)
+    })
+
+    // h1 was sent: it leaves the persisted entry while the newer item survives.
+    expect(persistedTexts('s1')).toEqual(['new'])
+    expect(second.result.current.failedItemId).toBeNull()
+    expect(second.result.current.paused).toBe(false)
+  })
+
   it('tryClaimSend fails while an auto-drain is in flight', async () => {
     let resolveDrain!: (sent: boolean) => void
     const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
