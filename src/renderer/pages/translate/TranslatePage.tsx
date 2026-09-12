@@ -245,15 +245,12 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  const contentRevisionRef = useRef(0)
+  const contentIntentRevisionRef = useRef(0)
   const contentOperationRevisionRef = useRef(0)
   const translationOperationRef = useRef<{ revision: number } | null>(null)
   const markContentChanged = useCallback(() => {
-    contentRevisionRef.current += 1
+    contentIntentRevisionRef.current += 1
     translationOperationRef.current = null
-  }, [])
-  const markTranslationContentChanged = useCallback(() => {
-    contentRevisionRef.current += 1
   }, [])
   const isTranslationOperationCurrent = useCallback(
     () => translationOperationRef.current?.revision === contentOperationRevisionRef.current,
@@ -262,10 +259,9 @@ const TranslatePage: FC = () => {
   const handleTranslationResponse = useCallback(
     (text: string) => {
       if (!isTranslationOperationCurrent()) return
-      markTranslationContentChanged()
       setTranslateOutput(text)
     },
-    [isTranslationOperationCurrent, markTranslationContentChanged, setTranslateOutput]
+    [isTranslationOperationCurrent, setTranslateOutput]
   )
 
   const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: handleTranslationResponse })
@@ -324,7 +320,6 @@ const TranslatePage: FC = () => {
   }, [])
 
   useLayoutEffect(() => {
-    contentRevisionRef.current += 1
     translateContentRef.current = { input: translateInput, output: translateOutput, pdfFile }
   }, [pdfFile, translateInput, translateOutput])
 
@@ -338,8 +333,7 @@ const TranslatePage: FC = () => {
   const isSelectedPdfModelRoutable = !!selectedModel && isGatewayRoutableModel(selectedModel)
   const selectedModelIcon = useIcon(selectedModel ? getModelLogoRef(selectedModel) : undefined)
 
-  const resetPdfMode = useCallback(() => {
-    markContentChanged()
+  const clearPdfMode = useCallback(() => {
     pdfTextRequestIdRef.current += 1
     pdfHandleRef.current = null
     pdfTextCacheRef.current = null
@@ -355,7 +349,12 @@ const TranslatePage: FC = () => {
     setIsProcessing(false)
     setPdfFile(null)
     setRestoredPdf(null)
-  }, [cancel, isTranslating, markContentChanged, pdfTextFallbackActive, setTranslateOutput])
+  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
+
+  const resetPdfMode = useCallback(() => {
+    markContentChanged()
+    clearPdfMode()
+  }, [clearPdfMode, markContentChanged])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -374,12 +373,11 @@ const TranslatePage: FC = () => {
   const appendTranslateInput = useCallback(
     (text: string) => {
       if (isEmpty(text)) return
-      markContentChanged()
       // Functional update resolves against the latest stored value, so a prior
       // synchronous setTranslateInput(value) is reflected here without a ref.
       setTranslateInput((prev) => prev + text)
     },
-    [markContentChanged, setTranslateInput]
+    [setTranslateInput]
   )
 
   const handleInputChange = useCallback(
@@ -433,7 +431,6 @@ const TranslatePage: FC = () => {
     ): Promise<TranslateHistory | undefined> => {
       if (isTranslating || !isTranslationOperationCurrent()) return
 
-      markTranslationContentChanged()
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated || !isTranslationOperationCurrent()) return
@@ -467,7 +464,6 @@ const TranslatePage: FC = () => {
       autoCopy,
       isTranslationOperationCurrent,
       isTranslating,
-      markTranslationContentChanged,
       runTranslate,
       setOutputCopied,
       setTimeoutTimer,
@@ -607,7 +603,6 @@ const TranslatePage: FC = () => {
   const onTranslate = useCallback(async () => {
     if (exchangePendingRef.current || historyRestorePendingRef.current) return
     translationOperationRef.current = { revision: contentOperationRevisionRef.current }
-    markTranslationContentChanged()
     if (pdfFile) {
       if (babelDoc.availability === 'checking' || babelDoc.installing || targetLanguage === UNKNOWN_LANG_CODE) return
       if (babelDoc.availability === 'available') {
@@ -635,7 +630,6 @@ const TranslatePage: FC = () => {
     babelDoc.installing,
     bidirectionalPair,
     isSelectedPdfModelRoutable,
-    markTranslationContentChanged,
     pdfFile,
     pdfStatus.running,
     sourceLanguage,
@@ -708,7 +702,7 @@ const TranslatePage: FC = () => {
     async (history: TranslateHistory, files?: TranslationFiles) => {
       if (exchangePendingRef.current || historyRestorePendingRef.current) return
       const contentBeforePersist = translateContentRef.current
-      const contentRevisionBeforePersist = contentRevisionRef.current
+      const contentIntentRevisionBeforePersist = contentIntentRevisionRef.current
       const nextTargetLanguage =
         history.targetLanguage ??
         (targetLanguage === UNKNOWN_LANG_CODE ? BUILTIN_LANGUAGE.enUS.langCode : targetLanguage)
@@ -727,7 +721,6 @@ const TranslatePage: FC = () => {
         filePaths = { source: files.source.path, target: files.target.path }
       }
 
-      contentOperationRevisionRef.current += 1
       let persisted = false
       historyRestorePendingRef.current = true
       setIsHistoryRestorePending(true)
@@ -744,17 +737,25 @@ const TranslatePage: FC = () => {
         if (isMountedRef.current) setIsHistoryRestorePending(false)
       }
 
-      const currentContent = translateContentRef.current
-      if (
-        !persisted ||
-        !isMountedRef.current ||
-        contentRevisionBeforePersist !== contentRevisionRef.current ||
-        contentBeforePersist.input !== currentContent.input ||
-        contentBeforePersist.output !== currentContent.output ||
-        contentBeforePersist.pdfFile !== currentContent.pdfFile
-      )
-        return
+      if (!persisted || contentIntentRevisionBeforePersist !== contentIntentRevisionRef.current) return
 
+      if (!isMountedRef.current) {
+        if (
+          filePaths ||
+          cacheService.get('translate.input') !== contentBeforePersist.input ||
+          cacheService.get('translate.output') !== contentBeforePersist.output
+        )
+          return
+
+        contentOperationRevisionRef.current += 1
+        markContentChanged()
+        translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
+        setTranslateInput(history.sourceText)
+        setTranslateOutput(history.targetText)
+        return
+      }
+
+      contentOperationRevisionRef.current += 1
       markContentChanged()
 
       if (filePaths) {
@@ -763,12 +764,12 @@ const TranslatePage: FC = () => {
           output: contentBeforePersist.output,
           pdfFile: { name: history.sourceText, path: filePaths.source }
         }
-        resetPdfMode()
+        clearPdfMode()
         setRestoredPdf({ output: { outputPath: filePaths.target, fileName: history.targetText }, key: history.id })
         setPdfFile({ name: history.sourceText, path: filePaths.source })
       } else {
         translateContentRef.current = { input: history.sourceText, output: history.targetText, pdfFile: null }
-        resetPdfMode()
+        clearPdfMode()
         setTranslateInput(history.sourceText)
         setTranslateOutput(history.targetText)
       }
@@ -777,7 +778,7 @@ const TranslatePage: FC = () => {
     },
     [
       markContentChanged,
-      resetPdfMode,
+      clearPdfMode,
       safePersist,
       setTranslateLanguages,
       setTranslateInput,
@@ -903,19 +904,18 @@ const TranslatePage: FC = () => {
         setPdfTextFallbackActive(false)
         setPdfTextOcrRequired(false)
         setIsPdfTextExtracting(false)
-        markContentChanged()
         setPdfFile({ name: file.name, path: AbsoluteFilePathSchema.parse(file.path) })
         return
       }
 
-      resetPdfMode()
+      clearPdfMode()
       if (isImageFileMetadata(file)) {
         await startOcr(file, contentOperationRevision)
       } else {
         await readFile(file, contentOperationRevision)
       }
     },
-    [isContentOperationCurrent, markContentChanged, readFile, resetPdfMode, startOcr, t, translateOutput]
+    [clearPdfMode, isContentOperationCurrent, readFile, startOcr, t, translateOutput]
   )
 
   const handleSelectFile = useCallback(async () => {
