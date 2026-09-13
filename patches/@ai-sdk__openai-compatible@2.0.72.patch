@@ -1,7 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
+index ea415b862b2c36c3771b52ed8cd4fe88a784a46a..dbe7772ae88509d86ca27584369a45f1ffacc43b 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -257,7 +257,11 @@
+@@ -257,7 +257,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
          messages.push({
            role: "assistant",
            content: toolCalls.length > 0 ? text || null : text,
@@ -14,10 +15,20 @@ diff --git a/dist/index.js b/dist/index.js
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -599,6 +603,17 @@
+@@ -599,6 +603,27 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
++    for (const annotation of choice.message.annotations || []) {
++      if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string") continue;
++      content.push({
++        type: "source",
++        sourceType: "url",
++        id: (0, import_provider_utils2.generateId)(),
++        url: annotation.url_citation.url,
++        title: typeof annotation.url_citation.title === "string" ? annotation.url_citation.title : void 0
++      });
++    }
 +    if (choice.message.images) {
 +      for (const image of choice.message.images) {
 +        const match1 = image.image_url.url.match(/^data:([^;]+)/);
@@ -32,7 +43,7 @@ diff --git a/dist/index.js b/dist/index.js
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -758,6 +773,17 @@
+@@ -758,6 +782,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -50,7 +61,32 @@ diff --git a/dist/index.js b/dist/index.js
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -983,6 +1009,14 @@
+@@ -871,6 +906,16 @@ var OpenAICompatibleChatLanguageModel = class {
+                 });
+               }
+             }
++            for (const annotation of delta.annotations || []) {
++              if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string") continue;
++              controller.enqueue({
++                type: "source",
++                sourceType: "url",
++                id: (0, import_provider_utils2.generateId)(),
++                url: annotation.url_citation.url,
++                title: typeof annotation.url_citation.title === "string" ? annotation.url_citation.title : void 0
++              });
++            }
+           },
+           flush(controller) {
+             var _a2, _b, _c, _d, _e;
+@@ -969,6 +1013,7 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
+         content: import_v43.z.string().nullish(),
+         reasoning_content: import_v43.z.string().nullish(),
+         reasoning: import_v43.z.string().nullish(),
++        annotations: import_v43.z.array(import_v43.z.unknown()).nullish(),
+         tool_calls: import_v43.z.array(
+           import_v43.z.object({
+             id: import_v43.z.string().nullish(),
+@@ -983,6 +1036,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -65,7 +101,15 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -1019,6 +1053,14 @@
+@@ -1003,6 +1064,7 @@ var chunkBaseSchema = import_v43.z.looseObject({
+         // providers serving `gpt-oss` set `reasoning`. See #7866
+         reasoning_content: import_v43.z.string().nullish(),
+         reasoning: import_v43.z.string().nullish(),
++        annotations: import_v43.z.array(import_v43.z.unknown()).nullish(),
+         tool_calls: import_v43.z.array(
+           import_v43.z.object({
+             index: import_v43.z.number().nullish(),
+@@ -1019,6 +1089,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -80,7 +124,7 @@ diff --git a/dist/index.js b/dist/index.js
          ).nullish()
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
-@@ -1577,7 +1619,7 @@
+@@ -1577,7 +1655,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -89,7 +133,7 @@ diff --git a/dist/index.js b/dist/index.js
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1585,13 +1627,23 @@
+@@ -1585,13 +1663,23 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -114,7 +158,7 @@ diff --git a/dist/index.js b/dist/index.js
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1667,7 +1719,11 @@
+@@ -1667,7 +1755,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -127,7 +171,7 @@ diff --git a/dist/index.js b/dist/index.js
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1676,7 +1732,7 @@
+@@ -1676,7 +1768,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -136,7 +180,7 @@ diff --git a/dist/index.js b/dist/index.js
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1687,8 +1743,8 @@
+@@ -1687,8 +1779,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -147,7 +191,7 @@ diff --git a/dist/index.js b/dist/index.js
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1699,8 +1755,28 @@
+@@ -1699,8 +1791,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -177,7 +221,7 @@ diff --git a/dist/index.js b/dist/index.js
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1711,7 +1787,7 @@
+@@ -1711,7 +1823,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
@@ -187,9 +231,10 @@ diff --git a/dist/index.js b/dist/index.js
  async function fileToBlob(file) {
    if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
+index 66ab6a1aeeb1c4c72a81136a042052e50b55ba4b..679e3e4f5cb025a692473c150fe9dd07d6084a67 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -241,7 +241,11 @@
+@@ -241,7 +241,11 @@ function convertToOpenAICompatibleChatMessages(prompt) {
          messages.push({
            role: "assistant",
            content: toolCalls.length > 0 ? text || null : text,
@@ -202,10 +247,20 @@ diff --git a/dist/index.mjs b/dist/index.mjs
            tool_calls: toolCalls.length > 0 ? toolCalls : void 0,
            ...metadata
          });
-@@ -585,6 +589,17 @@
+@@ -585,6 +589,27 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
++    for (const annotation of choice.message.annotations || []) {
++      if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string") continue;
++      content.push({
++        type: "source",
++        sourceType: "url",
++        id: generateId(),
++        url: annotation.url_citation.url,
++        title: typeof annotation.url_citation.title === "string" ? annotation.url_citation.title : void 0
++      });
++    }
 +    if (choice.message.images) {
 +      for (const image of choice.message.images) {
 +        const match1 = image.image_url.url.match(/^data:([^;]+)/);
@@ -220,7 +275,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -744,6 +759,17 @@
+@@ -744,6 +768,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -238,7 +293,32 @@ diff --git a/dist/index.mjs b/dist/index.mjs
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -969,6 +995,14 @@
+@@ -857,6 +892,16 @@ var OpenAICompatibleChatLanguageModel = class {
+                 });
+               }
+             }
++            for (const annotation of delta.annotations || []) {
++              if (annotation?.type !== "url_citation" || typeof annotation.url_citation?.url !== "string") continue;
++              controller.enqueue({
++                type: "source",
++                sourceType: "url",
++                id: generateId(),
++                url: annotation.url_citation.url,
++                title: typeof annotation.url_citation.title === "string" ? annotation.url_citation.title : void 0
++              });
++            }
+           },
+           flush(controller) {
+             var _a2, _b, _c, _d, _e;
+@@ -955,6 +999,7 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
+         content: z3.string().nullish(),
+         reasoning_content: z3.string().nullish(),
+         reasoning: z3.string().nullish(),
++        annotations: z3.array(z3.unknown()).nullish(),
+         tool_calls: z3.array(
+           z3.object({
+             id: z3.string().nullish(),
+@@ -969,6 +1022,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -253,7 +333,15 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -1005,6 +1039,14 @@
+@@ -989,6 +1050,7 @@ var chunkBaseSchema = z3.looseObject({
+         // providers serving `gpt-oss` set `reasoning`. See #7866
+         reasoning_content: z3.string().nullish(),
+         reasoning: z3.string().nullish(),
++        annotations: z3.array(z3.unknown()).nullish(),
+         tool_calls: z3.array(
+           z3.object({
+             index: z3.number().nullish(),
+@@ -1005,6 +1075,14 @@ var chunkBaseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -268,7 +356,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          ).nullish()
        }).nullish(),
        finish_reason: z3.string().nullish()
-@@ -1581,7 +1623,7 @@
+@@ -1581,7 +1659,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -277,7 +365,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1589,7 +1631,7 @@
+@@ -1589,7 +1667,7 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = z7.object({
    data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
@@ -286,7 +374,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
    providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
  });
  
-@@ -1605,6 +1647,16 @@
+@@ -1605,6 +1683,16 @@ import {
    postJsonToApi as postJsonToApi4
  } from "@ai-sdk/provider-utils";
  import { z as z8 } from "zod/v4";
@@ -303,7 +391,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1680,7 +1732,11 @@
+@@ -1680,7 +1768,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -316,7 +404,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1689,7 +1745,7 @@
+@@ -1689,7 +1781,7 @@ var OpenAICompatibleImageModel = class {
          }
        };
      }
@@ -325,7 +413,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        url: this.config.url({
          path: "/images/generations",
          modelId: this.modelId
-@@ -1700,8 +1756,8 @@
+@@ -1700,8 +1792,8 @@ var OpenAICompatibleImageModel = class {
          prompt,
          n,
          size,
@@ -336,7 +424,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1712,8 +1768,28 @@
+@@ -1712,8 +1804,28 @@ var OpenAICompatibleImageModel = class {
        abortSignal,
        fetch: this.config.fetch
      });
@@ -366,7 +454,7 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1724,7 +1800,7 @@
+@@ -1724,7 +1836,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({

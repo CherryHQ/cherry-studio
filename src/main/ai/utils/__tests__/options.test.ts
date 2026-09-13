@@ -504,6 +504,66 @@ describe('buildCapabilityProviderOptions', () => {
     expect(result[key].reasoning_effort).toBeUndefined()
   })
 
+  it('enables Gemini native search through the New API chat endpoint', () => {
+    const result = buildCapabilityProviderOptions(
+      {
+        id: 'new-api::gemini-2.5-pro',
+        apiModelId: 'gemini-2.5-pro',
+        providerId: 'new-api',
+        name: 'Gemini 2.5 Pro',
+        capabilities: []
+      } as unknown as Model,
+      {
+        id: 'new-api',
+        presetProviderId: 'new-api',
+        name: 'New API',
+        settings: {}
+      } as Provider,
+      { enableReasoning: false, enableWebSearch: true, enableGenerateImage: false },
+      {
+        aiSdkProviderId: 'newapi',
+        runtimeProviderId: 'newapi',
+        providerOptionsKey: 'newapi',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'omit',
+          selection: 'default',
+          emissions: []
+        }
+      }
+    )
+
+    expect(result).toEqual({ newapi: { web_search_options: {} } })
+  })
+
+  it('does not enable New API search parameters for non-Gemini models', () => {
+    const result = buildCapabilityProviderOptions(
+      {
+        id: 'new-api::qwen-plus',
+        apiModelId: 'qwen-plus',
+        providerId: 'new-api',
+        name: 'Qwen Plus',
+        capabilities: []
+      } as unknown as Model,
+      {
+        id: 'new-api',
+        presetProviderId: 'new-api',
+        name: 'New API',
+        settings: {}
+      } as Provider,
+      { enableReasoning: false, enableWebSearch: true, enableGenerateImage: false },
+      {
+        aiSdkProviderId: 'newapi',
+        runtimeProviderId: 'newapi',
+        providerOptionsKey: 'newapi',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: { kind: 'omit', selection: 'default', emissions: [] }
+      }
+    )
+
+    expect(result).toEqual({ newapi: {} })
+  })
+
   it('preserves an audited compatible-provider budget field in the concrete namespace', () => {
     const result = buildCapabilityProviderOptions(
       {
