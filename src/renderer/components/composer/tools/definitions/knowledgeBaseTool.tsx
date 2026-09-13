@@ -36,9 +36,8 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
   // runtime's own kb_* MCP tools, not through the model's function-calling support, so the composer
   // model here (which may be a sub-model) says nothing about whether the picker is usable.
   const isToolUseAvailable = context.session ? true : !!context.assistant && isSupportedToolUse(context.model)
-  // Chat scope shows every loaded base and auto-links an unconfigured pick to the assistant (#20238).
-  // Agent sessions keep the configured intersection — linking would edit the agent definition,
-  // widening the ceiling for every session of that agent.
+  // Chat scope shows every loaded base and auto-links an unconfigured pick to the assistant
+  // (#20238); Agent scope keeps the configured intersection (linking edits the agent definition).
   const isChatScope = !!context.assistant
   const assistantKnowledgeBaseIds = context.assistant?.knowledgeBaseIds
   // Latest ids this runtime has settled on: the assistant snapshot, or the last PATCH's
@@ -46,12 +45,21 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
   const assistantSnapshotRef = useRef(context.assistant)
   const latestKnowledgeBaseIdsRef = useRef<string[] | null>(null)
   if (assistantSnapshotRef.current !== context.assistant) {
+    const nextIds = context.assistant?.knowledgeBaseIds ?? null
+    const settled = latestKnowledgeBaseIdsRef.current
+    // A same-assistant delivery missing ids this runtime already persisted predates
+    // those writes (stale fetch); accepting it would resurrect the loss in the next
+    // full PATCH. A different assistant's delivery is a new scope, not staleness.
+    const sameAssistant = context.assistant?.id === assistantSnapshotRef.current?.id
+    const isStaleDelivery =
+      sameAssistant && settled != null && nextIds != null && !settled.every((id) => nextIds.includes(id))
     assistantSnapshotRef.current = context.assistant
-    latestKnowledgeBaseIdsRef.current = context.assistant?.knowledgeBaseIds ?? null
+    if (!isStaleDelivery) {
+      latestKnowledgeBaseIdsRef.current = nextIds
+    }
   }
   // Auto-link PATCHes run strictly one at a time, each body computed from the previous
-  // outcome: a failed link must not leak into the next pick's body (it would persist a
-  // link the picker just rolled back), and a successful one must be carried forward.
+  // outcome: a failed link must not leak into the next pick's body, and a carried one forward.
   const linkQueueRef = useRef<Promise<boolean>>(Promise.resolve(true))
 
   const unconfiguredBaseIds = useMemo(() => {
@@ -62,19 +70,21 @@ const KnowledgeBaseComposerRuntime = ({ context }: { context: KnowledgeBaseToolC
 
   const handleLinkBase = useCallback(
     (base: KnowledgeBase): Promise<boolean> => {
+      // The pick belongs to this assistant; if the user switches before the queued
+      // PATCH runs, dropping the link beats silently widening another assistant.
+      const assistantAtPick = assistantSnapshotRef.current
       const run = async (): Promise<boolean> => {
-        const assistant = assistantSnapshotRef.current
-        if (!assistant) return false
-        const currentIds = latestKnowledgeBaseIdsRef.current ?? assistant.knowledgeBaseIds ?? []
+        if (!assistantAtPick || assistantSnapshotRef.current !== assistantAtPick) return false
+        const currentIds = latestKnowledgeBaseIdsRef.current ?? assistantAtPick.knowledgeBaseIds ?? []
         if (currentIds.includes(base.id)) return true
         const knowledgeBaseIds = [...currentIds, base.id]
         try {
-          await updateAssistant(assistant.id, { knowledgeBaseIds })
+          await updateAssistant(assistantAtPick.id, { knowledgeBaseIds })
           latestKnowledgeBaseIdsRef.current = knowledgeBaseIds
           return true
         } catch (error) {
           logger.error('Failed to auto-link knowledge base to assistant', error as Error, {
-            assistantId: assistant.id,
+            assistantId: assistantAtPick.id,
             knowledgeBaseId: base.id
           })
           return false
