@@ -273,6 +273,46 @@ describe('KnowledgeBaseToolRuntime', () => {
     expect(updateItemSelection).toHaveBeenCalledWith(item, false)
   })
 
+  it('does not let a slow pick commit over a later un-select of the same base', async () => {
+    // Regression (#20238 review): select a base, its auto-link PATCH stalls, the user
+    // un-selects — the stale pick must not re-add the base when its PATCH finally lands.
+    let resolveLink: () => void = () => {}
+    const stalledLink = new Promise<boolean>((resolve) => {
+      resolveLink = () => resolve(true)
+    })
+    const onLinkBase = vi.fn().mockReturnValueOnce(stalledLink)
+    const launcher = createLauncherApi()
+    const onSelect = vi.fn()
+    const quickPanel = { open: vi.fn() }
+
+    render(
+      <KnowledgeBaseToolRuntime
+        launcher={launcher}
+        bases={mocks.knowledgeBases}
+        unconfiguredBaseIds={new Set(['kb-1'])}
+        onLinkBase={onLinkBase}
+        selectedBases={[]}
+        onSelect={onSelect}
+      />
+    )
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    const openedOptions = await openPanel(launcher, quickPanel)
+
+    const stalledPick = openedOptions.list[0].action?.({ item: { ...openedOptions.list[0], isSelected: true } })
+    await waitFor(() => expect(onLinkBase).toHaveBeenCalled())
+
+    // The user reconsiders while the PATCH is in flight.
+    await openedOptions.list[0].action?.({ item: { ...openedOptions.list[0], isSelected: false } })
+    expect(onSelect).toHaveBeenLastCalledWith([])
+
+    resolveLink()
+    await stalledPick
+
+    // The un-select stands: the stalled pick must not re-commit the base.
+    expect(onSelect).toHaveBeenLastCalledWith([])
+    expect(onSelect).not.toHaveBeenCalledWith([mocks.knowledgeBases[0]])
+  })
+
   it('does not auto-link when un-selecting a base', async () => {
     const launcher = createLauncherApi()
     const onSelect = vi.fn()

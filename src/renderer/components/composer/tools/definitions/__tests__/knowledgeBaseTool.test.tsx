@@ -111,7 +111,8 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     mocks.quickPanel.symbol = ''
   })
 
-  /** Renders the tool's runtime with a chat context and returns the opened panel list. */
+  /** Renders the tool's runtime with a chat context and returns the panel list plus a
+   *  delivery driver that swaps the assistant object, as React Query deliveries do. */
   const openRuntimePanel = async (bases: KnowledgeBase[], assistantKnowledgeBaseIds: string[]) => {
     const launcher: ToolLauncherApi = { registerLaunchers: vi.fn(() => vi.fn()) }
     const setSelectedKnowledgeBases = vi.fn()
@@ -119,26 +120,25 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     const Runtime = knowledgeBaseTool.composer?.runtime
     if (!Runtime) throw new Error('knowledgeBaseTool must contribute composer.runtime')
     type RuntimeContext = ComponentProps<typeof Runtime>['context']
+    const baseContext = {
+      launcher,
+      state: { selectedKnowledgeBases: [], files: [], selectableKnowledgeBases: bases },
+      actions: { setSelectedKnowledgeBases },
+      assistant: { id: 'assistant-1', knowledgeBaseIds: assistantKnowledgeBaseIds },
+      t: (key: string) => key
+    } as unknown as RuntimeContext
 
-    render(
-      <Runtime
-        context={
-          {
-            launcher,
-            state: { selectedKnowledgeBases: [], files: [], selectableKnowledgeBases: bases },
-            actions: { setSelectedKnowledgeBases },
-            assistant: { id: 'assistant-1', knowledgeBaseIds: assistantKnowledgeBaseIds },
-            t: (key: string) => key
-          } as unknown as RuntimeContext
-        }
-      />
-    )
+    const view = render(<Runtime context={baseContext} />)
+
+    const deliver = (assistant: { id: string; knowledgeBaseIds: string[] }) => {
+      view.rerender(<Runtime context={{ ...baseContext, assistant } as unknown as RuntimeContext} />)
+    }
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
     const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
     knowledgeLauncher.action?.({ quickPanel, source: 'root-panel', triggerInfo: { type: 'button' } } as never)
     await waitFor(() => expect(quickPanel.open).toHaveBeenCalled())
-    return vi.mocked(quickPanel.open).mock.calls[0][0].list
+    return { list: vi.mocked(quickPanel.open).mock.calls[0][0].list, deliver }
   }
 
   it('queues a second pick behind the first link and carries the first id into its PATCH', async () => {
@@ -150,7 +150,7 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
     })
     mocks.updateAssistant.mockImplementationOnce(() => firstPatch).mockImplementationOnce(async () => ({}))
 
-    const list = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+    const { list } = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
 
     const firstPick = list[0].action?.({ item: { ...list[0], isSelected: true } })
     await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
@@ -178,7 +178,7 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
       })
       .mockImplementationOnce(async () => ({}))
 
-    const list = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+    const { list } = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
 
     const firstPick = list[0].action?.({ item: { ...list[0], isSelected: true } })
     const secondPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
@@ -186,5 +186,77 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
 
     expect(mocks.updateAssistant).toHaveBeenNthCalledWith(2, 'assistant-1', { knowledgeBaseIds: ['kb-2'] })
     await Promise.all([firstPick as Promise<unknown>, secondPick as Promise<unknown>])
+  })
+
+  it('drops a queued link when the assistant switches before it runs', async () => {
+    // The pick belongs to the assistant it was made on; running it after a switch would
+    // silently widen another assistant's retrieval ceiling.
+    let resolveFirstPatch: (assistant: unknown) => void = () => {}
+    const firstPatch = new Promise<unknown>((resolve) => {
+      resolveFirstPatch = resolve
+    })
+    mocks.updateAssistant.mockImplementationOnce(() => firstPatch).mockImplementationOnce(async () => ({}))
+
+    const { list, deliver } = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+
+    const firstPick = list[0].action?.({ item: { ...list[0], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
+
+    const queuedPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    deliver({ id: 'assistant-2', knowledgeBaseIds: [] })
+    resolveFirstPatch({})
+    await Promise.all([firstPick as Promise<unknown>, queuedPick as Promise<unknown>])
+
+    // Only the first link PATCHed; the queued one was dropped at the identity check.
+    expect(mocks.updateAssistant).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts fresh after an assistant switch instead of carrying the old ids', async () => {
+    // A different assistant's delivery is a new scope, not staleness: the settled ids
+    // must reset, or a pick on the new assistant would patch in the old one's bases.
+    mocks.updateAssistant.mockImplementation(async () => ({}))
+
+    const { list, deliver } = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+
+    await list[0].action?.({ item: { ...list[0], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(1, 'assistant-1', { knowledgeBaseIds: ['kb-1'] })
+
+    deliver({ id: 'assistant-2', knowledgeBaseIds: [] })
+
+    await list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(2, 'assistant-2', { knowledgeBaseIds: ['kb-2'] })
+  })
+
+  it('keeps settled ids when a stale delivery lands while a PATCH is in flight', async () => {
+    // A pre-PATCH fetch resolving after the PATCH would reset the settled ids to the
+    // stale set; the next pick's PATCH must still carry the just-persisted link.
+    let resolveFirstPatch: (assistant: unknown) => void = () => {}
+    const firstPatch = new Promise<unknown>((resolve) => {
+      resolveFirstPatch = resolve
+    })
+    mocks.updateAssistant.mockImplementationOnce(() => firstPatch).mockImplementationOnce(async () => ({}))
+
+    const { list, deliver } = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+
+    const firstPick = list[0].action?.({ item: { ...list[0], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
+    resolveFirstPatch({})
+    await firstPick
+
+    // A fetch started before the PATCH now resolves after it: the delivery still
+    // reports the pre-PATCH ids, which must not unseat the persisted link.
+    deliver({ id: 'assistant-1', knowledgeBaseIds: [] })
+
+    const secondPick = list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(2, 'assistant-1', {
+      knowledgeBaseIds: ['kb-1', 'kb-2']
+    })
+    await secondPick
   })
 })
