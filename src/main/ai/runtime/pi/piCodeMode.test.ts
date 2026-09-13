@@ -260,6 +260,34 @@ describe('createPiCodeModeTools', () => {
     })
   })
 
+  it('reveals a browser alias when a colliding tool is disabled after catalog creation', async () => {
+    const enabled = browserTool({ name: 'mcp__browser-a__open', label: 'open' })
+    const other = browserTool({ name: 'mcp__browser-b__open', label: 'open' })
+    const disabled = new Set<string>()
+    const tools = codeModeTools([enabled, other], disabled)
+    const search = tools.find((item) => item.name === PI_TOOL_SEARCH_TOOL_NAME)!
+    const exec = tools.find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const before = await search.execute('search-1', { query: 'browser' }, undefined, undefined, {} as never)
+    expect(before.content[0]).toMatchObject({ type: 'text', text: expect.not.stringMatching(/\bopen\(params:/) })
+
+    disabled.add(other.name)
+    const after = await search.execute('search-2', { query: 'browser' }, undefined, undefined, {} as never)
+    expect(after.content[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/\bopen\(params:/) })
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: 'return await browser.open({ query: "example" })' },
+      undefined,
+      undefined,
+      {} as never
+    )
+    expect(result.details).toEqual({
+      result: { content: [{ type: 'text', text: 'ok' }], details: { ok: true } },
+      logs: undefined
+    })
+  })
+
   it('forwards images returned by browser facade methods as tool_exec image content', async () => {
     const screenshot = browserTool({
       name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__screenshot',

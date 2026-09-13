@@ -67,7 +67,7 @@ export function createPiCodeModeTools(
   authorizeTool: PiToolAuthorizer
 ): ToolDefinition[] {
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
-  const browserFacade = buildBrowserFacade(tools.filter((tool) => !isDisabled(tool.name)))
+  const getBrowserFacade = () => buildBrowserFacade(tools.filter((tool) => !isDisabled(tool.name)))
   const invokeTargetTool = async (
     executionToolCallId: string,
     approvalToolCallId: string,
@@ -187,7 +187,7 @@ export function createPiCodeModeTools(
       const serializeAuthorization = createSerializedAuthorizer(authorizeTool)
       const result = await runExecCode(code, {
         abortSignal: signal,
-        facades: { browser: browserFacade },
+        facades: { browser: getBrowserFacade() },
         onExecutionStarted({ pauseTimeout, resumeTimeout }) {
           pauseExecutionTimeout = pauseTimeout
           resumeExecutionTimeout = resumeTimeout
@@ -217,6 +217,7 @@ export function createPiCodeModeTools(
   return [searchTool, describeTool, callTool, execTool]
 
   function declarationsForTools(discovered: readonly PiMcpToolDefinition[]): string {
+    const browserFacade = getBrowserFacade()
     const declarations = toolsToTypeScript(
       discovered.map((tool) => ({
         name: tool.name,
