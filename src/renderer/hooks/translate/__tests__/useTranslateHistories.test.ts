@@ -100,8 +100,27 @@ describe('useTranslateHistories', () => {
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/translate/histories', {
       query: { search: 'hello', star: true },
       limit: 5,
+      enabled: true,
       swrOptions: { keepPreviousData: false }
     })
+  })
+
+  it('does not fetch or listen for history changes while disabled', async () => {
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteState({ mutate }))
+
+    renderHook(() => useTranslateHistories({ enabled: false }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/translate/histories',
+      expect.objectContaining({ enabled: false })
+    )
+
+    await act(async () => {
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/translate/histories', kind: 'membership' }])
+      await Promise.resolve()
+    })
+    expect(mutate).not.toHaveBeenCalled()
   })
 
   it('revalidates current pages in place when another window changes history membership (REGRESSION #19687)', async () => {

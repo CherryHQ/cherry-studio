@@ -74,9 +74,10 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [confirmClearOpen, setConfirmClearOpen] = useState(false)
   const { items, total, hasMore, isLoadingMore, loadMore, status } = useTranslateHistories({
-    star: showStared || undefined
+    star: showStared || undefined,
+    enabled: isOpen
   })
-  const { getLanguage, getLabel } = useLanguageLabels()
+  const { getLanguage, getLabel } = useLanguageLabels(isOpen)
   const { clear: clearHistory, update: updateHistory } = useTranslateHistory()
   const pendingLoadMoreRef = useRef(false)
 
@@ -263,8 +264,8 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   )
 }
 
-const useLanguageLabels = () => {
-  const { getLanguage: getDataApiLanguage, getLabel: getDataApiLabel } = useLanguages()
+const useLanguageLabels = (enabled: boolean) => {
+  const { getLanguage: getDataApiLanguage, getLabel: getDataApiLabel } = useLanguages({ enabled })
 
   const getLanguage = useCallback(
     (langCode: TranslateLangCode | null) =>
