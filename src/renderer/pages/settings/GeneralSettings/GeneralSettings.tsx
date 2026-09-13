@@ -1,6 +1,6 @@
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button, Flex, InfoTooltip, Input, InputNumber, Switch } from '@cherrystudio/ui'
@@ -65,6 +65,8 @@ const GeneralSettings: FC = () => {
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
   const [proxyTestLoading, setProxyTestLoading] = useState(false)
   const [proxyTestResult, setProxyTestResult] = useState<OutputFor<'proxy.test_connection'> | null>(null)
+  const proxyTestGeneration = useRef(0)
+  const proxyTestInput = useRef({ mode: storeProxyMode, url: storeProxyUrl, bypassRules: storeProxyBypassRules })
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -102,20 +104,31 @@ const GeneralSettings: FC = () => {
     void _setProxyBypassRules(proxyBypassRules)
   }
 
+  const updateProxyTestInput = (nextInput: typeof proxyTestInput.current) => {
+    proxyTestInput.current = nextInput
+    proxyTestGeneration.current += 1
+    setProxyTestLoading(false)
+    setProxyTestResult(null)
+  }
+
   const handleProxyTest = async () => {
+    const input = { ...proxyTestInput.current }
+    const generation = ++proxyTestGeneration.current
+    const isCurrent = () =>
+      generation === proxyTestGeneration.current &&
+      input.mode === proxyTestInput.current.mode &&
+      input.url === proxyTestInput.current.url &&
+      input.bypassRules === proxyTestInput.current.bypassRules
+
     setProxyTestLoading(true)
+    setProxyTestResult(null)
     try {
-      setProxyTestResult(
-        await ipcApi.request('proxy.test_connection', {
-          mode: storeProxyMode,
-          url: proxyUrl,
-          bypassRules: proxyBypassRules
-        })
-      )
+      const result = await ipcApi.request('proxy.test_connection', input)
+      if (isCurrent()) setProxyTestResult(result)
     } catch (error) {
-      toast.error(formatErrorMessage(error))
+      if (isCurrent()) toast.error(formatErrorMessage(error))
     } finally {
-      setProxyTestLoading(false)
+      if (isCurrent()) setProxyTestLoading(false)
     }
   }
 
@@ -225,7 +238,14 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
-          <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
+          <Selector
+            value={storeProxyMode}
+            onChange={(mode) => {
+              updateProxyTestInput({ ...proxyTestInput.current, mode })
+              void setProxyMode(mode)
+            }}
+            options={proxyModeOptions}
+          />
         </SettingRow>
         {storeProxyMode === 'custom' && (
           <>
@@ -236,7 +256,10 @@ const GeneralSettings: FC = () => {
                 spellCheck={false}
                 placeholder="socks5://127.0.0.1:6153"
                 value={proxyUrl}
-                onChange={(e) => setProxyUrl(e.target.value)}
+                onChange={(e) => {
+                  setProxyUrl(e.target.value)
+                  updateProxyTestInput({ ...proxyTestInput.current, url: e.target.value })
+                }}
                 style={{ width: 220 }}
                 onBlur={onSetProxyUrl}
                 type="url"
@@ -256,7 +279,10 @@ const GeneralSettings: FC = () => {
                 spellCheck={false}
                 placeholder={defaultByPassRules}
                 value={proxyBypassRules}
-                onChange={(e) => setProxyBypassRules(e.target.value)}
+                onChange={(e) => {
+                  setProxyBypassRules(e.target.value)
+                  updateProxyTestInput({ ...proxyTestInput.current, bypassRules: e.target.value })
+                }}
                 style={{ width: 220 }}
                 onBlur={onSetProxyBypassRules}
               />
