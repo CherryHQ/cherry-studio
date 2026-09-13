@@ -174,10 +174,12 @@ export function useFollowupQueue({
   const mountedRef = useRef(true)
   // Ids with a claim held by this window (drain or steer in flight).
   const activeIdsRef = useRef(new Set<string>())
-  // At most one drain cycle runs at a time: a head change (e.g. a concurrent
+  // At most one drain cycle runs per scope: a head change (e.g. a concurrent
   // reorder landing mid-claim) re-fires the effect, and without this guard the
-  // second cycle could claim and send another row on the same edge.
-  const drainBusyRef = useRef(false)
+  // second cycle could claim and send another row on the same edge. Scoped
+  // (not global) so switching conversations while a drain is in flight does
+  // not strand the new scope: each scope drains on its own edge.
+  const drainBusyScopesRef = useRef(new Set<string>())
   // Background resolve retries that outlive the drain that scheduled them.
   const pendingResolveRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   // Background claim retries, unlike resolve retries, belong to the live edge:
@@ -448,8 +450,8 @@ export function useFollowupQueue({
   const drainHeadRef = useRef<(head: FollowupQueueItem) => Promise<void>>(() => Promise.resolve())
   drainHeadRef.current = async (head: FollowupQueueItem) => {
     const scope = scopeKeyRef.current
-    if (drainBusyRef.current || activeIdsRef.current.has(head.id)) return
-    drainBusyRef.current = true
+    if (drainBusyScopesRef.current.has(scope) || activeIdsRef.current.has(head.id)) return
+    drainBusyScopesRef.current.add(scope)
     activeIdsRef.current.add(head.id)
     try {
       let won: ClaimHeadFollowupQueueResult | undefined
@@ -502,7 +504,7 @@ export function useFollowupQueue({
       }
       if (!sent) onDrainFailedRef.current?.()
     } finally {
-      drainBusyRef.current = false
+      drainBusyScopesRef.current.delete(scope)
       activeIdsRef.current.delete(head.id)
     }
   }
