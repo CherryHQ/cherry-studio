@@ -70,10 +70,14 @@ const defaultResolveResult = {
 
 function stubMigrationV2() {
   vi.doMock('@data/migration/v2', async () => {
-    // The gate now imports the version-policy fns and isSchemaOutOfSyncError through
-    // the barrel, so they live on this mock. isSchemaOutOfSyncError is a pure predicate —
-    // keep the real implementation so schemaOutOfSyncError() fixtures are still detected.
-    const { isSchemaOutOfSyncError } = (await vi.importActual('@data/migration/v2/core/migrationErrors')) as {
+    // The gate now imports the version-policy fns and the error helpers through the
+    // barrel, so they live on this mock. Both helpers are pure — keep the real
+    // implementations so schemaOutOfSyncError() fixtures are still detected and the
+    // dialogs carry the real flattened cause chain.
+    const { describeErrorChain, isSchemaOutOfSyncError } = (await vi.importActual(
+      '@data/migration/v2/core/migrationErrors'
+    )) as {
+      describeErrorChain: (error: unknown) => string
       isSchemaOutOfSyncError: (error: unknown) => boolean
     }
     return {
@@ -97,7 +101,8 @@ function stubMigrationV2() {
       setDataLocationNotice: setDataLocationNoticeMock,
       evaluateCandidateVersion: evaluateCandidateVersionMock,
       getBlockMessage: getBlockMessageMock,
-      isSchemaOutOfSyncError
+      isSchemaOutOfSyncError,
+      describeErrorChain
     }
   })
 }
