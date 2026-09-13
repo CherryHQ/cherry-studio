@@ -156,9 +156,11 @@ export class AgentGlobalSkillService {
 
   /** Scalar folder metadata read without decoding JSON columns, including quarantined rows. */
   listFolderRecords(): AgentGlobalSkillFolderRecord[] {
-    const rows = this.db.all(
-      sql.raw('SELECT folder_name, source, content_hash FROM agent_global_skill')
-    ) as Array<{ folder_name: unknown; source: unknown; content_hash: unknown }>
+    const rows = this.db.all(sql.raw('SELECT folder_name, source, content_hash FROM agent_global_skill')) as Array<{
+      folder_name: unknown
+      source: unknown
+      content_hash: unknown
+    }>
     return rows.map((row) => ({
       folderName: String(row.folder_name),
       source: String(row.source),
