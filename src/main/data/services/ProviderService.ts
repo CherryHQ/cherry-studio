@@ -392,7 +392,35 @@ class ProviderService {
       const metadata = getAvailableProviderMetadata(row)
       if (metadata) providers.push(rowToRuntimeProvider(row, metadata))
     }
+    if (providers.length < rows.length) {
+      logger.debug('Filtered unavailable providers from list', {
+        total: rows.length,
+        visible: providers.length,
+        edition: getAppEdition(),
+        migratedFromV1: isMigratedFromV1()
+      })
+    }
     return providers
+  }
+
+  /**
+   * IDs of persisted providers hidden by edition policy alone. Retired rows are
+   * excluded, so a non-empty result means the settings UI owes an explanation.
+   */
+  listEditionHiddenProviderIds(): string[] {
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId
+      })
+      .from(userProviderTable)
+      .all()
+
+    return rows
+      .filter((row) => !isRetiredProvider(row.providerId, row.presetProviderId) && !isProviderIdentityAvailable(row))
+      .map((row) => row.providerId)
   }
 
   /** Return matching provider IDs available to runtime callers in this application edition. */

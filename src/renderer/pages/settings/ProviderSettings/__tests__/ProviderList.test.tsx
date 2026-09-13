@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
@@ -11,6 +12,7 @@ import { ProviderList } from '../ProviderList'
 const reorderSpy = vi.fn()
 const useProvidersMock = vi.fn()
 const useProviderActionsMock = vi.fn()
+const useEditionHiddenProvidersMock = vi.fn()
 const useModelsMock = vi.fn()
 const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
@@ -47,7 +49,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: any[]) => useProvidersMock(...args),
-  useProviderActions: (...args: any[]) => useProviderActionsMock(...args)
+  useProviderActions: (...args: any[]) => useProviderActionsMock(...args),
+  useEditionHiddenProviders: (...args: any[]) => useEditionHiddenProvidersMock(...args)
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -177,11 +180,13 @@ describe('ProviderList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseCacheUtils.resetMocks()
+    vi.stubGlobal('__APP_EDITION__', 'global')
     reorderSpy.mockClear()
     useProvidersMock.mockReturnValue({
       providers,
       createProvider: vi.fn()
     })
+    useEditionHiddenProvidersMock.mockReturnValue({ data: [] })
     useProviderActionsMock.mockReturnValue({
       updateProviderById: vi.fn(),
       deleteProviderById: vi.fn()
@@ -265,6 +270,34 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.queryByText('CherryAI')).not.toBeInTheDocument()
     expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
+  })
+
+  it('explains edition-hidden providers on cn builds and offers a recovery action', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    useEditionHiddenProvidersMock.mockReturnValue({ data: ['openai', 'anthropic', 'gemini'] })
+
+    render(<ProviderList selectedProviderId="deepseek" onSelectProvider={vi.fn()} />)
+
+    expect(screen.getByText(i18n.t('settings.provider.edition_notice.title'))).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: i18n.t('settings.provider.edition_notice.add_custom') }))
+
+    expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('shows no edition notice on global builds or when nothing is hidden', () => {
+    const { unmount } = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.queryByText(i18n.t('settings.provider.edition_notice.title'))).not.toBeInTheDocument()
+    unmount()
+
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    useEditionHiddenProvidersMock.mockReturnValue({ data: [] })
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.queryByText(i18n.t('settings.provider.edition_notice.title'))).not.toBeInTheDocument()
   })
 
   it('offers only safe canonical preset sources to the custom provider editor', async () => {
