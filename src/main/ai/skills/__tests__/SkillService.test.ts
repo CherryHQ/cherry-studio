@@ -1305,6 +1305,44 @@ describe('SkillService', () => {
       }
     })
 
+    it('does not alias distinct slash-bearing refs through a shared nested suffix', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const firstDir = path.join(workDir, 'first')
+      const secondDir = path.join(workDir, 'second')
+      const firstUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/feature/foo/skills/demo/SKILL.md'
+      const secondUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/other/foo/skills/demo/SKILL.md'
+
+      try {
+        await Promise.all(
+          [firstDir, secondDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'First', declaredName: 'First' }) as never
+        )
+        const first = await skillService['installSkillDir'](firstDir, 'marketplace', firstUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Second', declaredName: 'Second' }) as never
+        )
+        const second = await skillService['installSkillDir'](secondDir, 'marketplace', secondUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        expect(second.id).not.toBe(first.id)
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(2)
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'First', 'SKILL.md'))).resolves.toBeUndefined()
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'Second', 'SKILL.md'))).resolves.toBeUndefined()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('does not treat same-named branches and tags as the same skill origin', async () => {
       const { skillService, restoreGetPath, workDir } = await setupGithubRootInstall()
       const branchDir = path.join(workDir, 'branch')
@@ -1327,6 +1365,44 @@ describe('SkillService', () => {
         await expect(
           skillService['installSkillDir'](tagDir, 'marketplace', tagUrl, { folderNameFallback: 'repo' })
         ).rejects.toThrow(/refusing to overwrite/)
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('does not alias a legacy URL with an explicit tag of the same name', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const legacyDir = path.join(workDir, 'legacy')
+      const tagDir = path.join(workDir, 'tag')
+      const legacyUrl = 'https://github.com/owner/repo/blob/v1/skills/demo/SKILL.md'
+      const tagUrl = 'https://raw.githubusercontent.com/owner/repo/refs/tags/v1/skills/demo/SKILL.md'
+
+      try {
+        await Promise.all(
+          [legacyDir, tagDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Legacy', declaredName: 'Legacy' }) as never
+        )
+        const legacy = await skillService['installSkillDir'](legacyDir, 'marketplace', legacyUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Tag', declaredName: 'Tag' }) as never
+        )
+        const tag = await skillService['installSkillDir'](tagDir, 'marketplace', tagUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        expect(tag.id).not.toBe(legacy.id)
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(2)
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'Legacy', 'SKILL.md'))).resolves.toBeUndefined()
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'Tag', 'SKILL.md'))).resolves.toBeUndefined()
       } finally {
         restoreGetPath()
         vi.mocked(parseSkillMetadata).mockReset()
@@ -2422,6 +2498,22 @@ describe('SkillService', () => {
       await skillService.unlinkMirror('../outside-mirror-sentinel')
 
       await expect(fs.promises.readFile(outside, 'utf-8')).resolves.toBe('keep')
+    })
+
+    it('rejects multi-component folder names before resolving a sibling path', async () => {
+      const mirrorSibling = path.join(mirrorRoot, 'sibling')
+      const storageSibling = path.join(dataSkillsRoot, 'sibling')
+      await fs.promises.mkdir(mirrorSibling, { recursive: true })
+      await fs.promises.writeFile(path.join(mirrorSibling, 'keep.txt'), 'keep')
+      await fs.promises.mkdir(storageSibling, { recursive: true })
+      await fs.promises.writeFile(path.join(storageSibling, 'keep.txt'), 'keep')
+
+      expect(() => skillService['getMirrorPath']('nested/../sibling')).toThrow('Invalid skill mirror folder name')
+      expect(() => skillService['getSkillStoragePath']('nested/../sibling')).toThrow('Invalid skill folder name')
+      await skillService.unlinkMirror('nested/../sibling')
+
+      await expect(fs.promises.readFile(path.join(mirrorSibling, 'keep.txt'), 'utf-8')).resolves.toBe('keep')
+      await expect(fs.promises.readFile(path.join(storageSibling, 'keep.txt'), 'utf-8')).resolves.toBe('keep')
     })
 
     it('uninstalls a catalog row with a malformed folder without touching outside files', async () => {

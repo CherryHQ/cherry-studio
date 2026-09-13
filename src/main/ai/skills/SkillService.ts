@@ -46,6 +46,17 @@ function sanitizeFolderCandidate(candidate: unknown): string {
   return sanitizeFolderName(trimmed)
 }
 
+function isSingleFolderName(folderName: string): boolean {
+  return (
+    Boolean(folderName) &&
+    folderName !== '.' &&
+    folderName !== '..' &&
+    !folderName.includes('/') &&
+    !folderName.includes('\\') &&
+    !folderName.includes(String.fromCharCode(0))
+  )
+}
+
 function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
   try {
     const url = new URL(sourceUrl)
@@ -93,11 +104,7 @@ function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
       .slice(0, maxSplit)
       .map((part) => encodeURIComponent(part))
       .join('/')
-    identities.push(
-      `github-url:${owner.toLowerCase()}/${repo.toLowerCase()}/${
-        explicitRefNamespace ? `${explicitRefNamespace}/` : ''
-      }${fullPath}`
-    )
+    identities.push(`github-url:${owner.toLowerCase()}/${repo.toLowerCase()}/${fullPath}`)
     if (explicitRefNamespace) {
       identities.push(
         `github-ref:${owner.toLowerCase()}/${repo.toLowerCase()}/${explicitRefNamespace}/${encodeURIComponent(refAndPath[0] ?? '')}`
@@ -127,25 +134,25 @@ function normalizeSkillSourceUrl(source: string, sourceUrl: string | null): stri
 }
 
 function sameSkillSourceUrl(left: string[], right: string[]): boolean {
-  const getRefIdentity = (identities: string[]) => identities.find((identity) => identity.startsWith('github-ref:'))
-  const leftRef = getRefIdentity(left)
-  const rightRef = getRefIdentity(right)
-  if (leftRef && rightRef) {
-    const leftMatch = leftRef.match(/^github-ref:([^/]+\/[^/]+)\/([^/]+)\/(.+)$/)
-    const rightMatch = rightRef.match(/^github-ref:([^/]+\/[^/]+)\/([^/]+)\/(.+)$/)
-    if (
-      leftMatch &&
-      rightMatch &&
-      leftMatch[1] === rightMatch[1] &&
-      leftMatch[3] === rightMatch[3] &&
-      leftMatch[2] !== rightMatch[2]
-    ) {
-      return false
-    }
-  }
-
   const leftUrlIdentity = left.filter((identity) => identity.startsWith('github-url:'))
   const rightUrlIdentity = right.filter((identity) => identity.startsWith('github-url:'))
+
+  // Complete URL identities retain the ref/path sequence, so two ambiguous legacy URLs must
+  // match exactly. Explicit heads/tags namespaces share that identity for the same ref, but the
+  // namespace marker still keeps a same-named branch and tag distinct.
+  if (leftUrlIdentity.length > 0 && rightUrlIdentity.length > 0) {
+    const sharedUrlIdentity = leftUrlIdentity.find((identity) => rightUrlIdentity.includes(identity))
+    if (!sharedUrlIdentity) return false
+
+    const getRefIdentity = (identities: string[]) => identities.find((identity) => identity.startsWith('github-ref:'))
+    const leftRef = getRefIdentity(left)
+    const rightRef = getRefIdentity(right)
+    if (leftRef && rightRef) return leftRef === rightRef
+    // A URL without an explicit namespace is the legacy branch form. Keep it compatible with an
+    // explicit branch URL, but never let it alias an explicit tag URL with the same path.
+    const explicitRef = leftRef ?? rightRef
+    return explicitRef?.includes('/heads/') ?? true
+  }
 
   const isRepositoryIdentity = (identity: string) => /^github:[^/]+\/[^/]+$/.test(identity)
   const leftSpecific = left.filter(
@@ -822,6 +829,9 @@ export class SkillService {
 
   private getSkillStoragePath(folderName: string): string {
     const storageRoot = path.resolve(application.getPath('feature.agents.skills'))
+    if (!isSingleFolderName(folderName)) {
+      throw new Error(`Invalid skill folder name: ${folderName}`)
+    }
     const storagePath = path.resolve(storageRoot, folderName)
     if (storagePath === storageRoot || path.dirname(storagePath) !== storageRoot) {
       throw new Error(`Invalid skill folder name: ${folderName}`)
@@ -846,6 +856,9 @@ export class SkillService {
 
   private getMirrorPath(folderName: string): string {
     const mirrorRoot = path.resolve(this.getMirrorRoot())
+    if (!isSingleFolderName(folderName)) {
+      throw new Error(`Invalid skill mirror folder name: ${folderName}`)
+    }
     const mirrorPath = path.resolve(mirrorRoot, folderName)
     if (mirrorPath === mirrorRoot || path.dirname(mirrorPath) !== mirrorRoot) {
       throw new Error(`Invalid skill mirror folder name: ${folderName}`)
