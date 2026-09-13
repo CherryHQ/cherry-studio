@@ -83,6 +83,7 @@ export const BUILTIN_AGENT_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
   },
   {
     // The result is useful only when AgentChat can present its user-owned review dialog.
+    // Headless deny holds on Claude Code only until #18898 closes the Pi/DSH gap.
     id: 'support-diagnostic-draft',
     appliesTo: { roles: [BUILTIN_AGENT_ROLE.SUPPORT, BUILTIN_AGENT_ROLE.ASSISTANT] },
     match: { tool: 'mcp__assistant__prepare_diagnostic_report' },
