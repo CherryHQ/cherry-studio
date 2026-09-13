@@ -68,7 +68,12 @@ describe('moonshot-passthrough parameter support', () => {
   )
 
   it('leaves the legacy unlocked K2 SKUs untouched', () => {
-    expect(generatedRowOf('openrouter', 'kimi-k2')?.parameterSupport).toBeUndefined()
-    expect(generatedRowOf('dashscope', 'kimi-k2')?.parameterSupport).toBeUndefined()
+    // The rows themselves must exist — a vanished row would otherwise pass as "unlocked".
+    const openrouterK2 = generatedRowOf('openrouter', 'kimi-k2')
+    const dashscopeK2 = generatedRowOf('dashscope', 'kimi-k2')
+    expect(openrouterK2).toBeDefined()
+    expect(dashscopeK2).toBeDefined()
+    expect(openrouterK2!.parameterSupport).toBeUndefined()
+    expect(dashscopeK2!.parameterSupport).toBeUndefined()
   })
 })
