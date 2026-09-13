@@ -145,7 +145,7 @@ The `scripts/data-classify/` directory contains the code generation pipeline for
 | ElectronStore | `ElectronStoreReader.get(key)` | Direct key lookup |
 | Dexie settings | Key-value table | Direct key lookup |
 | localStorage | `localStorage.getItem(key)` | Direct key lookup |
-| Legacy home config file | `LegacyHomeConfigReader` | `~/.cherrystudio/config/config.json` (`appDataPath` field only) |
+| Legacy home config file | `LegacyHomeConfigReader` | `{cherryHome}/config/config.json` (`appDataPath` field only) |
 
 > **Config-file source mappings are manually maintained.** The `data-classify` toolchain's `classification.json` doesn't model config-file sources yet. In two places, a small hand-maintained list complements the classification-driven pipeline:
 >
@@ -189,11 +189,11 @@ cd scripts/data-classify && npm run generate
 | Legacy Source | Legacy Key | Target Key |
 |---------------|-----------|------------|
 | Redux (`settings`) | `disableHardwareAcceleration` | `app.disable_hardware_acceleration` |
-| Config file (`~/.cherrystudio/config/config.json`) | `appDataPath` | `app.user_data_path` |
+| Config file (`{cherryHome}/config/config.json`) | `appDataPath` | `app.user_data_path` |
 
 #### AppImage / Windows Portable Executable Path
 
-The v1 `~/.cherrystudio/config/config.json` stores `appDataPath` as an array of `{ executablePath, dataPath }` entries keyed by executable path. AppImage Linux builds and Windows portable builds use a normalized executable key that differs from `app.getPath('exe')`:
+The v1 `{cherryHome}/config/config.json` stores `appDataPath` as an array of `{ executablePath, dataPath }` entries keyed by executable path. `{cherryHome}` defaults to `~/.cherrystudio`; unpackaged runs with `CS_DEV_PROFILE_ROOT` use `{profileRoot}/.cherrystudio`. AppImage Linux builds and Windows portable builds use a normalized executable key that differs from `app.getPath('exe')`:
 
 - AppImage: `path.dirname(process.env.APPIMAGE) + '/cherry-studio.appimage'`
 - Windows portable: `process.env.PORTABLE_EXECUTABLE_DIR + '/cherry-studio-portable.exe'`

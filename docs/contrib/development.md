@@ -75,8 +75,26 @@ pnpm dev
 
 By default, development runs append `Dev` to Electron's default `userData`
 directory, keeping local dev data separate from packaged app data. To run
-multiple development instances at the same time, give each instance a unique
-suffix. You can set it in `.env`:
+an entirely isolated development profile, set an absolute profile root in
+`.env`:
+
+```bash
+CS_DEV_PROFILE_ROOT=/absolute/path/to/cherry-profile
+```
+
+This keeps Cherry home, BootConfig, legacy config discovery, Electron
+`userData`, and logs under that root. The root cannot be relative or the
+filesystem root, and packaged builds ignore it. When set, it takes precedence
+over `CS_DEV_USER_DATA_SUFFIX`.
+
+| Data | Isolated location |
+|------|-------------------|
+| Cherry home and BootConfig | `{profileRoot}/.cherrystudio` |
+| Electron `userData` | `{profileRoot}/userData` |
+| Application logs | `{profileRoot}/logs` |
+
+For lightweight isolation of multiple development instances, give each
+instance a unique userData suffix. You can set it in `.env`:
 
 ```bash
 CS_DEV_USER_DATA_SUFFIX=DevQuito

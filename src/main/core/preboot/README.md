@@ -85,14 +85,16 @@ without good reason.
 Throughout `core/preboot/`, the word **userData** refers exclusively to
 Electron's `app.getPath('userData')` directory — the OS-level directory
 tree where Chromium and Electron persist their state alongside the
-application's own files.
+application's own files. With `CS_DEV_PROFILE_ROOT`, this directory is
+`{profileRoot}/userData` instead of the platform default plus a suffix.
 
 It does **not** mean "user data" in the colloquial sense (用户数据). The
 Electron userData directory contains a mix of user content
 (`Data/cherrystudio.sqlite`, `Data/Files`, `Data/KnowledgeBase`, …) AND
 Chromium runtime state (`Network/`, `Partitions/`, `IndexedDB`,
 `Local Storage`, …) AND, on Windows and Linux, application logs
-(`logs/` — macOS keeps them in `~/Library/Logs` instead).
+(`logs/` — macOS normally keeps them in `~/Library/Logs`; profile-root mode
+uses `{profileRoot}/logs` on every platform).
 
 ## Layout
 
@@ -100,10 +102,10 @@ Chromium runtime state (`Network/`, `Partitions/`, `IndexedDB`,
 preboot/
 ├── singleInstance.ts    claims Electron's single-instance lock and exits
 │                        second instances. Runs after userData resolution so
-│                        dev instances with different userData suffixes use
-│                        isolated locks.
-├── userDataLocation.ts  resolves userData (dev suffix or BootConfig) and
-│                        exports the shared isUsableDataDir(p) validator
+│                        dev instances with different profile roots or
+│                        userData suffixes use isolated locks.
+├── userDataLocation.ts  resolves userData (dev profile root, suffix, or
+│                        BootConfig) and exports the shared isUsableDataDir(p) validator
 │                        used by v1→v2 migration
 ├── chromiumFlags.ts     Chromium startup flags that must run before
 │                        app.whenReady()
@@ -135,13 +137,23 @@ preboot/
 The directory is intentionally flat. New domains add a sibling file rather
 than a subdirectory.
 
-### Development userData suffix
+### Development profile isolation
 
 Unpackaged development runs never read the BootConfig userData mapping
 (`app.user_data_path`).
 Instead, `userDataLocation.ts` appends a suffix to Electron's default
 userData directory before the path registry and single-instance lock are
 initialized. The default suffix is `Dev`.
+
+Set `CS_DEV_PROFILE_ROOT` to an absolute directory when the entire writable
+development profile must be isolated. Cherry home, BootConfig, legacy config
+discovery, Electron `userData`, and logs are placed below that root. Relative
+paths and the filesystem root abort startup. Packaged builds ignore the
+variable. When set, it takes precedence over `CS_DEV_USER_DATA_SUFFIX`.
+
+```bash
+CS_DEV_PROFILE_ROOT=/absolute/path/to/cherry-profile pnpm dev
+```
 
 Set `CS_DEV_USER_DATA_SUFFIX` to run multiple development instances with
 isolated app data and locks. Use `.env` for a persistent local default:

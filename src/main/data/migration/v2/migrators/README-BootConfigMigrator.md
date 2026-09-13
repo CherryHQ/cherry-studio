@@ -2,7 +2,7 @@
 
 The `BootConfigMigrator` migrates early-boot configuration from legacy storage into `bootConfigService` — the synchronous, file-based config used by code that runs before the lifecycle system takes over (e.g. Chromium flags, custom userData directory).
 
-Unlike other migrators, it writes to a **file-based store** (`~/.cherrystudio/boot-config.json`) rather than a SQLite table. See [Boot Config Overview](../../../../../../docs/references/data/boot-config-overview.md) for why this system exists.
+Unlike other migrators, it writes to a **file-based store** (`{cherryHome}/boot-config.json`) rather than a SQLite table. `{cherryHome}` defaults to `~/.cherrystudio`; unpackaged runs with `CS_DEV_PROFILE_ROOT` use `{profileRoot}/.cherrystudio`. See [Boot Config Overview](../../../../../../docs/references/data/boot-config-overview.md) for why this system exists.
 
 ## Data Sources
 
@@ -14,11 +14,11 @@ Boot config pulls from **five** source kinds. Four are classification-driven (vi
 | `electronStore` | `ctx.sources.electronStore` (electron-store) | `{userData}/config.json` | (none currently — classification empty) |
 | `dexie-settings` | `DexieSettingsReader` | Dexie `settings` table export | (none currently — classification empty) |
 | `localStorage` | `LocalStorageReader` | localStorage export JSON | (none currently — classification empty) |
-| `configfile` | `LegacyHomeConfigReader` | `~/.cherrystudio/config/config.json` (v1 home config file) | `appDataPath` → `app.user_data_path` |
+| `configfile` | `LegacyHomeConfigReader` | `{cherryHome}/config/config.json` (v1 home config file) | `appDataPath` → `app.user_data_path` |
 
 ### The `configfile` source
 
-The `configfile` source exists because v1 stored the user-customized userData directory in `~/.cherrystudio/config/config.json` rather than in any of the four classification-driven stores. That file is outside the app's `userData` directory (intentionally — it needs to be readable before the userData path is decided), so none of the other readers can reach it.
+The `configfile` source exists because v1 stored the user-customized userData directory in `{cherryHome}/config/config.json` rather than in any of the four classification-driven stores. That file is outside the app's `userData` directory (intentionally — it needs to be readable before the userData path is decided), so none of the other readers can reach it.
 
 `LegacyHomeConfigReader` reads the v1 file and normalizes two historical data shapes:
 
@@ -39,7 +39,7 @@ Returns `null` (not `{}`) when no data is present (missing file / parse error / 
 
 | Source (file / field) | Target Key | Type | Default |
 |---|---|---|---|
-| `~/.cherrystudio/config/config.json` → `appDataPath` | `app.user_data_path` | `Record<string, string>` | *(null — see below)* |
+| `{cherryHome}/config/config.json` → `appDataPath` | `app.user_data_path` | `Record<string, string>` | *(null — see below)* |
 
 **Why `defaultValue: null` for config-file entries**: the other sources fall back to `DefaultBootConfig[targetKey]` when the source has no value, so missing keys get sensible defaults. For config-file data like `app.user_data_path`, "no v1 file" must mean "nothing to migrate" — writing the schema default `{}` would be a spurious migration. Setting `defaultValue: null` on these entries routes them through the shared null-skip guard in `prepare()`, skipping the item entirely when the reader returns `null`.
 
