@@ -79,11 +79,13 @@ function loadState(scopeKey: string): FollowupQueueState {
             })
           // `text` is required by ComposerQueuedMessagePayload (the builder always
           // sets it, `''` for attachment-only sends); the send path hands it to
-          // onSend untouched.
+          // onSend untouched. `userMessageParts` is likewise always an array from
+          // the builder, and both send (`[...parts]` spread) and edit restoration
+          // (`part.type` reads) assume it.
           if (typeof queuePayload.text !== 'string') return false
+          if (!isPartList(queuePayload.userMessageParts)) return false
           return (
             (queuePayload.attachments == null || isObjectList(queuePayload.attachments)) &&
-            (queuePayload.userMessageParts == null || isPartList(queuePayload.userMessageParts)) &&
             (queuePayload.mentionedModels == null || Array.isArray(queuePayload.mentionedModels))
           )
         })
@@ -564,6 +566,13 @@ export function useFollowupQueue({
 
   const removeId = useCallback(
     (id: string) => {
+      // Unmounted (e.g. a composer steer-success continuation landing after a
+      // remount): live refs are a frozen snapshot — persisting from them would
+      // wipe work queued since. Dequeue surgically from the entry instead.
+      if (!mountedRef.current) {
+        removeIdFromScope(scopeKeyRef.current, id)
+        return
+      }
       // A manual steer success landing after a scope switch: the item lives in the
       // scope the claim was taken in, not the current one. Dequeue it there (surgical
       // entry op, no live-state touch); otherwise the sent item stays queued and is
