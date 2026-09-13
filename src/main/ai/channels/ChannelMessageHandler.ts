@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import mime from 'mime'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -962,7 +964,8 @@ export class ChannelMessageHandler {
 
     const paths: string[] = []
     for (const img of images) {
-      const ext = img.media_type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+      // media_type is attacker-supplied; only a registered extension may reach the filename.
+      const ext = mime.getExtension(img.media_type) || 'png'
       const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
       const filePath = path.join(dir, filename)
       await fs.writeFile(filePath, Buffer.from(img.data, 'base64'))

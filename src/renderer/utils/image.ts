@@ -180,12 +180,11 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
  * @param elRef 可滚动元素的引用
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
-export const captureScrollable = async (elRef: React.RefObject<HTMLElement | null>) => {
-  const el = elRef.current
-
+async function captureScrollableElement(el: HTMLElement | null) {
   if (el) {
     const htmlToImage = await loadHtmlToImage()
     let restoreLocalImageSources: (() => void) | undefined
+    const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
 
     try {
       // Mark the subtree before measuring: capture-only CSS keyed off this
@@ -263,12 +262,30 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       logger.error('Error capturing scrollable element:', error as Error)
       throw error
     } finally {
-      el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+      if (captureMarker === null) {
+        el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+      } else {
+        el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, captureMarker)
+      }
       restoreLocalImageSources?.()
     }
   }
 
   return Promise.resolve(undefined)
+}
+
+export const captureScrollable = (elRef: React.RefObject<HTMLElement | null>) => captureScrollableElement(elRef.current)
+
+function markElementForCapture(el: HTMLElement): () => void {
+  const captureMarker = el.getAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+  el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+  return () => {
+    if (captureMarker === null) {
+      el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+    } else {
+      el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, captureMarker)
+    }
+  }
 }
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
@@ -375,7 +392,7 @@ async function captureNativeDataUrl(el: HTMLElement): Promise<string | undefined
     physical(clip.width) <= MAX_NATIVE_CAPTURE_PHYSICAL_DIMENSION &&
     physical(clip.height) <= MAX_NATIVE_CAPTURE_PHYSICAL_DIMENSION
 
-  el.setAttribute(IMAGE_CAPTURE_ATTRIBUTE, '')
+  const restoreCaptureMarker = markElementForCapture(el)
   const restoreArtifacts = hideHtmlArtifactsForCapture(el)
   const restoreParking = parkOffscreenElementForCapture(el)
   try {
@@ -411,7 +428,7 @@ async function captureNativeDataUrl(el: HTMLElement): Promise<string | undefined
   } finally {
     restoreParking?.()
     restoreArtifacts()
-    el.removeAttribute(IMAGE_CAPTURE_ATTRIBUTE)
+    restoreCaptureMarker()
   }
 }
 
@@ -435,7 +452,7 @@ export const captureScrollableImage = async (
     logger.warn('Native compositor capture unavailable, falling back to html-to-image', error as Error)
   }
 
-  const canvas = await captureScrollable(elRef)
+  const canvas = await captureScrollableElement(el)
   return canvas?.toDataURL('image/png')
 }
 
@@ -449,6 +466,25 @@ export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElem
 }
 
 /**
+ * 把 base64 data URL 解码成 Blob。
+ * 不能用 `fetch(dataUrl)`：渲染进程 CSP 的 `connect-src` 不含 `data:`，fetch 会
+ * 直接抛 `TypeError: Failed to fetch`。
+ * @param dataUrl base64 编码的 data URL
+ * @returns 解码后的 Blob，MIME 取自 data URL
+ */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const parsed = parseDataUrl(dataUrl)
+  if (!parsed?.isBase64) {
+    throw new Error('dataUrlToBlob expects a base64 data URL')
+  }
+
+  const binary = atob(parsed.data)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: parsed.mediaType })
+}
+
+/**
  * 将可滚动元素的图像数据转换为 Blob 格式。
  * @param elRef 可滚动元素的引用
  * @param func Blob 回调函数
@@ -457,8 +493,7 @@ export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElem
 export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement | null>, func: BlobCallback) => {
   const dataUrl = await captureScrollableImage(elRef)
   if (dataUrl) {
-    // fetch() on a data: URL decodes locally — no network involved.
-    func(await fetch(dataUrl).then((response) => response.blob()))
+    func(dataUrlToBlob(dataUrl))
   }
 }
 
