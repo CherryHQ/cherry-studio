@@ -501,4 +501,28 @@ describe('renderer PreferenceService write consistency', () => {
     expect(persisted).toEqual({ [sourceKey]: 'fr-fr', [targetKey]: 'de-de' })
     expect(service.getCachedValue(sourceKey)).toBe('fr-fr')
   })
+
+  it('keeps the persisted baseline when a cached read precedes optimistic batch failure', async () => {
+    const sourceKey = 'feature.translate.page.source_language'
+    getMultipleRaw.mockResolvedValueOnce({ [sourceKey]: 'en-us' })
+    const service = await createService()
+    await service.getMultipleRaw([sourceKey])
+
+    const error = new Error('batch failed')
+    let rejectUpdate!: (error: Error) => void
+    setMultiple.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectUpdate = reject
+        })
+    )
+    const update = service.setMultiple({ [sourceKey]: 'zh-cn' })
+    const updateResult = expect(update).rejects.toBe(error)
+
+    await expect(service.getMultipleRaw([sourceKey])).resolves.toEqual({ [sourceKey]: 'zh-cn' })
+    rejectUpdate(error)
+    await updateResult
+
+    expect(service.getCachedValue(sourceKey)).toBe('en-us')
+  })
 })

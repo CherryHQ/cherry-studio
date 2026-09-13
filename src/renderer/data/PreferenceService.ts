@@ -300,7 +300,6 @@ export class PreferenceService {
     for (const key of keys) {
       const optimisticState = this.optimisticValues.get(key)
       if (optimisticState) {
-        if (key in result) optimisticState.originalValue = result[key]
         result[key] = this.cache[key]
       }
     }
