@@ -19,7 +19,7 @@ import {
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
-import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
+import { type NutstoreSsoFailureReason, useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
@@ -35,6 +35,12 @@ import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import NutstorePathPopup from './NutstorePathPopup'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
+const NUTSTORE_SSO_ERROR_KEYS = {
+  launch: 'settings.data.nutstore.login.launchFailed',
+  listen: 'settings.data.nutstore.login.listenFailed',
+  timeout: 'settings.data.nutstore.login.timeout',
+  invalid_callback: 'settings.data.nutstore.login.invalidCallback'
+} as const satisfies Record<NutstoreSsoFailureReason, string>
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
@@ -61,16 +67,14 @@ const NutstoreSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
 
   const handleClickNutstoreSSO = useCallback(async () => {
-    const ssoUrl = await window.api.nutstore.getSSOUrl()
-    window.open(ssoUrl, '_blank')
-    const nutstoreToken = await nutstoreSsoHandler()
+    const outcome = await nutstoreSsoHandler()
 
-    if (!nutstoreToken) {
-      toast.error(t('settings.data.nutstore.login.failed'))
+    if (outcome.status === 'error') {
+      toast.error(t(NUTSTORE_SSO_ERROR_KEYS[outcome.reason]))
       return
     }
 
-    void setNutstoreToken(nutstoreToken)
+    void setNutstoreToken(outcome.token)
   }, [nutstoreSsoHandler, setNutstoreToken, t])
 
   useEffect(() => {
