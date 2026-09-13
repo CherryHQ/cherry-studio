@@ -170,14 +170,10 @@ export type UseCacheSchema = {
   'translate.detecting': boolean
   /** Revision of the latest user intent that may change translated content */
   'translate.content_intent_revision': number
-  'translate.last_history_restore': { revision: number; input: string; output: string } | null
-  'translate.history_restore_pending': { intentRevision: number; barrier: Promise<boolean> } | null
+  'translate.last_history_restore': CacheValueTypes.CacheTranslateLastHistoryRestore | null
+  'translate.history_restore_pending': CacheValueTypes.CacheTranslateHistoryRestorePending | null
   'translate.exchange_pending': symbol | null
-  'translate.restored_pdf': {
-    file: { name: string; path: AbsoluteFilePath }
-    output: { outputPath: AbsoluteFilePath; fileName: string }
-    key: string
-  } | null
+  'translate.restored_pdf': CacheValueTypes.CacheTranslateRestoredPdf | null
   /** Revision that invalidates asynchronous translated-content producers */
   'translate.content_operation_revision': number
   /** Whether translating input text */

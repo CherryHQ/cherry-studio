@@ -261,12 +261,13 @@ const TranslatePage: FC = () => {
   const [restoredPdfHandoff, setRestoredPdfHandoff] = useCache('translate.restored_pdf')
 
   const translationOperationRef = useRef<{ revision: number } | null>(null)
+  const isMountedRef = useRef(true)
   const markContentChanged = useCallback(() => {
     advanceContentIntentRevision()
     translationOperationRef.current = null
   }, [])
   const isTranslationOperationCurrent = useCallback(
-    () => translationOperationRef.current?.revision === getContentOperationRevision(),
+    () => isMountedRef.current && translationOperationRef.current?.revision === getContentOperationRevision(),
     []
   )
   const handleTranslationResponse = useCallback(
@@ -320,7 +321,6 @@ const TranslatePage: FC = () => {
   const prePdfOutputRef = useRef<string | null>(null)
   const historyRestorePendingRef = useRef(false)
   const historyRestoreBarrierRef = useRef<Promise<boolean> | null>(null)
-  const isMountedRef = useRef(true)
   const translateContentRef = useRef({ input: translateInput, output: translateOutput, pdfFile })
   const isContentOperationCurrent = useCallback(
     (revision: number) => isMountedRef.current && revision === getContentOperationRevision(),
@@ -458,6 +458,7 @@ const TranslatePage: FC = () => {
       if (!translated || !isTranslationOperationCurrent()) return
       const historyRestoreBarrier = historyRestoreBarrierRef.current
       if (historyRestoreBarrier && (await historyRestoreBarrier)) return
+      if (!isMountedRef.current) return
       toast.success(t('translate.complete'))
 
       if (autoCopy) {
@@ -603,7 +604,7 @@ const TranslatePage: FC = () => {
 
       await translateTextContent(extractedText, false, () => pdfTextRequestIdRef.current === requestId)
     } catch (error) {
-      if (pdfTextRequestIdRef.current !== requestId) return
+      if (pdfTextRequestIdRef.current !== requestId || !isTranslationOperationCurrent()) return
       logger.error('Failed to extract PDF text', error as Error)
       setPdfTextFallbackActive(false)
       toast.error(formatErrorMessageWithPrefix(error, t('translate.files.error.unknown')))

@@ -1153,6 +1153,30 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.translateText).not.toHaveBeenCalled()
   })
 
+  it('does not report a PDF extraction failure after the page remounts', async () => {
+    let rejectExtraction!: (error: Error) => void
+    fileMock.readExternal.mockReturnValueOnce(
+      new Promise<string>((_, reject) => {
+        rejectExtraction = reject
+      })
+    )
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    binaryMock.snapshots = {}
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    const firstPage = render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/input.pdf', true))
+    firstPage.unmount()
+    render(<TranslatePage />)
+
+    await act(async () => rejectExtraction(new Error('old page extraction failed')))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
   it('installs BabelDOC Stream from the PDF prompt without starting translation', async () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
     binaryMock.snapshots = {}
@@ -2171,6 +2195,40 @@ describe('TranslatePage', () => {
         targetLanguage: 'en-us'
       })
     )
+  })
+
+  it('does not translate from a language detection that finishes after the page remounts', async () => {
+    let resolveDetection!: (language: string) => void
+    translateCoreMock.detectLanguage.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveDetection = resolve
+      })
+    )
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'zh-cn',
+      'feature.translate.page.bidirectional_enabled': true
+    })
+
+    const user = userEvent.setup()
+    const firstPage = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    firstPage.rerender(<TranslatePage />)
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('hello')
+    expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('hello'))
+    firstPage.unmount()
+    const secondPage = render(<TranslatePage />)
+
+    await act(async () => resolveDetection('en-us'))
+    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+
+    secondPage.rerender(<TranslatePage />)
+    await user.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
   })
 
   it('swallows abort errors from translate without showing success-side effects', async () => {
