@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import path from 'node:path'
+
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   getBinaryIsolatedHomeEnv,
@@ -81,5 +83,30 @@ describe('getBinaryIsolatedHomeEnv', () => {
     expect(env['HOME']).toBe('/mock/feature.binary.data/home')
     expect(env['LOCALAPPDATA']).toBeUndefined()
     expect(env['APPDATA']).toBeUndefined()
+  })
+})
+
+describe('mergePathEntries on POSIX', () => {
+  it('ignores a lowercase `path` variable instead of merging it into PATH', async () => {
+    // POSIX env keys are case-sensitive: a stray lowercase `path` (e.g. an app
+    // setting) must not contribute segments to the child PATH, and must survive
+    // the merge untouched. Host-independent via a platform stub.
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isWin: false,
+      isMac: false,
+      isLinux: true,
+      isDev: false,
+      isPortable: false
+    }))
+    const posixBinaryEnv = await import('../binaryEnv')
+
+    const merged = posixBinaryEnv.mergePathSuffixes(
+      { PATH: ['/usr/bin'].join(path.delimiter), path: ['/stray/evil'].join(path.delimiter) },
+      ['/tail']
+    )
+
+    expect(merged.PATH?.split(path.delimiter)).toEqual(['/usr/bin', '/tail'])
+    expect(merged.path).toBe('/stray/evil')
   })
 })

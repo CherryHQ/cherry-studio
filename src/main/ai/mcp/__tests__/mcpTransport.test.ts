@@ -27,10 +27,11 @@ vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: vi.fn(() => ''), getPath: vi.fn(() => '/mock') },
   net: { fetch: vi.fn() }
 }))
+const rawShellEnvMock = vi.hoisted(() => ({ value: { PATH: '/shell/bin' } as Record<string, string> }))
 vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
   ...(await importOriginal<typeof ShellEnvModule>()),
   getShellEnv: async () => ({ PATH: '/shell/bin' }),
-  getRawShellEnv: async () => ({ PATH: '/shell/bin' })
+  getRawShellEnv: async () => ({ ...rawShellEnvMock.value })
 }))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',
@@ -201,6 +202,29 @@ describe('createTransport', () => {
     expect(transport.params.args).toEqual(['-y', 'resolved-package'])
     expect(transport.params.env.PACKAGE_HOME).toBe('/resolved')
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'ignores a lowercase `path` variable when building the stdio PATH',
+    async () => {
+      // POSIX env keys are case-sensitive: a stray lowercase `path` must not
+      // leak segments into the spawned server's PATH, and stays untouched.
+      rawShellEnvMock.value = { PATH: '/shell/bin', path: '/stray/evil' }
+      try {
+        const transport = (await create({
+          type: 'stdio',
+          command: 'npx',
+          registryUrl: 'https://registry.example'
+        })) as unknown as FakeStdioTransport
+
+        const pathValue = transport.params.env.PATH as string
+        expect(pathValue.split(':')).not.toContain('/stray/evil')
+        expect(pathValue.split(':')[0]).toBe('/shell/bin')
+        expect(transport.params.env.path).toBe('/stray/evil')
+      } finally {
+        rawShellEnvMock.value = { PATH: '/shell/bin' }
+      }
+    }
+  )
 
   it('forwards stdio stderr to the server log, skipping empty chunks', async () => {
     const entries: McpServerLogEntry[] = []
