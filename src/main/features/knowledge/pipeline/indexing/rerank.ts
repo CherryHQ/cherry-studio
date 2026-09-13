@@ -43,7 +43,7 @@ async function rerankWithAiService(
   query: string,
   searchResults: KnowledgeSearchResult[],
   topN: number
-): Promise<{ results: KnowledgeSearchResult[]; rerankFailed: boolean }> {
+): Promise<{ results: KnowledgeSearchResult[]; hasRerankFailed: boolean }> {
   const parsed = UniqueModelIdSchema.safeParse(base.rerankModelId)
   if (!parsed.success) {
     // A malformed model id fails identically on every search, so search is silently
@@ -52,7 +52,7 @@ async function rerankWithAiService(
       baseId: base.id,
       rerankModelId: base.rerankModelId
     })
-    return { results: searchResults, rerankFailed: true }
+    return { results: searchResults, hasRerankFailed: true }
   }
 
   try {
@@ -63,7 +63,7 @@ async function rerankWithAiService(
       topN
     })
 
-    return { results: mergeRerankResults(searchResults, result.ranking), rerankFailed: false }
+    return { results: mergeRerankResults(searchResults, result.ranking), hasRerankFailed: false }
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
     const context = {
@@ -79,7 +79,7 @@ async function rerankWithAiService(
     } else {
       logger.warn('Knowledge rerank failed, returning vector search results', normalizedError, context)
     }
-    return { results: searchResults, rerankFailed: true }
+    return { results: searchResults, hasRerankFailed: true }
   }
 }
 
@@ -87,9 +87,9 @@ export async function rerankKnowledgeSearchResults(
   base: KnowledgeBase,
   query: string,
   searchResults: KnowledgeSearchResult[]
-): Promise<{ results: KnowledgeSearchResult[]; rerankFailed: boolean }> {
+): Promise<{ results: KnowledgeSearchResult[]; hasRerankFailed: boolean }> {
   if (!base.rerankModelId || searchResults.length === 0) {
-    return { results: searchResults, rerankFailed: false }
+    return { results: searchResults, hasRerankFailed: false }
   }
 
   return await rerankWithAiService(base, query, searchResults, base.documentCount ?? DEFAULT_DOCUMENT_COUNT)

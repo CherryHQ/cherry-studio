@@ -57,7 +57,7 @@ export class KnowledgeQueryService {
   async searchWithStatus(
     baseId: string,
     query: string
-  ): Promise<{ results: KnowledgeSearchResult[]; rerankFailed: boolean }> {
+  ): Promise<{ results: KnowledgeSearchResult[]; hasRerankFailed: boolean }> {
     const base = assertBaseCanRunRuntimeOperation(baseId, 'search')
 
     // Same tokenization the FTS layer uses: no token means no BM25 hit is even possible.
@@ -94,13 +94,13 @@ export class KnowledgeQueryService {
 
     // Rerank before trimming so the reranker sees the full over-fetched candidate set and can
     // surface the best matches; without a rerank model this is a pass-through.
-    const { results: rerankedResults, rerankFailed } = await rerankKnowledgeSearchResults(
+    const { results: rerankedResults, hasRerankFailed } = await rerankKnowledgeSearchResults(
       base,
       query,
       visibleSearchResults
     )
     const topResults = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
-    return { results: withSearchRanks(applyRelevanceThreshold(topResults, base.threshold)), rerankFailed }
+    return { results: withSearchRanks(applyRelevanceThreshold(topResults, base.threshold)), hasRerankFailed }
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
