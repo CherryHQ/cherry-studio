@@ -1502,7 +1502,8 @@ const ChatComposerInner = ({
     reorder: reorderFollowups,
     paused: followupPaused,
     setPaused: setFollowupPaused,
-    steer: steerFollowup
+    steer: steerFollowup,
+    takeForEdit: takeFollowupForEdit
   } = useFollowupQueue({
     scopeKey: selectedKnowledgeBasesScopeKey,
     isFulfilled,
@@ -1922,10 +1923,11 @@ const ChatComposerInner = ({
                   await steerFollowup(id, sendQueuedPayload)
                 }}
                 onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  // Atomic take: undefined when the item is owned by an
+                  // in-flight drain, so an edit can never race its send.
+                  const item = takeFollowupForEdit(id)
                   if (!item) return
                   restoreFollowupDraft(item)
-                  removeFollowup(id)
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}

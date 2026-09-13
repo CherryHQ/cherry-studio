@@ -46,6 +46,13 @@ export function sessionFollowupScopePrefix(sessionId: string): string {
 /** Maximum queued follow-ups per conversation scope, enforced at the write path. */
 export const FOLLOWUP_QUEUE_LIMIT = 20
 
+/**
+ * A `sending` row older than this is treated as crash-orphaned and reclaimable
+ * by `claim`. Renderers use the same bound to tell a live owner apart from an
+ * orphan when guarding user actions.
+ */
+export const STALE_SENDING_CLAIM_MS = 30 * 60 * 1000
+
 /** Canonical membership dimension for `/followup-queues` change effects. */
 export const FOLLOWUP_QUEUE_SCOPE_DIMENSION = 'scopeKey'
 
