@@ -28,6 +28,7 @@ import { ovmsRequestSchemas } from './ovms'
 import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
+import { proxyRequestSchemas } from './proxy'
 import { type QuickAssistantEventSchemas, quickAssistantRequestSchemas } from './quickAssistant'
 import { type ScreenshotEventSchemas, screenshotRequestSchemas } from './screenshot'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
@@ -75,6 +76,7 @@ export const ipcRequestSchemas = {
   ...ovmsRequestSchemas,
   ...printRequestSchemas,
   ...profileRequestSchemas,
+  ...proxyRequestSchemas,
   ...providerRequestSchemas,
   ...quickAssistantRequestSchemas,
   ...screenshotRequestSchemas,

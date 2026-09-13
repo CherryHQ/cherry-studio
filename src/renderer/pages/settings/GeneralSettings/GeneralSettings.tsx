@@ -19,10 +19,12 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
+import type { OutputFor } from '@shared/ipc/types'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { ContextManagementSettings } from './ContextManagementSettings'
@@ -61,6 +63,8 @@ const GeneralSettings: FC = () => {
 
   const [proxyUrl, setProxyUrl] = useState<string>(storeProxyUrl)
   const [proxyBypassRules, setProxyBypassRules] = useState<string>(storeProxyBypassRules)
+  const [proxyTestLoading, setProxyTestLoading] = useState(false)
+  const [proxyTestResult, setProxyTestResult] = useState<OutputFor<'proxy.test_connection'> | null>(null)
   const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
@@ -96,6 +100,65 @@ const GeneralSettings: FC = () => {
 
   const onSetProxyBypassRules = () => {
     void _setProxyBypassRules(proxyBypassRules)
+  }
+
+  const handleProxyTest = async () => {
+    setProxyTestLoading(true)
+    try {
+      setProxyTestResult(
+        await ipcApi.request('proxy.test_connection', {
+          mode: storeProxyMode,
+          url: proxyUrl,
+          bypassRules: proxyBypassRules
+        })
+      )
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+    } finally {
+      setProxyTestLoading(false)
+    }
+  }
+
+  const getProxyTestRouteLabel = (route: OutputFor<'proxy.test_connection'>['route']) => {
+    switch (route) {
+      case 'proxy':
+        return t('settings.proxy.test.route.proxy')
+      case 'bypassed':
+        return t('settings.proxy.test.route.bypassed')
+      case 'direct':
+        return t('settings.proxy.test.route.direct')
+    }
+  }
+
+  const getProxyTestErrorLabel = (error: NonNullable<OutputFor<'proxy.test_connection'>['error']>) => {
+    switch (error) {
+      case 'invalid_config':
+        return t('settings.proxy.test.error.invalid_config')
+      case 'authentication_required':
+        return t('settings.proxy.test.error.authentication_required')
+      case 'timeout':
+        return t('settings.proxy.test.error.timeout')
+      case 'unreachable':
+        return t('settings.proxy.test.error.unreachable')
+      case 'http_error':
+        return t('settings.proxy.test.error.http_error')
+      case 'connection_failed':
+        return t('settings.proxy.test.error.connection_failed')
+    }
+  }
+
+  const getProxyTestDescription = () => {
+    if (!proxyTestResult) {
+      return t('settings.proxy.test.description')
+    }
+
+    const values = {
+      target: proxyTestResult.target,
+      route: getProxyTestRouteLabel(proxyTestResult.route),
+      reason: proxyTestResult.error ? getProxyTestErrorLabel(proxyTestResult.error) : ''
+    }
+
+    return proxyTestResult.success ? t('settings.proxy.test.success', values) : t('settings.proxy.test.failure', values)
   }
 
   const handleHardwareAccelerationChange = async (checked: boolean) => {
@@ -200,6 +263,21 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
+        <SettingDivider />
+        <SettingRow className="items-start gap-6">
+          <div className="min-w-0 flex-1">
+            <SettingRowTitle>{t('settings.proxy.test.title')}</SettingRowTitle>
+            <SettingDescription className="mt-1.5 leading-5">{getProxyTestDescription()}</SettingDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            loading={proxyTestLoading}
+            aria-busy={proxyTestLoading}
+            onClick={() => void handleProxyTest()}>
+            {t('settings.proxy.test.action')}
+          </Button>
+        </SettingRow>
         <SettingDivider />
         <SettingRow id="setting-general-allow-private-network" className="scroll-mt-6">
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
