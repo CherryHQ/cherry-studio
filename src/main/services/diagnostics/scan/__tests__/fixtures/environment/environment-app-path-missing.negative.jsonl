@@ -1,0 +1,1 @@
+{"level":"error","message":"delete trace file error: ENOENT: no such file or directory, unlink '/tmp/trace.jsonl'","module":"TraceStore","process":"main","timestamp":"2026-08-20 12:00:00"}

@@ -1,7 +1,8 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { streamDispatchService } from '../StreamDispatchService'
 

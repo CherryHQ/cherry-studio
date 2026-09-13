@@ -4,8 +4,6 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
-export { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
-
 export function isCanonicalPresetProvider(provider: Provider): boolean {
   return provider.presetProviderId != null && provider.id === provider.presetProviderId
 }

@@ -1,21 +1,26 @@
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProviderList } from '../ProviderList'
 
 const reorderSpy = vi.fn()
 const useProvidersMock = vi.fn()
 const useProviderActionsMock = vi.fn()
+const useEditionHiddenProvidersMock = vi.fn()
 const useModelsMock = vi.fn()
 const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
 const deleteProviderMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
-const { providerEditorDrawerSpy } = vi.hoisted(() => ({
-  providerEditorDrawerSpy: vi.fn()
+const { providerEditorDrawerSpy, providerEditorModuleState } = vi.hoisted(() => ({
+  providerEditorDrawerSpy: vi.fn(),
+  providerEditorModuleState: { loaded: false }
 }))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
@@ -44,7 +49,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: any[]) => useProvidersMock(...args),
-  useProviderActions: (...args: any[]) => useProviderActionsMock(...args)
+  useProviderActions: (...args: any[]) => useProviderActionsMock(...args),
+  useEditionHiddenProviders: (...args: any[]) => useEditionHiddenProvidersMock(...args)
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -118,12 +124,22 @@ vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
   )
 }))
 
-vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
-  default: (props: any) => {
-    providerEditorDrawerSpy(props)
-    return <div data-testid="provider-editor-drawer" data-open={props.open ? 'true' : 'false'} />
+vi.mock('../ProviderList/ProviderEditorDrawer', () => {
+  providerEditorModuleState.loaded = true
+
+  return {
+    default: (props: any) => {
+      providerEditorDrawerSpy(props)
+      return (
+        <div data-testid="provider-editor-drawer" data-open={props.open ? 'true' : 'false'}>
+          <button type="button" onClick={props.onClose}>
+            close-provider-editor
+          </button>
+        </div>
+      )
+    }
   }
-}))
+})
 
 // The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
 // the gated action (as if the user confirmed) and assert the delete flow.
@@ -164,11 +180,13 @@ describe('ProviderList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseCacheUtils.resetMocks()
+    vi.stubGlobal('__APP_EDITION__', 'global')
     reorderSpy.mockClear()
     useProvidersMock.mockReturnValue({
       providers,
       createProvider: vi.fn()
     })
+    useEditionHiddenProvidersMock.mockReturnValue({ data: [] })
     useProviderActionsMock.mockReturnValue({
       updateProviderById: vi.fn(),
       deleteProviderById: vi.fn()
@@ -195,6 +213,23 @@ describe('ProviderList', () => {
     ipcRequest.mockImplementation((route: string) =>
       route === 'app.get_info' ? Promise.resolve({ appDataPath: '' }) : Promise.resolve(undefined)
     )
+  })
+
+  it('loads the provider editor only when the user opens it', async () => {
+    const user = userEvent.setup()
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(providerEditorModuleState.loaded).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+
+    expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
+    expect(providerEditorModuleState.loaded).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'close-provider-editor' }))
+
+    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -237,7 +272,36 @@ describe('ProviderList', () => {
     expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
   })
 
-  it('offers only safe canonical preset sources to the custom provider editor', () => {
+  it('explains edition-hidden providers on cn builds and offers a recovery action', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    useEditionHiddenProvidersMock.mockReturnValue({ data: ['openai', 'anthropic', 'gemini'] })
+
+    render(<ProviderList selectedProviderId="deepseek" onSelectProvider={vi.fn()} />)
+
+    expect(screen.getByText(i18n.t('settings.provider.edition_notice.title'))).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: i18n.t('settings.provider.edition_notice.add_custom') }))
+
+    expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('shows no edition notice on global builds or when nothing is hidden', () => {
+    const { unmount } = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.queryByText(i18n.t('settings.provider.edition_notice.title'))).not.toBeInTheDocument()
+    unmount()
+
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    useEditionHiddenProvidersMock.mockReturnValue({ data: [] })
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.queryByText(i18n.t('settings.provider.edition_notice.title'))).not.toBeInTheDocument()
+  })
+
+  it('offers only safe canonical preset sources to the custom provider editor', async () => {
+    const user = userEvent.setup()
     const canonicalOpenAI = {
       ...providers[0],
       presetProviderId: 'openai',
@@ -270,15 +334,19 @@ describe('ProviderList', () => {
 
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        presetSources: [canonicalOpenAI, canonicalNewApi],
-        onSelectPreset: expect.any(Function)
-      })
-    )
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+
+    await waitFor(() => {
+      expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          presetSources: [canonicalOpenAI, canonicalNewApi],
+          onSelectPreset: expect.any(Function)
+        })
+      )
+    })
   })
 
-  it('triggers add and reorder actions', () => {
+  it('triggers add and reorder actions', async () => {
     const reorderableProviders = [
       { ...providers[0], isEnabled: true },
       { ...providers[1], isEnabled: true }
@@ -292,12 +360,44 @@ describe('ProviderList', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     expect(useReorderMock).toHaveBeenCalledWith('/providers', { revalidateOnSuccess: false })
-    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: /添加/i })[0])
-    expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
+    expect(await screen.findByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
     expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])
+  })
+
+  it('reports a newly created custom provider so model setup can continue automatically', async () => {
+    const user = userEvent.setup()
+    const createProvider = vi.fn().mockResolvedValue({ id: 'custom-provider', name: 'Custom Provider' })
+    const onSelectProvider = vi.fn()
+    const onCustomProviderCreated = vi.fn()
+    useProvidersMock.mockReturnValue({ providers, createProvider })
+
+    render(
+      <ProviderList
+        selectedProviderId="openai"
+        onSelectProvider={onSelectProvider}
+        onCustomProviderCreated={onCustomProviderCreated}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '添加服务商' }))
+    const submit = providerEditorDrawerSpy.mock.calls.at(-1)?.[0].onSubmit
+
+    await act(async () => {
+      await submit({
+        mode: 'create',
+        name: 'Custom Provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        authConfig: { type: 'api-key' },
+        apiKeys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }]
+      })
+    })
+
+    expect(onSelectProvider).toHaveBeenCalledWith('custom-provider')
+    expect(onCustomProviderCreated).toHaveBeenCalledWith('custom-provider', true)
   })
 
   it('does not scroll back to the selected provider after drag reorder changes provider order', () => {

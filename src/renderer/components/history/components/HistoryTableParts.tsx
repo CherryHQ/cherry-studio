@@ -1,3 +1,9 @@
+import dayjs from 'dayjs'
+import type { TFunction } from 'i18next'
+import { PinIcon, Trash2 } from 'lucide-react'
+import type { ReactElement, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { Button, Checkbox, RowFlex } from '@cherrystudio/ui'
 import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
@@ -5,11 +11,6 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import dayjs from 'dayjs'
-import type { TFunction } from 'i18next'
-import { PinIcon, Trash2 } from 'lucide-react'
-import type { ReactElement, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
 export const historyTableGridClassName =
@@ -140,6 +141,7 @@ export const HistoryTableHeader = ({
         checked={selectedState}
         disabled={selectionDisabled}
         aria-label={selectAllLabel}
+        data-history-selection-checkbox
         onCheckedChange={(checked) => onToggleAll(Boolean(checked))}
         onClick={(event) => event.stopPropagation()}
       />
@@ -169,7 +171,7 @@ interface HistorySelectionCellProps {
   checked: boolean
   disabled?: boolean
   label: string
-  onCheckedChange: (checked: boolean) => void
+  onCheckedChange: (checked: boolean, selectRange?: boolean) => void
 }
 
 export const HistorySelectionCell = ({
@@ -184,8 +186,11 @@ export const HistorySelectionCell = ({
       checked={checked}
       disabled={disabled}
       aria-label={label}
-      onCheckedChange={(nextChecked) => onCheckedChange(Boolean(nextChecked))}
-      onClick={(event) => event.stopPropagation()}
+      data-history-selection-checkbox
+      onClick={(event) => {
+        event.stopPropagation()
+        onCheckedChange(!checked, event.shiftKey)
+      }}
     />
   </div>
 )
@@ -197,9 +202,10 @@ interface HistoryTitleButtonProps {
 
 export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) => (
   <span
+    data-history-record-title
     role="button"
     tabIndex={0}
-    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
+    className="-mx-1 block w-full max-w-full min-w-0 cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none"
     title={title}
     onClick={(event) => {
       event.stopPropagation()
@@ -435,7 +441,7 @@ interface HistoryRecordRowProps {
   unpinLabel: string
   onAction: (action: ResolvedAction) => void | Promise<void>
   onOpen?: () => void
-  onSelectedChange: (checked: boolean) => void
+  onSelectedChange: (checked: boolean, selectRange?: boolean) => void
   onTogglePin?: () => void | Promise<void>
 }
 
@@ -472,10 +478,10 @@ export const HistoryRecordRow = ({
     />
     <div className={historyBodyCellClassName} role="cell">
       <RowFlex className="min-w-0 items-center gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center text-foreground text-sm leading-none">
+        <span className="flex size-6 shrink-0 items-center justify-center text-sm leading-none text-foreground">
           {avatar}
         </span>
-        <span className="truncate text-foreground text-xs">{sourceLabel}</span>
+        <span className="truncate text-xs text-foreground">{sourceLabel}</span>
       </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
@@ -488,7 +494,7 @@ export const HistoryRecordRow = ({
       </RowFlex>
     </div>
     <div className={historyBodyCellClassName} role="cell">
-      <div className="text-muted-foreground text-xs tabular-nums">{timeLabel}</div>
+      <div className="text-xs text-muted-foreground tabular-nums">{timeLabel}</div>
     </div>
     <div
       className={cn(

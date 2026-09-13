@@ -18,25 +18,23 @@ function makeCtx(overrides: Partial<ToolGuardContext> = {}): ToolGuardContext {
   }
 }
 
-const denyRule = (id: string, overrides: Partial<ToolGuardRule> = {}): ToolGuardRule =>
-  ({
-    id,
-    bypassBehavior: 'enforce',
-    match: { tool: 'Bash' },
-    effect: 'deny',
-    reason: `${id} denied`,
-    ...overrides
-  }) as ToolGuardRule
+const denyRule = (id: string, overrides: Partial<ToolGuardRule> = {}): ToolGuardRule => ({
+  id,
+  bypassBehavior: 'enforce',
+  match: { tool: 'Bash' },
+  effect: 'deny',
+  reason: `${id} denied`,
+  ...overrides
+})
 
-const askRule = (id: string, overrides: Partial<ToolGuardRule> = {}): ToolGuardRule =>
-  ({
-    id,
-    bypassBehavior: 'skipInteractiveEffect',
-    match: { tool: 'Bash' },
-    effect: 'ask',
-    reason: `${id} asks`,
-    ...overrides
-  }) as ToolGuardRule
+const askRule = (id: string, overrides: Partial<ToolGuardRule> = {}): ToolGuardRule => ({
+  id,
+  bypassBehavior: 'skipInteractiveEffect',
+  match: { tool: 'Bash' },
+  effect: 'ask',
+  reason: `${id} asks`,
+  ...overrides
+})
 
 describe('evaluateToolGuards', () => {
   it('folds deny over ask regardless of table order', async () => {

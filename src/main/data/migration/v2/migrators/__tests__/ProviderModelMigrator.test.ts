@@ -3,6 +3,11 @@ import { existsSync, mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { asc, eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
@@ -13,12 +18,13 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_PROVIDER_ID,
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryProviderId
+} from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
-import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { asc, eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
 const PNG_1X1 =
@@ -162,12 +168,12 @@ describe('ProviderModelMigrator', () => {
       expect(result.warnings?.some((w) => w.includes('managed CherryAI'))).toBe(true)
     })
 
-    it('skips providers whose upstream services have retired', async () => {
+    it.each(['github', 'yi'])('skips retired %s providers and preset-derived copies', async (providerId) => {
       const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [
-            makeProvider('github', [{ id: 'openai/gpt-4o' }]),
-            { ...makeProvider('github-copy'), presetProviderId: 'github' },
+            makeProvider(providerId, [{ id: 'legacy-model' }]),
+            { ...makeProvider(`${providerId}-copy`), presetProviderId: providerId },
             makeProvider('openai')
           ]
         }
@@ -230,8 +236,8 @@ describe('ProviderModelMigrator', () => {
 
       const providers = await dbh.db.select().from(userProviderTable)
       const models = await dbh.db.select().from(userModelTable)
-      const migratedProviders = providers.filter((provider) => provider.providerId !== CHERRYAI_PROVIDER_ID)
-      const migratedModels = models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)
+      const migratedProviders = providers.filter((provider) => !isManagedCherryProviderId(provider.providerId))
+      const migratedModels = models.filter((model) => !isManagedCherryProviderId(model.providerId))
       expect(migratedProviders).toHaveLength(1)
       expect(migratedModels).toHaveLength(2)
       expect(migratedProviders[0].providerId).toBe('openai')
@@ -249,7 +255,12 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
       const providers = await dbh.db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
-      expect(providers.map((provider) => provider.providerId)).toEqual([CHERRYAI_PROVIDER_ID, 'openai', 'anthropic'])
+      expect(providers.map((provider) => provider.providerId)).toEqual([
+        CHERRYAI_PROVIDER_ID,
+        CHERRY_CLOUD_PROVIDER_ID,
+        'openai',
+        'anthropic'
+      ])
       expect(new Set(providers.map((provider) => provider.orderKey)).size).toBe(providers.length)
     })
 
@@ -266,7 +277,7 @@ describe('ProviderModelMigrator', () => {
       expect(result.success).toBe(true)
 
       const models = await dbh.db.select().from(userModelTable)
-      expect(models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)).toHaveLength(1)
+      expect(models.filter((model) => !isManagedCherryProviderId(model.providerId))).toHaveLength(1)
     })
 
     it('skips route-unsafe model ids without blocking the remaining provider migration', async () => {
@@ -1387,11 +1398,11 @@ describe('ProviderModelMigrator', () => {
       expect(
         providers
           .map((p) => p.providerId)
-          .filter((providerId) => providerId !== CHERRYAI_PROVIDER_ID)
+          .filter((providerId) => !isManagedCherryProviderId(providerId))
           .sort()
       ).toEqual(['no-models-null', 'no-models-undef'])
       const models = await dbh.db.select().from(userModelTable)
-      expect(models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)).toEqual([])
+      expect(models.filter((model) => !isManagedCherryProviderId(model.providerId))).toEqual([])
     })
 
     it('filters providers with missing or empty id and reports a warning', async () => {
@@ -1417,9 +1428,9 @@ describe('ProviderModelMigrator', () => {
       expect(result.success).toBe(true)
 
       const providers = await dbh.db.select().from(userProviderTable)
-      expect(providers.map((p) => p.providerId).filter((providerId) => providerId !== CHERRYAI_PROVIDER_ID)).toEqual([
-        'openai'
-      ])
+      expect(providers.map((p) => p.providerId).filter((providerId) => !isManagedCherryProviderId(providerId))).toEqual(
+        ['openai']
+      )
       const emptyIdRows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, ''))
       expect(emptyIdRows).toEqual([])
     })

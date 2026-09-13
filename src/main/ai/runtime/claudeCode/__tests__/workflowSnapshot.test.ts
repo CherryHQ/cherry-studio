@@ -1,5 +1,6 @@
-import type { AgentWorkflowSnapshot } from '@shared/ai/agentWorkflowProgress'
 import { describe, expect, it } from 'vitest'
+
+import type { AgentWorkflowSnapshot } from '@shared/ai/agentWorkflowProgress'
 
 import { parseLocalWorkflowPlan, updateLocalWorkflowSnapshot } from '../workflowSnapshot'
 

@@ -1,8 +1,9 @@
-import { ipcApi } from '@renderer/ipc'
-import type { DeferredToolResultRef } from '@shared/ai/transport'
 import { useEffect } from 'react'
 import { type Cache, useSWRConfig } from 'swr'
 import useSWRImmutable from 'swr/immutable'
+
+import { ipcApi } from '@renderer/ipc'
+import type { DeferredToolResultRef } from '@shared/ai/transport'
 
 interface UseToolResultOptions {
   refreshToken?: string

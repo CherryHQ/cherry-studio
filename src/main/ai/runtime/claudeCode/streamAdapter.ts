@@ -37,6 +37,7 @@ import type {
   BetaServerToolUseBlock,
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
@@ -521,7 +522,7 @@ function compactDetails<T extends Record<string, number | undefined>>(obj: T): {
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'number') out[key] = value
   }
-  return Object.keys(out).length > 0 ? (out as { [K in keyof T]?: number }) : undefined
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 /**
@@ -1098,7 +1099,7 @@ export class ClaudeCodeStreamAdapter {
       }
       // Parentless content with no turn open is Claude waking the main agent after background work.
       // Translate that SDK protocol into the runtime-neutral receive-only contract.
-      this.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
+      this.statusSink.emit({ type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } })
       this.beginTurn()
       this.autonomousTurn = true
     }
@@ -1981,9 +1982,9 @@ export class ClaudeCodeStreamAdapter {
     const transcriptStats = this.readAgentTaskTranscriptStats(taskId, message.session_id)
     const transcriptChanged = Boolean(
       transcriptStats &&
-        (transcriptStats.cumulativeTokens !== (previousTranscriptStats?.cumulativeTokens ?? 0) ||
-          transcriptStats.latestTokens !== (previousTranscriptStats?.latestTokens ?? 0) ||
-          transcriptStats.totalToolCalls !== (previousTranscriptStats?.totalToolCalls ?? 0))
+      (transcriptStats.cumulativeTokens !== (previousTranscriptStats?.cumulativeTokens ?? 0) ||
+        transcriptStats.latestTokens !== (previousTranscriptStats?.latestTokens ?? 0) ||
+        transcriptStats.totalToolCalls !== (previousTranscriptStats?.totalToolCalls ?? 0))
     )
     if (!flowChanged && !transcriptChanged) return
 

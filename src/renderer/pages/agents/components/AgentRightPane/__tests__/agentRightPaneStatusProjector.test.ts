@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-import { describe, expect, it } from 'vitest'
 
 import { createAgentRightPaneStatusProjector } from '../agentRightPaneProjection'
 
@@ -17,7 +18,7 @@ function event(taskId: string, data: Partial<AgentTaskEventPartData> = {}): Cher
 }
 
 function tool(toolCallId: string, toolName: string, input: unknown, output?: unknown): CherryMessagePart {
-  return { type: 'dynamic-tool', toolCallId, toolName, state: 'output-available', input, output } as CherryMessagePart
+  return { type: 'dynamic-tool', toolCallId, toolName, state: 'output-available', input, output }
 }
 
 describe('cached agent right pane status', () => {

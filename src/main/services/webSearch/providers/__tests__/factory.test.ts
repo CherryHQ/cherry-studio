@@ -1,5 +1,6 @@
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -39,6 +40,7 @@ import { BochaProvider } from '../api/BochaProvider'
 import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { JinaProvider } from '../api/JinaProvider'
+import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
@@ -62,7 +64,7 @@ function createProvider<TProviderId extends WebSearchProvider['id']>(
     basicAuthUsername: '',
     basicAuthPassword: '',
     ...restOverrides
-  } as WebSearchProvider & { id: TProviderId }
+  }
 }
 
 describe('createWebSearchProvider', () => {
@@ -74,6 +76,7 @@ describe('createWebSearchProvider', () => {
       'fetch',
       'firecrawl',
       'jina',
+      'parallel',
       'querit',
       'searxng',
       'tavily',
@@ -108,5 +111,6 @@ describe('createWebSearchProvider', () => {
         rotationState
       )
     ).toBeInstanceOf(JinaProvider)
+    expect(createWebSearchProvider(createProvider({ id: 'parallel' }), rotationState)).toBeInstanceOf(ParallelProvider)
   })
 })

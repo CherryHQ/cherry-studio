@@ -161,6 +161,7 @@ const entries: ResolvedSidebarEntry[] = items.map(appEntry)
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
 afterEach(() => {
+  vi.useRealTimers()
   uiMocks.sortableCalls.length = 0
   uiMocks.contextMenuOpenChange = undefined
 })
@@ -324,6 +325,33 @@ describe('Sidebar resize handle', () => {
 
     expect(container.firstElementChild).toHaveStyle({ width: `${SIDEBAR_FULL_THRESHOLD}px` })
     expect(getByText('Chat')).toBeInTheDocument()
+  })
+
+  it('runs the header action when the visible title is clicked', async () => {
+    const user = userEvent.setup()
+    const onHeaderClick = vi.fn()
+
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        title="User"
+        logo={<span>avatar</span>}
+        onHeaderClick={onHeaderClick}
+      />
+    )
+
+    const headerAction = screen.getByRole('button', { name: /User$/ })
+    // Interactive controls must opt out of Electron's window drag region.
+    expect(headerAction).toHaveClass('[-webkit-app-region:no-drag]')
+    // The sidebar foreground token must win over MenuItem's generic foreground.
+    expect(headerAction).toHaveClass('text-sidebar-foreground')
+
+    await user.click(headerAction)
+
+    expect(onHeaderClick).toHaveBeenCalledTimes(1)
   })
 
   it('wires context menu actions and keeps blank sidebar space clickable while the menu is open', async () => {
@@ -511,7 +539,8 @@ describe('Sidebar resize handle', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('suppresses only the dragged sidebar entry click after sorting settles', () => {
+  it('suppresses only the dragged sidebar entry immediate post-drag click', () => {
+    vi.useFakeTimers()
     const onChatOpen = vi.fn()
     const onAgentOpen = vi.fn()
     const sortableEntries: ResolvedSidebarEntry[] = [

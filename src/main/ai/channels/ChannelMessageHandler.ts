@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import mime from 'mime'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
@@ -43,7 +45,7 @@ const SESSION_TRACKER_MAX_SIZE = 500
  * succession. Debouncing prevents each fragment from triggering a separate
  * agent round-trip and avoids concurrent stream interleaving.
  */
-const MESSAGE_BATCH_DELAY_MS = 8000
+const MESSAGE_BATCH_DELAY_MS = 1000
 // Cap a sender's debounce extension so another sender in the conversation cannot wait forever.
 const MESSAGE_BATCH_MAX_DELAY_MS = 16000
 
@@ -120,7 +122,7 @@ export class ChannelMessageHandler {
 
   /**
    * Stop channel intake and immediately flush the buffered debounce batches (not waiting out
-   * the 8 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
+   * the 1 s timer) so their agent-turn admissions land before the orchestrator pauses the AI
    * writers. No resume() — dispose your own hold. There is no release compensation: intake
    * dropped while quiesced is not replayable.
    *
@@ -233,7 +235,10 @@ export class ChannelMessageHandler {
         existing.messages.push(message)
         existing.resolvers.push({ resolve, reject })
         clearTimeout(existing.timer)
-        existing.timer = setTimeout(() => this.flushBatch(batchKey), Math.max(0, existing.deadline - Date.now()))
+        existing.timer = setTimeout(
+          () => this.flushBatch(batchKey),
+          Math.min(MESSAGE_BATCH_DELAY_MS, Math.max(0, existing.deadline - Date.now()))
+        )
         logger.debug('Message appended to pending batch', {
           batchKey,
           batchSize: existing.messages.length
@@ -372,16 +377,7 @@ export class ChannelMessageHandler {
       const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(message))
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
-        await adapter
-          .sendMessage(message.chatId, t('common.channel_session_resolution_error'), {
-            ...responseOptionsFor(message)
-          })
-          .catch((err) => {
-            logger.debug('Failed to send session-error notification to channel', {
-              chatId: message.chatId,
-              error: err instanceof Error ? err.message : String(err)
-            })
-          })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
 
@@ -390,11 +386,13 @@ export class ChannelMessageHandler {
       // An orphan session (`agentId === null`) cannot run; skip it.
       if (!session.agentId) {
         logger.error('Channel message hit an orphan session', { sessionId: session.id })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
       const agent = agentService.getAgent(session.agentId)
       if (!agent) {
         logger.error('Agent not found for session', { sessionId: session.id, agentId: session.agentId })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
 
@@ -887,6 +885,17 @@ export class ChannelMessageHandler {
     }
   }
 
+  private async notifySessionResolutionError(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
+    await adapter
+      .sendMessage(message.chatId, t('common.channel_session_resolution_error'), responseOptionsFor(message))
+      .catch((err) => {
+        logger.debug('Failed to send session-error notification to channel', {
+          chatId: message.chatId,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      })
+  }
+
   private async collectStreamResponse(
     session: AgentSessionEntity,
     content: string,
@@ -955,7 +964,8 @@ export class ChannelMessageHandler {
 
     const paths: string[] = []
     for (const img of images) {
-      const ext = img.media_type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+      // media_type is attacker-supplied; only a registered extension may reach the filename.
+      const ext = mime.getExtension(img.media_type) || 'png'
       const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`
       const filePath = path.join(dir, filename)
       await fs.writeFile(filePath, Buffer.from(img.data, 'base64'))

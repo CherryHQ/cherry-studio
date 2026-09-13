@@ -1,7 +1,9 @@
-import type { Pin } from '@shared/data/types/pin'
+import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseDataApiUtils, mockUseMutation, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { Pin } from '@shared/data/types/pin'
 
 import { usePins } from '../usePins'
 
@@ -60,8 +62,8 @@ function wirePins(pins: Pin[], options: { isLoading?: boolean; isRefreshing?: bo
 }
 
 function wireMutations(overrides?: {
-  postTrigger?: ReturnType<typeof vi.fn>
-  deleteTrigger?: ReturnType<typeof vi.fn>
+  postTrigger?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  deleteTrigger?: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   postError?: Error
   deleteError?: Error
   isCreating?: boolean
@@ -96,6 +98,7 @@ function wireMutations(overrides?: {
 describe('usePins', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
+    MockDataApiUtils.resetMocks()
   })
 
   it('passes the configured entityType through to the /pins query', () => {
@@ -119,7 +122,7 @@ describe('usePins', () => {
     expect(refetch).toHaveBeenCalledTimes(1)
   })
 
-  it('disables the /pins query and toggle when enabled is false', async () => {
+  it('disables the /pins query, subscription, and toggle when enabled is false', async () => {
     const consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
     wirePins([MODEL_PIN_A])
     const { postTrigger, deleteTrigger } = wireMutations()
@@ -127,6 +130,7 @@ describe('usePins', () => {
     const { result } = renderHook(() => usePins('model', { enabled: false }))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: false, query: { entityType: 'model' } })
+    expect(MockDataApiUtils.getCurrentState().dataChangeListeners.has('/pins')).toBe(false)
     expect(result.current.pinnedIds).toEqual([])
 
     await act(async () => {

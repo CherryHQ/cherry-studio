@@ -1,3 +1,6 @@
+import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
+import { isEqual } from 'es-toolkit/compat'
+
 import {
   getTaskActiveText,
   getTaskId,
@@ -12,6 +15,7 @@ import {
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
+  hasPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { getCanonicalToolName } from '@renderer/components/chat/messages/tools/toolResponse'
@@ -29,8 +33,6 @@ import {
 import { type DeferredToolOutput, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
-import { isEqual } from 'es-toolkit/compat'
 
 export type AgentRightPaneTab = 'files' | 'status' | `flow:${string}`
 
@@ -244,7 +246,7 @@ function createFlowTextMessage(
       createdAt,
       status: role === 'assistant' ? 'success' : undefined
     }
-  } as CherryUIMessage
+  }
 }
 
 function getMessageCreatedAt(message: CherryUIMessage | undefined): string {
@@ -273,7 +275,7 @@ function getOrderedMessageParts(
           status: 'pending',
           createdAt: new Date(0).toISOString()
         }
-      } as CherryUIMessage,
+      },
       parts
     })
   }
@@ -353,7 +355,7 @@ export function buildAgentToolFlowProjection(
     )
     if (promptMessage) {
       flowMessages.push(promptMessage)
-      flowPartsByMessageId[promptMessage.id] = promptMessage.parts as CherryMessagePart[]
+      flowPartsByMessageId[promptMessage.id] = promptMessage.parts
     }
 
     const assistantParts: CherryMessagePart[] = []
@@ -387,7 +389,7 @@ export function buildAgentToolFlowProjection(
         )
       ) {
         const separated = splitClaudeCodeAgentCompletionReceipt(outputText)
-        if (separated.text) assistantParts.push({ type: 'text', text: separated.text } as CherryMessagePart)
+        if (separated.text) assistantParts.push({ type: 'text', text: separated.text })
         completionReceipt = separated.receipt
       }
     }
@@ -661,11 +663,13 @@ function buildAgentStatusTranscript(messages: AgentStatusMessageParts[]) {
       const toolName = getToolNameFromPart(part)
       const fallbackId = getToolCallId(part) ?? `${messageId}-${partIndex}`
       if (fallbackId) toolPartByCallId.set(fallbackId, part)
-      // The plan has two writers — the incremental task ledger and full-list todo snapshots —
-      // and the most recent writer owns it: a later ledger write invalidates an earlier snapshot.
-      if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
-      const todoSnapshot = getTodoSnapshot(part)
-      if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      // The latest main-agent ledger write or todo snapshot owns the plan.
+      // Spawned-run parts are parented under their Task call and cannot replace it.
+      if (!hasPartParentToolCallId(part)) {
+        if (applyTaskToolPart(taskPlanState, part, fallbackId, toolName)) todoSnapshotTasks = undefined
+        const todoSnapshot = getTodoSnapshot(part)
+        if (todoSnapshot !== undefined) todoSnapshotTasks = todoSnapshot
+      }
 
       if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))
@@ -836,13 +840,9 @@ export function createAgentRightPaneStatusProjector(): typeof buildAgentRightPan
   let previousBackgroundTasks: AgentSessionBackgroundTasks | undefined
   let previousLiveness: AgentRunLiveness | undefined
 
-  return (
-    messages,
-    partsByMessageId,
-    lateTaskEvents = EMPTY_TASK_EVENTS,
-    backgroundTasks = EMPTY_BACKGROUND_TASKS,
-    liveness
-  ) => {
+  return (messages, partsByMessageId, lateTaskEvents, backgroundTasks, liveness) => {
+    const currentTaskEvents = lateTaskEvents ?? EMPTY_TASK_EVENTS
+    const currentBackgroundTasks = backgroundTasks ?? EMPTY_BACKGROUND_TASKS
     const previousById = new Map(sources.map((source) => [source.messageId, source]))
     let transcriptChanged = sources.length !== messages.length
     const nextSources = messages.map((message, index) => {
@@ -866,15 +866,21 @@ export function createAgentRightPaneStatusProjector(): typeof buildAgentRightPan
     if (
       previousStatus &&
       !transcriptChanged &&
-      previousEvents === lateTaskEvents &&
-      previousBackgroundTasks === backgroundTasks &&
+      previousEvents === currentTaskEvents &&
+      previousBackgroundTasks === currentBackgroundTasks &&
       isEqual(previousLiveness, liveness)
     ) {
       return previousStatus
     }
     if (transcriptChanged) transcript = buildAgentStatusTranscript(sources)
 
-    const status = projectAgentRightPaneStatus(transcript, lateTaskEvents, backgroundTasks, liveness, shellOutputs)
+    const status = projectAgentRightPaneStatus(
+      transcript,
+      currentTaskEvents,
+      currentBackgroundTasks,
+      liveness,
+      shellOutputs
+    )
     if (previousStatus) {
       const previousRunTasks = previousStatus.runTasks
       const previousTasks = new Map(previousRunTasks.map((task) => [task.id, task]))
@@ -894,8 +900,8 @@ export function createAgentRightPaneStatusProjector(): typeof buildAgentRightPan
         status.runTasks = previousRunTasks
       }
     }
-    previousEvents = lateTaskEvents
-    previousBackgroundTasks = backgroundTasks
+    previousEvents = currentTaskEvents
+    previousBackgroundTasks = currentBackgroundTasks
     previousLiveness = liveness
     previousStatus =
       previousStatus?.tasks === status.tasks &&

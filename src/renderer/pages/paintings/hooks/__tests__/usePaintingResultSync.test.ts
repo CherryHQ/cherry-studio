@@ -1,6 +1,7 @@
-import type { FileMetadata } from '@renderer/types/file'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { FileMetadata } from '@renderer/types/file'
 
 import type { PaintingData } from '../../model/types/paintingData'
 import { usePaintingResultSync } from '../usePaintingResultSync'

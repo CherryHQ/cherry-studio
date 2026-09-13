@@ -1,8 +1,9 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { CheckIcon } from 'lucide-react'
+import { CheckIcon, SquareIcon } from 'lucide-react'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 export type CheckedState = CheckboxPrimitive.CheckedState
 
@@ -16,8 +17,11 @@ const checkboxVariants = cva(
     'data-[state=indeterminate]:border-foreground data-[state=indeterminate]:text-foreground',
     'data-[state=checked]:animate-checkbox-bounce',
     'focus-visible:border-primary',
-    'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
-    'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle'
+    'aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
+    'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle',
+    // A fixed tick must read as fixed: same glyph in the DISABLED role (DESIGN.md's
+    // "unavailable content"), not the secondary-text one.
+    'disabled:data-[state=checked]:border-foreground-disabled disabled:data-[state=checked]:text-foreground-disabled'
   ),
   {
     variants: {
@@ -33,7 +37,7 @@ const checkboxVariants = cva(
   }
 )
 
-const checkboxIconVariants = cva('animate-checkbox-icon-in  motion-reduce:animate-none', {
+const checkboxIconVariants = cva('animate-checkbox-icon-in motion-reduce:animate-none', {
   variants: {
     size: {
       sm: 'size-3',
@@ -57,8 +61,24 @@ function Checkbox({
       data-size={size}
       className={cn(checkboxVariants({ size }), className)}
       {...props}>
-      <CheckboxPrimitive.Indicator data-slot="checkbox-indicator" className="grid place-content-center transition-none">
-        <CheckIcon strokeWidth={2.5} className={cn(checkboxIconVariants({ size }), 'text-current')} />
+      <CheckboxPrimitive.Indicator
+        data-slot="checkbox-indicator"
+        className="group/indicator grid place-content-center transition-none">
+        <CheckIcon
+          strokeWidth={2.5}
+          className={cn(
+            checkboxIconVariants({ size }),
+            'text-current group-data-[state=indeterminate]/indicator:hidden'
+          )}
+        />
+        <SquareIcon
+          fill="currentColor"
+          strokeWidth={0}
+          className={cn(
+            checkboxIconVariants({ size }),
+            'hidden text-current group-data-[state=indeterminate]/indicator:block'
+          )}
+        />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )

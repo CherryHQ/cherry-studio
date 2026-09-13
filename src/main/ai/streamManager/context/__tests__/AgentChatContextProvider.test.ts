@@ -314,6 +314,23 @@ describe('AgentChatContextProvider', () => {
     )
   })
 
+  it.each([
+    ['an explicit empty recipient set', [] as const, []],
+    ['an explicit recipient set', [{ id: 'ch1', type: 'telegram' }] as const, [{ id: 'ch1', type: 'telegram' }]],
+    ['an omitted recipient set', undefined, undefined]
+  ])('forwards %s to the runtime for both a fresh turn and a busy follow-up', async (_label, requested, expected) => {
+    await provider.prepareAgentSessionDispatch(makeSubscriber(), openReq(), { trustedNotifyChannels: requested })
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ trustedNotifyChannels: expected }))
+
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+    await provider.prepareAgentSessionDispatch(makeSubscriber(), openReq(), { trustedNotifyChannels: requested })
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.anything(),
+      expect.objectContaining({ trustedNotifyChannels: expected })
+    )
+  })
+
   it('uses persisted Agent turn controls when the request does not override them', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

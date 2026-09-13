@@ -32,7 +32,7 @@ For a comprehensive overview of the project architecture, tech stack, convention
 
 ## Getting Started
 
-To help you get familiar with the codebase, we recommend tackling issues tagged with one or more of the following labels: [good-first-issue](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue), [help-wanted](https://github.com/CherryHQ/cherry-studio/labels/help%20wanted), or [kind/bug](https://github.com/CherryHQ/cherry-studio/labels/kind%2Fbug). Any help is welcome.
+To help you get familiar with the codebase, we recommend tackling issues tagged with one or more of the following labels: [good first issue](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue), [help wanted](https://github.com/CherryHQ/cherry-studio/labels/help%20wanted), or [bug](https://github.com/CherryHQ/cherry-studio/labels/bug). Any help is welcome.
 
 ### Testing
 
@@ -51,6 +51,10 @@ Reviewers will be assigned after you mark the draft pull request as ready for re
 
 We require every contributor to certify that they have the right to legally contribute to our project. Contributors express this by consciously signing their commits, thereby indicating their compliance with the [LICENSE](LICENSE).
 A signed commit is one where the commit message includes the following:
+
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
 
 You can generate a signed commit using the following command [git commit --signoff](https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---signoff):
 

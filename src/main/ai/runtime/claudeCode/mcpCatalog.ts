@@ -5,10 +5,12 @@
  */
 
 import type { McpServerConfig } from '@anthropic-ai/claude-agent-sdk'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import {
+  type AgentNotificationContext,
   buildAgentMcpServers,
   type LinkedChannelSnapshot,
   type McpServerSnapshotMap
@@ -30,7 +32,8 @@ export function buildMcpServers(
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  notificationContext?: AgentNotificationContext
 ): Record<string, McpServerConfig> | undefined {
   const servers = buildAgentMcpServers(
     session,
@@ -39,7 +42,8 @@ export function buildMcpServers(
     mcpServerSnapshots,
     linkedChannelSnapshot,
     agentDataPath,
-    selectedKnowledgeBaseIds
+    selectedKnowledgeBaseIds,
+    notificationContext
   )
   return Object.fromEntries(
     Object.entries(servers).map(([id, server]) => [id, { type: 'sdk', ...server } satisfies McpServerConfig])

@@ -1,7 +1,8 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   error: vi.fn(),

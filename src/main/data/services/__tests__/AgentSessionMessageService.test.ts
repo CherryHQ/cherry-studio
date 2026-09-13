@@ -1,3 +1,7 @@
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -13,9 +17,6 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
   notifyDataApiDataChangeMock: vi.fn()
@@ -1269,6 +1270,117 @@ describe('AgentSessionMessageService', () => {
     expect(rows).toHaveLength(2)
     expect(rows.map((row) => row.createdAt)).toEqual([1_700_000_001_000, 1_700_000_001_000])
     expect(session.updatedAt).toBe(1_700_000_001_000)
+  })
+
+  it('pages body-free canonical metadata in a closed range without skipping timestamp ties', async () => {
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: 'range-start',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'start' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: 'range-tie-a',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'tie a' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'range-tie-z',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'tie z' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      },
+      {
+        id: 'range-end',
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: '结束🙂\n"quoted"\\slash' }] },
+        status: 'success',
+        runtimeResumeToken: 'resume-token',
+        delivery: {
+          version: 1,
+          sender: { agentId: 'sender-agent', sessionId: 'sender-session' },
+          receiver: { agentId: 'receiver-agent', sessionId: SESSION_ID },
+          replyPolicy: 'completion',
+          sourceMessageId: null,
+          outcome: null,
+          error: null,
+          statusAt: '1970-01-01T00:00:00.300Z'
+        },
+        deliveryStatus: 'accepted',
+        deliveryInReplyTo: null,
+        deliveryTurnRef: null,
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: 'range-before',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'before' }] },
+        status: 'success',
+        createdAt: 99,
+        updatedAt: 99
+      },
+      {
+        id: 'range-after',
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'after' }] },
+        status: 'success',
+        createdAt: 301,
+        updatedAt: 301
+      }
+    ])
+
+    const firstPage = agentSessionMessageService.listCreatedInRangeMetadataPage({ fromMs: 100, toMs: 300, limit: 2 })
+    const secondPage = agentSessionMessageService.listCreatedInRangeMetadataPage({
+      fromMs: 100,
+      toMs: 300,
+      limit: 2,
+      cursor: firstPage.nextCursor
+    })
+
+    expect(firstPage.items.map((message) => message.id)).toEqual(['range-end', 'range-tie-a'])
+    expect(secondPage.items.map((message) => message.id)).toEqual(['range-tie-z', 'range-start'])
+    expect(secondPage.nextCursor).toBeUndefined()
+    for (const metadata of [...firstPage.items, ...secondPage.items]) {
+      const entity = agentSessionMessageService.getSessionMessage(metadata.sessionId, metadata.id)
+      expect(metadata).not.toHaveProperty('data')
+      expect(metadata.createdAt).toBe(entity.createdAt)
+      expect(metadata.entityJsonBytes).toBe(Buffer.byteLength(JSON.stringify(entity), 'utf8'))
+    }
+  })
+
+  it('plans the global keyset range walk without a temporary order-by sort', () => {
+    const plan = dbh.sqlite
+      .prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT id
+         FROM agent_session_message
+         WHERE created_at >= ?
+           AND created_at <= ?
+           AND (created_at < ? OR (created_at = ? AND id > ?))
+         ORDER BY created_at DESC, id ASC
+         LIMIT ?`
+      )
+      .all(100, 300, 200, 200, 'cursor-id', 101) as Array<{ detail: string }>
+
+    expect(
+      plan.some(({ detail }) => detail.includes('USING COVERING INDEX agent_session_message_created_at_id_idx'))
+    ).toBe(true)
+    expect(plan.some(({ detail }) => detail.includes('USE TEMP B-TREE FOR ORDER BY'))).toBe(false)
   })
 
   it('falls back to the newest page when list pagination receives a malformed cursor', async () => {

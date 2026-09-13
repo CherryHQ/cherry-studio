@@ -1,7 +1,9 @@
-import { application } from '@application'
-import { loggerService } from '@logger'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import * as z from 'zod'
+
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { CODE_CLI_TOOL_PRESET_BY_EXECUTABLE } from '@shared/data/presets/codeCliTools'
 
 const logger = loggerService.withContext('McpServer:CherryCliTools')
 
@@ -83,10 +85,15 @@ export class CherryCliTools {
         const existing = (await binaryManager.getToolInventory()).find((entry) => entry.name === definition.name)
 
         if (existing?.recipe === definition.tool) {
-          await binaryManager.installByName({
+          const request = {
             name: definition.name,
             ...(definition.requestedVersion ? { targetVersion: definition.requestedVersion } : {})
-          })
+          }
+          if (CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[definition.name]) {
+            await application.get('CodeCliService').installCli(request)
+          } else {
+            await binaryManager.installByName(request)
+          }
         } else {
           await binaryManager.addCustomTool({
             name: definition.name,

@@ -1,9 +1,10 @@
-import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import type { FC, UIEventHandler } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
 import type { PaintingData } from '../model/types/paintingData'
@@ -21,6 +22,7 @@ interface PaintingStripProps {
   onDeletePainting: (painting: PaintingData) => void
   onSelectPainting: (painting: PaintingData) => void
   onAddPainting: () => void
+  adding?: boolean
 }
 
 const PaintingStripItem: FC<{
@@ -90,7 +92,8 @@ const PaintingStrip: FC<PaintingStripProps> = ({
   loadMore,
   onDeletePainting,
   onSelectPainting,
-  onAddPainting
+  onAddPainting,
+  adding = false
 }) => {
   const { t } = useTranslation()
   const [pendingDelete, setPendingDelete] = useState<PaintingStripEntry | null>(null)
@@ -119,7 +122,9 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             size="icon-sm"
             className={paintingClasses.historyAddButton}
             aria-label={t('paintings.button.new.image')}
-            onClick={onAddPainting}>
+            onClick={onAddPainting}
+            disabled={adding}
+            loading={adding}>
             <Plus className="size-4" />
           </Button>
         </Tooltip>

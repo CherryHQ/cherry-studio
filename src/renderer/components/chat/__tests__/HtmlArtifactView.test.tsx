@@ -261,6 +261,33 @@ describe('HtmlArtifactView', () => {
     expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
   })
 
+  it('maximizes an interactive fragment into the webview popup regardless of kind', async () => {
+    // Regression lock for the content-only outlet tier: a kind-based guard would route an
+    // active fragment back to the script-less frame in the maximize popup (pre-R2 behavior).
+    const html = '<div><script>fragmentWidget()</script></div>'
+
+    render(<HtmlArtifactView html={html} title="Preview" kind="fragment" />)
+
+    // Inline (non-consented) surface stays script-less for a fragment...
+    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    // ...but the maximize popup (the explicit viewing action) opens the webview tier.
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toBeInTheDocument()
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        canCapturePreview: false,
+        html,
+        open: true,
+        title: 'Preview'
+      }),
+      undefined
+    )
+  })
+
   it('opens static HTML in the existing artifacts popup with a restricted iframe', async () => {
     const html = '<main><style>h1 { color: red; }</style><h1>Hello</h1></main>'
     const onSave = vi.fn()
@@ -589,6 +616,71 @@ describe('HtmlArtifactView', () => {
         delete (rangePrototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
       }
     }
+  })
+
+  it('uses the scroll height directly for scrollable content without sweeping every element', () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const setPreviewContentHeight = createPreviewContentHeightController()
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const body = iframe.contentDocument?.body
+    if (!body) throw new Error('Expected iframe body')
+
+    const sweepSpy = vi.spyOn(body, 'querySelectorAll')
+
+    setPreviewContentHeight(1200)
+
+    expect(surface).toHaveStyle({ height: '576px' })
+    expect(sweepSpy).not.toHaveBeenCalled()
+  })
+
+  it('re-measures on DOM mutations without rebuilding observers', async () => {
+    render(<HtmlArtifactView html="<main>Page</main>" title="Preview" />)
+
+    const surface = screen.getByTestId('html-artifact-surface')
+    const iframe = screen.getByTestId<HTMLIFrameElement>('html-preview-frame')
+    const frameDocument = iframe.contentDocument
+    const body = frameDocument?.body
+    if (!frameDocument || !body) throw new Error('Expected iframe document')
+
+    const content = frameDocument.createElement('main')
+    body.replaceChildren(content)
+    body.style.margin = '0'
+    Object.defineProperty(iframe, 'clientHeight', {
+      configurable: true,
+      get: () => Number.parseFloat(surface.style.height) || 240
+    })
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, get: () => 0 })
+    Object.defineProperty(frameDocument.documentElement, 'scrollHeight', { configurable: true, get: () => 0 })
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({ bottom: 180, height: 180, width: 100 } as DOMRect)
+
+    fireEvent.load(iframe)
+    expect(surface).toHaveStyle({ height: '180px' })
+
+    const observeSpy = vi.spyOn(ResizeObserver.prototype, 'observe')
+    const tall = frameDocument.createElement('div')
+    vi.spyOn(tall, 'getBoundingClientRect').mockReturnValue({ bottom: 300, height: 300, width: 100 } as DOMRect)
+
+    await act(async () => {
+      content.appendChild(tall)
+    })
+
+    // The mutation re-measured through syncHeight with the new content bottom.
+    expect(surface).toHaveStyle({ height: '300px' })
+
+    // Count only observer activity from here on: a size-neutral mutation must
+    // re-measure without rebuilding observers.
+    observeSpy.mockClear()
+    const idle = frameDocument.createElement('span')
+    vi.spyOn(idle, 'getBoundingClientRect').mockReturnValue({ bottom: 300, height: 0, width: 0 } as DOMRect)
+
+    await act(async () => {
+      content.appendChild(idle)
+    })
+
+    expect(surface).toHaveStyle({ height: '300px' })
+    expect(observeSpy).not.toHaveBeenCalled()
   })
 
   it('renders a streaming fragment as a restricted DOM preview without controls', () => {

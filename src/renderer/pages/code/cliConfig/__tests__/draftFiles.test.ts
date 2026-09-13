@@ -1,5 +1,6 @@
-import type { CliConfigTarget } from '@shared/utils/cliConfig'
 import { describe, expect, it } from 'vitest'
+
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
 
 import { readAndParseDraftFile, validateCliConfigDraftForWrite } from '../draftFiles'
 import { type CliConfigReadFiles, parseTomlOrThrow, parseYamlOrThrow } from '../file'
@@ -59,7 +60,7 @@ describe('validateCliConfigDraftForWrite (secret redaction when editing config t
       {
         target: 'hermes-config',
         label: 'Hermes config',
-        path: '/resolved~/.hermes/config.yaml',
+        path: '/resolved-hermes/config.yaml',
         language: 'yaml',
         content: 'api_key: sk-ant-real-secret\n  malformed: yaml'
       }

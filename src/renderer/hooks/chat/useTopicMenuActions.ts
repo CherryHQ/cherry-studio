@@ -1,3 +1,6 @@
+import type { TFunction } from 'i18next'
+import { useCallback, useMemo } from 'react'
+
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
   executeTopicMenuAction,
@@ -10,12 +13,11 @@ import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import type { TFunction } from 'i18next'
-import { useCallback, useMemo } from 'react'
 
 type TopicMenuHandler = (topic: Topic) => void | Promise<void>
 type TopicMoveToAssistantHandler = (topic: Topic, assistantId: string) => void | Promise<void>
@@ -83,11 +85,11 @@ export function createTopicActionContext({
     },
     onExportMarkdown: async (topic) => {
       const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
-      return exportTopicAsMarkdown(topic)
+      return exportTopicAsMarkdown(topic, false, undefined, chooseImageExportMode)
     },
     onExportMarkdownReason: async (topic) => {
       const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
-      return exportTopicAsMarkdown(topic, true)
+      return exportTopicAsMarkdown(topic, true, undefined, chooseImageExportMode)
     },
     onExportNotion: async (topic) => {
       const { exportTopicToNotion } = await import('@renderer/services/ExportService')
@@ -185,10 +187,7 @@ export function useTopicMenuPreset<TItem>({
   )
   const onAction = useCallback(
     async (item: TItem, action: ResolvedAction, contextOverride?: TopicMenuActionContextOverride) => {
-      await runTopicMenuAction(
-        action as ResolvedAction<TopicActionContext>,
-        getActionContextWithOverride(item, contextOverride)
-      )
+      await runTopicMenuAction(action, getActionContextWithOverride(item, contextOverride))
     },
     [getActionContextWithOverride]
   )

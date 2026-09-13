@@ -2,11 +2,12 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSyn
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { application } from '@application'
-import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { readUIMessageStream } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 
 const loggerMocks = vi.hoisted(() => ({
   silly: vi.fn(),
@@ -52,7 +53,7 @@ function createAdapter(
   const adapter = new ClaudeCodeStreamAdapter({
     modelId: 'sonnet',
     sessionId: 'session-1',
-    streamOptions: { prompt: [] } as any,
+    streamOptions: { prompt: [] },
     sink: { enqueue: (part) => parts.push(part) },
     statusSink: { emit: (event) => statusEvents.push(event) },
     onSessionId: (sessionId) => sessionIds.push(sessionId),
@@ -4739,7 +4740,9 @@ describe('ClaudeCodeStreamAdapter', () => {
         streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'woke up' } })
       )
 
-      expect(statusEvents).toEqual([{ type: 'autonomous-turn-state', state: 'started' }])
+      expect(statusEvents).toEqual([
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } }
+      ])
       expect(parts.some((part) => part.type === 'text-delta' && part.delta === 'woke up')).toBe(true)
       expect(adapter.isTurnActive).toBe(true)
     })
@@ -4754,7 +4757,7 @@ describe('ClaudeCodeStreamAdapter', () => {
 
       expect(result).toMatchObject({ type: 'result', sessionId: 'resume-wake' })
       expect(statusEvents).toEqual([
-        { type: 'autonomous-turn-state', state: 'started' },
+        { type: 'autonomous-turn-state', state: 'started', origin: { kind: 'background-work' } },
         { type: 'autonomous-turn-state', state: 'finished' }
       ])
       expect(loggerMocks.warn).not.toHaveBeenCalledWith(
@@ -4787,7 +4790,11 @@ describe('ClaudeCodeStreamAdapter', () => {
         })
       ])
       expect(parts).toEqual([])
-      expect(statusEvents).not.toContainEqual({ type: 'autonomous-turn-state', state: 'started' })
+      expect(statusEvents).not.toContainEqual({
+        type: 'autonomous-turn-state',
+        state: 'started',
+        origin: { kind: 'background-work' }
+      })
     })
 
     it('holds init metadata until a turn opens, since it is turn content', () => {

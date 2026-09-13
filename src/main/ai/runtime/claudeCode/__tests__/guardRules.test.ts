@@ -2,6 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -10,15 +12,20 @@ import {
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>()
+  checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>(),
+  evaluateUserDataSqliteGuard: vi.fn<() => Promise<{ ruleId: 'user-data-sqlite-write'; reason: string } | undefined>>()
 }))
 
 vi.mock('../skillDependencies', () => ({
   SKILL_TOOL_NAME: 'Skill',
   checkSkillRuntimeDependencies: mocks.checkSkillRuntimeDependencies
+}))
+
+vi.mock('@main/ai/toolApproval/userDataSqliteGuard', () => ({
+  USER_DATA_SQLITE_GUARD_REASON: 'Access to SQLite files inside Cherry Studio user data is blocked.',
+  evaluateUserDataSqliteGuard: mocks.evaluateUserDataSqliteGuard
 }))
 
 import { approvalRequiredRuntimeNames, CLAUDE_TOOL_GUARD_RULES, HEADLESS_INTERACTIVE_TOOL_DENIAL } from '../guardRules'
@@ -57,6 +64,8 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
   beforeEach(() => {
     mocks.checkSkillRuntimeDependencies.mockReset()
     mocks.checkSkillRuntimeDependencies.mockResolvedValue({})
+    mocks.evaluateUserDataSqliteGuard.mockReset()
+    mocks.evaluateUserDataSqliteGuard.mockResolvedValue(undefined)
   })
 
   it('is structurally valid', () => {
@@ -221,6 +230,40 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('bash-repeat-no-progress', () => {
+    const loopingCtx = (run: number | undefined) => ({
+      input: { command: 'curl -s http://localhost/health' },
+      bashNoProgressRun: () => run
+    })
+
+    it('denies a stuck loop at the hard threshold in every mode, bypass included', async () => {
+      for (const mode of ['default', 'bypassPermissions'] as const) {
+        const decision = await evaluate(makeCtx({ ...loopingCtx(5), permissionMode: mode }))
+        expect(decision?.ruleId).toBe('bash-repeat-no-progress')
+        expect(decision?.effect).toBe('deny')
+        expect(decision?.reason).toContain('5 times')
+        expect(decision?.reason).toContain('byte-identical')
+      }
+    })
+
+    it('leaves the soft-threshold runs to the hook-plane warning instead of denying', async () => {
+      await expect(evaluate(makeCtx(loopingCtx(3)))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx(loopingCtx(4)))).resolves.toBeUndefined()
+    })
+
+    it('stays silent while the run is still forming or the session has no Bash history', async () => {
+      await expect(evaluate(makeCtx(loopingCtx(undefined)))).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ input: { command: 'curl -s http://localhost/health' } }))
+      ).resolves.toBeUndefined()
+    })
+
+    it('does not gate non-Bash tools or calls without a command', async () => {
+      await expect(evaluate(makeCtx({ toolName: 'Read', bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx({ bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
+    })
+  })
+
   describe('headless-config-mutation', () => {
     const configTool = toCherryBuiltinRuntimeName('config')
 
@@ -374,6 +417,29 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('support-diagnostic-draft', () => {
+    const toolName = 'mcp__assistant__prepare_diagnostic_report'
+
+    it('denies the UI-backed draft tool on headless Support turns in every mode', async () => {
+      for (const permissionMode of ['default', 'bypassPermissions'] as const) {
+        await expect(
+          evaluate(
+            makeCtx({
+              builtinRole: 'support',
+              toolName,
+              permissionMode,
+              interaction: HEADLESS
+            })
+          )
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'support-diagnostic-draft' })
+      }
+    })
+
+    it('leaves the draft tool auto-approved on interactive Support turns', async () => {
+      await expect(evaluate(makeCtx({ builtinRole: 'support', toolName }))).resolves.toBeUndefined()
+    })
+  })
+
   describe('approval-required', () => {
     const kbManage = toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)
 
@@ -429,6 +495,29 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
         evaluate(makeCtx({ toolName: sessionSend, permissionMode: 'bypassPermissions', interaction: HEADLESS }))
       ).resolves.toMatchObject({ effect: 'deny', ruleId: 'non-bypassable-approval' })
     })
+  })
+
+  describe('user-data-sqlite-write', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'auto'] as const)(
+      'enforces a policy denial under %s',
+      async (permissionMode) => {
+        mocks.evaluateUserDataSqliteGuard.mockResolvedValue({
+          ruleId: 'user-data-sqlite-write',
+          reason: 'protected SQLite'
+        })
+
+        await expect(
+          evaluate(makeCtx({ toolName: 'Write', permissionMode, input: { file_path: '/user-data/app.sqlite' } }))
+        ).resolves.toEqual({
+          effect: 'deny',
+          ruleId: 'user-data-sqlite-write',
+          reason: 'Access to SQLite files inside Cherry Studio user data is blocked.'
+        })
+        expect(mocks.evaluateUserDataSqliteGuard).toHaveBeenCalledWith(
+          expect.objectContaining({ runtime: 'claude-code', toolName: 'Write' })
+        )
+      }
+    )
   })
 
   describe('workspace-escape', () => {

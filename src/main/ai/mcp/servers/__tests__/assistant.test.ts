@@ -9,9 +9,11 @@ import path from 'node:path'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 const mocks = vi.hoisted(() => ({
   agentCreate: vi.fn(),
@@ -92,6 +94,7 @@ afterEach(() => {
 })
 
 beforeEach(() => {
+  MockMainCacheServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.resetMocks()
   mocks.agentCreate.mockReset()
   mocks.applicationGetPath.mockReset()
@@ -433,6 +436,76 @@ describe('create_agent', () => {
       })
     ).rejects.toThrow('Model is not configured in Cherry Studio: anthropic::missing')
     expect(mocks.agentCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('prepare_diagnostic_report', () => {
+  it('is exposed only by the explicit Cherry Support capability set', async () => {
+    const assistantClient = await connectAssistantClient()
+    const supportClient = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+
+    expect((await assistantClient.listTools()).tools.map((tool) => tool.name)).toEqual([
+      'navigate',
+      'diagnose',
+      'product_info',
+      'apply_setting',
+      'create_agent'
+    ])
+
+    const supportTools = (await supportClient.listTools()).tools
+    const draftTool = supportTools.find((tool) => tool.name === 'prepare_diagnostic_report')
+    expect(draftTool).toMatchObject({
+      inputSchema: {
+        required: ['description'],
+        additionalProperties: false
+      },
+      outputSchema: {
+        required: ['ok', 'description'],
+        additionalProperties: false
+      }
+    })
+
+    await assistantClient.close()
+    await supportClient.close()
+  })
+
+  it('returns an editable normalized draft without performing submission', async () => {
+    const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+    const output = { ok: true, description: 'first\r\nsecond\r\nthird' }
+
+    const result = await client.callTool({
+      name: 'prepare_diagnostic_report',
+      arguments: { description: '  first\nsecond\rthird  ' }
+    })
+
+    expect(result.structuredContent).toEqual(output)
+    expect(result.content).toEqual([{ type: 'text', text: JSON.stringify(output) }])
+    expect(result.isError).not.toBe(true)
+    await client.close()
+  })
+
+  it('accepts a description at the normalized UTF-8 byte limit', async () => {
+    const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+    const description = 'a'.repeat(4096)
+
+    const result = await client.callTool({ name: 'prepare_diagnostic_report', arguments: { description } })
+
+    expect(result.structuredContent).toEqual({ ok: true, description })
+    await client.close()
+  })
+
+  it.each([
+    ['blank description', { description: '  \r\n  ' }],
+    ['description above the normalized UTF-8 byte limit', { description: `${'a'.repeat(4094)}\na` }],
+    ['non-string description', { description: 42 }],
+    ['unexpected input property', { description: 'details', submit: true }]
+  ])('rejects %s', async (_case, args) => {
+    const client = await connectAssistantClient(SUPPORT_ASSISTANT_TOOL_NAMES)
+
+    const result = await client.callTool({ name: 'prepare_diagnostic_report', arguments: args })
+
+    expect(result.isError).toBe(true)
+    await client.close()
   })
 })
 

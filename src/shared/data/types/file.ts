@@ -110,10 +110,11 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
+import * as z from 'zod'
+
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
 import { CanonicalFilePathSchema } from '@shared/utils/file'
-import * as z from 'zod'
 
 import { MessageIdSchema } from './message'
 
@@ -619,6 +620,13 @@ export const providerLogoRef = defineSingleFileRef('provider_logo')
 export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
 
 /**
+ * Mini-app sandbox files. Roleless like the logo slots, but a **collection**:
+ * one app holds many files, keyed by the ref row's `logicalName`. It therefore
+ * stays out of `singleFileRefTablesBySourceType` (the set-replace slot registry).
+ */
+export const miniAppFileRef = defineSingleFileRef('mini_app_file')
+
+/**
  * Prefix tagging an uploaded avatar in the `app.user.avatar` preference, e.g.
  * `file:0190f3c4-…`. The preference is the avatar's only persisted copy (no
  * DTO), so `useAvatar` resolves the tagged id to a `file://` URL through the
@@ -657,7 +665,8 @@ export const allSourceTypes = [
   jobSourceType,
   translateHistorySourceType,
   providerLogoRef.sourceType,
-  miniAppLogoRef.sourceType
+  miniAppLogoRef.sourceType,
+  miniAppFileRef.sourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -684,6 +693,7 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   jobFileRefSchema,
   translateHistoryFileRefSchema,
   providerLogoRef.schema,
-  miniAppLogoRef.schema
+  miniAppLogoRef.schema,
+  miniAppFileRef.schema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>

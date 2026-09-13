@@ -1,16 +1,18 @@
+import type React from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState } from '@cherrystudio/ui'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type React from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { useModelHealthStatus } from './modelHealthStatusCache'
 import ModelListGroup from './ModelListGroup'
-import { useModelListHealthResults, useModelListHealthRun } from './modelListHealthContext'
+import { useModelListHealthRun } from './modelListHealthContext'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupSection } from './useProviderModelList'
 
@@ -18,6 +20,13 @@ const MODEL_LIST_GROUP_ROW_ESTIMATE = 38
 const MODEL_LIST_MODEL_ROW_ESTIMATE = 44
 // A stable row keeps group spacing from moving between measured rows when a group collapses.
 const MODEL_LIST_GROUP_SEPARATOR_HEIGHT = 10
+
+type HealthAwareModelListItemProps = Omit<React.ComponentProps<typeof ModelListItem>, 'modelStatus'>
+
+const HealthAwareModelListItem: React.FC<HealthAwareModelListItemProps> = (props) => {
+  const modelStatus = useModelHealthStatus(props.model.id)
+  return <ModelListItem {...props} modelStatus={modelStatus} />
+}
 
 interface ModelListSectionsProps {
   provider?: Provider
@@ -33,6 +42,7 @@ interface ModelListSectionsProps {
   onDeleteModels: (models: Model[]) => Promise<void>
   bulkActionDisabled?: boolean
   expansionCommand?: { expanded: boolean; version: number }
+  onContinueApiSetup?: () => void
 }
 
 type ModelListVirtualRow =
@@ -68,10 +78,10 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   onDeleteModel,
   onDeleteModels,
   bulkActionDisabled,
-  expansionCommand
+  expansionCommand,
+  onContinueApiSetup
 }) => {
   const { t } = useTranslation()
-  const { modelStatusMap } = useModelListHealthResults()
   const { apiKeyEntries, savingKeyId, toggleApiKey } = useModelListHealthRun()
   const [groupOpenOverrides, setGroupOpenOverrides] = useState<Record<string, boolean>>({})
 
@@ -141,7 +151,11 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
       <EmptyState
         compact
         title={t('settings.models.empty')}
-        description={t('settings.models.empty_hint')}
+        description={t(
+          onContinueApiSetup ? 'settings.provider.api_setup.models_empty_hint' : 'settings.models.empty_hint'
+        )}
+        actionLabel={onContinueApiSetup ? t('settings.provider.api_setup.continue_models') : undefined}
+        onAction={onContinueApiSetup}
         className="min-h-40"
       />
     )
@@ -190,10 +204,9 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
         return (
           <div
             className={cn(modelListClasses.virtualModelRow, row.isLastInGroup && modelListClasses.virtualModelRowLast)}>
-            <ModelListItem
+            <HealthAwareModelListItem
               provider={provider}
               model={row.model}
-              modelStatus={modelStatusMap.get(row.model.id)}
               apiKeyEntries={apiKeyEntries}
               savingKeyId={savingKeyId}
               onToggleApiKey={toggleApiKey}

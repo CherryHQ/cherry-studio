@@ -1,7 +1,8 @@
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import type * as SharedFileUtils from '@shared/utils/file'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type * as SharedFileUtils from '@shared/utils/file'
 
 const { getPhysicalPath } = vi.hoisted(() => ({ getPhysicalPath: vi.fn() }))
 
@@ -35,7 +36,7 @@ function toolResponse(overrides: Partial<NormalToolResponse>): NormalToolRespons
     arguments: { prompt: 'a cat' },
     status: 'done',
     ...overrides
-  } as NormalToolResponse
+  }
 }
 
 function mcpToolResponse(response: unknown): McpToolResponse {
@@ -154,5 +155,21 @@ describe('MessageGenerateImageToolTitle', () => {
   it('renders a spinner while the tool is still running', () => {
     render(<MessageGenerateImageToolTitle toolResponse={toolResponse({ status: 'pending', response: undefined })} />)
     expect(screen.getByTestId('spinner')).toHaveTextContent('chat.input.tools.generate_image.generating')
+  })
+
+  it('renders the denied outcome and rejection reason instead of a perpetual spinner', () => {
+    render(
+      <MessageGenerateImageToolTitle
+        toolResponse={toolResponse({
+          status: 'cancelled',
+          response: undefined,
+          approval: { approved: false, reason: 'Use the approved image provider instead' }
+        })}
+      />
+    )
+
+    expect(screen.getByText('agent.toolPermission.decisionDenied')).toBeInTheDocument()
+    expect(screen.getByText('Use the approved image provider instead')).toBeInTheDocument()
+    expect(screen.queryByTestId('spinner')).not.toBeInTheDocument()
   })
 })

@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react'
+
 import { ResourceCatalogView } from '@renderer/components/resourceCatalog/catalog'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode } from 'react'
 
 export type ConversationResourceKind = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
