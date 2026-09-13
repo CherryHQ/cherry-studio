@@ -158,7 +158,7 @@ type OcrJob = {
  */
 const OcrJobWatcher: FC<{
   job: OcrJob
-  onCompleted: (text: string) => void
+  onCompleted: (text: string) => Promise<boolean>
   onSettled: (jobId: string) => void
 }> = ({ job, onCompleted, onSettled }) => {
   const { t } = useTranslation()
@@ -204,8 +204,16 @@ const OcrJobWatcher: FC<{
     if (snapshot.status === 'completed') {
       const parsedOutput = FileProcessingJobOutputSchema.safeParse(snapshot.output)
       if (parsedOutput.success && parsedOutput.data.artifact.kind === 'text') {
-        onCompleted(parsedOutput.data.artifact.text)
-        toast.success(t('translate.files.ocr_completed'))
+        void onCompleted(parsedOutput.data.artifact.text)
+          .then((applied) => {
+            if (applied) toast.success(t('translate.files.ocr_completed'))
+          })
+          .catch((completionError: unknown) => {
+            logger.error('Failed to apply OCR result.', completionError as Error, { jobId: job.jobId })
+            rejectJob(completionError, 'Failed to apply OCR result')
+          })
+          .finally(() => onSettled(job.jobId))
+        return
       } else {
         const failure = new Error('Image OCR completed without a text artifact')
         if (!parsedOutput.success) {
@@ -1245,7 +1253,9 @@ const TranslatePage: FC = () => {
               await pendingHistory.barrier
               pendingHistory = cacheService.get('translate.history_restore_pending')
             }
-            if (isContentOperationCurrent(ocrJob.contentOperationRevision)) appendTranslateInput(text)
+            if (!isContentOperationCurrent(ocrJob.contentOperationRevision)) return false
+            appendTranslateInput(text)
+            return true
           }}
           onSettled={clearOcrJob}
         />
