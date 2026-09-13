@@ -2962,6 +2962,7 @@
   "provider.aihubmix": "AiHubMix",
   "provider.aionly": "AiOnly",
   "provider.alayanew": "Alaya NeW",
+  "provider.anonrouter": "AnonRouter",
   "provider.anthropic": "Anthropic",
   "provider.aws-bedrock": "AWS Bedrock",
   "provider.azure-openai": "Azure OpenAI",
