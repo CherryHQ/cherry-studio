@@ -60,8 +60,12 @@ export function useFollowupQueue({
 }: UseFollowupQueueParams): FollowupQueueController {
   const { t } = useTranslation()
 
-  const { data: rows, refetch } = useQuery('/followup-queues', { query: { scopeKey } })
-  const { data: queueState, refetch: refetchState } = useQuery('/followup-queue-states', {
+  const { data: rows, isLoading: queuesLoading, refetch } = useQuery('/followup-queues', { query: { scopeKey } })
+  const {
+    data: queueState,
+    isLoading: stateLoading,
+    refetch: refetchState
+  } = useQuery('/followup-queue-states', {
     query: { scopeKey }
   })
   useDataChange('/followup-queues', () => {
@@ -91,6 +95,9 @@ export function useFollowupQueue({
   // The query layer holds arbitrary JSON; guard non-array entries like the old cache loader did.
   const items = useMemo(() => (Array.isArray(rows) ? rows : []).map(toControllerItem), [rows])
   const paused = queueState?.paused ?? false
+  // The drain must wait for both reads: firing on the completion edge against
+  // an unloaded mirror would ack the turn while seeing an empty queue.
+  const queriesReady = !queuesLoading && !stateLoading
 
   // Latest values for the async drain closure (kept off the effect deps to avoid re-running).
   const scopeKeyRef = useRef(scopeKey)
@@ -148,40 +155,56 @@ export function useFollowupQueue({
     [setPausedTrigger, t]
   )
 
-  // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once),
-  // claim the head (only the winning window sends), and resolve the claim — dequeue on success,
-  // mark failed otherwise. A lost claim means another window is sending; our mirror converges
-  // through the change notification.
+  // Drain one message per completion: on the live→idle edge, claim the head
+  // (only the winning window sends) and resolve the claim — dequeue on
+  // success, mark failed otherwise. The edge is acked only once the claim
+  // settles: a lost claim means another window is sending (our mirror
+  // converges through the change notification), while a failed claim request
+  // leaves the edge for a later turn. Resolution writes are retried so a
+  // successful send is not replayed after a lost dequeue.
   useEffect(() => {
-    if (!isFulfilled || paused) return
+    if (!isFulfilled || paused || !queriesReady) return
     const head = itemsRef.current[0]
     if (!head) return
-    markSeen()
     const reportDrainFailure = () => onDrainFailedRef.current?.()
     void (async () => {
-      let claimed = false
-      try {
-        claimed = (await claimTrigger({ params: { id: head.id } })).claimed
-      } catch {
+      let claim: { claimed: boolean } | undefined
+      for (let attempt = 0; attempt < 2 && !claim; attempt++) {
+        try {
+          claim = await claimTrigger({ params: { id: head.id } })
+        } catch {
+          // Transient IPC/DB failure — retry once below.
+        }
+      }
+      if (!claim) {
         reportDrainFailure()
+        void refetch()
         return
       }
-      if (!claimed) return
+      markSeen()
+      if (!claim.claimed) return
       let sent = false
       try {
         sent = await onDrainRef.current(head.payload)
       } catch {
         sent = false
       }
-      try {
-        if (sent) await removeTrigger({ params: { id: head.id } })
-        else await markFailedTrigger({ params: { id: head.id } })
-      } catch {
-        // Resolution write lost; mirrors converge through change notifications.
+      let settled = false
+      for (let attempt = 0; attempt < 3 && !settled; attempt++) {
+        try {
+          if (sent) await removeTrigger({ params: { id: head.id } })
+          else await markFailedTrigger({ params: { id: head.id } })
+          settled = true
+        } catch {
+          // Transient IPC/DB failure — retry before giving up.
+        }
+      }
+      if (!settled && sent) {
+        toast.error(t('message.error.operation_unavailable'))
       }
       if (!sent) reportDrainFailure()
     })()
-  }, [isFulfilled, paused, markSeen, claimTrigger, removeTrigger, markFailedTrigger])
+  }, [isFulfilled, paused, queriesReady, markSeen, claimTrigger, removeTrigger, markFailedTrigger, refetch, t])
 
   return { items, enqueue, removeId, reorder, paused, setPaused }
 }
