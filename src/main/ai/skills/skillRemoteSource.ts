@@ -181,10 +181,13 @@ async function fetchFromGithub(
   const { ref, namespace, oid, target } = await resolveGithubCommit(repoUrl, refAndPath, refNamespace)
   logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
+  // A slash-bearing ref has no delimiter from the selected path in a raw URL. Store the observed
+  // commit permalink in that case so later catalog matching cannot reinterpret the ref boundary.
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
-  const sourceUrl = namespace
-    ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
-    : `${repoUrl}/tree/${encodeGithubPath(sourcePath)}`
+  const sourceUrl =
+    namespace && !ref.includes('/')
+      ? `https://raw.githubusercontent.com/${owner}/${repo}/refs/${namespace}/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
+      : `${repoUrl}/tree/${encodeGithubPath(target.kind === 'root' ? oid : `${oid}/${target.path}`)}`
 
   const tempDir = await openTempDir()
   const { contentDir, skillDir } = await materializeGithubTarget(repoUrl, oid, target, descriptorFileName, tempDir)

@@ -937,7 +937,7 @@ describe('SkillService', () => {
 
     it('resolves a slash-bearing branch against the remote instead of splitting at the first segment', async () => {
       const wanted = 'b'.repeat(40)
-      const { skillService, gitCalls } = await setupGithubInstall({
+      const { skillService, installSpy, gitCalls } = await setupGithubInstall({
         refs: [
           { name: 'feature', oid: 'a'.repeat(40) },
           { name: 'feature/foo', oid: wanted }
@@ -949,6 +949,11 @@ describe('SkillService', () => {
       })
 
       expect(gitFetchArgs(gitCalls)).toEqual(expect.arrayContaining([wanted]))
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'marketplace',
+        `https://github.com/owner/repo/tree/${wanted}/skills/demo`
+      )
     })
 
     it('installs a repository-root SKILL.md without exposing Git metadata as skill content', async () => {
@@ -1222,6 +1227,78 @@ describe('SkillService', () => {
         await expect(
           fs.promises.access(path.join(dataSkillsRoot, first.folderName, 'SKILL.md'))
         ).resolves.toBeUndefined()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('matches commit permalinks by selected path across slash-bearing refs', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const firstDir = path.join(workDir, 'first')
+      const secondDir = path.join(workDir, 'second')
+      const firstUrl = `https://github.com/owner/repo/tree/${'a'.repeat(40)}/skills/demo`
+      const secondUrl = `https://github.com/owner/repo/tree/${'b'.repeat(40)}/skills/demo`
+
+      try {
+        await Promise.all(
+          [firstDir, secondDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Demo', declaredName: 'Demo' }) as never
+        )
+
+        const first = await skillService['installSkillDir'](firstDir, 'marketplace', firstUrl, {
+          folderNameFallback: 'repo'
+        })
+        const second = await skillService['installSkillDir'](secondDir, 'marketplace', secondUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        expect(second.id).toBe(first.id)
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'Demo', 'SKILL.md'))).resolves.toBeUndefined()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
+    it('does not alias legacy slash-bearing refs through a shared suffix', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const firstDir = path.join(workDir, 'first')
+      const secondDir = path.join(workDir, 'second')
+      const firstUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/feature/foo/SKILL.md'
+      const secondUrl = 'https://raw.githubusercontent.com/owner/repo/refs/heads/other/foo/SKILL.md'
+
+      try {
+        await Promise.all(
+          [firstDir, secondDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'First', declaredName: 'First' }) as never
+        )
+        const first = await skillService['installSkillDir'](firstDir, 'marketplace', firstUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        vi.mocked(parseSkillMetadata).mockResolvedValue(
+          githubRootMetadata({ name: 'Second', declaredName: 'Second' }) as never
+        )
+        const second = await skillService['installSkillDir'](secondDir, 'marketplace', secondUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        expect(second.id).not.toBe(first.id)
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(2)
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'First', 'SKILL.md'))).resolves.toBeUndefined()
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'Second', 'SKILL.md'))).resolves.toBeUndefined()
       } finally {
         restoreGetPath()
         vi.mocked(parseSkillMetadata).mockReset()

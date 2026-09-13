@@ -56,26 +56,44 @@ function normalizeGithubSourceUrl(sourceUrl: string): string[] | null {
     if (!owner || !repo) return null
 
     let refAndPath: string[]
+    let hasExplicitRefNamespace = false
     if (host === 'raw.githubusercontent.com') {
       refAndPath = parts
       if (refAndPath[0] === 'refs' && (refAndPath[1] === 'heads' || refAndPath[1] === 'tags')) {
+        hasExplicitRefNamespace = true
         refAndPath = refAndPath.slice(2)
       }
     } else if (host === 'github.com' && (parts[0] === 'blob' || parts[0] === 'raw' || parts[0] === 'tree')) {
       refAndPath = parts.slice(1)
       if (refAndPath[0] === 'refs' && (refAndPath[1] === 'heads' || refAndPath[1] === 'tags')) {
+        hasExplicitRefNamespace = true
         refAndPath = refAndPath.slice(2)
       }
     } else {
       return null
     }
 
+    // Commit permalinks carry an unambiguous ref/path boundary. Keep only the selected path so
+    // slash-bearing branch names cannot alias a different nested skill through a shared suffix.
+    if (!hasExplicitRefNamespace && /^[0-9a-f]{40}$/i.test(refAndPath[0] ?? '')) {
+      const skillPath = refAndPath.slice(1)
+      if (skillPath.at(-1)?.toLowerCase() === 'skill.md') skillPath.pop()
+      const encodedPath = skillPath.map((part) => encodeURIComponent(part)).join('/')
+      return [`github:${owner.toLowerCase()}/${repo.toLowerCase()}${encodedPath ? `/${encodedPath}` : ''}`]
+    }
+
     // Generated source URLs put the ref (branch, tag, or commit) before the skill path. Branches
-    // may contain slashes, so retain every possible ref/path boundary; the first shared suffix is
-    // the skill identity and the ref itself is deliberately ignored.
+    // may contain slashes, so retain the complete normalized ref/path as a legacy disambiguator
+    // alongside every possible path boundary. The latter lets a commit permalink match a legacy
+    // branch URL while the former prevents two ambiguous URLs from sharing a suffix accidentally.
     const identities: string[] = []
     const hasDescriptor = refAndPath.at(-1)?.toLowerCase() === 'skill.md'
     const maxSplit = hasDescriptor ? refAndPath.length - 1 : refAndPath.length
+    const fullPath = refAndPath
+      .slice(0, maxSplit)
+      .map((part) => encodeURIComponent(part))
+      .join('/')
+    identities.push(`github-url:${owner.toLowerCase()}/${repo.toLowerCase()}/${fullPath}`)
     for (let split = 1; split <= maxSplit; split++) {
       const skillPath = refAndPath.slice(split)
       if (skillPath.at(-1)?.toLowerCase() === 'skill.md') skillPath.pop()
@@ -94,9 +112,20 @@ function normalizeSkillSourceUrl(source: string, sourceUrl: string | null): stri
 }
 
 function sameSkillSourceUrl(left: string[], right: string[]): boolean {
-  const isRepositoryIdentity = (identity: string) => identity.split('/').length === 2
-  const leftSpecific = left.filter((identity) => !isRepositoryIdentity(identity))
-  const rightSpecific = right.filter((identity) => !isRepositoryIdentity(identity))
+  const leftUrlIdentity = left.filter((identity) => identity.startsWith('github-url:'))
+  const rightUrlIdentity = right.filter((identity) => identity.startsWith('github-url:'))
+
+  // Legacy branch URLs do not encode where a slash-bearing ref ends. Only compare their complete
+  // normalized URL identity; suffix matching is reserved for an unambiguous commit permalink.
+  if (leftUrlIdentity.length > 0 && rightUrlIdentity.length > 0) {
+    return leftUrlIdentity.some((identity) => rightUrlIdentity.includes(identity))
+  }
+
+  const isRepositoryIdentity = (identity: string) => /^github:[^/]+\/[^/]+$/.test(identity)
+  const leftSpecific = left.filter((identity) => !identity.startsWith('github-url:') && !isRepositoryIdentity(identity))
+  const rightSpecific = right.filter(
+    (identity) => !identity.startsWith('github-url:') && !isRepositoryIdentity(identity)
+  )
 
   // A repository-root identity is ambiguous when either URL also has a possible skill path (the
   // ref itself may contain slashes). Only use it when both URLs are unambiguously root skills.
