@@ -50,6 +50,7 @@ import {
 } from './agentProxyEnvironment'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
+import { isTrustedClaudeChannel } from './environment'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import {
   buildClaudeCodeSessionSettings,
@@ -100,12 +101,13 @@ interface ClaudeCodeRouteFacts {
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
   /**
-   * Per-slot budget inputs for gateway sessions (sonnet/haiku refs): provider identity
-   * plus declared windows. The settings builder budgets the weakest usable slot; the
-   * projection is JSON-safe so rebuild facts fingerprint it. Empty unless gateway —
-   * direct sessions budget the primary alone.
+   * Per-slot budget inputs for gateway sessions (sonnet/haiku refs): provider identity,
+   * declared windows, and the trust verdict the budget derives from. The projection is
+   * JSON-safe so rebuild facts fingerprint it — an endpoint edit that flips a slot's
+   * trust rebuilds the connection even when ids and windows are unchanged. Empty unless
+   * gateway — direct sessions budget the primary alone.
    */
-  budgetSlots: Array<{ providerId: string; contextWindow?: number; maxOutputTokens?: number }>
+  budgetSlots: Array<{ providerId: string; contextWindow?: number; maxOutputTokens?: number; trusted: boolean }>
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
@@ -735,7 +737,8 @@ function deriveRouteFacts(
       budgetSlots: [sonnetRef, haikuRef].map((ref) => ({
         providerId: ref.providerId,
         contextWindow: ref.contextWindow,
-        maxOutputTokens: ref.model?.maxOutputTokens
+        maxOutputTokens: ref.model?.maxOutputTokens,
+        trusted: isTrustedClaudeChannel(ref.provider ?? null)
       })),
       usageModels: []
     }

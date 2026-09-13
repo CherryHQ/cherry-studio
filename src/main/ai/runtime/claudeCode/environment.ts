@@ -43,7 +43,7 @@ const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
 // `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is unset. Both measured against the bundled CLI and undocumented,
 // so re-measure them on SDK upgrades.
 const MAX_REQUESTED_OUTPUT_TOKENS = 128_000
-const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
+export const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
 /**
  * Percentage of the auto-compact window at which compaction triggers, passed
  * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).
@@ -75,7 +75,7 @@ const require_ = createRequire(import.meta.url)
 // accurate window when it keeps the official baseUrl. Only a custom baseUrl
 // proves an untrusted relay that can overstate the window (e.g. #18894).
 // `claude-code` (external-cli) is the second official channel and is trusted alike.
-function isTrustedClaudeChannel(provider?: Provider | null): boolean {
+export function isTrustedClaudeChannel(provider?: Provider | null): boolean {
   if (provider == null) return false
   // A custom baseUrl confirms an untrusted channel that can overstate the
   // window (e.g. #18894). The preset itself defines `https://api.anthropic.com`,

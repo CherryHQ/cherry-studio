@@ -745,6 +745,60 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
   })
 
+  // A routed sub-model below the SDK floor cannot satisfy the SDK minimum, so it
+  // contributes the floor instead of being silently skipped: the shared budget
+  // drops to 100K with the default output pairing (80K + 32K = 112K).
+  it('floors a sub-SDK-minimum gateway sub-model instead of skipping it', async () => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      {
+        contextWindow: 256_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [{ providerId: 'openrouter', contextWindow: 64_000, maxOutputTokens: 32_000 }]
+      }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+  })
+
+  // A routed sub-model with no declared window cannot be measured, so it also
+  // contributes the floor — the most conservative SDK-valid value — rather than
+  // riding the primary's budget unseen.
+  it('floors a windowless gateway sub-model instead of skipping it', async () => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      trustedProvider,
+      {
+        contextWindow: 256_000,
+        maxOutputTokens: 32_000,
+        gatewayModelSlots: [{ providerId: 'openrouter', maxOutputTokens: 32_000 }]
+      }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(100_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000' })
+  })
+
   // All-trusted gateway slots keep full budgets with no blanket derate: Vertex
   // primary plus Bedrock sonnet resolves to the weaker declared window.
   it('keeps full budgets for all-trusted gateway slots without a blanket margin', async () => {

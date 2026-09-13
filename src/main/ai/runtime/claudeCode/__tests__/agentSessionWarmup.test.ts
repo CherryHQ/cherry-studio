@@ -1723,6 +1723,56 @@ describe('deriveConnectionConfig', () => {
     expect(mcpDefinitionChanged.rebuildSignature).not.toBe(withMcp.rebuildSignature)
   })
 
+  it('rebuilds when a routed gateway sub-provider endpoint flips trust without id or window changes', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      planModel: 'relay::model-2',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    })
+    const relayEndpoint = (baseUrl: string) => ({
+      id: 'relay',
+      presetProviderId: 'relay',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { baseUrl } }
+    })
+    mocks.getProviderByProviderId.mockImplementation((id: string) =>
+      id === 'relay'
+        ? relayEndpoint('https://api.anthropic.com')
+        : {
+            id: 'provider-1',
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+          }
+    )
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`,
+      contextWindow: 256_000,
+      maxOutputTokens: 32_000,
+      endpointTypes: ['anthropic-messages']
+    }))
+    const trusted = await deriveSignature()
+
+    mocks.getProviderByProviderId.mockImplementation((id: string) =>
+      id === 'relay'
+        ? relayEndpoint('https://relay.example.com')
+        : {
+            id: 'provider-1',
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+          }
+    )
+    const untrusted = await deriveSignature()
+
+    expect(untrusted.rebuildSignature).not.toBe(trusted.rebuildSignature)
+    expect(
+      Object.keys(trusted.rebuildFactFingerprints).filter(
+        (name) => trusted.rebuildFactFingerprints[name] !== untrusted.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['route'])
+  })
+
   it('fingerprints knowledge-base bindings as a set', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
