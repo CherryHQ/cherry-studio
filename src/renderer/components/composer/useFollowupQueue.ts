@@ -4,7 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
-import { FOLLOWUP_QUEUE_LIMIT, type FollowupQueueItem as FollowupQueueRow } from '@shared/data/types/followupQueue'
+import {
+  FOLLOWUP_QUEUE_LIMIT,
+  STALE_SENDING_CLAIM_MS,
+  type FollowupQueueItem as FollowupQueueRow
+} from '@shared/data/types/followupQueue'
 
 import type { ComposerSerializedDraft } from './tokens'
 
@@ -14,12 +18,22 @@ export interface FollowupQueueItem {
   draft: ComposerSerializedDraft
   /** Send-ready payload (text + parts + files/models) captured at enqueue time. */
   payload: ComposerQueuedMessagePayload
+  /** Drain status driving cross-window send arbitration. */
+  status: FollowupQueueRow['status']
+  /** Last update timestamp (ISO string) — bounds the live-claim freshness check. */
+  updatedAt: string
 }
 
 // Main stores draft/payload as opaque JSON and never interprets them; only the
 // renderer reads tokens back, so the row is narrowed at this single boundary.
 function toControllerItem(row: FollowupQueueRow): FollowupQueueItem {
-  return { id: row.id, draft: row.draft as ComposerSerializedDraft, payload: row.payload }
+  return {
+    id: row.id,
+    draft: row.draft as ComposerSerializedDraft,
+    payload: row.payload,
+    status: row.status,
+    updatedAt: row.updatedAt
+  }
 }
 
 interface UseFollowupQueueParams {
@@ -48,6 +62,12 @@ export interface FollowupQueueController {
    * claim means another window owns the item.
    */
   steer: (id: string, send: (payload: ComposerQueuedMessagePayload) => Promise<boolean>) => Promise<boolean>
+  /**
+   * Atomic take for edit: returns the item and drops it from the queue, or
+   * undefined (with a toast) when the item is missing or owned by an
+   * in-flight drain — so an edit can never race a send of the same item.
+   */
+  takeForEdit: (id: string) => FollowupQueueItem | undefined
 }
 
 /**
@@ -99,11 +119,19 @@ export function useFollowupQueue({
   })
 
   // The query layer holds arbitrary JSON; guard non-array entries like the old cache loader did.
-  const items = useMemo(() => (Array.isArray(rows) ? rows : []).map(toControllerItem), [rows])
-  const paused = queueState?.paused ?? false
+  // Rows are filtered to the current scope: while a scope switch refetches,
+  // the mirror must not expose (or drain) the previous scope's items.
+  const items = useMemo(
+    () => (Array.isArray(rows) ? rows : []).filter((row) => row.scopeKey === scopeKey).map(toControllerItem),
+    [rows, scopeKey]
+  )
+  const paused = queueState?.scopeKey === scopeKey ? queueState.paused : false
   // The drain must wait for both reads: firing on the completion edge against
   // an unloaded mirror would ack the turn while seeing an empty queue.
   const queriesReady = !queuesLoading && !stateLoading
+  // Re-fire the drain when the head arrives after the edge: queue data landing
+  // late must not strand an unacknowledged completion.
+  const headId = items[0]?.id
 
   // Latest values for the async drain closure (kept off the effect deps to avoid re-running).
   const scopeKeyRef = useRef(scopeKey)
@@ -114,6 +142,30 @@ export function useFollowupQueue({
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
   onDrainFailedRef.current = onDrainFailed
+  // Ids with a claim held by this window (drain or steer in flight). User
+  // actions refuse these so an edit/remove can never race a send.
+  const activeIdsRef = useRef(new Set<string>())
+  // User actions must refuse an item owned by an in-flight drain of this
+  // window, or freshly claimed (`sending`) by another — removing or editing
+  // it would race the send. Crash-orphaned claims (older than the reclaim
+  // lease) stay removable.
+  const canRemoveRef = useRef<(id: string) => boolean>(() => true)
+  canRemoveRef.current = (id: string) => {
+    if (activeIdsRef.current.has(id)) return false
+    const target = itemsRef.current.find((entry) => entry.id === id)
+    return !(target?.status === 'sending' && Date.now() - Date.parse(target.updatedAt) < STALE_SENDING_CLAIM_MS)
+  }
+  // Background resolve retries that outlive the drain that scheduled them.
+  const pendingResolveRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+
+  // Clear pending resolve timers on unmount.
+  useEffect(() => {
+    const pending = pendingResolveRef.current
+    return () => {
+      for (const timer of pending.values()) clearTimeout(timer)
+      pending.clear()
+    }
+  }, [])
 
   const enqueue = useCallback(
     async (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
@@ -134,11 +186,28 @@ export function useFollowupQueue({
 
   const removeId = useCallback(
     (id: string) => {
+      if (!canRemoveRef.current(id)) {
+        toast.error(t('message.error.operation_unavailable'))
+        return
+      }
       void removeTrigger({ params: { id } }).catch(() => {
         toast.error(t('message.error.operation_unavailable'))
       })
     },
     [removeTrigger, t]
+  )
+
+  const takeForEdit = useCallback(
+    (id: string) => {
+      const item = itemsRef.current.find((entry) => entry.id === id)
+      if (!item || !canRemoveRef.current(id)) {
+        if (item) toast.error(t('message.error.operation_unavailable'))
+        return undefined
+      }
+      removeId(id)
+      return item
+    },
+    [removeId, t]
   )
 
   const reorder = useCallback(
@@ -177,6 +246,30 @@ export function useFollowupQueue({
     [claimTrigger]
   )
 
+  // Background resolve that never gives up while mounted: after the inline
+  // attempts fail, the row would otherwise sit `sending` until the reclaim
+  // lease expires and a later claim replays an already-sent message. Retries
+  // run on a timer and refetch on success so mirrors converge.
+  const scheduleResolveRetryRef = useRef((_id: string, _sent: boolean) => {})
+  scheduleResolveRetryRef.current = (id: string, sent: boolean) => {
+    if (pendingResolveRef.current.has(id)) return
+    const tick = () => {
+      void (async () => {
+        try {
+          if (sent) await removeTrigger({ params: { id } })
+          else await markFailedTrigger({ params: { id } })
+          const timer = pendingResolveRef.current.get(id)
+          if (timer) clearTimeout(timer)
+          pendingResolveRef.current.delete(id)
+          void refetch()
+        } catch {
+          pendingResolveRef.current.set(id, setTimeout(tick, 5000))
+        }
+      })()
+    }
+    pendingResolveRef.current.set(id, setTimeout(tick, 5000))
+  }
+
   // Resolve a won claim: dequeue on success, mark failed otherwise. Retried so
   // a successful send is not replayed after a lost dequeue write.
   const settleItem = useCallback(
@@ -190,6 +283,7 @@ export function useFollowupQueue({
           // Transient IPC/DB failure — retry before giving up.
         }
       }
+      scheduleResolveRetryRef.current(id, sent)
       return false
     },
     [removeTrigger, markFailedTrigger]
@@ -202,24 +296,36 @@ export function useFollowupQueue({
   const steer = useCallback(
     async (id: string, send: (payload: ComposerQueuedMessagePayload) => Promise<boolean>) => {
       const item = itemsRef.current.find((entry) => entry.id === id)
-      if (!item) return false
-      const claim = await claimItem(id)
-      if (!claim) {
-        toast.error(t('message.error.operation_unavailable'))
-        return false
-      }
-      if (!claim.claimed) return false
-      let sent = false
+      if (!item || activeIdsRef.current.has(id)) return false
+      const scope = scopeKeyRef.current
+      activeIdsRef.current.add(id)
       try {
-        sent = await send(item.payload)
-      } catch {
-        sent = false
+        const claim = await claimItem(id)
+        if (!claim) {
+          toast.error(t('message.error.operation_unavailable'))
+          return false
+        }
+        // Scope switched mid-flight: release the claim without sending — the
+        // payload belongs to the previous scope's conversation.
+        if (scopeKeyRef.current !== scope) {
+          await settleItem(id, false)
+          return false
+        }
+        if (!claim.claimed) return false
+        let sent = false
+        try {
+          sent = await send(item.payload)
+        } catch {
+          sent = false
+        }
+        const settled = await settleItem(id, sent)
+        if (!settled && sent) {
+          toast.error(t('message.error.operation_unavailable'))
+        }
+        return sent
+      } finally {
+        activeIdsRef.current.delete(id)
       }
-      const settled = await settleItem(id, sent)
-      if (!settled && sent) {
-        toast.error(t('message.error.operation_unavailable'))
-      }
-      return sent
     },
     [claimItem, settleItem, t]
   )
@@ -234,30 +340,42 @@ export function useFollowupQueue({
   useEffect(() => {
     if (!isFulfilled || paused || !queriesReady) return
     const head = itemsRef.current[0]
-    if (!head) return
+    if (!head || head.id !== headId) return
     const reportDrainFailure = () => onDrainFailedRef.current?.()
     void (async () => {
-      const claim = await claimItem(head.id)
-      if (!claim) {
-        reportDrainFailure()
-        void refetch()
-        return
-      }
-      markSeen()
-      if (!claim.claimed) return
-      let sent = false
+      const scope = scopeKey
+      activeIdsRef.current.add(head.id)
       try {
-        sent = await onDrainRef.current(head.payload)
-      } catch {
-        sent = false
+        const claim = await claimItem(head.id)
+        if (!claim) {
+          reportDrainFailure()
+          void refetch()
+          return
+        }
+        // Scope switched mid-flight: release the claim without sending or
+        // acking — the head belongs to the previous scope's conversation.
+        if (scopeKeyRef.current !== scope) {
+          await settleItem(head.id, false)
+          return
+        }
+        markSeen()
+        if (!claim.claimed) return
+        let sent = false
+        try {
+          sent = await onDrainRef.current(head.payload)
+        } catch {
+          sent = false
+        }
+        const settled = await settleItem(head.id, sent)
+        if (!settled && sent) {
+          toast.error(t('message.error.operation_unavailable'))
+        }
+        if (!sent) reportDrainFailure()
+      } finally {
+        activeIdsRef.current.delete(head.id)
       }
-      const settled = await settleItem(head.id, sent)
-      if (!settled && sent) {
-        toast.error(t('message.error.operation_unavailable'))
-      }
-      if (!sent) reportDrainFailure()
     })()
-  }, [isFulfilled, paused, queriesReady, markSeen, claimItem, settleItem, refetch, t])
+  }, [isFulfilled, paused, queriesReady, headId, scopeKey, markSeen, claimItem, settleItem, refetch, t])
 
-  return { items, enqueue, removeId, reorder, paused, setPaused, steer }
+  return { items, enqueue, removeId, reorder, paused, setPaused, steer, takeForEdit }
 }
