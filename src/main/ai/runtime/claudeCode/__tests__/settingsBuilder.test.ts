@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   createAssistantFileToolsServer: vi.fn(function () {
     return { mcpServer: {} }
   }),
+  refreshSkillMirrorsForSession: vi.fn(),
   listSkills: vi.fn(),
   listLocalSkillFolderNames: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
@@ -130,6 +131,7 @@ vi.mock('@data/services/ProviderService', () => ({
 
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: {
+    refreshMirrorsForSession: mocks.refreshSkillMirrorsForSession,
     list: mocks.listSkills,
     listLocalFolderNames: mocks.listLocalSkillFolderNames,
     getSkillPluginDirectory: mocks.getSkillPluginDirectory
@@ -266,6 +268,7 @@ vi.mock('../AgentsMdLoader', () => ({
 const {
   assertClaudeCodeWorkspaceDirectory,
   buildClaudeCodeSessionSettings,
+  buildSkillWhitelist,
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory,
   registerMcpSessionCatalogSync
@@ -366,6 +369,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.rtkRewrite.mockResolvedValue(null)
     mocks.isWin = false
+    mocks.refreshSkillMirrorsForSession.mockResolvedValue(undefined)
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkillFolderNames.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
@@ -478,7 +482,11 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, { fastMode: true })
 
+    expect(mocks.refreshSkillMirrorsForSession).toHaveBeenCalledWith('agent-1')
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(mocks.refreshSkillMirrorsForSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.listSkills.mock.invocationCallOrder[0]
+    )
     expect(mocks.listLocalSkillFolderNames).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.additionalDirectories).toEqual([path.join('/app/feature.agents.data', 'agent-1')])
@@ -493,6 +501,37 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
+  })
+
+  it('uses the mirror refresh snapshot for the SDK whitelist', async () => {
+    mocks.refreshSkillMirrorsForSession.mockResolvedValue([
+      { id: 'fresh', folderName: 'fresh', isEnabled: true } as never
+    ])
+    mocks.listSkills.mockResolvedValue([{ id: 'stale', folderName: 'stale', isEnabled: true }])
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(settings.skills).toEqual(['fresh'])
+    expect(mocks.refreshSkillMirrorsForSession).toHaveBeenCalledWith('agent-1')
+    expect(mocks.listSkills).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds the SDK skill whitelist without refreshing managed mirrors', async () => {
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
+
+    await expect(buildSkillWhitelist({ id: 'agent-1', configuration: {} }, '/workspace/project')).resolves.toEqual([
+      'pdf'
+    ])
+
+    expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(mocks.refreshSkillMirrorsForSession).not.toHaveBeenCalled()
   })
 
   async function runSkillDependencyHook(hookName: 'toolGuardHook' | 'skillDependencyAdvisoryHook') {
@@ -2420,6 +2459,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       }
     ])
     expect(settings.settingSources).toEqual([])
+    expect(mocks.refreshSkillMirrorsForSession).not.toHaveBeenCalled()
     expect(mocks.listSkills).not.toHaveBeenCalled()
     expect(mocks.listLocalSkillFolderNames).not.toHaveBeenCalled()
     expect(settings.mcpServers?.skills).toBeUndefined()

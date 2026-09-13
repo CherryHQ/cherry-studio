@@ -17,6 +17,7 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
+import type * as Platform from '@main/core/platform'
 import { isWin } from '@main/core/platform'
 import { skillHandlers } from '@main/ipc/handlers/skill'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
@@ -26,6 +27,11 @@ import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
+vi.mock('@main/core/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof Platform>()
+  return { ...actual, isWin: true }
+})
 
 vi.mock('@main/utils/markdownParser', () => ({
   parseSkillMetadata: vi.fn(),
@@ -64,7 +70,7 @@ vi.mock('../skillArchive', async (importOriginal) => {
 // Namespaced so the local `createTempDir` test helper cannot shadow the module export.
 import * as skillArchive from '../skillArchive'
 import * as skillPaths from '../skillPaths'
-import { SkillService } from '../SkillService'
+import { skillService as sessionSkillService, SkillService } from '../SkillService'
 
 const AGENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const SKILL_ID_1 = '11111111-1111-4111-8111-111111111111'
@@ -1816,6 +1822,33 @@ describe('SkillService', () => {
         ...overrides
       } as unknown as Awaited<ReturnType<typeof parseSkillMetadata>>
     }
+
+    it('refreshes a copied mirror when preparing a session', async () => {
+      await seedAgent()
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_1,
+        name: 'pdf',
+        folderName: 'pdf',
+        source: 'local',
+        contentHash: 'v1',
+        isEnabled: true
+      })
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: SKILL_ID_1,
+        isEnabled: true
+      })
+      vi.mocked(parseSkillMetadata).mockResolvedValue(skillMeta('pdf', { contentHash: 'v2' }))
+      await writeLibrarySkill('pdf', '# Version 1')
+      await sessionSkillService.linkMirror('pdf')
+
+      const mirrorFile = path.join(mirrorRoot, 'pdf', 'SKILL.md')
+      expect((await fs.promises.lstat(path.dirname(mirrorFile))).isSymbolicLink()).toBe(false)
+      await fs.promises.writeFile(path.join(dataSkillsRoot, 'pdf', 'SKILL.md'), '# Version 2')
+
+      await sessionSkillService.refreshMirrorsForSession(AGENT_ID)
+      await expect(fs.promises.readFile(mirrorFile, 'utf-8')).resolves.toBe('# Version 2')
+    })
 
     it('reconcileSkills heals mirrors, prunes non-builtin skills whose files are gone, keeps builtins', async () => {
       vi.mocked(parseSkillMetadata).mockReset()

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   resolveEffectiveEndpoint: vi.fn(),
   buildSessionSettings: vi.fn(),
   buildSkillWhitelist: vi.fn(),
+  refreshSkillMirrorsForSession: vi.fn(),
   findChannelBySessionId: vi.fn(),
   findMcpServerByIdOrName: vi.fn(),
   preferenceGet: vi.fn(),
@@ -36,6 +37,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: mocks.getSessionById }
+}))
+
+vi.mock('@main/ai/skills/SkillService', () => ({
+  skillService: { refreshMirrorsForSession: mocks.refreshSkillMirrorsForSession }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -1285,6 +1290,11 @@ describe('deriveConnectionConfig', () => {
     expect(mocks.resolveApiKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(mocks.buildSkillWhitelist).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'agent-1' }),
+      '/workspace/project'
+    )
+    expect(mocks.refreshSkillMirrorsForSession).not.toHaveBeenCalled()
     // mkdir / builtin-agent provisioning / shared snapshot update all live inside
     // buildClaudeCodeSessionSettings — derive must never enter it.
     expect(mocks.buildSessionSettings).not.toHaveBeenCalled()
