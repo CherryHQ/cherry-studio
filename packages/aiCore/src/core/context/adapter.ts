@@ -46,6 +46,7 @@ export interface AISDKMessage extends ContextMessage {
  */
 export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
   const messages: AISDKMessage[] = []
+  const toolCallNames = new Map<string, string>()
 
   for (const msg of prompt) {
     if (msg.role === 'system') {
@@ -112,6 +113,7 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
       for (const part of msg.content) {
         if (part.type === 'text') text.push(part.text)
         else if (part.type === 'tool-call') {
+          toolCallNames.set(part.toolCallId, part.toolName)
           if (inlineAnsweredIds.has(part.toolCallId)) continue
           toolCalls.push({
             id: part.toolCallId,
@@ -157,14 +159,16 @@ export function fromAISDK(prompt: LanguageModelV3Prompt): AISDKMessage[] {
       let firstOfMessage = true
       for (const part of msg.content) {
         if (part.type === 'tool-result') {
-          const text = stringifyToolOutput(part.output)
+          const toolName = toolCallNames.get(part.toolCallId) ?? part.toolName
+          const toolResult = toolName === part.toolName ? part : { ...part, toolName }
+          const text = stringifyToolOutput(toolResult.output)
           messages.push({
             role: 'tool',
             content: text,
-            tool_call_id: part.toolCallId,
-            _toolContent: [part],
+            tool_call_id: toolResult.toolCallId,
+            _toolContent: [toolResult],
             _originalText: text,
-            _toolName: part.toolName,
+            _toolName: toolResult.toolName,
             ...(firstOfMessage && msg.providerOptions ? { _providerOptions: msg.providerOptions } : {})
           })
           firstOfMessage = false
