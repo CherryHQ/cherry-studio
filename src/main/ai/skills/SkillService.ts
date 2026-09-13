@@ -984,7 +984,9 @@ export class SkillService {
     const all = agentGlobalSkillService.listAll()
     const quarantinedFolders = agentGlobalSkillService
       .listFolderNames()
-      .filter((folderName) => !all.some((skill) => normalizeFolderKey(skill.folderName) === normalizeFolderKey(folderName)))
+      .filter(
+        (folderName) => !all.some((skill) => normalizeFolderKey(skill.folderName) === normalizeFolderKey(folderName))
+      )
     const known = new Set([...all.map((s) => s.folderName), ...quarantinedFolders].map(normalizeFolderKey))
     const groups = new Map<string, InstalledSkill[]>()
     for (const skill of all) {

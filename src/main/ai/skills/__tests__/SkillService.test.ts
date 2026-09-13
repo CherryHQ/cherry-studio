@@ -2179,7 +2179,9 @@ describe('SkillService', () => {
 
       await expect(skillService.reconcileSkills()).resolves.toBeUndefined()
 
-      const rawRows = dbh.db.all(sql.raw("SELECT id, folder_name, tags FROM agent_global_skill WHERE folder_name = 'broken-skill'"))
+      const rawRows = dbh.db.all(
+        sql.raw("SELECT id, folder_name, tags FROM agent_global_skill WHERE folder_name = 'broken-skill'")
+      )
       expect(rawRows).toHaveLength(1)
       expect(rawRows[0]).toMatchObject({ id: 'broken-row', folder_name: 'broken-skill', tags: 'not-json' })
       await expect(fs.promises.access(path.join(mirrorRoot, 'broken-skill'))).resolves.toBeUndefined()
