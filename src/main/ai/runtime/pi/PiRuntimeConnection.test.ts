@@ -510,7 +510,7 @@ describe('PiRuntimeConnection', () => {
     expect(buildPiLoginPathPrefix('C:\\Users\\tester\\bin', 'win32')).toBeUndefined()
   })
 
-  it('reads a mixed-case Windows Path key', async () => {
+  it.skipIf(process.platform !== 'win32')('reads a mixed-case Windows Path key', async () => {
     mocks.getShellEnv.mockResolvedValueOnce({ Path: 'C:\\Users\\tester\\bin;C:\\Windows' })
 
     await new PiRuntimeConnection(input).start()
@@ -523,6 +523,20 @@ describe('PiRuntimeConnection', () => {
       )
     }
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'prefers the exact PATH key over a lowercase path variable on POSIX',
+    async () => {
+      mocks.getShellEnv.mockResolvedValueOnce({
+        path: '/unrelated-lowercase',
+        PATH: '/opt/homebrew/bin:/usr/bin'
+      })
+
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(`export PATH="$PATH":'/opt/homebrew/bin:/usr/bin'`)
+    }
+  )
 
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()

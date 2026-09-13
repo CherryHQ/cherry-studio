@@ -253,20 +253,42 @@ describe('DshRuntimeConnection tracing', () => {
     await connection.close()
   })
 
-  it('normalizes a mixed-case login-shell Path key for the isolated child', async () => {
-    runtimeMocks.getShellEnv.mockResolvedValueOnce({
-      Path: 'C:\\Users\\tester\\bin;C:\\Windows',
-      HOME: 'C:\\Users\\tester'
-    })
+  it.skipIf(process.platform !== 'win32')(
+    'normalizes a mixed-case login-shell Path key for the isolated child',
+    async () => {
+      runtimeMocks.getShellEnv.mockResolvedValueOnce({
+        Path: 'C:\\Users\\tester\\bin;C:\\Windows',
+        HOME: 'C:\\Users\\tester'
+      })
 
-    const connection = await new DshRuntimeConnection(connectInput).start()
-    const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
 
-    expect(env.PATH).toContain('C:\\Users\\tester\\bin;C:\\Windows')
-    expect(env.HOME).toBe('C:\\Users\\tester')
-    expect(env).not.toHaveProperty('Path')
-    await connection.close()
-  })
+      expect(env.PATH).toContain('C:\\Users\\tester\\bin;C:\\Windows')
+      expect(env.HOME).toBe('C:\\Users\\tester')
+      expect(env).not.toHaveProperty('Path')
+      await connection.close()
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'prefers the exact PATH key over a lowercase path variable on POSIX',
+    async () => {
+      runtimeMocks.getShellEnv.mockResolvedValueOnce({
+        path: '/unrelated-lowercase',
+        PATH: ['/opt/homebrew/bin', '/usr/bin'].join(path.delimiter),
+        HOME: '/Users/tester'
+      })
+
+      const connection = await new DshRuntimeConnection(connectInput).start()
+      const env = runtimeMocks.harnessOptions?.env as NodeJS.ProcessEnv
+
+      const pathValue = (env.PATH as string).replace(/\\/g, '/')
+      expect(pathValue).toContain('/opt/homebrew/bin')
+      expect(pathValue).not.toContain('/unrelated-lowercase')
+      await connection.close()
+    }
+  )
 
   it('feeds runtime session events to the trace recorder', async () => {
     const connection = await new DshRuntimeConnection(connectInput).start()

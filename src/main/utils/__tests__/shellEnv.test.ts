@@ -289,10 +289,25 @@ describe('shellEnv – Windows registry PATH', () => {
 })
 
 describe('getPathFromEnvironment', () => {
-  it('reads PATH keys case-insensitively without copying unrelated values', () => {
+  it('reads PATH keys case-insensitively on Windows', () => {
     expect(getPathFromEnvironment({ Path: 'C:\\Users\\tester\\bin', SECRET: 'hidden' })).toBe('C:\\Users\\tester\\bin')
     expect(getPathFromEnvironment({ PATH: '/opt/homebrew/bin' })).toBe('/opt/homebrew/bin')
     expect(getPathFromEnvironment({ HOME: '/Users/tester' })).toBeUndefined()
+  })
+
+  it('prefers the exact PATH key on POSIX so a lowercase path variable cannot shadow it', async () => {
+    vi.resetModules()
+    vi.doMock('@main/core/platform', () => ({
+      isWin: false,
+      isMac: false,
+      isLinux: true,
+      isDev: false,
+      isPortable: false
+    }))
+    const posixShellEnv = await import('../shellEnv')
+    expect(posixShellEnv.getPathFromEnvironment({ path: '/unrelated', PATH: '/real' })).toBe('/real')
+    expect(posixShellEnv.getPathFromEnvironment({ PATH: '/real' })).toBe('/real')
+    expect(posixShellEnv.getPathFromEnvironment({ path: '/unrelated' })).toBeUndefined()
   })
 })
 
