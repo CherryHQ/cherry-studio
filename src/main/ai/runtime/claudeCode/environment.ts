@@ -89,14 +89,17 @@ function isTrustedClaudeChannel(provider?: Provider | null): boolean {
   }
   if (isExternalCliProvider(provider)) return true
   if (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic') return true
-  // Speaking the Anthropic protocol does not prove the official endpoint: a relay
-  // with no endpoint configuration cannot show where its traffic goes, so an
-  // absent anthropic-messages entry fails closed to untrusted. Entries without a
-  // baseUrl (Bedrock-style SigV4 transport) stay trusted — nothing to spoof.
-  return (
-    provider.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
-    Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-  )
+  // Speaking the Anthropic protocol does not prove the official endpoint: an
+  // absent entry fails closed, and a URL-less entry still resolves through the
+  // getBaseUrl cascade to another entry's host — so only cloud-SDK transports
+  // with no URL at all (Bedrock / Vertex) stay trusted without a baseUrl.
+  if (provider.defaultChatEndpoint !== ENDPOINT_TYPE.ANTHROPIC_MESSAGES) return false
+  if (!Object.prototype.hasOwnProperty.call(provider.endpointConfigs ?? {}, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)) {
+    return false
+  }
+  if (typeof rawBaseUrl === 'string' && rawBaseUrl.trim() !== '') return true
+  const adapterFamily = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily
+  return adapterFamily === 'bedrock' || adapterFamily === 'google-vertex-anthropic'
 }
 
 /**

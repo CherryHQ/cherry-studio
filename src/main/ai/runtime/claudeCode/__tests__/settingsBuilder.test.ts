@@ -885,6 +885,53 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(219_520)
   })
 
+  // A present but URL-less entry with a URL-based adapter still resolves through
+  // the getBaseUrl cascade to another entry's host, so it stays untrusted.
+  it('distrusts a URL-less Anthropic-protocol entry on a URL-based adapter', async () => {
+    const urllessRelay = {
+      id: 'my-anthropic-relay',
+      presetProviderId: 'my-anthropic-relay',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic' }
+      }
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      urllessRelay,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+  })
+
+  // Plain HTTP on the official host proves a middlebox, not the official endpoint.
+  it('distrusts plain HTTP on the official Anthropic host', async () => {
+    const httpAnthropic = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { baseUrl: 'http://api.anthropic.com' }
+      }
+    } as never
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      httpAnthropic,
+      { contextWindow: 256_000, maxOutputTokens: 32_000 }
+    )
+
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(119_168)
+  })
+
   it.each([undefined, 64_000, 99_999])(
     'omits a model context window below Claude Code limits (%s)',
     async (contextWindow) => {
