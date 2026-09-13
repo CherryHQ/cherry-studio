@@ -88,8 +88,12 @@ describe('FollowupQueueService', () => {
   describe('claim', () => {
     it('should let exactly one claimant win (cross-window arbitration)', () => {
       const item = enqueueIn(SCOPE_A, 'a')
+      notifyDataApiDataChangeMock.mockClear()
 
       expect(followupQueueService.claim(item.id)).toEqual({ claimed: true })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/followup-queues', kind: 'projection', entityIds: [item.id] }
+      ])
       notifyDataApiDataChangeMock.mockClear()
       // Second window racing the same head loses without writing or notifying.
       expect(followupQueueService.claim(item.id)).toEqual({ claimed: false })
@@ -150,7 +154,7 @@ describe('FollowupQueueService', () => {
       const [row] = followupQueueService.listByScope(SCOPE_A)
       expect(row).toMatchObject({ id: sending.id, status: 'failed' })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
-        { endpoint: '/followup-queues', kind: 'membership', dimension: 'scopeKey', entityIds: [sending.id] }
+        { endpoint: '/followup-queues', kind: 'projection', entityIds: [sending.id] }
       ])
 
       followupQueueService.markFailed(pending.id)
