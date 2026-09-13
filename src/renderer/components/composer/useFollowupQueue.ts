@@ -230,10 +230,17 @@ export function useFollowupQueue({
           await removeTrigger({ params: { id } })
         } catch {
           toast.error(t('message.error.operation_unavailable'))
+          // Release the won claim so the item returns to the queue instead of
+          // sitting `sending` until the reclaim lease expires.
+          try {
+            await markFailedTrigger({ params: { id } })
+          } catch {
+            // Crash-orphan path: the reclaim lease still bounds the stall.
+          }
         }
       })()
     },
-    [claimItem, removeTrigger, t]
+    [claimItem, removeTrigger, markFailedTrigger, t]
   )
 
   const takeForEdit = useCallback(
