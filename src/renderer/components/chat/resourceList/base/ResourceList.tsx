@@ -595,7 +595,7 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
         'hover:bg-accent hover:text-accent-foreground!',
         'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground! focus-visible:opacity-100 focus-visible:outline-none',
         RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
-        'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100 aria-pressed:true:pointer-events-auto aria-pressed:true:opacity-100',
+        'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100 aria-pressed:pointer-events-auto aria-pressed:opacity-100',
         className
       )}
       {...props}

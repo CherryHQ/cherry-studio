@@ -2910,5 +2910,9 @@ describe('ResourceList', () => {
     expect(unpinButton).toHaveAttribute('aria-pressed', 'true')
     // The pinned rail reserves space at rest; unpinned rows keep the hover-only rail.
     expect(unpinButton.closest('[data-resource-list-item-actions]')).toHaveAttribute('data-pinned', 'true')
+    // The toggle itself must carry valid visible-at-rest variants; an unknown
+    // variant (e.g. `aria-pressed:true:`) compiles to no CSS and leaves it hidden.
+    expect(unpinButton).toHaveClass('aria-pressed:opacity-100')
+    expect(unpinButton).toHaveClass('aria-pressed:pointer-events-auto')
   })
 })
