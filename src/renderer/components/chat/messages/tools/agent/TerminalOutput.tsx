@@ -12,6 +12,7 @@ import {
   TERMINAL_LINK_CLASS,
   TERMINAL_SURFACE_CLASS
 } from '../shared/terminalOutputHelpers'
+import { toOutputText } from '../shared/truncateOutput'
 
 interface TerminalOutputProps {
   content: string
@@ -27,7 +28,10 @@ export const TerminalOutput = memo(function TerminalOutput({
   const { theme } = useTheme()
   const isDark = theme !== ThemeMode.light
   const palette = isDark ? shellColorPalettes.dark : shellColorPalettes.light
-  const colorized = useMemo(() => colorizeShellOutput(content, commandMode, palette), [content, commandMode, palette])
+  // Persisted parts can carry non-string content (JSON.parse'd bash output, corrupt command
+  // input); normalize at the single rendering exit so no stored shape crashes the page (#20265).
+  const text = toOutputText(content)
+  const colorized = useMemo(() => colorizeShellOutput(text, commandMode, palette), [text, commandMode, palette])
 
   return (
     <TerminalContainer style={{ maxHeight }}>

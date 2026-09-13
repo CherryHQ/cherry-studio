@@ -416,6 +416,15 @@ export const CLAUDE_KNOWLEDGE_TOOL_NAMES: ReadonlySet<string> = new Set(
 )
 
 /**
+ * Runtime-native names of the shell-category tools (Bash / BashOutput / REPL). Stream adapters
+ * use this set to keep shell tool results as verbatim text: their JSON-looking output must not
+ * be JSON.parse'd into the object shape the persisted string contract forbids (#20265).
+ */
+export const CLAUDE_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set(
+  CLAUDE_TOOL_DEFS.filter((def) => def.category === 'shell').map((def) => def.name)
+)
+
+/**
  * Descriptors for the canUseTool / catalog policy layer: every non-disabled SDK tool.
  * Disabled tools are omitted (they are hard-blocked via disallowedTools and never invoked).
  */
