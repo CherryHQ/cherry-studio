@@ -532,6 +532,23 @@ describe('useFollowupQueue', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
   })
 
+  it('releases the remove back to the queue when its delete fails', async () => {
+    wireQuery([row('h', 'head')])
+    const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
+    claimTrigger.mockResolvedValueOnce({ claimed: true })
+    deleteTrigger.mockRejectedValueOnce(new Error('db down'))
+
+    const { result } = renderHook(() => useFollowupQueue(baseProps()))
+
+    await act(async () => {
+      result.current.removeId('h')
+    })
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(failTrigger).toHaveBeenCalledWith({ params: { id: 'h' } })
+    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
   it('takes an item for edit and drops it from the queue', async () => {
     wireQuery([row('h', 'head')])
     const { claimTrigger, deleteTrigger, failTrigger } = wireMutations()
