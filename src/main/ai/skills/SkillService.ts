@@ -238,7 +238,11 @@ export class SkillService {
     const fetched = await fetchRemoteSkill(source, rest.join(':'))
 
     try {
-      const installed = await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
+      const installed = fetched.folderNameFallback
+        ? await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl, {
+            folderNameFallback: fetched.folderNameFallback
+          })
+        : await this.installSkillDir(fetched.skillDir, 'marketplace', fetched.sourceUrl)
       fetched.onInstalled?.()
       return installed
     } finally {
@@ -502,7 +506,7 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; folderNameFallback?: string } = {}
   ): Promise<InstalledSkill> {
     // Serialize against reconcile / uninstall / builtin sync so a concurrent reconcile can't see
     // this install's transient `.bak` / half-copied state and then prune or mis-adopt the row.
@@ -513,15 +517,27 @@ export class SkillService {
     skillDir: string,
     source: string,
     sourceUrl: string | null,
-    provenance: { namespace?: string | null } = {}
+    provenance: { namespace?: string | null; folderNameFallback?: string } = {}
   ): Promise<InstalledSkill> {
     const metadata = await parseSkillMetadata(skillDir, path.basename(skillDir), 'skills')
 
     const skillsRoot = path.resolve(application.getPath('feature.agents.skills'))
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
-    const folderName = isInPlace ? path.basename(skillDir) : sanitizeFolderName(metadata.filename)
+    const folderName = isInPlace
+      ? path.basename(skillDir)
+      : provenance.folderNameFallback
+        ? ([metadata.declaredName, metadata.slug?.trim(), provenance.folderNameFallback]
+            .map((candidate) => sanitizeFolderName(candidate ?? ''))
+            .find(Boolean) ?? '')
+        : sanitizeFolderName(metadata.filename)
+    const candidateDestPath = this.getSkillStoragePath(folderName)
 
-    const existing = this.findCatalogSkillCaseInsensitive(folderName)
+    const existingByFolderName = this.findCatalogSkillCaseInsensitive(folderName)
+    const existingBySourceUrl =
+      provenance.folderNameFallback && source === 'marketplace' && sourceUrl
+        ? this.findCatalogSkillBySourceUrl(source, sourceUrl)
+        : null
+    const existing = existingBySourceUrl ?? existingByFolderName
     if (existing) {
       // Only a re-install of the exact same skill (same source + origin URL) may overwrite the
       // existing folder in place. Anything else — a marketplace install colliding with a builtin,
@@ -538,7 +554,8 @@ export class SkillService {
       }
     }
 
-    const storageEntry = await this.findStorageFolderCaseInsensitive(folderName)
+    const storageFolderName = existing?.folderName ?? folderName
+    const storageEntry = await this.findStorageFolderCaseInsensitive(storageFolderName)
     if (!existing && storageEntry) {
       throw new Error(
         `Folder name "${folderName}" conflicts with an existing library directory "${storageEntry}"; ` +
@@ -552,9 +569,9 @@ export class SkillService {
       )
     }
 
-    const contentHash = await this.installer.computeContentHash(skillDir)
     const destFolderName = existing?.folderName ?? folderName
-    const destPath = this.getSkillStoragePath(destFolderName)
+    const destPath = existing ? this.getSkillStoragePath(destFolderName) : candidateDestPath
+    const contentHash = await this.installer.computeContentHash(skillDir)
 
     await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
     await this.installer.install(skillDir, destPath)
@@ -600,6 +617,7 @@ export class SkillService {
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
     } catch (error) {
+      await this.unlinkMirror(destFolderName)
       try {
         await this.installer.uninstall(destPath)
       } catch (cleanupError) {
@@ -612,6 +630,7 @@ export class SkillService {
       throw error
     }
     if (!inserted) {
+      await this.unlinkMirror(destFolderName)
       await this.installer.uninstall(destPath)
       throw new Error(`Failed to insert skill: ${metadata.name}`)
     }
@@ -629,7 +648,12 @@ export class SkillService {
   // ===========================================================================
 
   private getSkillStoragePath(folderName: string): string {
-    return path.join(application.getPath('feature.agents.skills'), folderName)
+    const storageRoot = path.resolve(application.getPath('feature.agents.skills'))
+    const storagePath = path.resolve(storageRoot, folderName)
+    if (storagePath === storageRoot || path.dirname(storagePath) !== storageRoot) {
+      throw new Error(`Invalid skill folder name: ${folderName}`)
+    }
+    return storagePath
   }
 
   // ===========================================================================
@@ -1080,6 +1104,16 @@ export class SkillService {
       throw new Error(
         `Multiple catalog skills conflict by case for "${folderName}": ${matches.map((skill) => skill.folderName).join(', ')}`
       )
+    }
+    return matches[0] ?? null
+  }
+
+  private findCatalogSkillBySourceUrl(source: string, sourceUrl: string): InstalledSkill | null {
+    const matches = agentGlobalSkillService
+      .listAll()
+      .filter((skill) => skill.source === source && skill.sourceUrl === sourceUrl)
+    if (matches.length > 1) {
+      throw new Error(`Multiple catalog skills share the same ${source} source URL: ${sourceUrl}`)
     }
     return matches[0] ?? null
   }

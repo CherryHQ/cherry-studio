@@ -78,6 +78,8 @@ export interface FetchedSkill {
   tempDir: string
   skillDir: string
   sourceUrl: string
+  /** Repository name used when a root skill has no explicit metadata slug or name. */
+  folderNameFallback?: string
   /** Fire-and-forget notification to run once the install has committed. */
   onInstalled?: () => void
 }
@@ -189,7 +191,11 @@ async function fetchFromGithub(
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
 
-  return { skillDir, sourceUrl }
+  return {
+    skillDir,
+    sourceUrl,
+    ...(target.kind === 'root' ? { folderNameFallback: repo } : {})
+  }
 }
 
 async function fetchFromSkillsSh(
