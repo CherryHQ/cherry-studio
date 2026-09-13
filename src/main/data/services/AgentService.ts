@@ -12,6 +12,7 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { followupQueueService } from '@data/services/FollowupQueueService'
 import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { promptService } from '@data/services/PromptService'
@@ -825,6 +826,9 @@ export class AgentService {
       this._onAgentDeleted.fire({ agentId: id })
     }
     if (deleted) pinService.notifyPurged()
+    if (options.deleteSessions === true && (result.sessionImpact?.sessionIds.length ?? 0) > 0) {
+      followupQueueService.notifyPurged()
+    }
     const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
     return {
       deleted,

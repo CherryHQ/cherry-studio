@@ -63,11 +63,12 @@ export interface FollowupQueueController {
    */
   steer: (id: string, send: (payload: ComposerQueuedMessagePayload) => Promise<boolean>) => Promise<boolean>
   /**
-   * Atomic take for edit: returns the item and drops it from the queue, or
-   * undefined (with a toast) when the item is missing or owned by an
-   * in-flight drain — so an edit can never race a send of the same item.
+   * Atomic take for edit: claims the item before deleting it, so the take
+   * arbitrates with in-flight drains instead of racing them. Resolves the
+   * item, or undefined (with a toast on transport failure) when the item is
+   * missing or owned by another window's send.
    */
-  takeForEdit: (id: string) => FollowupQueueItem | undefined
+  takeForEdit: (id: string) => Promise<FollowupQueueItem | undefined>
 }
 
 /**
@@ -90,6 +91,7 @@ export function useFollowupQueue({
   const {
     data: queueState,
     isLoading: stateLoading,
+    error: stateError,
     refetch: refetchState
   } = useQuery('/followup-queue-states', {
     query: { scopeKey }
@@ -125,7 +127,11 @@ export function useFollowupQueue({
     () => (Array.isArray(rows) ? rows : []).filter((row) => row.scopeKey === scopeKey).map(toControllerItem),
     [rows, scopeKey]
   )
-  const paused = queueState?.scopeKey === scopeKey ? queueState.paused : false
+  const paused = queueState?.scopeKey === scopeKey ? (queueState?.paused ?? false) : false
+  // Fail closed on the pause flag: while the pause-state read is unloaded,
+  // scoped elsewhere, or errored, the drain stays parked instead of sending
+  // into a possibly-paused conversation.
+  const pauseKnown = queueState?.scopeKey === scopeKey && !stateError
   // The drain must wait for both reads: firing on the completion edge against
   // an unloaded mirror would ack the turn while seeing an empty queue.
   const queriesReady = !queuesLoading && !stateLoading
@@ -142,6 +148,11 @@ export function useFollowupQueue({
   onDrainRef.current = onDrain
   const onDrainFailedRef = useRef(onDrainFailed)
   onDrainFailedRef.current = onDrainFailed
+  const markSeenRef = useRef(markSeen)
+  markSeenRef.current = markSeen
+  const isFulfilledRef = useRef(isFulfilled)
+  isFulfilledRef.current = isFulfilled
+  const mountedRef = useRef(true)
   // Ids with a claim held by this window (drain or steer in flight). User
   // actions refuse these so an edit/remove can never race a send.
   const activeIdsRef = useRef(new Set<string>())
@@ -157,13 +168,22 @@ export function useFollowupQueue({
   }
   // Background resolve retries that outlive the drain that scheduled them.
   const pendingResolveRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  // Background claim retries, unlike resolve retries, belong to the live edge:
+  // they stop when the hook unmounts.
+  const pendingClaimRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const claimAttemptsRef = useRef(new Map<string, number>())
 
-  // Clear pending resolve timers on unmount.
+  // Track mount state for background timers. Resolve retries intentionally
+  // survive unmount (a sent row must still be dequeued); claim retries stop.
   useEffect(() => {
-    const pending = pendingResolveRef.current
+    mountedRef.current = true
+    const pendingClaim = pendingClaimRef.current
+    const claimAttempts = claimAttemptsRef.current
     return () => {
-      for (const timer of pending.values()) clearTimeout(timer)
-      pending.clear()
+      mountedRef.current = false
+      for (const timer of pendingClaim.values()) clearTimeout(timer)
+      pendingClaim.clear()
+      claimAttempts.clear()
     }
   }, [])
 
@@ -197,17 +217,50 @@ export function useFollowupQueue({
     [removeTrigger, t]
   )
 
+  // Conditional pending/failed → sending transition with one retry. Resolves
+  // undefined when the request itself keeps failing (no window owns the item).
+  const claimItem = useCallback(
+    async (id: string) => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          return await claimTrigger({ params: { id } })
+        } catch {
+          // Transient IPC/DB failure — retry once.
+        }
+      }
+      return undefined
+    },
+    [claimTrigger]
+  )
+
   const takeForEdit = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const item = itemsRef.current.find((entry) => entry.id === id)
-      if (!item || !canRemoveRef.current(id)) {
-        if (item) toast.error(t('message.error.operation_unavailable'))
+      if (!item) return undefined
+      // Claim before deleting so the take arbitrates with in-flight drains:
+      // a lost claim means another window owns (and is sending) the item.
+      const claim = await claimItem(id)
+      if (!claim) {
+        toast.error(t('message.error.operation_unavailable'))
         return undefined
       }
-      removeId(id)
-      return item
+      if (!claim.claimed) return undefined
+      try {
+        await removeTrigger({ params: { id } })
+        return item
+      } catch {
+        toast.error(t('message.error.operation_unavailable'))
+        // Release the won claim so the item returns to the queue instead of
+        // sitting `sending` until the reclaim lease expires.
+        try {
+          await markFailedTrigger({ params: { id } })
+        } catch {
+          // Crash-orphan path: the reclaim lease still bounds the stall.
+        }
+        return undefined
+      }
     },
-    [removeId, t]
+    [claimItem, removeTrigger, markFailedTrigger, t]
   )
 
   const reorder = useCallback(
@@ -230,29 +283,16 @@ export function useFollowupQueue({
     [setPausedTrigger, t]
   )
 
-  // Conditional pending/failed → sending transition with one retry. Resolves
-  // undefined when the request itself keeps failing (no window owns the item).
-  const claimItem = useCallback(
-    async (id: string) => {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          return await claimTrigger({ params: { id } })
-        } catch {
-          // Transient IPC/DB failure — retry once.
-        }
-      }
-      return undefined
-    },
-    [claimTrigger]
-  )
-
-  // Background resolve that never gives up while mounted: after the inline
-  // attempts fail, the row would otherwise sit `sending` until the reclaim
-  // lease expires and a later claim replays an already-sent message. Retries
-  // run on a timer and refetch on success so mirrors converge.
-  const scheduleResolveRetryRef = useRef<(id: string, sent: boolean) => void>(() => {})
-  scheduleResolveRetryRef.current = (id: string, sent: boolean) => {
-    if (pendingResolveRef.current.has(id)) return
+  // Background resolve that never gives up while the row is unsettled:
+  // after the inline attempts fail, the row would otherwise sit `sending`
+  // until the reclaim lease expires and a later claim replays an already-sent
+  // message. Retries run on a timer (bounded per row) and refetch on success
+  // so mirrors converge; they survive unmount because a sent row must still
+  // be dequeued when its composer is gone.
+  const MAX_RESOLVE_RETRIES = 12
+  const scheduleResolveRetryRef = useRef<(id: string, sent: boolean, attempt?: number) => void>(() => {})
+  scheduleResolveRetryRef.current = (id: string, sent: boolean, attempt = 0) => {
+    if (pendingResolveRef.current.has(id) || attempt >= MAX_RESOLVE_RETRIES) return
     const tick = () => {
       void (async () => {
         try {
@@ -261,9 +301,9 @@ export function useFollowupQueue({
           const timer = pendingResolveRef.current.get(id)
           if (timer) clearTimeout(timer)
           pendingResolveRef.current.delete(id)
-          void refetch()
+          if (mountedRef.current) void refetch()
         } catch {
-          pendingResolveRef.current.set(id, setTimeout(tick, 5000))
+          scheduleResolveRetryRef.current(id, sent, attempt + 1)
         }
       })()
     }
@@ -330,52 +370,87 @@ export function useFollowupQueue({
     [claimItem, settleItem, t]
   )
 
+  // Background claim retry while the completion edge stays unacked: a claim
+  // request that keeps failing must not strand the queued head until the next
+  // turn. Each retry re-reads the current head; the attempt that wins the
+  // claim drains immediately. Bounded per row and stopped on unmount.
+  const MAX_CLAIM_RETRIES = 12
+  const scheduleClaimRetryRef = useRef<(id: string) => void>(() => {})
+  scheduleClaimRetryRef.current = (id: string) => {
+    if (!mountedRef.current || pendingClaimRef.current.has(id)) return
+    const attempts = claimAttemptsRef.current.get(id) ?? 0
+    if (attempts >= MAX_CLAIM_RETRIES) {
+      claimAttemptsRef.current.delete(id)
+      return
+    }
+    claimAttemptsRef.current.set(id, attempts + 1)
+    const tick = () => {
+      pendingClaimRef.current.delete(id)
+      if (!mountedRef.current) return
+      const head = itemsRef.current.find((entry) => entry.id === id)
+      if (!isFulfilledRef.current || !head) {
+        claimAttemptsRef.current.delete(id)
+        return
+      }
+      void drainHeadRef.current(head)
+    }
+    pendingClaimRef.current.set(id, setTimeout(tick, 5000))
+  }
+
+  // One drain attempt for the given head: claim, ack, send, resolve. Shared by
+  // the completion-edge effect and the background claim retry.
+  const drainHeadRef = useRef<(head: FollowupQueueItem) => Promise<void>>(() => Promise.resolve())
+  drainHeadRef.current = async (head: FollowupQueueItem) => {
+    const scope = scopeKeyRef.current
+    if (activeIdsRef.current.has(head.id)) return
+    activeIdsRef.current.add(head.id)
+    try {
+      const claim = await claimItem(head.id)
+      if (!claim) {
+        onDrainFailedRef.current?.()
+        void refetch()
+        scheduleClaimRetryRef.current(head.id)
+        return
+      }
+      claimAttemptsRef.current.delete(head.id)
+      // Scope switched mid-flight: release the claim without sending or
+      // acking — the head belongs to the previous scope's conversation.
+      if (scopeKeyRef.current !== scope) {
+        await settleItem(head.id, false)
+        return
+      }
+      markSeenRef.current()
+      if (!claim.claimed) return
+      let sent = false
+      try {
+        sent = await onDrainRef.current(head.payload)
+      } catch {
+        sent = false
+      }
+      const settled = await settleItem(head.id, sent)
+      if (!settled && sent) {
+        toast.error(t('message.error.operation_unavailable'))
+      }
+      if (!sent) onDrainFailedRef.current?.()
+    } finally {
+      activeIdsRef.current.delete(head.id)
+    }
+  }
+
   // Drain one message per completion: on the live→idle edge, claim the head
   // (only the winning window sends) and resolve the claim — dequeue on
   // success, mark failed otherwise. The edge is acked only once the claim
   // settles: a lost claim means another window is sending (our mirror
   // converges through the change notification), while a failed claim request
-  // leaves the edge for a later turn. Resolution writes are retried so a
-  // successful send is not replayed after a lost dequeue.
+  // leaves the edge for a later turn and schedules a background retry.
+  // Resolution writes are retried so a successful send is not replayed after
+  // a lost dequeue.
   useEffect(() => {
-    if (!isFulfilled || paused || !queriesReady) return
+    if (!isFulfilled || paused || !queriesReady || !pauseKnown) return
     const head = itemsRef.current[0]
     if (!head || head.id !== headId) return
-    const reportDrainFailure = () => onDrainFailedRef.current?.()
-    void (async () => {
-      const scope = scopeKey
-      activeIdsRef.current.add(head.id)
-      try {
-        const claim = await claimItem(head.id)
-        if (!claim) {
-          reportDrainFailure()
-          void refetch()
-          return
-        }
-        // Scope switched mid-flight: release the claim without sending or
-        // acking — the head belongs to the previous scope's conversation.
-        if (scopeKeyRef.current !== scope) {
-          await settleItem(head.id, false)
-          return
-        }
-        markSeen()
-        if (!claim.claimed) return
-        let sent = false
-        try {
-          sent = await onDrainRef.current(head.payload)
-        } catch {
-          sent = false
-        }
-        const settled = await settleItem(head.id, sent)
-        if (!settled && sent) {
-          toast.error(t('message.error.operation_unavailable'))
-        }
-        if (!sent) reportDrainFailure()
-      } finally {
-        activeIdsRef.current.delete(head.id)
-      }
-    })()
-  }, [isFulfilled, paused, queriesReady, headId, scopeKey, markSeen, claimItem, settleItem, refetch, t])
+    void drainHeadRef.current(head)
+  }, [isFulfilled, paused, queriesReady, pauseKnown, headId, scopeKey])
 
   return { items, enqueue, removeId, reorder, paused, setPaused, steer, takeForEdit }
 }

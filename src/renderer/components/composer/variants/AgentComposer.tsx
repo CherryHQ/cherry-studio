@@ -1775,10 +1775,10 @@ const AgentComposerInner = ({
                     // deliver the same queued message twice.
                     await steerFollowup(id, sendQueuedPayload)
                   }}
-                  onEdit={(id) => {
+                  onEdit={async (id) => {
                     // Atomic take: undefined when the item is owned by an
                     // in-flight drain, so an edit can never race its send.
-                    const item = takeFollowupForEdit(id)
+                    const item = await takeFollowupForEdit(id)
                     if (!item) return
                     restoreFollowupDraft(item)
                   }}
