@@ -42,6 +42,7 @@ import { REDACTED } from '@shared/utils/redaction'
 
 import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
+import { writeLaunchScript } from './launchScript'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -81,10 +82,6 @@ const MACOS_APPLICATION_LOOKUP_SCRIPT = [
 @ServicePhase(Phase.Background)
 @DependsOn(['BinaryManager'])
 export class CodeCliService extends BaseService {
-  // Static properties for cleanup management (avoid listener accumulation)
-  private static pendingBatCleanups = new Set<string>()
-  private static exitCleanupRegistered = false
-
   private terminalsCache: {
     terminals: TerminalConfig[]
     timestamp: number
@@ -702,7 +699,12 @@ export class CodeCliService extends BaseService {
         // Combine directory change with the main command to ensure they execute in the same shell session.
         // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
         // (double-quoting it only blocks `"`, leaving command substitution live).
-        const fullCommand = `cd ${posixQuote(directory)} && clear && ${command}`
+        const scriptBody = `#!/bin/sh\ncd ${posixQuote(directory)} && clear && ${command}`
+
+        // Inline env exports made the typed command exceed 2KB and hit the AppleEvent
+        // text-injection truncation on macOS terminals (#20338); a script file keeps it short.
+        const scriptPath = writeLaunchScript(cliTool, scriptBody, '.sh')
+        const fullCommand = `sh ${posixQuote(scriptPath)}`
 
         const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
@@ -716,20 +718,6 @@ export class CodeCliService extends BaseService {
         // Windows - Use temp bat file for debugging
         const envPrefix = buildEnvPrefix(true)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
-
-        // Create temp bat file for debugging and avoid complex command line escaping issues
-        const tempDir = application.getPath('feature.cli.temp')
-        const timestamp = Date.now()
-        const batFileName = `launch_${cliTool}_${timestamp}.bat`
-        const batFilePath = path.join(tempDir, batFileName)
-
-        // Ensure temp directory exists
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true })
-        }
-
-        // Escape special characters in paths for Windows batch scripting
-        // Using double quotes for compatibility with CMD
 
         // Build bat file content, including debug information
         // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
@@ -775,16 +763,8 @@ export class CodeCliService extends BaseService {
           'pause'
         ].join('\r\n')
 
-        // Write to bat file
-        try {
-          fs.writeFileSync(batFilePath, batContent, 'utf8')
-          // Set restrictive permissions for bat file
-          fs.chmodSync(batFilePath, 0o600)
-          logger.info(`Created temp bat file: ${batFilePath}`)
-        } catch (error) {
-          logger.error(`Failed to create bat file: ${error}`)
-          throw new Error(`Failed to create launch script: ${error}`)
-        }
+        // Write to bat file (naming, 0600, and cleanup live in writeLaunchScript)
+        const batFilePath = writeLaunchScript(cliTool, batContent, '.bat')
 
         // Use selected terminal configuration
         const terminalConfig = await this.getTerminalConfig(input.terminal)
@@ -797,44 +777,6 @@ export class CodeCliService extends BaseService {
 
         terminalCommand = cmd
         terminalArgs = args
-
-        // Add to cleanup set
-        CodeCliService.pendingBatCleanups.add(batFilePath)
-
-        // Register exit handler only once (using process.once to avoid accumulation)
-        if (!CodeCliService.exitCleanupRegistered) {
-          process.once('exit', () => {
-            // Clean up all remaining bat files on process exit
-            for (const filePath of CodeCliService.pendingBatCleanups) {
-              try {
-                if (fs.existsSync(filePath)) {
-                  fs.unlinkSync(filePath)
-                  logger.debug(`Cleaned up temp bat file on exit: ${filePath}`)
-                }
-              } catch (error) {
-                logger.warn(`Failed to cleanup temp bat file: ${error}`)
-              }
-            }
-            CodeCliService.pendingBatCleanups.clear()
-          })
-          CodeCliService.exitCleanupRegistered = true
-        }
-
-        // Set timeout for cleanup (normal case - file deleted after 60 seconds)
-        const cleanup = () => {
-          try {
-            if (fs.existsSync(batFilePath)) {
-              fs.unlinkSync(batFilePath)
-              logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
-            }
-            // Remove from pending set
-            CodeCliService.pendingBatCleanups.delete(batFilePath)
-          } catch (error) {
-            logger.warn(`Failed to cleanup temp bat file: ${error}`)
-          }
-        }
-
-        setTimeout(cleanup, 60 * 1000)
 
         break
       }
