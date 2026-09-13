@@ -35,6 +35,13 @@ async function readStoreJson(storagesDir: AbsoluteFilePath, fileName: string): P
 // compatibleVersions. Anything else fails open — no Cherry-side version constants.
 function checkProjcacheVersion(data: unknown): string | undefined {
   if (typeof data !== 'object' || data === null) return undefined
+  // dsh also envelopes versions under `unit` (seen in real workspace.json from
+  // #20395); a unit-carried version previously bypassed this guard entirely.
+  return checkVersionPair(data) ?? checkVersionPair((data as { unit?: unknown }).unit)
+}
+
+function checkVersionPair(data: unknown): string | undefined {
+  if (typeof data !== 'object' || data === null) return undefined
   const version = (data as { version?: unknown }).version
   if (typeof version !== 'number' || !Number.isSafeInteger(version)) return undefined
   const compatible = (data as { compatibleVersions?: unknown }).compatibleVersions

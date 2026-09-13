@@ -44,6 +44,26 @@ describe('checkDshHomeHealth', () => {
     })
   })
 
+  it('flags a unit-enveloped projcache version outside its compatibleVersions', async () => {
+    await writeStore(
+      'session_projcache.json',
+      JSON.stringify({ unit: { name: 'session_projcache', version: 9, compatibleVersions: [3, 4, 5, 6] } })
+    )
+    await expect(checkDshHomeHealth(stores)).resolves.toEqual({
+      healthy: false,
+      reason: 'projcache-version',
+      detail: expect.stringContaining('version 9')
+    })
+  })
+
+  it('reports healthy for a unit-enveloped projcache version inside its compatibleVersions', async () => {
+    await writeStore(
+      'session_projcache.json',
+      JSON.stringify({ unit: { name: 'session_projcache', version: 4, compatibleVersions: [3, 4, 5, 6] } })
+    )
+    await expect(checkDshHomeHealth(stores)).resolves.toEqual({ healthy: true })
+  })
+
   it('flags a corrupt projcache file', async () => {
     await writeStore('session_projcache.json', '{not json')
     await expect(checkDshHomeHealth(stores)).resolves.toEqual({
