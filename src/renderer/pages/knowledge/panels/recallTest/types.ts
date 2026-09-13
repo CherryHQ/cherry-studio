@@ -30,6 +30,7 @@ export interface RecallResultState {
   duration: number
   topScore: number
   scoreKind: KnowledgeSearchScoreKind | null
+  rerankFailed: boolean
 }
 
 export interface RecallQueryActions {
