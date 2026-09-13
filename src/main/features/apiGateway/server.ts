@@ -54,16 +54,17 @@ export class ApiGateway {
    */
   private readonly mcpSessions = new McpSessionStore()
 
+  constructor(private readonly endpoint?: { host: string; port: number }) {}
+
   async start(): Promise<void> {
     if (this.running) {
       logger.warn('Server already running')
       return
     }
 
-    // Load config from preference service
     const preferenceService = application.get('PreferenceService')
-    const port = preferenceService.get('feature.api_gateway.port')
-    const host = preferenceService.get('feature.api_gateway.host')
+    const port = this.endpoint?.port ?? preferenceService.get('feature.api_gateway.port')
+    const host = this.endpoint?.host ?? preferenceService.get('feature.api_gateway.host')
 
     const app = buildApp({ host, port, mcpSessions: this.mcpSessions })
     this.app = app

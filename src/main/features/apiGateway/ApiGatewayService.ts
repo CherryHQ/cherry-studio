@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
+import { hostname, networkInterfaces } from 'node:os'
 
 import { v4 as uuidv4 } from 'uuid'
 
@@ -7,9 +8,12 @@ import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { ApiGatewayPairedDeviceMetadata } from '@shared/data/types/apiGatewayPairedDevice'
+import type { OutputFor } from '@shared/ipc/types'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
 
+import { ApiGatewayPairing, type ApiGatewayPairingResult } from './ApiGatewayPairing'
 import type { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
@@ -20,6 +24,8 @@ const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 @ServicePhase(Phase.WhenReady)
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
+  private readonly pairing = new ApiGatewayPairing()
+  private activeEndpoint: { host: string; port: number } | null = null
   /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
   private readonly internalUsageToken = uuidv4()
   /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
@@ -83,12 +89,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
     try {
       await this.ensureValidApiKey()
       const { ApiGateway } = await import('./server')
-      this.apiGateway = new ApiGateway()
+      const { host, port } = this.getCurrentConfig()
+      this.apiGateway = new ApiGateway({ host, port })
       await this.apiGateway.start()
+      this.activeEndpoint = { host, port }
       this.publishRunningState(true)
       logger.info('API Gateway activated')
     } catch (error) {
       // Activatable failure contract: clean up partial state before throwing
+      this.activeEndpoint = null
       if (this.apiGateway) {
         await this.apiGateway.stop().catch(() => {})
         this.apiGateway = null
@@ -99,10 +108,12 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   async onDeactivate(): Promise<void> {
+    this.pairing.clearCode()
     if (this.apiGateway) {
       await this.apiGateway.stop()
       this.apiGateway = null
     }
+    this.activeEndpoint = null
     this.publishRunningState(false)
     logger.info('API Gateway deactivated')
   }
@@ -257,6 +268,32 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   isRunning(): boolean {
     return this.apiGateway?.isRunning() ?? false
+  }
+
+  createPairingOffer(): OutputFor<'api_gateway.create_pairing_offer'> {
+    const endpoint = this.activeEndpoint
+    if (!this.isRunning() || !endpoint) throw new Error('API Gateway is not running')
+    if (endpoint.host !== '0.0.0.0') throw new Error('LAN access is disabled')
+
+    const addresses = Object.values(networkInterfaces()).flatMap((infos) =>
+      (infos ?? []).filter((info) => info.family === 'IPv4' && !info.internal).map((info) => info.address)
+    )
+    if (addresses.length === 0) throw new Error('No reachable LAN address is available')
+
+    return {
+      hostname: hostname(),
+      port: endpoint.port,
+      addresses,
+      ...this.pairing.createCode()
+    }
+  }
+
+  pairDevice(code: string, device: ApiGatewayPairedDeviceMetadata): ApiGatewayPairingResult | null {
+    const result = this.pairing.consumeCode(code, device)
+    if (result) {
+      application.get('IpcApiService').broadcast('api_gateway.pairing_completed', undefined)
+    }
+    return result
   }
 
   getInternalRequestToken(): string {

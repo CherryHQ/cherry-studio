@@ -28,5 +28,6 @@ async function stopGateway(): Promise<ApiGatewayStopResult> {
 export const apiGatewayHandlers: IpcHandlersFor<typeof apiGatewayRequestSchemas> = {
   'api_gateway.start': () => toStatusResult(() => application.get('ApiGatewayService').start()),
   'api_gateway.stop': stopGateway,
-  'api_gateway.restart': () => toStatusResult(() => application.get('ApiGatewayService').restart())
+  'api_gateway.restart': () => toStatusResult(() => application.get('ApiGatewayService').restart()),
+  'api_gateway.create_pairing_offer': async () => application.get('ApiGatewayService').createPairingOffer()
 }

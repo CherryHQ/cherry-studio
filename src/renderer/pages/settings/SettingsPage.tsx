@@ -5,6 +5,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { settingsMenu } from '@renderer/pages/settings/settingsMenu'
@@ -27,6 +28,10 @@ const SettingsPage: FC = () => {
   const { pathname } = location
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const visibleSettingsMenu = settingsMenu.filter(
+    (item) => item.route !== '/settings/device-connections' || enableDeveloperMode
+  )
   // Anchor-lookup scope for SettingsFocusScroll (this tab's content column)
   const contentRef = useRef<HTMLDivElement>(null)
   // The full-width search field mounts only while a search session is active;
@@ -76,8 +81,8 @@ const SettingsPage: FC = () => {
             )}
             <Scrollbar className="min-h-0 flex-1 select-none">
               <MenuList className={settingsSubmenuListClassName}>
-                {settingsMenu.map((item, index) => {
-                  const startsNewGroup = index > 0 && item.groupKey !== settingsMenu[index - 1].groupKey
+                {visibleSettingsMenu.map((item, index) => {
+                  const startsNewGroup = index > 0 && item.groupKey !== visibleSettingsMenu[index - 1].groupKey
                   return (
                     <Fragment key={item.route}>
                       {startsNewGroup && (

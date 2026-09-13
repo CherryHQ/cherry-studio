@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,6 +65,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'agent.settings.toolsMcp.mcp.tab': 'MCP',
+        'deviceConnections.title': '设备互联',
         'selection.name': '划词助手',
         'settings.appearance.title': '外观',
         'settings.channels.title': '频道',
@@ -91,6 +93,7 @@ vi.mock('react-i18next', () => ({
 
 describe('SettingsPage', () => {
   beforeEach(() => {
+    MockUsePreferenceUtils.resetMocks()
     isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
   })
@@ -129,6 +132,16 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/general' })
     fireEvent.click(localModelsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
+  })
+
+  it('exposes device connections as its own settings destination in developer mode', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+    render(<SettingsPage />)
+
+    const deviceConnectionsItem = screen.getByRole('button', { name: '设备互联' })
+    fireEvent.click(deviceConnectionsItem)
+
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/device-connections' })
   })
 
   it('keeps document processing and OCR together in tools and dependencies in the system group', () => {
