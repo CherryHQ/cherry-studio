@@ -19,18 +19,14 @@
  * replaces. Having both this hook and the old budget-stop active would
  * double-compact, so budgetStop is removed in the same change.
  */
-import { compactModelMessages, resolveCompressionOutputTokens } from '@cherrystudio/ai-core'
+import { compactModelMessages } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import {
-  COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN,
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN, CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
 import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import { resolveInputRoom } from '@main/ai/contextBuild/resolveInputRoom'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
+import { resolveSummarizeBudget } from '@main/ai/contextBuild/resolveSummarizeBudget'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
 import { estimateModelMessagesSync } from '@main/ai/tokens/footprint'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
@@ -240,7 +236,7 @@ export const inLoopCompactionFeature: RequestFeature = {
         // Same budgeting as the turn-start path: the summarize call is itself a
         // window-bound request, so cap its input and size its output from the
         // window instead of a fixed constant.
-        const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+        const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(compressionWindow)
         // Summarizing is a full model round-trip in the middle of a tool loop —
         // seconds of apparent silence. Announce it so the UI can say so; the
         // same part id is replaced by the `done` event below.
@@ -254,13 +250,7 @@ export const inLoopCompactionFeature: RequestFeature = {
           compacted = await compactModelMessages(candidate, model, {
             keepRecentTurns,
             maxOutputTokens,
-            maxInputTokens: Math.min(
-              Math.max(0, compressionWindow - maxOutputTokens),
-              Math.max(
-                COMPACTION_MIN_INPUT_BUDGET,
-                Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-              )
-            )
+            maxInputTokens
           })
         } catch (error) {
           // `compactModelMessages` propagates provider errors. Letting one out of

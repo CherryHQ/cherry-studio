@@ -6,16 +6,12 @@
  */
 
 import { application } from '@application'
-import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
+import { ContextPrompts, summarizeModelMessages } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import {
-  COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN,
-  COMPACTION_INPUT_SAFETY_RATIO,
-  COMPACTION_MIN_INPUT_BUDGET,
-  CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER
-} from '@main/ai/constants'
+import { COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN, CONTEXT_COMPACT_KEEP_BUDGET_OF_TRIGGER } from '@main/ai/constants'
+import { resolveSummarizeBudget } from '@main/ai/contextBuild/resolveSummarizeBudget'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
 import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
@@ -1040,17 +1036,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const compressionWindow = Math.floor(
         (compressionModel.contextWindow ?? minContextWindow) * COMPACTION_CONTEXT_WINDOW_SAFETY_MARGIN
       )
-      const maxOutputTokens = resolveCompressionOutputTokens(compressionWindow)
+      const { maxOutputTokens, maxInputTokens } = resolveSummarizeBudget(compressionWindow)
       compactionSink?.(anchorId, { status: 'compacting', phase: 'turn-start', startedAt })
       const summary = await summarizeModelMessages(modelMessages, compressionModel.languageModel, {
         maxOutputTokens,
-        maxInputTokens: Math.min(
-          Math.max(0, compressionWindow - maxOutputTokens),
-          Math.max(
-            COMPACTION_MIN_INPUT_BUDGET,
-            Math.floor((compressionWindow - maxOutputTokens) * COMPACTION_INPUT_SAFETY_RATIO)
-          )
-        )
+        maxInputTokens
       })
       // Every exit below clears the spinner — a fold that produced nothing and a
       // fold that threw both continue with un-compacted history, so leaving
