@@ -67,7 +67,7 @@ export function createPiCodeModeTools(
   authorizeTool: PiToolAuthorizer
 ): ToolDefinition[] {
   const catalog = new Map(tools.map((tool) => [tool.name, tool]))
-  const browserFacade = buildBrowserFacade(tools)
+  const browserFacade = buildBrowserFacade(tools.filter((tool) => !isDisabled(tool.name)))
   const invokeTargetTool = async (
     executionToolCallId: string,
     approvalToolCallId: string,

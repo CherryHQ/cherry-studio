@@ -234,6 +234,32 @@ describe('createPiCodeModeTools', () => {
     }
   })
 
+  it('keeps an enabled browser alias when its colliding tool is disabled', async () => {
+    const enabled = browserTool({ name: 'mcp__browser-a__open', label: 'open' })
+    const disabled = browserTool({ name: 'mcp__browser-b__open', label: 'open' })
+    const tools = codeModeTools([enabled, disabled], new Set([disabled.name]))
+    const search = tools.find((item) => item.name === PI_TOOL_SEARCH_TOOL_NAME)!
+    const exec = tools.find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const discovery = await search.execute('search-1', { query: 'browser' }, undefined, undefined, {} as never)
+    const text = discovery.content[0].type === 'text' ? discovery.content[0].text : ''
+    expect(text).toContain(enabled.name)
+    expect(text).not.toContain(disabled.name)
+    expect(text).toMatch(/\bopen\(params:/)
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: 'return await browser.open({ query: "example" })' },
+      undefined,
+      undefined,
+      {} as never
+    )
+    expect(result.details).toEqual({
+      result: { content: [{ type: 'text', text: 'ok' }], details: { ok: true } },
+      logs: undefined
+    })
+  })
+
   it('forwards images returned by browser facade methods as tool_exec image content', async () => {
     const screenshot = browserTool({
       name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__screenshot',
