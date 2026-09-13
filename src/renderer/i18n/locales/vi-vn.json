@@ -599,6 +599,7 @@
   "chat.input.file_not_supported_count": "{{count}} tệp không được hỗ trợ",
   "chat.input.focus_hint": "để tập trung",
   "chat.input.followup_queue.edit": "Chỉnh sửa",
+  "chat.input.followup_queue.limit_reached": "Hàng đợi đã đầy (tối đa {{count}})",
   "chat.input.followup_queue.pause": "Tạm dừng gửi tự động",
   "chat.input.followup_queue.remove": "Xóa",
   "chat.input.followup_queue.resume": "Tiếp tục gửi tự động",
