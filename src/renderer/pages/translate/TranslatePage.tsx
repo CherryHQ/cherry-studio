@@ -1239,7 +1239,12 @@ const TranslatePage: FC = () => {
         <OcrJobWatcher
           key={ocrJob.jobId}
           job={ocrJob}
-          onCompleted={(text) => {
+          onCompleted={async (text) => {
+            let pendingHistory = cacheService.get('translate.history_restore_pending')
+            while (pendingHistory && ocrJob.contentOperationRevision <= pendingHistory.intentRevision) {
+              await pendingHistory.barrier
+              pendingHistory = cacheService.get('translate.history_restore_pending')
+            }
             if (isContentOperationCurrent(ocrJob.contentOperationRevision)) appendTranslateInput(text)
           }}
           onSettled={clearOcrJob}
