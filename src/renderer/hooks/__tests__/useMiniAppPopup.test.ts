@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
 // Mock side-effect dependencies BEFORE importing the hook
-vi.mock('@renderer/utils/webviewStateManager', () => ({
+vi.mock('@renderer/services/MiniAppWebviewService', () => ({
   clearWebviewState: vi.fn(),
   setWebviewLoaded: vi.fn()
 }))
@@ -39,7 +39,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 // Import mocked modules
-import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/services/MiniAppWebviewService'
 
 const mockClearWebviewState = vi.mocked(clearWebviewState)
 const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
