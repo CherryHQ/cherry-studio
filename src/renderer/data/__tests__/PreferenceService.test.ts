@@ -192,13 +192,94 @@ describe('renderer PreferenceService write consistency', () => {
     const second = service.set('app.developer_mode.enabled', true)
 
     expect(set).toHaveBeenCalledExactlyOnceWith('app.developer_mode.enabled', false)
-    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(false)
+    expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
 
     resolveFirst()
     await Promise.all([first, second])
 
     expect(set).toHaveBeenNthCalledWith(2, 'app.developer_mode.enabled', true)
     expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
+    expect(service.getPendingOptimisticUpdates()).toEqual([])
+  })
+
+  it('keeps a queued optimistic write ahead of a delayed read and cross-window echo', async () => {
+    const key = 'app.developer_mode.enabled'
+    let resolvePrior!: () => void
+    let resolveOptimistic!: () => void
+    let resolveRead!: (value: boolean) => void
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolvePrior = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveOptimistic = resolve
+          })
+      )
+    get.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveRead = resolve
+        })
+    )
+    const service = await createService()
+
+    const prior = service.set(key, true, { optimistic: false })
+    const delayedRead = service.get(key)
+    const optimistic = service.set(key, false)
+
+    expect(service.getCachedValue(key)).toBe(false)
+    emitChanged?.(key, true)
+    expect(service.getCachedValue(key)).toBe(false)
+
+    resolvePrior()
+    await vi.waitFor(() => expect(set).toHaveBeenCalledTimes(2))
+
+    resolveRead(true)
+    await delayedRead
+    expect(service.getCachedValue(key)).toBe(false)
+
+    resolveOptimistic()
+    await Promise.all([prior, optimistic])
+    expect(service.getCachedValue(key)).toBe(false)
+    expect(service.getPendingOptimisticUpdates()).toEqual([])
+  })
+
+  it('keeps a queued optimistic write ahead of a delayed multiple read', async () => {
+    const key = 'app.developer_mode.enabled'
+    let resolvePrior!: () => void
+    let resolveRead!: (value: Record<string, boolean>) => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePrior = resolve
+        })
+    )
+    getMultipleRaw.mockImplementationOnce(
+      () =>
+        new Promise<Record<string, string>>((resolve) => {
+          resolveRead = (value) => resolve(value as unknown as Record<string, string>)
+        })
+    )
+    const service = await createService()
+
+    const prior = service.set(key, true, { optimistic: false })
+    const delayedRead = service.getMultipleRaw([key])
+    const optimistic = service.set(key, false)
+
+    expect(service.getCachedValue(key)).toBe(false)
+
+    resolveRead({ [key]: true })
+    await expect(delayedRead).resolves.toEqual({ [key]: false })
+    expect(service.getCachedValue(key)).toBe(false)
+
+    resolvePrior()
+    await Promise.all([prior, optimistic])
+    expect(service.getCachedValue(key)).toBe(false)
     expect(service.getPendingOptimisticUpdates()).toEqual([])
   })
 

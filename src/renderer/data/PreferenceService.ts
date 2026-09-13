@@ -120,15 +120,20 @@ export class PreferenceService {
     try {
       // Fetch from main process if not cached
       const value = await window.api.preference.get(key)
-      this.cache[key] = value
+      const optimisticState = this.optimisticValues.get(key)
+      if (optimisticState) {
+        optimisticState.originalValue = value
+      } else {
+        this.cache[key] = value
 
-      // since not cached, notify change listeners to receive the value
-      this.notifyChangeListeners(key)
+        // since not cached, notify change listeners to receive the value
+        this.notifyChangeListeners(key)
+      }
 
       // Auto-subscribe to this key for future updates
       await this.subscribeToKeyInternal([key])
 
-      return value
+      return (optimisticState ? this.cache[key] : value) as UnifiedPreferenceType[K]
     } catch (error) {
       logger.error(`Failed to get preference ${key}:`, error as Error)
       return getDefaultValue(key)
@@ -150,11 +155,8 @@ export class PreferenceService {
     if (options.optimistic) {
       const requestId = this.generateRequestId()
       const sequence = ++this.optimisticSequence
-      return this.enqueueWrite([key], () => {
-        const current = this.optimisticValues.get(key)
-        if (!current || current.sequence <= sequence) this.applyOptimisticUpdate(key, value, requestId, sequence)
-        return this.persistOptimistic(key, value, requestId)
-      })
+      this.applyOptimisticUpdate(key, value, requestId, sequence)
+      return this.enqueueWrite([key], () => this.persistOptimistic(key, value, requestId))
     }
 
     return this.enqueueWrite([key], () => this.setPessimistic(key, value))
@@ -267,11 +269,15 @@ export class PreferenceService {
       try {
         uncachedResults = await window.api.preference.getMultipleRaw(uncachedKeys)
 
-        // Update cache with new results
+        // Update cache with new results, preserving any newer local optimistic value.
         for (const [key, value] of Object.entries(uncachedResults)) {
-          this.cache[key as UnifiedPreferenceKeyType] = value
-
-          this.notifyChangeListeners(key)
+          const optimisticState = this.optimisticValues.get(key as UnifiedPreferenceKeyType)
+          if (optimisticState) {
+            optimisticState.originalValue = value
+          } else {
+            this.cache[key as UnifiedPreferenceKeyType] = value
+            this.notifyChangeListeners(key)
+          }
         }
       } catch (error) {
         logger.error('Failed to get multiple preferences:', error as Error)
@@ -290,7 +296,16 @@ export class PreferenceService {
     // Unconditional on purpose: cached-but-unsubscribed keys are healed too.
     await this.subscribeToKeyInternal(keys)
 
-    return { ...cachedResults, ...uncachedResults } as UnifiedPreferenceMultipleResultType<K>
+    const result = { ...cachedResults, ...uncachedResults } as Partial<UnifiedPreferenceType>
+    for (const key of keys) {
+      const optimisticState = this.optimisticValues.get(key)
+      if (optimisticState) {
+        if (key in result) optimisticState.originalValue = result[key]
+        result[key] = this.cache[key]
+      }
+    }
+
+    return result as UnifiedPreferenceMultipleResultType<K>
   }
 
   /**
@@ -503,10 +518,15 @@ export class PreferenceService {
 
       // Update local cache with all preferences
       for (const [key, value] of Object.entries(allPreferences)) {
-        this.cache[key as UnifiedPreferenceKeyType] = value
+        const optimisticState = this.optimisticValues.get(key as UnifiedPreferenceKeyType)
+        if (optimisticState) {
+          optimisticState.originalValue = value
+        } else {
+          this.cache[key as UnifiedPreferenceKeyType] = value
 
-        // Notify change listeners for the loaded value
-        this.notifyChangeListeners(key)
+          // Notify change listeners for the loaded value
+          this.notifyChangeListeners(key)
+        }
       }
 
       await this.subscribeToKeyInternal(Object.keys(allPreferences) as UnifiedPreferenceKeyType[])
