@@ -69,7 +69,7 @@ export class AgentSessionDeliveryService extends BaseService {
   private readonly pendingKicks = new Set<string>()
   private readonly inFlight = new Map<Promise<void>, string>()
   private readonly suppressedSessionIds = new Set<string>()
-  private readonly clearingSessionIds = new Set<string>()
+  private readonly clearingSessionCounts = new Map<string, number>()
   private isShuttingDown = false
 
   protected override onInit(): void {
@@ -94,7 +94,7 @@ export class AgentSessionDeliveryService extends BaseService {
 
   accept(input: AcceptSessionDeliveryInput): AgentSessionMessageEntity {
     this.assertWritesAvailable()
-    if (this.clearingSessionIds.has(input.receiverSessionId)) {
+    if ((this.clearingSessionCounts.get(input.receiverSessionId) ?? 0) > 0) {
       throw new AgentSessionDeliveryRoutingError(
         AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_CLEARED,
         'Target Session messages are being cleared'
@@ -274,7 +274,7 @@ export class AgentSessionDeliveryService extends BaseService {
       deletedIds: [],
       deliveryResults: []
     }
-    this.clearingSessionIds.add(sessionId)
+    this.clearingSessionCounts.set(sessionId, (this.clearingSessionCounts.get(sessionId) ?? 0) + 1)
     try {
       await application
         .get('AiStreamManager')
@@ -284,7 +284,9 @@ export class AgentSessionDeliveryService extends BaseService {
       for (const deliveryResult of result.deliveryResults) this.kick(deliveryResult.sessionId)
       return { deletedIds: result.deletedIds }
     } finally {
-      this.clearingSessionIds.delete(sessionId)
+      const count = this.clearingSessionCounts.get(sessionId) ?? 0
+      if (count <= 1) this.clearingSessionCounts.delete(sessionId)
+      else this.clearingSessionCounts.set(sessionId, count - 1)
     }
   }
 

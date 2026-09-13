@@ -704,6 +704,54 @@ describe('AgentSessionDeliveryService', () => {
     expect(order).toEqual(['commit', 'kick-result'])
   })
 
+  it('keeps delivery admission closed across overlapping clears of the same session', async () => {
+    let releaseFirstDrain!: () => void
+    let releaseSecondDrain!: () => void
+    const firstDrain = new Promise<void>((resolve) => {
+      releaseFirstDrain = resolve
+    })
+    const secondDrain = new Promise<void>((resolve) => {
+      releaseSecondDrain = resolve
+    })
+    manager.abortAndDrain
+      .mockImplementationOnce(async (_topicId: string, _reason: string, afterDrain: () => void) => {
+        afterDrain()
+        await firstDrain
+      })
+      .mockImplementationOnce(async (_topicId: string, _reason: string, afterDrain: () => void) => {
+        afterDrain()
+        await secondDrain
+      })
+
+    const service = new AgentSessionDeliveryService()
+    const first = service.clearSessionMessages('target')
+    const second = service.clearSessionMessages('target')
+    await vi.waitFor(() => expect(mocks.clearMessages).toHaveBeenCalledTimes(2))
+
+    expect(() =>
+      service.accept({
+        senderAgentId: 'sender-agent',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'overlap delivery'
+      })
+    ).toThrow('Target Session messages are being cleared')
+
+    releaseFirstDrain()
+    await first
+    expect(() =>
+      service.accept({
+        senderAgentId: 'sender-agent',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'still clearing'
+      })
+    ).toThrow('Target Session messages are being cleared')
+
+    releaseSecondDrain()
+    await second
+  })
+
   it('closes duplicate placeholder runtimes through the delivery owner', async () => {
     mocks.reuseOrCreate.mockReturnValue({
       session: { id: 'retained' },
