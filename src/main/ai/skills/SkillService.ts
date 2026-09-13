@@ -159,6 +159,12 @@ function normalizeSkillSourceUrl(source: string, sourceUrl: string | null): stri
   return normalizeGithubSourceUrl(sourceUrl) ?? [sourceUrl]
 }
 
+function legacyBranchIdentityFromRefPath(identity: string): string | null {
+  const match = identity.match(/^github-ref-path:([^/]+)\/([^/]+)\/heads\/([^/]+)(\/.*)?$/i)
+  if (!match || /%2f/i.test(match[3])) return null
+  return `github-url:${match[1]}/${match[2]}/${match[3]}${match[4] ?? ''}`
+}
+
 function sameSkillSourceUrl(left: string[], right: string[]): boolean {
   const leftRefPath = left.filter((identity) => identity.startsWith('github-ref-path:'))
   const rightRefPath = right.filter((identity) => identity.startsWith('github-ref-path:'))
@@ -176,7 +182,12 @@ function sameSkillSourceUrl(left: string[], right: string[]): boolean {
     (leftRefPath.length > 0 && rightUrlIdentity.length > 0) ||
     (rightRefPath.length > 0 && leftUrlIdentity.length > 0)
   ) {
-    return false
+    const refPath = leftRefPath.length > 0 ? leftRefPath : rightRefPath
+    const legacyUrl = leftRefPath.length > 0 ? rightUrlIdentity : leftUrlIdentity
+    return refPath.some((identity) => {
+      const legacyIdentity = legacyBranchIdentityFromRefPath(identity)
+      return legacyIdentity ? legacyUrl.includes(legacyIdentity) : false
+    })
   }
 
   // Complete URL identities retain the ref/path sequence, so two ambiguous legacy URLs must

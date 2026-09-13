@@ -1415,6 +1415,55 @@ describe('SkillService', () => {
       }
     })
 
+    it('reinstalls an unannotated legacy branch URL against its explicit fetched branch', async () => {
+      const { skillService, dataSkillsRoot, restoreGetPath, workDir } = await setupGithubRootInstall()
+      const existingDir = path.join(workDir, 'existing')
+      const incomingDir = path.join(workDir, 'incoming')
+      const legacyUrl = 'https://github.com/owner/repo/blob/main/skills/demo/SKILL.md'
+      const fetchedUrl = `https://github.com/owner/repo/tree/${'a'.repeat(40)}/skills/demo?ref=refs%2Fheads%2Fmain`
+      const legacySkillId = 'legacy-unannotated-branch'
+
+      try {
+        await Promise.all(
+          [existingDir, incomingDir].map(async (directory) => {
+            await fs.promises.mkdir(directory, { recursive: true })
+            await fs.promises.writeFile(path.join(directory, 'SKILL.md'), '# skill')
+          })
+        )
+        vi.mocked(parseSkillMetadata).mockResolvedValue({
+          ...githubRootMetadata({ name: 'Demo', declaredName: 'Demo' }),
+          filename: 'Demo'
+        } as never)
+
+        await dbh.db.insert(agentGlobalSkillTable).values({
+          id: legacySkillId,
+          name: 'Legacy Demo',
+          folderName: 'content',
+          source: 'marketplace',
+          sourceUrl: legacyUrl,
+          contentHash: 'legacy-hash',
+          isEnabled: false
+        })
+        await fs.promises.mkdir(path.join(dataSkillsRoot, 'content'), { recursive: true })
+        await fs.promises.writeFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), '# retained legacy')
+
+        const reinstalled = await skillService['installSkillDir'](incomingDir, 'marketplace', fetchedUrl, {
+          folderNameFallback: 'repo'
+        })
+
+        expect(reinstalled.id).toBe(legacySkillId)
+        expect(reinstalled.folderName).toBe('content')
+        expect(await dbh.db.select().from(agentGlobalSkillTable)).toHaveLength(1)
+        await expect(fs.promises.readFile(path.join(dataSkillsRoot, 'content', 'SKILL.md'), 'utf-8')).resolves.toBe(
+          '# skill'
+        )
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'Demo'))).rejects.toThrow()
+      } finally {
+        restoreGetPath()
+        vi.mocked(parseSkillMetadata).mockReset()
+      }
+    })
+
     it('does not treat same-named branches and tags as the same skill origin', async () => {
       const { skillService, restoreGetPath, workDir } = await setupGithubRootInstall()
       const branchDir = path.join(workDir, 'branch')
