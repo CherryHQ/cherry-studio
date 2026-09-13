@@ -119,6 +119,21 @@ describe('LoggerService file output', () => {
     expect(String(line.stack).length).toBeLessThanOrEqual(4000)
   })
 
+  it('bounds and redacts error names before writing file logs', async () => {
+    const { loggerService, lines, readLine } = await loadLogger()
+    const longName = new Error('boom')
+    longName.name = 'n'.repeat(500)
+    loggerService.withContext('AiTest').error('boom', longName)
+    const secretName = new Error('boom')
+    secretName.name = 'apiKey = sk-secret123'
+    loggerService.withContext('AiTest').error('boom', secretName)
+
+    expect(String((await readLine(0)).name).length).toBeLessThanOrEqual(100)
+    const secretLine = await readLine(1)
+    expect(String(secretLine.name)).not.toContain('sk-secret123')
+    expect(lines[1]).not.toContain('sk-secret123')
+  })
+
   it('keeps diagnostic tags from real APICallError while stripping fat fields', async () => {
     const { loggerService, lines, readLine } = await loadLogger()
     const error = new APICallError({

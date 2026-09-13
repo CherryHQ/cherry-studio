@@ -56,7 +56,10 @@ function safeErrorText(value: unknown): string {
 }
 
 function toSafeError(error: Error): Record<string, unknown> {
-  const safe: Record<string, unknown> = { name: error.name, message: safeErrorText(error.message) }
+  const safe: Record<string, unknown> = {
+    name: redactSecretText(String(error.name ?? 'Error')).slice(0, MAX_SAFE_ERROR_TAG_CHARS),
+    message: safeErrorText(error.message)
+  }
   if (typeof error.stack === 'string') safe.stack = redactSecretText(error.stack).slice(0, MAX_ERROR_STACK_CHARS)
   const source = error as unknown as Record<string, unknown>
   if (typeof source.code === 'string' && source.code.length <= MAX_SAFE_ERROR_TAG_CHARS) {
