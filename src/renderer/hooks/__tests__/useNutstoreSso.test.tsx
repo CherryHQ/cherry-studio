@@ -148,6 +148,30 @@ describe('useNutstoreSso', () => {
     expect(mocks.activeListeners.size).toBe(0)
   })
 
+  it('ignores an unrelated root callback without Nutstore parameters', async () => {
+    const { result } = renderHook(() => useNutstoreSso())
+    const pending = result.current()
+    let settled = false
+    void pending.then(() => {
+      settled = true
+    })
+
+    act(() => {
+      emitProtocolData('cherrystudio://?code=unrelated-oauth-code')
+    })
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    expect(mocks.activeListeners.size).toBe(1)
+
+    act(() => {
+      emitProtocolData('cherrystudio://?s=encrypted-token')
+    })
+
+    await expect(pending).resolves.toEqual({ status: 'success', token: 'encrypted-token' })
+    expect(mocks.activeListeners.size).toBe(0)
+  })
+
   it('replaces the previous attempt instead of accumulating listeners', async () => {
     const { result } = renderHook(() => useNutstoreSso())
     mocks.getSsoUrl.mockResolvedValueOnce('https://example.com/first')
