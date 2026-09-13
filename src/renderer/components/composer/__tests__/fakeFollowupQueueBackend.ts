@@ -31,8 +31,11 @@ export function installFakeFollowupQueueBackend() {
       }
     }
     if (path === '/followup-queue-states') {
+      // Echo the requested scope like the real read model, which always
+      // resolves state for the queried scope (defaulting to unpaused).
+      const scopeKey = (options as { query?: { scopeKey?: string } } | undefined)?.query?.scopeKey ?? ''
       return {
-        data: { scopeKey: '', paused: state.paused, createdAt: '', updatedAt: '' },
+        data: { scopeKey, paused: state.paused, createdAt: '', updatedAt: '' },
         isLoading: false,
         isRefreshing: false,
         error: undefined,
