@@ -42,6 +42,7 @@ export interface AgentFormState {
   envVarsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
+  defaultWorkspaceId: string
 }
 
 function asString(value: unknown): string {
@@ -109,7 +110,8 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
     heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
-    heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL
+    heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL,
+    defaultWorkspaceId: asString(cfg.default_workspace_id)
   }
 }
 
@@ -205,6 +207,10 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
       cfgPatch.heartbeat_enabled = true
     }
     cfgPatch.heartbeat_interval = next.heartbeatInterval
+    cfgDirty = true
+  }
+  if (baseline.defaultWorkspaceId !== next.defaultWorkspaceId) {
+    cfgPatch.default_workspace_id = next.defaultWorkspaceId || undefined
     cfgDirty = true
   }
 

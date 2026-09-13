@@ -24,6 +24,7 @@ export type ResourceCreateValues = {
   prompt: string
   knowledgeBaseIds: string[]
   skillIds: string[]
+  defaultWorkspaceId?: string | null
 }
 
 export type SortKey = 'updatedAt' | 'createdAt' | 'name'

@@ -27,6 +27,8 @@ export type ResourceCreateWizardFormValues = {
   knowledgeBaseIds: string[]
   // agent step 3
   skillIds: string[]
+  /** Optional default used only when creating new Agent sessions. */
+  defaultWorkspaceId: string | null
 }
 
 /**

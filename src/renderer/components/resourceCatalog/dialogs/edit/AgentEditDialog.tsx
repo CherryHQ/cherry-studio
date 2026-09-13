@@ -53,6 +53,7 @@ import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 
+import { AgentDefaultWorkspaceField } from '../components/AgentDefaultWorkspaceField'
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import { EmojiAvatarPicker } from '../components/DialogFormFields'
 import {
@@ -96,6 +97,7 @@ type AgentEditFormValues = {
   envVarsText: string
   heartbeatEnabled: boolean
   heartbeatInterval: number
+  defaultWorkspaceId: string
 }
 
 type ToolTab = 'tools.builtin' | 'tools.knowledge' | 'tools.mcp' | 'tools.skills'
@@ -150,7 +152,8 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
     heartbeatEnabled: form.heartbeatEnabled,
-    heartbeatInterval: form.heartbeatInterval
+    heartbeatInterval: form.heartbeatInterval,
+    defaultWorkspaceId: form.defaultWorkspaceId
   }
 }
 
@@ -180,7 +183,8 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
     heartbeatEnabled: values.heartbeatEnabled,
-    heartbeatInterval: values.heartbeatInterval
+    heartbeatInterval: values.heartbeatInterval,
+    defaultWorkspaceId: values.defaultWorkspaceId
   }
 }
 
@@ -214,6 +218,7 @@ function advanceAgentFormBaseline(
     if (hasOwn(configuration, 'env_vars')) next.envVarsText = submitted.envVarsText
     if (hasOwn(configuration, 'heartbeat_enabled')) next.heartbeatEnabled = submitted.heartbeatEnabled
     if (hasOwn(configuration, 'heartbeat_interval')) next.heartbeatInterval = submitted.heartbeatInterval
+    if (hasOwn(configuration, 'default_workspace_id')) next.defaultWorkspaceId = submitted.defaultWorkspaceId
   }
 
   return next
@@ -230,6 +235,7 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
+  form.setValue('defaultWorkspaceId', next.defaultWorkspaceId, { shouldDirty: true })
 }
 
 export function AgentEditDialog({
@@ -1051,7 +1057,14 @@ function AgentAdvancedFields({ form }: { form: UseFormReturn<AgentEditFormValues
   const { t } = useTranslation()
 
   return (
-    <div>
+    <div className="space-y-5">
+      <FormField
+        control={form.control}
+        name="defaultWorkspaceId"
+        render={({ field }) => (
+          <AgentDefaultWorkspaceField value={field.value || null} onChange={(value) => field.onChange(value ?? '')} />
+        )}
+      />
       <FormField
         control={form.control}
         name="envVarsText"

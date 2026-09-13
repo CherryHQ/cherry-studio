@@ -15,7 +15,8 @@ const wizardValues = {
   description: 'desc',
   prompt: 'Agent instructions',
   knowledgeBaseIds: ['kb-1'],
-  skillIds: ['skill-a', 'skill-b']
+  skillIds: ['skill-a', 'skill-b'],
+  defaultWorkspaceId: 'workspace-default'
 }
 
 vi.mock('@logger', () => ({
@@ -70,10 +71,14 @@ describe('AgentCreateDialog', () => {
         instructions: 'Agent instructions',
         knowledgeBaseIds: ['kb-1'],
         skillIds: ['skill-a', 'skill-b'],
-        configuration: { avatar: '🤖', permission_mode: 'auto' }
+        configuration: {
+          avatar: '🤖',
+          permission_mode: 'auto',
+          default_workspace_id: 'workspace-default'
+        }
       })
     )
-    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new'))
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith('agent-new', 'workspace-default'))
   })
 
   it('keeps the dialog open and does not report an agent when creation fails', async () => {
