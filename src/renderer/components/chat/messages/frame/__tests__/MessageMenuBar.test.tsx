@@ -26,17 +26,16 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
+  exportService: {
+    captureScrollableAsBlob: vi.fn(),
+    captureScrollableAsDataUrl: vi.fn()
+  },
   getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
 
 vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn()
-}))
-
-vi.mock('@renderer/utils/image', () => ({
-  captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({
