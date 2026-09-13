@@ -36,7 +36,7 @@ export function resolveUniqueModelId(
   if (!modelSnapshot) return undefined
 
   try {
-    return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
+    return createUniqueModelId(modelSnapshot.provider.trim(), modelSnapshot.id.trim())
   } catch {
     return undefined
   }

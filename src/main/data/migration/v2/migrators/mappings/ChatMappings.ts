@@ -605,8 +605,7 @@ function buildMessageSnapshot(
   const uniqueModelId = legacyModelToUniqueId(model, fallbackModelId)
   if (!uniqueModelId) return null
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const legacyModelId = typeof model?.id === 'string' ? model.id.trim() : ''
-  const fallbackName = legacyModelId || modelId
+  const fallbackName = modelId
   return {
     ...assistant,
     model: {

@@ -943,6 +943,25 @@ describe('transformMessage', () => {
     expect(resolveUniqueModelId(null, result.messageSnapshot?.model)).toBe(result.modelId)
   })
 
+  it('uses the parsed model ID as the fallback snapshot name', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'assistant'),
+      model: { id: 'provider-a::model-a', name: '', provider: 'provider-a', group: '' }
+    }
+    const result = await transformMessage(oldMsg, null, 0, [mainTextBlock('b1', 'm1', 'hello')], 'topic-1', undefined, {
+      id: 'asst-1',
+      name: 'Assistant',
+      emoji: ''
+    })
+
+    expect(result.messageSnapshot?.model).toEqual({
+      id: 'model-a',
+      name: 'model-a',
+      provider: 'provider-a',
+      group: ''
+    })
+  })
+
   it('uses a valid fallback model ID when the legacy model object is malformed', async () => {
     const oldMsg: OldMessage = {
       ...msg('m1', 'assistant'),

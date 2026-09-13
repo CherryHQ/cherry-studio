@@ -53,6 +53,10 @@ describe('shared model capability helpers', () => {
       expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'model?legacy-route' })).toBeUndefined()
     })
 
+    it('trims provider and model IDs from legacy snapshots', () => {
+      expect(resolveUniqueModelId(null, { provider: ' provider-a ', id: ' model-a ' })).toBe('provider-a::model-a')
+    })
+
     it('keeps separator-containing raw snapshots distinct from other provider models', () => {
       expect(
         areDifferentModelIdentities(
