@@ -39,6 +39,7 @@ export interface AgentNotificationContext {
 
 export interface AgentMcpServer {
   name: string
+  logicalName?: string
   instance: McpServer
 }
 
@@ -64,7 +65,11 @@ export function buildAgentMcpServers(
       if (mcpServerSnapshots && !serverSnapshot) {
         throw new Error(`MCP server not found in request snapshot: ${mcpId}`)
       }
-      servers[mcpId] = { name: mcpId, instance: createMcpBridgeServer(mcpId, serverSnapshot) }
+      servers[mcpId] = {
+        name: mcpId,
+        logicalName: serverSnapshot?.name,
+        instance: createMcpBridgeServer(mcpId, serverSnapshot)
+      }
     } catch (error) {
       logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
     }

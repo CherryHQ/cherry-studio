@@ -1,10 +1,21 @@
+// Bound retained image output across an entire exec batch, including repeated screenshots.
+export const MAX_EXEC_IMAGES = 32
+export const MAX_EXEC_IMAGE_DATA_LENGTH = 64 * 1024 * 1024
+export const IMAGE_OUTPUT_LIMIT_ERROR = 'tool_exec image output exceeds 32 images or 64 MiB of base64 data'
+
 export const execWorkerSource = `
 const crypto = require('node:crypto')
 const { parentPort } = require('node:worker_threads')
 
 const MAX_LOGS = 1000
+const MAX_IMAGES = ${MAX_EXEC_IMAGES}
+const MAX_IMAGE_DATA_LENGTH = ${MAX_EXEC_IMAGE_DATA_LENGTH}
+const IMAGE_OUTPUT_LIMIT_ERROR = ${JSON.stringify(IMAGE_OUTPUT_LIMIT_ERROR)}
 
 const logs = []
+const images = []
+let imageDataLength = 0
+let imageOutputError
 const pendingCalls = new Map()
 const activeCalls = new Map()
 let isExecuting = false
@@ -72,9 +83,39 @@ const tools = {
   }
 }
 
-const buildContext = () => {
+const appendImages = (incoming) => {
+  if (images.length + incoming.length > MAX_IMAGES) {
+    imageOutputError = new Error(IMAGE_OUTPUT_LIMIT_ERROR)
+    throw imageOutputError
+  }
+  let nextLength = imageDataLength
+  for (const image of incoming) {
+    if (!image || typeof image.data !== 'string' || typeof image.mimeType !== 'string') {
+      throw new Error('emitImage requires string data and mimeType')
+    }
+    nextLength += image.data.length
+    if (nextLength > MAX_IMAGE_DATA_LENGTH) {
+      imageOutputError = new Error(IMAGE_OUTPUT_LIMIT_ERROR)
+      throw imageOutputError
+    }
+  }
+  images.push(...incoming.map(({ data, mimeType }) => ({ data, mimeType })))
+  imageDataLength = nextLength
+}
+
+const emitImage = (image) => appendImages([image])
+
+const buildContext = (facades) => {
+  const generatedFacades = {}
+  for (const [facadeName, methods] of Object.entries(facades || {})) {
+    generatedFacades[facadeName] = Object.fromEntries(
+      Object.entries(methods).map(([methodName, toolName]) => [methodName, (params = {}) => invoke(toolName, params)])
+    )
+  }
   return {
     tools,
+    ...generatedFacades,
+    emitImage,
     parallel: (...promises) => Promise.all(promises),
     settle: (...promises) => Promise.allSettled(promises),
     console: capturedConsole
@@ -103,14 +144,14 @@ const drainActiveCalls = async () => {
   }
 }
 
-const handleExec = async (code) => {
+const handleExec = async (code, facades) => {
   if (isExecuting) {
     return
   }
   isExecuting = true
 
   try {
-    const context = buildContext()
+    const context = buildContext(facades)
     let result
     let codeError
     try {
@@ -119,8 +160,14 @@ const handleExec = async (code) => {
       codeError = error
     }
     await drainActiveCalls()
+    if (imageOutputError) throw imageOutputError
     if (codeError) throw codeError
-    parentPort?.postMessage({ type: 'result', result, logs: logs.length > 0 ? logs : undefined })
+    parentPort?.postMessage({
+      type: 'result',
+      result,
+      logs: logs.length > 0 ? logs : undefined,
+      images: images.length > 0 ? images : undefined
+    })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     parentPort?.postMessage({ type: 'error', error: errorMessage, logs: logs.length > 0 ? logs : undefined })
@@ -137,6 +184,12 @@ const handleToolResult = (message) => {
   }
   pendingCalls.delete(message.requestId)
   activeCalls.delete(message.requestId)
+  try {
+    appendImages(message.images || [])
+  } catch (error) {
+    pending.reject(error)
+    return
+  }
   pending.resolve(message.result)
 }
 
@@ -156,7 +209,7 @@ parentPort?.on('message', (message) => {
   }
   switch (message.type) {
     case 'exec':
-      handleExec(message.code)
+      handleExec(message.code, message.facades)
       break
     case 'toolResult':
       handleToolResult(message)

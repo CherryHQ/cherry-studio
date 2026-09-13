@@ -121,6 +121,19 @@ describe('buildMcpToolDefinitions', () => {
     await bridge.close()
   })
 
+  it('keeps logical browser identity separate from its stored wire namespace', async () => {
+    const browser = createServer([tool('open')], async () => ({ content: [] }))
+    const bridge = await buildMcpToolDefinitions({
+      'browser-id': { name: '4b1884f6-78ad-4c2f-a523-8f0d7e784640', logicalName: '@cherry/browser', instance: browser }
+    })
+
+    expect(bridge.tools[0]).toMatchObject({
+      name: 'mcp__4b1884f6-78ad-4c2f-a523-8f0d7e784640__open',
+      source: { serverName: '@cherry/browser', toolName: 'open' }
+    })
+    await bridge.close()
+  })
+
   it('proxies calls, structured details, and MCP content through the in-memory transport', async () => {
     const call = vi.fn(async () => ({
       content: [
