@@ -50,17 +50,25 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
   const headers = { ...provider.settings?.extraHeaders }
   const isTokenDance = matchesPreset(provider, SystemProviderIds.tokendance)
   const isRadeonCloud = matchesPreset(provider, SystemProviderIds['radeon-cloud'])
+  const isAimlapi = matchesPreset(provider, SystemProviderIds.aimlapi)
 
   for (const name of Object.keys(headers)) {
     const normalizedName = name.toLowerCase()
-    if ((isTokenDance && normalizedName === 'x-app-url') || (isRadeonCloud && normalizedName === 'x-source')) {
+    if (
+      (isTokenDance && normalizedName === 'x-app-url') ||
+      (isRadeonCloud && normalizedName === 'x-source') ||
+      (isAimlapi && (normalizedName === 'x-aimlapi-source' || normalizedName === 'x-aimlapi-partner-id'))
+    ) {
       delete headers[name]
     }
   }
   return {
     ...headers,
     ...(isTokenDance ? { 'X-App-URL': TOKEN_DANCE_APP_URL } : {}),
-    ...(isRadeonCloud ? { 'X-Source': 'cherry-studio' } : {})
+    ...(isRadeonCloud ? { 'X-Source': 'cherry-studio' } : {}),
+    ...(isAimlapi
+      ? { 'X-AIMLAPI-Source': 'agent/cherry-studio', 'X-AIMLAPI-Partner-ID': 'part_coOdPvy7ZV7C44WAnKIfhnw8' }
+      : {})
   }
 }
 

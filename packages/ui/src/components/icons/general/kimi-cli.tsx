@@ -2,7 +2,7 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../types'
 const KimiCli: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="19 19 83 83" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path
       fill="#2B2A29"
       d="M95.1606 20H25.8394C22.6144 20 20 22.6144 20 25.8394V95.1606C20 98.3856 22.6144 101 25.8394 101H95.1606C98.3856 101 101 98.3856 101 95.1606V25.8394C101 22.6144 98.3856 20 95.1606 20Z"

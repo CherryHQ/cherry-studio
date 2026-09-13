@@ -122,6 +122,31 @@
       ]
     },
     {
+      "availableInEditions": ["global"],
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "AI/ML API - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://api.aimlapi.com"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.aimlapi.com/v1"
+        }
+      },
+      "id": "aimlapi",
+      "metadata": {
+        "website": {
+          "apiKey": "https://aimlapi.com/app/keys",
+          "docs": "https://docs.aimlapi.com",
+          "models": "https://aimlapi.com/models",
+          "official": "https://aimlapi.com"
+        }
+      },
+      "name": "AI/ML API"
+    },
+    {
       "authOptional": true,
       "availableInEditions": ["global", "cn"],
       "description": "OpenVINO Model Server - AI model provider",
@@ -2529,5 +2554,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "e47c80cffa19d83b"
+  "version": "4bcbc306426b847d"
 }
