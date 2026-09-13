@@ -1329,6 +1329,53 @@ describe('useFollowupQueue', () => {
     expect(onDrain).not.toHaveBeenCalled()
   })
 
+  it('an unmounted manual steer after a scope switch dequeues from the claim scope', () => {
+    const onDrain = vi.fn()
+    // One seed call: setInitialState resets the whole memory map.
+    MockCacheUtils.setInitialState({
+      memory: [
+        [keyFor('sA'), { items: [item('x', 'ex')], paused: false }],
+        [keyFor('sB'), { items: [], paused: false }]
+      ]
+    })
+    const { result, rerender, unmount } = renderHook(
+      ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 'sA' } }
+    )
+    const headId = result.current.items[0].id
+    act(() => {
+      expect(result.current.tryClaimSend(headId)).toBe(true)
+    })
+
+    // Scope switches, then the composer unmounts while the manual send is pending.
+    act(() => {
+      rerender({ scopeKey: 'sB' })
+    })
+    unmount()
+
+    // The dead instance's success continuation must route by the claim scope
+    // (sA), not the frozen ref scope (sB) — otherwise the sent item stays queued
+    // in sA and is delivered again on revisit.
+    act(() => {
+      result.current.removeId(headId)
+      result.current.releaseSend(headId)
+    })
+    expect(persistedTexts('sA')).toEqual([])
+    expect(persistedTexts('sB')).toEqual([])
+    expect(onDrain).not.toHaveBeenCalled()
+
+    // Revisiting the original scope finds nothing to redeliver.
+    const revisit = renderHook(
+      ({ scopeKey, isFulfilled }) => useFollowupQueue({ scopeKey, isFulfilled, markSeen: vi.fn(), onDrain }),
+      { initialProps: { scopeKey: 'sA', isFulfilled: false } }
+    )
+    expect(revisit.result.current.items).toEqual([])
+    act(() => {
+      revisit.rerender({ scopeKey: 'sA', isFulfilled: true })
+    })
+    expect(onDrain).not.toHaveBeenCalled()
+  })
+
   it('tryClaimSend fails while an auto-drain is in flight', async () => {
     let resolveDrain!: (sent: boolean) => void
     const onDrain = vi.fn(() => new Promise<boolean>((resolve) => (resolveDrain = resolve)))
