@@ -152,6 +152,11 @@ type OcrJob = {
   contentOperationRevision: number
 }
 
+type TranslationOperation = {
+  revision: number
+  detectionRevision: number
+}
+
 /**
  * Observes a single image OCR job via `useJob` and reports its terminal result.
  * Mounted only while the translate page tracks an active job.
@@ -268,7 +273,8 @@ const TranslatePage: FC = () => {
   const [pendingExchange, setPendingExchange] = useCache('translate.exchange_pending')
   const [restoredPdfHandoff, setRestoredPdfHandoff] = useCache('translate.restored_pdf')
 
-  const translationOperationRef = useRef<{ revision: number } | null>(null)
+  const translationDetectionRevisionRef = useRef(0)
+  const translationOperationRef = useRef<TranslationOperation | null>(null)
   const isMountedRef = useRef(true)
   const markContentChanged = useCallback(() => {
     advanceContentIntentRevision()
@@ -543,7 +549,12 @@ const TranslatePage: FC = () => {
           actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
             logger.error('Failed to detect language', error as Error)
           })
-          if (!isTranslationOperationCurrent() || (isCurrent && !isCurrent())) return
+          if (
+            !isTranslationOperationCurrent() ||
+            (isCurrent && !isCurrent()) ||
+            translationOperationRef.current?.detectionRevision !== translationDetectionRevisionRef.current
+          )
+            return
           setDetectedLanguage(actualSourceLanguage)
         } finally {
           setIsDetecting(false)
@@ -637,7 +648,10 @@ const TranslatePage: FC = () => {
     if (isExchangePendingNow() || cacheService.get('translate.history_restore_pending') != null) return
     advanceContentOperationRevision()
     markContentChanged()
-    translationOperationRef.current = { revision: getContentOperationRevision() }
+    translationOperationRef.current = {
+      revision: getContentOperationRevision(),
+      detectionRevision: translationDetectionRevisionRef.current
+    }
     if (pdfFile) {
       if (babelDoc.availability === 'checking' || babelDoc.installing || targetLanguage === UNKNOWN_LANG_CODE) return
       if (babelDoc.availability === 'available') {
@@ -771,6 +785,7 @@ const TranslatePage: FC = () => {
       })
       historyRestoreBarrierRef.current = historyRestoreBarrier
       historyRestorePendingRef.current = true
+      translationDetectionRevisionRef.current += 1
       const restoreToken = { intentRevision: contentIntentRevisionBeforePersist, barrier: historyRestoreBarrier }
       setPendingHistoryRestore(restoreToken)
       try {
@@ -1362,7 +1377,7 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
-              disabled={isExchangePending || historyRestorePendingRef.current}
+              disabled={isExchangePending || isHistoryRestorePending}
               className={historyOpen ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}
               onClick={() =>
                 setHistoryOpen((open) => {

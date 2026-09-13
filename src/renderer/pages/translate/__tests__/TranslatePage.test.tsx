@@ -1647,6 +1647,75 @@ describe('TranslatePage', () => {
     })
   })
 
+  it('invalidates pending language detection before history persistence completes', async () => {
+    let resolveDetection!: (language: string) => void
+    translateCoreMock.detectLanguage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDetection = resolve
+      })
+    )
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.page.bidirectional_enabled', true)
+    MockUseCacheUtils.setCacheValue('translate.input', 'pending detection input')
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const { rerender } = render(<TranslatePage />)
+        fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
+          target: { value: 'pending detection input' }
+        })
+        rerender(<TranslatePage />)
+        expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('pending detection input')
+        fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+        await waitFor(() => expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('pending detection input'))
+
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+
+        await act(async () => resolveDetection('zh-cn'))
+        expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+
+        await act(async () => resolvePersist())
+        rerender(<TranslatePage />)
+      }
+    )
+  })
+
+  it('disables the history toolbar after remount while restore persistence is pending', async () => {
+    const { persistLanguages, resolvePersist } = createDeferredLanguagePersist()
+
+    await MockUsePreference.useMultiplePreferences.withImplementation(
+      (keys) => {
+        const values = Object.fromEntries(
+          Object.entries(keys).map(([alias, key]) => [alias, MockUsePreferenceUtils.getPreferenceValue(key)])
+        )
+        return [values, persistLanguages] as never
+      },
+      async () => {
+        const previousPage = render(<TranslatePage />)
+        fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
+        fireEvent.click(screen.getByRole('button', { name: 'reuse-text-history' }))
+        await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(1))
+        previousPage.unmount()
+
+        const currentPage = render(<TranslatePage />)
+        expect(screen.getByRole('button', { name: 'translate.history.title' })).toBeDisabled()
+
+        await act(async () => resolvePersist())
+        currentPage.rerender(<TranslatePage />)
+        expect(screen.getByRole('button', { name: 'translate.history.title' })).toBeEnabled()
+      }
+    )
+  })
+
   it('does not let a deferred exchange overwrite text after remount', async () => {
     const user = userEvent.setup()
     let resolvePersist!: () => void
@@ -3110,11 +3179,14 @@ describe('TranslatePage', () => {
         firstPage.unmount()
 
         const secondPage = render(<TranslatePage />)
+        expect(screen.getByRole('button', { name: 'translate.history.title' })).toBeDisabled()
+        await act(async () => pending[0]())
+        secondPage.rerender(<TranslatePage />)
+
         fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
         fireEvent.click(screen.getByRole('button', { name: 'reuse-other-text-history' }))
         await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(2))
 
-        await act(async () => pending[0]())
         secondPage.rerender(<TranslatePage />)
         expect(screen.getByRole('button', { name: /translate\.target_language/ })).toBeDisabled()
         await act(async () => pending[1]())
@@ -3697,12 +3769,15 @@ describe('TranslatePage', () => {
         firstPage.unmount()
 
         const secondPage = render(<TranslatePage />)
+        expect(screen.getByRole('button', { name: 'translate.history.title' })).toBeDisabled()
+        await act(async () => pending[0]())
+        secondPage.rerender(<TranslatePage />)
+
         fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
         fireEvent.click(screen.getByRole('button', { name: 'reuse-other-text-history' }))
         await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(2))
         secondPage.unmount()
 
-        await act(async () => pending[0]())
         await act(async () => pending[1]())
         render(<TranslatePage />)
 
@@ -3753,11 +3828,14 @@ describe('TranslatePage', () => {
         firstPage.unmount()
 
         const secondPage = render(<TranslatePage />)
+        expect(screen.getByRole('button', { name: 'translate.history.title' })).toBeDisabled()
+        await act(async () => pending[0]())
+        secondPage.rerender(<TranslatePage />)
+
         fireEvent.click(screen.getByRole('button', { name: 'translate.history.title' }))
         fireEvent.click(screen.getByRole('button', { name: 'reuse-other-pdf-history' }))
         await waitFor(() => expect(persistLanguages).toHaveBeenCalledTimes(2))
 
-        await act(async () => pending[0]())
         await act(async () => pending[1]())
         secondPage.rerender(<TranslatePage />)
 

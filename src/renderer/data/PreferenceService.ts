@@ -47,6 +47,8 @@ export class PreferenceService {
 
   private writeTails = new Map<UnifiedPreferenceKeyType, Promise<void>>()
 
+  private preferenceRevisions = new Map<UnifiedPreferenceKeyType, number>()
+
   constructor() {
     this.setupChangeListeners()
   }
@@ -64,9 +66,10 @@ export class PreferenceService {
     this.changeListenerCleanup = window.api.preference.onChanged((key, value) => {
       const optimisticState = this.optimisticValues.get(key)
       if (optimisticState) {
-        optimisticState.originalValue = value
+        this.bumpPreferenceRevision(key)
         return
       }
+      this.bumpPreferenceRevision(key)
       const oldValue = this.cache[key]
 
       // Deep equality filters self-induced IPC echoes: the main-process broadcast
@@ -113,13 +116,17 @@ export class PreferenceService {
     }
 
     logger.verbose(`get: ${key} not found in cache`)
+    const readRevision = this.getPreferenceRevision(key)
 
     try {
       // Fetch from main process if not cached
       const value = await window.api.preference.get(key)
+      if (this.getPreferenceRevision(key) !== readRevision) {
+        return (key in this.cache ? this.cache[key] : value) as UnifiedPreferenceType[K]
+      }
       const optimisticState = this.optimisticValues.get(key)
       if (optimisticState) {
-        optimisticState.originalValue = value
+        return this.cache[key] as UnifiedPreferenceType[K]
       } else {
         this.cache[key] = value
 
@@ -149,6 +156,7 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K],
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
+    this.bumpPreferenceRevision(key)
     if (options.optimistic) {
       const requestId = this.generateRequestId()
       this.applyOptimisticUpdate(key, value, requestId)
@@ -247,6 +255,7 @@ export class PreferenceService {
     // Check which keys are already cached
     const cachedResults: Partial<UnifiedPreferenceType> = {}
     const uncachedKeys: UnifiedPreferenceKeyType[] = []
+    const readRevisions = new Map<UnifiedPreferenceKeyType, number>()
 
     for (const key of keys) {
       if (key in this.cache && this.cache[key] !== undefined) {
@@ -254,6 +263,7 @@ export class PreferenceService {
       } else {
         logger.verbose(`getMultiple: ${key} not found in cache`)
         uncachedKeys.push(key)
+        readRevisions.set(key, this.getPreferenceRevision(key))
       }
     }
 
@@ -266,9 +276,11 @@ export class PreferenceService {
         // Update cache with new results, preserving any newer local optimistic value.
         for (const [key, value] of Object.entries(uncachedResults)) {
           const optimisticState = this.optimisticValues.get(key as UnifiedPreferenceKeyType)
-          if (optimisticState) {
-            optimisticState.originalValue = value
-          } else {
+          if (
+            !optimisticState &&
+            this.getPreferenceRevision(key as UnifiedPreferenceKeyType) ===
+              readRevisions.get(key as UnifiedPreferenceKeyType)
+          ) {
             this.cache[key as UnifiedPreferenceKeyType] = value
             this.notifyChangeListeners(key)
           }
@@ -293,7 +305,8 @@ export class PreferenceService {
     const result = { ...cachedResults, ...uncachedResults } as Partial<UnifiedPreferenceType>
     for (const key of keys) {
       const optimisticState = this.optimisticValues.get(key)
-      if (optimisticState) {
+      const readBecameStale = readRevisions.has(key) && this.getPreferenceRevision(key) !== readRevisions.get(key)
+      if (optimisticState || (readBecameStale && key in this.cache)) {
         result[key] = this.cache[key]
       }
     }
@@ -330,6 +343,7 @@ export class PreferenceService {
     options: PreferenceUpdateOptions = { optimistic: true }
   ): Promise<void> {
     const keys = Object.keys(updates) as UnifiedPreferenceKeyType[]
+    keys.forEach((key) => this.bumpPreferenceRevision(key))
     return options.optimistic
       ? this.setMultipleOptimistic(updates)
       : this.enqueueWrite(keys, () => this.setMultiplePessimistic(updates))
@@ -504,15 +518,18 @@ export class PreferenceService {
    * @returns Promise that resolves when preloading completes
    */
   public async preloadAll(): Promise<void> {
+    const readRevisions = new Map(this.preferenceRevisions)
     try {
       const allPreferences = await window.api.preference.getAll()
 
       // Update local cache with all preferences
       for (const [key, value] of Object.entries(allPreferences)) {
         const optimisticState = this.optimisticValues.get(key as UnifiedPreferenceKeyType)
-        if (optimisticState) {
-          optimisticState.originalValue = value
-        } else {
+        if (
+          !optimisticState &&
+          this.getPreferenceRevision(key as UnifiedPreferenceKeyType) ===
+            (readRevisions.get(key as UnifiedPreferenceKeyType) ?? 0)
+        ) {
           this.cache[key as UnifiedPreferenceKeyType] = value
 
           // Notify change listeners for the loaded value
@@ -616,6 +633,14 @@ export class PreferenceService {
     }))
   }
 
+  private getPreferenceRevision(key: UnifiedPreferenceKeyType): number {
+    return this.preferenceRevisions.get(key) ?? 0
+  }
+
+  private bumpPreferenceRevision(key: UnifiedPreferenceKeyType): void {
+    this.preferenceRevisions.set(key, this.getPreferenceRevision(key) + 1)
+  }
+
   /**
    * Generate unique request ID for tracking concurrent requests
    * @returns Unique request identifier string
@@ -667,6 +692,7 @@ export class PreferenceService {
     // Clear all optimistic states and write queues
     this.optimisticValues.clear()
     this.writeTails.clear()
+    this.preferenceRevisions.clear()
 
     this.clearCache()
     this.allChangesListeners.clear()

@@ -525,4 +525,53 @@ describe('renderer PreferenceService write consistency', () => {
 
     expect(service.getCachedValue(sourceKey)).toBe('en-us')
   })
+
+  it('does not roll back to a stale full-cache read after an optimistic write fails', async () => {
+    const key = 'app.developer_mode.enabled'
+    get.mockResolvedValueOnce(true)
+    let resolveHydration!: (value: Record<string, boolean>) => void
+    getAll.mockImplementationOnce(
+      () =>
+        new Promise<Record<string, boolean>>((resolve) => {
+          resolveHydration = resolve
+        })
+    )
+    const service = await createService()
+    await service.get(key)
+
+    const error = new Error('write failed')
+    let rejectWrite!: (error: Error) => void
+    set.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectWrite = reject
+        })
+    )
+    const hydration = service.preloadAll()
+    const update = service.set(key, false)
+
+    resolveHydration({ [key]: false })
+    await hydration
+    rejectWrite(error)
+    await expect(update).rejects.toBe(error)
+
+    expect(service.getCachedValue(key)).toBe(true)
+  })
+
+  it('does not replace the rollback baseline with a stale cross-window event', async () => {
+    const key = 'app.developer_mode.enabled'
+    get.mockResolvedValueOnce(true)
+    const service = await createService()
+    await service.get(key)
+
+    const error = new Error('write failed')
+    set.mockRejectedValueOnce(error)
+    const update = service.set(key, false)
+
+    emitChanged?.(key, true)
+    emitChanged?.(key, false)
+    await expect(update).rejects.toBe(error)
+
+    expect(service.getCachedValue(key)).toBe(true)
+  })
 })
