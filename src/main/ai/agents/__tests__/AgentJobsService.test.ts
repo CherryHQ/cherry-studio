@@ -238,6 +238,21 @@ describe('AgentJobsService', () => {
       expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
       expect(dbh.db.select().from(agentChannelTaskTable).all()).toHaveLength(0)
     })
+
+    it('rejects a cron without a future occurrence before creating a task', () => {
+      seedChannel(CHANNEL_ID, AGENT_ID)
+
+      expect(() =>
+        service.createTask(AGENT_ID, {
+          ...form,
+          trigger: { kind: 'cron', expr: '0 0 31 2 *' },
+          channelIds: [CHANNEL_ID]
+        })
+      ).toThrow(JOB_ERROR_CODES.SCHEDULE_TRIGGER_INVALID)
+
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+      expect(dbh.db.select().from(agentChannelTaskTable).all()).toHaveLength(0)
+    })
   })
 
   // ---------------------------------------------------------------- update

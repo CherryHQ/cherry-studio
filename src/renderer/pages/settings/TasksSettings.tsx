@@ -1,4 +1,5 @@
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Cron } from 'croner'
 import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
@@ -219,6 +220,20 @@ const formatTimes = (hours: string[], minute: string) =>
     .map((hour) => `${hour}:${minute}`)
     .join(',')
 
+function isValidCronExpression(value: string): boolean {
+  const expression = value.trim()
+
+  let cron: Cron | undefined
+  try {
+    cron = new Cron(expression, { paused: true })
+    return cron.nextRun() !== null
+  } catch {
+    return false
+  } finally {
+    cron?.stop()
+  }
+}
+
 export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 'timeoutMinutes'> {
   if (trigger.kind === 'interval') {
     return {
@@ -286,7 +301,7 @@ export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null 
 
   if (schedule.kind === 'cron') {
     const expr = schedule.value.trim()
-    return expr ? { kind: 'cron', expr } : null
+    return isValidCronExpression(expr) ? { kind: 'cron', expr } : null
   }
 
   const times = parseTimes(schedule.value)
@@ -555,6 +570,14 @@ export const TaskTimeSelect: FC<{
         disabled={disabled}
         options={SCHEDULE_HOURS.map((hour) => ({ value: hour, label: hour }))}
         value={hours}
+        renderValue={(selectedHours) => {
+          const values = Array.isArray(selectedHours) ? selectedHours : []
+          return (
+            <span className={cn('min-w-0 flex-1 truncate text-left', values.length === 0 && 'text-muted-foreground')}>
+              {values.length > 0 ? values.join(', ') : t('agent.tasks.schedule.hours')}
+            </span>
+          )
+        }}
         onChange={(next) => {
           if (Array.isArray(next)) onChange(formatTimes(next, displayMinute))
         }}
@@ -666,6 +689,16 @@ const TaskScheduleControls: FC<{
           if (date) updateValue(date.toISOString())
         }}
       />
+    ) : value.kind === 'cron' ? (
+      <Input
+        className="w-72 max-w-full font-mono"
+        value={value.value}
+        placeholder={t('agent.tasks.schedule.cronPlaceholder')}
+        disabled={disabled}
+        aria-label={t('agent.tasks.schedule.cron')}
+        aria-invalid={invalid || undefined}
+        onChange={(event) => updateValue(event.target.value)}
+      />
     ) : null
 
   return (
@@ -673,12 +706,9 @@ const TaskScheduleControls: FC<{
       <Field data-invalid={invalid || undefined}>
         <FieldLabel htmlFor={`${id}-kind`}>{t('agent.tasks.frequency.label')}</FieldLabel>
         <RowFlex className="flex-wrap items-center gap-3">
-          <Select
-            value={value.kind === 'cron' ? undefined : value.kind}
-            disabled={disabled}
-            onValueChange={(kind) => updateKind(kind as Exclude<ScheduleKind, 'cron'>)}>
+          <Select value={value.kind} disabled={disabled} onValueChange={(kind) => updateKind(kind as ScheduleKind)}>
             <SelectTrigger id={`${id}-kind`} aria-invalid={invalid || undefined}>
-              <SelectValue placeholder={value.kind === 'cron' ? t('agent.tasks.schedule.custom') : undefined} />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
@@ -688,12 +718,17 @@ const TaskScheduleControls: FC<{
                 <SelectItem value="weekly">{t('agent.tasks.schedule.weekly')}</SelectItem>
                 <SelectItem value="interval">{t('agent.tasks.schedule.interval')}</SelectItem>
                 <SelectItem value="once">{t('agent.tasks.schedule.once')}</SelectItem>
+                <SelectItem value="cron">{t('agent.tasks.schedule.cron')}</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
           {frequencyControl}
         </RowFlex>
-        <FieldError>{invalid ? t('agent.tasks.schedule.invalid') : undefined}</FieldError>
+        <FieldError>
+          {invalid
+            ? t(value.kind === 'cron' ? 'agent.tasks.schedule.invalidCron' : 'agent.tasks.schedule.invalid')
+            : undefined}
+        </FieldError>
       </Field>
 
       <Field>
@@ -1237,11 +1272,15 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspaces?.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId)
-  const trigger = formStateToTrigger(schedule)
+  const trigger = useMemo(() => formStateToTrigger(schedule), [schedule])
+  const unchangedExistingSchedule =
+    props.task !== undefined &&
+    scheduleInputsEqual(schedule, initialDraftRef.current?.schedule ?? taskToDraftSnapshot(props.task).schedule)
+  const resolvedTrigger = trigger ?? (unchangedExistingSchedule ? props.task?.trigger : null)
 
   const handleSave = useCallback(async () => {
     setSubmitted(true)
-    if (!agentId || !name.trim() || !prompt.trim() || !trigger) return
+    if (!agentId || !name.trim() || !prompt.trim() || !resolvedTrigger) return
 
     setSaving(true)
     try {
@@ -1266,7 +1305,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         if (reuseSession !== initialDraft.reuseSession) updates.reuseSession = reuseSession
         if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
         if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
-          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, trigger)
+          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, resolvedTrigger)
           if (!triggersEqual(nextTrigger, props.task.trigger)) updates.trigger = nextTrigger
         }
 
@@ -1275,7 +1314,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
         saved = await props.onCreate(agentId, {
           name: name.trim(),
           prompt: prompt.trim(),
-          trigger,
+          trigger: resolvedTrigger,
           workspace,
           timeoutMinutes,
           reuseSession,
@@ -1286,7 +1325,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
     } finally {
       setSaving(false)
     }
-  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, trigger, workspaceId])
+  }, [agentId, channelIds, name, onOpenChange, prompt, props, reuseSession, schedule, resolvedTrigger, workspaceId])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -1393,7 +1432,7 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
             <TaskScheduleControls
               value={schedule}
               disabled={saving}
-              invalid={submitted && !trigger}
+              invalid={submitted && !resolvedTrigger}
               onChange={setSchedule}
             />
 
