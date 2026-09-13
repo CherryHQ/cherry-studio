@@ -497,6 +497,62 @@ export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement
   }
 }
 
+const CAPTURE_SETTLE_RECHECK_MS = 250
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Wait for every image inside a freshly-mounted capture clone to reach its
+ * final state (loaded or failed) before rasterizing. The topic-image capture
+ * clone re-mounts the whole message tree offscreen and used to snapshot after
+ * two animation frames — remote favicons (FallbackFavicon alone can spend up
+ * to its 2s source-probe timeout) and markdown images were still in flight,
+ * so the export showed broken placeholders and shifted table layouts that the
+ * live page never shows.
+ *
+ * Images stream in in waves — FallbackFavicon only swaps its 16px loading
+ * placeholder for an <img> after its source probe resolves — so the pending
+ * set is re-collected after each settle round until a recheck finds nothing
+ * new; the deadline bounds the whole wait. Lazy images never load offscreen
+ * (the clone sits at -left-[10000px]), so they are switched to eager first.
+ */
+export async function waitForCaptureAssets(root: HTMLElement | null, timeoutMs = 5000): Promise<void> {
+  if (!root) return
+
+  const deadline = Date.now() + timeoutMs
+  const waited = new Set<HTMLImageElement>()
+
+  const collectPending = (): HTMLImageElement[] => {
+    const pending: HTMLImageElement[] = []
+    for (const img of root.querySelectorAll('img')) {
+      if (img.loading === 'lazy') img.loading = 'eager'
+      if (!img.complete && !waited.has(img)) {
+        waited.add(img)
+        pending.push(img)
+      }
+    }
+    return pending
+  }
+
+  const waitForImage = (img: HTMLImageElement) =>
+    new Promise<void>((resolve) => {
+      img.addEventListener('load', () => resolve(), { once: true })
+      img.addEventListener('error', () => resolve(), { once: true })
+    })
+
+  while (Date.now() < deadline) {
+    const pending = collectPending()
+    if (pending.length === 0) {
+      // Nothing in flight right now — give late mounters one more window
+      // before concluding the clone has settled.
+      await sleep(CAPTURE_SETTLE_RECHECK_MS)
+      if (collectPending().length === 0) return
+      continue
+    }
+    await Promise.race([Promise.all(pending.map(waitForImage)), sleep(Math.max(0, deadline - Date.now()))])
+  }
+}
+
 /**
  * 捕获 iframe 内部文档的完整内容快照
  */
