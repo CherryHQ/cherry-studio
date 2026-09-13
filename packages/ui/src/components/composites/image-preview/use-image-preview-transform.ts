@@ -116,11 +116,12 @@ export function useImagePreviewTransform({
   }, [update])
 
   const flipHorizontal = React.useCallback(() => {
-    update((current) => ({ flipX: !current.flipX }))
+    // Reflect the rotation too, so the local-axis flip acts along the screen axis.
+    update((current) => ({ flipX: !current.flipX, rotation: -current.rotation }))
   }, [update])
 
   const flipVertical = React.useCallback(() => {
-    update((current) => ({ flipY: !current.flipY }))
+    update((current) => ({ flipY: !current.flipY, rotation: -current.rotation }))
   }, [update])
 
   return {
