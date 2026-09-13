@@ -42,6 +42,7 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
@@ -82,6 +83,8 @@ import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } f
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
+/** Cap on the base64 payload: Claude allows 5 MB per image on Bedrock/Vertex (10 MB on the direct API). */
+const CLAUDE_MAX_INLINE_IMAGE_BASE64_BYTES = 5 * MB
 
 function isHostManagedSlashCommand(command: AgentSessionSlashCommand): boolean {
   return HOST_MANAGED_SLASH_COMMANDS.has(command.name)
@@ -1269,6 +1272,12 @@ async function materializeUserContent(
         continue
       }
       parsed = materialized.url ? parseDataUrl(materialized.url) : null
+      // External images skip prepareChatMessages, so the produced payload is measured here; a stat
+      // taken before the read would not be atomic with it. Over the cap, the agent reads the path.
+      if (!fileEntryId && parsed && parsed.data.length > CLAUDE_MAX_INLINE_IMAGE_BASE64_BYTES) {
+        fallbackParts.push(originalPart)
+        continue
+      }
     }
 
     if (!parsed?.isBase64 || parsed.data.length === 0) {
