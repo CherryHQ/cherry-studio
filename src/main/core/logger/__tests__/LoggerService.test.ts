@@ -1,6 +1,5 @@
 import { Writable } from 'node:stream'
 
-import { APICallError, RetryError } from 'ai'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import winston from 'winston'
@@ -78,46 +77,35 @@ describe('LoggerService file output', () => {
     expect(lines[0]).not.toContain('EFAKE')
   })
 
-  it('strips AI SDK fat fields from file output', async () => {
+  it('drops unbounded custom props from Error file output', async () => {
     const { loggerService, lines, readLine } = await loadLogger()
-    const error = new APICallError({
-      message: 'No available channel',
-      url: 'https://gateway.test/v1/chat',
+    const error = Object.assign(new Error('No available channel'), {
       requestBodyValues: { messages: [{ content: 'private prompt '.repeat(100_000) }] },
-      statusCode: 503,
-      responseHeaders: { 'set-cookie': 'session=secret' },
       responseBody: 'private tool results '.repeat(100_000),
-      isRetryable: true
+      responseHeaders: { 'set-cookie': 'session=secret' }
     })
     loggerService.withContext('AiTest').error('model call failed after retries', error)
 
     const line = await readLine()
-    expect(line.requestBodyValues).toBeNull()
-    expect(line.responseBody).toBeNull()
-    expect(line.responseHeaders).toBeNull()
-    expect(line.data).toBeNull()
-    expect(line.url).toBe('')
-    expect(line.statusCode).toBe(503)
+    expect(line).not.toHaveProperty('requestBodyValues')
+    expect(line).not.toHaveProperty('responseBody')
+    expect(line).not.toHaveProperty('responseHeaders')
     expect(JSON.stringify(line).length).toBeLessThan(10_240)
     expect(lines[0]).not.toContain('private prompt')
   })
 
-  it('strips nested RetryError payloads from file output', async () => {
+  it('drops nested error payloads from Error file output', async () => {
     const { loggerService, readLine } = await loadLogger()
-    const nested = new APICallError({
-      message: 'channel error',
-      url: 'https://gateway.test/v1/chat',
+    const nested = Object.assign(new Error('channel error'), {
       requestBodyValues: { messages: [{ content: 'nested private prompt' }] },
-      statusCode: 503,
-      responseBody: 'nested private results',
-      isRetryable: true
+      responseBody: 'nested private results'
     })
-    const error = new RetryError({ message: 'Failed after retries', reason: 'maxRetriesExceeded', errors: [nested] })
+    const error = new Error('Failed after retries', { cause: nested })
     loggerService.withContext('AiTest').error('model call failed after retries', error)
 
     const line = await readLine()
-    expect((line.lastError as Record<string, unknown> | null)?.requestBodyValues).toBeNull()
-    expect(((line.errors as Record<string, unknown>[]) ?? [])[0]?.responseBody).toBeNull()
+    expect(line).not.toHaveProperty('requestBodyValues')
+    expect(line).not.toHaveProperty('cause')
     expect(JSON.stringify(line)).not.toContain('nested private')
   })
 

@@ -10,7 +10,6 @@ import DailyRotateFile from 'winston-daily-rotate-file'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'
-import { serializeNestedProviderError } from '@shared/ai/providerError'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/types/logger'
 import { LEVEL, LEVEL_MAP, MAX_LOG_RETENTION_DAYS } from '@shared/types/logger'
@@ -43,6 +42,9 @@ const SYSTEM_INFO = {
   hw: `${os.cpus()[0]?.model || 'Unknown CPU'} / ${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)}GB`
 }
 const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
+// Mirrors the shared-ai safe message length without importing AI logic:
+// winston concatenates fileMessage and entry.message, so this counts twice.
+const MAX_ERROR_MESSAGE_CHARS = 500
 const MAX_ERROR_STACK_CHARS = 4000
 
 /**
@@ -260,11 +262,18 @@ export class LoggerService {
 
     const [first, ...others] = meta
     if (first instanceof Error) {
-      // Errors go through the shared safe serializer so unbounded fields
+      // Keep name/message/stack only, bounded: custom enumerable props
       // (e.g. AI SDK requestBodyValues) never reach the log file (#20363).
-      Object.assign(entry, serializeNestedProviderError(first) as Record<string, unknown>)
+      const errorMessage = String(first.message ?? '')
+      Object.assign(entry, {
+        name: first.name,
+        message:
+          errorMessage.length > MAX_ERROR_MESSAGE_CHARS
+            ? `${errorMessage.slice(0, MAX_ERROR_MESSAGE_CHARS)}…`
+            : errorMessage
+      })
       if (typeof first.stack === 'string') entry.stack = first.stack.slice(0, MAX_ERROR_STACK_CHARS)
-      fileMessage = `${message} ${String(entry.message ?? first.message)}`
+      fileMessage = `${message} ${String(entry.message)}`
     } else if (first !== null && typeof first === 'object') {
       Object.assign(entry, first)
     } else if (first !== undefined) {
