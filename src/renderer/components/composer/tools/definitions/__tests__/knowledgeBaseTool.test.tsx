@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { ComposerSerializedToken } from '../../../tokens'
@@ -272,6 +273,28 @@ describe('KnowledgeBaseComposerRuntime auto-link', () => {
       knowledgeBaseIds: ['kb-1', 'kb-2', 'kb-3']
     })
     await thirdPick
+  })
+
+  it('carries a timed-out link into the next pick instead of deleting it', async () => {
+    // A renderer timeout abandons the wait, not the write: the IPC PATCH may still commit
+    // in the main process. The timed-out id must stay settled so the next full-array
+    // PATCH replays (not deletes) it.
+    mocks.updateAssistant
+      .mockImplementationOnce(async () => {
+        throw DataApiErrorFactory.timeout('/assistants/assistant-1', 3000)
+      })
+      .mockImplementationOnce(async () => ({}))
+
+    const { list } = await openRuntimePanel([kb('kb-1'), kb('kb-2')], [])
+
+    await list[0].action?.({ item: { ...list[0], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(1))
+
+    await list[1].action?.({ item: { ...list[1], isSelected: true } })
+    await vi.waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAssistant).toHaveBeenNthCalledWith(2, 'assistant-1', {
+      knowledgeBaseIds: ['kb-1', 'kb-2']
+    })
   })
 
   it('starts fresh after an assistant switch instead of carrying the old ids', async () => {
