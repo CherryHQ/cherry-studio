@@ -392,6 +392,30 @@ describe('createPiCodeModeTools', () => {
     expect(result.content[0]).not.toMatchObject({ text: expect.stringContaining('content') })
   })
 
+  it('decodes schema-bearing MCP text when structuredContent is absent', async () => {
+    const name = 'mcp__browser__open'
+    const inner = tool({
+      name,
+      execute: vi.fn(async () => ({
+        content: [{ type: 'text' as const, text: '{"title":"Example"}' }],
+        details: null
+      }))
+    })
+    const exec = codeModeTools([
+      { ...inner, outputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } }
+    ]).find((item) => item.name === PI_TOOL_EXEC_TOOL_NAME)!
+
+    const result = await exec.execute(
+      'outer-1',
+      { code: `return await tools.invoke('${name}', {})` },
+      undefined,
+      undefined,
+      {} as never
+    )
+
+    expect(result.details).toEqual({ result: { title: 'Example' }, logs: undefined })
+  })
+
   it('decodes the one text result when a structured MCP response also includes an attachment', async () => {
     const name = 'mcp__browser__open'
     const inner = tool({

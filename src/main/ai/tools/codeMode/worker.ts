@@ -1,11 +1,21 @@
+// Bound retained image output across an entire exec batch, including repeated screenshots.
+export const MAX_EXEC_IMAGES = 32
+export const MAX_EXEC_IMAGE_DATA_LENGTH = 64 * 1024 * 1024
+export const IMAGE_OUTPUT_LIMIT_ERROR = 'tool_exec image output exceeds 32 images or 64 MiB of base64 data'
+
 export const execWorkerSource = `
 const crypto = require('node:crypto')
 const { parentPort } = require('node:worker_threads')
 
 const MAX_LOGS = 1000
+const MAX_IMAGES = ${MAX_EXEC_IMAGES}
+const MAX_IMAGE_DATA_LENGTH = ${MAX_EXEC_IMAGE_DATA_LENGTH}
+const IMAGE_OUTPUT_LIMIT_ERROR = ${JSON.stringify(IMAGE_OUTPUT_LIMIT_ERROR)}
 
 const logs = []
 const images = []
+let imageDataLength = 0
+let imageOutputError
 const pendingCalls = new Map()
 const activeCalls = new Map()
 let isExecuting = false
@@ -73,12 +83,27 @@ const tools = {
   }
 }
 
-const emitImage = (image) => {
-  if (!image || typeof image.data !== 'string' || typeof image.mimeType !== 'string') {
-    throw new Error('emitImage requires string data and mimeType')
+const appendImages = (incoming) => {
+  if (images.length + incoming.length > MAX_IMAGES) {
+    imageOutputError = new Error(IMAGE_OUTPUT_LIMIT_ERROR)
+    throw imageOutputError
   }
-  images.push({ data: image.data, mimeType: image.mimeType })
+  let nextLength = imageDataLength
+  for (const image of incoming) {
+    if (!image || typeof image.data !== 'string' || typeof image.mimeType !== 'string') {
+      throw new Error('emitImage requires string data and mimeType')
+    }
+    nextLength += image.data.length
+    if (nextLength > MAX_IMAGE_DATA_LENGTH) {
+      imageOutputError = new Error(IMAGE_OUTPUT_LIMIT_ERROR)
+      throw imageOutputError
+    }
+  }
+  images.push(...incoming.map(({ data, mimeType }) => ({ data, mimeType })))
+  imageDataLength = nextLength
 }
+
+const emitImage = (image) => appendImages([image])
 
 const buildContext = (facades) => {
   const generatedFacades = {}
@@ -135,6 +160,7 @@ const handleExec = async (code, facades) => {
       codeError = error
     }
     await drainActiveCalls()
+    if (imageOutputError) throw imageOutputError
     if (codeError) throw codeError
     parentPort?.postMessage({
       type: 'result',
@@ -158,7 +184,12 @@ const handleToolResult = (message) => {
   }
   pendingCalls.delete(message.requestId)
   activeCalls.delete(message.requestId)
-  for (const image of message.images || []) emitImage(image)
+  try {
+    appendImages(message.images || [])
+  } catch (error) {
+    pending.reject(error)
+    return
+  }
   pending.resolve(message.result)
 }
 

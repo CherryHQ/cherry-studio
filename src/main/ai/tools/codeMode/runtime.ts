@@ -2,7 +2,7 @@ import { Worker } from 'node:worker_threads'
 
 import { loggerService } from '@logger'
 
-import { execWorkerSource } from './worker'
+import { execWorkerSource, IMAGE_OUTPUT_LIMIT_ERROR, MAX_EXEC_IMAGE_DATA_LENGTH, MAX_EXEC_IMAGES } from './worker'
 
 const logger = loggerService.withContext('codeMode.runtime')
 
@@ -81,6 +81,8 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
     let timeoutStartedAt = 0
     let timeoutRemainingMs = EXECUTION_TIMEOUT_MS
     let timeoutPauseCount = 0
+    let forwardedImageCount = 0
+    let forwardedImageDataLength = 0
 
     const addLog = (entry: string) => {
       if (logs.length < MAX_LOGS) logs.push(entry)
@@ -180,11 +182,23 @@ export function runExecCode(code: string, ctx: ExecCodeContext): Promise<ExecRes
       try {
         const result = await ctx.executeTool(message.name, message.params ?? {}, message.requestId, childAbort.signal)
         if (finished || timedOut || terminating) return
+        const images = result.images ?? []
+        const nextImageCount = forwardedImageCount + images.length
+        const nextImageDataLength = images.reduce(
+          (length, image) => length + image.data.length,
+          forwardedImageDataLength
+        )
+        if (nextImageCount > MAX_EXEC_IMAGES || nextImageDataLength > MAX_EXEC_IMAGE_DATA_LENGTH) {
+          await terminateWithError(IMAGE_OUTPUT_LIMIT_ERROR)
+          return
+        }
+        forwardedImageCount = nextImageCount
+        forwardedImageDataLength = nextImageDataLength
         worker.postMessage({
           type: 'toolResult',
           requestId: message.requestId,
           result: result.value,
-          images: result.images
+          images
         })
       } catch (err) {
         if (finished || timedOut || terminating) return
