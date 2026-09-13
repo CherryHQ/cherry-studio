@@ -1231,7 +1231,8 @@ export class SkillService {
       .listAll()
       .filter(
         (skill) =>
-          skill.source === source && sameSkillSourceUrl(normalizeSkillSourceUrl(skill.source, skill.sourceUrl), sourceIdentity)
+          skill.source === source &&
+          sameSkillSourceUrl(normalizeSkillSourceUrl(skill.source, skill.sourceUrl), sourceIdentity)
       )
     if (matches.length <= 1) return matches[0] ?? null
 
