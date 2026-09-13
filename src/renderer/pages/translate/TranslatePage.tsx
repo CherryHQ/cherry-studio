@@ -627,6 +627,7 @@ const TranslatePage: FC = () => {
 
   const onTranslate = useCallback(async () => {
     if (isExchangePendingNow() || cacheService.get('translate.history_restore_pending') != null) return
+    advanceContentOperationRevision()
     markContentChanged()
     translationOperationRef.current = { revision: getContentOperationRevision() }
     if (pdfFile) {

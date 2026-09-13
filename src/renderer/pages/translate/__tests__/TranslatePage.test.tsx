@@ -3336,6 +3336,52 @@ describe('TranslatePage', () => {
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('history output')
   })
 
+  it('ignores a file read from an unmounted page after a new translation starts', async () => {
+    let resolveRead!: (value: string) => void
+    let resolveTranslate!: (value: string) => void
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.txt', size: 10 }])
+    fileMock.readText.mockReturnValue(
+      new Promise<string>((resolve) => {
+        resolveRead = resolve
+      })
+    )
+    translateCoreMock.translateText.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveTranslate = resolve
+      })
+    )
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+
+    const previousPage = render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
+    previousPage.unmount()
+
+    MockUseCacheUtils.setCacheValue('translate.input', 'current input')
+    const currentPage = render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'current input',
+        'zh-cn',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+
+    await act(async () => resolveRead('late file content'))
+    currentPage.rerender(<TranslatePage />)
+
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('current input')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+
+    await act(async () => resolveTranslate('translated current input'))
+  })
+
   it('does not report a failed file read after history replaces its input', async () => {
     let rejectRead!: (error: Error) => void
     vi.mocked(toast.loading).mockReturnValueOnce('stale-file-toast')
