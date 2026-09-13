@@ -175,6 +175,10 @@ export async function getClaudeCodeLoginShellEnvironment(
     const shimsDir = getBinaryShimsDir()
     removePathEntry(stripped, shimsDir)
   }
+  // A login shell can drop the desktop-session bus inherited by packaged Electron.
+  if (isLinux && process.env.DBUS_SESSION_BUS_ADDRESS) {
+    stripped.DBUS_SESSION_BUS_ADDRESS = process.env.DBUS_SESSION_BUS_ADDRESS
+  }
   return stripped
 }
 

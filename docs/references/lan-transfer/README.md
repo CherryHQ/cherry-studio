@@ -18,13 +18,13 @@ This document defines the LAN file transfer protocol between the Cherry Studio d
 1. [Protocol Overview](#1-protocol-overview)
 2. [Service Discovery (Bonjour/mDNS)](#2-service-discovery-bonjourmdns)
 3. [TCP Connection and Handshake](#3-tcp-connection-and-handshake)
-4. [Message Format Specification](#4-message-format-specification)
+4. [Message Format Specification (Mixed Protocol)](#4-message-format-specification-mixed-protocol)
 5. [File Transfer Protocol](#5-file-transfer-protocol)
 6. [Heartbeat and Keep-alive](#6-heartbeat-and-keep-alive)
 7. [Error Handling](#7-error-handling)
 8. [Constants and Configuration](#8-constants-and-configuration)
 9. [Complete Sequence Diagram](#9-complete-sequence-diagram)
-10. [Mobile Implementation Guide](#10-mobile-implementation-guide)
+10. [Mobile Implementation Guide (v1)](#10-mobile-implementation-guide-v1)
 
 ---
 
