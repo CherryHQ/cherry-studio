@@ -71,6 +71,9 @@ const useKnowledgeBaseToolController = ({
   const selectedBasesRef = useRef<KnowledgeBase[]>(selectedBases ?? [])
   const basesRef = useRef<KnowledgeBase[]>(bases)
   const tRef = useRef(t)
+  // Latest pick intent per base: a pick awaiting its auto-link PATCH must not commit a
+  // selection the user has since toggled away from.
+  const lastPickIntentByBaseIdRef = useRef(new Map<string, boolean>())
 
   onSelectRef.current = onSelect
   selectedBasesRef.current = selectedBases ?? []
@@ -132,7 +135,9 @@ const useKnowledgeBaseToolController = ({
         isSelected: selectedBaseIds.has(base.id),
         action: async ({ context, inputAdapter, item }) => {
           // QuickPanel flips isSelected before invoking, so item.isSelected is the post-click state.
-          if (item.isSelected && unconfiguredBaseIds.has(base.id)) {
+          const isSelected = item.isSelected === true
+          lastPickIntentByBaseIdRef.current.set(base.id, isSelected)
+          if (isSelected && unconfiguredBaseIds.has(base.id)) {
             if (!onLinkBase || !(await onLinkBase(base))) {
               // Roll the panel's selection state back through the provider — `item` here is
               // a copy, so mutating it would leave the panel checked.
@@ -141,8 +146,11 @@ const useKnowledgeBaseToolController = ({
               return
             }
           }
+          // A newer pick on the same base (e.g. an un-select while this pick's PATCH was
+          // in flight) owns the selection now; committing this one would undo it.
+          if (lastPickIntentByBaseIdRef.current.get(base.id) !== isSelected) return
           const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
-          if (item.isSelected) {
+          if (isSelected) {
             nextSelectedIds.add(base.id)
           } else {
             nextSelectedIds.delete(base.id)
