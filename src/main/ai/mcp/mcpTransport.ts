@@ -11,9 +11,10 @@ import {
   getBuiltinRegistryEnv,
   hasInMemoryImplementation
 } from '@main/ai/mcp/servers/factory'
+import { getBinaryExecutionEnv, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv, hasUserMiseEnv, resolveCherryPathTailDirs } from '@main/utils/shellEnv'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import { redactDeep } from '@shared/utils/redaction'
@@ -160,8 +161,15 @@ async function createStdio(
   // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
   const connectEnv: Record<string, string> = { ...server.env }
 
-  // Note: getShellEnv() is memoized, so subsequent calls are fast
-  const loginShellEnv = await getShellEnv()
+  // Preserve the user's MISE contract when they have one so system mise shims
+  // (e.g. pnpx) aren't redirected to Cherry's isolated data dir (#19738).
+  // When no MISE_* is present, inject Cherry's execution env so shims from
+  // getBinarySearchDirs() (getBinaryShimsDir) resolve against Cherry's data dir
+  // instead of the default user location, matching DSH/Pi branching.
+  const rawShellEnv = await getRawShellEnv()
+  const hasUserMise = hasUserMiseEnv(rawShellEnv)
+  const baseShellEnv = mergePathSuffixes(rawShellEnv, resolveCherryPathTailDirs(hasUserMise))
+  const loginShellEnv = hasUserMise ? baseShellEnv : { ...baseShellEnv, ...getBinaryExecutionEnv() }
 
   // For package servers, use resolved configuration with platform overrides and variable substitution
   if (server.dxtPath) {

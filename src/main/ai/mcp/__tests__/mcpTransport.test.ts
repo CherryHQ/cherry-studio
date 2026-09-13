@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 
@@ -18,8 +19,16 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({})
 })
-vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
+vi.mock('electron', () => ({
+  app: { isPackaged: false, getAppPath: vi.fn(() => ''), getPath: vi.fn(() => '/mock') },
+  net: { fetch: vi.fn() }
+}))
+const rawShellEnvMock = vi.hoisted(() => ({ value: { PATH: '/shell/bin' } as Record<string, string> }))
+vi.mock('@main/utils/shellEnv', async (importOriginal) => ({
+  ...(await importOriginal<typeof ShellEnvModule>()),
+  getShellEnv: async () => ({ PATH: '/shell/bin' }),
+  getRawShellEnv: async () => ({ ...rawShellEnvMock.value })
+}))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',
   findCommandInShellEnv: async () => null
@@ -148,9 +157,38 @@ describe('createTransport', () => {
 
     expect(transport.params.command).toBe('/usr/local/bin/npx')
     expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
-    expect(transport.params.env.PATH).toBe('/shell/bin')
+    const pathValue = transport.params.env.PATH as string
+    // Full fallback order: user entries first, then Cherry's shims, bundled
+    // binaries, and git tail — nothing else, in layout order.
+    const normalizedPath = pathValue.replace(/\\/g, '/')
+    expect(normalizedPath.split(/[:;]/)).toEqual(['/shell/bin', '/mock/feature.binary.data/shims', '/mock/cherry.bin'])
+    // With no user mise, Cherry's execution env keeps its shims resolvable.
+    expect(transport.params.env.MISE_DATA_DIR).toBe('/mock/feature.binary.data')
     expect(transport.params.stderr).toBe('pipe')
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'ignores a lowercase `path` variable when building the stdio PATH',
+    async () => {
+      // POSIX env keys are case-sensitive: a stray lowercase `path` must not
+      // leak segments into the spawned server's PATH, and stays untouched.
+      rawShellEnvMock.value = { PATH: '/shell/bin', path: '/stray/evil' }
+      try {
+        const transport = (await create({
+          type: 'stdio',
+          command: 'npx',
+          registryUrl: 'https://registry.example'
+        })) as unknown as FakeStdioTransport
+
+        const pathValue = transport.params.env.PATH as string
+        expect(pathValue.split(':')).not.toContain('/stray/evil')
+        expect(pathValue.split(':')[0]).toBe('/shell/bin')
+        expect(transport.params.env.path).toBe('/stray/evil')
+      } finally {
+        rawShellEnvMock.value = { PATH: '/shell/bin' }
+      }
+    }
+  )
 
   it('forwards stdio stderr to the server log, skipping empty chunks', async () => {
     const entries: McpServerLogEntry[] = []

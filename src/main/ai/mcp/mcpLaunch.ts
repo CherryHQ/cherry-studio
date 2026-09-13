@@ -84,7 +84,9 @@ export async function resolveLaunchCommand({
     return { command: resolved, args, env }
   }
 
-  const systemPath = await findExecutableInEnv(normalizedCommand)
+  // Package managers resolve against the same mise-aware env the server spawns
+  // with; the shared cached shell env can still carry Cherry's isolated MISE_*.
+  const systemPath = await findExecutableInEnv(normalizedCommand, loginShellEnv)
   if (systemPath) {
     logger.debug(`Using system ${normalizedCommand}`, { command: systemPath })
     return { command: systemPath, args, env }
