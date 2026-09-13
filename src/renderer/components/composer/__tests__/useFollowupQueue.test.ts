@@ -801,6 +801,11 @@ describe('useFollowupQueue', () => {
       { id: 'bad-payload', draft: draft('x'), payload: 'nope' },
       { id: 'bad-models', draft: draft('x'), payload: { ...validPayload, mentionedModels: 'nope' } },
       { id: 'bad-attachments', draft: draft('x'), payload: { ...validPayload, attachments: {} } },
+      { id: 'bad-attachment-element', draft: draft('x'), payload: { ...validPayload, attachments: [null] } },
+      { id: 'bad-part-element', draft: draft('x'), payload: { ...validPayload, userMessageParts: [null] } },
+      { id: 'bad-part-type', draft: draft('x'), payload: { ...validPayload, userMessageParts: [{}] } },
+      { id: 'bad-part-text', draft: draft('x'), payload: { ...validPayload, userMessageParts: [{ type: 'text' }] } },
+      { id: 'bad-payload-text', draft: draft('x'), payload: { ...validPayload, text: undefined } },
       { id: '', draft: draft('x'), payload: payload('x') }
     ])
     const { result } = renderHook(() =>
@@ -808,7 +813,7 @@ describe('useFollowupQueue', () => {
     )
 
     // Only the well-formed entry survives (the dock calls tokens.some/text.trim,
-    // filters on token.kind, and edit-restore maps mentionedModels).
+    // filters on token.kind, and edit-restore reads part types/text + payload text).
     expect(result.current.items.map((i) => i.id)).toEqual(['good'])
   })
 
@@ -1180,6 +1185,73 @@ describe('useFollowupQueue', () => {
     })
     expect(onDrain).toHaveBeenCalledTimes(1)
     expect(persistedTexts('s1')).toEqual(['new'])
+  })
+
+  it('a manual steer success after a scope switch dequeues from the claim scope', async () => {
+    MockCacheUtils.setInitialState({
+      memory: [
+        [keyFor('sA'), { items: [item('x', 'ex')], paused: false }],
+        [keyFor('sB'), { items: [], paused: false }]
+      ]
+    })
+    const { result, rerender } = renderHook(
+      ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() }),
+      { initialProps: { scopeKey: 'sA' } }
+    )
+    const headId = result.current.items[0].id
+    act(() => {
+      expect(result.current.tryClaimSend(headId)).toBe(true)
+    })
+
+    // Scope switches while the manual send is pending; the send succeeds.
+    act(() => {
+      rerender({ scopeKey: 'sB' })
+    })
+    act(() => {
+      result.current.removeId(headId)
+    })
+    act(() => {
+      result.current.releaseSend(headId)
+    })
+
+    // The sent item is gone from its own scope (not redelivered on revisit),
+    // and the other scope is untouched.
+    expect(persistedTexts('sA')).toEqual([])
+    expect(persistedTexts('sB')).toEqual([])
+    act(() => {
+      rerender({ scopeKey: 'sA' })
+    })
+    expect(result.current.items).toEqual([])
+  })
+
+  it('the cross-instance subscription follows scope switches', () => {
+    const s1Writer = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's1', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+    )
+    const s2Writer = renderHook(() =>
+      useFollowupQueue({ scopeKey: 's2', isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() })
+    )
+    const { result, rerender } = renderHook(
+      ({ scopeKey }) => useFollowupQueue({ scopeKey, isFulfilled: false, markSeen: vi.fn(), onDrain: vi.fn() }),
+      { initialProps: { scopeKey: 's1' } }
+    )
+
+    act(() => {
+      rerender({ scopeKey: 's2' })
+    })
+    expect(result.current.items).toEqual([])
+
+    // Writes to the previous scope after switching away must not leak in...
+    act(() => {
+      s1Writer.result.current.enqueue(draft('a'), payload('a'))
+    })
+    expect(result.current.items).toEqual([])
+
+    // ...while writes to the current scope reload live.
+    act(() => {
+      s2Writer.result.current.enqueue(draft('b'), payload('b'))
+    })
+    expect(result.current.items.map((i) => i.draft.text)).toEqual(['b'])
   })
 
   it('tryClaimSend fails while an auto-drain is in flight', async () => {

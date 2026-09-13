@@ -60,18 +60,30 @@ function loadState(scopeKey: string): FollowupQueueState {
           if (draft.tokens.some((token) => token == null || typeof token !== 'object' || Array.isArray(token)))
             return false
           const queuePayload = candidate.payload as {
+            text?: unknown
             attachments?: unknown
             userMessageParts?: unknown
             mentionedModels?: unknown
           }
           // Null elements throw on property access downstream (`part.type` in the
-          // knowledge-base extractor, `attachment.path` in file-part building).
+          // knowledge-base extractor, `attachment.path` in file-part building), and
+          // a text part without string text throws in history-text extraction.
           const isObjectList = (value: unknown): value is object[] =>
             Array.isArray(value) &&
             value.every((element) => element !== null && typeof element === 'object' && !Array.isArray(element))
+          const isPartList = (value: unknown): value is object[] =>
+            isObjectList(value) &&
+            value.every((element) => {
+              const part = element as { type?: unknown; text?: unknown }
+              return typeof part.type === 'string' && (part.type !== 'text' || typeof part.text === 'string')
+            })
+          // `text` is required by ComposerQueuedMessagePayload (the builder always
+          // sets it, `''` for attachment-only sends); the send path hands it to
+          // onSend untouched.
+          if (typeof queuePayload.text !== 'string') return false
           return (
             (queuePayload.attachments == null || isObjectList(queuePayload.attachments)) &&
-            (queuePayload.userMessageParts == null || isObjectList(queuePayload.userMessageParts)) &&
+            (queuePayload.userMessageParts == null || isPartList(queuePayload.userMessageParts)) &&
             (queuePayload.mentionedModels == null || Array.isArray(queuePayload.mentionedModels))
           )
         })
@@ -317,6 +329,11 @@ export function useFollowupQueue({
   const failHeadRef = useRef(failHead)
   failHeadRef.current = failHead
 
+  // Manual-steer claim (id + the scope it was taken in): the composer awaits the
+  // send itself, so a scope switch mid-send must not strand the dequeue or the
+  // claim release in the wrong scope. Read by removeId/releaseSend below.
+  const manualClaimRef = useRef<{ id: string; scope: string } | null>(null)
+
   const removeIdRef = useRef<(id: string) => void>(() => {})
 
   // Resolution for a send whose queue moved on before it settled (scope switch /
@@ -441,13 +458,15 @@ export function useFollowupQueue({
   // Cross-instance sync + dead-claim reconcile for the active scope. A marker whose
   // send is no longer live anywhere in this page (crashed owner) would otherwise
   // block the head forever — and there is nothing left that could clear it.
+  // Uses the scopeKey prop (not the ref, which the switch effect below may not
+  // have updated yet — effects run in declaration order, so this one runs first
+  // and would otherwise stay subscribed to the previous conversation).
   useEffect(() => {
-    const scope = scopeKeyRef.current
-    const entry = loadState(scope)
+    const entry = loadState(scopeKey)
     if (entry.pendingDrainId && !liveSends.has(entry.pendingDrainId)) {
-      clearPendingInScope(scope, entry.pendingDrainId)
+      clearPendingInScope(scopeKey, entry.pendingDrainId)
     }
-    return subscribeScope(scope, () => {
+    return subscribeScope(scopeKey, () => {
       if (mountedRef.current) syncFromEntry()
     })
   }, [scopeKey, syncFromEntry])
@@ -545,6 +564,15 @@ export function useFollowupQueue({
 
   const removeId = useCallback(
     (id: string) => {
+      // A manual steer success landing after a scope switch: the item lives in the
+      // scope the claim was taken in, not the current one. Dequeue it there (surgical
+      // entry op, no live-state touch); otherwise the sent item stays queued and is
+      // delivered again when the original scope is revisited.
+      const claim = manualClaimRef.current
+      if (claim && claim.id === id && claim.scope !== scopeKeyRef.current) {
+        removeIdFromScope(claim.scope, id)
+        return
+      }
       const wasFailed = failedItemIdRef.current === id
       const wasDraining = drainingIdRef.current === id
       if (wasDraining) {
@@ -604,7 +632,6 @@ export function useFollowupQueue({
 
   // Shared exclusive claim between the auto-drain paths and manual steers: only one
   // send may be in flight per queue, whichever path started it.
-  const manualClaimRef = useRef<{ id: string; scope: string } | null>(null)
   const tryClaimSend = useCallback(
     (id: string) => {
       // A pending auto-drain for the same payload blocks a manual steer of it, as does
