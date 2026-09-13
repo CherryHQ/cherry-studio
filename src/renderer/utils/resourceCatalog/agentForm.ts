@@ -152,11 +152,13 @@ export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState):
     dirty = true
   }
   if (baseline.planModel !== next.planModel) {
-    dto.planModel = next.planModel || undefined
+    // null (not undefined) so the PATCH clears the column — undefined would be
+    // dropped as "field not provided" and the old override would survive.
+    dto.planModel = next.planModel || null
     dirty = true
   }
   if (baseline.smallModel !== next.smallModel) {
-    dto.smallModel = next.smallModel || undefined
+    dto.smallModel = next.smallModel || null
     dirty = true
   }
   if (baseline.instructions !== next.instructions) {

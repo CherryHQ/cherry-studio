@@ -37,6 +37,15 @@ describe('AgentEntitySchema', () => {
     expect(UpdateAgentSchema.safeParse({ skillIds: ['skill-b'] }).success).toBe(false)
   })
 
+  it('accepts null model tiers on update: null clears the override, invalid ids stay rejected', () => {
+    const parsed = UpdateAgentSchema.parse({ planModel: null, smallModel: null })
+    expect(parsed.planModel).toBeNull()
+    expect(parsed.smallModel).toBeNull()
+
+    expect(UpdateAgentSchema.parse({ planModel: 'openai::gpt-4' }).planModel).toBe('openai::gpt-4')
+    expect(UpdateAgentSchema.safeParse({ planModel: 'no-separator' }).success).toBe(false)
+  })
+
   it('validates the persisted agent reasoning effort', () => {
     expect(AgentConfigurationSchema.parse({ reasoning_effort: 'high' }).reasoning_effort).toBe('high')
     expect(AgentConfigurationSchema.safeParse({ reasoning_effort: 'invalid' }).success).toBe(false)

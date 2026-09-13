@@ -209,6 +209,22 @@ describe('AgentService', () => {
       })
     })
 
+    it('clears plan and small models when PATCHed with null', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+
+      const updated = agentService.updateAgent(created.id, { planModel: null, smallModel: null })
+
+      // The entity reports the tiers as unset; the row itself holds SQL NULL.
+      expect(updated).toMatchObject({ planModel: undefined, smallModel: undefined })
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, created.id))
+      expect(row.planModel).toBeNull()
+      expect(row.smallModel).toBeNull()
+    })
+
     it('does not mislabel non-skill FK failures as stale selected skills', async () => {
       const error = captureError(() =>
         createAgentForTest({
