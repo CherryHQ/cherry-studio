@@ -944,7 +944,7 @@ const TranslatePage: FC = () => {
             ? await window.api.file.readExternal(file.path, true)
             : await window.api.fs.readText(file.path)
           let pendingHistory = cacheService.get('translate.history_restore_pending')
-          while (!isMountedRef.current && pendingHistory && readIntentRevision <= pendingHistory.intentRevision) {
+          while (pendingHistory && readIntentRevision <= pendingHistory.intentRevision) {
             await pendingHistory.barrier
             pendingHistory = cacheService.get('translate.history_restore_pending')
           }
