@@ -2309,7 +2309,7 @@ describe('AgentSessionRuntimeService', () => {
       )
     })
 
-    it('restores a tool input start for deltas that arrive after persistence', async () => {
+    it('drops orphan tool deltas and restores the full input on available', async () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
       const entry = getEntry(service)
@@ -2353,11 +2353,23 @@ describe('AgentSessionRuntimeService', () => {
           ]
         }
       })
-      // The tool-input-start went to the pre-persist stream; only the delta reaches the accumulator.
+      // The tool-input-start went to the pre-persist stream, so the SDK holds no
+      // raw-text prefix for this call: the suffix is dropped to preserve the
+      // seed prefix, and the later available (full input) restores the part.
       ;(service as any).handleRuntimeEvent(entry, {
         type: 'background-flow-chunk',
         rootToolCallId: 'task-root',
-        chunk: { type: 'tool-input-delta', toolCallId: 'sub-tool-1', inputTextDelta: '{"command":"echo hi"}' }
+        chunk: { type: 'tool-input-delta', toolCallId: 'sub-tool-1', inputTextDelta: ' hi"}' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'sub-tool-1',
+          toolName: 'Bash',
+          input: { command: 'echo hi' }
+        }
       })
       ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
 
@@ -2369,6 +2381,7 @@ describe('AgentSessionRuntimeService', () => {
             expect.objectContaining({
               type: 'tool-Bash',
               toolCallId: 'sub-tool-1',
+              state: 'input-available',
               input: { command: 'echo hi' }
             })
           ])
@@ -2451,6 +2464,79 @@ describe('AgentSessionRuntimeService', () => {
         'Detached subagent flow accumulator failed',
         expect.anything()
       )
+    })
+
+    it('errors incomplete tool calls at detached flush', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      entry.currentTurn.controller = { enqueue: vi.fn() } as never
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'task-root',
+          toolName: 'Agent',
+          input: { prompt: 'Audit the codebase' }
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: true })
+      service.markTurnTerminal('session-1', 'success')
+      service.beginTurn({
+        ...baseTurnInput,
+        assistantMessageId: 'assistant-2',
+        userMessage: userMessage('user-2')
+      })
+      // The subagent ends without sending `tool-input-available` for its tool,
+      // so the flush must not persist the call stuck in `input-streaming`.
+      mocks.getSessionMessage.mockReturnValue({
+        id: 'assistant-1',
+        role: 'assistant',
+        data: {
+          parts: [
+            {
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available',
+              input: { prompt: 'Audit the codebase' }
+            },
+            {
+              type: 'tool-Bash',
+              toolCallId: 'sub-tool-1',
+              state: 'input-streaming',
+              input: { command: 'echo' }
+            }
+          ]
+        }
+      })
+      // The orphan suffix is dropped (no raw prefix to continue from), which
+      // still creates the accumulator, so the flush below finalizes its seed.
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-flow-chunk',
+        rootToolCallId: 'task-root',
+        chunk: { type: 'tool-input-delta', toolCallId: 'sub-tool-1', inputTextDelta: ' hi"}' }
+      })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-work-state', active: false })
+
+      await vi.waitFor(() => {
+        expect(mocks.replaceMessageParts).toHaveBeenCalledWith(
+          'session-1',
+          'assistant-1',
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: 'tool-Agent',
+              toolCallId: 'task-root',
+              state: 'input-available'
+            }),
+            expect.objectContaining({
+              type: 'tool-Bash',
+              toolCallId: 'sub-tool-1',
+              state: 'output-error'
+            })
+          ])
+        )
+      })
     })
 
     it('publishes detached flow overlays under independent message keys', () => {

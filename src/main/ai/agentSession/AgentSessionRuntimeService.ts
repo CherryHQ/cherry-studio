@@ -2115,6 +2115,8 @@ export class AgentSessionRuntimeService extends BaseService {
         const kind = chunk.type === 'text-delta' ? 'text' : 'reasoning'
         const key = `${kind}:${chunk.id}`
         if (!accumulator.openParts.has(key)) {
+          // Same split as `buildCompactReplay`: the seed keeps the persisted
+          // prefix and the continuation streams as a new part. No text is lost.
           accumulator.openParts.add(key)
           queue.push(kind === 'text' ? { type: 'text-start', id: chunk.id } : { type: 'reasoning-start', id: chunk.id })
         }
@@ -2141,12 +2143,11 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'tool-input-delta': {
         if (!accumulator.openTools.has(chunk.toolCallId)) {
-          // The start raced persistence: the seed still holds the tool part, so
-          // restore its identity and synthesize the start the SDK requires.
-          const seedTool = this.seedToolIdentity(accumulator, chunk.toolCallId)
-          if (!seedTool) break
-          accumulator.openTools.set(chunk.toolCallId, seedTool)
-          queue.push({ type: 'tool-input-start', toolCallId: chunk.toolCallId, ...seedTool })
+          // The start raced persistence, so the SDK holds no raw-text prefix
+          // for this call and the seed holds only the parsed prefix. A suffix
+          // would reset the seed input, so drop it and let the later
+          // `tool-input-available` (full input) restore the part.
+          break
         }
         queue.push(chunk)
         break
@@ -2188,21 +2189,6 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private seedToolIdentity(
-    accumulator: BackgroundFlowAccumulator,
-    toolCallId: string
-  ): { toolName: string; dynamic?: boolean } | undefined {
-    for (const part of accumulator.latest?.parts ?? []) {
-      if (part.type === 'dynamic-tool' && part.toolCallId === toolCallId) {
-        return { toolName: part.toolName, dynamic: true }
-      }
-      if (part.type.startsWith('tool-') && 'toolCallId' in part && part.toolCallId === toolCallId) {
-        return { toolName: part.type.slice('tool-'.length) }
-      }
-    }
-    return undefined
-  }
-
   private completeSeedStreamingPart(accumulator: BackgroundFlowAccumulator, kind: 'text' | 'reasoning'): boolean {
     const parts = accumulator.latest?.parts
     if (!parts) return false
@@ -2222,6 +2208,16 @@ export class AgentSessionRuntimeService extends BaseService {
       if ((part.type === 'text' || part.type === 'reasoning') && part.state === 'streaming') {
         changed = true
         return { ...part, state: 'done' as const }
+      }
+      // Only `input-streaming` tools are stuck: `input-available` is complete
+      // input awaiting execution, so the flush must leave it alone.
+      if (
+        (part.type.startsWith('tool-') || part.type === 'dynamic-tool') &&
+        'state' in part &&
+        part.state === 'input-streaming'
+      ) {
+        changed = true
+        return { ...part, state: 'output-error' as const, errorText: 'Stream errored before tool completed' }
       }
       return part
     })
@@ -2354,7 +2350,8 @@ export class AgentSessionRuntimeService extends BaseService {
           if (!parts) continue
           completedMessageIds.add(accumulator.messageId)
           // The flush is terminal: no more ends can arrive, so a part still marked
-          // streaming would persist as streaming forever. Close it as done instead.
+          // streaming would persist as streaming forever. Close text/reasoning
+          // as done and error incomplete tools instead.
           const finalized = this.closeStreamingFlowParts(parts)
           agentSessionMessageService.replaceMessageParts(entry.sessionId, accumulator.messageId, finalized)
           completedFlows.push({ messageId: accumulator.messageId, parts: finalized })
