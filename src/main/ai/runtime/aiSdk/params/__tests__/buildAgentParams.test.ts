@@ -651,6 +651,67 @@ describe('buildAgentParams standard model parameters', () => {
     expect(result.options.maxOutputTokens).toBe(32_000)
   })
 
+  // A custom parameter is the assistant-side escape hatch: it must not smuggle sampling
+  // past the accept-gates a fixed-sampling model would 400 on.
+  it('drops a custom temperature parameter for a model that rejects sampling', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' } }
+    })
+    const model = makeModel({
+      id: 'dashscope::kimi-k3',
+      providerId: 'dashscope',
+      parameterSupport: {
+        temperature: { supported: false, min: 0, max: 1 },
+        topP: { supported: false, min: 0, max: 1 },
+        maxTokens: true,
+        stopSequences: true,
+        systemMessage: true
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [
+          { name: 'temperature', type: 'number', value: 0.7 },
+          { name: 'maxOutputTokens', type: 'number', value: 8000 }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.temperature).toBeUndefined()
+    expect(result.options.maxOutputTokens).toBe(8000)
+  })
+
+  it('keeps a custom temperature parameter for a model that accepts sampling', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    const assistant = makeAssistant({
+      settings: { customParameters: [{ name: 'temperature', type: 'number', value: 0.3 }] }
+    })
+
+    const result = await buildAgentParams({
+      request: { conversation: CONVERSATION },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.temperature).toBe(0.3)
+  })
+
   it('subtracts the effective API Gateway thinking override from the caller total-token cap', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
 

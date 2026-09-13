@@ -26,13 +26,7 @@ import {
 } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import {
-  isClaude47SeriesModel,
-  isFunctionCallingModel,
-  isGemini3Model,
-  isSupportTemperatureModel,
-  isSupportTopPModel
-} from '@shared/utils/model'
+import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 
@@ -59,7 +53,8 @@ import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
   getTemperature,
-  getTopP
+  getTopP,
+  modelAcceptsSamplingParam
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
@@ -585,10 +580,15 @@ function buildAgentOptions(
   if (assistant) {
     const temperature = getTemperature(assistant.settings, model, reasoning)
     const topP = getTopP(assistant.settings, model, reasoning)
+    // Custom parameters may carry sampling the model rejects — gate them like the values above.
+    const { temperature: customTemperature, topP: customTopP, ...customRest } = customParameters.standardParams
     standardParams = {
       ...(temperature !== undefined && { temperature }),
       ...(topP !== undefined && { topP }),
-      ...customParameters.standardParams
+      ...customRest,
+      ...(customTemperature !== undefined &&
+        modelAcceptsSamplingParam(model, 'temperature') && { temperature: customTemperature }),
+      ...(customTopP !== undefined && modelAcceptsSamplingParam(model, 'topP') && { topP: customTopP })
     }
 
     if (Object.keys(customParameters.providerParams).length > 0) {
@@ -714,14 +714,12 @@ export function applyCallOverrides(
   if (!callOverrides) return base
 
   const sampling: Partial<Record<string, unknown>> = {}
-  // Caller-supplied sampling honors the assistant path's family gates (Gemini 3.x /
-  // Claude 4.7 reject explicit sampling) plus the model's parameterSupport.
-  const rejectsSamplingParams = isGemini3Model(model) || isClaude47SeriesModel(model)
-  if (callOverrides.temperature !== undefined && !rejectsSamplingParams && isSupportTemperatureModel(model)) {
+  // Caller-supplied sampling honors the same accept-gates as the assistant path.
+  if (callOverrides.temperature !== undefined && modelAcceptsSamplingParam(model, 'temperature')) {
     sampling.temperature = callOverrides.temperature
   }
   if (callOverrides.maxOutputTokens !== undefined) sampling.maxOutputTokens = callOverrides.maxOutputTokens
-  if (callOverrides.topP !== undefined && !rejectsSamplingParams && isSupportTopPModel(model)) {
+  if (callOverrides.topP !== undefined && modelAcceptsSamplingParam(model, 'topP')) {
     sampling.topP = callOverrides.topP
   }
   if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK

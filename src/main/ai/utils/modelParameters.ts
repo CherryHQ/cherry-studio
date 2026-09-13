@@ -27,6 +27,17 @@ const logger = loggerService.withContext('modelParameters')
 /** The two sampling fields these gates read; `maxTokens` has no gate of its own. */
 export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemperature' | 'topP' | 'enableTopP'>
 
+/**
+ * Whether the model accepts this sampling parameter on the wire at all — false means any
+ * explicit value (from assistant settings, custom parameters, or gateway overrides) gets a
+ * provider-side 400: the fixed-sampling families (Gemini 3.x / Claude 4.7) and registry
+ * `parameterSupport: supported: false` declarations both lock sampling server-side.
+ */
+export function modelAcceptsSamplingParam(model: Model, key: 'temperature' | 'topP'): boolean {
+  if (isGemini3Model(model) || isClaude47SeriesModel(model)) return false
+  return key === 'temperature' ? isSupportTemperatureModel(model) : isSupportTopPModel(model)
+}
+
 /** `undefined` falls back to the provider default. */
 export function getTemperature(
   settings: GatedSampling,
