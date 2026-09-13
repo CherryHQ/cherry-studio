@@ -250,7 +250,7 @@ export function useFollowupQueue({
   // attempts fail, the row would otherwise sit `sending` until the reclaim
   // lease expires and a later claim replays an already-sent message. Retries
   // run on a timer and refetch on success so mirrors converge.
-  const scheduleResolveRetryRef = useRef((_id: string, _sent: boolean) => {})
+  const scheduleResolveRetryRef = useRef<(id: string, sent: boolean) => void>(() => {})
   scheduleResolveRetryRef.current = (id: string, sent: boolean) => {
     if (pendingResolveRef.current.has(id)) return
     const tick = () => {
