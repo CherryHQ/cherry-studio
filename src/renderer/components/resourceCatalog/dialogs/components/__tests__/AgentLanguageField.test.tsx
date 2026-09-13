@@ -61,6 +61,13 @@ describe('AgentLanguageField', () => {
     expect(screen.getByRole('button', { name: 'Reply language preset' })).toHaveTextContent('Klingon')
   })
 
+  it('treats "__follow__" as a custom language instead of the follow option', () => {
+    render(<AgentLanguageField value="__follow__" onChange={() => {}} {...props} />)
+
+    expect(screen.getByRole('button', { name: 'Reply language preset' })).toHaveTextContent('__follow__')
+    expect(screen.getByRole('textbox', { name: 'Custom reply language' })).toHaveValue('__follow__')
+  })
+
   it('associates the validation error with the custom input', async () => {
     const user = userEvent.setup()
     render(<AgentLanguageField value={null} onChange={() => {}} {...props} />)
