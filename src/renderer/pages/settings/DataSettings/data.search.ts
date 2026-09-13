@@ -44,7 +44,8 @@ export const entries: SettingsSearchEntry[] = [
     anchorId: 'data-reset',
     titleKey: 'settings.data.data_reset.title',
     panel: 'data',
-    groupKey: 'settings.data.data.title'
+    groupKey: 'settings.data.data.title',
+    aliases: ['reset', '恢复出厂', '清空数据']
   },
   {
     anchorId: 'data-privacy-mode',
