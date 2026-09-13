@@ -64,6 +64,22 @@ describe('searchKnowledge', () => {
       ['base2', 'README.md']
     ])
   })
+
+  it('maps a structured rerank warning without exposing provider details', async () => {
+    knowledgeSearchMock.mockResolvedValueOnce([
+      {
+        pageContent: 'fallback result',
+        score: 0.4,
+        metadata: { itemType: 'note' },
+        warning: { kind: 'rerank_failed', reason: 'provider_error' }
+      }
+    ])
+
+    const output = (await searchKnowledge('query', ['base1'], [])) as Array<Record<string, unknown>>
+
+    expect(output[0].warning).toEqual({ kind: 'rerank_failed', reason: 'provider_error' })
+    expect(JSON.stringify(output)).not.toContain('providerBody')
+  })
 })
 
 // `toModelOutput` re-runs over every stored tool part on each turn, so a part whose output no longer

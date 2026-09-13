@@ -147,6 +147,9 @@ vi.mock('react-i18next', () => ({
           'knowledge.recall.result_rank': `排序 #${options?.rank ?? 0}`,
           'knowledge.recall.result_relevance': `相关度 ${options?.score ?? 0}`,
           'knowledge.recall.ranking_only': '按排序返回',
+          'knowledge.recall.rerank_warning': '本次重排未完成，原始搜索结果仍可使用。',
+          'knowledge.recall.rerank_warning_input_too_large': '请缩短查询、减小分块或减少结果数量后重试。',
+          'knowledge.recall.rerank_warning_provider_error': '请检查重排服务商设置后重试。',
           'knowledge.recall.search_failed': '召回测试检索失败',
           'knowledge.recall.searching': '正在检索...',
           'knowledge.recall.submit': '检索',
@@ -287,6 +290,46 @@ describe('RecallTestPanel', () => {
     expect(screen.getByText('real result from file path')).toBeInTheDocument()
     expect(screen.queryByText('RAG 技术指南.pdf')).not.toBeInTheDocument()
     expect(screen.queryByText('知识库最佳实践.md')).not.toBeInTheDocument()
+  })
+
+  it('shows one safe warning for rerank fallback results', async () => {
+    mockIpcRequest.mockResolvedValueOnce(
+      realSearchResults.map((result) => ({
+        ...result,
+        warning: { kind: 'rerank_failed', reason: 'input_too_large' as const }
+      }))
+    )
+
+    render(<RecallTestPanel baseId="base-1" />)
+    fireEvent.change(screen.getByPlaceholderText('输入测试 Query...'), { target: { value: 'large query' } })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('本次重排未完成，原始搜索结果仍可使用。')).toHaveLength(1)
+    })
+    expect(screen.getByText('请缩短查询、减小分块或减少结果数量后重试。')).toBeInTheDocument()
+    expect(screen.queryByText(/provider response/i)).not.toBeInTheDocument()
+  })
+
+  it('clears a previous rerank warning after a successful search', async () => {
+    mockIpcRequest
+      .mockResolvedValueOnce([
+        { ...realSearchResults[0], warning: { kind: 'rerank_failed', reason: 'provider_error' as const } }
+      ])
+      .mockResolvedValueOnce(realSearchResults)
+
+    render(<RecallTestPanel baseId="base-1" />)
+    const input = screen.getByPlaceholderText('输入测试 Query...')
+    fireEvent.change(input, { target: { value: 'first query' } })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+    await screen.findByText('请检查重排服务商设置后重试。')
+
+    fireEvent.change(input, { target: { value: 'second query' } })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('本次重排未完成，原始搜索结果仍可使用。')).not.toBeInTheDocument()
+    })
   })
 
   it('does not rerender existing result cards while typing a new query', async () => {
