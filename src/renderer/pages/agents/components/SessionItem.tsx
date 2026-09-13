@@ -326,11 +326,12 @@ const SessionItem = ({
         />
       )}
 
-      <ResourceList.ItemActions active={isConfirmingDeletion}>
+      <ResourceList.ItemActions active={isConfirmingDeletion} pinned={pinned && showPinAction}>
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction
               aria-label={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')}
+              aria-pressed={pinned}
               className={cn(pinned && 'text-foreground')}
               onClick={handleTogglePinClick}>
               <PinIcon size={14} className={cn('size-3.5!', pinned && 'fill-current')} />
